@@ -1,0 +1,893 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+
+	.text @CODE, READONLY
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@ our wonderful WMMX debug tool @@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+	.macro BNIE_CHECK_REG_00 stop_flag, idx
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	mov     r3, sp			@core registers, but no sp
+	SUB     sp, sp, #256	@give enough head room
+	
+	@// Now we are safe to corrupt registers
+	mov	  r0, #\stop_flag
+	mov   r1, #\idx
+
+	mov   r2, sp
+	mov   r2, r2, lsr #3
+	mov   r2, r2, lsl #3
+	add	  r2, r2, #8		@8 byte aligned
+	mov	  sp, r2			@wmmx registers
+	str	  r3, [sp]			@entry sp
+	add	  r8, sp, #8
+	
+	wstrd   wr0,  [r8], #8
+	wstrd   wr1,  [r8], #8
+	wstrd   wr2,  [r8], #8
+	wstrd   wr3,  [r8], #8
+	wstrd   wr4,  [r8], #8
+	wstrd   wr5,  [r8], #8
+	wstrd   wr6,  [r8], #8
+	wstrd   wr7,  [r8], #8
+	wstrd   wr8,  [r8], #8
+	wstrd   wr9,  [r8], #8
+	wstrd   wr10, [r8], #8
+	wstrd   wr11, [r8], #8
+	wstrd   wr12, [r8], #8
+	wstrd   wr13, [r8], #8
+	wstrd   wr14, [r8], #8
+	wstrd   wr15, [r8]
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_reg_wmmx
+	MSR     cpsr_f, r4      @// restore flags
+
+	add		r8, sp, #8
+	wldrd   wr0,  [r8], #8
+	wldrd   wr1,  [r8], #8
+	wldrd   wr2,  [r8], #8
+	wldrd   wr3,  [r8], #8
+	wldrd   wr4,  [r8], #8
+	wldrd   wr5,  [r8], #8
+	wldrd   wr6,  [r8], #8
+	wldrd   wr7,  [r8], #8
+	wldrd   wr8,  [r8], #8
+	wldrd   wr9,  [r8], #8
+	wldrd   wr10, [r8], #8
+	wldrd   wr11, [r8], #8
+	wldrd   wr12, [r8], #8
+	wldrd   wr13, [r8], #8
+	wldrd   wr14, [r8], #8
+	wldrd   wr15, [r8]
+
+	ldr		sp, [sp]
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+
+	.macro BNIE_CHECK_MEM_00 idx, addr, offset, size
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	@// Now we are safe to corrupt registers
+	mov	  r12, \addr
+	mov	  r0, #\idx
+	mov	  r1, r12
+	mov   r2, #\offset
+	mov   r3, #\size
+
+	mov     r5, sp			@core registers, but no sp
+	SUB     sp, sp, #256	@give enough head room
+
+	mov   r6, sp
+	mov   r6, r6, lsr #3
+	mov   r6, r6, lsl #3
+	add	  r6, r6, #8		@8 byte aligned
+	mov	  sp, r6			@wmmx registers
+	str	  r5, [sp]			@entry sp
+	add	  r8, sp, #8
+	
+	wstrd   wr0,  [r8], #8
+	wstrd   wr1,  [r8], #8
+	wstrd   wr2,  [r8], #8
+	wstrd   wr3,  [r8], #8
+	wstrd   wr4,  [r8], #8
+	wstrd   wr5,  [r8], #8
+	wstrd   wr6,  [r8], #8
+	wstrd   wr7,  [r8], #8
+	wstrd   wr8,  [r8], #8
+	wstrd   wr9,  [r8], #8
+	wstrd   wr10, [r8], #8
+	wstrd   wr11, [r8], #8
+	wstrd   wr12, [r8], #8
+	wstrd   wr13, [r8], #8
+	wstrd   wr14, [r8], #8
+	wstrd   wr15, [r8], #8
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_mem_wmmx
+	MSR     cpsr_f, r4      @// restore flags
+
+	add		r8, sp, #8
+	wldrd   wr0,  [r8], #8
+	wldrd   wr1,  [r8], #8
+	wldrd   wr2,  [r8], #8
+	wldrd   wr3,  [r8], #8
+	wldrd   wr4,  [r8], #8
+	wldrd   wr5,  [r8], #8
+	wldrd   wr6,  [r8], #8
+	wldrd   wr7,  [r8], #8
+	wldrd   wr8,  [r8], #8
+	wldrd   wr9,  [r8], #8
+	wldrd   wr10, [r8], #8
+	wldrd   wr11, [r8], #8
+	wldrd   wr12, [r8], #8
+	wldrd   wr13, [r8], #8
+	wldrd   wr14, [r8], #8
+	wldrd   wr15, [r8], #8
+
+	ldr		sp, [sp]
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+
+src		.req	r0
+src_value	.req	r12
+alpha_rev	.req	r12
+
+dst		.req	r1
+alpha_color	.req	r2
+width0		.req	r3
+height		.req	r4
+srb		.req	r5
+drb		.req	r6
+alpha0		.req	r7
+width4		.req	r8
+width1		.req	r11
+
+w0		.req	r9
+w1		.req	r10
+w2		.req	r8
+
+dst_l	.req	r10
+dst_h	.req	r11
+
+dst_tmp_l	.req	r12
+dst_tmp_h	.req	r12
+
+wr_color_a	.req	wr7	@used in 32bits mode
+wr_color_r	.req	wr0
+wr_color_g	.req	wr1
+wr_color_b	.req	wr2
+
+wr_color_tmp	.req	wr3	@used in 32bits mode
+wr_color	.req	wr4
+
+wr_diff_h	.req	wr12
+wr_diff_l	.req	wr14
+wr_diff		.req	wr3
+
+wr_mask_5bits	.req	wr3
+wr_round_128	.req	wr9
+wr_round	.req	wr3
+
+wc_shift_r_11	.req	wcgr0
+wc_shift_r_10	.req	wcgr2
+wc_shift_r_7	.req	wcgr3
+wc_shift_l_11	.req	wcgr0
+wc_shift_r_16	.req	wcgr1
+
+wc_shift_r_8	.req	wcgr0
+wc_shift_l_8	.req	wcgr0
+
+wr_shift_l_5	.req	wr7
+wr_shift_r_6	.req	wr8
+wr_shift_r_2	.req	wr9
+
+wr_dst		.req	wr10
+wr_dst_1	.req	wr3	@used in 32bits mode
+
+wr_src_1	.req	wr11
+wr_src		.req	wr12
+wr_src_tmp	.req	wr13
+wr_src_bit7	.req	wr11
+wr_src_ext	.req	wr8
+
+wr_src_h32	.req	wr12
+wr_src_l32	.req	wr14
+wr_src_h32_bit7	.req	wr11
+wr_src_l32_bit7	.req	wr13
+
+wr_dst_ar	.req	wr10
+wr_dst_gb	.req	wr3
+
+wr_dst_h	.req	wr9
+wr_dst_l	.req	wr8
+
+wr_dst_a	.req	wr12
+
+wr_dst_r	.req	wr13
+wr_dst_g	.req	wr14
+wr_dst_b	.req	wr15
+
+wr_alpha	.req	wr11
+wr_alpha_h	.req	wr8
+wr_dst_alpha	.req	wr12
+wr_diff_alpha	.req	wr11
+
+wr_alpha_h32	.req	wr11
+wr_alpha_l32	.req	wr13
+
+wr_diff_a	.req	wr3	@used in 32bits mode
+wr_diff_r	.req	wr4
+wr_diff_g	.req	wr5
+wr_diff_b	.req	wr6
+
+wr_diff_a_h	.req	wr10	@used in 32bits mode
+wr_diff_r_h	.req	wr10
+wr_diff_g_h	.req	wr10
+wr_diff_b_h	.req	wr10
+
+wr_diff_h_h	.req	wr10
+wr_diff_l_h	.req	wr10
+
+
+.equ	REGIS_SHIFT,	(14*4)
+.equ	CACHE_SHIFT,	(0*4)
+.equ	SP_SHIFT,	(REGIS_SHIFT + CACHE_SHIFT)
+.equ	height_SHIFT,	(0*4 + SP_SHIFT)
+.equ	srb_SHIFT,	(1*4 + SP_SHIFT)
+.equ	drb_SHIFT,	(2*4 + SP_SHIFT)
+.equ	alpha0_SHIFT,	(3*4 + SP_SHIFT)
+
+	
+	.macro	ALPHA0_16RGBSE_255
+	WSRLH	wr_alpha, wr_alpha, wr_shift_r_2
+	.endm
+
+
+
+	.macro	ALPHA0_16RGBSE_generic
+	TBCSTH	wr_dst_alpha, alpha0
+	WMULUL	wr_alpha, wr_alpha, wr_dst_alpha
+
+	mov	w0, #512
+	TBCSTH	wr_round, w0
+
+	@change the rounding method
+	WADDHUS wr_alpha, wr_alpha, wr_round
+	@WADDH wr_alpha, wr_alpha, wr_round
+
+	@WADDHUS	wr_round, wr_alpha, wr_round
+	@WSRLHG	wr_alpha, wr_round, wc_shift_r_10
+
+	@WADDHUS	wr_alpha, wr_alpha, wr_round
+	WSRLHG	wr_alpha, wr_alpha, wc_shift_r_10
+	.endm
+
+	.macro BLEND_PIX_16RGB	alpha_range
+	WSRLHG	wr_dst_r, wr_dst, wc_shift_r_11
+	WSLLH	wr_dst_g, wr_dst, wr_shift_l_5
+
+	mov	w0, #0x1f
+	TBCSTH	wr_mask_5bits, w0
+	WAND	wr_dst_b, wr_dst, wr_mask_5bits
+
+	WSRLHG	wr_dst_g, wr_dst_g, wc_shift_r_10
+	
+	WSRLHG	wr_src_bit7, wr_src, wc_shift_r_7
+	WADDH	wr_alpha, wr_src, wr_src_bit7
+
+	ALPHA0_16RGBSE_\alpha_range
+
+	mov	w0, #32
+	@WSUBHSS	wr_diff_r, wr_color_r, wr_dst_r
+	WSUBH	wr_diff_r, wr_color_r, wr_dst_r
+	WMULSL	wr_diff_r, wr_diff_r, wr_alpha
+
+	@WSUBHSS	wr_diff_g, wr_color_g, wr_dst_g
+	WSUBH	wr_diff_g, wr_color_g, wr_dst_g
+	WMULSL	wr_diff_g, wr_diff_g, wr_alpha
+	
+	@WSUBHSS	wr_diff_b, wr_color_b, wr_dst_b
+	WSUBH	wr_diff_b, wr_color_b, wr_dst_b
+	WMULSL	wr_diff_b, wr_diff_b, wr_alpha
+
+	TBCSTH	wr_round, w0
+	@WADDHSS	wr_diff_r, wr_diff_r, wr_round
+	@WADDHSS	wr_diff_g, wr_diff_g, wr_round
+	@WADDHSS	wr_diff_b, wr_diff_b, wr_round
+
+	WADDH	wr_diff_r, wr_diff_r, wr_round
+	WADDH	wr_diff_g, wr_diff_g, wr_round
+	WADDH	wr_diff_b, wr_diff_b, wr_round
+
+	WSRAH	wr_diff_r, wr_diff_r, wr_shift_r_6
+	WSRAH	wr_diff_g, wr_diff_g, wr_shift_r_6
+	WSRAH	wr_diff_b, wr_diff_b, wr_shift_r_6
+
+	@WADDHSS	wr_dst_r, wr_dst_r, wr_diff_r
+	@WADDHSS	wr_dst_g, wr_dst_g, wr_diff_g
+	@WADDHSS	wr_dst_b, wr_dst_b, wr_diff_b
+
+	WADDH	wr_dst_r, wr_dst_r, wr_diff_r
+	WADDH	wr_dst_g, wr_dst_g, wr_diff_g
+	WADDH	wr_dst_b, wr_dst_b, wr_diff_b
+	
+	WSLLH	wr_dst_g, wr_dst_g, wr_shift_l_5
+	WSLLHG	wr_dst_r, wr_dst_r, wc_shift_l_11
+
+	@maybe should clear wr_dst at first
+	WOR	wr_dst, wr_dst_r, wr_dst_g
+	WOR	wr_dst, wr_dst_b, wr_dst
+	
+	.endm
+	
+
+	.macro alpha_blend_16rgbse alpha_value
+	stmfd sp!, {r0-r12, lr}
+
+	ldrb	alpha0, [alpha_color]
+	ldrb	w0, [alpha_color, #1]
+	mov	w0, w0, lsr #3
+
+	TBCSTH	wr_color_r, w0
+	ldrb	w1, [alpha_color, #2]
+	mov	w1, w1, lsr #2
+
+	TBCSTH	wr_color_g, w1
+	ldrb	w0, [alpha_color, #3]
+	mov	w0, w0, lsr #3
+
+	TBCSTH	wr_color_b, w0
+	ldr	height, [sp, #height_SHIFT]
+	ldr	srb, [sp, #srb_SHIFT]
+	ldr	drb, [sp, #drb_SHIFT]
+
+	mov	w1, #11
+	TMCR	wc_shift_r_11, w1
+	
+	mov	w0, #5
+	TBCSTB	wr_shift_l_5, w0
+
+	mov	w1, #10
+	TMCR	wc_shift_r_10, w1
+
+	mov	w0, #7
+	TMCR	wc_shift_r_7, w0
+
+	mov	w1, #6
+	TBCSTB	wr_shift_r_6, w1
+
+	mov	w0, #2
+	TBCSTB	wr_shift_r_2, w0
+
+	add	alpha0, alpha0, alpha0, lsr #7
+
+blend_16rgb_start_\alpha_value:
+	movs	width4, width0, lsr #2
+	beq	blend_16rgb_tail_3_\alpha_value
+
+blend_16rgb_iter_4_\alpha_value:
+	@load 4 src 8 bit alpha and extend to 16bits
+	ldrb	src_value, [src], #1
+	ldrb	w0, [src], #1
+	orr	src_value, src_value, w0, lsl #8
+	ldrb	w0, [src], #1
+	orr	src_value, src_value, w0, lsl #16
+	ldrb	w0, [src], #1
+	orr	src_value, src_value, w0, lsl #24
+
+	TINSRW	wr_src_1, src_value, #0
+	WUNPCKELUB	wr_src, wr_src_1
+
+	ldrh	dst_l, [dst]
+	ldrh	dst_h, [dst, #2]
+	orr	dst_tmp_l, dst_l, dst_h, lsl #16
+	TINSRW	wr_dst, dst_tmp_l, #0
+
+	ldrh	dst_l, [dst, #4]
+	ldrh	dst_h, [dst, #6]
+	orr	dst_tmp_h, dst_l, dst_h, lsl #16
+	TINSRW	wr_dst, dst_tmp_h, #1
+
+	BLEND_PIX_16RGB	\alpha_value
+
+	TMRRC	dst_l, dst_h, wr_dst
+
+	subs	width4, width4, #1
+
+	strh	dst_l, [dst], #2
+	lsr	dst_tmp_l, dst_l, #16
+	strh	dst_tmp_l, [dst], #2
+	
+	strh	dst_h, [dst], #2
+	lsr	dst_tmp_h, dst_h, #16
+	strh	dst_tmp_h, [dst], #2
+
+	bne	blend_16rgb_iter_4_\alpha_value
+
+blend_16rgb_tail_3_\alpha_value:
+	ands	w2, width0, #0x3
+	beq	blend_16rgb_tail_0_\alpha_value
+
+	movs	w2, w2, lsl #31
+	beq	blend_16rgb_tail_2_\alpha_value
+	bcc	blend_16rgb_tail_1_\alpha_value
+
+	ldrb	src_value, [src]
+	ldrb	w0, [src, #1]
+	orr	src_value, src_value, w0, lsl #8
+	ldrb	w0, [src, #2]
+	orr	src_value, src_value, w0, lsl #16
+	orr	src_value, src_value, w0, lsl #24
+
+	TINSRW	wr_src_1, src_value, #0
+	WUNPCKELUB	wr_src, wr_src_1
+
+	ldrh	dst_l, [dst]
+	ldrh	dst_h, [dst, #2]
+	orr	dst_tmp_l, dst_l, dst_h, lsl #16
+	TINSRW	wr_dst, dst_tmp_l, #0
+
+	ldrh	dst_l, [dst, #4]
+	ldrh	dst_h, [dst, #4]
+	orr	dst_tmp_h, dst_l, dst_h, lsl #16
+	TINSRW	wr_dst, dst_tmp_h, #1
+
+	BLEND_PIX_16RGB	\alpha_value
+
+	TMRRC	dst_l, dst_h, wr_dst
+
+	add src, src, #3
+	strh	dst_l, [dst], #2
+	lsr	dst_tmp_l, dst_l, #16
+	strh	dst_tmp_l, [dst], #2
+	strh	dst_h, [dst], #2
+
+	b	blend_16rgb_tail_0_\alpha_value
+
+blend_16rgb_tail_2_\alpha_value:
+	ldrb	src_value, [src]
+	ldrb	w0, [src, #1]
+	orr	src_value, src_value, w0, lsl #8
+
+	TINSRW	wr_src_1, src_value, #0
+	WUNPCKELUB	wr_src, wr_src_1
+
+	ldrh	dst_l, [dst]
+	ldrh	dst_h, [dst, #2]
+	orr	dst_tmp_l, dst_l, dst_h, lsl #16
+	TINSRW	wr_dst, dst_tmp_l, #0
+
+	BLEND_PIX_16RGB \alpha_value
+	TMRRC	dst_l, dst_h, wr_dst
+
+	add	src, src, #2
+	strh	dst_l, [dst], #2
+	lsr	dst_tmp_l, dst_l, #16
+	strh	dst_tmp_l, [dst], #2
+
+	b	blend_16rgb_tail_0_\alpha_value
+
+blend_16rgb_tail_1_\alpha_value:
+	ldrb	src_value, [src]
+	TINSRW	wr_src_1, src_value, #0
+	WUNPCKELUB	wr_src, wr_src_1
+	ldrh	dst_l, [dst]
+	TINSRW	wr_dst, dst_l, #0
+	BLEND_PIX_16RGB \alpha_value
+	TMRRC	dst_l, dst_h, wr_dst
+	
+	add	src, src, #1
+	strh	dst_l, [dst], #2
+	
+blend_16rgb_tail_0_\alpha_value:
+	subs	height, #1
+	addne	dst, dst, drb
+	addne	src, src, srb
+	bne	blend_16rgb_start_\alpha_value
+
+	ldmfd	sp!, {r0-r12, pc}
+
+	.endm
+
+
+	.global alpha_blend_255_16rgbse_wmmx
+	.type	alpha_blend_255_16rgbse_wmmx, %function
+	.align 4
+
+alpha_blend_255_16rgbse_wmmx:
+	.fnstart
+	alpha_blend_16rgbse 255
+	.fnend
+
+	.global alpha_blend_generic_16rgbse_wmmx
+	.type alpha_blend_generic_16rgbse_wmmx, %function
+	.align 4
+
+alpha_blend_generic_16rgbse_wmmx:
+	.fnstart
+	alpha_blend_16rgbse generic
+	.fnend
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+	.macro	ALPHA0_32ARGB_255 reg
+	.endm
+
+	.macro	ALPHA0_32ARGB_32_255 reg
+	.endm
+
+	.macro	ALPHA0_32ARGB_generic reg
+
+	TBCSTH	wr_diff_alpha, alpha0
+	WMULUL	\reg, \reg, wr_diff_alpha
+
+	WSRLHG	\reg, \reg, wc_shift_r_8
+	.endm
+
+	.macro	ALPHA0_32ARGB_32_generic reg
+	TBCSTW	wr_diff_alpha, alpha0
+	WMULWL	\reg, \reg, wr_diff_alpha
+	WSRLWG	\reg, \reg, wc_shift_r_8
+	.endm
+
+	.macro SPLIT_32ARGB
+
+	WUNPCKIHB	wr_dst_h, wr_dst, wr_dst_1
+	WUNPCKILB	wr_dst_l, wr_dst, wr_dst_1
+
+	WUNPCKIHB	wr_dst_ar, wr_dst_l, wr_dst_h
+	WUNPCKILB	wr_dst_gb, wr_dst_l, wr_dst_h
+
+	WUNPCKEHUB	wr_dst_a, wr_dst_ar
+	WUNPCKELUB	wr_dst_r, wr_dst_ar
+
+	WUNPCKEHUB	wr_dst_g, wr_dst_gb
+	WUNPCKELUB	wr_dst_b, wr_dst_gb
+
+	.endm
+
+
+	.macro BLEND_2_PIX_32ARGB alpha_value
+
+	ALPHA0_32ARGB_32_\alpha_value wr_src_h32
+	ALPHA0_32ARGB_32_\alpha_value wr_src_l32
+
+	WSRLWG	wr_src_h32_bit7, wr_src_h32, wc_shift_r_7
+	WADDWUS	wr_alpha_h32, wr_src_h32, wr_src_h32_bit7
+	WSRLWG	wr_src_l32_bit7, wr_src_l32, wc_shift_r_7
+	WADDWUS	wr_alpha_l32, wr_src_l32, wr_src_l32_bit7
+
+	@split 2 pixels in one wr register to 2 wr register
+	WUNPCKEHUB	wr_dst_h, wr_dst
+	WUNPCKELUB	wr_dst_l, wr_dst
+
+	WLDRW	wr_color, [alpha_color]
+	WUNPCKELUB	wr_color_tmp, wr_color
+	WSHUFH	wr_color, wr_color_tmp, #0x1b
+	mov w0, #255
+	TINSRH	wr_color, w0, #3
+
+	WSUBH	wr_diff_h, wr_color, wr_dst_h
+	WSUBH	wr_diff_l, wr_color, wr_dst_l
+
+	WUNPCKEHSH	wr_diff_h_h, wr_diff_h
+	WUNPCKELSH	wr_diff_h, wr_diff_h
+	WMULWL	wr_diff_h_h, wr_diff_h_h, wr_alpha_h32
+	WMULWL	wr_diff_h, wr_diff_h, wr_alpha_h32
+
+	mov	w0, #128
+	TBCSTW	wr_round, w0
+
+	WADDWSS	wr_diff_h_h, wr_round, wr_diff_h_h
+	WSRAWG	wr_diff_h_h, wr_diff_h_h, wc_shift_r_8
+	WADDWSS	wr_diff_h, wr_round, wr_diff_h
+	WSRAWG	wr_diff_h, wr_diff_h, wc_shift_r_8
+	WPACKWSS wr_diff_h, wr_diff_h, wr_diff_h_h
+
+	WUNPCKEHSH	wr_diff_l_h, wr_diff_l
+	WUNPCKELSH	wr_diff_l, wr_diff_l
+	WMULWL	wr_diff_l_h, wr_diff_l_h, wr_alpha_l32
+	WMULWL	wr_diff_l, wr_diff_l, wr_alpha_l32
+	
+	WADDWSS	wr_diff_l_h, wr_round, wr_diff_l_h
+	WSRAWG	wr_diff_l_h, wr_diff_l_h, wc_shift_r_8
+	WADDWSS	wr_diff_l, wr_round, wr_diff_l
+	WSRAWG	wr_diff_l, wr_diff_l, wc_shift_r_8
+	WPACKWSS wr_diff_l, wr_diff_l, wr_diff_l_h
+
+	WADDHSS	wr_dst_h, wr_dst_h, wr_diff_h
+	WADDHSS	wr_dst_l, wr_dst_l, wr_diff_l
+	
+	.endm
+
+
+	.macro BLEND_4_PIX_32ARGB alpha_value
+
+	ALPHA0_32ARGB_\alpha_value wr_src
+
+	WSRLHG	wr_src_bit7, wr_src, wc_shift_r_7
+	WADDHUS	wr_alpha, wr_src, wr_src_bit7
+
+	SPLIT_32ARGB
+
+	WUNPCKEHUH	wr_alpha_h, wr_alpha
+	WUNPCKELUH	wr_alpha, wr_alpha
+
+	WSUBH	wr_diff_a, wr_color_a, wr_dst_a
+	WSUBH	wr_diff_r, wr_color_r, wr_dst_r
+	WSUBH	wr_diff_g, wr_color_g, wr_dst_g
+	WSUBH	wr_diff_b, wr_color_b, wr_dst_b
+
+	WUNPCKEHSH	wr_diff_a_h, wr_diff_a
+	WUNPCKELSH	wr_diff_a, wr_diff_a
+	WMULWL	wr_diff_a_h, wr_diff_a_h, wr_alpha_h
+	WMULWL	wr_diff_a, wr_diff_a, wr_alpha
+
+	mov	w0, #128
+	TBCSTW	wr_round_128, w0
+
+	WADDWSS	wr_diff_a_h, wr_round_128, wr_diff_a_h
+	WSRAWG	wr_diff_a_h, wr_diff_a_h, wc_shift_r_8
+	WADDWSS	wr_diff_a, wr_round_128, wr_diff_a
+	WSRAWG	wr_diff_a, wr_diff_a, wc_shift_r_8
+	WPACKWSS wr_diff_a, wr_diff_a, wr_diff_a_h
+
+	WUNPCKEHSH	wr_diff_b_h, wr_diff_b
+	WUNPCKELSH	wr_diff_b, wr_diff_b
+	WMULWL	wr_diff_b_h, wr_diff_b_h, wr_alpha_h
+	WMULWL	wr_diff_b, wr_diff_b, wr_alpha
+
+	WADDWSS	wr_diff_b_h, wr_round_128, wr_diff_b_h
+	WSRAWG	wr_diff_b_h, wr_diff_b_h, wc_shift_r_8
+	WADDWSS	wr_diff_b, wr_round_128, wr_diff_b
+	WSRAWG	wr_diff_b, wr_diff_b, wc_shift_r_8
+	WPACKWSS wr_diff_b, wr_diff_b, wr_diff_b_h
+
+	WUNPCKEHSH	wr_diff_r_h, wr_diff_r
+	WUNPCKELSH	wr_diff_r, wr_diff_r
+	WMULWL	wr_diff_r_h, wr_diff_r_h, wr_alpha_h
+	WMULWL	wr_diff_r, wr_diff_r, wr_alpha
+
+	WADDWSS	wr_diff_r_h, wr_round_128, wr_diff_r_h
+	WSRAWG	wr_diff_r_h, wr_diff_r_h, wc_shift_r_8
+	WADDWSS	wr_diff_r, wr_round_128, wr_diff_r
+	WSRAWG	wr_diff_r, wr_diff_r, wc_shift_r_8
+	WPACKWSS wr_diff_r, wr_diff_r, wr_diff_r_h
+
+	WUNPCKEHSH	wr_diff_g_h, wr_diff_g
+	WUNPCKELSH	wr_diff_g, wr_diff_g
+	WMULWL	wr_diff_g_h, wr_diff_g_h, wr_alpha_h
+	WMULWL	wr_diff_g, wr_diff_g, wr_alpha
+
+	WADDWSS	wr_diff_g_h, wr_round_128, wr_diff_g_h
+	WSRAWG	wr_diff_g_h, wr_diff_g_h, wc_shift_r_8
+	WADDWSS	wr_diff_g, wr_round_128, wr_diff_g
+	WSRAWG	wr_diff_g, wr_diff_g, wc_shift_r_8
+	WPACKWSS wr_diff_g, wr_diff_g, wr_diff_g_h
+
+	WADDHSS	wr_dst_a, wr_dst_a, wr_diff_a
+	WADDHSS	wr_dst_r, wr_dst_r, wr_diff_r
+	WADDHSS	wr_dst_g, wr_dst_g, wr_diff_g
+	WADDHSS	wr_dst_b, wr_dst_b, wr_diff_b
+
+	WSLLHG	wr_dst_a, wr_dst_a, wc_shift_l_8
+	WOR	wr_dst_r, wr_dst_a, wr_dst_r
+
+	WSLLHG	wr_dst_g, wr_dst_g, wc_shift_l_8
+	WOR	wr_dst_b, wr_dst_g, wr_dst_b
+
+	.endm
+	
+
+	.macro	alpha_blend_32argb alpha_value
+	stmfd sp!, {r0-r12, lr}
+
+	ldrb	alpha0, [alpha_color]
+	ldrb	w0, [alpha_color, #1]
+	ldrb	w1, [alpha_color, #2]
+
+	TBCSTH	wr_color_r, w0
+	ldrb	w0, [alpha_color, #3]
+
+	TBCSTH	wr_color_g, w1
+	TBCSTH	wr_color_b, w0
+	ldr	height, [sp, #height_SHIFT]
+	ldr	srb, [sp, #srb_SHIFT]
+	ldr	drb, [sp, #drb_SHIFT]
+	
+	mov	w0, #255
+	TBCSTH	wr_color_a, w0
+
+	@set the shift value
+	mov	w0, #7
+	TMCR	wc_shift_r_7, w0
+
+	mov	w0, #8
+	TMCR	wc_shift_l_8, w0
+
+	add	alpha0, alpha0, alpha0, lsr#7
+
+	@BNIE_CHECK_REG_00 1, 0
+
+blend_32argb_start_\alpha_value:
+	movs	width4, width0, lsr #2
+	beq	blend_32argb_tail_3_\alpha_value
+
+blend_32argb_iter_4_\alpha_value:
+	@This loop processes 4 pixels per iterations
+	ldrb	src_value, [src]
+	TINSRH	wr_src, src_value, #0
+	ldrb	src_value, [src, #1]
+	TINSRH	wr_src, src_value, #1
+	ldrb	src_value, [src, #2]
+	TINSRH	wr_src, src_value, #2
+	ldrb	src_value, [src, #3]
+	TINSRH	wr_src, src_value, #3
+
+	ldr	dst_l, [dst]
+	ldr	dst_h, [dst, #4]
+
+	TMCRR	wr_dst, dst_l, dst_h
+
+	ldr	dst_l, [dst, #8]
+	ldr	dst_h, [dst, #12]
+	TMCRR	wr_dst_1, dst_l, dst_h
+
+	BLEND_4_PIX_32ARGB \alpha_value
+	
+	@extract to 32ARGB from 16bits ar and 16bits gb
+	WUNPCKILH	wr_dst_l, wr_dst_b, wr_dst_r
+	WUNPCKIHH	wr_dst_h, wr_dst_b, wr_dst_r
+
+	TMRRC	dst_l, dst_h, wr_dst_l
+	add	src, src, #4
+	subs	width4, width4, #1
+
+	str	dst_l, [dst], #4
+	str	dst_h, [dst], #4
+
+	TMRRC	dst_l, dst_h, wr_dst_h
+	str	dst_l, [dst], #4
+	str	dst_h, [dst], #4
+
+	bne	blend_32argb_iter_4_\alpha_value
+	
+blend_32argb_tail_3_\alpha_value:
+	ands w0, width0, #0x2
+	beq	blend_32argb_tail_1_\alpha_value
+	
+blend_32argb_tail_2_\alpha_value:
+	@load 2 pixels
+	ldrb	w0, [src]
+	ldrb	w2, [src, #1]
+	ldr	dst_l, [dst]
+	ldr	dst_h, [dst, #4]
+
+	TBCSTW	wr_src_l32, w0
+	TBCSTW	wr_src_h32, w2
+	TMCRR	wr_dst, dst_l, dst_h
+	
+	BLEND_2_PIX_32ARGB \alpha_value
+
+	WPACKHUS	wr_dst, wr_dst_l, wr_dst_h	
+	add	src, src, #2
+
+	TMRRC	dst_l, dst_h, wr_dst
+	str	dst_l, [dst], #4
+	str	dst_h, [dst], #4
+
+blend_32argb_tail_1_\alpha_value:
+	ands	w0, width0, #0x1
+	beq	blend_32argb_tail_0_\alpha_value
+
+	ldrb	w0, [src], #1
+	ldr	dst_l, [dst]
+	TBCSTH	wr_src, w0
+	TINSRW	wr_dst_l, dst_l, #0
+	WUNPCKELUB	wr_dst, wr_dst_l
+
+	ALPHA0_32ARGB_\alpha_value wr_src
+	WSRLHG	wr_src_bit7, wr_src, wc_shift_r_7
+	WADDHUS	wr_alpha, wr_src, wr_src_bit7
+
+	WLDRW	wr_color, [alpha_color]
+	WUNPCKELUB	wr_color_tmp, wr_color
+	WSHUFH	wr_color, wr_color_tmp, #0x1b
+	mov w0, #255
+	TINSRH	wr_color, w0, #3
+
+	WSUBH	wr_diff, wr_color, wr_dst
+
+	WUNPCKEHUH	wr_alpha_h, wr_alpha
+	WUNPCKELUH	wr_alpha, wr_alpha
+
+	mov w0, #128
+	TBCSTW	wr_round_128, w0
+
+	WUNPCKEHSH	wr_diff_h, wr_diff
+	WUNPCKELSH	wr_diff, wr_diff
+
+	WMULWL	wr_diff_h, wr_diff_h, wr_alpha_h
+	WMULWL	wr_diff, wr_diff, wr_alpha
+
+	WADDWSS	wr_diff_h, wr_round_128, wr_diff_h
+	WSRAWG	wr_diff_h, wr_diff_h, wc_shift_r_8
+	WADDWSS	wr_diff, wr_round_128, wr_diff
+	WSRAWG	wr_diff, wr_diff, wc_shift_r_8
+	WPACKWSS wr_diff, wr_diff, wr_diff_h
+
+	WADDH	wr_dst, wr_dst, wr_diff
+	
+	WPACKHUS	wr_dst_l, wr_dst, wr_dst
+	
+	TMRRC	dst_l, dst_h, wr_dst_l
+	str	dst_l, [dst], #4
+
+blend_32argb_tail_0_\alpha_value:
+	subs	height, #1
+	addne	dst, dst, drb
+	addne	src, src, srb
+	bne	blend_32argb_start_\alpha_value
+
+	ldmfd	sp!, {r0-r12, pc}
+
+	.endm
+
+	.global alpha_blend_255_32argb_wmmx
+	.type	alpha_blend_255_32argb_wmmx, %function
+	.align 	4
+
+alpha_blend_255_32argb_wmmx:
+	.fnstart
+	alpha_blend_32argb 255
+	.fnend
+
+	
+	.global alpha_blend_generic_32argb_wmmx
+	.type	alpha_blend_generic_32argb_wmmx, %function
+	.align	4
+
+alpha_blend_generic_32argb_wmmx:
+	.fnstart
+	alpha_blend_32argb generic
+	.fnend
+
+	.end
+
+#endif

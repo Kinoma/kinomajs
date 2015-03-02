@@ -1,0 +1,156 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+.text	@CODE, READONLY
+.global	RotatePixel256_arm_wmmx_s
+.type   RotatePixel256_arm_wmmx_s, %function
+.align 4
+
+d	.req	r0
+s	.req	r1
+d_inc	.req	r2
+s_inc	.req	r3
+nd_inc	.req	r4
+s_0	.req	r5
+s_1	.req	r6
+s_2	.req	r7
+d_0	.req	r8
+d_1	.req	r9
+d_2	.req	r10
+
+s_vec0	.req	wr0
+s_vec1	.req	wr1
+s_vec2	.req	wr2
+s_vec3	.req	wr3
+
+d_vec0	.req	wr4
+d_vec1	.req	wr5
+d_vec2	.req	wr6
+d_vec3	.req	wr7
+
+t_vec0	.req	wr8
+t_vec1	.req	wr9
+t_vec2	.req	wr10
+t_vec3	.req	wr11
+
+	.macro	FILL8x8	s,d
+	wldrd		s_vec0,[\s],s_inc
+	wldrd		s_vec1,[\s],s_inc
+	wldrd		s_vec2,[\s],s_inc
+	wldrd		s_vec3,[\s],s_inc	@s_0
+	
+	wunpckilh	t_vec0,s_vec0,s_vec1	
+	wunpckihh	t_vec1,s_vec0,s_vec1
+	wunpckilh	t_vec2,s_vec2,s_vec3	
+	wunpckihh	t_vec3,s_vec2,s_vec3	@t0
+
+	wldrd		s_vec0,[\s],s_inc
+	wldrd		s_vec1,[\s],s_inc
+	wldrd		s_vec2,[\s],s_inc
+	wldrd		s_vec3,[\s],s_inc	@s_1
+
+	wunpckihw	d_vec0,t_vec1,t_vec3
+	wunpckilw	d_vec1,t_vec1,t_vec3
+	wunpckihw	d_vec2,t_vec0,t_vec2
+	wunpckilw	d_vec3,t_vec0,t_vec2	@d_0
+
+	wunpckilh	t_vec0,s_vec0,s_vec1	
+	wunpckihh	t_vec1,s_vec0,s_vec1
+	wunpckilh	t_vec2,s_vec2,s_vec3	
+	wunpckihh	t_vec3,s_vec2,s_vec3	@t1
+
+	wstrd		d_vec0,[\d],d_inc
+	wstrd		d_vec1,[\d],d_inc
+	wstrd		d_vec2,[\d],d_inc
+	wstrd		d_vec3,[\d],#8		@d_0
+
+	wunpckihw	d_vec0,t_vec1,t_vec3
+	wunpckilw	d_vec1,t_vec1,t_vec3
+	wunpckihw	d_vec2,t_vec0,t_vec2
+	wunpckilw	d_vec3,t_vec0,t_vec2	@d_1
+
+
+	wstrd		d_vec3,[\d],nd_inc
+	wstrd		d_vec2,[\d],nd_inc
+	wstrd		d_vec1,[\d],nd_inc
+	wstrd		d_vec0,[\d],#8		@d_1
+	@###############
+	wldrd		s_vec0,[\s],s_inc
+	wldrd		s_vec1,[\s],s_inc
+	wldrd		s_vec2,[\s],s_inc
+	wldrd		s_vec3,[\s],s_inc	@s_0
+	
+	wunpckilh	t_vec0,s_vec0,s_vec1	
+	wunpckihh	t_vec1,s_vec0,s_vec1
+	wunpckilh	t_vec2,s_vec2,s_vec3	
+	wunpckihh	t_vec3,s_vec2,s_vec3	@t0
+
+	wldrd		s_vec0,[\s],s_inc
+	wldrd		s_vec1,[\s],s_inc
+	wldrd		s_vec2,[\s],s_inc
+	wldrd		s_vec3,[\s],s_inc	@s_1
+
+	wunpckihw	d_vec0,t_vec1,t_vec3
+	wunpckilw	d_vec1,t_vec1,t_vec3
+	wunpckihw	d_vec2,t_vec0,t_vec2
+	wunpckilw	d_vec3,t_vec0,t_vec2	@d_0
+
+	wunpckilh	t_vec0,s_vec0,s_vec1	
+	wunpckihh	t_vec1,s_vec0,s_vec1
+	wunpckilh	t_vec2,s_vec2,s_vec3	
+	wunpckihh	t_vec3,s_vec2,s_vec3	@t1
+
+	wstrd		d_vec0,[\d],d_inc
+	wstrd		d_vec1,[\d],d_inc
+	wstrd		d_vec2,[\d],d_inc
+	wstrd		d_vec3,[\d],#8		@d_0
+
+	wunpckihw	d_vec0,t_vec1,t_vec3
+	wunpckilw	d_vec1,t_vec1,t_vec3
+	wunpckihw	d_vec2,t_vec0,t_vec2
+	wunpckilw	d_vec3,t_vec0,t_vec2	@d_1
+
+
+	wstrd		d_vec3,[\d],nd_inc
+	wstrd		d_vec2,[\d],nd_inc
+	wstrd		d_vec1,[\d],nd_inc
+	wstrd		d_vec0,[\d],#8		@d_1
+	.endm
+
+RotatePixel256_arm_wmmx_s:
+	.fnstart
+	STMFD   sp!, {r4-r10,lr}
+	sub	s,s,#6
+	sub	s_0,s,#8
+	add	d_0,d,d_inc,LSL #2
+	sub	s_1,s_0,#8
+	add	d_1,d_0,d_inc,LSL #2
+	sub	s_2,s_1,#8
+	add	d_2,d_1,d_inc,LSL #2
+	rsb	nd_inc,d_inc,#0
+	
+	FILL8x8 s,d
+	FILL8x8 s_0,d_0
+	FILL8x8 s_1,d_1
+	FILL8x8 s_2,d_2
+
+	LDMFD   sp!, {r4-r10,pc}
+	.fnend	
+
+	.end
+	
+#endif

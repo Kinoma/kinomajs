@@ -1,0 +1,207 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+    <script>
+        <![CDATA[
+
+            var Key = function(keyJSON) {									// { fraction : [0..1], ease : [Math.quadEaseOut etc] (optional) }
+            	this.f = keyJSON.f
+            	this.ease = "ease" in keyJSON ? keyJSON.ease : null
+            }
+            Key.prototype = Object.create(Object.prototype, {
+             	evaluate: {
+            		value: function(fraction, nextKey) {
+            			if (this.ease)
+            				fraction = this.ease(fraction)
+            			var value = this.tweenValue(fraction, nextKey)
+            			return value
+            		}
+            	},   
+            	tweenValue: {
+            		value : function(fraction, nextKey) {
+            		}
+            	}
+			})
+            
+            var ScalerKey = function(scalerKeyJSON) {						// { value : number }
+            	Key.call(this, scalerKeyJSON)
+            	this.v = scalerKeyJSON.v
+            }
+            ScalerKey.prototype = Object.create(Key.prototype, {
+             	tweenValue: {
+            		value: function(fraction, nextKey) {
+						return this.v + fraction * (nextKey.v - this.v)        			
+            		}
+            	},
+			})
+            
+            var ScalersKey = function(scalerKeyJSON) {						// { values : [number1, ...numberN] }
+            	Key.call(this, scalerKeyJSON)
+            	this.values = scalerKeyJSON.v
+            	this.result = new Array(this.values.length)
+            }
+            ScalersKey.prototype = Object.create(Key.prototype, {
+             	tweenValue: {
+            		value: function(fraction, nextKey) {
+            			var values = this.values
+            			var nextValues = nextKey.values
+            			var result = this.result
+            			for (var i=0, c=values.length; i < c; i++)
+            				result[i] = values[i] + fraction * (nextValues[i] - values[i])
+            			return result
+            		}
+            	},
+			})
+            
+            var BooleanKey = function(booleanKeyJSON) {						// { value : [true | false] }
+            	Key.call(this, booleanKeyJSON)
+            	this.v = booleanKeyJSON.v
+            }
+            BooleanKey.prototype = Object.create(Key.prototype, {
+             	tweenValue: {
+            		value: function(fraction, nextKey) {
+						if (fraction == 1)
+							return nextKey.v
+						else
+							return this.v       			
+            		}
+            	},
+			})
+           
+            var TriggerKey = function(triggerKeyJSON) {						// { target : object, callback : function to call }
+            	Key.call(this, triggerKeyJSON)
+            	this.target = triggerKeyJSON.target
+            	this.callback = triggerKeyJSON.callback
+            }
+            TriggerKey.prototype = Object.create(Key.prototype, {
+             	tweenValue: {
+            		value: function(fraction, nextKey) {
+            			if (! this.triggered) {
+            				this.target[this.callback](fraction)
+            				this.triggered = true
+            				return true
+            			}
+            			return false
+            		}
+            	},
+			})
+           
+            var Sequence = function(keys, target, setter) {									// [key1, ...keyN]
+            	this.keys = new Array(keys.length)
+            	for (var i=0, c=keys.length; i < c; i++) {
+            		var key
+            		var keyJSON = keys[i]
+            		if ("v" in keyJSON) {
+	            		if (typeof(keyJSON.v) == "object")
+	            			key = new ScalersKey(keyJSON)
+	            		else if (typeof(keyJSON.v) == "boolean")
+	            			key = new BooleanKey(keyJSON)
+	            		else
+	            			key = new ScalerKey(keyJSON)
+	            	}
+            		else
+            			key = new TriggerKey(keyJSON)
+            		
+            		this.keys[i] = key
+            	}
+            	this.target = target														// object to apply tweened value to
+            	this.setter = setter														// function to call on target that takes a single value argument
+            }
+            Sequence.prototype = Object.create(Object.prototype, {
+             	evaluate: {
+            		value: function(fraction) {            			
+            			var startIndex = this.getStartKeyIndexForFraction(fraction)
+            			var key = this.keys[startIndex]
+            			var nextKey = this.keys[startIndex + 1]
+            			var keyDur = nextKey.f - key.f
+            			var keyFraction = (fraction - key.f) / keyDur
+            			var value = key.evaluate(keyFraction, this.keys[startIndex + 1])
+            			if (this.target)
+            				this.setter.call(this.target, value)							
+            		}
+            	},
+             	getStartKeyIndexForFraction: {
+            		value: function(fraction) {
+            			if (fraction < 0)
+            				fraction = 0
+            			else if (fraction > 1)
+            				fraction = 1
+            			var keys = this.keys
+            			for (var i=1, c=keys.length; i < c; i++) {
+            				var key = keys[i]
+            				if (fraction < key.f)
+            					return i-1
+            			}
+            			return keys.length-2
+            		}
+            	},
+             })
+             
+			var SequenceGroup = function(sequences) {						// [seq1, ...seqN]
+             	this.sequences = sequences
+			}
+			SequenceGroup.prototype = Object.create(Object.prototype, {
+             	evaluate: {
+            		value: function(fraction) {
+            			var sequences = this.sequences
+            			for (var i=0, c=sequences.length; i < c; i++) {
+            				sequences[i].evaluate(fraction)
+            			}
+            		}
+            	},
+             })
+             
+					
+			var ColorTween = function(fromColor, toColor) {
+				this.hexDigit = new Array("0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F")
+				this.r1 = this.hex2dec(fromColor.slice(0,2))
+			  	this.g1 = this.hex2dec(fromColor.slice(2,4))
+			    this.b1 = this.hex2dec(fromColor.slice(4,6))
+			    this.r2 = this.hex2dec(toColor.slice(0,2))
+			    this.g2 = this.hex2dec(toColor.slice(2,4))
+			    this.b2 = this.hex2dec(toColor.slice(4,6))
+			}
+			ColorTween.prototype = Object.create(Object.prototype, {
+				tween: {
+					value: function(fraction) {
+						var r1 = this.r1, r2 = this.r2, g1 = this.g1, g2 = this.g2, b1 = this.b1, b2 = this.b2
+					    var r = Math.floor(r1 + (fraction * (r2-r1)) + 0.5)
+					    var g = Math.floor(g1 + (fraction * (g2-g1)) + 0.5)
+					    var b = Math.floor(b1 + (fraction * (b2-b1)) + 0.5)
+					    return "#" + this.dec2hex(r) + this.dec2hex(g) + this.dec2hex(b)
+					}
+				},
+				dec2hex: {
+					value: function(dec) {
+						return(this.hexDigit[dec >> 4] + this.hexDigit[dec & 15])
+					}
+				},
+				hex2dec: {
+					value: function(hex) {
+						return parseInt(hex,16)
+					}
+				},
+			})	
+			
+             exports.SequenceGroup = SequenceGroup
+             exports.Sequence = Sequence
+             exports.BooleanKey = BooleanKey
+             exports.ScalerKey = ScalerKey
+             exports.ColorTween = ColorTween
+             
+		]]>
+    </script>
+</module>

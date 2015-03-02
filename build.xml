@@ -1,0 +1,161 @@
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<project name="fsk" default="main">
+
+	<property environment="env" />
+
+	<!-- Begin: Ensure that both F_HOME and XS_HOME are set -->
+	<property name="env.F_HOME" location="${basedir}/" />
+	<property name="f_home" location="${env.F_HOME}" />
+
+	<property name="env.XS_HOME" location="${basedir}/xs/" />
+	<property name="xs_home" location="${env.XS_HOME}" />
+	<!-- End: Ensure that both F_HOME and XS_HOME are set -->
+
+	<!-- Begin: Build Arguments -->
+	<property name="env.BUILD_ARGS" value="" />
+	<property name="build.args" value="${env.BUILD_ARGS}" />
+	<!-- End: Build Arguments -->
+
+	<path id="classpath">
+		<fileset dir="${f_home}/tools/ant/lib" />
+	</path>
+
+	<taskdef resource="net/sf/antcontrib/antlib.xml" classpathref="classpath" />
+	<taskdef resource="org/apache/ant/props/antlib.xml" classpathref="classpath" />
+	<taskdef classname="org.iainhull.ant.CmakeBuilder" classpathref="classpath" name="cmake" />
+	<taskdef resource="com/marvell/kinoma/ant/tasks/antlib.xml" classpathref="classpath" />
+	<taskdef resource="com/igormaznitsa/jcp/ant/tasks.properties" classpathref="classpath" />
+	<taskdef classname="com.oopsconsultancy.xmltask.ant.XmlTask" classpathref="classpath" name="xmltask" />
+
+	<propertyhelper>
+		<nested />
+	</propertyhelper>
+
+	<property file="local.properties" />
+	<property file="build.properties" />
+
+	<property name="config.basedir" value="${f_home}/kinoma/${config.tool}/cmake" />
+
+	<!-- A workaround for jenkins matrix plugin -->
+	<if>
+		<equals arg1="${cmake.generator}" arg2="default" casesensitive="false" />
+		<then>
+			<var name="cmake.generator" unset="true" />
+		</then>
+	</if>
+
+	<if>
+		<isset property="target.platform" />
+		<then>
+			<property file="${config.basedir}/${target.platform}/build.properties" />
+		</then>
+	</if>
+
+	<switch value="${os.name}" caseinsensitive="true">
+		<case value="Linux">
+			<property file="${config.basedir}/linux/build.properties" />
+		</case>
+		<case value="Mac OS X">
+			<property file="${config.basedir}/mac/build.properties" />
+		</case>
+	</switch>
+
+	<import file="${config.basedir}/build.xml" />
+
+	<target name="load-defaults">
+		<fail unless="target.platform" message="Target Platform does not exist for current OS: ${os.name}"/>
+		<fail unless="build.platform" message="Build Platform does not exist for current Target OS: ${target.platform}"/>
+		<echo>Target Platform is set to "${target.platform}" - OS: ${os.name}</echo>
+	</target>
+
+	<target name="xs-build" depends="load-defaults">
+		<cmake srcdir="${xs_home}" bindir="${xs_home}/tmp/${build.platform}" buildtype="Release" cmakeonly="true">
+			<variable name="BIN_DIR" value="${xs_home}/bin/${build.platform}"/>
+			<variable name="TMP_DIR" value="${xs_home}/tmp/${build.platform}"/>
+		</cmake>
+		<exec executable="cmake" failonerror="true">
+			<arg line="--build ${xs_home}/tmp/${build.platform}" />
+		</exec>
+	</target>
+
+	<target name="xs-clean">
+		<delete dir="${xs_home}/bin" />
+		<delete dir="${xs_home}/lib" />
+		<delete dir="${xs_home}/tmp" />
+		<delete dir="${xs_home}/makefiles/MacOSX/xsbug2.build" />
+		<delete file="${xs_home}/sources/xslib/xsPlatform.h.gch" />
+	</target>
+
+	<target name="top-clean" depends="freetype-clean">
+		<delete dir="${f_home}/bin" />
+		<delete dir="${f_home}/tmp" />
+	</target>
+
+	<target name="clean" depends="xs-clean,cmake-clean,freetype-clean,top-clean" />
+
+	<target name="create-destination-dirs" depends="load-defaults">
+		<mkdir dir="${build.tmp}" />
+		<mkdir dir="${build.bin}" />
+	</target>
+
+	<target name="freetype-extract" depends="load-defaults">
+		<if>
+			<not>
+				<available file="${freetype.src.path}" />
+			</not>
+			<then>
+				<mkdir dir="${freetype.src.dir}" />
+				<untar src="${freetype.src.archive}" dest="${freetype.src.dir}" compression="bzip2" />
+				<copy file="${freetype.files.path}/config.mk" todir="${freetype.src.path}" />
+				<copy file="${freetype.files.path}/modules.cfg" todir="${freetype.src.path}" />
+				<copy file="${freetype.files.path}/unix-cc.mk" todir="${freetype.src.path}/builds/unix" />
+				<copy file="${freetype.files.path}/unix-def.mk" todir="${freetype.src.path}/builds/unix" />
+				<copy file="${freetype.files.path}/ftconfig.h" todir="${freetype.src.path}/include/freetype/config" />
+			</then>
+		</if>
+	</target>
+
+	<target name="freetype-clean" depends="load-defaults">
+		<delete dir="${freetype.src.dir}" />
+	</target>
+
+	<target name="cmake-clean" depends="load-defaults">
+		<delete dir="${cmake.dir}" />
+	</target>
+
+	<target name="ide" depends="load-defaults">
+		<switch value="${target.platform}">
+			<case value="mac">
+				<var name="cmake.generator" value="Xcode" />
+				<property name="launch.command" value="open" />
+				<property name="launch.args" value="${build.tmp}/obj/${manifest.name}.xcodeproj" />
+			</case>
+			<case value="iphone">
+				<var name="cmake.generator" value="Xcode" />
+				<property name="launch.command" value="open" />
+				<property name="launch.args" value="${build.tmp}/obj/${manifest.name}.xcodeproj" />
+			</case>
+		</switch>
+		<var name="cmake.only" value="true" />
+		<antcall target="cmake-build" />
+		<antcall target="package" />
+		<exec executable="${launch.command}">
+			<arg line="${launch.args}" />
+		</exec>
+	</target>
+</project>

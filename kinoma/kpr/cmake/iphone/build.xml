@@ -1,0 +1,205 @@
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<project name="iphone_platform">
+	<property file="${config.basedir}/${target.platform}/build.properties" />
+	<import file="${config.basedir}/${target.platform}/${target.subplatform}/build.xml" />
+
+	<target name="package" depends="create-destination-dirs">
+		<if>
+			<equals arg1="${cmake.generator}" arg2="Xcode" />
+			<then>
+				<property name="plist.file" value="${config.basedir}/${target.platform}/${target.subplatform}/plists/Info-Xcode.plist" />
+			</then>
+			<else>
+				<property name="plist.file" value="${config.basedir}/${target.platform}/${target.subplatform}/plists/Info.plist" />
+			</else>
+		</if>
+
+		<property name="app.path" value="${build.bin}/${manifest.name}.app" />
+		<property name="features.path" value="${build.tmp}/features.txt" />
+		<property name="versions.path" value="${build.tmp}/versions.properties" />
+		<property name="mobileprofiles.path" value="${env.HOME}/Library/MobileDevice/Provisioning Profiles" />
+		<property name="mobileprofile.tmp.path" value="${build.tmp}/embedded.mobileprovision" />
+		<property name="entitlements.path" value="${build.tmp}/entitlements.plist" />
+
+		<exec executable="${env.SHELL}" failonerror="true" taskname="find-identity" outputproperty="codesign.ids">
+			<arg value="-c" />
+			<arg value="security find-identity -v -p codesigning | grep '${codesign.id}' | wc -l | tr -d ' '" />
+		</exec>
+
+
+		<switch value="${codesign.ids}">
+			<case value="0">
+				<echo>No codesigning ids were were found</echo>
+				<echo>Please review Apple's documentation: 'Maintaining Your Signing Identities and Certificates'</echo>
+				<echo>https://developer.apple.com/library/ios/documentation/IDEs/Conceptual/AppDistributionGuide/MaintainingCertificates/MaintainingCertificates.html</echo>
+				<fail>No codesigning ids found</fail>
+			</case>
+			<case value="1" />
+			<default>
+				<if>
+
+					<isset property="env.CODESIGN_ID" />
+					<then>
+						<var name="codesign.id" value="${env.CODESIGN_ID}" />
+					</then>
+					<else>
+						<echo>Multiple codesigning id's were found.</echo>
+						<echo>Please set the CODESIGN_ID environment variable or use the -Dcodesign.id ant switch to specify the proper id.</echo>
+						<fail>Multiple codesigning ids found</fail>
+					</else>
+				</if>
+			</default>
+		</switch>
+
+		<exec executable="${env.SHELL}" taskname="find-certificate" outputproperty="ios.certificate">
+			<arg value="-c" />
+			<arg value="security find-certificate -c '${codesign.id}' -p -Z | tr -d '\n'" />
+		</exec>
+		<propertyregex property="codesign.sha"
+			input="${ios.certificate}"
+			regexp="SHA.*: ([^-]*).*"
+			select="\1" />
+		<propertyregex property="codesign.pem"
+			input="${ios.certificate}"
+			regexp=".*-*BEGIN[^-]*-*([^-]*)-*"
+			select="\1"
+			global="true"
+			/>
+
+		<fileset id="mobileprofiles" dir="${mobileprofiles.path}">
+			<contains text="${manifest.namespace}" />
+			<contains text="${codesign.pem}" />
+		</fileset>
+
+		<if>
+			<resourcecount refid="mobileprofiles" count="0" when="eq" />
+			<then>
+				<fileset id="mobileprofiles" dir="${mobileprofiles.path}">
+					<contains text="${codesign.pem}" />
+				</fileset>
+			</then>
+		</if>
+
+		<for param="profile">
+			<fileset refid="mobileprofiles" />
+			<sequential>
+				<antcallback target="-process-profile" inheritall="true" return="mobileprofile.path">
+					<param name="profile" value="@{profile}" />
+				</antcallback>
+			</sequential>
+		</for>
+
+		<if>
+			<not>
+				<isset property="mobileprofile.path" />
+			</not>
+			<then>
+				<echo>No Provisioning Profile matched this application.</echo>
+				<echo>Please review Apple's documentation: 'Creating Your Team Provisioning Profile'</echo>
+				<echo>https://developer.apple.com/library/ios/documentation/IDEs/Conceptual/AppStoreDistributionTutorial/CreatingYourTeamProvisioningProfile/CreatingYourTeamProvisioningProfile.html</echo>
+				<fail>No valid provisioning profile</fail>
+			</then>
+		</if>
+
+		<if>
+			<available file="${kpr.application.path}/iphone" />
+			<then>
+				<if>
+					<available file="${features.path}" />
+					<then>
+						<loadfile property="plist.additions" srcFile="${features.path}" />
+					</then>
+				</if>
+				<copy todir="${app.path}">
+					<fileset dir="${kpr.application.path}/iphone" includes="*.png" />
+				</copy>
+			</then>
+		</if>
+		<property name="plist.additions" value="" />
+
+		<if>
+			<available file="${versions.path}" />
+			<then>
+				<property file="${versions.path}" />
+			</then>
+			<else>
+				<property file="${config.basedir}/${target.platform}/versions.properties" />
+			</else>
+		</if>
+
+		<outofdate>
+			<sourcefiles>
+				<pathelement path="${plist.file}" />
+			</sourcefiles>
+			<targetfiles>
+				<pathelement path="${tmp.dir}/Info.plist" />
+				<pathelement path="${app.path}/Info.plist" />
+			</targetfiles>
+			<sequential>
+				<mkdir dir="${app.path}" />
+				<copy tofile="${build.tmp}/Info.plist" file="${plist.file}" />
+				<replace file="${build.tmp}/Info.plist">
+					<replacefilter token="#APP_NAME#" value="${manifest.name}" />
+					<replacefilter token="#NAMESPACE#" value="${manifest.namespace}" />
+					<replacefilter token="#VERSION#" value="${manifest.version} (${core.version})" />
+					<replacefilter token="#PLIST_ADDITIONS#" value="${plist.additions}" />
+					<replacefilter token="#VERSION_MINIMUM#" value="${version.minimum}" />
+					<replacefilter token="#VERSION_TARGET#" value="${version.target}" />
+				</replace>
+				<copy tofile="${app.path}/Info.plist" file="${build.tmp}/Info.plist" />
+			</sequential>
+		</outofdate>
+	</target>
+
+	<target name="-process-profile">
+		<exec executable="security" failonerror="true">
+			<arg line="cms -D -i '${profile}' -o ${mobileprofile.tmp.path}" />
+		</exec>
+		<xmltask source="${mobileprofile.tmp.path}">
+			<copy path="//key[text()='com.apple.developer.team-identifier']/following-sibling::string/text()" property="team.id" />
+			<copy path="//key[text()='Entitlements']/following-sibling::dict" buffer="entitlements" />
+			<copy path="//key[text()='application-identifier']/following-sibling::string/text()" property="application.identifier" />
+		</xmltask>
+		<switch value="${application.identifier}">
+			<case value="${team.id}.${manifest.namespace}">
+				<var name="mobileprofile.path" value="${profile}" />
+			</case>
+			<case value="${team.id}.*">
+				<property name="mobileprofile.path" value="${profile}" />
+			</case>
+			<default />
+		</switch>
+		<if>
+			<isset property="mobileprofile.path" />
+			<then>
+				<copy tofile="${app.path}/embedded.mobileprovision" file="${mobileprofile.path}" />
+				<xmltask dest="${entitlements.path}"
+					system="http://www.apple.com/DTDs/PropertyList-1.0.dtd"
+					public="-//Apple//DTD PLIST 1.0//EN">
+					<insert path="/">
+						<![CDATA[
+						<plist version="1.0"/>
+						]]>
+					</insert>
+					<paste path="/plist" buffer="entitlements" />
+					<replace path="//string[text()='${team.id}.*']/text()" withText="${team.id}.${manifest.namespace}" expandProperties="true"/>
+				</xmltask>
+			</then>
+		</if>
+	</target>
+</project>

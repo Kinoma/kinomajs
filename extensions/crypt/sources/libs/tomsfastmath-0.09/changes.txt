@@ -1,0 +1,75 @@
+April 4th, 2006
+0.09 -- Bruce Guenter suggested I use --tag=CC for libtool builds where the compiler may think it's C++.
+     -- Added support for k=1 in exptmod for RSA exponents.  Makes it more competitive with other libraries
+     -- added cutoffs to the comba32 sqr/mul code to better handle 640, 786 and 896 bit operands (e.g. for RSA-1280, RSA-1536 and RSA-1792), really no effect
+        for 64-bit boxes as these represent 1280, 1536 and 1792 bit operands (not likely to be invoked).
+     -- Removed karatsuba from the mul/sqr since they're not useful and slow.
+     -- added 20, 24 and 28 digit multipliers for oddsized RSA support.  You can easily disable them by uncommenting the TFM_SQRXX and TFM_MULXX lines in 
+        tfm.h to save space.  Now GMP and TFM are roughly the same speed on the Pentium-M for RSA with LTC.
+     -- unrolled SSE2 code and optimize for platforms with load/store pipes (e.g. can store and load in a cycle).  Got 4% or so boost on my Dothan laptop (marginal improvement on a P4 Prescott)
+
+Jan 26th, 2006
+0.08 -- Fixed a bug in the generic mult/sqr where we overflowed by one digit
+
+November 18th, 2005
+0.07 -- Fixes to fp_mul and fp_sqr to clean up the handling of the defines, fix to tfm.h to also clear up the prototypes.
+     -- Updates to build and run on a IBM PPC 405 [using GCC 3.4.4]
+     -- Made the "make" command renamable in the build system
+
+October 31st, 2005
+0.06 -- fixed fp_mul() and fp_sqr() to trim digits when overflows would occur.  Produces numerically inprecise results
+        (e.g. the lower FP_SIZE digits) but shouldn't segfault at least ;-)
+     -- Updated the combas so you can turn on and off specific unrolled loops at build time 
+     -- Michael Heyman reported a bug in s_fp_sub() that was pretty substantial and a bug in fp_montgomery_calc_normalization().  Fixed.
+
+August 1st, 2005
+0.05 -- Quick fix to the fp_invmod.c code to let it handle even moduli [required for LTC]
+     -- Added makefile.shared to make shared objects [required for LTC]
+     -- Improved makefiles to make them way more configurable
+     -- Added timing resistant fp_exptmod() enabled with TFM_TIMING_RESISTANT
+
+July 23rd, 2005
+0.04 -- Fixed bugs in the SSE2 squaring code
+     -- Rewrote the multipliers to be optimized for small inputs 
+     -- Nelson Bolyard of the NSS crew submitted [among other things] new faster Montgomery reduction
+        code.  It brings the performance for small numbers on the AMD64 and all numbers on the P4
+        to a new level.  Thanks!
+     -- Added missing ARM support for fp_montgomery_reduce.c that the NSS folk left off, Officially 
+        the ARM code is for v4 and above WITH the "M" multiplier support (e.g. umlal instruction)
+     -- Added PPC32 support, define TFM_PPC32 to enable it, I used the "PowerPC 6xx" instruction
+        databook for reference.  Does not require altivec.  Should be fairly portable to the other
+        32-bit PPCs provided they have mullw and mulhwu instructions.
+        [Note: porting the macros to PPC64 should be trivial, anyone with a shell to lend... email me!]
+     -- Rewrote the config a bit in tfm.h so you can better choose which set of "oh my god that's huge" code to 
+        enable for your task.  "generic" functions are ALWAYS included which are smaller but will cover the
+        gaps in the coverage for ya.
+     -- The PPC32 code has been verified to function on a Darwin box running GCC 2.95.2 
+        [Thanks to the folk at PeerSec for lending me a shell to use]
+     -- Fixed a bug in fp_exptmod() where if the exponent was negative AND the destination the output
+        would have the sign set to FP_NEG.
+
+March 1st, 2005
+0.03 -- Optimized squaring
+     -- Applied new license header to all files (still PD)
+
+September 18th, 2004
+0.02 -- Added TFM_LARGE to turn on/off 16x combas to save even more space.
+        This also helps prevent killing the cache on smaller cpus.
+     -- Cast memset to void in fp_init() to catch people who misuse the function (e.g. expect return)
+        Thanks to Johan Lindh
+     -- Cleaned up x86-64 support [faster montgomery reductions]
+     -- Autodetects x86-32 and x86-64 and enables it's asm now 
+     -- Made test demo build cleaner in multilib platforms [e.g. mixed 32/64 bits]
+     -- Fix to fp_mod to ensure that remainder is of the same sign as the modulus.
+     -- Fixed bug in fp_montgomery_calc_normalization for single digit moduli
+     -- cleaned up ISO C macros in comba/mont to avoid branches [works best with GCC 3.4.x branch]
+     -- Added more testing to tfm.h to help detect misconfigured builds
+     -- Added TFM_NO_ASM which forces ASM off [even if it was autodetected].
+     -- Added fp_radix_size() to API
+     -- Cleaned up demo/test.c to build with far fewer warnings (mostly %d => %lu fixes)
+     -- fp_exptmod() now supports negative exponent and base>modulus cases
+     -- Added fp_ident() which gives a string showing how TFM was configured.  Useful for debuging... 
+     -- fix gen.pl script so it includes the whole source tree now 
+
+August 25th, 2004
+0.01 -- Initial Release

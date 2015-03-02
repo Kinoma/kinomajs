@@ -1,0 +1,27 @@
+
+var ws = new WebSocket('ws://echo.websocket.org');
+ws.onopen = function() {
+LOG("-OPEN");
+
+assertEquals(WebSocket.OEPN, ws.readyState);
+
+ws.send("Hello From Kinoma");
+};
+ws.onmessage = function(e) {
+LOG("-MESSAGE");
+LOG(e.data);
+
+assertEquals(WebSocket.OEPN, ws.readyState);
+
+ws.close();
+
+assertEquals(WebSocket.CLOSING, ws.readyState);
+};
+ws.onclose = function() {
+LOG("-CLOSE");
+
+assertEquals(WebSocket.CLOSED, ws.readyState);
+
+quit();
+};
+

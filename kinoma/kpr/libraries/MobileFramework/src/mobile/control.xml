@@ -1,0 +1,811 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	
+	<!-- BUSY -->
+
+	<behavior id="BusyBehavior"><![CDATA[
+		function onCreate(target) {
+			target.duration = 125;
+			target.variant = 0;
+		}
+		function onDisplayed(target) {
+			target.start();
+		}
+		function onFinished(target) {
+			var variant = target.variant + 1;
+			if (variant == THEME.busyCount) variant = 0;
+			target.variant = variant;
+			target.time = 0;
+			target.start();
+		}
+	]]></behavior>
+
+	<!-- SPINNER -->
+
+	<behavior id="SpinnerBehavior"><![CDATA[
+		function onCreate(target) {
+			target.duration = 60;
+			target.variant = 0;
+		}
+		function onDisplayed(target) {
+			target.start();
+		}
+		function onFinished(target) {
+			var variant = target.variant + 1;
+			if (variant == THEME.spinnerCount) variant = 0;
+			target.variant = variant;
+			target.time = 0;
+			target.start();
+		}
+	]]></behavior>
+
+	<!-- BUTTON -->
+
+	<behavior id="ButtonBehavior"><![CDATA[
+		function changeState(container, state) {
+			container.state = state;
+			var content = container.first;
+			while (content) {
+				content.state = state;
+				content = content.next;
+			}
+		}
+		function onCreate(content, data) {
+			this.data = data;
+		}
+		function onDisplaying(content) {
+			this.onStateChanged(content);
+		}
+		function onStateChanged(container) {
+			this.changeState(container, container.active ? 1 : 0);
+		}
+		function onTap(container) {
+			var data = this.data;
+			if (data && ("action" in data))
+				container.invoke(new Message(data.action));
+		}
+		function onTouchBegan(container, id, x, y, ticks) {
+			this.changeState(container, 2);
+		}
+		function onTouchCancelled(container, id, x, y, ticks) {
+			this.changeState(container, 1);
+		}
+		function onTouchEnded(container, id, x, y, ticks) {
+			this.changeState(container, 1);
+			this.onTap(container);
+		}
+	]]></behavior>
+
+	<script>
+		exports.ON = 'on';
+		exports.OFF = 'off';
+	</script>
+
+	<!-- CHECKBOX -->
+
+	<behavior id="CheckboxBehavior" like="ButtonBehavior"><![CDATA[
+		function onTap(container) {
+			var data = this.data;
+
+			data.value = (data.value !== 'on') ? 'on' : 'off';
+
+			var content = container.first;
+			while (content) {
+				content.delegate('onValueChanged');
+				content = content.next;
+			}
+
+			this.onValueChanged(container);
+		}
+		function onValueChanged(container) {
+		}
+	]]></behavior>
+
+	<content id="Checkbox" skin="THEME.dialogButtonsSkin" variant="THEME.CHECK_OFF">
+		<behavior>
+			function onCreate(content, data) {
+				this.data = data;
+			}
+			function onValueChanged(content) {
+				var data = this.data;
+				content.variant = (data.value === 'on' ? THEME.CHECK_ON : THEME.CHECK_OFF);
+			}
+		</behavior>
+	</content>
+
+	<!-- FIELD -->
+	
+	<behavior id="FieldDeleterBehavior"><![CDATA[
+		function onCreate(content, data) {
+			this.data = data;
+			this.onStateChanged(content);
+		}
+		function onStateChanged(content) {
+			content.state = content.active ? 1 : 0;
+		}
+		function onTouchBegan(content, id, x, y, ticks) {
+			content.state = 2;
+			content.captureTouch(id, x, y, ticks);
+		}
+		function onTouchCancelled(content, id, x, y, ticks) {
+			content.state = 1;
+		}
+		function onTouchEnded(content, id, x, y, ticks) {
+			content.state = 1;
+			var label = content.previous.first;
+			label.string = "";
+			label.focus();
+			label.behavior.onEdited(label);
+		}
+	]]></behavior>
+
+	<behavior id="FieldLabelBehavior"><![CDATA[
+		function onCreate(label, data) {
+			this.data = data;
+		}
+		function onDisplayed(label) {
+			this.onEdited(label);
+		}
+		function onEdited(label) {
+		}
+		function onFocused(label) {
+			label.select(0, label.length)
+			KEYBOARD.show();
+		}
+		function onKeyDown(label, key, repeat, ticks) {
+			if (key) {
+				var code = key.charCodeAt(0);
+				var edited = false;
+				switch (code) {
+				case 1: /* home */
+					label.select(0, 0);
+					break;
+				case 2: /* delete selection */
+					label.insert();
+					edited = true;
+					break;
+				case 3: /* enter */
+					return false;
+				case 4: /* end */
+					label.select(label.length, 0);
+					break;
+				case 5: /* help */
+					return false;
+				case 8: /* backspace */
+					if (label.selectionLength == 0)
+						label.select(label.selectionOffset - 1, 1)
+					label.insert()
+					edited = true;
+					break;
+				case 9: /* tab */
+					return false;
+				case 11: /* page up */
+					return false;
+				case 12: /* page down */
+					return false;
+				case 13: /* return */
+					if (label instanceof Text) {
+						label.insert(key);
+						edited = true;
+					}
+					else
+						return false;
+					break;
+				case 27: /* escape */
+					return false;
+				case 28: /* left */
+					if (shiftKey) {
+						label.select(label.selectionOffset - 1, label.selectionLength + 1);
+					}
+					else {
+						if (label.selectionLength == 0)
+							label.select(label.selectionOffset - 1, 0);
+						else
+							label.select(label.selectionOffset, 0);
+					}
+					break;
+				case 29: /* right */
+					if (shiftKey)
+						label.select(label.selectionOffset, label.selectionLength + 1);
+					else {
+						if (label.selectionLength == 0)
+							label.select(label.selectionOffset + 1, 0);
+						else
+							label.select(label.selectionOffset + label.selectionLength, 0);
+					}
+					break;
+				case 30: /* up */
+					return false;
+				case 31: /* down */
+					return false;
+				case 127: /* delete */
+					if (label.selectionLength == 0)
+						label.select(label.selectionOffset, 1)
+					label.insert()
+					edited = true;
+					break;
+				default:
+					if ((Event.FunctionKeyPlay <= code) && (code <= Event.FunctionKeyPower))
+						return false;
+					if (code > 0x000F0000)
+						return false;
+					label.insert(key);
+					edited = true;
+				}
+			}
+			else {
+				label.insert()
+				edited = true;
+			}
+			this.onReveal(label);
+			if (edited)
+				this.onEdited(label);
+			return true;
+		}
+		function onKeyUp(label, key, repeat, ticks) {
+			if (!key) return false
+			var code = key.charCodeAt(0);
+			var edited = false;
+			switch (code) {
+			case 3: /* enter */
+			case 5: /* help */
+			case 9: /* tab */
+			case 11: /* page up */
+			case 12: /* page down */
+			case 27: /* escape */
+			case 30: /* up */
+			case 31: /* down */
+				return false;
+			case 13: /* return */
+				return label instanceof Text;
+			default:
+				if ((Event.FunctionKeyPlay <= code) && (code <= Event.FunctionKeyPower))
+					return false;
+				return code <= 0x000F0000;
+			}
+		}
+		function onReveal(label) {
+			label.container.reveal(label.selectionBounds);
+		}
+		function onTouchBegan(label, id, x, y, ticks) {
+			this.position = label.position;
+			var offset = label.hitOffset(x - this.position.x, y - this.position.y);
+			if (shiftKey) {
+				if (offset < label.selectionOffset)
+					this.anchor = label.selectionOffset + label.selectionLength;
+				else
+					this.anchor = label.selectionOffset;
+			}
+			else
+				this.anchor = offset;
+			this.onTouchMoved(label, id, x, y, ticks);
+		}
+		function onTouchCancelled(label, id, x, y, ticks) {
+		}
+		function onTouchEnded(label, id, x, y, ticks) {
+			this.onTouchMoved(label, id, x, y, ticks);
+		}
+		function onTouchMoved(label, id, x, y, ticks) {
+			this.offset = label.hitOffset(x - this.position.x, y - this.position.y);
+			label.select(this.offset, 0);
+			//if (this.anchor < this.offset)
+			//	label.select(this.anchor, this.offset - this.anchor);
+			//else
+			//	label.select(this.offset, this.anchor - this.offset);
+			trace(this.anchor + " " + this.offset + "\n");
+		}
+		function onUnfocused(label) {
+		}
+	]]></behavior>
+	
+	<behavior id="FieldScrollerBehavior"><![CDATA[
+		function onTouchBegan(scroller, id, x, y, ticks) {
+			var label = scroller.first;
+			this.tracking = label.focused;
+			if (this.tracking)
+				label.behavior.onTouchBegan(label, id, x, y, ticks);
+			else
+				label.focus();
+		}
+		function onTouchMoved(scroller, id, x, y, ticks) {
+			var label = scroller.first;
+			if (this.tracking)
+				label.behavior.onTouchMoved(label, id, x, y, ticks);
+		}
+		function onTouchEnded(scroller, id, x, y, ticks) {
+			var label = scroller.first;
+			if (this.tracking)
+				label.behavior.onTouchEnded(label, id, x, y, ticks);
+		}
+	]]></behavior>
+		
+	<!-- LIST -->
+	
+	
+	<!-- MEDIA -->
+	
+	<behavior id="MediaBehavior"><![CDATA[
+		function onCreate(media, data) {
+			this.data = data;
+		}
+		function onStateChanged(media) {
+			var controller = this.data.CONTROLLER;
+			if (controller)
+				controller.behavior.onMediaStateChanged(controller, media);
+		}
+		function onTimeChanged(media) {
+			var seeker = this.data.SEEKER;
+			if (seeker)
+				seeker.behavior.onMediaTimeChanged(seeker, media);
+		}
+	]]></behavior>
+	
+	<behavior id="MediaButtonBehavior"><![CDATA[
+		function onCreate(container, data) {
+			this.data = data;
+		}
+		function onDisplaying(container) {
+			var media = this.data.MEDIA;
+			if (media)
+				this.onMediaStateChanged(container, media);
+		}
+		function onMediaStateChanged(container, media) {
+			var background = container.first;
+			var button = background.next;
+			var busy = button.next;
+			switch (media.state) {
+			case Media.FAILED:
+				container.active = false;
+				background.visible = true;
+				button.visible = false;
+				busy.visible = true;
+				busy.stop();
+				busy.variant = THEME.busyCount;
+				break;
+			case Media.PAUSED:
+				container.active = true;
+				background.visible = true;
+				button.visible = true;
+				busy.visible = false;
+				button.state = THEME.ENABLED;
+				busy.stop();
+				break;
+			case Media.PLAYING:
+				container.active = true;
+				background.visible = false;
+				button.visible = false;
+				busy.visible = false;
+				busy.stop();
+				break;
+			case Media.WAITING:
+				container.active = false;
+				background.visible = true;
+				button.visible = false;
+				busy.visible = true;
+				busy.start();
+				break;
+			}
+		}
+		function onTouchBegan(container, id, x, y, ticks) {
+			var button = container.first.next;
+			button.state = THEME.SELECTED;
+		}
+		function onTouchCancelled(container, id, x, y, ticks) {
+		}
+		function onTouchEnded(container, id, x, y, ticks) {
+			var media = this.data.MEDIA;
+			if (media) {
+				if (media.state == Media.PAUSED)
+					media.start();
+				else if (media.state == Media.PLAYING)
+					media.stop();
+			}
+		}
+	]]></behavior>
+			
+	<container id="MediaButton" left="0" right="0" top="0" bottom="0" behavior="MediaButtonBehavior">
+		<content skin="THEME.mediaButtonBackgroundSkin"/>
+		<content skin="THEME.toolSkin" state="THEME.ENABLED" variant="THEME.PLAY"/>
+		<content skin="THEME.busySkin" behavior="BusyBehavior"/>
+	</container>
+	
+	<behavior id="MediaControllerBehavior" like="ButtonBehavior"><![CDATA[
+		function onDisplaying(container) {
+			var media = this.data.MEDIA;
+			if (media)
+				this.onMediaStateChanged(container, media);
+		}
+		function onMediaStateChanged(container, media) {
+			var button = container.first;
+			var busy = container.last;
+			switch (media.state) {
+			case Media.FAILED:
+				container.active = false;
+				button.visible = false;
+				busy.visible = true;
+				button.variant = THEME.PLAY;
+				busy.stop();
+				busy.state = THEME.busyCount;
+				break;
+			case Media.PAUSED:
+				container.active = true;
+				button.visible = true;
+				busy.visible = false;
+				button.variant = THEME.PLAY;
+				busy.stop();
+				break;
+			case Media.PLAYING:
+				container.active = true;
+				button.visible = true;
+				busy.visible = false;
+				button.variant = THEME.PAUSE;
+				busy.stop();
+				break;
+			case Media.WAITING:
+				container.active = false;
+				button.visible = false;
+				busy.visible = true;
+				button.variant = THEME.PLAY;
+				busy.start();
+				break;
+			}
+		}
+		function onTap() {
+			var media = this.data.MEDIA;
+			if (media) {
+				if (media.state == Media.PAUSED)
+					media.start();
+				else if (media.state == Media.PLAYING)
+					media.stop();
+			}
+		}
+	]]></behavior>
+	
+	<container id="MediaController" width="THEME.screenFooterHeight" height="THEME.screenFooterHeight" active="true" behavior="MediaControllerBehavior">
+		<content skin="THEME.toolSkin" variant="THEME.PLAY"/>
+		<content skin="THEME.busySkin" behavior="BusyBehavior"/>
+	</container>
+	
+	<behavior id="MediaSeekerBehavior"><![CDATA[
+		function onCreate(container, data) {
+			this.data = data;
+		}
+		function onDisplaying(content) {
+			var media = this.data.MEDIA;
+			if (media)
+				this.onMediaTimeChanged(content, media);
+		}
+		function onMediaTimeChanged(container, media) {
+			var duration = media.duration;
+			var time = media.time;
+			var left = container.first.next;
+			var right = left.next;
+			left.string = toTimeCode(time / 1000);
+			right.string = toTimeCode(duration / 1000);
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var width = (background.width - button.width) * time / duration;
+			button.x = background.x + width;
+			bar.width = button.width + width;
+		}
+		function onTouchBegan(container, id, x, y, ticks) {
+			var media = this.data.MEDIA;
+			this.playing = media.state == Media.PLAYING;
+			if (this.playing)
+				media.stop();
+			media.seeking = true;
+			container.last.state = 1;
+			this.onTouchMoved(container, id, x, y, ticks);
+		}
+		function onTouchCancelled(container, id, x, y, ticks) {
+		}
+		function onTouchEnded(container, id, x, y, ticks) {
+			var media = this.data.MEDIA;
+			media.seeking = false;
+			if (this.playing)
+				media.start();
+			container.last.state = 0;
+		}
+		function onTouchMoved(container, id, x, y, ticks) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var media = this.data.MEDIA;
+			var duration = media.duration;
+			var time = duration * (x - (button.width >> 1) - background.x) / (background.width - button.width);
+			if (time < 0) time = 0;
+			else if (time > duration) time = duration;
+			media.time = time;
+		}
+	]]></behavior>
+	
+	<container id="MediaSeeker" left="0" right="0" top="0" bottom="0" active="true" behavior="MediaSeekerBehavior">
+		<content width="50" right="0" top="0" bottom="0" skin="THEME.mediaSeekerLabelSkin"/>
+		<label width="42" right="4" top="4" height="21" style="THEME.mediaSeekerTopStyle"/>
+		<label width="42" right="4" top="25" height="21" style="THEME.mediaSeekerBottomStyle"/>
+		<content left="0" right="50" top="0" bottom="0" skin="THEME.mediaSeekerBarSkin" state="0"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.mediaSeekerBarSkin" state="1"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.mediaSeekerButtonSkin" state="0"/>
+	</container>
+
+	<!-- SLIDER -->
+	
+	<behavior id="SliderBehavior"><![CDATA[
+		function changeState(container, state) {
+			container.last.state = state;
+		}
+		function getMax(container) {
+			return this.data.max;
+		}
+		function getMin(container) {
+			return this.data.min;
+		}
+		function getOffset(container, size) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var value = this.getValue(container);
+			return Math.round(((value - min) * size) / (max - min));
+		}
+		function getValue(container) {
+			return this.data.value;
+		}
+		function onAdapt(container) {
+			this.onLayoutChanged(container);
+		}
+		function onCreate(container, data) {
+			this.data = data;
+		}
+		function onDisplaying(container) {
+			this.onLayoutChanged(container);
+		}
+		function onLayoutChanged(container) {
+		}
+		function onTouchBegan(container, id, x, y, ticks) {
+			container.captureTouch(id, x, y, ticks);
+			this.changeState(container, 1);
+			this.onTouchMoved(container, id, x, y, ticks);
+		}
+		function onTouchEnded(container, id, x, y, ticks) {
+			this.changeState(container, 0);
+		}
+		function onTouchMoved(container, id, x, y, ticks) {
+			debugger
+		}
+		function onValueChanged(container) {
+		}
+		function setOffset(container, size, offset) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var value = min + ((offset * (max - min)) / size);
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setValue(container, value);
+		}
+		function setValue(container, value) {
+			this.data.value = value;
+		}
+	]]></behavior>
+	
+	<behavior id="HorizontalSliderBehavior" like="SliderBehavior"><![CDATA[
+		function onLayoutChanged(container) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var size = (background.width - button.width);
+			var offset = this.getOffset(container, size);
+			button.x = background.x + offset;
+			bar.width = button.width + offset;
+		}
+		function onTouchMoved(container, id, x, y, ticks) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var size = (background.width - button.width);
+			var offset = (x - (button.width >> 1) - background.x);
+			this.setOffset(container, size, offset);
+			this.onLayoutChanged(container);
+			this.onValueChanged(container);
+		}
+	]]></behavior>
+	
+	<layout id="HorizontalSlider" active="true" behavior="HorizontalSliderBehavior">
+		<content left="0" right="0" top="0" bottom="0" skin="THEME.horizontalSliderBarSkin" state="0"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.horizontalSliderBarSkin" state="1"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.horizontalSliderButtonSkin" state="0"/>
+	</layout>
+	
+	<behavior id="HorizontalLogSliderBehavior" like="HorizontalSliderBehavior"><![CDATA[
+		function getOffset(container, size) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var value = this.getValue(container);
+			var logMin = Math.log(min);
+			var maxv = Math.log(max);
+			return Math.round(((Math.log(value) - logMin) * size) / (maxv - logMin));
+		}
+		function setOffset(container, size, offset) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var logMin = Math.log(min);
+			var logMax = Math.log(max);
+			var value = Math.exp(logMin + (offset * (logMax - logMin) / size));
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setValue(container, value);
+		}
+	]]></behavior>
+	
+	<layout id="HorizontalLogSlider" active="true" behavior="HorizontalLogSliderBehavior">
+		<content left="0" right="0" top="0" bottom="0" skin="THEME.horizontalSliderBarSkin" state="0"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.horizontalSliderBarSkin" state="1"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.horizontalSliderButtonSkin" state="0"/>
+	</layout>
+	
+	<behavior id="VerticalSliderBehavior" like="SliderBehavior"><![CDATA[
+		function onLayoutChanged(container) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var size = (background.height - button.height);
+			var offset = this.getOffset(container, size);
+			button.y = background.y + background.height - offset - button.height;
+			bar.height = button.height + offset;
+		}
+		function onTouchMoved(container, id, x, y, ticks) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var size = (background.height - button.height);
+			var offset = background.y + background.height - (y + (button.height >> 1));
+			this.setOffset(container, size, offset);
+			this.onLayoutChanged(container);
+			this.onValueChanged(container);
+		}
+	]]></behavior>
+	
+	<layout id="VerticalSlider" active="true" behavior="VerticalSliderBehavior">
+		<content left="0" right="0" top="0" bottom="0" skin="THEME.verticalSliderBarSkin" state="0"/>
+		<content left="0" right="0" height="30" bottom="0" skin="THEME.verticalSliderBarSkin" state="1"/>
+		<content left="0" right="0" top="0" height="30" skin="THEME.verticalSliderButtonSkin" state="0"/>
+	</layout>
+	
+	<behavior id="VerticalLogSliderBehavior" like="VerticalSliderBehavior"><![CDATA[
+		function getOffset(container, size) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var value = this.getValue(container);
+			var logMin = Math.log(min);
+			var maxv = Math.log(max);
+			return Math.round(((Math.log(value) - logMin) * size) / (maxv - logMin));
+		}
+		function setOffset(container, size, offset) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var logMin = Math.log(min);
+			var logMax = Math.log(max);
+			var value = Math.exp(logMin + (offset * (logMax - logMin) / size));
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setValue(container, value);
+		}
+	]]></behavior>
+	
+	<layout id="VerticalLogSlider" active="true" behavior="VerticalLogSliderBehavior">
+		<content left="10" right="20" top="0" bottom="0" skin="THEME.verticalSliderBarSkin" state="0"/>
+		<content left="10" right="20" height="30" bottom="0" skin="THEME.verticalSliderBarSkin" state="1"/>
+		<content left="10" right="20" top="0" height="30" skin="THEME.verticalSliderButtonSkin" state="0"/>
+	</layout>
+	
+	<!-- TAB -->
+	
+	<behavior id="TabBarBehavior"><![CDATA[
+		function onCreate(container, data) {
+			this.data = data;
+			var content = container.content(data.selection);
+			content.active = false;
+		}
+		function onTabTap(container, item) {
+			var content = container.first;
+			while (content) {
+				content.active = content != item;
+				content = content.next;
+			}
+			this.data.selection = item.index;
+		}
+	]]></behavior>
+
+	<behavior id="TabBehavior" like="ButtonBehavior"><![CDATA[
+		function onTap(content) {
+			content.bubble("onTabTap", content);
+		}
+	]]></behavior>
+	
+	<!-- TICKER -->
+	
+	<behavior id="HorizontalTickerBehavior"><![CDATA[
+		function onDisplaying(scroller) {
+			scroller.interval = 25;
+			if (scroller.width < scroller.first.width)
+				scroller.start();
+			else
+				scroller.stop();
+		}
+		function onTimeChanged(scroller) {
+			scroller.scrollBy(1, 0);
+		}
+	]]></behavior>
+	
+	<behavior id="VerticalTickerBehavior"><![CDATA[
+		function onDisplaying(scroller) {
+			scroller.interval = 10;
+			if (scroller.height < scroller.first.height)
+				scroller.start();
+			else
+				scroller.stop();
+		}
+		function onTimeChanged(scroller) {
+			scroller.scrollBy(0, 1);
+		}
+	]]></behavior>
+	
+	<!-- THUMBNAIL -->
+	
+	<behavior id="ThumbnailBehavior"><![CDATA[
+		function onLoaded(thumbnail) {
+			thumbnail.opacity = 0;
+			thumbnail.duration = 500;
+			thumbnail.time = 0;
+			thumbnail.start();
+		}
+		function onTimeChanged(thumbnail) {
+			thumbnail.opacity = thumbnail.fraction;
+		}
+	]]></behavior>
+
+	<script><![CDATA[
+		exports.Skin = function(texture) {
+			var effects = Array.apply(null, arguments);
+			var c = effects.length - 1;
+			var srcScale = texture.scale;
+			var srcWidth = texture.width;
+			var srcHeight = texture.height;
+			var dstScale = screenScale;
+			var dstWidth = Math.round(srcWidth / dstScale);
+			var dstHeight = Math.round(srcHeight / dstScale);
+			var port = new Port({width: dstWidth, height: dstHeight * c});
+			port.behavior = {
+				onDraw: function(port) {
+					var y = 0;
+					for (var i = 0; i < c; i++) {
+						var effect = effects[1 + i];
+						if (effect) {
+							port.effect = effect;
+							port.drawImage(texture, 0, y, dstWidth, dstHeight, 0, 0, srcWidth, srcHeight);
+						}
+						y += dstHeight;
+					}
+				}
+			}
+			var result = new Texture(port, srcScale);
+			var size = Math.round(srcHeight / srcScale);
+			Skin.call(this, result, {x:0, y:0, width:size, height:size}, size, size);
+		};
+		exports.Skin.prototype = Skin.prototype;
+	]]></script>
+
+</module>

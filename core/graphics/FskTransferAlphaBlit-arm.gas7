@@ -1,0 +1,638 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+	.text	@CODE, READONLY
+	.fpu    neon
+
+	@.equ CACHE_LINE_SIZE,	(64)
+	@.equ PREFETCH_DISTANCE, (CACHE_LINE_SIZE*4)
+
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@ our wonderful NEON debug tool @@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+	.macro BNIE_CHECK_REG_0 stop_flag, idx
+
+	STMFD   sp!, {r0-r12, lr}
+
+	@Drop stack to give us some workspace
+	SUB     sp, sp, #256
+
+	@ Now we are safe to corrupt registers
+	mov	  r0, #\stop_flag
+	mov   r1, #\idx
+	mov   r2, sp
+
+	mov	  r8, r2
+
+	vst1.8   {D0  - D3 }, [r8]!
+	vst1.8   {D4  - D7 }, [r8]!
+	vst1.8   {D8  - D11}, [r8]!
+	vst1.8   {D12 - D15}, [r8]!
+	vst1.8   {D16 - D19}, [r8]!
+	vst1.8   {D20 - D23}, [r8]!
+	vst1.8   {D24 - D27}, [r8]!
+	vst1.8   {D28 - D31}, [r8]!
+
+	MRS     r4, cpsr        @ preserve flags
+	BL      my_check_reg
+	MSR     cpsr_f, r4      @ restore flags
+
+	mov   r8, sp
+	vld1.8   {D0  - D3 }, [r8]!
+	vld1.8   {D4  - D7 }, [r8]!
+	vld1.8   {D8  - D11}, [r8]!
+	vld1.8   {D12 - D15}, [r8]!
+	vld1.8   {D16 - D19}, [r8]!
+	vld1.8   {D20 - D23}, [r8]!
+	vld1.8   {D24 - D27}, [r8]!
+	vld1.8   {D28 - D31}, [r8]!
+
+
+	ADD     sp, sp, #256
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+
+	.macro BNIE_CHECK_MEM_0 idx, addr, offset, size
+
+	STMFD   sp!, {r0-r12, lr}
+
+	@ drop stack to give us some workspace
+	SUB     sp, sp, #256
+
+	@ Now we are safe to corrupt registers
+	mov	  r4, \addr
+	mov	  r1, r4
+	mov	  r0, #\idx
+	mov   r2, #\offset
+	mov   r3, #\size
+
+	mov	  r8, sp
+
+	vst1.8   {D0  - D3 }, [r8]!
+	vst1.8   {D4  - D5 }, [r8]!
+
+	MRS     r4, cpsr        @ preserve flags
+	BL      my_check_mem
+	MSR     cpsr_f, r4      @ restore flags
+
+	mov   r8, sp
+	vld1.8   {D0  - D3 }, [r8]!
+	vld1.8   {D4  - D5 }, [r8]!
+
+	ADD     sp, sp, #256
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+
+src		.req	r0
+dst		.req	r1
+alpha_color	.req	r2
+width0	.req	r3
+
+height	.req	r4
+srb		.req	r5
+drb		.req	r6
+alpha0	.req	r7
+
+width8	.req	r8
+width2	.req	r8		@same as width8, used to 32 bit case
+w0		.req	r9
+w1		.req	r10
+w2		.req	r11
+w3		.req	r12
+w4		.req	r14
+
+
+x_color_q		.req	q0
+x_color_d0		.req		d0
+x_color_d1		.req		d1
+
+src_d		.req		d2
+src_d_bit7	.req		d3		@tmp use
+
+x_alpha_q	.req	q1
+x_alpha_d0	.req		d2
+x_alpha_d1	.req		d3
+
+alpha_q		.req	q1
+alpha_d0	.req		d2
+alpha_d1	.req		d3
+
+@
+
+x_diff_q	.req	q2
+x_diff_d0	.req		d4
+x_diff_d1	.req		d5
+
+diff_b_q	.req	q2
+diff_b_d0	.req		d4
+diff_b_d1	.req		d5
+
+diff_g_q	.req	q3
+diff_g_d0	.req		d6
+diff_g_d1	.req		d7
+
+diff_r_q	.req	q4
+diff_r_d0	.req		d8
+diff_r_d1	.req		d9
+
+diff_a_q	.req	q5
+diff_a_d0	.req		d10
+diff_a_d1	.req		d11
+
+
+x_dst_q			.req	q6
+x_dst_d0		.req		d12
+x_dst_d1		.req		d13
+
+
+dst_q		.req	q6			@must be same as dst_b_q
+dst_d0		.req		d12
+dst_d1		.req		d13
+
+@
+dst_b_q		.req	q6
+dst_b_d0	.req		d12
+dst_b_d1	.req		d13
+
+dst_g_q		.req	q7
+dst_g_d0	.req		d14
+dst_g_d1	.req		d15
+
+dst_r_q		.req	q8
+dst_r_d0	.req		d16
+dst_r_d1	.req		d17
+
+dst_a_q		.req	q9
+dst_a_d0	.req		d18
+dst_a_d1	.req		d19
+
+dst_q0		.req	q10
+dst_q0_d0	.req		d20
+dst_q0_d1	.req		d21
+
+dst_q1		.req	q11
+dst_q1_d0	.req		d22
+dst_q1_d1	.req		d23
+
+
+mask_5_bits_q	.req	q10
+mask_5_bits_d0	.req		d20
+mask_5_bits_d1	.req		d21
+
+mask_6_bits_q	.req	q11
+mask_6_bits_d0	.req		d22
+mask_6_bits_d1	.req		d23
+
+
+@
+color_b_q	.req	q12
+color_b_d0	.req		d24
+color_b_d1	.req		d25
+
+color_g_q	.req	q13
+color_g_d0	.req		d26
+color_g_d1	.req		d27
+
+color_r_q	.req	q14
+color_r_d0	.req		d28
+color_r_d1	.req		d29
+
+color_a_q	.req	q15
+color_a_d0	.req		d30
+color_a_d1	.req		d31
+
+
+
+
+
+
+.equ REGIS_SHIFT,	(9*4)
+.equ CACHE_SHIFT,	(0*4)
+.equ SP_SHIFT,		(REGIS_SHIFT + CACHE_SHIFT)
+.equ height_SHIFT,	(0*4 + SP_SHIFT)
+.equ srb_SHIFT,		(1*4 + SP_SHIFT)
+.equ drb_SHIFT,		(2*4 + SP_SHIFT)
+.equ alpha0_SHIFT,	(3*4 + SP_SHIFT)
+
+
+
+	.macro	ALPHA0_16RGBSE_255
+	vshr.u16    alpha_q, alpha_q, #2           			@ Toss away the least significant 2 bits, yielding a 6 bit alpha (base-63)
+	.endm
+
+	.macro	ALPHA0_16RGBSE_generic
+	vdup.u16	dst_a_q, alpha0							@ dst_a_q used as alpha0_q for 16rgbse (alpha0 is base-256 here, but < 256)
+	vmul.u16	alpha_q, alpha_q, dst_a_q				@ alpha_q id base-65536, but no larger than 65280
+	vrshr.u16	alpha_q, alpha_q, #10   				@ alpha is base-64 here
+	.endm
+
+
+
+	.macro	BLEND_PIX_16RGB reg alpha0_range
+
+	vshr.u16    dst_r_\reg, dst_\reg, #11				@ shift dst red0 to low 5 bits
+	@pld         [dst, #31]								@ preload next dest pixels
+	vshl.u16    dst_g_\reg, dst_\reg, #5				@ shift dst green0 to top 6 bits
+	vand        dst_b_\reg, dst_\reg, mask_5_bits_\reg  @ extract dst blue0
+	vshr.u16    dst_g_\reg, dst_g_\reg, #10				@ shift dst green0 to low 6 bits
+
+	vshr.u8     src_d_bit7, src_d, #7
+	vaddl.u8    alpha_q, src_d, src_d_bit7        		@ convert alpha from base-255 to base-256
+	ALPHA0_16RGBSE_\alpha0_range
+
+	vsub.s16	diff_r_\reg, color_r_\reg, dst_r_\reg	@ difference can be positive or negative
+	vsub.s16	diff_g_\reg, color_g_\reg, dst_g_\reg
+	vsub.s16	diff_b_\reg, color_b_\reg, dst_b_\reg
+
+	vmul.s16	diff_r_\reg, diff_r_\reg, alpha_\reg	@ product can be positive or negative
+	vmul.s16	diff_g_\reg, diff_g_\reg, alpha_\reg
+	vmul.s16	diff_b_\reg, diff_b_\reg, alpha_\reg
+
+	vrshr.s16	diff_r_\reg, diff_r_\reg, #6			@ difference can be positive or negative
+	vrshr.s16	diff_g_\reg, diff_g_\reg, #6			@ shift out the extra bits with rounding
+	vrshr.s16	diff_b_\reg, diff_b_\reg, #6
+
+	vadd.s16	dst_r_\reg, diff_r_\reg					@ add difference to dst
+	vadd.s16	dst_g_\reg, diff_g_\reg
+	vadd.s16	dst_b_\reg, diff_b_\reg
+
+	@dst_\reg is  dst_b_\reg
+	vsli.u16    dst_\reg, dst_g_\reg, #5				@ shift & insert green0 into blue0
+	vsli.u16    dst_\reg, dst_r_\reg, #11				@ shift & insert red0 into blue0
+
+	.endm
+
+
+	.macro	alpha_blend_16rgbse   alpha0
+	push        {r4-r11, lr}                    @ stack ARM regs
+
+	ldrb		w0,		[alpha_color, #1]				@ src red
+	ldrb		w1,		[alpha_color, #2]				@ src green
+	ldrb		w2,		[alpha_color, #3]				@ src blue
+	ldrb		alpha0,	[alpha_color, #0]
+
+	ldr			height,	[sp, #height_SHIFT]
+	ldr			srb,	[sp, #srb_SHIFT]
+	ldr			drb,	[sp, #drb_SHIFT]
+
+	mov			w0,		w0, lsr #3
+	mov			w1,		w1, lsr #2
+	mov			w2,		w2, lsr #3
+	vdup.u16	color_r_q, w0
+	vdup.u16	color_g_q, w1
+	vdup.u16	color_b_q, w2
+
+	vmov.u16    mask_5_bits_q, #0x1f
+	vmov.u16    mask_6_bits_q, #0x3f
+	add			alpha0, alpha0, alpha0, lsr #7	@ convert transparency from base-255 to base-256
+
+blend_16rgb_start_\alpha0:
+	movs        width8, width0, lsr #3          @ calc. 8 iterations
+	beq         blend_16rgb_start_4_\alpha0
+
+blend_16rgb_start_8_\alpha0:
+	@ This loop processes 8 pixels per iterationss
+	vld1.16    {dst_d0, dst_d1}, [dst]			@ load 8 dst pixels and separate r,g,b
+	vld1.8     {src_d}, [src]!					@ load 8 src 8 bit alpha
+
+	BLEND_PIX_16RGB	q, \alpha0
+
+	subs        width8, width8,   #1			@ decrement loop counter
+
+	vst1.16     {dst_d0, dst_d1}, [dst]!		@ write 8 pixels back to dst
+	bne         blend_16rgb_start_8_\alpha0     @ if count != 0, loop
+
+blend_16rgb_start_4_\alpha0:
+	ands		w0, width0, #0x04
+	beq			blend_16rgb_start_2_\alpha0
+
+	@ This loop processes 4 pixels per iterationss
+	vld1.16    {dst_d0}, [dst]					  @ load 4 dst pixels and separate r,g,b
+	vld1.8     {src_d}, [src]					  @ load 8 src 8 bit alpha, only 4 are needed, rest 4 will be ignored
+
+	BLEND_PIX_16RGB	d0, \alpha0
+
+	vst1.16     {dst_d0}, [dst]!				  @ write 4 pixels back to dst
+	add			src, src, #4
+
+blend_16rgb_start_2_\alpha0:
+
+	ands		w0, width0, #0x03
+	beq			blend_16rgb_start_0_\alpha0
+
+	@ This loop processes 4 pixels per iterationss
+	vld1.16    {dst_d0}, [dst]					  @ load 4 dst pixels and separate r,g,b
+	vld1.8     {src_d}, [src]					  @ load 8 src 8 bit alpha, only 4 are needed, rest 4 will be ignored
+
+	BLEND_PIX_16RGB	d0, \alpha0
+
+	vmov.u16	w0, dst_d0[0]
+	vmov.u16	w1, dst_d0[1]
+
+	ands		w2, width0, #0x02
+	beq			blend_16rgb_start_1_\alpha0
+
+	strh		w0, [dst], #2
+	strh		w1, [dst], #2
+	add			src, src, #2
+
+	ands		w2, width0, #0x01
+	beq			blend_16rgb_start_0_\alpha0
+
+	vmov.u16	w2, dst_d0[2]
+	strh		w2, [dst], #2
+	add			src, src, #1
+	b			blend_16rgb_start_0_\alpha0
+
+blend_16rgb_start_1_\alpha0:
+	strh		w0, [dst], #2
+	add			src, src, #1
+
+blend_16rgb_start_0_\alpha0:
+	subs		height, #1
+	addne		dst, dst, drb
+	addne		src, src, srb
+	bne			blend_16rgb_start_\alpha0
+
+	pop         {r4-r11, pc}                    @ return
+
+	.endm
+
+
+	.global alpha_blend_255_16rgbse_arm_v7
+	.type	alpha_blend_255_16rgbse_arm_v7, %function
+	.align 4
+
+
+alpha_blend_255_16rgbse_arm_v7:
+	.fnstart
+	alpha_blend_16rgbse 255
+	.fnend
+
+
+
+	.global alpha_blend_generic_16rgbse_arm_v7
+	.type	alpha_blend_generic_16rgbse_arm_v7, %function
+	.align 4
+
+
+alpha_blend_generic_16rgbse_arm_v7:
+	.fnstart
+	alpha_blend_16rgbse generic
+	.fnend
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+	.macro	ALPHA0_32ARGB_8_255
+	.endm
+
+	.macro	ALPHA0_32ARGB_2_255
+	.endm
+
+	.macro	ALPHA0_32ARGB_1_255
+	.endm
+
+	.macro	ALPHA0_32ARGB_8_generic
+	vdup.u16	diff_a_q, alpha0				@ diff_a_q used as alpha0_q
+	vmul.u16	alpha_q, alpha_q, diff_a_q
+	vshr.u16    alpha_q, alpha_q, #8
+	.endm
+
+	.macro	ALPHA0_32ARGB_2_generic
+	mul	w0, alpha0, w0
+	mul	w1, alpha0, w1
+	mov w0, w0, lsr #8
+	mov w1, w1, lsr #8
+	.endm
+
+	.macro	ALPHA0_32ARGB_1_generic
+	mul	w1, alpha0, w1
+	mov w1, w1, lsr #8
+	.endm
+
+
+	.macro	BLEND_8_PIX_32ARGB  alpha0
+
+	vmovl.u8    alpha_q, src_d
+	ALPHA0_32ARGB_8_\alpha0
+	vshr.u16    diff_a_q, alpha_q, #7
+	vadd.u16    alpha_q, alpha_q, diff_a_q
+
+	vmovl.u8	dst_a_q, dst_a_d0
+	vmovl.u8	dst_r_q, dst_r_d0
+	vmovl.u8	dst_g_q, dst_g_d0
+	vmovl.u8	dst_b_q, dst_b_d0
+
+
+	vsub.u16	diff_a_q, color_a_q, dst_a_q
+	vsub.u16	diff_r_q, color_r_q, dst_r_q
+	vsub.u16	diff_g_q, color_g_q, dst_g_q
+	vsub.u16	diff_b_q, color_b_q, dst_b_q
+
+
+	vmul.u16	diff_a_q, diff_a_q, alpha_q
+	vmul.u16	diff_r_q, diff_r_q, alpha_q
+	vmul.u16	diff_g_q, diff_g_q, alpha_q
+	vmul.u16	diff_b_q, diff_b_q, alpha_q
+
+
+	vrshr.u16	diff_a_q, diff_a_q, #8
+	vrshr.u16	diff_r_q, diff_r_q, #8
+	vrshr.u16	diff_g_q, diff_g_q, #8
+	vrshr.u16	diff_b_q, diff_b_q, #8
+
+
+	vadd.u16	dst_a_q, dst_a_q, diff_a_q
+	vadd.u16	dst_r_q, dst_r_q, diff_r_q
+	vadd.u16	dst_g_q, dst_g_q, diff_g_q
+	vadd.u16	dst_b_q, dst_b_q, diff_b_q
+
+	@dst_q is  dst_b_q
+	vsli.u16    dst_b_q, dst_g_q, #8				@ shift & insert g into b	gb
+	vsli.u16    dst_r_q, dst_a_q, #8				@ shift & insert a into r   ar
+
+	.endm
+
+
+
+	.macro alpha_blend_32argb alpha0
+
+	push        {r4-r11, lr}                    @ stack ARM regs
+
+	ldrb		w1,		[alpha_color, #1]				@ src red
+	ldrb		w2,		[alpha_color, #2]				@ src green
+	ldrb		w3,		[alpha_color, #3]				@ src blue
+	ldrb		alpha0,	[alpha_color, #0]
+
+	ldr			height,	[sp, #height_SHIFT]
+	ldr			srb,	[sp, #srb_SHIFT]
+	ldr			drb,	[sp, #drb_SHIFT]
+
+	mov			w0,		#255					@fskDefaultAlpha
+	vdup.u16	color_a_q, w0
+	ldr			w0,		[alpha_color]			@argb => bgra
+	vdup.u16	color_r_q, w1
+	vdup.u16	color_g_q, w2
+	vdup.u16	color_b_q, w3
+
+
+	orr			w0,		w0, 	#0xff			@fskDefaultAlpha
+	rev			w0,		w0						@back to argb
+	vdup.u32	x_color_d0, w0
+	vmovl.u8	x_color_q,  x_color_d0
+	add			alpha0, alpha0, alpha0, lsr #7
+
+
+blend_32argb_start_\alpha0:
+	movs        width8, width0, lsr #3          @ calc. 8 iterations
+	beq         blend_32argb_start_7_\alpha0
+
+blend_32argb_start_8_\alpha0:
+	@ This loop processes 8 pixels per iterationss
+	vld4.8     {dst_b_d0, dst_g_d0, dst_r_d0, dst_a_d0}, [dst]		@ load 8 dst pixels and separate a, r,g,b
+	vld1.8     {src_d}, [src]!					@ load 8 src 8 bit alpha
+
+
+	BLEND_8_PIX_32ARGB \alpha0
+
+
+	vmovl.u16	dst_q0, dst_b_d0
+	vmovl.u16	dst_q1, dst_r_d0
+	vshl.u32    dst_q1, dst_q1, #16				@ shift a,r to top
+	vorr.u32	dst_q0, dst_q0, dst_q1
+
+
+	vst1.32     {dst_q0_d0, dst_q0_d1}, [dst]!	@ write 8 pixels back to dst
+
+	vmovl.u16	dst_q0, dst_b_d1
+	vmovl.u16	dst_q1, dst_r_d1
+	vshl.u32    dst_q1, dst_q1, #16				@ shift a,r to top
+	vorr.u32	dst_q0, dst_q0, dst_q1
+
+
+	vst1.32     {dst_q0_d0, dst_q0_d1}, [dst]!	@ write 8 pixels back to dst
+
+	subs        width8, width8,   #1			@ decrement loop counter
+	bne         blend_32argb_start_8_\alpha0        @ if count != 0, loop
+
+blend_32argb_start_7_\alpha0:
+	ands		w0, width0, #0x06
+	beq			blend_32argb_start_1_\alpha0
+	mov         width2, w0, lsr #1
+
+blend_32argb_start_2_\alpha0:
+	vld1.32     {x_dst_d0}, [dst]				@ load 2 dst pixels not separate a, r,g,b
+	ldrb		w0, [src], #1					@ load 1 src 8 bit alpha
+	ldrb		w1, [src], #1					@ load 1 src 8 bit alpha
+
+	vmovl.u8	x_dst_q, x_dst_d0				@ extend each channel to 16 bits
+
+	ALPHA0_32ARGB_2_\alpha0
+	add			w0, w0, w0, lsr #7				@ alfa += alfa>>7
+	add			w1, w1, w1, lsr #7
+
+	vdup.u16	x_alpha_d0, w0
+	vdup.u16	x_alpha_d1, w1
+
+	vsub.u16	x_diff_q, x_color_q, x_dst_q
+	vmul.u16	x_diff_q, x_diff_q,  x_alpha_q
+
+	vrshr.u16	x_diff_q, x_diff_q, #8
+	vadd.u16	x_dst_q, x_dst_q, x_diff_q
+	vmovn.u16	x_dst_d0, x_dst_q
+	vst1.32     {x_dst_d0}, [dst]!				@ write 2 pixels back to dst
+
+	subs        width2, width2, #1				@ decrement loop counter
+	bne         blend_32argb_start_2_\alpha0
+
+blend_32argb_start_1_\alpha0:
+	ands		w0, width0, #0x01
+	beq			blend_32argb_start_0_\alpha0
+
+	ldr			w0, [dst]						@ load 1 dst pixels and separate a, r,g,b
+	ldrb		w1, [src], #1					@ load 1 src 8 bit alpha
+
+	vdup.u32	x_dst_d0, w0
+	vmovl.u8	x_dst_q, x_dst_d0
+
+	ALPHA0_32ARGB_1_\alpha0
+	add			w1, w1, w1, lsr #7
+
+	vdup.u16	x_alpha_d0, w1
+
+	vsub.u16	x_diff_d0, x_color_d0, x_dst_d0
+	vmul.u16	x_diff_d0, x_diff_d0,  x_alpha_d0
+	vrshr.u16	x_diff_d0, x_diff_d0, #8
+	vadd.u16	x_dst_d0,  x_dst_d0, x_diff_d0
+	vmovn.u16	x_dst_d0,  x_dst_q
+
+	vmov.u32	w0, x_dst_d0[0]
+
+	str			w0, [dst], #4					@ write 1 pixels back to dst
+
+blend_32argb_start_0_\alpha0:
+	subs		height, #1
+	addne		dst, dst, drb
+	addne		src, src, srb
+	bne			blend_32argb_start_\alpha0
+
+	pop         {r4-r11, pc}                    @ return
+
+	.endm
+
+
+	.global alpha_blend_255_32argb_arm_v7
+	.type	alpha_blend_255_32argb_arm_v7, %function
+	.align 4
+
+alpha_blend_255_32argb_arm_v7:
+	.fnstart
+	alpha_blend_32argb 255
+	.fnend
+
+
+	.global alpha_blend_generic_32argb_arm_v7
+	.type	alpha_blend_generic_32argb_arm_v7, %function
+	.align 4
+
+
+alpha_blend_generic_32argb_arm_v7:
+	.fnstart
+	alpha_blend_32argb generic
+	.fnend
+
+
+
+	.end
+#endif

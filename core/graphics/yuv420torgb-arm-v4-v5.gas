@@ -1,0 +1,4288 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+@ This file was automatically generated from
+@ C:/fsk-windows/bin/win32/Debug/../../..//kinoma/ADS2gas/files/yuv420torgb-arm-v4-v5.s
+@ on Sun, 10 Jan 2010 01:50:54 GMT
+
+@---------------
+@BEGIN	.include	"yuv420torgb-arm-gas-s.h"
+@---------------
+
+@ This file was automatically generated from
+@ C:/fsk-windows/bin/win32/Debug/../../..//kinoma/ADS2gas/files/yuv420torgb-arm-s.h
+@ on Sun, 10 Jan 2010 01:49:59 GMT
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@
+@yuv420i(interleave)
+@features
+@ downscale: 0.0 ~ 1.0		;all coverage
+@ upscale  : 1.0 ~ 2.0		;all shapes, edge use generic block
+@ upscale  : 2.0 ~ 5.0		;reduced shape set, dege use generic block
+@ upscale  : 5.0 ~ 128.0	;all generic block
+@ generic  : 0.0 ~			;analog(non-interleave)
+@ bc	   : brightness and contrast control
+@ pixformat: 16RGB565SE and 32BGRA
+@ sprite   : supported except for generic case
+@
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@
+@
+@performance historic data
+@for reference, may not be up to date!!!!!
+@
+@scale factor		1.0  0.98 0.90 0.80 0.75 0.60 0.50 0.40 0.33
+@analog				 52    55   64   80   90  136  187  283  400
+@pattern			 65    69   75   88   95  ???  177  233  306
+@pattern interlaced  74    75   86  101  107  142  174  237  306
+@unity   interlaced  76   xx
+@unity				 72   xx
+@
+@scale factor		1.0  1.10 1.20 1.33 1.50 1.75 2.0 3.0 4.0
+@analog				 52   47   43  37    33  28   22  13   9
+@pattern interlaced  74   71    67  61    52  42   31  xx   xx
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.equ SHIFT_R_rgb565se, (15)
+	.equ SHIFT_G_rgb565se, (14)
+	.equ SHIFT_B_rgb565se, (15)
+	.equ SHIFT_R_bgra32, (12)
+	.equ SHIFT_G_bgra32, (12)
+	.equ SHIFT_B_bgra32, (12)
+	.equ BITS_R_rgb565se, (5)
+	.equ BITS_G_rgb565se, (6)
+	.equ BITS_B_rgb565se, (5)
+	.equ BITS_R_bgra32, (8)
+	.equ BITS_G_bgra32, (8)
+	.equ BITS_B_bgra32, (8)
+	.equ BLEND_SPRITE_PARAM_BYTES, (16)
+	.equ COPY_SPRITE_PARAM_BYTES, (8)
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+	.macro	SET_ALPHA_rgb565se pix, value
+	.endm
+		
+
+
+	.macro	SET_ALPHA_bgra32 pix, value
+	orr	\pix, \pix, #(\value<<24)
+	.endm
+
+
+	.macro	ldr_rgb565se a, b, c
+	ldrh	\a, \b, \c
+	.endm
+
+
+	.macro	ldr_bgra32 a, b, c
+	ldr	\a, \b, \c
+	.endm
+
+
+	.macro	str_rgb565se a, b, c
+	strh	\a, \b, \c
+	.endm
+
+
+	.macro	str_bgra32 a, b, c
+	str	\a, \b, \c
+	.endm
+
+
+	.macro	ldrne_rgb565se a, b, c
+	ldrneh	\a, \b, \c
+	.endm
+
+
+	.macro	ldrne_bgra32 a, b, c
+	ldrne	\a, \b, \c
+	.endm
+
+
+	.macro	strne_rgb565se a, b, c
+	strneh	\a, \b, \c
+	.endm
+
+
+	.macro	strne_bgra32 a, b, c
+	strne	\a, \b, \c
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	ALIGN_4 ppp
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	add	\ppp, \ppp, #3 @align to long
+	mov	\ppp, \ppp, lsr #2
+	mov	\ppp, \ppp, lsl #2
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	COPY_LINE_xx mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	ands	w0, w0, #3
+	beq	\mark\().end
+\mark\().start:	
+	ldr\pix_format	w1, [dst, #\pix_bytes]!
+	str\pix_format	w1, [w5, #\pix_bytes]!
+		
+	subs	w0, w0, #1
+	bne	\mark\().start
+\mark\().end:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	BLOCK_MEMSET block_value, block_width, block_stride, block_height, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	cmp	\block_width, #0
+	beq	\mark\().end
+	cmp	\block_height, #0
+	beq	\mark\().end
+	mov	xxx, \block_width
+\mark\().start:	
+	str\pix_format	\block_value, [dst, #\pix_bytes]! 
+	subs	xxx, xxx, #1
+	bne	\mark\().start
+	subs	\block_height, \block_height, #1
+	movne	xxx, \block_width
+	add	dst, dst, \block_stride
+	bne	\mark\().start
+\mark\().end:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	COPY_BUFFER version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	cmp	this_width, #0x01
+	bne	\version\().generic_start
+\version\().single_top:		
+	ldr\pix_format	this_w0, [this_src], #\pix_bytes
+	str\pix_format	this_w0, [this_dst], #\pix_bytes
+		
+	subs	this_height, this_height, #1
+	beq	\version\().end
+	addne	this_src, this_src, drb
+	addne	this_dst, this_dst, drb
+	subne	this_src, this_src, this_width, lsl #(\pix_bytes>>1)
+	subne	this_dst, this_dst, this_width, lsl #(\pix_bytes>>1)
+	movne	this_width, this_width, lsr #1
+	bne	\version\().single_top
+\version\().generic_start:	
+	mov	this_width, this_width, lsr #1
+\version\().generic_top:		
+	ldr\pix_format	this_w0, [this_src], #\pix_bytes
+	ldr\pix_format	this_w1, [this_src], #\pix_bytes
+	str\pix_format	this_w0, [this_dst], #\pix_bytes
+	str\pix_format	this_w1, [this_dst], #\pix_bytes
+		
+	subs	this_width, this_width, #1
+	bne	\version\().generic_top
+		
+	@take care of last one	
+	ldrh	this_width, [pattern, #0]
+	ands	this_width, this_width, #1
+	ldrne\pix_format	this_w0, [this_src], #\pix_bytes
+	strne\pix_format	this_w0, [this_dst], #\pix_bytes
+		
+	subs	this_height, this_height, #1
+	ldrneh	this_width, [pattern, #0]
+	addne	this_src, this_src, drb
+	addne	this_dst, this_dst, drb
+	subne	this_src, this_src, this_width, lsl #(\pix_bytes>>1)
+	subne	this_dst, this_dst, this_width, lsl #(\pix_bytes>>1)
+	movne	this_width, this_width, lsr #1
+	bne	\version\().generic_top
+\version\().end:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	BLEND_AND_COPY version, pix_format, pix_bytes, back_buffer_shift, front_buffer_shift
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@local variable
+this_width	.req	r8 
+this_height	.req	r9 
+this_src	.req	r10 
+this_dst	.req	r11 
+this_w0	.req	r12 
+this_w1	.req	r14 
+	ALIGN_4	pattern
+	mov	w0, r0
+	ldr	r0, [pattern, #4]
+	mov	w1, r1
+	mov	w2, r2
+	mov	w3, r3
+	bl	blend_proc
+	mov	r0, w0
+	mov	r1, w1
+	mov	r2, w2
+	mov	r3, w3
+		
+	ldr	this_src, [sp, #\back_buffer_shift]
+	ldr	this_dst, [sp, #\front_buffer_shift]
+	ldrh	this_width, [pattern, #0]
+	ldrh	this_height, [pattern, #2]
+		
+	add	this_dst, this_dst, #\pix_bytes
+	COPY_BUFFER	\version, \pix_format, \pix_bytes
+	ldrh	this_width, [pattern, #0]
+	ldr	dst, [sp, #\front_buffer_shift]
+	add	pattern, pattern, #COPY_SPRITE_PARAM_BYTES @skip width, height
+	add	dst, dst, this_width, lsl #(\pix_bytes>>1)
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	GET_PATTERN_INTERLACE switch, mark
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	ldrb	w5, [pattern], #1
+	add	w4, pc, #(\switch - \mark)
+	ldr	pc, [w4, w5, lsl #2]
+\mark:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	DOWN_SCALE_PROC_TABLE version
+	.long	\version\().case_common_EOF @0
+	.long	\version\().case_down_EOL_0 @1
+	.long	\version\().case_down_SKIP @4
+	.long	\version\().case_down_5 @5
+	.long	\version\().case_down_6 @6
+	.long	\version\().case_down_EOL_1 @2
+	.long	\version\().case_down_7 @7
+	.long	\version\().case_down_9 @8
+	.long	\version\().case_down_QH_1 @16
+	.long	\version\().case_down_QH_2_HOR @17
+	.long	\version\().case_down_QH_2_VER @18
+	.long	\version\().case_down_10 @9
+	.long	\version\().case_down_11 @10
+	.long	\version\().case_down_EOL_2 @3
+	.long	\version\().case_down_13 @11
+	.long	\version\().case_down_14 @12
+	.long	\version\().case_down_15 @13
+	.long	\version\().case_down_reserved_0 @14
+	.long	\version\().case_down_reserved_1 @15
+	.long	\version\().case_common_Switch_Buffer_S @19
+	.long	\version\().case_common_Copy_Buffer_S @20
+	.long	\version\().case_common_Blend_S @21
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_DOWN_SCALE_BC_CONVERSION arch, version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmfd	sp!,{r4-r11,lr}
+	sub	sp,sp,#CACHE_SHIFT_dspi
+	add	w5,sp,#pattern_SHIFT_dspi
+	ldmia	w5,{pattern-dst_width_1} 
+		
+	mov	w4, drb, asl #1
+	sub	w4, w4, dst_width_1, asl #(\pix_bytes>>1)
+	str	w4, [sp, #dst_double_stride_SHIFT_dspi]
+	ldr	src_width_1, [pattern], #4
+	sub	w4, w4, drb
+	str	w4, [sp, #dst_single_stride_SHIFT_dspi]
+	add	w4, src_width_1, src_width_1, lsl #1 @yuv_width_bytes = width * 3
+	sub	w4, yuvrb_1, w4
+	str	w4, [sp, #yuv_double_stride_SHIFT_dspi]
+		
+	sub	dst, dst, #\pix_bytes
+	SET_CONST\pix_format	
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_9, \version\().mark_first
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_common_EOF:		
+	add	sp,sp,#CACHE_SHIFT_dspi
+	ldmfd	sp!,{r4-r11,pc}
+\version\().case_down_EOL_0:		
+	ldrb	w5, [pattern], #1
+	ldr	yuvrb_2, [sp, #yuvrb_SHIFT_dspi]
+	add	w2, pc, #(\version\().switch_band_9 - \version\().mark_EOL_0) 
+	ldr	w2, [w2, w5,lsl #2]
+\version\().mark_EOL_0:	
+	add	yuv, yuv, yuvrb_2
+	mov	pc, w2
+\version\().case_down_SKIP:	@00	
+	ldrb	w5, [pattern], #1
+	add	w2, pc, #(\version\().switch_band_9 - \version\().mark_SKIP) 
+	ldr	w2, [w2, w5, lsl #2]
+\version\().mark_SKIP:		
+	add	yuv, yuv, #6
+	mov	pc, w2
+	@00	
+\version\().case_down_5:	@01	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #3] @00
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_5_mark, \pix_format, \pix_bytes
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@version.switch_band_5
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@01	
+\version\().case_down_6:	@00	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #1] @00
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_6_mark, \pix_format, \pix_bytes
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_6
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_down_EOL_1:	
+	ldrb	w5, [pattern], #1
+	ldr	yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_dspi]
+	ldr	dst_single_stride_2, [sp, #dst_single_stride_SHIFT_dspi]
+	add	w2, pc, #(\version\().switch_band_9 - \version\().mark_EOL_1) 
+	ldr	w2, [w2, w5,lsl #2]
+\version\().mark_EOL_1:	
+	add	yuv, yuv, yuv_double_stride_2
+	add	dst, dst, dst_single_stride_2 
+	mov	pc, w2
+	@01	
+\version\().case_down_7:	@01	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #1] @yp 
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv, #3] @yp 
+	PATTERN_INTERLEAVE_BASIC_step2	\arch, \version\().switch_band_9, \version\().pattern_7_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_7
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@00	
+\version\().case_down_9:	@10 		
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #2] @00
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_9_mark, \pix_format, \pix_bytes
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_9:	
+	DOWN_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_down_QH_1:	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 
+	ldrb	w4, [yuv], #1 
+	ldrb	w3, [yuv], #1 
+	ldrb	w2, [yuv], #1 
+	add	w5, w5, w4
+	add	w5, w5, w3
+	add	w5, w5, w2
+	mov	w5, w5, lsr #2
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_QH_1_mark, \pix_format, \pix_bytes
+	mov	pc, w2
+\version\().case_down_QH_2_HOR:	
+	PATTERN_INTERLEAVE_2_in_4_hor_avg	\arch, \version\().switch_band_9, \version\().pattern_QH_2_HOR_mark, \pix_format, \pix_bytes
+\version\().case_down_QH_2_VER:	
+	PATTERN_INTERLEAVE_2_in_4_ver_avg	\arch, \version\().switch_band_9, \version\().pattern_QH_2_VER_mark, \pix_format, \pix_bytes
+	@10	
+\version\().case_down_10:	@00	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #0] @00
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_10_mark, \pix_format, \pix_bytes
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_10
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@10	
+\version\().case_down_11:	@10	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #0] @yp 
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv, #2] @yp 
+	PATTERN_INTERLEAVE_BASIC_step2	\arch, \version\().switch_band_14, \version\().pattern_11_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_11
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_down_EOL_2:	
+	ldr	yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_dspi]
+	ldr	dst_double_stride_2, [sp, #dst_double_stride_SHIFT_dspi]
+	add	yuv, yuv, yuv_double_stride_2
+	add	dst,dst,dst_double_stride_2 
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().mark_after_EOL_2
+	@00	
+\version\().case_down_13:	@11	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #3 @v
+	ldrb	w5, [yuv], #1 @yp 
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv], #1 @yp 
+	PATTERN_INTERLEAVE_BASIC_step2	\arch, \version\().switch_band_14, \version\().pattern_13_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_13
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@11	
+\version\().case_down_14:	@00	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv], #3 @yp 
+	PATTERN_INTERLEAVE_BASIC_step2	\arch, \version\().switch_band_14, \version\().pattern_14_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_14:	
+	DOWN_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+	@11	
+\version\().case_down_15:	@11	
+	PATTERN_INTERLEAVE_4_in_4	\arch, \version\().switch_band_14, \version\().mark_case_kDownScalePattern_15, \pix_format, \pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_15
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+\version\().case_down_reserved_0:	
+\version\().case_down_reserved_1:	
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_down_reserved_mark
+\version\().case_common_Switch_Buffer_S:	
+	str	dst, [sp, #sprite_front_buffer_SHIFT_dspi]
+	ldr	dst, [sp, #sprite_back_buffer_SHIFT_dspi]
+	sub	dst, dst, #\pix_bytes
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_common_Switch_Buffer_S_mark
+\version\().case_common_Copy_Buffer_S:	
+	BLEND_AND_COPY	\version\().blend_and_copy, \pix_format, \pix_bytes, sprite_back_buffer_SHIFT_dspi, sprite_front_buffer_SHIFT_dspi
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_common_Copy_Buffer_S_mark
+\version\().case_common_Blend_S:	
+	ALIGN_4	pattern
+	mov	w0, r0
+	mov	w1, r1
+	mov	w2, r2
+	mov	w3, r3
+	mov	r0, pattern
+	bl	parse_proc
+	mov	r0, w0
+	mov	r1, w1
+	mov	r2, w2
+	mov	r3, w3
+		
+	add	pattern, pattern, #BLEND_SPRITE_PARAM_BYTES @skip width, height
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_common_Pattern_Blend_S_mark
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+	.macro	UP_SCALE_PROC_TABLE version
+	.long	\version\().case_common_EOF @0
+	.long	\version\().case_up_1 
+	.long	\version\().case_up_2 
+	.long	\version\().case_up_3 
+	.long	\version\().case_up_4 
+	.long	\version\().case_up_5 
+	.long	\version\().case_up_6 
+	.long	\version\().case_up_7 
+	.long	\version\().case_up_8 
+	.long	\version\().case_up_9 
+	.long	\version\().case_up_10 
+	.long	\version\().case_up_11 
+	.long	\version\().case_up_12 
+	.long	\version\().case_up_13 
+	.long	\version\().case_up_14 
+	.long	\version\().case_up_15 
+	.long	\version\().case_up_16_4x4
+	.long	\version\().case_up_reserved_0 @17
+	.long	\version\().case_up_reserved_1 @18
+	.long	\version\().case_common_Switch_Buffer @19
+	.long	\version\().case_common_Copy_Buffer @20
+	.long	\version\().case_common_Blend @21
+	.long	\version\().case_up_EOL_2 @22
+	.long	\version\().case_up_EOL_3 @23
+	.long	\version\().case_up_EOL_4 @24
+	.long	\version\().case_up_GENERIC_EOL @25
+	.long	\version\().case_up_GENERIC_BLOCK @26
+	.long	\version\().case_up_4x5 @27
+	.long	\version\().case_up_4x6
+	.long	\version\().case_up_5x4
+	.long	\version\().case_up_5x5
+	.long	\version\().case_up_5x6
+	.long	\version\().case_up_6x4
+	.long	\version\().case_up_6x5
+	.long	\version\().case_up_6x6
+	.long	\version\().case_up_6x7
+	.long	\version\().case_up_6x8
+	.long	\version\().case_up_7x6
+	.long	\version\().case_up_7x7
+	.long	\version\().case_up_7x8
+	.long	\version\().case_up_8x6
+	.long	\version\().case_up_8x7
+	.long	\version\().case_up_8x8
+	.long	\version\().case_up_8x9
+	.long	\version\().case_up_8x10
+	.long	\version\().case_up_9x8
+	.long	\version\().case_up_9x9
+	.long	\version\().case_up_9x10
+	.long	\version\().case_up_10x8
+	.long	\version\().case_up_10x9
+	.long	\version\().case_up_10x10 @50
+		
+	.endm	
+		
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_UP_SCALE_BC_CONVERSION arch, version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmfd	sp!,{r4-r11,lr}
+	sub	sp,sp,#CACHE_SHIFT_usxxpi
+	add	w5,sp,#pattern_SHIFT_usxxpi
+	ldmia	w5,{pattern-dst_width_1} 
+		
+	sub	w4, drb, dst_width_1, lsl #(\pix_bytes>>1)
+	str	w4, [sp, #dst_single_stride_SHIFT_usxxpi]
+	add	w4, w4, drb
+	str	w4, [sp, #dst_double_stride_SHIFT_usxxpi]
+	add	w4, w4, drb
+	str	w4, [sp, #dst_tripple_stride_SHIFT_usxxpi]
+	add	w4, w4, drb
+	str	w4, [sp, #dst_quad_stride_SHIFT_usxxpi]
+	ldr	src_width_1, [pattern], #4
+	add	w4, src_width_1, src_width_1, lsl #1 @yuv_width_bytes = width * 3
+	sub	w4, yuvrb_1, w4
+	str	w4, [sp, #yuv_double_stride_SHIFT_usxxpi]
+		
+	sub	dst, dst, #\pix_bytes
+	SET_CONST\pix_format	
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_2, \version\().first_mark
+@;;;;;;;;;;;;;;;;;
+\version\().case_common_EOF:		
+	add	sp,sp,#CACHE_SHIFT_usxxpi
+	ldmfd	sp!,{r4-r11,pc}
+		
+	@ab 	
+\version\().case_up_1:	@cd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_2, \version\().pattern_1_mark, \pix_format, \pix_bytes
+	add	dst, dst, #\pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_1
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@ab	
+\version\().case_up_2:	@cd		
+	@cd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_2, \version\().pattern_2_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_2:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@ab	
+	@ab	
+\version\().case_up_3:	@cd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	sub	dst, dst, #\pix_bytes
+	add	dst, dst, drb, lsl #1;
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+		
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_2, \version\().pattern_3_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #0
+	sub	dst, dst, drb, lsl #1;
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_3
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@ab	
+	@ab	
+\version\().case_up_4:	@cd	
+	@cd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	sub	dst, dst, #(\pix_bytes<<1)
+	add	dst, dst, drb, lsl #1;
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_2, \version\().pattern_4_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	sub	dst, dst, drb, lsl #1;
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_4
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@abb	
+\version\().case_up_5:	@cdd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]
+	str\pix_format	w3, [dst, #(\pix_bytes<<1)]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	add	dst, dst, drb
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_7, \version\().pattern_5_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	str\pix_format	w3, [dst], #0
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_5
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@abb	
+\version\().case_up_6:	@cdd	
+	@cdd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]
+	str\pix_format	w3, [dst, #(\pix_bytes<<1)]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_7, \version\().pattern_6_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_6
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@abb	
+	@abb	
+\version\().case_up_7:	@cdd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	sub	dst, dst, #(\pix_bytes<<1)
+	add	dst, dst, drb, lsl #1;
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_7, \version\().pattern_7_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	str\pix_format	w3, [dst], #0
+	sub	dst, dst, drb, lsl #1;
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_7:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@abb	
+	@abb	
+\version\().case_up_8:	@cdd	
+	@cdd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	sub	dst, dst, #(\pix_bytes*3)
+	add	dst, dst, drb, lsl #1;
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_7, \version\().pattern_8_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	sub	dst, dst, drb, lsl #1;
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_8
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+	@aab	
+\version\().case_up_9:	@ccd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, #\pix_bytes]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(\pix_bytes<<1)]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	add	dst, dst, drb
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	str\pix_format	w3, [dst], #\pix_bytes
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_7, \version\().pattern_9_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #0
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_9
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aab	
+\version\().case_up_10:	@ccd	
+	@ccd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, #\pix_bytes]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(\pix_bytes<<1)]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_11, \version\().pattern_10_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_10
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aab	
+	@aab	
+\version\().case_up_11:	@ccd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	sub	dst, dst, #(\pix_bytes<<1)
+	add	dst, dst, drb, lsl #1;
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	str\pix_format	w3, [dst], #\pix_bytes
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_11, \version\().pattern_11_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #0
+	sub	dst, dst, drb, lsl #1;
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_11:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+	@aab	
+	@aab	
+\version\().case_up_12:	@ccd	
+	@ccd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	sub	dst, dst, #(\pix_bytes*3)
+	add	dst, dst, drb, lsl #1;
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_11, \version\().pattern_12_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	sub	dst, dst, drb, lsl #1;
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_12
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aabb	
+\version\().case_up_13:	@ccdd 		
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, #\pix_bytes]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(\pix_bytes<<1)]
+	str\pix_format	w3, [dst, #(\pix_bytes*3)]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	add	dst, dst, drb
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	str\pix_format	w3, [dst], #\pix_bytes
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_11, \version\().pattern_13_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	str\pix_format	w3, [dst], #0
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_13
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_up_14:	@aabb	
+	@ccdd	
+	@ccdd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, #\pix_bytes]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(\pix_bytes<<1)]
+	str\pix_format	w3, [dst, #(\pix_bytes*3)]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_15, \version\().pattern_14_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_14
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aabb	
+	@aabb	
+\version\().case_up_15:	@ccdd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	sub	dst, dst, #(\pix_bytes*3)
+	add	dst, dst, drb, lsl #1;
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	str\pix_format	w3, [dst], #\pix_bytes
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_15, \version\().pattern_15_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst], #\pix_bytes
+	str\pix_format	w3, [dst], #0
+	sub	dst, dst, drb, lsl #1;
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_15:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aabb	
+	@aabb	
+\version\().case_up_16_4x4:	@ccdd	
+	@ccdd	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	sub	dst, dst, #(\pix_bytes<<2)
+	add	dst, dst, drb, lsl #1;
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_15, \version\().pattern_16_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	str\pix_format	w3, [dst, drb]
+	sub	dst, dst, drb, lsl #1;
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_16
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_up_reserved_0:		
+\version\().case_up_reserved_1:		
+	GET_PATTERN_INTERLACE	\version\().switch_band_15, \version\().case_reserved_not_implemented_mark
+\version\().case_common_Switch_Buffer:	
+	str	dst, [sp, #sprite_front_buffer_SHIFT_usxxpi]
+	ldr	dst, [sp, #sprite_back_buffer_SHIFT_usxxpi]
+	sub	dst, dst, #\pix_bytes
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_15, \version\().case_common_Switch_Buffer_S_mark
+\version\().case_common_Copy_Buffer:	
+	BLEND_AND_COPY	\version\().blend_and_copy, \pix_format, \pix_bytes, sprite_back_buffer_SHIFT_usxxpi, sprite_front_buffer_SHIFT_usxxpi
+	GET_PATTERN_INTERLACE	\version\().switch_band_15, \version\().Pattern_Copy_Buffer_S_mark
+\version\().case_common_Blend:	
+	ALIGN_4	pattern
+	mov	w0, r0
+	mov	w1, r1
+	mov	w2, r2
+	mov	w3, r3
+	mov	r0, pattern
+	bl	parse_proc
+	mov	r0, w0
+	mov	r1, w1
+	mov	r2, w2
+	mov	r3, w3
+		
+	add	pattern, pattern, #BLEND_SPRITE_PARAM_BYTES @skip width, height
+	GET_PATTERN_INTERLACE	\version\().switch_band_15, \version\().Pattern_Blend_S_mark
+\version\().case_up_EOL_2:		
+\version\().case_up_EOL_3:		
+\version\().case_up_EOL_4:		
+	GET_PATTERN_INTERLACE	\version\().switch_band_15, \version\().case_EOL_not_implemented_mark
+\version\().case_up_GENERIC_EOL:		
+repeats_x	.req	r10 
+	ldrb	repeats_x, [pattern], #1
+	ldr	yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_usxxpi]
+	ldr	dst_single_stride_2, [sp, #dst_single_stride_SHIFT_usxxpi]
+	add	yuv, yuv, yuv_double_stride_2
+	add	dst,dst,dst_single_stride_2
+	mla	dst, repeats_x, drb, dst
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_15, \version\().case_GENERIC_EOL_mark
+\version\().case_up_GENERIC_BLOCK:	@26	
+		
+	@a	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	@b	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	@c	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	@d	
+	PATTERN_upscale_step_f	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+block_value	.req	r8 
+block_width	.req	r9 
+block_stride	.req	r10 
+block_height	.req	r11 
+dst_cache	.req	r12 
+xxx	.req	r14 
+	@01	
+	@23	
+	mov	dst_cache, dst
+	ldr\pix_format	block_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	ldrb	block_width, [pattern, #0] @x0<=x0,x1,y0,y1
+	ldrb	block_height, [pattern, #2] @y0<=x0,x1,y0,y1
+	sub	block_stride, drb, block_width, lsl #(\pix_bytes>>1)
+	BLOCK_MEMSET	block_value, block_width, block_stride, block_height, \version\().case_up_GENERIC_BLOCK_mark_0, \pix_format, \pix_bytes
+	ldr\pix_format	block_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	ldrb	block_height, [pattern, #3] @y1<=x0,x1,y0,y1
+	BLOCK_MEMSET	block_value, block_width, block_stride, block_height, \version\().case_up_GENERIC_BLOCK_mark_2, \pix_format, \pix_bytes
+	add	dst, dst_cache, block_width, lsl #(\pix_bytes>>1)
+	ldr\pix_format	block_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	ldrb	block_width, [pattern, #1] @x1<=x0,x1,y0,y1
+	ldrb	block_height, [pattern, #2] @y0<=x0,x1,y0,y1
+	sub	block_stride, drb, block_width, lsl #(\pix_bytes>>1)
+	BLOCK_MEMSET	block_value, block_width, block_stride, block_height, \version\().case_up_GENERIC_BLOCK_mark_1, \pix_format, \pix_bytes
+	ldr\pix_format	block_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+	ldrb	block_height, [pattern, #3] @y1<=x0,x1,y0,y1
+	BLOCK_MEMSET	block_value, block_width, block_stride, block_height, \version\().case_up_GENERIC_BLOCK_mark_3, \pix_format, \pix_bytes
+	ldrb	xxx, [pattern, #0] @x0
+	add	pattern, pattern, #4
+	add	dst, dst_cache, block_width, lsl #(\pix_bytes>>1) @x1
+	add	dst, dst, xxx , lsl #(\pix_bytes>>1)
+	GET_PATTERN_INTERLACE	\version\().switch_band_4x5, \version\().case_generic_block_mark
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_00
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aabb	
+	@aabb	
+	@aabb			
+	@ccdd	
+\version\().case_up_4x5:	@ccdd	
+	@a23	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	@b23	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	add	dst, dst, drb
+	@c22	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-2*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #( 1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	sub	dst, dst, drb
+	@d22	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_4x5, \version\().pattern_4x5_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_4x5:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aabb	
+	@aabb	
+	@aabb			
+	@ccdd	
+	@ccdd	
+\version\().case_up_4x6:	@ccdd	
+	@a23	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	@b23	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	add	dst, dst, drb
+	@c23	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-2*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #( 1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	@d23	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_4x5, \version\().pattern_4x6_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_4x6
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaabb	
+	@aaabb			
+	@cccdd	
+\version\().case_up_5x4:	@cccdd	
+		
+	@a32	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	sub	dst, dst, drb
+	@b22	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	add	dst, dst, drb
+	@c32	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	sub	dst, dst, drb
+	@d22	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_5x5, \version\().pattern_5x4_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+	add	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_5x4
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaabb	
+	@aaabb	
+	@aaabb			
+	@cccdd	
+\version\().case_up_5x5:	@cccdd	
+		
+	@a33	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	@b23	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	add	dst, dst, drb
+	@c32	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	sub	dst, dst, drb
+	@d22	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_5x5, \version\().pattern_5x5_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #\pix_bytes]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	sub	dst, dst, drb, lsl #2
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_5x5:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaabb	
+	@aaabb	
+	@aaabb			
+	@cccdd	
+	@cccdd	
+\version\().case_up_5x6:	@cccdd	
+	@a33	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	@b23	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	add	dst, dst, drb
+		
+	@c33	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	@d23	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_5x5, \version\().pattern_5x6_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #\pix_bytes]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #\pix_bytes]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	sub	dst, dst, drb, lsl #2
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_5x6
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaabbb	
+	@aaabbb	
+	@aaabbb			
+	@cccddd	
+\version\().case_up_6x5:	@cccddd	
+		
+	@a33	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	@b33	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	add	dst, dst, drb
+	@c32	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	sub	dst, dst, drb
+	@d32	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_6x4, \version\().pattern_6x5_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_6x5
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaabbb	
+	@aaabbb			
+	@cccddd	
+\version\().case_up_6x4:	@cccddd	
+		
+	@a33	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	sub	dst, dst, drb
+	@b33	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	add	dst, dst, drb
+	@c32	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	sub	dst, dst, drb
+	@d32	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_6x4, \version\().pattern_6x4_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+	add	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_6x4:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaabbb	
+	@aaabbb	
+	@aaabbb			
+	@cccddd	
+	@cccddd	
+\version\().case_up_6x6:	@cccddd	
+		
+	@a33	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	@b33	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	add	dst, dst, drb
+	@c33	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	@d33	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_6x4, \version\().pattern_6x6_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_6x6
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaabbb	
+	@aaabbb	
+	@aaabbb			
+	@aaabbb			
+	@cccddd	
+	@cccddd	
+\version\().case_up_6x7:	@cccddd	
+		
+	@a34	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@b34	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	add	dst, dst, drb
+	@c33	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	@d33	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_6x8, \version\().pattern_6x7_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+	sub	dst, dst, drb, lsl #1
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_6x7
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaabbb	
+	@aaabbb	
+	@aaabbb			
+	@aaabbb			
+	@cccddd	
+	@cccddd	
+	@cccddd	
+\version\().case_up_6x8:	@cccddd	
+		
+	@a34	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@b34	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	add	dst, dst, drb
+	@c33	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@d33	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_6x8, \version\().pattern_6x8_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	add	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_6x8:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaabbb	
+	@aaaabbb			
+	@aaaabbb			
+	@ccccddd	
+	@ccccddd	
+\version\().case_up_7x6:	@ccccddd	
+		
+	@a43	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	@b33	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	add	dst, dst, drb
+	@c43	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	@d33	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_6x8, \version\().pattern_7x6_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_7x6
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaabbb	
+	@aaaabbb			
+	@aaaabbb			
+	@aaaabbb			
+	@ccccddd	
+	@ccccddd	
+\version\().case_up_7x7:	@ccccddd	
+		
+	@a44	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@b34	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	add	dst, dst, drb
+	@c43	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	@d33	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_7x8, \version\().pattern_7x7_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+	sub	dst, dst, drb, lsl #1
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_7x7
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaabbb	
+	@aaaabbb			
+	@aaaabbb			
+	@aaaabbb			
+	@ccccddd	
+	@ccccddd	
+	@ccccddd	
+\version\().case_up_7x8:	@ccccddd	
+		
+	@a44	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@b34	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	add	dst, dst, drb
+	@c44	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@d34	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_7x8, \version\().pattern_7x8_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	add	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_7x8:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaabbbb	
+	@aaaabbbb			
+	@aaaabbbb			
+	@aaaabbbb			
+	@ccccdddd	
+	@ccccdddd	
+\version\().case_up_8x7:	@ccccdddd	
+	@a44	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@b44	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	add	dst, dst, drb
+	@c43	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	@d43	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_7x8, \version\().pattern_8x7_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	add	dst, dst, drb, lsl #1
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_8x7
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaabbbb	
+	@aaaabbbb			
+	@aaaabbbb			
+	@ccccdddd	
+	@ccccdddd	
+\version\().case_up_8x6:	@ccccdddd	
+	@a43	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	@b43	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	add	dst, dst, drb
+	@c43	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	@d43	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_8x8, \version\().pattern_8x6_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #2
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_8x6
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaabbbb	
+	@aaaabbbb			
+	@aaaabbbb			
+	@aaaabbbb			
+	@ccccdddd	
+	@ccccdddd	
+	@ccccdddd	
+\version\().case_up_8x8:	@ccccdddd	
+	@a44	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@b44	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	add	dst, dst, drb
+	@c44	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@d44	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_8x8, \version\().pattern_8x8_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	add	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_8x8:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaabbbb	
+	@aaaabbbb			
+	@aaaabbbb			
+	@aaaabbbb			
+	@aaaabbbb			
+	@ccccdddd	
+	@ccccdddd	
+	@ccccdddd	
+\version\().case_up_8x9:	@ccccdddd	
+	@a45	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #2
+	@b45	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	add	dst, dst, drb
+	@c44	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	sub	dst, dst, drb, lsl #1
+	sub	dst, dst, drb
+	@d44	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_8x8, \version\().pattern_8x9_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_8x9
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaabbbb	
+	@aaaabbbb			
+	@aaaabbbb			
+	@aaaabbbb			
+	@aaaabbbb			
+	@ccccdddd	
+	@ccccdddd	
+	@ccccdddd	
+	@ccccdddd	
+\version\().case_up_8x10:	@ccccdddd 	
+	@a45	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #2
+	@b45	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	add	dst, dst, drb
+	@c45	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	sub	dst, dst, drb, lsl #2
+	@d44	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_9x8, \version\().pattern_8x10_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_8x10
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaaabbbb	
+	@aaaaabbbb			
+	@aaaaabbbb			
+	@aaaaabbbb			
+	@cccccdddd	
+	@cccccdddd	
+	@cccccdddd	
+\version\().case_up_9x8:	@cccccdddd 	
+	@a54	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #2
+	add	dst, dst, drb
+	@b44	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	add	dst, dst, drb
+	@c54	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	sub	dst, dst, drb, lsl #2
+	add	dst, dst, drb
+	@d44	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_9x8, \version\().pattern_9x8_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	add	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_9x8:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaaabbbb	
+	@aaaaabbbb			
+	@aaaaabbbb			
+	@aaaaabbbb			
+	@aaaaabbbb			
+	@cccccdddd	
+	@cccccdddd	
+	@cccccdddd	
+\version\().case_up_9x9:	@cccccdddd	
+	@a55	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #2
+	@b45	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	add	dst, dst, drb
+	@c54	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	sub	dst, dst, drb, lsl #2
+	add	dst, dst, drb
+	@d44	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_9x8, \version\().pattern_9x9_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_9x9
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaaabbbb	
+	@aaaaabbbb			
+	@aaaaabbbb			
+	@aaaaabbbb			
+	@aaaaabbbb			
+	@cccccdddd	
+	@cccccdddd	
+	@cccccdddd	
+	@cccccdddd	
+\version\().case_up_9x10:	@cccccdddd	
+	@a55	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #2
+	@b45	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	add	dst, dst, drb
+	@c55	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	sub	dst, dst, drb, lsl #2
+	@d45	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_9x10, \version\().pattern_9x10_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_9x10:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+	@aaaaabbbbb	
+	@aaaaabbbbb			
+	@aaaaabbbbb			
+	@aaaaabbbbb			
+	@aaaaabbbbb			
+	@cccccddddd	
+	@cccccddddd	
+	@cccccddddd	
+\version\().case_up_10x9:	@cccccddddd	
+	@a55	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #2
+	@b55	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	add	dst, dst, drb
+	@c54	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	sub	dst, dst, drb, lsl #2
+	add	dst, dst, drb
+	@d54	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_9x10, \version\().pattern_10x9_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_10x9
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaaabbbbb	
+	@aaaaabbbbb			
+	@aaaaabbbbb			
+	@aaaaabbbbb			
+	@cccccddddd	
+	@cccccddddd	
+	@cccccddddd	
+\version\().case_up_10x8:	@cccccddddd	
+	@a55	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #2
+	add	dst, dst, drb
+	@b55	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	add	dst, dst, drb
+	@c54	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	sub	dst, dst, drb, lsl #2
+	add	dst, dst, drb
+	@d54	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_10x8, \version\().pattern_10x8_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	add	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_10x8:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@aaaaabbbbb	
+	@aaaaabbbbb			
+	@aaaaabbbbb			
+	@aaaaabbbbb			
+	@aaaaabbbbb			
+	@cccccddddd	
+	@cccccddddd	
+	@cccccddddd	
+	@cccccddddd	
+\version\().case_up_10x10:	@cccccddddd 	
+	@a55	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	sub	dst, dst, drb, lsl #2
+	@b55	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	add	dst, dst, drb
+	@c55	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(-5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	sub	dst, dst, drb, lsl #2
+	@d55	
+	PATTERN_upscale_step_4	\arch, \version\().switch_band_10x8, \version\().pattern_10x10_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #(5*\pix_bytes)]! @first line of sub-block
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+		
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]
+	str\pix_format	w3, [dst, drb]!
+	str\pix_format	w3, [dst, #(1*\pix_bytes)]
+	str\pix_format	w3, [dst, #(2*\pix_bytes)]
+	str\pix_format	w3, [dst, #(3*\pix_bytes)]
+	str\pix_format	w3, [dst, #(4*\pix_bytes)]!
+	sub	dst, dst, drb, lsl #3
+	sub	dst, dst, drb
+		
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_10x10
+@	UP_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.endm
+
+@---------------
+@END	.include	"yuv420torgb-arm-gas-s.h"
+@---------------
+
+@	IMPORT	memcpy
+@	IMPORT	parse_proc
+@	IMPORT	blend_proc
+	.text	@CODE, READONLY
+	@BlackJack	Treo    0.75	    0.5	
+	.global	yuv420ito16RGB565SE_down_scale_bc_p_arm_v5 @74			102		131/135		186
+	.global	yuv420ito16RGB565SE_down_scale_bc_p_arm_v4 @65			90		121/		182
+	.global	yuv420ito32BGRA_down_scale_bc_p_arm_v5 @71			104
+	.global	yuv420ito32BGRA_down_scale_bc_p_arm_v4 @62			90
+		
+	.global	yuv420ito16RGB565SE_up_scale_bc_p_arm_v5 @74			94/
+	.global	yuv420ito16RGB565SE_up_scale_bc_p_arm_v4 @65
+	.global	yuv420ito32BGRA_up_scale_bc_p_arm_v5 @70
+	.global	yuv420ito32BGRA_up_scale_bc_p_arm_v4 @62
+	.global	yuv420ito16RGB565SE_generic_scale_bc_arm_v5 @49			66/72
+	.global	yuv420ito16RGB565SE_generic_scale_bc_arm_v4 @44
+	.global	yuv420ito32BGRA_generic_scale_bc_arm_v5 @49
+	.global	yuv420ito32BGRA_generic_scale_bc_arm_v4 @44
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	MYMLA_BT_v5 op1, op2, op3, op4, scratch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+	@smlabt	w0, w1, Cx, w2				;uvg:		vp*102 + up*51	
+	smlabt	\op1, \op2, \op3, \op4 @uvg:		vp*102 + up*51
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	MYMLA_BT_v4 op1, op2, op3, op4, scratch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+	mov	\scratch, \op3, lsr #16
+	mla	\op1, \op2, \scratch, \op4
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	MYMLA_BB_v5 op1, op2, op3, op4
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+	@smlabb	w4, w6, Cx, xBx				;yp = yp * C2 + xBx;	
+	smlabb	\op1, \op2, \op3, \op4 @yp = yp * C2 + xBx;
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	MYMLA_BB_v4 op1, op2, op3, op4
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	mov	\op1, \op3, lsl #16
+	mov	\op1, \op1, lsr #16
+	mla	\op1, \op2, \op1, \op4 @yp = yp * C2 + xBx;
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	GET_PATTERN switch, mark
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	ldrb	w6, [pattern, #1]!
+	add	w5, pc, #(\switch - \mark)
+	ldr	pc, [w5, w6, lsl #2]
+\mark:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_4_in_4 arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+		
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	sub	w1, w1, #128 @vp-128     	
+	mul	w2, w0, w2 @up*51
+	MYMLA_BT\arch	w0, w1, Cx, w2, w4
+	MYMLA_BB\arch	w4, w5, Cx, xBx @yp
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	add	w3, w4, w2, lsl #1 @red5   = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	mov	w3, w3, asr #SHIFT_R\pix_format @red5
+	cmp	w3, CONST_R\pix_format
+	bichi	w3, CONST_R\pix_format, w3, asr #31
+		
+	mov	w5, w5, asr #SHIFT_B\pix_format @blue5
+	cmp	w5, CONST_B\pix_format
+	bichi	w5, CONST_B\pix_format, w5, asr #31
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+		
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	ldrb	w5, [yuv], #1 @yp 
+	mov	w4, w4, asr #SHIFT_G\pix_format @green6
+	cmp	w4, CONST_G\pix_format
+	bichi	w4, CONST_G\pix_format, w4,ASR #31 
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	@2nd	
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	mov	w3, w3, asr #SHIFT_G\pix_format @green6
+	cmp	w3, CONST_G\pix_format
+	bichi	w3, CONST_G\pix_format, w3,ASR #31 @?????,?????,gggggg
+		
+	mov	w5, w5, asr #SHIFT_R\pix_format @red5
+	cmp	w5, CONST_R\pix_format
+	bichi	w5, CONST_R\pix_format, w5, asr #31 
+	add	w4, w4, w1 @blue5  = yp + up*255
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [yuv], #1 @y1 
+	mov	w4, w4, asr #SHIFT_B\pix_format @blue5
+	cmp	w4, CONST_B\pix_format
+	bichi	w4, CONST_B\pix_format, w4, asr #31
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]
+	@1st	
+	add	w3, w4, w2, lsl #1 @red5   = yp + vp*204
+	mov	w3, w3, asr #SHIFT_R\pix_format @red5
+	cmp	w3, CONST_R\pix_format
+	add	w5, w4, w1 @blue5  = yp + up*255
+	bichi	w3, CONST_R\pix_format, w3, asr #31
+		
+	mov	w5, w5, asr #SHIFT_B\pix_format @blue5
+	cmp	w5, CONST_B\pix_format
+	bichi	w5, CONST_B\pix_format, w5, asr #31
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+	ldrb	w5, [yuv], #1 @y1 
+	mov	w4, w4, asr #SHIFT_G\pix_format @green6
+	cmp	w4, CONST_G\pix_format
+	bichi	w4, CONST_G\pix_format, w4,ASR #31 
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+		
+	@2nd	
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+	sub	w0, w4, w0 @green6 = yp - 51*up - 102*vp
+	mov	w0, w0, asr #SHIFT_G\pix_format @green6
+	cmp	w0, CONST_G\pix_format
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	bichi	w0, CONST_G\pix_format, w0,ASR #31 @?????,?????,gggggg
+		
+	mov	w5, w5, asr #SHIFT_R\pix_format @red5
+	cmp	w5, CONST_R\pix_format
+	bichi	w5, CONST_R\pix_format, w5, asr #31 
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	orr	w3, w0, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [pattern], #1
+		
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	mov	w4, w4, asr #SHIFT_B\pix_format @blue5
+\mark:	
+	cmp	w4, CONST_B\pix_format
+	ldr	w2, [w2, w5, lsl #2]
+	bichi	w4, CONST_B\pix_format, w4, asr #31
+	add	dst, dst, #\pix_bytes
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	mov	pc, w2
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_1_in_4 arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0:uvg
+@w1:uvb
+@w2:uvr_half
+		
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	sub	w1, w1, #128 @vp-128     	
+	mul	w2, w0, w2 @up*51
+	MYMLA_BT\arch	w0, w1, Cx, w2, w3
+	MYMLA_BB\arch	w4, w5, Cx, xBx @yp
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	add	w5, w4, w1 @blue5  = yp + up*255
+	add	w3, w4, w2, lsl #1 @red5   = yp + vp*204
+	mov	w3, w3, asr #SHIFT_R\pix_format @red5
+	cmp	w3, CONST_R\pix_format
+	bichi	w3, CONST_R\pix_format, w3, asr #31
+		
+	mov	w5, w5, asr #SHIFT_B\pix_format @blue5
+	cmp	w5, CONST_B\pix_format
+	bichi	w5, CONST_B\pix_format, w5, asr #31
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+		
+	ldrb	w5, [pattern], #1
+	add	w2, pc, #(\switch - \mark) 
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+\mark:	
+	mov	w4, w4, asr #SHIFT_G\pix_format @green6
+	ldr	w2, [w2, w5, lsl #2]
+	cmp	w4, CONST_G\pix_format
+	bichi	w4, CONST_G\pix_format, w4,ASR #31 
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_BASIC_step1 arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	mul	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	MYMLA_BT\arch	w0, w1, Cx, w2, w3
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	MYMLA_BB\arch	w4, w5, Cx, xBx @yp
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+		
+	add	w3, w4, w2, lsl #1 @red5 = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	mov	w3, w3, asr #SHIFT_R\pix_format @red5
+	cmp	w3, CONST_R\pix_format
+	bichi	w3, CONST_R\pix_format, w3, asr #31
+		
+	mov	w5, w5, asr #SHIFT_B\pix_format @blue5
+	cmp	w5, CONST_B\pix_format
+	bichi	w5, CONST_B\pix_format, w5, asr #31
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_BASIC_step2 arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	mov	w4, w4, asr #SHIFT_G\pix_format @green6
+	cmp	w4, CONST_G\pix_format
+	bichi	w4, CONST_G\pix_format, w4,ASR #31 
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	@2nd	
+		
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	mov	w3, w3, asr #SHIFT_G\pix_format @green6
+	cmp	w3, CONST_G\pix_format
+	bichi	w3, CONST_G\pix_format, w3,ASR #31 @?????,?????,gggggg
+		
+	mov	w5, w5, asr #SHIFT_R\pix_format @red5
+	cmp	w5, CONST_R\pix_format
+	bichi	w5, CONST_R\pix_format, w5, asr #31 
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [pattern], #1
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	mov	w4, w4, asr #SHIFT_B\pix_format @blue5
+\mark:	
+	cmp	w4, CONST_B\pix_format
+	ldr	w2, [w2, w5, lsl #2]
+	bichi	w4, CONST_B\pix_format, w4, asr #31
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_2_in_4_ver_avg arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+	ldrb	w4, [yuv], #1 @yp 
+		
+	sub	w0, w0, #128 @up-128
+	mov	w2, Cx, lsr #17 @51
+	mul	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	MYMLA_BT\arch	w0, w1, Cx, w2, w3
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	add	w5, w5, w4
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	mov	w5, w5, lsr #1 
+	MYMLA_BB\arch	w4, w5, Cx, xBx @yp
+		
+	add	w3, w4, w2, lsl #1 @red5 = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	mov	w3, w3, asr #SHIFT_R\pix_format @red5
+	cmp	w3, CONST_R\pix_format
+	bichi	w3, CONST_R\pix_format, w3, asr #31
+		
+	mov	w5, w5, asr #SHIFT_B\pix_format @blue5
+	cmp	w5, CONST_B\pix_format
+	bichi	w5, CONST_B\pix_format, w5, asr #31
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+		
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	ldrb	w5, [yuv], #1 @yp 
+	mov	w4, w4, asr #SHIFT_G\pix_format @green6
+	cmp	w4, CONST_G\pix_format
+	bichi	w4, CONST_G\pix_format, w4,ASR #31 
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	ldrb	w4, [yuv], #1 @yp 
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	@2nd	
+	add	w5, w5, w4
+	mov	w5, w5, lsr #1 
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+		
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	mov	w3, w3, asr #SHIFT_G\pix_format @green6
+	cmp	w3, CONST_G\pix_format
+	bichi	w3, CONST_G\pix_format, w3,ASR #31 @?????,?????,gggggg
+		
+	mov	w5, w5, asr #SHIFT_R\pix_format @red5
+	cmp	w5, CONST_R\pix_format
+	bichi	w5, CONST_R\pix_format, w5, asr #31 
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w0, [pattern], #1
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	mov	w4, w4, asr #SHIFT_B\pix_format @blue5
+\mark:	
+	cmp	w4, CONST_B\pix_format
+	ldr	w2, [w2, w0, lsl #2]
+	bichi	w4, CONST_B\pix_format, w4, asr #31
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+		
+	mov	pc, w2
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_2_in_4_hor_avg arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+	ldrb	w4, [yuv, #1] @yp 
+		
+	sub	w0, w0, #128 @up-128
+	mov	w2, Cx, lsr #17 @51
+	mul	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	MYMLA_BT\arch	w0, w1, Cx, w2, w3
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	add	w5, w5, w4
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	mov	w5, w5, lsr #1 
+	MYMLA_BB\arch	w4, w5, Cx, xBx @yp
+		
+	add	w3, w4, w2, lsl #1 @red5 = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	mov	w3, w3, asr #SHIFT_R\pix_format @red5
+	cmp	w3, CONST_R\pix_format
+	bichi	w3, CONST_R\pix_format, w3, asr #31
+		
+	mov	w5, w5, asr #SHIFT_B\pix_format @blue5
+	cmp	w5, CONST_B\pix_format
+	bichi	w5, CONST_B\pix_format, w5, asr #31
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+		
+	ldrb	w5, [yuv], #2 @yp 
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	mov	w4, w4, asr #SHIFT_G\pix_format @green6
+	cmp	w4, CONST_G\pix_format
+	bichi	w4, CONST_G\pix_format, w4,ASR #31 
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	ldrb	w4, [yuv], #1 @yp 
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	@2nd	
+	add	w5, w5, w4
+	mov	w5, w5, lsr #1 
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+		
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	mov	w3, w3, asr #SHIFT_G\pix_format @green6
+	cmp	w3, CONST_G\pix_format
+	bichi	w3, CONST_G\pix_format, w3,ASR #31 @?????,?????,gggggg
+		
+	mov	w5, w5, asr #SHIFT_R\pix_format @red5
+	cmp	w5, CONST_R\pix_format
+	bichi	w5, CONST_R\pix_format, w5, asr #31 
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [pattern], #1
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	mov	w4, w4, asr #SHIFT_B\pix_format @blue5
+\mark:	
+	cmp	w4, CONST_B\pix_format
+	ldr	w2, [w2, w5, lsl #2]
+	bichi	w4, CONST_B\pix_format, w4, asr #31
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+		
+	mov	pc, w2
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	SET_CONST_rgb565se
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	mov	CONST_31, #31
+	mov	CONST_63, #63
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	SET_CONST_bgra32
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	mov	CONST_255, #255
+	.endm
+yuv	.req	r0 
+dst	.req	r1 
+xBx	.req	r2 
+Cx	.req	r3 
+pattern	.req	r4 
+drb	.req	r5 
+CONST_255	.req	r6 
+CONST_31	.req	r6 
+CONST_63	.req	r7 
+CONST_R_rgb565se	.req	r6 
+CONST_G_rgb565se	.req	r7 
+CONST_B_rgb565se	.req	r6 
+CONST_R_bgra32	.req	r6 
+CONST_G_bgra32	.req	r6 
+CONST_B_bgra32	.req	r6 
+yuvrb_1	.req	r6 
+dst_width_1	.req	r7 
+src_width_1	.req	r8 
+yuvrb_2	.req	r8 
+yuv_double_stride_2	.req	r8 
+dst_single_stride_2	.req	r9 
+dst_double_stride_2	.req	r9 
+w0	.req	r8 
+w1	.req	r9 
+w2	.req	r10 
+w3	.req	r11 
+w4	.req	r12 
+w5	.req	r14 
+	.equ REGIS_SHIFT_dspi, (9*4)
+	.equ CACHE_SHIFT_dspi, (4*4)
+	.equ SP_SHIFT_dspi, (REGIS_SHIFT_dspi + CACHE_SHIFT_dspi)
+	.equ yuv_double_stride_SHIFT_dspi, (0)
+	.equ dst_single_stride_SHIFT_dspi, (4)
+	.equ dst_double_stride_SHIFT_dspi, (8)
+	.equ sprite_front_buffer_SHIFT_dspi, (12)
+	.equ pattern_SHIFT_dspi, (0*4 + SP_SHIFT_dspi)
+	.equ drb_SHIFT_dspi, (1*4 + SP_SHIFT_dspi)
+	.equ yuvrb_SHIFT_dspi, (2*4 + SP_SHIFT_dspi)
+	.equ width_SHIFT_dspi, (3*4 + SP_SHIFT_dspi)
+	.equ sprite_back_buffer_SHIFT_dspi, (4*4 + SP_SHIFT_dspi)
+yuv420ito16RGB565SE_down_scale_bc_p_arm_v5:
+	PATTERN_DOWN_SCALE_BC_CONVERSION	_v5, downscale_rgb565se_bc_pi_v5_, _rgb565se, 2
+	@ENDP
+		
+yuv420ito16RGB565SE_down_scale_bc_p_arm_v4:
+	PATTERN_DOWN_SCALE_BC_CONVERSION	_v4, downscale_rgb565se_bc_pi_v4_, _rgb565se, 2
+	@ENDP
+		
+yuv420ito32BGRA_down_scale_bc_p_arm_v5:
+	PATTERN_DOWN_SCALE_BC_CONVERSION	_v5, downscale_bgra32_bc_pi_v5_, _bgra32, 4
+	@ENDP
+		
+yuv420ito32BGRA_down_scale_bc_p_arm_v4:
+	PATTERN_DOWN_SCALE_BC_CONVERSION	_v4, downscale_bgra32_bc_pi_v4_, _bgra32, 4
+	@ENDP
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_1 arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+		
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+		
+	ldrb	w5, [yuv], #1 @yp 
+	mov	w4, w4, asr #SHIFT_G\pix_format @green6 ;green6
+	cmp	w4, CONST_G\pix_format
+	bichi	w4, CONST_G\pix_format, w4,ASR #31 
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_2 arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@2nd	
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+		
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	mov	w3, w3, asr #SHIFT_G\pix_format @green6
+	cmp	w3, CONST_G\pix_format
+	bichi	w3, CONST_G\pix_format, w3,ASR #31 @?????,?????,gggggg
+		
+	mov	w5, w5, asr #SHIFT_R\pix_format @red5
+	cmp	w5, CONST_R\pix_format
+	bichi	w5, CONST_R\pix_format, w5, asr #31 
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	add	w4, w4, w1 @blue5  = yp + up*255
+	mov	w4, w4, asr #SHIFT_B\pix_format @blue5
+	cmp	w4, CONST_B\pix_format
+	ldrb	w5, [yuv], #1 @y1 
+	bichi	w4, CONST_B\pix_format, w4, asr #31
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+		
+	.endm
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_3 arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@1st	
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+	add	w3, w4, w2, lsl #1 @red5   = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	mov	w3, w3, asr #SHIFT_R\pix_format @red5
+	cmp	w3, CONST_R\pix_format
+	bichi	w3, CONST_R\pix_format, w3, asr #31
+		
+	mov	w5, w5, asr #SHIFT_B\pix_format @blue5
+	cmp	w5, CONST_B\pix_format
+	bichi	w5, CONST_B\pix_format, w5, asr #31
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format) @rrrrr,??????,bbbbb
+	mov	w4, w4, asr #SHIFT_G\pix_format @green6
+	ldrb	w5, [yuv], #1 @y1 
+	cmp	w4, CONST_G\pix_format
+	bichi	w4, CONST_G\pix_format, w4,ASR #31 
+	orr	w3, w3, w4, lsl #BITS_B\pix_format @rrrrr,gggggg,bbbbb
+		
+	@2nd	
+	MYMLA_BB\arch	w4, w5, Cx, xBx
+	sub	w0, w4, w0 @green6 = yp - 51*up - 102*vp
+	mov	w0, w0, asr #SHIFT_G\pix_format @green6
+	cmp	w0, CONST_G\pix_format
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	bichi	w0, CONST_G\pix_format, w0,ASR #31 @?????,?????,gggggg
+		
+	mov	w5, w5, asr #SHIFT_R\pix_format @red5
+	cmp	w5, CONST_R\pix_format
+	bichi	w5, CONST_R\pix_format, w5, asr #31 
+		
+	.endm
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_4 arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	orr	w3, w0, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [pattern], #1
+		
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	mov	w4, w4, asr #SHIFT_B\pix_format @blue5
+\mark:	
+	cmp	w4, CONST_B\pix_format
+	ldr	w2, [w2, w5,lsl #2]
+	bichi	w4, CONST_B\pix_format, w4, asr #31
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_f arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	orr	w3, w0, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+	add	w4, w4, w1 @blue5  = yp + up*255
+	mov	w4, w4, asr #SHIFT_B\pix_format @blue5
+	cmp	w4, CONST_B\pix_format
+	bichi	w4, CONST_B\pix_format, w4, asr #31
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	COPY_LINE_00 mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\mark:	
+	ldr\pix_format	w1, [dst, #\pix_bytes]!
+	ldr\pix_format	w2, [dst, #\pix_bytes]!
+	ldr\pix_format	w3, [dst, #\pix_bytes]!
+	ldr\pix_format	w4, [dst, #\pix_bytes]!
+	str\pix_format	w1, [w5, #\pix_bytes]!
+	str\pix_format	w2, [w5, #\pix_bytes]!
+	str\pix_format	w3, [w5, #\pix_bytes]!
+	str\pix_format	w4, [w5, #\pix_bytes]!
+		
+	subs	w0, w0, #1
+	bne	\mark
+	.endm
+	.unreq	yuv
+yuv	.req	r0 
+	.unreq	dst
+dst	.req	r1 
+	.unreq	xBx
+xBx	.req	r2 
+	.unreq	Cx
+Cx	.req	r3 
+	.unreq	pattern
+pattern	.req	r4 
+	.unreq	drb
+drb	.req	r5 
+		
+	.unreq	CONST_31
+CONST_31	.req	r6 
+	.unreq	CONST_63
+CONST_63	.req	r7 
+		
+	.unreq	yuvrb_1
+yuvrb_1	.req	r6 
+	.unreq	dst_width_1
+dst_width_1	.req	r7 
+	.unreq	src_width_1
+src_width_1	.req	r8 
+	.unreq	yuvrb_2
+yuvrb_2	.req	r8 
+	.unreq	yuv_double_stride_2
+yuv_double_stride_2	.req	r8 
+	.unreq	dst_single_stride_2
+dst_single_stride_2	.req	r9 
+	.unreq	dst_double_stride_2
+dst_double_stride_2	.req	r9 
+dst_tripple_stride_2	.req	r9 
+dst_quad_stride_2	.req	r9 
+	.unreq	w0
+w0	.req	r8 
+	.unreq	w1
+w1	.req	r9 
+	.unreq	w2
+w2	.req	r10 
+	.unreq	w3
+w3	.req	r11 
+	.unreq	w4
+w4	.req	r12 
+	.unreq	w5
+w5	.req	r14 
+	.equ REGIS_SHIFT_usxxpi, (9*4)
+	.equ CACHE_SHIFT_usxxpi, (10*4)
+	.equ SP_SHIFT_usxxpi, (REGIS_SHIFT_usxxpi + CACHE_SHIFT_usxxpi)
+	.equ yuv_double_stride_SHIFT_usxxpi, (0)
+	.equ dst_single_stride_SHIFT_usxxpi, (4)
+	.equ dst_double_stride_SHIFT_usxxpi, (8)
+	.equ dst_tripple_stride_SHIFT_usxxpi, (12)
+	.equ dst_quad_stride_SHIFT_usxxpi, (16)
+	.equ sprite_front_buffer_SHIFT_usxxpi, (20)
+	.equ generic_block_cache_SHIFT_usxxpi, (24)
+	.equ pattern_SHIFT_usxxpi, (0*4 + SP_SHIFT_usxxpi)
+	.equ drb_SHIFT_usxxpi, (1*4 + SP_SHIFT_usxxpi)
+	.equ yuvrb_SHIFT_usxxpi, (2*4 + SP_SHIFT_usxxpi)
+	.equ dst_width_SHIFT_usxxpi, (3*4 + SP_SHIFT_usxxpi)
+	.equ sprite_back_buffer_SHIFT_usxxpi, (4*4 + SP_SHIFT_usxxpi)
+yuv420ito16RGB565SE_up_scale_bc_p_arm_v5:
+	PATTERN_UP_SCALE_BC_CONVERSION	_v5, upscale_rgb565se_bc_pi_v5_, _rgb565se, 2
+	@ENDP
+		
+yuv420ito16RGB565SE_up_scale_bc_p_arm_v4:
+	PATTERN_UP_SCALE_BC_CONVERSION	_v4, upscale_rgb565se_bc_pi_v4_, _rgb565se, 2
+	@ENDP
+yuv420ito32BGRA_up_scale_bc_p_arm_v5:
+	PATTERN_UP_SCALE_BC_CONVERSION	_v5, upscale_bgra32_bc_pi_v5_, _bgra32, 4
+	@ENDP
+		
+yuv420ito32BGRA_up_scale_bc_p_arm_v4:
+	PATTERN_UP_SCALE_BC_CONVERSION	_v4, upscale_bgra32_bc_pi_v4_, _bgra32, 4
+	@ENDP
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.equ REGIS_SHIFT_si, (14*4)
+	.equ CACHE_SHIFT_si, (1*4)
+	.equ SP_SHIFT_si, (REGIS_SHIFT_si + CACHE_SHIFT_si )
+	.equ dst_stride_SHIFT_si, (0*4)
+	.equ yuv0_SHIFT_si, (0*0 +SP_SHIFT_si)
+	.equ dst_width_SHIFT_si, (1*4 +SP_SHIFT_si)
+	.equ x0_SHIFT_si, (2*4 +SP_SHIFT_si)
+	.equ y0_SHIFT_si, (3*4 +SP_SHIFT_si)
+	.equ yuvrb_SHIFT_si, (4*4 +SP_SHIFT_si)
+	.equ drb_SHIFT_si, (5*4 +SP_SHIFT_si)
+	.equ dy_SHIFT_si, (6*4 +SP_SHIFT_si)
+	.equ dst_height_SHIFT_si, (7*4 +SP_SHIFT_si)
+	.unreq	dst
+dst	.req	r0 
+	.unreq	xBx
+xBx	.req	r1 
+	.unreq	Cx
+Cx	.req	r2 
+dx	.req	r3 
+	.unreq	yuv
+yuv	.req	r4 
+dst_width	.req	r5 
+x	.req	r6 
+y	.req	r7 
+	.unreq	CONST_31
+CONST_31	.req	r8 
+	.unreq	CONST_255
+CONST_255	.req	r8 
+	.unreq	CONST_63
+CONST_63	.req	r9 
+	.unreq	CONST_R_rgb565se
+CONST_R_rgb565se	.req	r8 
+	.unreq	CONST_G_rgb565se
+CONST_G_rgb565se	.req	r9 
+	.unreq	CONST_B_rgb565se
+CONST_B_rgb565se	.req	r8 
+	.unreq	CONST_R_bgra32
+CONST_R_bgra32	.req	r8 
+	.unreq	CONST_G_bgra32
+CONST_G_bgra32	.req	r8 
+	.unreq	CONST_B_bgra32
+CONST_B_bgra32	.req	r8 
+		
+@first init			
+yuvrb	.req	r8 
+	.unreq	drb
+drb	.req	r9 
+		
+@line init			
+dst_height_w0	.req	r10 
+drb_w0	.req	r10 
+dy_w1	.req	r11 
+yuvrb_w1	.req	r11 
+dst_stride_w2	.req	r12 
+last_y_w2	.req	r12 
+yuv0_w3	.req	r14 
+		
+@scratch			
+	.unreq	w0
+w0	.req	r10 
+	.unreq	w1
+w1	.req	r11 
+	.unreq	w2
+w2	.req	r12 
+	.unreq	w3
+w3	.req	r14 
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	GENERIC_SCALE_DIFF_v5 arch, version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+	ldrb	w0, [w2], #1 @u
+	ldrb	w1, [w2], #1 @v
+	ldrb	w3, [w2, w3] @y
+		
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	mul	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	MYMLA_BT\arch	w0, w1, Cx, w2, w0 @w4: scratch for v4
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	MYMLA_BB\arch	w3, Cx, w3, xBx @yp
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+		
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	GENERIC_SCALE_DIFF_v4 arch, version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+	add	w3, w3, #2
+		
+	ldrb	w1, [w2, w3] @y
+	ldrb	w0, [w2] @u
+	MYMLA_BB\arch	w3, w1, Cx, xBx @yp
+	ldrb	w1, [w2, #1] @v
+		
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	mul	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	MYMLA_BT\arch	w0, w1, Cx, w2, w0 @w4: scratch for v4
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	sub	w2, w0, w2 @uvr_half:	vp*102
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	DIFFgeneric_scale_16RGB565SE_bc_i_v5_ arch, version, pix_format, pix_bytes
+	GENERIC_SCALE_DIFF_v5	\arch, \version, \pix_format, \pix_bytes
+	.endm
+
+
+	.macro	DIFFgeneric_scale_16RGB565SE_bc_i_v4_ arch, version, pix_format, pix_bytes
+	GENERIC_SCALE_DIFF_v4	\arch, \version, \pix_format, \pix_bytes
+	.endm
+
+
+	.macro	DIFFgeneric_scale_32BGRA_bc_i_v5_ arch, version, pix_format, pix_bytes
+	GENERIC_SCALE_DIFF_v5	\arch, \version, \pix_format, \pix_bytes
+	.endm
+
+
+	.macro	DIFFgeneric_scale_32BGRA_bc_i_v4_ arch, version, pix_format, pix_bytes
+	GENERIC_SCALE_DIFF_v4	\arch, \version, \pix_format, \pix_bytes
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	GENERIC_SCALE_BC_INTERLEAVE_CONVERSION arch, version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+	stmdb	sp!, {r0 - r12, lr}
+	sub	sp, sp, #CACHE_SHIFT_si
+		
+	add	w3,sp,#yuv0_SHIFT_si
+	ldmia	w3,{yuv-drb} @r4-r9		
+		
+	@mov		x, x, lsr #16	;no fract pix offset to start with	
+	@mov		x, x, lsl #16	
+	@mov		y, y, lsr #16	
+	@mov		y, y, lsl #16	
+	str	x, [sp, #x0_SHIFT_si]
+	str	y, [sp, #y0_SHIFT_si]
+		
+	sub	w3, drb, dst_width, lsl #(\pix_bytes>>1)
+	str	w3, [sp, #dst_stride_SHIFT_si]
+	mov	w3, y, lsr #17
+	mla	yuv, w3, yuvrb, yuv @yuv has to be held in register for the whole line
+	mov	y, y, lsr #15
+	and	y, y, #2
+		
+	SET_CONST\pix_format	
+		
+\version\().start:	
+	mov	w0, x, lsr #17
+	add	w1, w0, w0, lsl #2
+	add	w1, w0, w1
+	add	w2, yuv, w1
+	mov	w0, x, lsr #16
+	and	w0, w0, #1
+	orr	w3, w0, y
+		
+	DIFF\version	\arch, \version, \pix_format, \pix_bytes
+		
+	add	w2, w3, w2, lsl #1 @red5   = yp + vp*204
+	add	w1, w3, w1 @blue5  = yp + up*255
+	mov	w2, w2, asr #SHIFT_R\pix_format @red5
+	cmp	w2, CONST_R\pix_format
+	bichi	w2, CONST_R\pix_format, w2, asr #31
+		
+	mov	w1, w1, asr #SHIFT_B\pix_format @blue5
+	cmp	w1, CONST_B\pix_format
+	bichi	w1, CONST_B\pix_format, w1, asr #31
+	sub	w0, w3, w0 @green6 = yp - 51*up - 102*vp
+	orr	w2, w1, w2, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb	
+	mov	w0, w0, asr #SHIFT_G\pix_format @green6
+	cmp	w0, CONST_G\pix_format
+	bichi	w0, CONST_G\pix_format, w0,ASR #31 
+	orr	w2, w2, w0, lsl #BITS_B\pix_format @rrrrr,gggggg,bbbbb
+	subs	dst_width, dst_width, #1
+	SET_ALPHA\pix_format	w2, 0xff
+	str\pix_format	w2, [dst], #\pix_bytes
+	addne	x, x, dx
+	bne	\version\().start
+\version\().check_next_line:	
+	ldr	dst_height_w0, [sp, #dst_height_SHIFT_si]
+	ldr	dst_stride_w2, [sp, #dst_stride_SHIFT_si]
+	ldr	y, [sp, #y0_SHIFT_si]
+	ldr	dy_w1, [sp, #dy_SHIFT_si]
+	subs	dst_height_w0, dst_height_w0, #1
+	ldr	dst_width, [sp, #dst_width_SHIFT_si]
+		
+	beq	\version\().end @exit
+		
+	str	dst_height_w0, [sp, #dst_height_SHIFT_si]
+	add	dst, dst, dst_stride_w2
+	mov	last_y_w2, y, lsr #16
+	add	y, y, dy_w1
+	str	y, [sp, #y0_SHIFT_si]
+	mov	w0, y, lsr #16
+	cmp	w0, last_y_w2
+	ldrne	yuvrb_w1, [sp, #yuvrb_SHIFT_si]
+	ldrne	yuv0_w3, [sp, #yuv0_SHIFT_si] @yuv0
+	ldrne	x, [sp, #x0_SHIFT_si] @x0
+	movne	w0, y, lsr #17 @w0 was dst_stride
+	mlane	yuv, yuvrb_w1, w0, yuv0_w3
+	movne	y, y, lsr #15
+	andne	y, y, #2
+	bne	\version\().start @next line
+		
+	@now copy last line	
+	ldr	drb_w0, [sp, #drb_SHIFT_si] @yuv0
+	sub	w0, dst, drb_w0
+\version\().copy_line_start:	@copy last line	
+	ldr\pix_format	w1, [w0], #\pix_bytes
+	subs	dst_width, dst_width, #1
+	str\pix_format	w1, [dst], #\pix_bytes
+	bne	\version\().copy_line_start
+	bl	\version\().check_next_line
+\version\().end:	
+	add	sp, sp, #CACHE_SHIFT_si
+	ldmia	sp!, {r0 - r12, pc}
+	.endm
+yuv420ito16RGB565SE_generic_scale_bc_arm_v5:
+	GENERIC_SCALE_BC_INTERLEAVE_CONVERSION	_v5, generic_scale_16RGB565SE_bc_i_v5_, _rgb565se, 2
+	@ENDP
+yuv420ito16RGB565SE_generic_scale_bc_arm_v4:
+	GENERIC_SCALE_BC_INTERLEAVE_CONVERSION	_v4, generic_scale_16RGB565SE_bc_i_v4_, _rgb565se, 2
+	@ENDP
+yuv420ito32BGRA_generic_scale_bc_arm_v5:
+	GENERIC_SCALE_BC_INTERLEAVE_CONVERSION	_v5, generic_scale_32BGRA_bc_i_v5_, _bgra32, 4
+	@ENDP
+yuv420ito32BGRA_generic_scale_bc_arm_v4:
+	GENERIC_SCALE_BC_INTERLEAVE_CONVERSION	_v4, generic_scale_32BGRA_bc_i_v4_, _bgra32, 4
+	@ENDP
+	.end
+#endif

@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+    
+    <require id="SLIDERS" path="sliders"/>
+    
+    <behavior id="RoundSliderBehavior" like="SLIDERS.SliderBehavior"><![CDATA[
+        function onTouchBegan(container, id, x, y, ticks) {
+            container.captureTouch(id, x, y, ticks);
+            this.onTouchMoved(container, id, x, y, ticks);
+        }
+        function onTouchEnded(container, id, x, y, ticks) {
+        }
+        function onTouchMoved(canvas, id, x, y, ticks) {
+            var size = canvas.width;
+            var offset = (x - canvas.x);
+            this.setOffset(canvas, size, offset);
+            this.onValueChanged(canvas);
+        }
+        function onValueChanged(canvas) {
+            var active = canvas.active;
+            
+            var x = canvas.width >> 1;
+            var y = canvas.height >> 1;
+            var w = 5;
+            var a = Math.atan2(y, x);
+            var r = ((x * x) + (y * y)) / y;
+            var from = 0 - a - (Math.PI / 2);
+            var to = a - (Math.PI / 2);
+            y = r + ((y + w) >> 1);
+            
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.lineWidth = w + 2;
+            ctx.strokeStyle = active ? "#000000" : "#515153";
+            ctx.beginPath();
+            ctx.arc(x, y, r, from, to);
+            ctx.stroke();
+
+            ctx.lineWidth = w;      
+            ctx.strokeStyle = "#FFFFFF";
+            ctx.beginPath();
+            ctx.arc(x, y, r, from, to);
+            ctx.stroke();
+            
+            this.renderValue(canvas, ctx, w, x, y, r, from, to);
+
+            ctx.strokeStyle = active ? "#000000" : "#515153";                       // sides
+            ctx.lineWidth = 1;      
+            ctx.beginPath();
+            var top = 25
+            var height = 6
+            ctx.moveTo(0, top);
+            ctx.lineTo(0, top + height);
+            ctx.moveTo(canvas.width - 2, top);
+            ctx.lineTo(canvas.width - 2, top + height);
+            ctx.stroke();
+            
+            this.renderLabel(canvas, ctx);
+            this.renderRangeMinLabel(canvas, ctx);
+            this.renderRangeMaxLabel(canvas, ctx);
+        }
+        function renderValue(canvas, ctx, w, x, y, r, from, to) {
+            var active = canvas.active;
+            var size = canvas.width;
+            var offset = this.getOffset(canvas, size);
+            ctx.lineWidth = w;      
+            ctx.strokeStyle = this.getStrokeStyle(active);
+            ctx.beginPath();
+            ctx.arc(x, y, r, from, from + ((to - from) * offset / size));
+            ctx.stroke();
+        }
+        function renderLabel(canvas, ctx) {
+        	var label = this.getLabel();
+            ctx.font="12px Arial";
+            var labelSize = ctx.measureText(label);
+            var labelX = Math.round((canvas.width / 2) - (labelSize.width / 2));
+            ctx.fillText(label, labelX, 40);
+		}
+		function renderRangeMinLabel(canvas, ctx) {
+			var rangeMinLabel = this.getMin();
+            ctx.fillStyle = "#555555";
+            ctx.font="10px Arial";
+            ctx.fillText(rangeMinLabel, 0, 14);
+  		}
+		function renderRangeMaxLabel(canvas, ctx) {
+			var rangeMaxLabel = this.getMax();
+            ctx.fillStyle = "#555555";
+            ctx.font="10px Arial";
+            var size = ctx.measureText(rangeMaxLabel);
+            ctx.fillText(rangeMaxLabel, canvas.width - size.width, 14);
+  		}
+        function getStrokeStyle(active) {
+            return active ? "#5eccf1" : "#515153";
+        }
+        function getLabel() {
+            return "Label"
+        }
+    ]]></behavior>
+ 
+     <behavior id="RoundRangeSliderBehavior" like="RoundSliderBehavior"><![CDATA[
+		function getValue(canvas) {
+			debugger;
+		}
+		function getOffset(canvas) {
+			debugger;
+		}
+		function setOffset(canvas) {
+			debugger;
+		}
+		function getRangeMinOffset(canvas, size) {
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var rangeMinValue = this.getRangeMinValue(canvas);
+			return Math.round(((rangeMinValue - min) * size) / (max - min));
+		}
+		function getRangeMinValue(canvas) {
+			return this.data.rangeMinValue;
+		}
+		function getRangeMaxOffset(canvas, size) {
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var rangeMaxValue = this.getRangeMaxValue(canvas);
+			return Math.round(((rangeMaxValue - min) * size) / (max - min));
+		}
+		function getRangeMaxValue(canvas) {
+			return this.data.rangeMaxValue;
+		}
+		function setRangeMinOffset(canvas, size, rangeMinOffset) {
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = min + ((rangeMinOffset * (max - min)) / size);
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			value = Number(value).toFixed(2);
+			this.setRangeMinValue(canvas, value);
+		}
+		function setRangeMinValue(canvas, rangeMinValue) {
+			this.data.rangeMinValue = rangeMinValue;
+		}
+		function setRangeMaxOffset(canvas, size, rangeMaxOffset) {
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = min + ((rangeMaxOffset * (max - min)) / size);
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			value = Number(value).toFixed(2);
+			this.setRangeMaxValue(canvas, value);
+		}
+		function setRangeMaxValue(canvas, rangeMaxValue) {
+			this.data.rangeMaxValue = rangeMaxValue;
+		}
+		
+        function onTouchBegan(canvas, id, x, y, ticks) {
+            canvas.captureTouch(id, x, y, ticks);
+            this.lastX = x;
+            var size = canvas.width;
+            var offset = (x - canvas.x);
+           	var rangeMinOffset = this.getRangeMinOffset(canvas, size);
+           	var rangeMaxOffset = this.getRangeMaxOffset(canvas, size);
+           	this.range = rangeMaxOffset - rangeMinOffset;
+           	var minThreshold = rangeMinOffset;
+           	var maxThreshold = rangeMaxOffset;
+           	this.adjustingMin = this.adjustingMax = this.adjustingBoth = false;
+           	var center = minThreshold + (maxThreshold - minThreshold) / 2;
+           	var minX = center - 6;
+           	if (minX < minThreshold)
+           		minX = minThreshold;
+           	var maxX = center + 6;
+           	if (maxX > maxThreshold)
+           		maxX = maxThreshold;
+            if ((offset > minX) && (offset < maxX))
+           		this.adjustingBoth = true;
+           	else if (offset <= minX)
+           		this.adjustingMin = true;
+           	else if (offset >= maxX)
+           		this.adjustingMax = true; 
+
+            this.onTouchMoved(canvas, id, x, y, ticks);
+        }
+        function onTouchEnded(canvas, id, x, y, ticks) {
+        }
+        function onTouchMoved(canvas, id, x, y, ticks) {
+            var offset = (x - canvas.x);
+            var size = canvas.width;
+            var offset = (x - canvas.x);
+           	var rangeMinOffset = this.getRangeMinOffset(canvas, size);
+           	var rangeMaxOffset = this.getRangeMaxOffset(canvas, size);
+            if (! this.adjustingBoth && (this.adjustingMin && offset >= rangeMaxOffset)) {					// don't allow crossing over
+             	this.setRangeMinOffset(canvas, size, rangeMaxOffset - 2);
+ 				this.onValueChanged(canvas);
+            	return;
+            }
+           	if (! this.adjustingBoth && (! this.adjustingMin && offset <= rangeMinOffset)) {
+            	this.setRangeMaxOffset(canvas, size, rangeMinOffset + 2);
+ 				this.onValueChanged(canvas);
+            	return;
+           	}
+           	if (! this.adjustingBoth) {
+	           	if (this.adjustingMin)
+		            this.setRangeMinOffset(canvas, size, offset);
+		        else
+		            this.setRangeMaxOffset(canvas, size, offset);
+		    }
+		    else {
+			    var rangeMinOffset = this.getRangeMinOffset(canvas, size);
+	            var rangeMaxOffset = this.getRangeMaxOffset(canvas, size);
+	            var relativeOffset = x - this.lastX;
+	            this.lastX = x;
+	            var minOffset = rangeMinOffset + relativeOffset;
+	            var maxMinOffset = size - this.range;
+	            if (minOffset > maxMinOffset)
+	            	minOffset = maxMinOffset;
+	           	var maxOffset = rangeMaxOffset + relativeOffset;
+	            var minMaxOffset = this.range;
+	            if (maxOffset < minMaxOffset)
+	            	maxOffset = minMaxOffset;
+		        this.setRangeMinOffset(canvas, size, minOffset);
+		        this.setRangeMaxOffset(canvas, size, maxOffset);
+		    }
+			this.onValueChanged(canvas);
+        }
+        function degreesToRadians(degrees) {
+        	return degrees * Math.PI / 180;
+        }
+        function renderValue(canvas, ctx, w, x, y, r, from, to) {
+            var active = canvas.active;
+            var size = canvas.width;
+            var rangeMinOffset = this.getRangeMinOffset(canvas, size);
+            var rangeMaxOffset = this.getRangeMaxOffset(canvas, size);
+            ctx.lineWidth = w;      
+            ctx.strokeStyle = this.getStrokeStyle(active);
+            ctx.beginPath();
+            var rangeFrom = rangeMinOffset / size;
+            var rangeTo = ((to - from) * rangeMaxOffset / size);
+            ctx.arc(x, y, r, from + rangeFrom, from + rangeTo);
+            ctx.stroke();
+            
+            var f = from + rangeFrom;
+            var t = from + rangeTo;
+            var center = f + (t - f) / 2;
+            var fromAngle = center - this.degreesToRadians(2);
+            var toAngle = center + this.degreesToRadians(2);
+            ctx.strokeStyle = "#CCCCCC";
+            ctx.strokeStyle = "#999999";
+            ctx.beginPath();
+            ctx.arc(x, y, r, fromAngle, toAngle);
+			ctx.stroke();
+	/*
+			// draw handles, they currently get clipped, will need to inset all drawing and hit testing		
+            ctx.beginPath();
+            ctx.fillStyle = "#999999";
+            var cx = x + r * Math.cos(f);
+            var cy = y + r * Math.sin(f);
+            ctx.arc(cx, cy, 5.5, 0, 2 * Math.PI);
+			ctx.fill();			
+
+            ctx.beginPath();
+           	cx = x + r * Math.cos(t);
+            cy = y + r * Math.sin(t);
+            ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
+			ctx.fill();			
+	*/
+        }
+		function renderRangeMinLabel(canvas, ctx) {
+			var rangeMinLabel = this.getRangeMinValue();
+            ctx.fillStyle = "#555555";
+            ctx.font="10px Arial";
+            ctx.fillText(rangeMinLabel, 0, 14);
+  		}
+		function renderRangeMaxLabel(canvas, ctx) {
+			var rangeMaxLabel = this.getRangeMaxValue();
+            ctx.fillStyle = "#555555";
+            ctx.font="10px Arial";
+            var size = ctx.measureText(rangeMaxLabel);
+            ctx.fillText(rangeMaxLabel, canvas.width - size.width, 14);
+  		}        
+  		function getStrokeStyle(active) {
+            return active ? "#5eccf1" : "#515153";
+        }
+        function getLabel() {
+            return "Label"
+        }
+    ]]></behavior>     
+
+    <canvas id="RangeSlider" width="100" height="60" active="true">
+        <behavior like="RoundRangeSliderBehavior"><![CDATA[
+
+            function onValueChanged(container) {
+                RoundSliderBehavior.prototype.onValueChanged.call(this, container);
+                var waveGenerator = container.container.first;
+                var data = this.data;
+                var rangeMinValue = data.rangeMinValue;
+                var rangeMaxValue = data.rangeMaxValue;
+                var minValue = data.min;
+                var maxValue = data.max;
+                var normalizedRangeMinValue = (rangeMinValue - minValue) / (maxValue - minValue);
+                var normalizedRangeMaxValue = (rangeMaxValue - minValue) / (maxValue - minValue);
+                waveGenerator.behavior.setRange(normalizedRangeMinValue, normalizedRangeMaxValue);
+    	       	var axisContainer = container.container.container;   
+    	       	container.bubble("setAxisRange", Number(rangeMinValue).toFixed(2), Number(rangeMaxValue).toFixed(2));           
+            }
+            function getStrokeStyle(active) {
+                return active ? "#fc9c2b" : "#515153";
+            }
+            function getLabel() {
+                return "Range";
+            }
+        ]]></behavior>
+    </canvas>
+
+</module>

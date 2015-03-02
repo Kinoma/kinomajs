@@ -1,0 +1,425 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+   	<require id="BUTTONS" path="controls/buttons"/>
+    <require id="SCROLLER" path="mobile/scroller"/>
+    <require id="CONTROL" path="mobile/control"/>
+    <require id="TOOL" path="mobile/tool"/>
+	
+	<!-- Header -->
+		
+	<!-- may be placed as a child of a simple button in order to enlarge it's hit testing area -->
+	<content id="HiddenButtonAdpator" active="true">
+		<behavior>        
+			<method id="onTouchBegan" params="content, id, x, y, ticks"><![CDATA[
+				content.container.delegate("onTouchBegan", id, x, y, ticks);
+			]]></method>
+			<method id="onTouchEnded" params="content, id, x, y, ticks"><![CDATA[
+				content.container.delegate("onTouchEnded", id, x, y, ticks);
+			]]></method>
+        </behavior>
+	</content>
+		
+	<texture id="backButtonTexture" small="../assets/back-arrow.png"/>
+	<skin id="backButtonSkin" texture="backButtonTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+	
+	<texture id="roundBackButtonTexture" small="../assets/round-back-button.png"/>
+	<skin id="roundBackButtonSkin" texture="roundBackButtonTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+
+	<container id="CreationBackButton" left="0" top="0" like="BUTTONS.Button" skin="backButtonSkin">     
+        <behavior like="BUTTONS.ButtonBehavior">        
+			<method id="onTap" params="container"><![CDATA[
+				container.container.delegate("onBackButtonTap");
+			]]></method>
+		</behavior>	
+		<content like="HiddenButtonAdpator" left="0" top="0" right="-20" bottom="-10"/>
+	</container>
+			
+	<texture id="trashButtonTexture" small="../assets/header-trash.png"/>
+	<skin id="trashButtonSkin" texture="trashButtonTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+
+	<behavior id="ToolButtonBehavior" like="BUTTONS.ButtonBehavior">
+		<method id="onTap" params="container"><![CDATA[
+			// tool button tap
+		]]></method>       
+    </behavior>
+    
+	<container id="ToolButton" right="16" top="0" like="BUTTONS.Button" behavior="ToolButtonBehavior" skin="trashButtonSkin"/>
+			
+	<container id="TrashToolButton" like="ToolButton"/>
+			
+	<texture id="pencilButtonTexture" small="../assets/header-pencil.png"/>
+	<skin id="pencilButtonSkin" texture="pencilButtonTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+
+	<container id="PencilToolButton" right="16" top="0" like="BUTTONS.Button" skin="pencilButtonSkin">
+		<behavior like="BUTTONS.ButtonBehavior">        
+			<method id="onTap" params="container"><![CDATA[
+				// tool button tap
+			]]></method>
+        </behavior>
+	</container>
+	
+	<texture id="dynamicHeaderTexture" small="../assets/grey-header-3-part.png"/>
+	<skin id="dynamicHeaderSkin" texture="dynamicHeaderTexture" x="0" y="0" width="48" height="32">
+        <tiles left="16" right="16"/>
+    </skin>
+    
+    <style id="blackDynamicHeaderTitleStyle" font="bold 25px" color="black" align="middle,center" lines="1"/>
+    <style id="whiteDynamicHeaderTitleStyle" font="bold 25px" color="white" align="middle,center" lines="1"/>
+    
+	<behavior id="DynamicHeaderAnimationBehavior">
+		<method id="onCreate" params="content, data">
+		    <![CDATA[
+		        this.data = data;
+		        this.animationState = "none";
+		        this.animationDuration = 400;
+		        this.collapsed = false;
+		        var inset = 0;
+		        
+		        // header
+		        this.expandedLeft = -16;
+		        this.collapsedLeft = inset;
+		        this.expandedTop = 0;
+		        this.collapsedTop = inset;
+		        this.expandedWidth = 320 + (2 * 16);
+		        this.collapsedWidth = 32;
+		        this.deltaLeft = this.expandedLeft - this.collapsedLeft;
+		        this.deltaWidth = this.expandedWidth - this.collapsedWidth;
+		        this.deltaTop = this.expandedTop - this.collapsedTop;
+		        
+		        // back button
+		        this.bbExpandedLeft = 0;
+		        this.bbCollapsedLeft = inset;
+		        this.bbDeltaLeft = this.bbExpandedLeft - this.bbCollapsedLeft;
+		        this.bbExpandedTop = 0;
+		        this.bbCollapsedTop = inset;
+		        this.bbDeltaTop = this.bbExpandedTop - this.bbCollapsedTop;
+		    ]]>
+		</method>
+		<method id="onDisplaying" params="content">
+            <![CDATA[
+            	if ("ToolButton" in this.data)
+					content.add( new this.data.ToolButton(this.data) );
+		 	]]>
+        </method>
+		<method id="collapseHeader" params="content">
+		    <![CDATA[
+		    	if (this.animationState == "none" && ! this.collapsed) {
+		            this.animationState = "collapsing";
+		            content.time = 0;
+		            content.start();
+		         
+		            // title
+		            var label = content.first;			// bug: content.titleLabel no lnoger exists after detaching layer
+		            this.titleLayer = new Layer;
+		            this.titleLayer.attach(label);
+		            this.titleLayer.blocking = false;
+
+		            // tool button
+		            var toolButton = content.first.next;
+		            if (null == toolButton)
+		            	this.toolButtonLayer = null;
+		            else {		
+						this.toolButtonLayer = new Layer;
+						this.toolButtonLayer.attach(toolButton);
+						this.toolButtonLayer.blocking = false;
+					}
+		        }
+		    ]]>
+		</method>
+		<method id="expandHeader" params="content">
+		    <![CDATA[
+		    	if (this.animationState == "none" && this.collapsed) {
+		            this.animationState = "expanding"
+		            content.time = 0;
+		            content.start();
+		            
+		            // header
+		            content.visible = true
+		            var roundBackButton = content.container.roundBackButton;
+		            roundBackButton.visible = false;
+		            roundBackButton.active = false;
+		        }
+		    ]]>
+		</method>
+		<method id="collapseHeaderInstantly" params="content">
+            <![CDATA[
+
+	            // title
+	            var label = content.first;
+	            this.titleLayer = new Layer;
+	            this.titleLayer.attach(label);
+	            this.titleLayer.blocking = false;
+	            this.titleLayer.opacity = 0;
+
+	            // tool button
+	            var toolButton = content.first.next;
+	            if (null == toolButton)
+	            	this.toolButtonLayer = null;
+	            else {		
+					this.toolButtonLayer = new Layer;
+					this.toolButtonLayer.attach(toolButton);
+					this.toolButtonLayer.blocking = false;
+					this.toolButtonLayer.opacity = 0;
+	            }
+	            
+				// header
+				var left = this.expandedLeft - this.deltaLeft;
+           		var width = this.expandedWidth - this.deltaWidth;
+           		var top = this.expandedTop - this.deltaTop;
+           		content.coordinates = { left : left, top : top, width : width, height : 32 };
+           		content.visible = false;
+           		
+           		// back button
+ 		   		var backButton = content.container.backButton;
+           		left = this.bbExpandedLeft -this.bbDeltaLeft;
+           		top = this.bbExpandedTop - this.bbDeltaTop;
+           		backButton.coordinates = { left : left, top : top, width : backButton.width, height : backButton.height };
+           		
+           		// round back button
+				var roundBackButton = content.container.roundBackButton;
+				roundBackButton.visible = true;
+				roundBackButton.active = true;
+				
+				this.collapsed = true;
+            ]]>
+        </method>
+		<method id="onTimeChanged" params="content">
+			<![CDATA[
+		   		var backButton = content.container.backButton;
+		   		var fraction = content.time / this.animationDuration;
+		   		var lastFrame = false
+		   		if (fraction >= 1) {
+		   			fraction = 1
+		   			content.stop();
+		   			this.collapsed = (this.animationState == "collapsing");
+		   			lastFrame = true;
+		   		}
+		   		else
+		   			fraction = Math.cubicEaseOut(fraction);
+				switch (this.animationState) {
+					case "collapsing":
+						// header
+						var left = this.expandedLeft - fraction * this.deltaLeft;
+		           		var width = this.expandedWidth - fraction * this.deltaWidth;
+		           		var top = this.expandedTop - fraction * this.deltaTop;
+		           		content.coordinates = { left : left, top : top, width : width, height : 32 };
+		           		
+		           		// back button
+		           		left = this.bbExpandedLeft - fraction * this.bbDeltaLeft;
+		           		top = this.bbExpandedTop - fraction * this.bbDeltaTop;
+		           		backButton.coordinates = { left : left, top : top, width : backButton.width, height : backButton.height };
+		           		
+		           		// title
+		           		var titleFraction = mapTime(fraction, 0, 0.5);
+		           		this.titleLayer.opacity = (1 - titleFraction);
+
+		           		// tool button
+		           		if (null != this.toolButtonLayer) {
+							var toolButtonFraction = mapTime(fraction, 0, 0.5);
+							this.toolButtonLayer.opacity = (1 - toolButtonFraction);
+						}
+		           	break
+		           	case "expanding":
+		           		// header
+						var left = this.collapsedLeft + fraction * this.deltaLeft;
+		           		var width = this.collapsedWidth + fraction * this.deltaWidth;
+		           		var top = this.collapsedTop + fraction * this.deltaTop;
+		           		content.coordinates = { left : left, top : top, width : width, height : 32 };	                   	
+
+		           		// back button
+		           		left = this.bbCollapsedLeft + fraction * this.bbDeltaLeft;
+		           		top = this.bbCollapsedTop + fraction * this.bbDeltaTop;
+		           		backButton.coordinates = { left : left, top : top, width : backButton.width, height : backButton.height };
+		           		
+		           		// title
+		           		var titleFraction = mapTime(fraction, 0.5, 1);
+		           		this.titleLayer.opacity = titleFraction;
+		           		if (lastFrame)
+		           			this.titleLayer.detach();
+
+		           		// tool button
+		           		if (null != this.toolButtonLayer) {
+							var toolButtonFraction = mapTime(fraction, 0.5, 1);
+							this.toolButtonLayer.opacity = toolButtonFraction;
+							if (lastFrame)
+								this.toolButtonLayer.detach();
+						}
+		           	break
+				}
+				if (lastFrame) {
+					switch (this.animationState) {
+						case "collapsing":
+							content.visible = false;
+							var roundBackButton = content.container.roundBackButton;
+							roundBackButton.visible = true;
+							roundBackButton.active = true;
+						break;
+						case "exapnding":
+						break;
+					}
+					this.animationState = "none";
+					this.checkScrollerState(content);
+				}
+			]]>
+		</method>
+		<method id="checkScrollerState" params="content">
+            <![CDATA[
+                if ("DYNAMIC_SCROLLER" in this.data) {
+                	var scroller = this.data.DYNAMIC_SCROLLER;
+                	var isScrolled = scroller.delegate("isScrolled");
+                	if (isScrolled && ! this.collapsed)
+                		this.collapseHeader(content);
+                	else if (! isScrolled && this.collapsed)
+                		this.expandHeader(content);
+               	}
+            ]]>
+        </method>
+	</behavior>
+	
+	<behavior id="DynamicHeaderBehavior">        
+		<method id="onCreate" params="container, data"><![CDATA[
+			this.data = data;
+		]]></method>
+		<method id="onBackButtonTap" params="container"><![CDATA[
+			application.distribute("onBackButton");
+			if (undefined != application.behavior && "canGoBack" in application.behavior) {
+				if (application.behavior.canGoBack())
+					container.invoke(new Message("/back"));
+				else
+					container.invoke(new Message("xkpr://shell/close?id=" + application.id));
+			}
+		]]></method>
+	</behavior>	
+
+	<container id="DynamicHeader" top="0" left="0" right="0" height="32" behavior="DynamicHeaderBehavior">
+		<container anchor="ANIMATOR" left="-16" top="0" width="320 + (2 * 16)" height="32" skin="dynamicHeaderSkin" behavior="DynamicHeaderAnimationBehavior">
+			<scroller name="titleLabel" left="32 + 16" right="32 + 16" top="0" bottom="0" like="TOOL.HeaderTitle">
+				<behavior like="CONTROL.HorizontalTickerBehavior">
+                    <method id="onCreate" params="content, data">
+                        <![CDATA[
+                        	CONTROL.HorizontalTickerBehavior.prototype.onCreate.call(this, content, data);
+                            if ("titleStyle" in data)
+                            	content.style = data.titleStyle;
+                            else
+                            	content.style = blackDynamicHeaderTitleStyle;
+                        ]]>
+                    </method>
+                </behavior>
+			</scroller>
+		</container>
+		<container name="backButton" like="CreationBackButton"/>
+		<container name="roundBackButton" like="CreationBackButton" left="0" top="0" visible="false" active="true" skin="roundBackButtonSkin"/>
+	</container>
+	
+	<!-- Scroller -->
+	
+	<behavior id="DynamicHeaderScrollerBehavior" like="SCROLLER.VerticalScrollerBehavior">
+		<method id="onDisplaying" params="scroller">
+            <![CDATA[
+                SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+                this.scrolled = this.isScrolled(scroller);
+                if (this.isScrolled(scroller)) {
+                	this.data.ANIMATOR.delegate("collapseHeaderInstantly", true);
+                }
+            ]]>
+        </method>
+        <method id="isScrolled" params="scroller">
+            <![CDATA[
+                return scroller.scroll.y > 0;
+            ]]>
+        </method>
+          <method id="onTouchBegan" params="scroller, id, x, y, ticks">
+            <![CDATA[
+      			SCROLLER.VerticalScrollerBehavior.prototype.onTouchBegan.call(this, scroller, id, x, y, ticks);
+      			this.scrolled = this.isScrolled(scroller);
+            ]]>
+        </method>                  
+        <method id="onTouchMoved" params="scroller, id, x, y, ticks">
+            <![CDATA[
+      			SCROLLER.VerticalScrollerBehavior.prototype.onTouchMoved.call(this, scroller, id, x, y, ticks);
+      			this.updateScrolled(scroller);
+            ]]>
+        </method>
+        <method id="onTouchEnded" params="scroller, id, x, y, ticks">
+            <![CDATA[
+      			SCROLLER.VerticalScrollerBehavior.prototype.onTouchEnded.call(this, scroller, id, x, y, ticks);
+      			this.updateScrolled(scroller);                          
+            ]]>
+        </method>
+        <method id="onFinished" params="scroller">
+            <![CDATA[
+      			SCROLLER.VerticalScrollerBehavior.prototype.onFinished.call(this, scroller);
+       			this.updateScrolled(scroller);                          
+            ]]>
+        </method>
+        <method id="updateScrolled" params="scroller">
+            <![CDATA[
+                var wasScrolled = this.scrolled;
+                this.scrolled = this.isScrolled(scroller);
+                if (wasScrolled != this.scrolled) {
+                	var animator = this.data.ANIMATOR;
+                	if (this.scrolled)
+                		animator.delegate("collapseHeader");
+                	else
+                		animator.delegate("expandHeader");
+                }
+            ]]>
+        </method>                   
+    </behavior>
+	
+	<!-- Viewers -->
+
+	<behavior id="BusyPictureBehavior">
+		<method id="onLoaded" params="picture"><![CDATA[
+			picture.origin = {x:picture.width>>1, y:picture.height>>1};
+			picture.scale = {x:1.0, y:1.0};
+			picture.rotation = 0;
+			picture.start();
+		]]></method>	
+		<method id="onTimeChanged" params="picture"><![CDATA[
+			var rotation = picture.rotation;
+			rotation -= 2;
+			if (rotation < 0) rotation = 360;
+			picture.rotation = rotation;
+		]]></method>	
+	</behavior>
+	
+	<picture id="BusyPicture" url="'../assets/kgreen-spinner.png'" behavior="BusyPictureBehavior"/>
+
+	<!-- Utility functions -->
+	
+	<function id="mapTime" params="fraction, start, end">
+        <![CDATA[
+			var range = end - start;
+			var mappedFraction = ((fraction - start) / range);
+			if (mappedFraction < 0)			mappedFraction = 0;
+			else if (mappedFraction > 1)	mappedFraction = 1;
+			return mappedFraction;
+        ]]>
+    </function>
+
+</module>

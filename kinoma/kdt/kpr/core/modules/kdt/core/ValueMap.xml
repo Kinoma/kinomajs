@@ -1,0 +1,128 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+    <function id="newInstance" params="map">
+        <![CDATA[
+            return new ValueMap( map );
+        ]]>
+    </function>
+
+    <class id="ValueMap">
+        <field id="map"/>
+        
+        <constructor params="map">
+            <![CDATA[
+                if( map != null )
+                {
+                    // if the map passed in is a string, then attempt to 
+                    // parse it as a json object...
+                    if( typeof map == "string" )
+                        map = JSON.parse( map );
+                }
+            
+                this.map = map != null ? map : new Object();
+            ]]>
+        </constructor>
+        
+        <method id="contains" params="key">
+            <![CDATA[
+                return this.map != null && key in this.map;
+            ]]>
+        </method>
+        
+        <method id="getValue" params="key, defaultValue, evaluate">
+            <![CDATA[
+                var result = null;
+            
+                if( this.contains( key ) )
+                {
+                    if( this.map[key] instanceof Function && (evaluate == null || evaluate == true) )
+                        result = this.map[key]();
+                    else
+                        result = this.map[key];
+                }
+                    
+                return result != null ? result : defaultValue;
+            ]]>
+        </method>
+        
+        <method id="setValue" params="key, value">
+            <![CDATA[
+                this.map[key] = value;
+            ]]>
+        </method>
+        
+        <method id="getBool" params="key, defaultValue">
+            <![CDATA[
+                var value = this.getValue( key, defaultValue );
+                var result = false;
+                
+                if( typeof value == "boolean" )
+                    result = value;
+                    
+                else if( typeof value == "string" )
+                {
+                    var normalizedValue = value != null ? value.toLowerCase() : null;
+                
+                    result = normalizedValue != null && (normalizedValue == "true" || normalizedValue == "1" || normalizedValue == "yes" || normalizedValue == "ok");
+                }
+                else if( typeof value == "number" )
+                    result = value != 0;
+                else
+                    result = new Boolean( value );
+                    
+                return result;
+            ]]>
+        </method>
+        
+        <method id="getKeys">
+            <![CDATA[
+                var keys = new Array();
+                
+                for( var next in this.map )
+                    keys.push( next );
+                    
+                return keys;
+            ]]>
+        </method>
+        
+        <method id="merge" params="map, overwrite">
+            <![CDATA[
+                var keys = map.getKeys();
+                
+                for( var j = 0; j < keys.length; j++ )
+                {
+                    if( overwrite || this.contains( keys[j] ) == false )
+                        this.setValue( keys[j], map.getValue( keys[j], null, false ) );
+                }
+            ]]>
+        </method>
+        
+        <method id="dumpValues">
+            <![CDATA[
+                var keys = this.getKeys();
+                var result = ("Displaying " + keys.length + (keys.length == 1 ? " key" : " keys") + " in ValueMap:\n");
+                
+                for( var j = 0; j < keys.length; j++ )
+                    result += ("   " + keys[j] + "=" + this.getValue( keys[j] ) + "\n");
+                    
+                return result;
+            ]]>
+        </method>
+    </class>
+    
+</module>

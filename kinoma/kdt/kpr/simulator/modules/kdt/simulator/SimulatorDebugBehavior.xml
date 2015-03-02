@@ -1,0 +1,742 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+    
+    <require id="DebugBehavior" path="kdt/core/DebugBehavior"/>
+    <require id="DebugHandlerMessageBehavior" path="kdt/core/DebugHandlerMessageBehavior"/>
+    <require id="AuthenticatedDebugHandlerMessageBehavior" path="kdt/core/AuthenticatedDebugHandlerMessageBehavior"/>
+    <require id="TransitionHelper" path="kdt/core/TransitionHelper"/>
+    <require id="DeviceManager" path="DeviceManager"/>
+    <require id="MenuBar" path="MenuBar"/>
+    <require id="MultitouchHandler" path="MultitouchHandler"/>
+
+    <script>
+        <![CDATA[
+            // orientation rotation map
+            var ORIENTATION_ROTATION_MAP = {
+                "vertical":{"horizontal-left":-90,"horizontal-left":-90,"upside-down":180},
+                "horizontal-left":{"vertical":90,"horizontal-right":180,"upside-down":-90},
+                "horizontal-right":{"vertical":-90,"horizontal-right":-180,"upside-down":90},
+                "upside-down":{"horizontal-left":90,"horizontal-left":90,"vertical":-180}
+            };
+            
+            // symbolic constants
+            var WINDOW_STATE ="window";
+            var DEVICE_ID ="device";
+            var APPLICATION_ID ="application";
+            var DEVICE_VARIATION ="variation";
+            var DEVICE_ORIENTATION ="orientation";
+            var BACKGROUND_COLOR ="background";
+          ]]>
+    </script>
+  
+    <function id="getBehavior">
+        <![CDATA[
+            return shell.behavior;
+        ]]>
+    </function>
+           
+    <function id="newInstance">
+        <![CDATA[
+            return new SimulatorDebugBehavior();
+        ]]>
+    </function>
+            
+    <class id="SimulatorDebugBehavior" like="DebugBehavior">
+        <field id="deviceManager"/>
+        <field id="selectedDeviceInfo"/>
+        <field id="deviceContainer"/>
+        <field id="variationId"/>
+        <field id="orientation"/>
+        <field id="backgroundColor"/>
+        <field id="touchDelegate"/>
+        <field id="deviceMenu"/>
+        <field id="touchSupported"/>
+        <field id="rotationSupported"/>
+        
+        <constructor>
+            <![CDATA[
+                DebugBehavior.DebugBehavior.call( this );
+            ]]>
+        </constructor>
+        
+        <method id="initialize">
+            <![CDATA[
+                // initialize instance variables
+                this.deviceManager = DeviceManager.newInstance( this.getDeviceSearchPaths() );
+                
+                // call superclass  method
+                DebugBehavior.prototype.initialize.call( this );
+
+                // restore the window state from the preferences
+                if( this.preferences.hasPreference( WINDOW_STATE ) )
+                    shell.windowState = this.preferences.getPreference( WINDOW_STATE );
+            ]]>
+        </method>
+        
+        <method id="onLaunch" params="shell">
+            <![CDATA[
+                //shell.debugging = true;
+
+                Logger.log( "%com.kinoma.debug=start:" + shell.serverPort, true );
+            ]]>
+        </method>
+        
+        <method id="initializePrefernces">
+            <![CDATA[
+                DebugBehavior.prototype.initializePrefernces.call( this );
+            
+                //this.variationId = this.preferences.getPreference( this.DEVICE_VARIATION );
+                this.orientation = this.preferences.getPreference( DEVICE_ORIENTATION, DeviceManager.VERTICAL );
+                this.backgroundColor = this.preferences.getPreference( BACKGROUND_COLOR, "black" );
+            ]]>
+        </method>
+        
+        <method id="exit">
+            <![CDATA[
+                // set the preferences state and write out the preferences
+                //this.preferences.setPreference( DEVICE_ID, this.getSelectedDeviceInfo() != null ? this.getSelectedDeviceInfo().id : null );            
+                //this.preferences.setPreference( DEVICE_VARIATION, this.variationId );
+                this.preferences.setPreference( DEVICE_ORIENTATION, this.orientation );
+                this.preferences.setPreference( APPLICATION_ID, this.selectedApplication != null ? this.selectedApplication.id : null );
+                this.preferences.setPreference( WINDOW_STATE, shell.windowState );
+                this.preferences.setPreference( BACKGROUND_COLOR, this.backgroundColor );
+                
+                this.preferences.write();
+            ]]>
+        </method>
+        
+        <method id="setBackgroundColor" params="color">
+            <![CDATA[
+                this.backgroundColor = color;
+                this.background.skin = new Skin( color );
+            ]]>
+        </method>
+        
+        <method id="getBackgroundColor">
+            <![CDATA[
+                return this.backgroundColor;
+            ]]>
+        </method>
+        
+        <method id="createMenuBar">
+            <![CDATA[
+                var menuBar = MenuBar.newInstance();
+                
+                // debug menu
+                var debugMenu = menuBar.addMenu( "Debug" );
+                
+                debugMenu.addMenuItem( "Reload", "Reload", "R" );
+                debugMenu.addSeparator();
+                debugMenu.addMenuItem( "Break", "Break", "B" );
+                debugMenu.addSeparator();
+                debugMenu.addMenuItem( "Settings", "Settings" );
+                
+                // device menu
+                this.deviceMenu = menuBar.addMenu( "Device" );
+                this.rebuildDeviceMenu();
+
+                // help menu
+                var helpMenu = menuBar.addMenu( "Help" );
+            
+                //helpMenu.addMenuItem( "Kinoma Developer", "Support" );
+                //helpMenu.addSeparator();
+                helpMenu.addMenuItem( "About Kinoma Simulator", "About" );
+
+                return menuBar;
+            ]]>
+        </method>
+        
+        <method id="installDevice" params="url">
+            <![CDATA[
+                return this.getDeviceManager().registerExtension( url );
+            ]]>
+        </method>
+        
+        <method id="rebuildDeviceMenu" params="update">
+            <![CDATA[
+                this.deviceMenu.clearMenuItems();
+
+                if( this.isRotationSupported() )
+                {
+                    this.deviceMenu.addMenuItem( "Rotate Left", "RotateDeviceLeft", getEnvironmentVariable( "rotateLeftAccel" ) );
+                    this.deviceMenu.addMenuItem( "Rotate Right", "RotateDeviceRight", getEnvironmentVariable( "rotateRightAccel" ) );
+                }
+                
+                if( this.isTouchSupported() )
+                    this.deviceMenu.addMenuItem( "Touch Mode", "ToggleTouchMode", "T" );
+                
+                this.deviceMenu.addSeparator();
+                
+                /*
+                for( var j = 0; j < this.deviceManager.getExtensionCount(); j++ )
+                {
+                    var info = this.deviceManager.getExtensionByIndex( j );
+                    var device = info.getDevice();
+                    
+                    for( var i = 0; i < device.getVariationCount(); i++ )
+                    {
+                       var variation = device.getVariationByIndex( i );
+                       
+                       this.deviceMenu.addMenuItem( variation.title, "SelectDevice", null, {info:info,variation:variation.id} );
+                    }
+                }
+                
+                this.deviceMenu.addSeparator();
+                */
+                
+                this.deviceMenu.addMenuItem( "Background Colors:" );
+                this.deviceMenu.addMenuItem( "Black", "SelectBackgroundColor", null, "black" );
+                this.deviceMenu.addMenuItem( "Gray", "SelectBackgroundColor", null, "gray" );
+                this.deviceMenu.addMenuItem( "White", "SelectBackgroundColor", null, "white" );
+
+                // add custom menu items           
+                if( this.deviceContainer != null )
+                    this.deviceContainer.delegate( "addCustomDeviceMenuItems", this.deviceMenu );   
+                
+                if( this.getSelectedDevice() != null )
+                {
+                    var events = this.getSelectedDevice().getEvents();
+                
+                    if( events != null && events.length > 0 )
+                    {
+                        this.deviceMenu.addSeparator();
+                        this.deviceMenu.addMenuItem( "Events:" );
+                                         
+                        for( var j = 0; j < events.length; j++ )
+                            this.deviceMenu.addMenuItem( events[j].title, "SelectEvent", events[j].key, events[j] );
+                    }
+                }
+                
+                if( update )
+                    shell.updateMenus();
+            ]]>
+        </method>
+        
+        <method id="addCustomDeviceMenuItems" params="menu"/>
+
+        <method id="getWindowTitle">
+            <![CDATA[
+                return "Kinoma Simulator";
+            ]]>
+        </method>
+        
+        <method id="getPreferencesPath">
+            <![CDATA[
+                return mergeURI( Files.preferencesDirectory, "kdt/simulator/preferences.json" );
+            ]]>
+        </method>
+        
+        <method id="getApplicationSearchPaths">
+            <![CDATA[
+                return [];
+            ]]>
+        </method>
+        
+        <method id="getDeviceSearchPaths">
+            <![CDATA[
+                return [];
+            ]]>
+        </method>
+        
+        <method id="getDeviceManager">
+            <![CDATA[
+                return this.deviceManager;
+            ]]>
+        </method>
+        
+        <method id="getSelectedDeviceInfo">
+            <![CDATA[
+                return this.selectedDeviceInfo;
+            ]]>
+        </method>
+        
+        <method id="getSelectedDevice">
+            <![CDATA[
+                return this.getSelectedDeviceInfo() != null ? this.getSelectedDeviceInfo().getDevice() : null;
+            ]]>
+        </method>
+        
+        <method id="getSelectedDeviceVariation">
+            <![CDATA[
+                return this.getSelectedDevice() != null ? this.getSelectedDevice().getVariationById( this.variationId ) : null;
+            ]]>
+        </method>
+        
+        <method id="getSelectedDeviceVariationId">
+            <![CDATA[
+                return this.variationId;
+            ]]>
+        </method>
+        
+        <method id="getSelectedDeviceContainer">
+            <![CDATA[
+                return this.deviceContainer;
+            ]]>
+        </method>
+        
+        <method id="setSelectedDevice" params="deviceInfo, variationId, orientation">
+            <![CDATA[
+                var device = deviceInfo.getDevice();
+                var variation = variationId != null ? device.getVariationById( variationId ) : device.getDefaultVariation();
+                var oldDeviceContainer = this.deviceContainer;
+            
+                this.variationId = variationId;
+                
+                if( orientation != null )
+                    this.orientation = orientation;
+                    
+                if( device.isOrientationSupported( this.orientation ) == false )
+                    this.orientation = DeviceManager.VERTICAL;
+                    
+                this.deviceContainer = device.createDeviceContainer( variation, this.orientation );                        
+                this.selectedDeviceInfo = deviceInfo;
+                                        
+                if( oldDeviceContainer != null )
+                {
+                    if( this.applicationContainer != null )
+                    {
+                        this.applicationContainer.rotating = true;
+                    
+                        oldDeviceContainer.behavior.getApplicationContainer().remove( this.applicationContainer );
+                        shell.remove( oldDeviceContainer );
+                        
+                        shell.add( this.deviceContainer );
+                        this.deviceContainer.behavior.getApplicationContainer().add( this.applicationContainer );
+
+                        this.applicationContainer.rotating = false;
+                        this.applicationContainer.adapt();
+                    }
+                    else
+                    {
+                        shell.remove( oldDeviceContainer );
+                        shell.add( this.deviceContainer );
+                    }
+                }
+                else
+                    shell.add( this.deviceContainer );
+                
+                this.rebuildDeviceMenu( true );
+            ]]>
+        </method>
+        
+        <method id="setDeviceOrientation" params="orientation">
+            <![CDATA[
+                if( this.getSelectedDeviceContainer() != null )
+                    this.getSelectedDeviceContainer().delegate( "handleSetOrientation", orientation, this.applicationContainer );
+            ]]>
+        </method>
+        
+        <method id="isTouchSupported">
+            <![CDATA[
+                if( this.touchSupported == null )
+                    this.touchSupported = getEnvironmentVariable( "touchSupported" ) != null && getEnvironmentVariable( "touchSupported" ) == "true";
+            
+                return this.touchSupported;
+            ]]>
+        </method>
+        
+        <method id="isRotationSupported">
+            <![CDATA[
+                if( this.rotationSupported == null )
+                    this.rotationSupported = getEnvironmentVariable( "rotationSupported" ) == null || getEnvironmentVariable( "rotationSupported" ) == "true";
+            
+                return this.rotationSupported;
+            ]]>
+        </method>
+
+        <method id="getScreen">
+            <![CDATA[
+                return this.deviceContainer != null ? this.deviceContainer.behavior.getApplicationContainer() : null;
+            ]]>
+        </method>
+        
+        <method id="handleLaunch" params="launch">
+            <![CDATA[
+                var device = "device" in launch ? launch.device : null;
+                
+                if( device != null )
+                {
+                    //
+                    // set the selected device in the simulator
+                    //               
+	                var deviceInfo = null;
+	                var variationId = null;
+	                var orientation = null;
+
+	                if( device.id == "custom" )
+	                {
+	                    var extenstion = DeviceManager.createDeviceExtension();
+	                    
+	                    // create the device mockup
+	                    var screen = DeviceManager.createDeviceExtensionScreen();
+                    
+	                    screen.width = "width" in device ? device.width : 640;
+	                    screen.height = "height" in device ? device.height : 480;
+	                        
+	                    // add the screen to the mockup
+	                    var mockup = DeviceManager.createDeviceExtensionMockup();
+	
+	                    mockup.screens.push( screen );
+	                    
+	                    // configure the extension
+	                    extenstion.title = "Custom Device";
+	                    extenstion.id = "custom";
+	                    extenstion.orientations = DeviceManager.VERTICAL;
+	                    extenstion.mockups.push( mockup );
+	
+	                    // create device extension info                        
+	                    deviceInfo = getBehavior().getDeviceManager().createExtensionInfo( extenstion );
+	                }
+	                else
+	                {
+	                    var params = device.id.split( ":" );
+	                    var id = params[0];
+	                    
+	                    variationId = params.length > 1 ? params[1] : null;
+	                    orientation = params.length > 2 ? params[2] : null;
+	                    
+	                    if( "path" in device )
+	                       deviceInfo = getBehavior().installDevice( "file://" + device.path );
+	                    else
+	                       deviceInfo = getBehavior().getDeviceManager().getExtensionById( id );
+	                }
+	                
+	                if( deviceInfo != null && (deviceInfo != getBehavior().getSelectedDeviceInfo() || variationId != getBehavior().getSelectedDeviceVariationId()) ) {
+	                    getBehavior().setSelectedDevice( deviceInfo, variationId, orientation );
+	                    getBehavior().rebuildDeviceMenu( true );
+	                }
+                }
+                
+                // call superclass  method
+                DebugBehavior.prototype.handleLaunch.call( this, launch );
+            ]]>
+        </method>
+        
+        <method id="handleShellQuit" params="message">
+            <![CDATA[
+                // disconnect from the debugger
+                this.disconnect( true );
+            
+                // exit the shell
+                shell.quit();
+            ]]>
+        </method>
+
+        <method id="onInvoke" params="shell, message">
+            <![CDATA[
+                if( this.getSelectedDeviceContainer() != null )
+                    this.getSelectedDeviceContainer().delegate( "handleShellMessage", message );
+            ]]>
+        </method>
+        
+        <method id="onTouchBegan" params="target, id, x, y">
+            <![CDATA[
+                if( this.touchDelegate != null )
+                    this.touchDelegate.onTouchBegan( target, id, x, y );
+            ]]>
+        </method>
+        
+        <method id="onTouchEnded" params="target, id, x, y">
+            <![CDATA[
+                if( this.touchDelegate != null )
+                    this.touchDelegate.onTouchEnded( target, id, x, y );
+            ]]>
+        </method>
+        
+        <method id="onTouchMoved" params="target, id, x, y">
+            <![CDATA[
+               if( this.touchDelegate != null )
+                  this.touchDelegate.onTouchMoved( target, id, x, y );
+            ]]>
+        </method>
+        
+		  <method id="onSetSystemKeyboardVisible" params="shell, visible">
+		      <![CDATA[
+		         if( this.getSelectedDeviceContainer() != null )
+                  this.getSelectedDeviceContainer().delegate( "handleSetSystemKeyboardVisible", visible );
+		      ]]>
+		  </method>
+		  
+		  <method id="onGetSystemKeyboardVisible" params="shell">
+		      <![CDATA[
+		         return this.getSelectedDeviceContainer() != null && this.getSelectedDeviceContainer().delegate( "handleGetSystemKeyboardVisible" );
+		      ]]>
+		  </method>
+        
+        <!-- Menu Behaviors -->
+
+        <method id="canSelectDevice" params="shell, item">
+            <![CDATA[
+                var deviceInfo = item.data.info;
+                var variationId = item.data.variation;
+                
+                item.check = (deviceInfo == this.getSelectedDeviceInfo() && variationId == this.variationId);
+             
+                return true;
+            ]]>
+        </method>
+        
+        <method id="doSelectDevice" params="shell, item">
+            <![CDATA[
+                var deviceInfo = item.data.info;
+                var variationId = item.data.variation;
+                
+                if( deviceInfo != null && (deviceInfo != this.getSelectedDeviceInfo() || variationId != this.variationId) )
+                    this.setSelectedDevice( deviceInfo, variationId );
+            ]]>
+        </method>
+        
+        <method id="canRotateDeviceLeft" params="shell, item">
+            <![CDATA[
+                return this.getSelectedDevice() != null && this.getSelectedDevice().isRotationSupported();
+            ]]>
+        </method>
+        
+        <method id="doRotateDeviceLeft" params="shell, item">
+            <![CDATA[
+                if( this.getSelectedDeviceContainer() != null )
+                    this.getSelectedDeviceContainer().delegate( "handleRotateLeft", this.applicationContainer );
+            ]]>
+        </method>
+        
+        <method id="canRotateDeviceRight" params="shell, item">
+            <![CDATA[
+                return this.getSelectedDevice() != null && this.getSelectedDevice().isRotationSupported();
+            ]]>
+        </method>
+        
+        <method id="doRotateDeviceRight" params="shell, item">
+            <![CDATA[
+                if( this.getSelectedDeviceContainer() != null )
+                    this.getSelectedDeviceContainer().delegate( "handleRotateRight", this.applicationContainer );
+            ]]>
+        </method>
+        
+        <method id="canToggleTouchMode" params="shell, item">
+            <![CDATA[
+                item.check = this.touchDelegate != null;
+                          
+                return this.getSelectedDevice() != null && this.getSelectedDevice().isTouchSupported() && this.isTouchSupported();     
+            ]]>
+        </method>
+        
+        <method id="doToggleTouchMode" params="shell, item">
+            <![CDATA[
+                if( this.touchDelegate != null )
+                {
+                    this.touchDelegate.stop();
+                    this.touchDelegate = null;
+                    shell.touchMode = false;
+                }
+                else
+                {
+                    this.touchDelegate = MultitouchHandler.newInstance( shell, this.getSelectedDevice().getTouchMode() );
+                    this.touchDelegate.start();
+                    shell.touchMode = true;
+                }
+            ]]>
+        </method>
+        
+        <method id="canSelectBackgroundColor" params="shell, item">
+            <![CDATA[
+                item.check = (item.data == this.backgroundColor);
+                    
+                return true;
+            ]]>
+        </method>
+        
+        <method id="doSelectBackgroundColor" params="shell, item">
+            <![CDATA[
+                this.setBackgroundColor( item.data );
+            ]]>
+        </method>
+        
+        <method id="canSelectEventMenu" params="shell, item">
+            <![CDATA[
+                return true;
+            ]]>
+        </method>
+        
+        <method id="canSelectEvent" params="shell, item">
+            <![CDATA[
+                var event = item.data;
+                    
+                event.enabled = true;
+                event.checked = false;
+                event.handled = false;
+                
+                if( ("handleUpdateEvent_" + event.id) in this.deviceContainer.behavior ) {
+                    event.handled = true;
+                    this.deviceContainer.delegate( "handleUpdateEvent_" + event.id, event );
+                }
+                
+                if( event.handled == false )
+                    this.deviceContainer.delegate( "handleUpdateEvent", event );
+                
+                item.check = event.checked;
+            
+                return event.enabled;
+            ]]>
+        </method>
+        
+        <method id="doSelectEvent" params="shell, item">
+            <![CDATA[
+                var event = item.data;
+
+                event.handled = false;
+                
+                if( ("handleSelectEvent_" + event.id) in this.deviceContainer.behavior ) {
+                    event.handled = true;
+                    this.deviceContainer.delegate( "handleSelectEvent_" + event.id, event );
+                }                
+
+                if( event.handled == false )
+                    this.deviceContainer.delegate( "handleSelectEvent", event );
+            ]]>
+        </method>
+        
+        <method id="canSelectApplication" params="shell, item">
+            <![CDATA[
+                var applicationInfo = this.applicationManager.getExtensionById( item.data.id );
+                
+                item.check = (applicationInfo == this.selectedApplication);
+
+                return true; 
+            ]]>
+        </method>
+        
+        <method id="doSelectApplication" params="shell, item">
+            <![CDATA[
+                var applicationInfo = this.applicationManager.getExtensionById( item.data.id );
+                
+                if( applicationInfo != null && applicationInfo != this.selectedApplication )
+                    this.setSelectedApplication( applicationInfo );
+            ]]>
+        </method>
+        
+        <method id="canBreak" params="shell, item">
+            <![CDATA[
+                return this.applicationContainer != null;
+            ]]>
+        </method>
+        
+        <method id="doBreak" params="shell, item">
+            <![CDATA[
+                if( this.applicationContainer != null && "debugger" in this.applicationContainer )
+                    this.applicationContainer["debugger"]();
+            ]]>
+        </method>
+        
+        <method id="canReload" params="shell, item">
+            <![CDATA[
+                return this.selectedApplication != null;
+            ]]>
+        </method>
+        
+        <method id="doReload" params="shell, item">
+            <![CDATA[
+                if( this.selectedApplication != null )
+                    this.setSelectedApplication( this.selectedApplication, true );
+            ]]>
+        </method>
+        
+        <method id="doAbout" params="shell, item">
+            <![CDATA[
+                shell.alert( "about", "Kinoma Simulator", "Copyright © 2013 Marvell. All rights reserved. Kinoma is a registered trademark of Kinoma, Inc." );
+            ]]>
+        </method>
+    </class>
+    
+    <handler path="/installDevice">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                	var url = null;
+                
+                    if( params.contains( "path" ) )
+                       url = "file://" + params.getValue( "path" );
+                    
+                    else if( params.contains( "url" ) )
+                       url = params.getValue( "url" );
+
+					if( url != null ) {
+					   getBehavior().installDevice( url );
+					   getBehavior().rebuildDeviceMenu( true );
+					}
+                }
+            ]]>
+        </behavior>
+    </handler>
+    
+    <handler path="/device">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                    var deviceId = params.getValue( "id" );
+                    var deviceInfo = null;
+                    var variationId = null;
+                    var orientation = null;
+
+                    if( deviceId == "custom" )
+                    {
+                        //var data = JSON.parse( deviceId.substring( 7 ) );
+                        var extenstion = DeviceManager.createDeviceExtension();
+                        
+                        extenstion.title = "Custom Device";
+                        extenstion.id = "custom";
+                        extenstion.orientations = DeviceManager.VERTICAL;
+                        extenstion.mockups.push( this.createDeviceMockup( params.getValue( "width", 640 ), params.getValue( "height", 480 ) ) );
+
+                        // create device extension info                        
+                        deviceInfo = getBehavior().getDeviceManager().createExtensionInfo( extenstion );
+                    }
+                    else
+                    {
+                        var params = deviceId.split( ":" );
+                        var id = params[0];
+                        
+                        variationId = params.length > 1 ? params[1] : null;
+                        orientation = params.length > 2 ? params[2] : null;
+                        
+	                    deviceInfo = getBehavior().getDeviceManager().getExtensionById( id );
+	                }
+	                
+                    if( deviceInfo != null && (deviceInfo != getBehavior().getSelectedDeviceInfo() || variationId != getBehavior().getSelectedDeviceVariationId()) )
+                        getBehavior().setSelectedDevice( deviceInfo, variationId, orientation );
+                }
+                
+                function createDeviceMockup( width, height )
+                {
+                    var screen = DeviceManager.createDeviceExtensionScreen();
+                    
+                    screen.width = width;
+                    screen.height = height;
+                        
+                    // add the screen to the mockup
+                    var mockup = DeviceManager.createDeviceExtensionMockup();
+
+                    mockup.screens.push( screen );
+                    
+                    return mockup;
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+</module>

@@ -1,0 +1,802 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#include "kinoma_macros.h"
+#if (__arm__)
+@ This file was automatically generated from
+@ /home/mkellner/fsk/kinoma/kinoma-ipp-lib/arm_asm/kinoma_avc_dec_reconstruction.s
+@ on Mon, 03 Nov 2008 11:47:28 GMT
+	.text	@CODE, READONLY
+
+coef	.req	r0 
+dquant	.req	r1 
+qp_per	.req	r2 
+m	.req	r3 
+co10	.req	r4 
+co32	.req	r5 
+dq10	.req	r6 
+dq32	.req	r7 
+t0	.req	r8 
+t1	.req	r9 
+pp0	.req	r10 
+pp1	.req	r11 
+pp2	.req	r12 
+pp3	.req	r14 
+
+pred	.req	r0 
+dst	.req	r1 
+CNST_255	.req	r2 
+pitch	.req	r14 
+	.unreq	m
+m	.req	r3 
+dst_3210	.req	r4 
+dst_7654	.req	r5 
+dst_ba98	.req	r6 
+dst_fedc	.req	r7 
+
+	.equ DQ_BITS, 6
+	.equ DQ_ROUND, (1<<(DQ_BITS-1))
+
+.macro	loadcoef offset
+#if __APPLE__
+	ldrd	co10, co32, [coef, \offset]
+	ldrd	dq10, dq32, [dquant, \offset]
+#else
+	ldrd	co10, [coef, \offset]
+	ldrd	dq10, [dquant, \offset]
+#endif
+.endm
+
+dquant_trans_recon_15_arm:
+	@pld		[coef]	
+	@pld		[dquant]	
+	@stmdb	sp!, {r4 - r11, lr} 	
+		
+	smulbb	t1, co32, dq32 @2
+	mov	t1, t1, lsl qp_per
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	smultt	t0, co10, dq10 @1
+	mov	t0, t0, lsl qp_per
+	smultt	t1, co32, dq32 @3
+
+	loadcoef	#8
+
+	mov	t1, t1, lsl qp_per
+	sub	pp2, t1, t0, lsr #1
+	add	pp3, t0, t1, lsr #1
+		
+	add	t0, pp0, pp3 @store 1234
+	sub	t1, pp1, pp2
+	strh	t0, [m, #0]
+	strh	t1, [m, #2]
+
+	add	t0, pp1, pp2
+	sub	t1, pp0, pp3
+	strh	t0, [m, #4]
+	strh	t1, [m, #6]
+		
+	smulbb	t0, co10, dq10 @0	;process 4567
+	mov	t0, t0, lsl qp_per
+	smulbb	t1, co32, dq32 @2
+	mov	t1, t1, lsl qp_per
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	smultt	t0, co10, dq10 @1
+	mov	t0, t0, lsl qp_per
+	smultt	t1, co32, dq32 @3
+
+	loadcoef	#16
+		
+	mov	t1, t1, lsl qp_per
+	sub	pp2, t1, t0, lsr #1
+	add	pp3, t0, t1, lsr #1
+
+	add	t0, pp0, pp3 @store 4567
+	sub	t1, pp1, pp2
+	strh	t0, [m, #8]
+	strh	t1, [m, #10]
+
+	add	t0, pp1, pp2
+	sub	t1, pp0, pp3
+	strh	t0, [m, #12]
+	strh	t1, [m, #14]
+
+	smulbb	t0, co10, dq10 @0	;process 8,9,10,11
+	mov	t0, t0, lsl qp_per
+	smulbb	t1, co32, dq32 @2
+	mov	t1, t1, lsl qp_per
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	smultt	t0, co10, dq10 @1
+	mov	t0, t0, lsl qp_per
+	smultt	t1, co32, dq32 @3
+
+	loadcoef	#24
+		
+	mov	t1, t1, lsl qp_per
+	sub	pp2, t1, t0, lsr #1
+	add	pp3, t0, t1, lsr #1
+
+	add	t0, pp0, pp3 @store 8,9,10,11
+	sub	t1, pp1, pp2
+	strh	t0, [m, #16]
+	strh	t1, [m, #18]
+
+	add	t0, pp1, pp2
+	sub	t1, pp0, pp3
+	strh	t0, [m, #20]
+	strh	t1, [m, #22]
+		
+	smulbb	t0, co10, dq10 @0	;process 12,13,14,15
+	mov	t0, t0, lsl qp_per
+	smulbb	t1, co32, dq32 @2
+	mov	t1, t1, lsl qp_per
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	smultt	t0, co10, dq10 @1
+	mov	t0, t0, lsl qp_per
+	smultt	t1, co32, dq32 @3
+	mov	t1, t1, lsl qp_per
+	sub	pp2, t1, t0, lsr #1
+	add	pp3, t0, t1, lsr #1
+
+	add	t0, pp0, pp3 @store 12,13,14,15
+	sub	t1, pp1, pp2
+	strh	t0, [m, #24]
+	strh	t1, [m, #26]
+
+	add	t0, pp1, pp2
+	sub	t1, pp0, pp3
+	strh	t0, [m, #28]
+	strh	t1, [m, #30]
+		
+	@;;;;;;;;;;;;;;;;;;;;;;	
+	@;;;;;;;;;;;;;;;;;;;;;;	
+	@;;;;;;;;;;;;;;;;;;;;;;	
+	@;;;;;;;;;;;;;;;;;;;;;;	
+
+	sub	pred, m, #16
+	ldr	dst, [sp, #36]
+	mov	CNST_255, #255
+
+	ldrsh	t0, [m, #0] @0
+	ldrsh	t1, [m, #16] 
+		
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	ldrsh	t0, [m, #8]
+	ldrsh	t1, [m, #24] 
+		
+	sub	pp2, t1, t0, asr #1
+	add	pp3, t0, t1, asr #1
+
+	ldrb	t1, [pred, #0]
+	add	pp0, pp0, #(DQ_ROUND)
+	add	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	dst_3210, t0, asr #DQ_BITS
+	cmp	dst_3210, CNST_255
+	bichi	dst_3210, CNST_255, t0, asr #31
+
+	ldrb	t1, [pred, #12]
+	sub	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	dst_fedc, t0, asr #DQ_BITS
+	cmp	dst_fedc, CNST_255
+	bichi	dst_fedc, CNST_255, t0, asr #31
+
+	ldrb	t1, [pred, #4]
+	add	pp1, pp1, #(DQ_ROUND)
+	sub	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	dst_7654, t0, asr #DQ_BITS
+	cmp	dst_7654, CNST_255
+	bichi	dst_7654, CNST_255, t0, asr #31
+
+	ldrb	t1, [pred, #8]
+	add	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	dst_ba98, t0, asr #DQ_BITS
+	cmp	dst_ba98, CNST_255
+	bichi	dst_ba98, CNST_255, t0, asr #31
+
+	ldrsh	t0, [m, #2] @1
+	ldrsh	t1, [m, #18] 
+		
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	ldrsh	t0, [m, #10]
+	ldrsh	t1, [m, #26] 
+		
+	sub	pp2, t1, t0, asr #1
+	add	pp3, t0, t1, asr #1
+
+	ldrb	t1, [pred, #1]
+	add	pp0, pp0, #(DQ_ROUND)
+	add	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_3210, dst_3210, t0, lsl #8
+
+	ldrb	t1, [pred, #13]
+	sub	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_fedc, dst_fedc, t0, lsl #8
+
+	ldrb	t1, [pred, #5]
+	add	pp1, pp1, #(DQ_ROUND)
+	sub	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_7654, dst_7654, t0, lsl #8
+
+	ldrb	t1, [pred, #9]
+	add	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_ba98, dst_ba98, t0, lsl #8
+
+	ldrsh	t0, [m, #4] @2
+	ldrsh	t1, [m, #20] 
+		
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	ldrsh	t0, [m, #12]
+	ldrsh	t1, [m, #28] 
+		
+	sub	pp2, t1, t0, asr #1
+	add	pp3, t0, t1, asr #1
+
+	ldrb	t1, [pred, #2]
+	add	pp0, pp0, #(DQ_ROUND)
+	add	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_3210, dst_3210, t0, lsl #16
+
+	ldrb	t1, [pred, #14]
+	sub	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_fedc, dst_fedc, t0, lsl #16
+
+	ldrb	t1, [pred, #6]
+	add	pp1, pp1, #(DQ_ROUND)
+	sub	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_7654, dst_7654, t0, lsl #16
+
+	ldrb	t1, [pred, #10]
+	add	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_ba98, dst_ba98, t0, lsl #16
+		
+	ldrsh	t0, [m, #6] @3
+	ldrsh	t1, [m, #22] 
+		
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	ldrsh	t0, [m, #14]
+	ldrsh	t1, [m, #30] 
+		
+	sub	pp2, t1, t0, asr #1
+	add	pp3, t0, t1, asr #1
+
+	ldrb	t1, [pred, #3]
+	add	pp0, pp0, #(DQ_ROUND)
+	add	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_3210, dst_3210, t0, lsl #24
+
+	ldrb	t1, [pred, #15]
+	sub	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_fedc, dst_fedc, t0, lsl #24
+
+	ldrb	t1, [pred, #7]
+	add	pp1, pp1, #(DQ_ROUND)
+	sub	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_7654, dst_7654, t0, lsl #24
+
+	ldr	pitch, [sp, #40]
+
+	ldrb	t1, [pred, #11]
+	add	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_ba98, dst_ba98, t0, lsl #24
+		
+	str	dst_3210, [dst, #0]
+	str	dst_7654, [dst, pitch]!
+	str	dst_ba98, [dst, pitch]!
+	str	dst_fedc, [dst, pitch]
+		
+	ldmia	sp!, {r4 - r11, pc}
+
+
+
+	@ENDP
+
+
+dquant_trans_recon_15_lossy_arm:
+	@pld		[coef]	
+	@pld		[dquant]	
+	@stmdb	sp!, {r4 - r11, lr} 	
+		
+	smulbb	t1, co32, dq32 @2
+	mov	t1, t1, lsl qp_per
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	smultt	t0, co10, dq10 @1
+	mov	t0, t0, lsl qp_per
+	smultt	t1, co32, dq32 @3
+
+	loadcoef	#8
+
+	mov	t1, t1, lsl qp_per
+	sub	pp2, t1, t0, lsr #1
+	add	pp3, t0, t1, lsr #1
+		
+	add	t0, pp0, pp3 @store 1234
+	sub	t1, pp1, pp2
+	strh	t0, [m, #0]
+	strh	t1, [m, #2]
+
+	add	t0, pp1, pp2
+	sub	t1, pp0, pp3
+	strh	t0, [m, #4]
+	strh	t1, [m, #6]
+		
+	smulbb	t0, co10, dq10 @0	;process 4567
+	mov	t0, t0, lsl qp_per
+	smulbb	t1, co32, dq32 @2
+	mov	t1, t1, lsl qp_per
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	smultt	t0, co10, dq10 @1
+	mov	t0, t0, lsl qp_per
+	smultt	t1, co32, dq32 @3
+		
+	mov	t1, t1, lsl qp_per
+	sub	pp2, t1, t0, lsr #1
+	add	pp3, t0, t1, lsr #1
+
+	add	t0, pp0, pp3 @store 4567
+	sub	t1, pp1, pp2
+	strh	t0, [m, #8]
+	strh	t1, [m, #10]
+
+	add	t0, pp1, pp2
+	sub	t1, pp0, pp3
+	strh	t0, [m, #12]
+	strh	t1, [m, #14]
+		
+	@;;;;;;;;;;;;;;;;;;;;;;	
+	@;;;;;;;;;;;;;;;;;;;;;;	
+	@;;;;;;;;;;;;;;;;;;;;;;	
+	@;;;;;;;;;;;;;;;;;;;;;;	
+
+	sub	pred, m, #16
+	ldr	dst, [sp, #36]
+	mov	CNST_255, #255
+
+	ldrsh	t0, [m, #0] @0
+	mov	t1, #0 
+		
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	ldrsh	t0, [m, #8]
+	mov	t1, #0 @***
+		
+	sub	pp2, t1, t0, asr #1
+	add	pp3, t0, t1, asr #1
+
+	ldrb	t1, [pred, #0]
+	add	pp0, pp0, #(DQ_ROUND)
+	add	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	dst_3210, t0, asr #DQ_BITS
+	cmp	dst_3210, CNST_255
+	bichi	dst_3210, CNST_255, t0, asr #31
+
+	ldrb	t1, [pred, #12]
+	sub	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	dst_fedc, t0, asr #DQ_BITS
+	cmp	dst_fedc, CNST_255
+	bichi	dst_fedc, CNST_255, t0, asr #31
+
+	ldrb	t1, [pred, #4]
+	add	pp1, pp1, #(DQ_ROUND)
+	sub	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	dst_7654, t0, asr #DQ_BITS
+	cmp	dst_7654, CNST_255
+	bichi	dst_7654, CNST_255, t0, asr #31
+
+	ldrb	t1, [pred, #8]
+	add	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	dst_ba98, t0, asr #DQ_BITS
+	cmp	dst_ba98, CNST_255
+	bichi	dst_ba98, CNST_255, t0, asr #31
+
+	ldrsh	t0, [m, #2] @1
+	mov	t1, #0 
+		
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	ldrsh	t0, [m, #10]
+	mov	t1, #0 @***
+		
+	sub	pp2, t1, t0, asr #1
+	add	pp3, t0, t1, asr #1
+
+	ldrb	t1, [pred, #1]
+	add	pp0, pp0, #(DQ_ROUND)
+	add	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_3210, dst_3210, t0, lsl #8
+
+	ldrb	t1, [pred, #13]
+	sub	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_fedc, dst_fedc, t0, lsl #8
+
+	ldrb	t1, [pred, #5]
+	add	pp1, pp1, #(DQ_ROUND)
+	sub	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_7654, dst_7654, t0, lsl #8
+
+	ldrb	t1, [pred, #9]
+	add	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_ba98, dst_ba98, t0, lsl #8
+
+	ldrsh	t0, [m, #4] @2
+	mov	t1, #0 
+		
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	ldrsh	t0, [m, #12]
+	mov	t1, #0 @***		
+		
+	sub	pp2, t1, t0, asr #1
+	add	pp3, t0, t1, asr #1
+
+	ldrb	t1, [pred, #2]
+	add	pp0, pp0, #(DQ_ROUND)
+	add	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_3210, dst_3210, t0, lsl #16
+
+	ldrb	t1, [pred, #14]
+	sub	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_fedc, dst_fedc, t0, lsl #16
+
+	ldrb	t1, [pred, #6]
+	add	pp1, pp1, #(DQ_ROUND)
+	sub	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_7654, dst_7654, t0, lsl #16
+
+	ldrb	t1, [pred, #10]
+	add	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_ba98, dst_ba98, t0, lsl #16
+		
+	ldrsh	t0, [m, #6] @3
+	mov	t1, #0 
+		
+	add	pp0, t0, t1
+	sub	pp1, t0, t1
+
+	ldrsh	t0, [m, #14]
+	mov	t1, #0 @***		
+		
+	sub	pp2, t1, t0, asr #1
+	add	pp3, t0, t1, asr #1
+
+	ldrb	t1, [pred, #3]
+	add	pp0, pp0, #(DQ_ROUND)
+	add	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_3210, dst_3210, t0, lsl #24
+
+	ldrb	t1, [pred, #15]
+	sub	t0, pp0, pp3
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_fedc, dst_fedc, t0, lsl #24
+
+	ldrb	t1, [pred, #7]
+	add	pp1, pp1, #(DQ_ROUND)
+	sub	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_7654, dst_7654, t0, lsl #24
+
+	ldr	pitch, [sp, #40]
+
+	ldrb	t1, [pred, #11]
+	add	t0, pp1, pp2
+	add	t0, t0, t1, lsl #DQ_BITS
+	mov	t0, t0, asr #DQ_BITS
+	cmp	t0, CNST_255
+	bichi	t0, CNST_255, t0, asr #31
+
+	orr	dst_ba98, dst_ba98, t0, lsl #24
+		
+	str	dst_3210, [dst, #0]
+	str	dst_7654, [dst, pitch]!
+	str	dst_ba98, [dst, pitch]!
+	str	dst_fedc, [dst, pitch]
+		
+	ldmia	sp!, {r4 - r11, pc}
+
+	@ENDP
+
+
+
+defglobal	dquant_trans_recon_arm
+	pld	[coef]
+	pld	[dquant]
+	stmdb	sp!, {r4 - r11, lr}
+
+	loadcoef	#0
+		
+	smulbb	t0, co10, dq10 @0
+	mov	t0, t0, lsl qp_per
+
+	bl	dquant_trans_recon_15_arm
+
+	@ENDP
+
+
+defglobal	dquant_trans_recon_dc_arm
+	pld	[coef]
+	pld	[dquant]
+	stmdb	sp!, {r4 - r11, lr}
+
+	loadcoef	#0
+		
+	ldrh	t0, [m, #0] @0 holds DC
+
+	bl	dquant_trans_recon_15_arm
+
+	@ENDP
+
+defglobal	dquant_trans_recon_lossy_arm
+	pld	[coef]
+	pld	[dquant]
+	stmdb	sp!, {r4 - r11, lr}
+
+	loadcoef	#0
+
+	smulbb	t0, co10, dq10 @0
+	mov	t0, t0, lsl qp_per
+
+	bl	dquant_trans_recon_15_lossy_arm
+
+	@ENDP
+
+
+defglobal	dquant_trans_recon_dc_lossy_arm
+	pld	[coef]
+	pld	[dquant]
+	stmdb	sp!, {r4 - r11, lr}
+
+	loadcoef	#0
+		
+	ldrh	t0, [m, #0] @0 holds DC
+
+	bl	dquant_trans_recon_15_lossy_arm
+
+	@ENDP
+
+
+
+icc	.req	r0 
+ib	.req	r1 
+ic	.req	r2 
+	.unreq	dst
+dst	.req	r3 
+	.unreq	pitch
+pitch	.req	r12 
+count	.req	r5 
+ibb0	.req	r6 
+CONST_255	.req	r7 
+ibb	.req	r8 
+tmp1	.req	r9 
+tmp2	.req	r10 
+tmp3	.req	r11 
+tmp4	.req	r14 
+
+
+
+	.macro	ONE_STEP_WITH R
+
+	add	\R, ibb, icc
+	add	ibb, ibb, ib
+	mov	\R, \R, asr #5
+	cmp	\R, CONST_255
+	bichi	\R, CONST_255, \R, asr #31
+
+	.endm
+
+defglobal	pred_intra16x16_plane_arm
+	ldr	pitch, [sp, #0]
+	stmdb	sp!, {r4 - r11, lr}
+
+	mov	count, #15
+	mov	CONST_255, #255
+	sub	ibb0, ib, ib, lsl #3 
+
+start_pred_intra16x16_plane_arm:	
+	mov	ibb, ibb0
+
+	ONE_STEP_WITH	tmp1
+	ONE_STEP_WITH	tmp2
+	ONE_STEP_WITH	tmp3
+	ONE_STEP_WITH	tmp4
+	orr	tmp1, tmp1, tmp2, lsl #8
+	orr	tmp1, tmp1, tmp3, lsl #16
+	orr	tmp4, tmp1, tmp4, lsl #24
+	str	tmp4, [dst]
+		
+	ONE_STEP_WITH	tmp1
+	ONE_STEP_WITH	tmp2
+	ONE_STEP_WITH	tmp3
+	ONE_STEP_WITH	tmp4
+	orr	tmp1, tmp1, tmp2, lsl #8
+	orr	tmp1, tmp1, tmp3, lsl #16
+	orr	tmp4, tmp1, tmp4, lsl #24
+	str	tmp4, [dst, #4]
+		
+	ONE_STEP_WITH	tmp1
+	ONE_STEP_WITH	tmp2
+	ONE_STEP_WITH	tmp3
+	ONE_STEP_WITH	tmp4
+	orr	tmp1, tmp1, tmp2, lsl #8
+	orr	tmp1, tmp1, tmp3, lsl #16
+	orr	tmp4, tmp1, tmp4, lsl #24
+	str	tmp4, [dst, #8]
+		
+	ONE_STEP_WITH	tmp1
+	ONE_STEP_WITH	tmp2
+	ONE_STEP_WITH	tmp3
+	ONE_STEP_WITH	tmp4
+	orr	tmp1, tmp1, tmp2, lsl #8
+	orr	tmp1, tmp1, tmp3, lsl #16
+	orr	tmp4, tmp1, tmp4, lsl #24
+	str	tmp4, [dst, #12]
+		
+		
+	add	dst, dst, pitch
+	add	icc, icc, ic
+	subs	count, count, #1
+	bpl	start_pred_intra16x16_plane_arm
+		
+	ldmia	sp!, {r4 - r11, pc}
+
+	@ENDP
+
+
+defend
+
+
+#endif

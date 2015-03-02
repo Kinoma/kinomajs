@@ -1,0 +1,37 @@
+LTM Timings...
+
+Multiplying      140-bit =>   2950763/sec,       952 cycles
+Multiplying      196-bit =>   2150939/sec,      1306 cycles
+Multiplying      252-bit =>   1357066/sec,      2070 cycles
+Multiplying      308-bit =>   1055269/sec,      2662 cycles
+Multiplying      364-bit =>    817557/sec,      3436 cycles
+Multiplying      420-bit =>    636413/sec,      4414 cycles
+Multiplying      475-bit =>    536912/sec,      5232 cycles
+Multiplying      531-bit =>    433641/sec,      6478 cycles
+Multiplying      588-bit =>    372069/sec,      7550 cycles
+Multiplying      644-bit =>    322813/sec,      8702 cycles
+Multiplying      698-bit =>    275566/sec,     10194 cycles
+Multiplying      753-bit =>    242082/sec,     11604 cycles
+Multiplying      809-bit =>    214797/sec,     13078 cycles
+Multiplying      867-bit =>    189626/sec,     14814 cycles
+Multiplying      921-bit =>    168858/sec,     16636 cycles
+Multiplying      978-bit =>    151598/sec,     18530 cycles
+Multiplying     1036-bit =>    137580/sec,     20418 cycles
+Multiplying     1091-bit =>    124661/sec,     22534 cycles
+Multiplying     1148-bit =>    111677/sec,     25154 cycles
+Multiplying     1199-bit =>    102762/sec,     27336 cycles
+Multiplying     1258-bit =>     94519/sec,     29720 cycles
+Multiplying     1316-bit =>     86975/sec,     32298 cycles
+Multiplying     1371-bit =>     79754/sec,     35222 cycles
+Multiplying     1427-bit =>     74473/sec,     37720 cycles
+Multiplying     1483-bit =>     68827/sec,     40814 cycles
+Multiplying     1537-bit =>     63644/sec,     44138 cycles
+Multiplying     1595-bit =>     59646/sec,     47096 cycles
+Multiplying     1651-bit =>     56469/sec,     49746 cycles
+Multiplying     1708-bit =>     52640/sec,     53364 cycles
+Multiplying     1764-bit =>     49823/sec,     56382 cycles
+Multiplying     1819-bit =>     46856/sec,     59952 cycles
+Multiplying     1875-bit =>     44264/sec,     63462 cycles
+Multiplying     1929-bit =>     41641/sec,     67460 cycles
+Multiplying     1985-bit =>     39539/sec,     71046 cycles
+Multiplying     2044-bit =>     37591/sec,     74728 cycles

@@ -1,0 +1,624 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+
+.text   @CODE, READONLY
+.type	FskAlpha32BlendSetImm_arm_wMMX_s,	%function
+.global	FskAlpha32BlendSetImm_arm_wMMX_s
+.type 	FskAlpha32Blend_arm_wMMX_s,	%function
+.global FskAlpha32Blend_arm_wMMX_s
+.type 	FskAlpha32Blend_arm_wMMX_s_di,	%function
+.global FskAlpha32Blend_arm_wMMX_s_di
+.type	FskBilerpAndBlend565SE_new_wMMX_didj %function
+.global FskBilerpAndBlend565SE_new_wMMX_didj
+.type	FskBilerpAndBlend565SE_new_wMMX_di %function
+.global FskBilerpAndBlend565SE_new_wMMX_di
+.type 	FskBilerpAndBlend565SESetImm_new_wMMX_s %function
+.global	FskBilerpAndBlend565SESetImm_new_wMMX_s
+
+
+p00v		.req	wr0
+p01v		.req	wr1
+p10v		.req	wr2
+p11v		.req	wr3
+dst			.req	wr3
+
+di			.req	wr4
+dj			.req	wr5
+
+mask		.req	wr15
+maskh		.req	wr14
+add_v01		.req	wr13
+add_v02		.req	wr12
+
+i_7e0       .req    wr11
+i_f81f      .req    wr10
+i_0200      .req    wr9
+i_1f83fw    .req    wr8
+i_fe0w      .req    wr7
+alpha		.req	wr6
+
+.macro BLEND_PROCESS
+	@ p00v is result of bilinear interpolation
+	@ dst is current pixel value of destination image
+	wand	dst,		dst,		mask
+
+	wsubw	p00v,		p00v,		dst
+	wmulwl	p00v,		p00v,		alpha
+
+	wsllw	p01v,		dst,		#6
+	wsubw	p01v,		p01v,		dst
+	waddw	p01v,		p01v,		add_v02
+	waddw	dst,		p00v,		p01v
+
+	wsrlw	p00v,		dst,		#6
+	wand	p00v,		p00v,		mask
+
+	waddw	dst,		p00v,		dst
+	wsrlw	dst,		dst,		#6
+	wand	dst,		dst,		mask
+	waccw	dst,		dst
+.endm
+
+FskAlpha32BlendSetImm_arm_wMMX_s:
+	.fnstart
+	STMFD	sp!,		{r4-r5}
+	ldr		r4,			=0x07e0
+	ldr		r5,			=0xf81f
+	tmcrr	mask,		r4,			r5
+
+	ldr     r4,			=0x0000ffff
+	tbcstw   add_v01,	r4
+
+	ldr		r4,			=0x400
+	ldr		r5,			=0x10020
+	tmcrr	add_v02,	r4,			r5
+
+	mov     r4,			#128
+	tbcstw   maskh,		r4
+
+	ldr		r4,			=0x7e0
+	tbcsth	i_7e0,      r4
+	     
+	ldr		r4,         =0xfe0
+	tbcstw	i_fe0w,     r4
+    
+	ldr		r4,         =0xf81f
+	tbcsth	i_f81f,     r4
+		     
+	ldr		r4,         =0x1f83f
+	tbcstw	i_1f83fw,   r4
+	
+	ldr		r4,         =0x200
+	ldr		r5,			=0x8010
+	tmcrr	i_0200,		r4,			r5
+	
+	LDMFD	sp!,        {r4-r5}
+	mov		pc,         lr
+	.fnend
+
+FskAlpha32Blend_arm_wMMX_s:
+.fnstart
+	STMFD	sp!,		{r4-r10}
+	ldr		r10,		[sp, #36]				@ width
+
+	cmp		r10,		#0
+	beq		bilinearalpha_exit
+	
+	ldr		r8,			[sp, #28]				@ xd
+	ldr		r9,			[sp, #32]				@ srb
+	
+
+	rsb		r4,			r2,			#16
+	orr		r4,			r4,			r2,lsl #16
+	tbcstw	dj,			r4						@ dj|(16-dj) || dj|(16-dj)
+	
+	mov 	r5,			r3,			asr #18
+	add		r5, 		r1, 		r5, asl #2	@ s for current pixel
+	ldr		r7,			[r5,#4] 
+	ldr		r6,			[r5]
+	ldr		r4,			[r5, r9]!
+	ldr		r5,			[r5, #4]
+	subs	r10,		r10,		#1
+	beq		bilinearalpha_last
+bilinearalpha_loop:
+	tmcrr	p00v,		r6,			r7
+	tmcrr	p01v,		r4,			r5
+	
+	wsrlw	p10v,		p00v,		#24
+	wsrlw	p11v,		p01v,		#24
+	wpackwus	alpha,		p10v,		p11v
+	
+	wand	p10v,		p00v,		add_v01
+	wand	p11v,		p01v,		add_v01
+	wpackwus    p00v,      p10v,       p11v
+
+	mov     r2,         r3,         asr #14
+	and     r2,         r2,         #0xf         @ di
+	rsb     r4,         r2,         #16
+	orr     r4,         r4,         r2,lsl #16
+	tbcstw  di,         r4                    
+	
+	add		r3,			r3,			r8
+	mov 	r5,			r3,			asr #18
+	add		r5, 		r1, 		r5, asl #2	@ s for current pixel
+	
+	
+	wand    p10v,       p00v,       i_7e0
+	wand    p01v,       p00v,       i_f81f
+	wmaddu  p11v,       p10v,       di
+	wmaddu  p00v,       p01v,       di
+	wmaddu	alpha,		alpha,		di
+
+	ldr		r7,			[r5,#4] 
+
+	wunpckehuh  di,     dj
+	wsrlw   p11v,       p11v,       #3
+	wsrlw   p00v,       p00v,       #3
+	wand    p00v,       p00v,       i_1f83fw
+	wmulwl  p00v,       p00v,       di
+	wand    p11v,       p11v,       i_fe0w
+	ldr		r6,			[r5]
+
+	wpackwus p10v,      p11v,       p11v
+	waccw   p00v,       p00v
+	wmaddu  p11v,       p10v,       dj
+
+
+	wpackwus	p10v,	alpha,		alpha
+	wmaddu  alpha,		p10v,		dj
+	waddw	alpha,		alpha,		maskh
+	ldr		r4,			[r5,r9]!
+	wsrlw	alpha,		alpha,		#10
+
+	wunpckilw	p00v,     p11v,       p00v
+	waddw   p00v,       p00v,       i_0200
+	wsrlw   p00v,       p00v,       #5
+	wand    p00v,       p00v,       mask
+
+	ldr		r5,			[r5, #4]
+
+	ldrh	r2,			[r0]
+	tbcstw	dst,		r2
+	textrmuh	r2,			alpha,		#0
+	cmp		r2,			#0
+	beq		blend_store
+	cmp		r2,			#63
+	beq		blend_pass
+
+	BLEND_PROCESS	
+	b blend_store
+blend_pass:
+	waccw	p00v,		p00v
+	wmov	dst,		p00v
+blend_store:	
+	wstrh	dst,		[r0],		#2
+	subs	r10,		r10,		#1
+ 	bne 	bilinearalpha_loop
+bilinearalpha_last:
+	tmcrr	p00v,		r6,			r7
+	tmcrr	p01v,		r4,			r5
+	
+	wsrlw	p10v,		p00v,		#24
+	wsrlw	p11v,		p01v,		#24
+	wpackwus	alpha,		p10v,		p11v
+	
+	wand	p10v,		p00v,		add_v01
+	wand	p11v,		p01v,		add_v01
+	wpackwus    p00v,      p10v,       p11v
+
+	mov     r2,         r3,         asr #14
+	and     r2,         r2,         #0xf         @ di
+	rsb     r4,         r2,         #16
+	orr     r4,         r4,         r2,lsl #16
+	tbcstw  di,         r4                    
+	
+	wand    p10v,       p00v,       i_7e0
+	wand    p01v,       p00v,       i_f81f
+	wmaddu  p11v,       p10v,       di
+	wmaddu  p00v,       p01v,       di
+	wmaddu	alpha,		alpha,		di
+
+
+	wunpckehuh  di,     dj
+	wsrlw   p11v,       p11v,       #3
+	wsrlw   p00v,       p00v,       #3
+	wand    p00v,       p00v,       i_1f83fw
+	wmulwl  p00v,       p00v,       di
+	wand    p11v,       p11v,       i_fe0w
+
+	wpackwus p10v,      p11v,       p11v
+	waccw   p00v,       p00v
+	wmaddu  p11v,       p10v,       dj
+
+
+	wpackwus	p10v,	alpha,		alpha
+	wmaddu  alpha,		p10v,		dj
+	waddw	alpha,		alpha,		maskh
+	wsrlw	alpha,		alpha,		#10
+
+	wunpckilw	p00v,     p11v,       p00v
+	waddw   p00v,       p00v,       i_0200
+	wsrlw   p00v,       p00v,       #5
+	wand    p00v,       p00v,       mask
+
+
+	ldrh	r2,			[r0]
+	tbcstw	dst,		r2
+	textrmuh	r2,			alpha,		#0
+	cmp		r2,			#0
+	beq		blend_store_1
+	cmp		r2,			#63
+	beq		blend_pass_1
+
+	BLEND_PROCESS	
+	b blend_store_1
+blend_pass_1:
+	waccw	p00v,		p00v
+	wmov	dst,		p00v
+blend_store_1:	
+	wstrh	dst,		[r0],		#2
+
+bilinearalpha_exit:
+	LDMFD   sp!,        {r4-r10}
+	mov     pc,         lr
+.fnend
+
+FskAlpha32Blend_arm_wMMX_s_di:
+.fnstart
+	STMFD	sp!,        {r4-r8}
+	ldr		r7,			[sp, #20]				@ width
+
+	cmp		r7,			#0
+	beq		bilinearalpha_exit_di
+	
+
+	ldr		r4,         =0x0100
+	ldr     r5,         =0x4008
+	tmcrr   p10v,    r4,         r5
+
+	ldr     r4,         =0x07e007e0
+	ldr     r5,         =0xf81ff81f
+	tmcrr   dj,      r4,         r5
+bilinearalpha_loop_di:
+
+	mov 	r8,			r2,			asr #18
+	add		r8, 		r1, 		r8, asl #2	@ s for current pixel
+
+	mov 	r5,			r2,			asr #14
+	and 	r5, 		r5,			#15			@ di
+
+	ldr		r6,         [r8]
+	ldr		r8,         [r8,#4]
+
+	rsb		r4,         r5,    		#16
+	orr		r5,         r4,     	r5, lsl #16
+	tbcstw	di,     	r5						@ di|(16-di) || di|(16-di)
+	
+	tmcrr	p00v,		r6,			r8
+	wsrlw   p11v,      p00v,       	#24
+	wpackwus	alpha,	p11v,		p11v
+	wand	p11v,		p00v,		add_v01
+	wpackwus    p00v,      p11v,       p11v
+
+	wand	p00v,      	p00v,		dj
+	wmaddu	alpha,		alpha,		di
+	wmaddu	p00v,      	p00v,		di
+
+	
+	wsrlw	p11v,		maskh,		#4
+	waddw	alpha,		alpha,		p11v
+	wsrlw	alpha,		alpha,		#6
+
+	ldrh	r4,			[r0]		
+	waddw	p00v,		p00v,  		p10v
+	wsrlw	p00v,		p00v,		#4
+	tbcstw	dst,		r4
+	wand	p00v,		p00v,		mask
+
+	textrmuh    r4,         alpha,      #0
+	cmp     r4,         #0
+	beq     blend_store_di
+	cmp     r4,         #63
+	beq     blend_pass_di
+
+	@@@@@@@@@@@@@
+	BLEND_PROCESS
+	@@@@@@@@@@@@@
+	b blend_store_di
+blend_pass_di:
+	waccw   p00v,       p00v
+	wmov    dst,        p00v
+blend_store_di:
+	wstrh	dst,		[r0], #2
+
+	subs 	r7, 	r7, 	#1
+	add		r2,		r2,  	r3
+	bne		bilinearalpha_loop_di
+
+bilinearalpha_exit_di:
+	LDMFD   sp!,		{r4-r8}
+	mov		pc,         lr
+.fnend
+
+width 		.req		r10
+xd			.req		r9
+srb			.req		r8
+sx			.req		r3
+sr			.req		r1
+
+
+mask5		.req		wr0
+mask6		.req		wr1
+round8		.req		wr2
+alphaN		.req		wr3
+
+p0v			.req		wr4
+p1v			.req		wr5
+p2v			.req		wr6
+p3v			.req		wr7
+q0v		.req		wr8
+q1v		.req		wr9
+q2v		.req		wr10
+q3v		.req		wr11
+
+dx			.req		wr12
+dy			.req		wr13
+result		.req		wr14
+dst_tmp		.req		wr15
+
+ex			.req		wr9
+ey			.req		wr11
+
+
+
+.macro	PROCESS mask
+	wsubh	q1v,		q1v,	q0v	
+	wsubh	q3v,		q3v,	q2v
+	wmulsl	ex,			q1v,	dx
+
+	wsllh	q0v,		q0v,	#4	
+	wmulsl	ey,			q3v,	dx
+	wsllh	q2v,		q2v,	#4	
+	waddh	ex,			ex,		q0v
+	waddh	ey,			ey,		q2v
+	@wsrlh	ex,			ex,		#3
+	@wsrlh	ey,			ey,		#3
+
+	wsubh	ey,			ey,		ex
+	wmulsl	ey,			ey,		dy
+	wsllh	ex,			ex,		#4
+	waddh	ey,			ey,		ex
+	waddh	ey,			ey,		round8
+	wsrlh	ey,			ey,		#8
+	wand	ey,			ey,		\mask
+.endm
+
+
+.macro BPROCESS mask
+	wsubh	ey,			ey,		q0v
+	wmulsl	ey,			ey,		alphaN
+	
+	wsllh	q2v,		q0v,	#6
+	waddh	ey,			ey,		q2v
+	
+	wsubh	ey,			ey,		q0v
+
+	wsrlh	q0v,		round8,	#2
+	waddh	ey,			ey,		q0v
+	
+	wsrlh	q0v,		ey,		#6
+	wand	q0v,		q0v,	\mask	
+	waddh	ey,			ey,		q0v
+	wsrlh	ey,			ey,		#6
+.endm
+
+.macro LOAD_VECTOR 		imm
+	mov		r2,			sx, 	asr #18
+	add		r7,			sr,		r2, lsl #1
+	mov     r2,        	sx,     asr #14
+	ldrh	r4,			[r7]
+	ldrh	r5,			[r7,#2]
+	ldrh	r6,			[r7,srb]!
+	ldrh	r7,			[r7,#2]
+	tinsrh	dx,			r2,	\imm
+	tinsrh	p0v,		r4,		\imm
+	tinsrh	p1v,		r5,		\imm
+	tinsrh	p2v,		r6,		\imm
+	tinsrh	p3v,		r7,		\imm
+.endm
+
+FskBilerpAndBlend565SESetImm_new_wMMX_s:
+.fnstart
+	STMFD   sp!,        {r4}
+	tbcsth	alphaN,		r0
+	ldr		r4,			=0x001f001f
+	tbcstw	mask5,		r4
+
+	ldr		r4,			=0x003f003f
+	tbcstw	mask6,		r4
+	
+	ldr		r4,			=0x00800080
+	tbcstw	round8,		r4
+	LDMFD   sp!,        {r4}
+	mov     pc,         lr
+	
+.fnend
+
+FskBilerpAndBlend565SE_new_wMMX_didj:
+.fnstart
+	STMFD   sp!,        {r4-r10}
+	ldr		width,		[sp, #36]
+	cmp		width,		#0
+	beq		new_exit
+	
+	ldr		xd,			[sp, #28]
+	ldr		srb,		[sp, #32]
+
+	tbcsth	dy,			r2
+new_loop:
+	wldrd	dst_tmp,	[r0]
+	
+	LOAD_VECTOR			#0
+	add		sx,			sx,		xd
+
+	LOAD_VECTOR			#1
+	add		sx,			sx,		xd
+	
+	LOAD_VECTOR			#2
+	add		sx,			sx,		xd
+	
+	LOAD_VECTOR			#3
+	add		sx,			sx,		xd
+
+	wsrlh	q0v,		mask5,	#1
+	wand	dx,			dx,		q0v
+
+	wsrlh	q0v,		p0v,	#11
+	wsrlh	q1v,		p1v,	#11
+	wsrlh	q2v,		p2v,	#11
+	wsrlh	q3v,		p3v,	#11
+	PROCESS				mask5
+	wsrlh	q0v,		dst_tmp,#11
+	BPROCESS 			mask5
+	wsllh	ey,			ey,		#11
+	wmov	result,		ey
+
+	wsrlh	q0v,		p0v,	#5
+	wsrlh	q1v,		p1v,	#5
+	wsrlh	q2v,		p2v,	#5
+	wsrlh	q3v,		p3v,	#5
+	wand	q0v,		q0v,	mask6
+	wand	q1v,		q1v,	mask6
+	wand	q2v,		q2v,	mask6
+	wand	q3v,		q3v,	mask6
+	PROCESS				mask6
+	wsrlh	q0v,		dst_tmp,#5
+	wand	q0v,		q0v,	mask6
+	BPROCESS 			mask6
+	wand	ey,			ey,		mask6
+	wsllh	ey,			ey,		#5
+	wor		result,		result,	ey
+	
+
+	wand	q0v,		p0v,	mask5
+	wand	q1v,		p1v,	mask5
+	wand	q2v,		p2v,	mask5
+	wand	q3v,		p3v,	mask5
+	PROCESS				mask5
+	wand	q0v,		dst_tmp,mask5
+	BPROCESS			mask5
+	wand	ey,			ey,		mask5
+	wor		result,		result,	ey
+	
+	wstrd	result,		[r0],	#8
+	
+	
+	subs	width,		width,	#1
+	bne		new_loop
+new_exit:	
+	LDMFD   sp!,        {r4-r10}
+	mov     pc,         lr
+.fnend
+
+
+.macro LOAD_VECTOR_DI	imm
+	mov		r6,			r2, 	asr #18
+	add		r7,			sr,		r6, lsl #1
+	mov     r6,        	r2,     asr #14
+	ldrh	r4,			[r7]
+	ldrh	r5,			[r7,#2]
+	tinsrh	dx,			r6,		\imm
+	tinsrh	p0v,		r4,		\imm
+	tinsrh	p1v,		r5,		\imm
+.endm
+
+.macro	PROCESS_DI		mask
+	wsubh	q1v,		q1v,	q0v	
+	wmulsl	q1v,		q1v,	dx
+
+	wsllh	q0v,		q0v,	#4	
+	waddh	q1v,		q1v,	q0v
+	wsrlh	q2v,		round8,	#4
+	waddh	q1v,		q1v,	q2v
+	wsrlh	ey,			q1v,	#4
+	wand	ey,			ey,		\mask
+.endm
+
+FskBilerpAndBlend565SE_new_wMMX_di:
+.fnstart
+	STMFD   sp!,        {r4-r8}
+	ldr		r8,		[sp, #20]
+	cmp		r8,		#0
+	beq		new_di_exit
+new_di_loop:
+	wldrd	dst_tmp,	[r0]
+	
+	LOAD_VECTOR_DI		#0
+	add		r2,			r2,		r3
+
+	LOAD_VECTOR_DI		#1
+	add		r2,			r2,		r3
+	
+	LOAD_VECTOR_DI		#2
+	add		r2,			r2,		r3
+	
+	LOAD_VECTOR_DI		#3
+	add		r2,			r2,		r3
+
+	wsrlh	q0v,		mask5,	#1
+	wand	dx,			dx,		q0v
+
+	wsrlh	q0v,		p0v,	#11
+	wsrlh	q1v,		p1v,	#11
+	PROCESS_DI			mask5
+	wsrlh	q0v,		dst_tmp,#11
+	BPROCESS 			mask5
+	wsllh	ey,			ey,		#11
+	wmov	result,		ey
+
+	wsrlh	q0v,		p0v,	#5
+	wsrlh	q1v,		p1v,	#5
+	wand	q0v,		q0v,	mask6
+	wand	q1v,		q1v,	mask6
+	PROCESS_DI			mask6
+	wsrlh	q0v,		dst_tmp,#5
+	wand	q0v,		q0v,	mask6
+	BPROCESS 			mask6
+	wand	ey,			ey,		mask6
+	wsllh	ey,			ey,		#5
+	wor		result,		result,	ey
+	
+
+	wand	q0v,		p0v,	mask5
+	wand	q1v,		p1v,	mask5
+	PROCESS_DI			mask5
+	wand	q0v,		dst_tmp,mask5
+	BPROCESS			mask5
+	wand	ey,			ey,		mask5
+	wor		result,		result,	ey
+	
+	wstrd	result,		[r0],	#8
+	
+	
+	subs	r8,		r8,		#1
+	bne		new_di_loop
+new_di_exit:	
+	LDMFD   sp!,        {r4-r8}
+	mov     pc,         lr
+.fnend
+#endif

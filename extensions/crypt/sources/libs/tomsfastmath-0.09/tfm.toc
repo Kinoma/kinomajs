@@ -1,0 +1,35 @@
+\contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}
+\contentsline {section}{\numberline {1.1}What is TomsFastMath?}{1}{section.1.1}
+\contentsline {section}{\numberline {1.2}License}{2}{section.1.2}
+\contentsline {section}{\numberline {1.3}Building}{2}{section.1.3}
+\contentsline {subsection}{\numberline {1.3.1}Intel CC}{2}{subsection.1.3.1}
+\contentsline {subsection}{\numberline {1.3.2}MSVC}{2}{subsection.1.3.2}
+\contentsline {subsection}{\numberline {1.3.3}Build Limitations}{3}{subsection.1.3.3}
+\contentsline {subsection}{\numberline {1.3.4}Optimization Configuration}{3}{subsection.1.3.4}
+\contentsline {subsubsection}{x86--32}{3}{section*.3}
+\contentsline {subsubsection}{SSE2}{3}{section*.4}
+\contentsline {subsubsection}{x86--64}{4}{section*.5}
+\contentsline {subsubsection}{ARM}{4}{section*.6}
+\contentsline {subsubsection}{PPC32}{4}{section*.7}
+\contentsline {subsubsection}{Future Releases}{4}{section*.8}
+\contentsline {subsection}{\numberline {1.3.5}Precision Configuration}{5}{subsection.1.3.5}
+\contentsline {chapter}{\numberline {2}Getting Started}{7}{chapter.2}
+\contentsline {section}{\numberline {2.1}Data Types}{7}{section.2.1}
+\contentsline {section}{\numberline {2.2}Initialization}{8}{section.2.2}
+\contentsline {subsection}{\numberline {2.2.1}Simple Initialization}{8}{subsection.2.2.1}
+\contentsline {subsection}{\numberline {2.2.2}Initialize Small Constants}{8}{subsection.2.2.2}
+\contentsline {subsection}{\numberline {2.2.3}Initialize Copy}{8}{subsection.2.2.3}
+\contentsline {chapter}{\numberline {3}Arithmetic Operations}{9}{chapter.3}
+\contentsline {section}{\numberline {3.1}Odds and Evens}{9}{section.3.1}
+\contentsline {section}{\numberline {3.2}Sign Manipulation}{9}{section.3.2}
+\contentsline {section}{\numberline {3.3}Comparisons}{10}{section.3.3}
+\contentsline {section}{\numberline {3.4}Shifting}{10}{section.3.4}
+\contentsline {section}{\numberline {3.5}Basic Algebra}{11}{section.3.5}
+\contentsline {section}{\numberline {3.6}Modular Exponentiation}{11}{section.3.6}
+\contentsline {section}{\numberline {3.7}Number Theoretic}{11}{section.3.7}
+\contentsline {section}{\numberline {3.8}Prime Numbers}{12}{section.3.8}
+\contentsline {chapter}{\numberline {4}Porting TomsFastMath}{13}{chapter.4}
+\contentsline {section}{\numberline {4.1}Getting Started}{13}{section.4.1}
+\contentsline {section}{\numberline {4.2}Multiply with Comba}{13}{section.4.2}
+\contentsline {section}{\numberline {4.3}Squaring with Comba}{15}{section.4.3}
+\contentsline {section}{\numberline {4.4}Montgomery with Comba}{17}{section.4.4}

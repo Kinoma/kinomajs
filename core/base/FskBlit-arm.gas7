@@ -1,0 +1,333 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+	.text	@CODE, READONLY
+	.fpu    neon
+		
+	.global fillColor16_arm_v7
+	.type	fillColor16_arm_v7, %function
+	.align 4
+
+	@.equ CACHE_LINE_SIZE,	(64)
+	@.equ PREFETCH_DISTANCE, (CACHE_LINE_SIZE*4)
+
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@ our wonderful NEON debug tool @@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+	.macro BNIE_CHECK_REG_0 stop_flag, idx
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	@// Drop stack to give us some workspace
+	SUB     sp, sp, #256
+	
+	@// Now we are safe to corrupt registers
+	mov	  r0, #\stop_flag
+	mov   r1, #\idx
+	mov   r2, sp
+
+	mov	  r8, r2
+	
+	vst1.8   {D0  - D3 }, [r8]!
+	vst1.8   {D4  - D7 }, [r8]!
+	vst1.8   {D8  - D11}, [r8]!
+	vst1.8   {D12 - D15}, [r8]!
+	vst1.8   {D16 - D19}, [r8]!
+	vst1.8   {D20 - D23}, [r8]!
+	vst1.8   {D24 - D27}, [r8]!
+	vst1.8   {D28 - D31}, [r8]!	
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_reg
+	MSR     cpsr_f, r4      @// restore flags
+
+	mov   r8, sp
+	vld1.8   {D0  - D3 }, [r8]!
+	vld1.8   {D4  - D7 }, [r8]!
+	vld1.8   {D8  - D11}, [r8]!
+	vld1.8   {D12 - D15}, [r8]!
+	vld1.8   {D16 - D19}, [r8]!
+	vld1.8   {D20 - D23}, [r8]!
+	vld1.8   {D24 - D27}, [r8]!
+	vld1.8   {D28 - D31}, [r8]!	
+
+
+	ADD     sp, sp, #256
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+
+	.macro BNIE_CHECK_MEM_0 idx, addr, offset, size
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	@//drop stack to give us some workspace
+	SUB     sp, sp, #256
+	
+	@// Now we are safe to corrupt registers
+	mov	  r4, \addr
+	mov	  r1, r4
+	mov	  r0, #\idx
+	mov   r2, #\offset
+	mov   r3, #\size
+
+	mov	  r8, sp
+	
+	vst1.8   {D0  - D3 }, [r8]!
+	vst1.8   {D4  - D5 }, [r8]!
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_mem
+	MSR     cpsr_f, r4      @// restore flags
+
+	mov   r8, sp
+	vld1.8   {D0  - D3 }, [r8]!
+	vld1.8   {D4  - D5 }, [r8]!
+
+	ADD     sp, sp, #256
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+
+height	.req	r0 
+drb		.req	r1 
+src		.req	r2 
+cc		.req	r2 
+dst		.req	r3 
+width0	.req	r4 
+width	.req	r5 
+
+
+w3		.req	r6
+w4		.req	r7
+
+
+vcc0			.req	Q4
+vcc0_16_0		.req		D8
+vcc0_16_1		.req		D9
+
+vcc1			.req	Q5
+vcc1_16_0		.req		D10
+vcc1_16_1		.req		D11
+
+
+.equ REGIS_SHIFT,	(9*4)
+.equ CACHE_SHIFT,	(0*4)
+.equ SP_SHIFT,		(REGIS_SHIFT + CACHE_SHIFT)
+.equ width_SHIFT,	(0*4 + SP_SHIFT)
+
+
+fillColor16_arm_v7:
+        .fnstart
+        .save       {r0-r7, lr}
+        stmfd       sp!, {r0-r7, lr}
+
+		ldr			width0,	[sp, #width_SHIFT]
+		ldrh		cc,		[src]
+
+	
+		mov			width0,	width0, lsl #1
+		mov			width,	width0
+		vdup.u16	vcc0,	cc	
+		vmov		vcc1,	vcc0	
+
+		@BNIE_CHECK_REG_0 1, 1
+		
+fillColor16_arm_v7_start:
+        cmp         width, #16						@check if we have at least 16-bytes (needed for alignment below)
+        blo         less_than_16_case_16
+
+        rsb         w3, dst, #0						@align destination to 16 bytes for the write-buffer
+        ands        w3, w3,  #0xF
+        beq         dst_16_bytes_aligned_case_16
+
+@first several not 16 byte aligned bytes
+        sub         width, width, w3				@copy up to 15-bytes (count in w3)
+        
+        movs        w4, w3, lsl #31
+@dst_2_bytes_aligned_case_16
+		strcsh      cc, [dst], #2
+		@BNIE_CHECK_MEM_0 1, dst, -16, 32
+        
+@process next 12 bytes		
+		movs        w4, w3, lsl #29
+        bge         dst_8_bytes_aligned_case_16
+
+@dst_4_bytes_aligned_case_16:
+		orr			w4, cc, cc, lsl #16				@next 4 bytes available
+		str			w4, [dst], #4
+		@BNIE_CHECK_MEM_0 2, dst, -16, 32
+
+dst_8_bytes_aligned_case_16:
+        bcc         dst_16_bytes_aligned_case_16
+		vst1.32     {d8}, [dst, :64]!				@next 8 bytes available
+		@BNIE_CHECK_MEM_0 3, dst, -16, 32
+
+dst_16_bytes_aligned_case_16:
+        subs        width, width, #64				@make sure we have at least 64 bytes
+        blo         less_than_64_case_16
+
+more_than_or_equal_to_64_case_16:
+        subs        width, width, #64				@main loop store 64 bytes at a time
+        vst1.32     {d8  - d11},   [dst, :128]!
+        vst1.32     {d8  - d11},   [dst, :128]!
+        bhs         more_than_or_equal_to_64_case_16
+
+less_than_64_case_16:
+		add         width, width, #64				@fix-up the remaining count and make sure we have >= 32 bytes left
+        subs        width, width, #32
+        blo         less_than_32_case_16
+
+more_than_or_equal_to_32_case_16:
+        subs        width, width, #32				@32 bytes at a time
+        vst1.32      {d8 - d11},  [dst, :128]!
+        bhs         more_than_or_equal_to_32_case_16
+
+less_than_32_case_16:
+        add         width, width, #32
+        tst         width, #0x10
+        beq         less_than_16_case_16
+        vst1.32      {d8, d9}, [dst, :128]!			 @copy next 16 bytes, 16 byte aligned
+
+less_than_16_case_16:
+        movs        w4, width, lsl #29
+        bcc         less_than_8_case_16
+		vst1.32     {d8}, [dst]!					@first 8
+	
+less_than_8_case_16:
+		bge         less_than_4_case_16
+		orr			w4, cc, cc, lsl #16				@next 4 bytes
+		str			w4, [dst], #4
+
+less_than_4_case_16:
+		movs        w4, width, lsl #31
+        strcsh      cc, [dst], #2
+
+		subs	height, height, #1
+		movne	width,	width0
+		add		dst, dst, drb
+		bne	fillColor16_arm_v7_start
+
+        ldmfd       sp!, {r0-r7, pc}
+
+        .fnend
+
+
+
+
+
+	.global fillColor32_arm_v7
+	.type	fillColor32_arm_v7, %function
+	.align 4
+
+
+fillColor32_arm_v7:
+        .fnstart
+        .save       {r0-r7, lr}
+        stmfd       sp!, {r0-r7, lr}
+
+		ldr			width0,	[sp, #width_SHIFT]
+		ldr			cc,		[src]
+
+	
+		mov			width0,	width0, lsl #2
+		mov			width,	width0
+		vdup.u32	vcc0,	cc	
+		vmov		vcc1,	vcc0	
+
+		@BNIE_CHECK_REG_0 1, 1
+		
+fillColor32_arm_v7_start:
+        cmp         width, #16						@check if we have at least 16-bytes (needed for alignment below)
+        blo         less_than_16_case_32
+
+        rsb         w3, dst, #0						@align destination to 16 bytes for the write-buffer
+        ands        w3, w3,  #0xF
+        beq         dst_16_bytes_aligned_case_32
+
+@first several not 16 byte aligned bytes
+        sub         width, width, w3				@copy up to 15-bytes (count in w3)
+                
+@process next 12 bytes		
+		movs        w4, w3, lsl #29
+        bge         dst_8_bytes_aligned_case_32
+
+@dst_4_bytes_aligned_case_32:
+		str			cc, [dst], #4
+
+dst_8_bytes_aligned_case_32:
+        bcc         dst_16_bytes_aligned_case_32
+		vst1.32     {d8}, [dst, :64]!				@next 8 bytes available
+
+dst_16_bytes_aligned_case_32:
+        subs        width, width, #64				@make sure we have at least 64 bytes
+        blo         less_than_64_case_32
+
+more_than_or_equal_to_64_case_32:
+        subs        width, width, #64				@main loop store 64 bytes at a time
+        vst1.32     {d8  - d11},   [dst, :128]!
+        vst1.32     {d8  - d11},   [dst, :128]!
+        bhs         more_than_or_equal_to_64_case_32
+
+less_than_64_case_32:
+		add         width, width, #64				@fix-up the remaining count and make sure we have >= 32 bytes left
+        subs        width, width, #32
+        blo         less_than_32_case_32
+
+more_than_or_equal_to_32_case_32:
+        subs        width, width, #32				@32 bytes at a time
+        vst1.32      {d8 - d11},  [dst, :128]!
+        bhs         more_than_or_equal_to_32_case_32
+
+less_than_32_case_32:
+        add         width, width, #32
+        tst         width, #0x10
+        beq         less_than_16_case_32
+        vst1.32      {d8, d9}, [dst, :128]!			 @copy next 16 bytes, 16 byte aligned
+
+less_than_16_case_32:
+        movs        w4, width, lsl #29
+        bcc         less_than_8_case_32
+		vst1.32     {d8}, [dst]!					@first 8
+	
+less_than_8_case_32:
+		bge         less_than_4_case_32
+		str			cc, [dst], #4
+
+less_than_4_case_32:
+		subs	height, height, #1
+		movne	width,	width0
+		add		dst, dst, drb
+		bne	fillColor32_arm_v7_start
+
+        ldmfd       sp!, {r0-r7, pc}
+
+        .fnend
+
+
+	.end
+#endif

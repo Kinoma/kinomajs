@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<fsk xmlns="http://www.kinoma.com/Fsk/1" xmlns:build="http://www.kinoma.com/Fsk/manifest/1">
+	<rootvm>
+		<environment>
+			<variable name="NAME" value="balls" />
+			<variable name="NAMESPACE" value="com.marvell.kinoma.balls" />
+			<variable name="VERSION" value="1.0" />
+
+			<variable name="extensions" value="[F_HOME]/extensions/" platform="build"/>
+			<variable name="kinomaExtensions" value="[F_HOME]/kinoma/" platform="build"/>
+			<variable name="kplPath" value="[F_HOME]/build/linux/kpl/" platform="build"/>
+			<variable name="dataPath" value="[applicationPath]data/" platform="linux"/>
+
+			<variable name="kpr" value="[F_HOME]/kinoma/kpr"/>
+
+			<variable name="applicationSrcPath" value="[kpr]/simulator/" platform="win,android"/>
+			<variable name="applicationDstPath" value="[applicationPath]res/raw/" platform="android"/>
+
+			<variable name="screenScale" value="1" platform="mac,win,linux"/>
+			<variable name="httpPoolSize" value="5" platform="mac,win,linux"/>
+			<variable name="httpCacheSize" value="197" platform="mac,win,linux"/>
+			<variable name="httpCookiesSize" value="197" platform="mac,win,linux"/>
+			<variable name="httpKeychainSize" value="197" platform="mac,win,linux"/>
+			<variable name="httpLocalStorageSize" value="197" platform="mac,win,linux"/>
+			<variable name="textureCacheSize" value="2500000" platform="mac,win,linux"/>
+			<variable name="useGL" value="1" platform="iphone,linux,linux/bg2dtv,linux/bg3cdp,mac,win"/>
+			<variable name="useGL" value="0" platform="linux/aspen"/>
+	
+			<variable name="displayFPS" value="0" platform="mac,win,linux"/>
+			<variable name="httpServerPort" value="1234"/>
+			<variable name="windowStyle" value="0" platform="mac,win"/>
+			<variable name="windowStyle" value="0" platform="iphone"/>
+
+			<variable name="ios" value="true" platform="iphone"/>
+
+			<variable name="modulePath" value="[applicationPath]/bin/modules/" />
+			<variable name="shellPath" value="[applicationPath]bin/mockupShell.jsb" platform="linux/gtk,mac"/>
+			<variable name="shellPath" value="[applicationPath]program/deviceShell.jsb" platform="iphone" />
+			<variable name="shellPath" value="[applicationPath]res/raw/kinoma.jet/program/deviceShell.jsb" platform="android" />
+			<variable name="shellPath" value="[applicationPath]program/deviceShell.jsb" platform="linux/bg3cdp,linux/bg2dtv,linux/aspen" />
+			<variable name="debugger" value="[F_HOST]" platform="android,iphone"/>
+		</environment>
+		<debug platform="mac">
+			<debugger url="localhost" />
+			<source keep="true" />
+			<breakpoints href="breakpoints.txt" />
+		</debug>
+		<ui platform="linux">
+			<font face="Fira Sans" size="12" href="[dataPath]/fonts/" />
+		</ui>
+		<ui platform="android">
+			<font face="Droid Sans" size="12" href="/system/fonts/" os="android" />
+			<font face="Roboto" size="12" href="/system/fonts/" os="android.4" />
+		</ui>
+		<extension href="androidakvm2" build:from="[kinomaExtensions]androidakvm/androidakvm2.mk" platform="android" required="false" />
+		<extension href="androidakvm3" build:from="[kinomaExtensions]androidakvm/androidakvm3.mk" platform="android" required="false" />
+		<extension href="Crypt" build:from="[extensions]crypt/Crypt.mk" platform="mac,iphone,linux,win,android" build:embed="true" build:style="nonembed"/>
+		<extension href="FskJPEGDecode" build:from="[extensions]FskJPEGDecode/FskJPEGDecode.mk" build:embed="true" platform="mac,iphone,linux,win,android"/>
+		<extension href="FskPNGDecode" build:from="[extensions]FskPNGDecode/FskPNGDecode.mk" build:embed="true" />
+		<extension href="mediareader" build:from="[kinomaExtensions]mediareader/mediareader.mk" build:embed="true" />
+		<extension href="fsZip" build:from="[extensions]fsZip/fsZip.mk" build:embed="true" platform="android"/>
+		<extension href="FskAndroidJavaDecoder" build:from="[kinomaExtensions]AndroidJavaCodec/FskAndroidJavaDecoder.mk" platform="android" build:embed="false" required="false"/>
+
+		<extension href="KplFrameBuffer" build:from="[kplPath]/framebuffer/KplFrameBuffer.mk" platform="linux/aspen,linux/bg3cdp,linux/bg2dtv" build:embed="true"/>
+		<bytecode href="FskSSL" build:from="[extensions]ssl/FskSSL.mk" platform="mac,linux,win" build:embed="true" build:style="nonembed"/> <!-- only for non embeding platforms -->
+	</rootvm>
+	<vm name="Crypt" platform="none" build:style="embed">
+		<extension href="Crypt" build:from="[extensions]crypt/Crypt.mk" build:embed="true"/>
+	</vm>
+	<vm name="kpr" platform="none">
+		<extension href="kpr" build:from="[kpr]/kpr.mk" build:embed="true" />
+	</vm>
+	<vm name="sslroot" platform="none">
+		<bytecode href="FskSSLAll" build:from="[extensions]ssl/FskSSLAll.mk" platform="mac,iphone,linux,win,android" build:embed="true"/>
+	</vm>
+
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls" destinationPath="program" platform="android,iphone,linux/bg3cdp,linux/aspen" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls/mockupShell.xml" destinationPath="bin" platform="linux/gtk,mac"/>
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/modules" destinationPath="bin/modules" platform="linux/gtk,mac" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls" destinationPath="bin/program" platform="linux/gtk,mac" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/devices" destinationPath="bin/devices" platform="linux/gtk,mac" />
+
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/android" platform="android,iphone,linux" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/deviceShell.xml" platform="linux/gtk,mac" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/iphone" platform="android,iphone,linux" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/manifest.xml" platform="android,iphone,linux" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/mockup" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/mockupShell.xml" platform="android,iphone,linux/aspen,linux/bg2dtv,linux/bg3cdp" />
+</fsk>

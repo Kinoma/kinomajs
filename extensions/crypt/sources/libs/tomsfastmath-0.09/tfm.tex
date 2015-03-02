@@ -1,0 +1,640 @@
+\documentclass[b5paper]{book}
+\usepackage{hyperref}
+\usepackage{makeidx}
+\usepackage{amssymb}
+\usepackage{color}
+\usepackage{alltt}
+\usepackage{graphicx}
+\usepackage{layout}
+\def\union{\cup}
+\def\intersect{\cap}
+\def\getsrandom{\stackrel{\rm R}{\gets}}
+\def\cross{\times}
+\def\cat{\hspace{0.5em} \| \hspace{0.5em}}
+\def\catn{$\|$}
+\def\divides{\hspace{0.3em} | \hspace{0.3em}}
+\def\nequiv{\not\equiv}
+\def\approx{\raisebox{0.2ex}{\mbox{\small $\sim$}}}
+\def\lcm{{\rm lcm}}
+\def\gcd{{\rm gcd}}
+\def\log{{\rm log}}
+\def\ord{{\rm ord}}
+\def\abs{{\mathit abs}}
+\def\rep{{\mathit rep}}
+\def\mod{{\mathit\ mod\ }}
+\renewcommand{\pmod}[1]{\ ({\rm mod\ }{#1})}
+\newcommand{\floor}[1]{\left\lfloor{#1}\right\rfloor}
+\newcommand{\ceil}[1]{\left\lceil{#1}\right\rceil}
+\def\Or{{\rm\ or\ }}
+\def\And{{\rm\ and\ }}
+\def\iff{\hspace{1em}\Longleftrightarrow\hspace{1em}}
+\def\implies{\Rightarrow}
+\def\undefined{{\rm ``undefined"}}
+\def\Proof{\vspace{1ex}\noindent {\bf Proof:}\hspace{1em}}
+\let\oldphi\phi
+\def\phi{\varphi}
+\def\Pr{{\rm Pr}}
+\newcommand{\str}[1]{{\mathbf{#1}}}
+\def\F{{\mathbb F}}
+\def\N{{\mathbb N}}
+\def\Z{{\mathbb Z}}
+\def\R{{\mathbb R}}
+\def\C{{\mathbb C}}
+\def\Q{{\mathbb Q}}
+\definecolor{DGray}{gray}{0.5}
+\newcommand{\emailaddr}[1]{\mbox{$<${#1}$>$}}
+\def\twiddle{\raisebox{0.3ex}{\mbox{\tiny $\sim$}}}
+\def\gap{\vspace{0.5ex}}
+\makeindex
+\begin{document}
+\frontmatter
+\pagestyle{empty}
+\title{TomsFastMath User Manual \\ v0.09}
+\author{Tom St Denis \\ tomstdenis@gmail.com}
+\maketitle
+This text and library are all hereby placed in the public domain.  This book has been formatted for B5 
+[176x250] paper using the \LaTeX{} {\em book} macro package.
+
+\vspace{13cm}
+
+\begin{flushleft}This project was sponsored in part by  
+
+Secure Science Corporation \url{http://www.securescience.net}.
+\end{flushleft}
+
+\tableofcontents
+\listoffigures
+\mainmatter
+\pagestyle{headings}
+\chapter{Introduction}
+\section{What is TomsFastMath?}
+
+TomsFastMath is meant to be a very fast yet still fairly portable and easy to port large
+integer arithmetic library written in ISO C.  The goal specifically is to be able to perform
+very fast modular exponentiations and other related functions required for ECC, DH and RSA
+cryptosystems.
+
+Most of the library is pure ISO C portable source code while a small portion (three files) contain
+a mixture of ISO C and assembler inline fragments.  Compared to LibTomMath this new library is 
+meant to be much faster while sacrificing flexibiltiy.  This is accomplished through several means.
+
+\begin{enumerate}
+   \item The new code is slightly messier and contains asm blocks.
+   \item This uses fixed not multiple precision integers.  
+   \item It is designed only for fast modular exponentiations [e.g. less flexibility].
+\end{enumerate}
+
+To mitigate some of the problems that arise from using assembler it has been carefully and 
+appropriately used where it would make the most gain in performance.  Also we use macro's
+for assembler code which allows new ports to be inserted easily.
+
+The new code uses fixed precision arithmetic which means at compile time you choose a maximum 
+precision and all numbers are limited to that.  This has the benefit of not requiring any
+memory heap operations (which are slow) in any of the functions.  It has the downside that 
+integers that are too large are truncated.
+
+The goal of this library is to be able to perform modular exponentiations (with an odd modulus) very
+fast.  This is what takes the most time in systems such as RSA and DH.  This also requires
+fast multiplication and squaring and has the side effect of speeding up ECC operations as well.
+
+\section{License}
+TomsFastMath is public domain.
+
+\section{Building}
+To build the library simply type ``make''.  Or to install in typical *unix like directories use
+``make install''.  Similarly a shared library can be built with ``make -f makefile.shared install''.
+
+You can build the test program with ``make test''.  To perform simple static testing (useful to 
+test out new assembly ports) use the stest program.  Type ``make stest'' and run it on your 
+target.  The program will perform three multiplications, squarings and montgomery reductions.  
+Likely if your assembly code is invalid this code will exhibit the bug.
+
+\subsection{Intel CC}
+In theory you should be able to build the library with
+
+\begin{verbatim}
+CFLAGS="-O3 -ip" CC=icc make IGNORE_SPEED=1
+\end{verbatim}
+
+However, Intels inline assembler is way less advanced than GCCs.  As a result it doesn't compile.  
+Fortunately it doesn't really matter.
+
+\subsection{MSVC}
+The library doesn't build with MSVC.  Imagine that.
+
+\subsection{Build Limitations}
+TomsFastMath has the following build requirements which are non--portable but under most 
+circumstances not problematic.
+
+\begin{enumerate}
+\item ``CHAR\_BIT'' must be eight.  
+\item The ``fp\_digit'' type must be a multiple of eight bits long.
+\item The ``fp\_word'' must be at least twice the length of fp\_digit.
+\end{enumerate}
+
+\subsection{Optimization Configuration}
+By default TFM is configured for 32--bit digits using ISO C source code.  This mode while portable
+is not very efficient.  While building the library (from scratch) you can define one of 
+several ``CFLAGS'' defines.
+
+For example, to build with with SSE2 optimizations type 
+
+\begin{verbatim}
+CFLAGS=-DTFM_SSE2 make clean libtfm.a
+\end{verbatim}
+
+\subsubsection{x86--32}  The ``x86--32'' mode is defined by ``TFM\_X86'' and covers all
+i386 and beyond processors.  It requires GCC to build and only works with 32--bit digits.  In this 
+mode fp\_digit is 32--bits and fp\_word is 64--bits.  This mode will be autodetected when building 
+with GCC to an  ``i386'' target.  You can override this behaviour by defining TFM\_NO\_ASM or 
+another optimization mode (such as SSE2).
+
+\subsubsection{SSE2} The ``SSE2'' mode is defined by ``TFM\_SSE2'' and requires a Pentium 4, Pentium
+M or Athlon64 processor.  It requires GCC to build.  Note that you shouldn't define both
+TFM\_X86 and TFM\_SSE2 at the same time.   This mode only works with 32--bit digits.  In this 
+mode fp\_digit is 32--bits and fp\_word is 64--bits.  While this mode will work on the AMD Athlon64 
+series of processors it is less efficient than the native ``x86--64'' mode and not recommended.
+
+There is an additional ``TFM\_PRESCOTT'' flag that you can define for P4 Prescott processors.  This causes
+the mul/sqr functions to use x86\_32 and the montgomery reduction to use SSE2 which is (so far) the fastest
+combination.  If you are using an older (e.g. Northwood) generation P4 don't define this.
+
+\subsubsection{x86--64}  The ``x86--64'' mode is defined by ``TFM\_X86\_64'' and requires a 
+``x86--64'' capable processor (Athlon64 and future Pentium processors).  It requires GCC to
+build and only works with 64--bit digits.  Note that by enabling this mode it will automatically
+enable 64--bit digits.  In this mode fp\_digit is 64--bits and fp\_word is 128--bits.  This mode will
+be autodetected when building with GCC to an ``x86--64'' target.  You can override this behaviour by defining
+TFM\_NO\_ASM.
+
+\subsubsection{ARM}  The ``ARM'' mode is defined by ``TFM\_ARM'' and requires a ARMv4 with the M instructions (enhanced 
+multipliers) or higher processor.  It requires GCC and works with 32--bit digits.  In this mode fp\_digit is 32--bits and 
+fp\_word is 64--bits.
+
+\subsubsection{PPC32} The ``PPC32'' mode is defined by ``TFM\_PPC32'' and requires a standard PPC processor.  It doesn't 
+use altivec or other extensions so it should work on all compliant implementations of PPC.  It requires GCC and works
+with 32--bit digits.  In this mode fp\_digit is 32--bits and fp\_word is 64--bits.
+
+\subsubsection{Future Releases}  Future releases will support additional platform optimizations.
+Developers of MIPS and SPARC platforms are encouraged to submit GCC asm inline patches 
+(see chapter \ref{chap:asmops} for more information).
+
+\begin{figure}[here]
+\begin{small}
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline \textbf{Processor} & \textbf{Recommended Mode} \\
+\hline All 32--bit x86 platforms  & TFM\_X86 \\
+\hline Pentium 4                  & TFM\_SSE2 \\
+\hline Pentium 4 Prescott         & TFM\_SSE2 + TFM\_PRESCOTT \\
+\hline Athlon64                   & TFM\_X86\_64 \\
+\hline ARMv4 or higher with M     & TFM\_ARM \\
+\hline G3/G4 (32-bit PPC)         & TFM\_PPC32 \\
+\hline &\\
+\hline x86--32 or x86--64 (with GCC) & Leave blank and let autodetect work \\
+\hline
+\end{tabular}
+\caption{Recommended Build Modes}
+\end{center}
+\end{small}
+\end{figure}
+
+\subsection{Precision Configuration}
+The precision of all integers in this library are fixed to a limited precision.  Essentially
+the rule of setting the precision is if you plan on doing modular exponentiation with $k$--bit
+numbers than the precision must be fixed to $2k$--bits plus four digits.  
+
+This is changed by altering the value of ``FP\_MAX\_SIZE'' in tfm.h to your desired size.  By default, 
+the library is configured to handle upto 2048--bit inputs to the modular exponentiator.  
+
+\chapter{Getting Started}
+\section{Data Types}
+TomsFastMath is a large fixed precision integer library.  It provides the functionality to 
+manipulate large signed integers through a relatively trivial api and a single data type.
+
+The ``fp\_int'' or fixed precision integer is the data type that the functions operate with.  
+
+\begin{verbatim}
+typedef struct {
+    fp_digit dp[FP_SIZE];
+    int      used, 
+             sign;
+} fp_int;
+\end{verbatim}
+
+The \textbf{dp} member is the array of digits that forms the number.  It must always be zero 
+padded.  The \textbf{used} member is the count of digits used in the array.  Although the 
+precision is fixed the algorithms are still tuned to not process the entire array if it 
+does not have to.  The \textbf{sign} indicates the sign of the integer.  It is \textbf{FP\_ZPOS} (0)
+if the integer is zero or positive and \textbf{FP\_NEG} (1) otherwise.
+
+\section{Initialization}
+\subsection{Simple Initialization}
+To initialize an integer to the default state of zero use the fp\_init() function.
+
+\index{fp\_init}
+\begin{verbatim}
+void fp_init(fp_int *a);
+\end{verbatim}
+
+This will initialize the fp\_int $a$ to zero.  Note that the function fp\_zero() is an alias
+for fp\_init().
+
+\subsection{Initialize Small Constants}
+To initialize an integer with a small single digit value use the fp\_set() function.
+
+\index{fp\_set}
+\begin{verbatim}
+void fp_set(fp_int *a, fp_digit b);
+\end{verbatim}
+
+This will initialize $a$ and set it equal to the digit $b$.  
+
+\subsection{Initialize Copy}
+To initialize an integer with a copy of another integer use the fp\_init\_copy() function.
+
+\index{fp\_init\_copy}
+\begin{verbatim}
+void fp_init_copy(fp_int *a, fp_int *b)
+\end{verbatim}
+
+This will initialize $a$ as a copy of $b$.  Note that for compatibility with LibTomMath the function
+fp\_copy() is also provided.
+
+\chapter{Arithmetic Operations}
+\section{Odds and Evens}
+To quickly and easily tell if an integer is zero, odd or even use the following functions.
+
+\index{fp\_iszero} \index{fp\_iseven} \index{fp\_isodd}
+\begin{verbatim}
+int fp_iszero(fp_int *a);
+int fp_iseven(fp_int *a);
+int fp_isodd(fp_int *a);
+\end{verbatim}
+
+These will return \textbf{FP\_YES} if the answer to their respective questions is yes.  Otherwise they
+return \textbf{FP\_NO}.  Note that these are implemented as macros and as such you should avoid using 
+++ or --~-- operators on the input operand.
+
+\section{Sign Manipulation}
+To negate or compute the absolute of an integer use the following functions.
+
+\index{fp\_neg} \index{fp\_abs}
+\begin{verbatim}
+void fp_neg(fp_int *a, fp_int *b);
+void fp_abs(fp_int *a, fp_int *b);
+\end{verbatim}
+This will compute the negation (or absolute) of $a$ and store the result in $b$.  Note that these 
+are implemented as macros and as such you should avoid using ++ or --~-- operators on the input 
+operand.
+
+\section{Comparisons}
+To perform signed or unsigned comparisons use following functions.
+
+\index{fp\_cmp} \index{fp\_cmp\_mag}
+\begin{verbatim}
+int fp_cmp(fp_int *a, fp_int *b);
+int fp_cmp_mag(fp_int *a, fp_int *b);
+\end{verbatim}
+These will compare $a$ to $b$.  They will return \textbf{FP\_GT} if $a$ is larger than $b$, 
+\textbf{FP\_EQ} if they are equal and \textbf{FP\_LT} if $a$ is less than $b$.
+
+The function fp\_cmp performs signed comparisons while the other performs unsigned comparisons.
+
+\section{Shifting}
+To shift the digits of an fp\_int left or right use the following functions.
+
+\index{fp\_lshd} \index{fp\_rshd}
+\begin{verbatim}
+void fp_lshd(fp_int *a, int x);
+void fp_rshd(fp_int *a, int x);
+\end{verbatim}
+
+These will shift the digits of $a$ left (or right respectively) $x$ digits.  
+
+To shift individual bits of an fp\_int use the following functions.
+
+\index{fp\_div\_2d} \index{fp\_mod\_2d} \index{fp\_mul\_2d} \index{fp\_div\_2} \index{fp\_mul\_2}
+\begin{verbatim}
+void fp_div_2d(fp_int *a, int b, fp_int *c, fp_int *d);
+void fp_mod_2d(fp_int *a, int b, fp_int *c);
+void fp_mul_2d(fp_int *a, int b, fp_int *c);
+void fp_mul_2(fp_int *a, fp_int *c);
+void fp_div_2(fp_int *a, fp_int *c);
+void fp_2expt(fp_int *a, int b);
+\end{verbatim}
+fp\_div\_2d() will divide $a$ by $2^b$ and store the quotient in $c$ and remainder in $d$.  Either of 
+$c$ or $d$ can be \textbf{NULL} if their value is not required.  fp\_mod\_2d() is a shortcut to 
+compute the remainder directly.  fp\_mul\_2d() will multiply $a$ by $2^b$ and store the result in $c$.  
+
+The fp\_mul\_2() and fp\_div\_2() functions are optimized multiplication and divisions by two.  The 
+function fp\_2expt() will compute $a = 2^b$ quickly.
+
+To quickly count the number of least significant bits that are zero use the following function.
+
+\index{fp\_cnt\_lsb}
+\begin{verbatim}
+int fp_cnt_lsb(fp_int *a);
+\end{verbatim}
+This will return the number of adjacent least significant bits that are zero.  This is equivalent 
+to the number of times two evenly divides $a$.
+
+\section{Basic Algebra}
+
+The following functions round out the basic algebraic functionality of the library.
+
+\index{fp\_add} \index{fp\_sub} \index{fp\_mul} \index{fp\_sqr} \index{fp\_div} \index{fp\_mod}
+\begin{verbatim}
+void fp_add(fp_int *a, fp_int *b, fp_int *c);
+void fp_sub(fp_int *a, fp_int *b, fp_int *c);
+void fp_mul(fp_int *a, fp_int *b, fp_int *c);
+void fp_sqr(fp_int *a, fp_int *b);
+int fp_div(fp_int *a, fp_int *b, fp_int *c, fp_int *d);
+int fp_mod(fp_int *a, fp_int *b, fp_int *c);
+\end{verbatim}
+
+The functions fp\_add(), fp\_sub() and fp\_mul() perform their respective operations on $a$ and
+$b$ and store the result in $c$.  The function fp\_sqr() computes $b = a^2$ and is faster than
+using fp\_mul() to perform the same operation.
+
+The function fp\_div() divides $a$ by $b$ and stores the quotient in $c$ and remainder in $d$.  Either 
+of $c$ and $d$ can be \textbf{NULL} if the result is not required.  The function fp\_mod() is a simple 
+shortcut to find the remainder.
+
+\section{Modular Exponentiation}
+To compute a modular exponentiation use the following function.
+
+\index{fp\_exptmod}
+\begin{verbatim}
+int fp_exptmod(fp_int *a, fp_int *b, fp_int *c, fp_int *d);
+\end{verbatim}
+This computes $d \equiv a^b \mbox{ (mod }c\mbox{)}$ for any odd $c$ and $b$.  $b$ may be negative so long as 
+$a^{-1} \mbox{ (mod }c\mbox{)}$ exists.  The initial value of $a$ may be larger than $c$.  The size of $c$ must be 
+half of the maximum precision used during the build of the library.  For example, by default $c$ must be less 
+than $2^{2048}$.  
+
+\section{Number Theoretic}
+
+To perform modular inverses, greatest common divisor or least common multiples use the following
+functions.
+
+\index{fp\_invmod} \index{fp\_gcd} \index{fp\_lcm}
+\begin{verbatim}
+int fp_invmod(fp_int *a, fp_int *b, fp_int *c);
+void fp_gcd(fp_int *a, fp_int *b, fp_int *c);
+void fp_lcm(fp_int *a, fp_int *b, fp_int *c);
+\end{verbatim}
+
+The fp\_invmod() function will find the modular inverse of $a$ modulo an odd modulus $b$ and store
+it in $c$ (provided it exists).  The function fp\_gcd() will compute the greatest common
+divisor of $a$ and $b$ and store it in $c$.  Similarly the fp\_lcm() function will compute
+the least common multiple of $a$ and $b$ and store it in $c$.
+
+\section{Prime Numbers}
+To quickly test a number for primality call this function.
+
+\index{fp\_isprime}
+\begin{verbatim}
+int fp_isprime(fp_int *a);
+\end{verbatim}
+This will return \textbf{FP\_YES} if $a$ is probably prime.  It uses 256 trial divisions and
+eight rounds of Rabin-Miller testing.  Note that this routine performs modular exponentiations
+which means that $a$ must be in a valid range of precision.
+
+\chapter{Porting TomsFastMath}
+\label{chap:asmops}
+\section{Getting Started}
+Porting TomsFastMath to a given processor target is usually a simple procedure.  For the most part 
+assembly is used to get around the lack of a ``add with carry'' operation in the C language.  To
+make matters simpler the use of assembler is through macro blocks.
+
+Each ``port'' is defined by a block of code that re-defines the portable ISO C macros with assembler
+inline blocks.  To add a new port you must designate a TFM\_XXX define that will enable your 
+port when built.
+
+\section{Multiply with Comba}
+The file ``fp\_mul\_comba.c'' is responsible for providing the fast multiplication within the 
+library.  This comba multiplication is fairly simple.  It uses a sliding three digit carry 
+system with the variables $c0$, $c1$, $c2$.  For every digit of output $c0$ is the what will
+be that digit, $c1$ will carry into the next digit and $c2$ will be the ``c1'' carry for
+the next digit.  For every ``next'' digit effectively $c0$ is stored as output, $c1$ moves into
+$c0$, $c2$ into $c1$ and zero into $c2$.
+
+The following macros define the assmebler interface to the code.
+
+\begin{verbatim}
+#define COMBA_START 
+\end{verbatim}
+
+This is issued at the beginning of the multiplication function.  This is in place to allow you to
+initialize any registers or machine words required.  You can leave it blank if you do not need 
+it.
+
+\begin{verbatim}
+#define COMBA_CLEAR \
+   c0 = c1 = c2 = 0;
+\end{verbatim}
+
+This clears the three comba carries.  If you are going to place carries in registers then 
+zero the appropriate registers.  Note that the functions do not use $c0$, $c1$ or $c2$ directly
+so you are free to ignore these varibles and use registers directly.
+
+\begin{verbatim}
+#define COMBA_FORWARD \
+   c0 = c1; c1 = c2; c2 = 0;
+\end{verbatim}
+
+This propagates the carries after a digit has been produced.  
+
+\begin{verbatim}
+#define COMBA_STORE(x) \
+   x = c0;
+\end{verbatim}
+
+This stores the $c0$ digit in the memory location specified by $x$.  Note that if you manually 
+aliased $c0$ with a register than just store that register in $x$.  
+
+\begin{verbatim}
+#define COMBA_STORE2(x) \
+   x = c1;
+\end{verbatim}
+
+This stores the $c1$ digit in the memory location specified by $x$.  Note that if you manually 
+aliased $c1$ with a register than just store that register in $x$.  
+
+\begin{verbatim}
+#define COMBA_FINI
+\end{verbatim}
+
+If at the end of the function you need to perform some action fill this macro in. 
+
+\begin{verbatim}
+#define MULADD(i, j)                                          \
+   t  = ((fp_word)i) * ((fp_word)j);                          \
+   c0 = (c0 + t);              if (c0 < ((fp_digit)t))  ++c1; \
+   c1 = (c1 + (t>>DIGIT_BIT)); if (c1 < (t>>DIGIT_BIT)) ++c2;
+\end{verbatim}
+
+This macro performs the ``multiply and add'' step that is central to the comba
+multiplier.  It multiplies the fp\_digits $i$ and $j$ to produce a fp\_word result.  Effectively
+the double--digit value is added to the three-digit carry formed by $c0$, $c1$, $c2$ where $c0$
+is the least significant digit.
+
+\section{Squaring with Comba}
+Squaring is similar to multiplication except that it uses a special ``multiply and add twice'' macro
+that replaces multiplications that are not required.
+
+\begin{verbatim}
+#define COMBA_START
+\end{verbatim}
+
+This allows for any initialization code you might have.  
+
+\begin{verbatim}
+#define CLEAR_CARRY \
+   c0 = c1 = c2 = 0;
+\end{verbatim}
+
+This will clear the carries.  Like multiplication you can safely alias the three carry variables
+to registers if you can/want to.
+
+\begin{verbatim}
+#define COMBA_STORE(x) \
+   x = c0;
+\end{verbatim}
+
+Store the $c0$ carry to a given memory location.
+
+\begin{verbatim}
+#define COMBA_STORE2(x) \
+   x = c1;
+\end{verbatim}
+
+Store the $c1$ carry to a given memory location.
+
+\begin{verbatim}
+#define CARRY_FORWARD \
+   c0 = c1; c1 = c2; c2 = 0;
+\end{verbatim}
+
+Forward propagate all three carry variables.
+
+\begin{verbatim}
+#define COMBA_FINI
+\end{verbatim}
+
+If you need to clean up at the end of the function.
+
+\begin{verbatim}
+/* multiplies point i and j, updates carry "c1" and digit c2 */
+#define SQRADD(i, j)                       \
+   t  = ((fp_word)i) * ((fp_word)j);       \
+   c0 = (c0 + t);              if (c0 < ((fp_digit)t))  ++c1; \
+   c1 = (c1 + (t>>DIGIT_BIT)); if (c1 < (t>>DIGIT_BIT)) ++c2; 
+\end{verbatim}
+
+This is essentially the MULADD macro from the multiplication code.
+
+\begin{verbatim}
+/* for squaring some of the terms are doubled... */
+#define SQRADD2(i, j)                       \
+   t  = ((fp_word)i) * ((fp_word)j);       \
+   c0 = (c0 + t);              if (c0 < ((fp_digit)t))  ++c1; \
+   c1 = (c1 + (t>>DIGIT_BIT)); if (c1 < (t>>DIGIT_BIT)) ++c2; \
+   c0 = (c0 + t);              if (c0 < ((fp_digit)t))  ++c1; \
+   c1 = (c1 + (t>>DIGIT_BIT)); if (c1 < (t>>DIGIT_BIT)) ++c2; 
+\end{verbatim}
+
+This is like SQRADD except it adds the produce twice.  It's similar to 
+computing SQRADD(i, j*2).
+
+To further make things interesting the squaring code also has ``doubles'' (see my LTM book chapter five...) which are
+handled with these macros.
+
+\begin{verbatim}
+#define SQRADDSC(i, j)                                                         \
+   do { fp_word t;                                                             \
+      t =  ((fp_word)i) * ((fp_word)j);                                        \
+      sc0 = (fp_digit)t; sc1 = (t >> DIGIT_BIT); sc2 = 0;                      \
+   } while (0);
+\end{verbatim}
+This computes a product and stores it in the ``secondary'' carry registers $\left < sc0, sc1, sc2 \right >$.
+
+\begin{verbatim}
+#define SQRADDAC(i, j)                                                         \
+   do { fp_word t;                                                             \
+   t = sc0 + ((fp_word)i) * ((fp_word)j);  sc0 = t;                            \
+   t = sc1 + (t >> DIGIT_BIT);             sc1 = t; sc2 += t >> DIGIT_BIT;     \
+   } while (0);
+\end{verbatim}
+This computes a product and adds it to the ``secondary'' carry registers.
+
+\begin{verbatim}
+#define SQRADDDB                                                               \
+   do { fp_word t;                                                             \
+   t = ((fp_word)sc0) + ((fp_word)sc0) + c0; c0 = t;                                                 \
+   t = ((fp_word)sc1) + ((fp_word)sc1) + c1 + (t >> DIGIT_BIT); c1 = t;                              \
+   c2 = c2 + ((fp_word)sc2) + ((fp_word)sc2) + (t >> DIGIT_BIT);                                     \
+   } while (0);
+\end{verbatim}
+This doubles the ``secondary'' carry registers and adds the sum to the main carry registers.  Really complicated.
+
+\section{Montgomery with Comba}
+Montgomery reduction is used in modular exponentiation and is most called function during
+that operation.  It's important to make sure this routine is very fast or all is lost.
+
+Unlike the two other comba routines this one does not use a single three--digit carry 
+system.  It does have three--digit carries except that the routine steps through them
+in the inner loop.  This means you cannot alias them to registers (at all).
+
+To make matters simple though the three arrays of carries are stored in one array.  The 
+``c0'' array resides in $c[0 \ldots OFF1-1]$, ``c1'' in $c[OFF1 \ldots OFF2-1]$ and ``c2'' in
+$c[OFF2 \ldots OFF2+FP\_SIZE-1]$.  
+
+\begin{verbatim}
+#define MONT_START 
+\end{verbatim}
+
+This allows you to insert anything at the start that you need.
+
+\begin{verbatim}
+#define MONT_FINI
+\end{verbatim}
+
+This allows you to insert anything at the end that you need.
+
+\begin{verbatim}
+#define LOOP_START \
+   mu = c[x] * mp;
+\end{verbatim}
+
+This computes the $\mu$ value for the inner loop.  You can safely alias $mu$ and $mp$ to
+a register if you want.
+
+\begin{verbatim}
+#define INNERMUL                                      \
+   do { fp_word t;                                    \
+   _c[0] = t  = ((fp_word)_c[0] + (fp_word)cy) +      \
+                (((fp_word)mu) * ((fp_word)*tmpm++)); \
+   cy = (t >> DIGIT_BIT);                             \
+   } while (0)
+\end{verbatim}
+
+This computes the inner product and adds it to the destination and carry variable $cy$.
+This uses the $mu$ value computed above (can be in a register already) and the 
+$cy$ which is a chaining carry.  Inside the INNERMUL loop the $cy$ value can be kept
+inside a register (hint: it always starts as $cy = 0$ in the first iteration).
+
+Upon completion of the inner loop the macro LOOP\_END is called which is used to fetch
+$cy$ into the variable the C program can see.  This is where, if you cached $cy$ in a
+register you would copy it to the locally accessible C variable.
+
+\begin{verbatim}
+#define PROPCARRY \
+   do { fp_digit t = _c[0] += cy; cy = (t < cy); } while (0)
+\end{verbatim}
+
+This propagates the carry upwards by one digit.  
+
+\input{tfm.ind}
+
+\end{document}

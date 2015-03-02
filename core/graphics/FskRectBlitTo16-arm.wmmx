@@ -1,0 +1,355 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+.text	@CODE, READONLY
+.global FskAlphaBlendSetImm_arm_wMMX_s
+.type   FskAlphaBlendSetImm_arm_wMMX_s, %function
+.global	FskAlphaBlendPartAlphaAlignD_arm_wMMX_s
+.type   FskAlphaBlendPartAlphaAlignD_arm_wMMX_s, %function
+
+.global FskBilinearCopySetImm_arm_wMMX_s
+.type   FskBilinearCopySetImm_arm_wMMX_s, %function
+.global FskBilinearCopyRGB565_arm_wMMX_s
+.type   FskBilinearCopyRGB565_arm_wMMX_s, %function
+.align 4
+.align 4
+
+
+@============ AlphaBlend ========
+imm_1f		.req	wr15
+imm_3f		.req	wr14
+imm_20		.req	wr13
+imm_3falpha	.req	wr12
+imm_alpha	.req	wr9
+
+dr			.req	wr0
+dg			.req	wr1
+db			.req	wr2
+pix			.req	wr3
+pix_part	.req	wr4
+tmp0		.req	wr5
+
+d			.req	r0
+w			.req	r1
+sr   		.req	r2
+x			.req	r3
+xd			.req	r4
+
+.equ FWD_SUBBITS,  (18)
+
+FskAlphaBlendSetImm_arm_wMMX_s:
+	.fnstart
+	STMFD   	sp!,		{r4,lr}
+	mov			r4,			#0x1f
+	tbcsth		imm_1f,		r4
+
+	mov			r4,			#0x3f
+	tbcsth		imm_3f,		r4
+
+	mov			r4,			#0x20
+	tbcsth		imm_20,		r4
+	
+	tbcsth		imm_alpha,	r0
+	
+	rsb			r4,			r0,	#63
+	tbcsth		imm_3falpha,	r4
+	
+	LDMFD		sp!, 		{r4,pc}
+	.fnend
+
+
+.macro	GET_PIX_VECTOR
+	lsr			r5,		x,		#FWD_SUBBITS
+	add 		r5, 	sr, 	r5, lsl 	#1
+	wldrh		pix,	[r5, 	#0]
+	add         x,		x,		xd
+
+	lsr         r5,		x,		#FWD_SUBBITS
+	lsl			r5,		r5,		#1
+	ldrh		r5,		[sr,	r5]
+	add         x,		x,		xd
+	tinsrh		pix,	r5,		#1
+
+	lsr         r5,		x,		#FWD_SUBBITS
+	lsl			r5,		r5,		#1
+	ldrh		r5,		[sr,	r5]
+	add         x,		x,		xd
+	tinsrh		pix,	r5,		#2
+
+	lsr         r5,		x,		#FWD_SUBBITS
+	lsl			r5,		r5,		#1
+	ldrh		r5,		[sr,	r5]
+	add         x,		x,		xd
+	tinsrh		pix,	r5,		#3
+.endm
+.macro	GET_PIX_G
+	wsrlh		pix_part,	pix,		#5
+	wand		pix_part,	pix_part,	imm_3f
+.endm
+
+.macro	GET_PIX_R
+	wand		pix_part,	pix,		imm_1f
+.endm
+
+.macro	GET_PIX_B
+	wsrlh		pix_part,	pix,		#11
+.endm
+
+.macro	BLEND_CAL_ALPHA_G
+	wmulul		pix_part,	pix_part,	imm_alpha
+	wmulul		dg,			dg,			imm_3falpha
+	waddh		pix_part,	pix_part,	imm_20
+	waddh		dg,			dg,			pix_part
+	wsrlh		tmp0,		dg,			#6
+	waddh		dg,			dg,			tmp0
+	wsrlh		dg,			dg,			#6
+	@wand		dg,			dg,			imm_3f
+.endm
+
+.macro  BLEND_CAL_ALPHA_R
+	wmulul		pix_part,	pix_part,	imm_alpha	
+	wmulul		dr,			dr,			imm_3falpha
+	waddh		pix_part,	pix_part,	imm_20
+	waddh		dr,			dr,			pix_part
+	wsrlh		tmp0,		dr,			#6
+	waddh		dr,			dr,			tmp0
+	wsrlh		dr,			dr,			#6
+.endm
+
+.macro  BLEND_CAL_ALPHA_B
+	wmulul		pix_part,	pix_part,	imm_alpha
+	wmulul		db,			db,			imm_3falpha
+	waddh		pix_part,	pix_part,	imm_20
+	waddh		db,			db,			pix_part
+	wsrlh		tmp0,		db,			#6
+	waddh		db,			db,			tmp0
+	wsrlh		db,			db,			#6
+.endm
+
+.macro GET_RGB
+	wand		dr,			dg,			imm_1f
+	wsrlh		db,			dg,			#11
+	wsrlh		dg,			dg,			#5
+	wand		dg,			dg,			imm_3f
+.endm
+
+.macro RECOVER_RGB
+	wsllh		dg,			dg,			#5
+	wsllh		db,			db,			#11
+	wor			dg,			dg,			dr
+	wor			dg,			dg,			db
+.endm
+
+FskAlphaBlendPartAlphaAlignD_arm_wMMX_s:
+	.fnstart
+	STMFD   	sp!, 		{r4,		r5}
+	ldr			xd,			[sp, 		#8]
+	cmp			w,			#0
+	beq			out_func
+
+fskblendpartalignd_loop:
+	@Got dst pixes (four)
+	wldrd		dg,	[d]
+
+	@Got src pix (four)
+	GET_PIX_VECTOR
+
+	@got pix
+	GET_PIX_G
+	@got dr,db,dg
+	GET_RGB
+	BLEND_CAL_ALPHA_G
+
+	GET_PIX_R
+	BLEND_CAL_ALPHA_R
+
+	GET_PIX_B
+	BLEND_CAL_ALPHA_B
+
+	@recover 	rgb
+	RECOVER_RGB
+
+	wstrd		dg,			[d],	#8
+	subs		w,			w,		#1
+	bne			fskblendpartalignd_loop
+
+out_func:
+	LDMFD   	sp!, 		{r4,		r5}
+	mov			r0,			x
+	bx			lr
+	.fnend
+
+
+@============ Bilinear Copy ========
+i_7e0	.req	wr15
+i_7e0w	.req	wr14
+i_f81f	.req	wr13
+i_fe0w	.req	wr12
+i_f81fw .req	wr11
+i_1f83fw .req	wr10
+mask	.req	wr9
+
+p_all	.req	wr0
+p_g		.req	wr1
+p_rb	.req	wr2
+di0i_v	.req	wr3
+dj0j_v	.req	wr4
+
+p_gw	.req	wr5
+p_rbw	.req	wr6
+p_rw	.req	wr7
+p_bw	.req	wr8
+
+FskBilinearCopySetImm_arm_wMMX_s:
+	.fnstart
+	STMFD   	sp!,		{r4-r5}
+	
+	ldr			r4,			=0x7e0
+	tbcsth		i_7e0,		r4
+	tbcstw		i_7e0w,		r4
+	
+	ldr			r4,			=0xfe0
+	tbcstw		i_fe0w,		r4
+	
+	ldr			r4,			=0xf81f
+	tbcsth		i_f81f,		r4
+	tbcstw		i_f81fw,	r4
+	
+	ldr			r4,			=0x1f83f
+	tbcstw		i_1f83fw,	r4
+
+	ldr			r4,         =0x07e0
+	ldr     	r5,         =0xf81f
+	tmcrr   	mask,       r4,         r5
+	
+	LDMFD   	sp!, 		{r4-r5}
+	mov			pc,			lr
+	.fnend
+
+FskBilinearCopyRGB565_arm_wMMX_s:
+	.fnstart
+	STMFD   	sp!,		{r4-r10}
+	ldr     	r10,        [sp, #36]               @ width
+	
+	cmp     	r10,        #0
+	beq			copy_exit
+	
+	mov     	r5,         r3,         asr #18
+	add     	r5,         r1,         r5, asl #1
+
+	ldr     	r8,         [sp, #28]
+	ldr     	r9,         [sp, #32]
+
+	ldrh    	r6,         [r5]
+	ldrh    	r7,         [r5,#2]
+	
+	rsb     	r4,         r2, 		#16
+	orr     	r4,         r4, 		r2,lsl #16
+	tbcstw  	dj0j_v,     r4          
+
+	ldrh    	r4,         [r5, r9]!
+	ldrh    	r5,         [r5, #2]
+
+	subs		r10,		r10,		#1
+	beq			copy_last
+copy_loop:
+	orr     	r6,         r6,         r7,lsl #16
+	orr     	r4,         r4,         r5,lsl #16
+	tmcrr		p_all,		r6,			r4
+
+	
+	mov     	r2,         r3,         asr #14
+	and     	r2,         r2,         #15 
+	rsb     	r4,         r2,         #16
+	orr     	r4,         r4,         r2,lsl #16
+	tbcstw  	di0i_v,     r4 
+	
+	add     	r3,     	r3,  		r8
+	
+	mov     	r5,         r3,         asr #18
+	add     	r5,         r1,         r5, asl #1
+
+	ldrh    	r6,         [r5]
+
+	wand		p_g,		p_all,		i_7e0
+	wand		p_rb,		p_all,		i_f81f
+	wmaddu		p_gw,		p_g,		di0i_v	
+	wmaddu		p_rbw,		p_rb,		di0i_v	
+
+	wunpckehuh	di0i_v,		dj0j_v
+	ldrh    	r7,         [r5,#2]
+	wsrlw		p_gw,		p_gw,		#3
+	wsrlw		p_rbw,		p_rbw,		#3
+	wand		p_rbw,		p_rbw,		i_1f83fw
+	wmulwl		p_rbw,		p_rbw,		di0i_v
+	ldrh    	r4,         [r5, r9]!
+	wand		p_gw,		p_gw,		i_fe0w
+
+	wpackwus 	p_g,		p_gw,		p_gw
+	waccw		p_rbw,		p_rbw	
+	wmaddu		p_gw,		p_g,		dj0j_v
+	ldrh    	r5,         [r5, #2]
+
+	wunpckilw 	p_all,     	p_gw,   	p_rbw
+	wsrlw   	p_all,      p_all,  	#5
+	wand		p_all,		p_all,		mask
+	waccw		p_all,		p_all
+
+	wstrh		p_all,		[r0],		#2
+
+	subs    	r10,    	r10, 		#1
+	bne     	copy_loop
+copy_last:
+	orr     	r6,         r6,         r7,lsl #16
+	orr     	r4,         r4,         r5,lsl #16
+	tmcrr		p_all,		r6,			r4
+	
+	mov     	r2,         r3,         asr #14
+	and     	r2,         r2,         #15 
+	rsb     	r4,         r2,         #16
+	orr     	r4,         r4,         r2,lsl #16
+	tbcstw  	di0i_v,     r4 
+
+	wand		p_g,		p_all,		i_7e0
+	wand		p_rb,		p_all,		i_f81f
+	wmaddu		p_gw,		p_g,		di0i_v	
+	wmaddu		p_rbw,		p_rb,		di0i_v	
+
+	wunpckehuh	di0i_v,		dj0j_v
+	wsrlw		p_gw,		p_gw,		#3
+	wsrlw		p_rbw,		p_rbw,		#3
+	wand		p_rbw,		p_rbw,		i_1f83fw
+	wmulwl		p_rbw,		p_rbw,		di0i_v
+	wand		p_gw,		p_gw,		i_fe0w
+	
+	wpackwus 	p_g,		p_gw,		p_gw
+	waccw		p_rbw,		p_rbw	
+	wmaddu		p_gw,		p_g,		dj0j_v
+
+	wunpckilw 	p_all,     	p_gw,   	p_rbw
+	wsrlw   	p_all,      p_all,  	#5
+	wand		p_all,		p_all,		mask
+	waccw		p_all,		p_all
+	wstrh		p_all,		[r0],		#2
+copy_exit:
+
+	LDMFD   	sp!, 		{r4-r10}
+	mov			pc, 		lr
+	.fnend
+
+#endif
+

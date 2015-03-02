@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+	<texture id="levelPopupTexture" small="../assets/level-popup.png"/>   
+    <skin id="levelPopupSkin" texture="levelPopupTexture" x="0" y="0" width="30" height="30">
+        <tiles left="10" right="10"/>
+    </skin>
+
+	<texture id="levelPopupPointerTexture" small="../assets/value-inspector-pointer.png"/>   
+    <skin id="levelPopupPointerSkin" texture="levelPopupPointerTexture" x="0" y="0" width="17" height="9"/>
+
+	<style id="levelPopupStyle" font="bold 24px" color="black" align="center,middle" lines="1"/>
+	
+	<skin id="blackSkin" color="black"/>
+	
+	<container id="LevelProbe" left="0" right="0" top="0" bottom="0" visible="false">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				this.probeOffset = ("probeOffset" in data) ? data.probeOffset : 0;
+				this.lastValue = -1;
+				this.enableAudioFeedback = false;
+				if (this.enableAudioFeedback) {
+					this.openSound = new Sound( mergeURI( application.url, "assets/sounds/probe-open.aac" ) );
+					this.closeSound = new Sound( mergeURI( application.url, "assets/sounds/probe-close.aac" ) );
+					this.measureSound = new Sound( mergeURI( application.url, "assets/sounds/probe-measure.aac" ) );
+				}
+			]]></method>
+			<method id="onDisplaying" params="container"><![CDATA[
+				this.toLevelPopupY = container.y - container.levelPopup.height - container.levelPopupPointer.height - this.probeOffset;
+				container.levelPopupLine.height = this.levelPopupLineHeight = container.container.height + 2 + this.probeOffset;
+				if (this.enableAudioFeedback)
+					Sound.volume = 0.3;
+				this.duration = 200;
+				this.fraction = 0;
+				this.animationState = "none";		// "none", "show", or "hide"
+			]]></method>
+			<method id="onScrolled" params="container"><![CDATA[
+				this.toLevelPopupY = container.y - container.levelPopup.height - container.levelPopupPointer.height - this.probeOffset;
+			]]></method>
+			<method id="onUndisplayed" params="container"><![CDATA[
+				if (this.enableAudioFeedback)
+					Sound.volume = 1.0;
+			]]></method>
+			<method id="setFingerPosition" params="container, x, y"><![CDATA[
+				this.fingerX = x;
+				this.fingerY = y;
+			
+				var parent = container.container;
+				var levelPopup = container.levelPopup;
+				this.updateLevelPopupBubble(container, parent, levelPopup, x);
+				
+				var levelPopupPointer = container.levelPopupPointer;
+				this.updateLevelPopupPointer(container, parent, levelPopup, levelPopupPointer, x);
+								
+				var levelPopupLine = container.levelPopupLine;
+				this.updateLevelPopupLine(container, parent, levelPopup, levelPopupPointer, levelPopupLine);
+			]]></method>		
+			<method id="updateLevelPopupBubble" params="container, parent, levelPopup, x"><![CDATA[
+				var popupX = x - (levelPopup.width / 2);
+				var pad = 4;
+				var minX = parent.x + pad;
+				var maxX = parent.x + (parent.width - levelPopup.width) - pad;
+				if (popupX < minX)	
+					popupX = minX;
+				else if (popupX > maxX)	
+					popupX = maxX;
+				levelPopup.x = popupX;
+				var popupY;
+				switch (this.animationState) {
+					case "none":
+						popupY = this.toLevelPopupY;
+						break;
+					case "show":
+						popupY = this.fromLevelPopupY + this.fraction * (this.toLevelPopupY - this.fromLevelPopupY);
+						break;
+					case "hide":
+						popupY = this.fromLevelPopupY + (1 - this.fraction) * (this.toLevelPopupY - this.fromLevelPopupY);
+						break; 
+				}
+				
+				levelPopup.y = popupY;					
+			]]></method>
+			<method id="updateLevelPopupPointer" params="container, parent, levelPopup, levelPopupPointer, x"><![CDATA[
+				pad = 6;
+				pad = pad + (levelPopupPointer.width / 2) + 2;
+				minX = parent.x + pad;
+				maxX = parent.x + (parent.width - levelPopupPointer.width);
+				if (x < minX)
+					x = minX;
+				else if (x > maxX)
+					x = maxX;
+				levelPopupPointer.x = x - (levelPopupPointer.width / 2);
+				levelPopupPointer.y = levelPopup.y + levelPopup.height - 2;
+			]]></method>
+			<method id="updateLevelPopupLine" params="container, parent, levelPopup, levelPopupPointer, levelPopupLine"><![CDATA[
+				levelPopupLine.x = levelPopupPointer.x + (levelPopupPointer.width / 2);
+				levelPopupLine.y = levelPopupPointer.y + levelPopupPointer.height - 1;
+				
+				switch (this.animationState) {
+					case "none":
+						levelPopupLine.height = this.levelPopupLineHeight;
+						break;
+					case "show":
+						levelPopupLine.height = this.fraction * (this.targetEndLineY - levelPopupLine.y);
+						break;
+					case "hide":
+						break; 
+				}
+
+			]]></method>
+			<method id="setValue" params="container, value"><![CDATA[
+				if (value != this.lastValue) {
+					this.lastValue = value;
+					container.levelPopup.label.string = value;
+					if (this.enableAudioFeedback)
+						this.measureSound.play();
+				}
+			]]></method>
+			<method id="show" params="container"><![CDATA[
+				if (this.enableAudioFeedback)
+					this.openSound.play();
+				this.fromLevelPopupY = this.fingerY;
+				var levelPopup = container.levelPopup;
+				var levelPopupPointer = container.levelPopupPointer;
+				this.targetEndLineY = (levelPopup.y + levelPopup.height - 2) + levelPopupPointer.height - 1 + this.levelPopupLineHeight;
+				container.visible = true;
+				container.time = 0;
+				this.animationState = "show";
+				container.start();			
+			]]></method>
+			<method id="hide" params="container"><![CDATA[
+				if (this.enableAudioFeedback)
+					this.closeSound.play();
+				container.visible = false;
+			]]></method>
+			<method id="onTimeChanged" params="container"><![CDATA[
+				this.fraction = container.time / this.duration;
+				if (this.fraction >= 1)
+					this.fraction = 1;
+				this.fraction = Math.quadEaseOut(this.fraction);
+				if (this.fraction == 1) {
+					this.fraction = 1;
+					container.stop();
+					this.animationState = "none";
+				}
+				this.setFingerPosition(container, this.fingerX, this.fingerY);
+			]]></method>
+		</behavior>
+				
+		<container name="levelPopup" skin="levelPopupSkin" left="0" top="0" width="60" height="30">
+			<label name="label" style="levelPopupStyle"/>
+		</container>
+		<content name="levelPopupPointer" skin="levelPopupPointerSkin" left="0" top="0"/>
+		<content name="levelPopupLine" skin="blackSkin" left="0" top="0" width="2" height="54"/>
+	</container>	
+	
+	<port id="SampleGraph" active="true">
+		<behavior>
+			<method id="onCreate" params="port, data"><![CDATA[	
+				this.data = data;
+				this.numSamples = ("numSamples" in data) ? data.numSamples : 14;
+				this.barColor = ("barColor" in data) ? data.barColor : '#4293da';
+				this.currentBarColor = ("currentBarColor" in data) ? data.currentBarColor : '#63a842';
+				this.samples = new Array(this.numSamples);
+				this.frozenSamples = new Array(this.numSamples);
+				for (var i=0, c=this.numSamples; i < c; i++) {
+					this.samples[i] = this.frozenSamples[i] = 0;
+				}
+				this.frozen = false;
+			]]></method>
+			<method id="onDisplaying" params="port"><![CDATA[	
+				this.xStep = Math.floor(port.width / this.numSamples);
+				this.sampleWidth = this.xStep - 2;
+			]]></method>
+			<method id="onMeterLevelChanged" params="port, fraction"><![CDATA[
+				this.samples.shift();
+				this.samples.push(fraction);
+				port.invalidate();
+			]]></method>
+			<method id="drawSample" params="port, x, sampleWidth, fraction"><![CDATA[
+				var sampleHeight = fraction * port.height;
+				if (sampleHeight <= 1)
+					sampleHeight = 1;
+				var y = port.height - sampleHeight;
+				port.fillColor(this.fillColor, x, y, sampleWidth, sampleHeight);
+			]]></method>
+			<method id="onDraw" params="port"><![CDATA[	
+				xStep = this.xStep;
+				sampleWidth = this.sampleWidth;
+				var samples = this.getSamples();
+				var numSamples = samples.length;
+				var x = 0;
+				for (var i=0; i < numSamples; i++) {
+					if (i == (numSamples - 1))
+						this.fillColor = this.currentBarColor;
+					else
+						this.fillColor = this.barColor;
+					this.drawSample(port, x, sampleWidth, samples[i]);
+					x += xStep;
+				}	
+			]]></method>
+			<method id="onTouchBegan" params="port, id, x, y, ticks"><![CDATA[
+				this.frozen = true;
+				this.frozenSamples = this.samples.slice(0);		// clone array
+				this.lastX = x;
+				var hitSample = this.hitTestSample(port, x);
+				var value = this.frozenSamples[hitSample].toFixed(2);
+				var levelProbe = port.container.levelProbe;
+				levelProbe.delegate("setFingerPosition", x, y);
+				levelProbe.delegate("setValue", value);
+				levelProbe.delegate("show");
+				port.start();
+			]]></method>
+			<method id="onTouchMoved" params="port, id, x, y, ticks"><![CDATA[
+				this.lastX = x;
+				port.container.levelProbe.delegate("setFingerPosition", x, y);
+			]]></method>
+			<method id="onTimeChanged" params="port"><![CDATA[
+				var hitSample = this.hitTestSample(port, this.lastX);
+				var samples = this.getSamples();
+				var value = samples[hitSample].toFixed(2);
+				port.container.levelProbe.delegate("setValue", value);
+			]]></method>
+			<method id="onTouchEnded" params="port, id, x, y, ticks"><![CDATA[
+				port.container.levelProbe.delegate("hide");
+				port.stop();
+				this.frozen = false;
+			]]></method>	
+			<method id="onTouchCancelled" params="port, id, x, y, ticks"><![CDATA[
+				this.onTouchEnded(port, id, x, y, ticks);
+			]]></method>	
+			<method id="getSamples"><![CDATA[		
+				return this.frozen ? this.frozenSamples : this.samples;	
+			]]></method>					
+			<method id="hitTestSample" params="port, x"><![CDATA[		
+				x = x - port.container.x;
+				var hitSample = Math.floor(x / this.xStep);
+				if (hitSample < 0)	
+					hitSample = 0;
+				if (hitSample > (this.frozenSamples.length - 1))		
+					hitSample = this.frozenSamples.length - 1;
+				return hitSample;	
+			]]></method>
+		</behavior>
+	</port>
+
+	<container id="LevelMeterWithProbe">
+		<port name="levelMeter" like="SampleGraph" left="0" top="0" right="0" bottom="0"/>
+		<container name="levelProbe" like="LevelProbe"/>
+	</container>
+
+</module>

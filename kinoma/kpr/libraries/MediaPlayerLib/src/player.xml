@@ -1,0 +1,561 @@
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+	<!-- STYLES -->
+
+	<style id="videoTimeStyle" font="18px" color="white" align="center,middle"/>
+
+	<!-- ASSETS -->
+
+	<skin id="videoHeaderFooterSkin" color="#9a000000"/>
+	<skin id="videoBackgroundSkin" color="black"/>
+	<skin id="videoControllerViewedSkin" color="white"/>
+	<skin id="videoControllerUnviewedSkin" color="#9affffff"/>
+	<skin id="videoVolumeActiveSkin" color="white"/>
+	<skin id="videoVolumeInactiveSkin" color="#9affffff"/>
+
+	<texture id="videoControlsTexture" large="./assets/media-transport-controls.png"/>
+	<skin id="videoControlsSkin" texture="videoControlsTexture" x="0" y="0" width="36" height="40">
+		<variants offset="36"/>
+		<states offset="40"/>
+	</skin>
+
+	<texture id="videoGlyphsTexture" large="./assets/media-glyphs.png"/>
+	<skin id="videoGlyphsSkin" texture="videoGlyphsTexture" x="0" y="0" width="40" height="40">
+		<variants offset="40"/>
+		<states offset="40"/>
+	</skin>
+
+	<texture id="videoErrorTexture" large="./assets/video-error.png"/>
+	<skin id="videoErrorSkin" texture="videoErrorTexture" x="0" y="0" width="80" height="80"/>
+
+	<!-- BEHAVIORS -->
+
+	<behavior id="MediaButtonTracker"><![CDATA[
+		function onTouchBegan(container, id, x, y, ticks) {
+			this.data.CONTROLS.delegate("onTrackingBegan");
+		}
+		function onTouchCancelled(container, id, x, y, ticks) {
+			this.data.CONTROLS.delegate("onTrackingEnded");
+		}
+		function onTouchEnded(container, id, x, y, ticks) {
+			this.data.CONTROLS.delegate("onTrackingEnded");
+		}
+	]]></behavior>
+
+	<behavior id="MediaButtonBehavior" like="CONTROL.ButtonBehavior"><![CDATA[
+		function onTouchBegan(container, id, x, y, ticks) {
+			CONTROL.ButtonBehavior.prototype.onTouchBegan.call(this, container, id, x, y, ticks);
+			this.data.CONTROLS.delegate("onTrackingBegan");
+		}
+		function onTouchCancelled(container, id, x, y, ticks) {
+			CONTROL.ButtonBehavior.prototype.onTouchCancelled.call(this, container, id, x, y, ticks);
+			this.data.CONTROLS.delegate("onTrackingEnded");
+		}
+		function onTouchEnded(container, id, x, y, ticks) {
+			CONTROL.ButtonBehavior.prototype.onTouchEnded.call(this, container, id, x, y, ticks);
+			this.data.CONTROLS.delegate("onTrackingEnded");
+		}
+	]]></behavior>
+
+	<behavior id="Slider" like="MediaButtonTracker"><![CDATA[
+		function compute(container, min, max, x) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var value = (max - min) * (x - background.x) / background.width;
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			return value;
+		}
+		function onTouchBegan(container, id, x, y, ticks) {
+			var button = container.last;
+			button.state = 2;
+			this.onTouchMoved(container, id, x, y, ticks);
+			MediaButtonTracker.prototype.onTouchBegan.call(this, container, id, x, y, ticks);
+		}
+		function onTouchEnded(container, id, x, y, ticks) {
+			MediaButtonTracker.prototype.onTouchEnded.call(this, container, id, x, y, ticks);
+			var button = container.last;
+			button.state = 1;
+		}
+		function update(container, value) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var backgroundCoordinates = background.coordinates;
+			var barCoordinates = bar.coordinates;
+			var buttonCoordinates = button.coordinates;
+			barCoordinates.width = Math.round(value * (container.width - backgroundCoordinates.left - backgroundCoordinates.right));
+			buttonCoordinates.left = barCoordinates.left + barCoordinates.width - (button.width >> 1);
+			bar.coordinates = barCoordinates;
+			button.coordinates = buttonCoordinates;
+		}
+	]]></behavior>
+
+	<behavior id="PlayerBehavior"><![CDATA[
+		function onCreate(container, data) {
+			this.data = data;
+		}
+		function onMeasureVertically(container) {
+			return application.height;
+		}
+		function onDisplaying(container) {
+			this.addTools(this.data.FOOTER, this.data);
+		}
+		function getMedia() {
+			var result = {};
+			result.url = this.data.url;
+			if ("mime" in this.data)
+				result.mime = this.data.mime;
+			return result;
+		}
+		function getNextMedia() {
+			debugger
+		}
+		function getPreviousMedia() {
+			debugger
+		}
+		function addTools(container) {
+			debugger
+		}
+	]]></behavior>
+
+	<behavior id="MediaBehavior"><![CDATA[
+		function onCreate(media, data) {
+			this.data = data;
+			this.media = media;
+			this.startTime = ("startTime" in data ? data.startTime : 0);
+			this.volume = ("volume" in data ? data.volume : 1);
+			this.power = null;
+		}
+		function onDisplaying(media) {
+			var result = media.container.behavior.getMedia();
+			var url = result.url;
+			var mime = ("mime" in result ? result.mime : undefined);
+			media.load(url, mime);
+		}
+		function onLoaded(media) {
+			media.time = this.startTime;
+			delete this.startTime;
+			media.volume = this.volume;
+			media.start();
+		}
+		function onUndisplayed(media) {
+			if (this.power) {
+				this.power.close();
+				delete this.power;
+			}
+		}
+		function onStateChanged(media) {
+			var state = media.state;
+			switch (media.state) {
+				case Media.FAILED:
+					trace("onStateChanged - Media.FAILED\n");
+					break;
+				case Media.PAUSED:
+					trace("onStateChanged - Media.PAUSED\n");
+					break;
+				case Media.PLAYING:
+					trace("onStateChanged - Media.PLAYING\n");
+					break;
+				case Media.WAITING:
+					trace("onStateChanged - Media.WAITING\n");
+					break;
+			}
+			if ((null != this.power) != (state == Media.WAITING || state == Media.PLAYING)) {
+				if (this.power) {
+					this.power.close();
+					delete this.power;
+				}
+				else {
+					this.power = new system.Power("backlight");	// don't let phone sleep/suspend while buffering or playing
+				}
+			}
+			media.container.distribute("onMediaStateChanged", media);
+		}
+		function onTimeChanged(media) {
+			media.container.distribute("onMediaTimeChanged", media);
+		}
+		function onFinished(media) {
+			media.stop();
+		}
+		function getStartTime() {
+			if ("startTime" in this)
+				return this.startTime;
+			return this.media.time;
+		}
+		function onFormatChange(media) {
+			if (!("startTime" in this))
+				this.startTime = media.time;
+			var result = media.container.behavior.getMedia();
+			var url = result.url;
+			var mime = ("mime" in result ? result.mime : undefined);
+			this.data.WAIT.delegate("start");	// because media.load doesn't seem to trigger the state change immediately
+			media.load(url, mime);
+		}
+		function onWindowDeactivated(media) {
+			media.stop();
+			return true;
+		}
+	]]></behavior>
+
+	<!-- LAYOUTS -->
+	
+	<container id="MediaPlayerHeader" left="0" right="0" top="0" height="40" active="true" skin="videoHeaderFooterSkin">
+		<behavior><![CDATA[
+			function onCreate(container, data) {
+				this.data = data;
+			}
+		]]></behavior>
+		<line left="0" right="0" top="0" bottom="0">
+			<layout anchor="SEEKER" left="0" right="12" top="0" bottom="0" active="true">
+				<behavior like="Slider"><![CDATA[
+					function onCreate(container, data) {
+						this.data = data;
+						this.first = true;
+					}
+					function onMeasureVertically(container, height) {
+						var media = this.data.MEDIA;
+						if (media) {
+							var value = media.ready ? media.time / media.duration : 0;
+							this.update(container, value);
+						}
+						this.first = false;
+						return height;
+					}
+					function onMediaTimeChanged(container, media) {
+						if (!this.first && !media.ready) return;
+						var duration = media.duration;
+						var time = media.time;
+						var left = container.first;
+						var right = left.next;
+						left.string = this.toTimeCode(time);
+						right.string = this.toTimeCode(duration);
+						this.update(container, time / duration);
+					}
+					function onTouchBegan(container, id, x, y, ticks) {
+						var media = this.data.MEDIA;
+						this.playing = media.state == Media.PLAYING;
+						if (this.playing)
+							media.stop();
+						media.seeking = true;
+						Slider.prototype.onTouchBegan.call(this, container, id, x, y, ticks);
+					}
+					function onTouchEnded(container, id, x, y, ticks) {
+						var media = this.data.MEDIA;
+						media.seeking = false;
+						if (this.playing)
+							media.start();
+						Slider.prototype.onTouchEnded.call(this, container, id, x, y, ticks);
+					}
+					function onTouchMoved(container, id, x, y, ticks) {
+						var media = this.data.MEDIA;
+						media.time = this.compute(container, 0, media.duration, x);
+					}
+					function toTimeCode(timeInMS) {
+						var seconds = timeInMS / 1000;
+						result = "";
+						seconds = Math.floor(seconds);
+						var hours = Math.floor(seconds / 3600);
+						seconds = seconds % 3600;
+						var minutes = Math.floor(seconds / 60);
+						seconds = Math.round(seconds % 60);
+						if (hours)
+							result += hours + ":";
+						if (minutes < 10)
+							result += "0";
+						result += minutes;
+						result += ":";
+						if (seconds < 10)
+							result += "0";
+						result += seconds;
+						return result;
+					}
+				]]></behavior>
+				<label left="0" top="0" bottom="0" width="60" style="videoTimeStyle"/>
+				<label right="0" top="0" bottom="0" width="60" style="videoTimeStyle"/>
+				<content left="60" right="60" height="4" skin="videoControllerUnviewedSkin"/>
+				<content left="60" height="4" width="0" skin="videoControllerViewedSkin"/>
+				<content left="60" top="0" bottom="0" skin="videoControlsSkin" variant="4" state="1"/>
+			</layout>
+			<container anchor="CLOSE" right="0" top="0" width="40" height="40" active="true">
+				<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+					function onTap(button) {
+						var media = this.data.MEDIA;
+						if (media) {
+							var startTime = media.delegate("getStartTime");
+							var duration = media.duration;
+							if ((duration > 0) && (startTime >= duration))
+								startTime = 0;
+							this.data.startTime = startTime;
+							this.data.volume = media.volume;
+							media.url = null;
+						}
+						button.bubble("onPlayerClose", this.data);
+					}
+				]]></behavior>
+				<content skin="videoGlyphsSkin" variant="0"/>
+			</container>
+		</line>
+	</container>
+
+	<container id="MediaPlayerFooter" left="0" right="0" bottom="0" height="40" active="true" skin="videoHeaderFooterSkin">
+		<behavior><![CDATA[
+			function onCreate(container, data) {
+				this.data = data;
+			}
+		]]></behavior>
+		<content left="0" top="0" width="40" height="40" skin="videoGlyphsSkin" variant="1" state="1" visible="'true'!=getEnvironmentVariable('ios')"/>
+		<layout anchor="VOLUME" left="0" top="0" bottom="0">
+			<behavior like="Slider"><![CDATA[
+				function onCreate(container, data) {
+					var ios = ("true" == getEnvironmentVariable("ios"));
+					this.data = data;
+					this.volume = ("volume" in data ? data.volume : 1.0);
+					container.visible = !ios;
+					container.active = !ios;
+				}
+				function onMeasureHorizontally(container) {
+					var width = application.width > application.height ? 134 : 90;
+					width += (videoGlyphsSkin.width >> 1);
+					return width;
+				}
+				function onMeasureVertically(container, height) {
+					this.update(container, this.volume);
+					return height;
+				}
+				function onTouchMoved(container, id, x, y, ticks) {
+					var media = this.data.MEDIA;
+					this.volume = this.compute(container, 0, 1, x);
+					this.update(container, this.volume);
+					if (media)
+						media.volume = this.volume;
+				}
+			]]></behavior>
+			<content left="40" right="videoGlyphsSkin.width >> 1" height="4" skin="videoVolumeInactiveSkin"/>
+			<content left="40" height="4" width="0" skin="videoVolumeActiveSkin"/>
+			<content left="40" top="0" bottom="0" skin="videoControlsSkin" variant="4" state="1"/>
+		</layout>
+		<line anchor="TRANSPORT" top="0" bottom="0" width="120">
+			<container anchor="PREVIOUS" left="0" top="0" active="true">
+				<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+					function onTap(button) {
+						button.bubble("onPlayerPrevious");
+					}
+				]]></behavior>
+				<content skin="videoControlsSkin" variant="2"/>
+			</container>
+			<content width="6"/>
+			<container anchor="PLAY" left="0" top="0" active="false">
+				<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+					function onMediaStateChanged(container, media) {
+						var button = container.first;
+						switch (media.state) {
+							case Media.FAILED:
+								container.active = false;
+								button.visible = false;
+								break;
+							case Media.PAUSED:
+								container.active = true;
+								button.visible = true;
+								button.variant = 1;
+								break;
+							case Media.PLAYING:
+								container.active = true;
+								button.visible = true;
+								button.variant = 0;
+								break;
+							case Media.WAITING:
+								container.active = false;
+								break;
+						}
+					}
+					function onTap(button) {
+						var media = this.data.MEDIA;
+						if (media) {
+							if (media.state == Media.PAUSED) {
+								if (media.time >= media.duration)
+									media.time = 0;
+								media.start();
+							}
+							else if (media.state == Media.PLAYING)
+								media.stop();
+						}
+					}
+				]]></behavior>
+				<content skin="videoControlsSkin" variant="1"/>
+			</container>
+			<content width="6"/>
+			<container anchor="NEXT" left="0" top="0" active="true">
+				<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+					function onTap(button) {
+						button.bubble("onPlayerNext");
+					}
+				]]></behavior>
+				<content skin="videoControlsSkin" variant="3"/>
+			</container>
+		</line>
+	</container>
+
+	<layout id="Player" behavior="PlayerBehavior" left="0" right="0" top="0" bottom="0">
+		<media anchor="MEDIA" behavior="MediaBehavior" left="0" right="0" top="0" bottom="0"/>
+		<container anchor="CONTROLS" left="0" top="0" right="0" bottom="0" active="true">
+			<behavior><![CDATA[
+				function onCreate(container, data) {
+					this.data = data;
+					this.container = container;
+					container.duration = 5000;
+				}
+				function onDisplaying(container) {
+					var media = this.data.MEDIA;
+					if (media)
+						this.onMediaStateChanged(container, media);
+				}
+				function onMediaStateChanged(container, media) {
+					if (!media.url) return;
+					switch (media.state) {
+						case Media.FAILED:
+							this.data.ERROR.visible = true;
+							this.data.FOOTER.visible = false;
+							this.data.SEEKER.visible = false;
+							this.data.WAIT.delegate("stop");
+							break;
+						case Media.WAITING:
+							container.stop();
+							this.data.HEADER.visible = true;
+							this.data.FOOTER.visible = true;
+							this.data.WAIT.delegate("start");
+							break;
+						case Media.PLAYING:
+							this.data.WAIT.delegate("stop");
+							container.time = 0;
+							container.start();
+							break;
+						case Media.PAUSED:
+							this.data.HEADER.visible = true;
+							this.data.FOOTER.visible = true;
+							this.data.WAIT.delegate("stop");
+							container.stop();
+							break;
+					}
+				}
+				function onTrackingBegan(container) {
+					container.stop();
+				}
+				function onTrackingEnded(container) {
+					var media = this.data.MEDIA;
+					if (Media.PLAYING == media.state) {
+						container.time = 0;
+						container.start();
+					}
+				}
+				function onFinished(container) {
+					this.hideShowHeaderFooter(container, false);
+				}
+				function hideShowHeaderFooter(container, show) {
+					container.run(new MediaPlayerHeaderFooterShowHideTransition, this.data.HEADER, this.data.FOOTER, show);
+				}
+				function onTransitionEnded(container) {
+					if (this.data.HEADER.visible) {
+						container.time = 0;
+						container.start();
+					}
+				}
+				function onTouchBegan(container, id, x, y, ticks) {
+					if (this.data.HEADER.visible || container.transitioning) return;
+					
+					container.stop();
+					this.hideShowHeaderFooter(container, true);
+				}
+			]]></behavior>
+			<container anchor="HEADER" like="MediaPlayerHeader"/>
+			<container anchor="FOOTER" like="MediaPlayerFooter"/>
+			<container anchor="WAIT" left="0" right="0" top="40" bottom="40" skin="videoHeaderFooterSkin" visible="false">
+				<behavior><![CDATA[
+					function onCreate(container, data) {
+						this.container = container;
+					}
+					function start() {
+						this.container.visible = true;
+						this.container.first.start();
+					}
+					function stop() {
+						this.container.visible = false;
+						this.container.first.stop();
+					}
+				]]></behavior>
+				<picture width="200" height="200" url="'./assets/streak-spinner-white.png'">
+					<behavior><![CDATA[
+						function onCreate(picture) {
+							picture.origin = {x: 100, y: 100};
+							picture.scale = {x: 0.4, y: 0.4};
+						}
+						function onTimeChanged(picture) {
+							var rotation = picture.rotation;
+							rotation += 6;
+							if (rotation == 360)
+								rotation = 0;
+							picture.rotation = rotation;
+						}
+					]]></behavior>
+				</picture>
+			</container>
+			<content anchor="ERROR" width="80" height="80" skin="videoErrorSkin" visible="false"/>
+		</container>
+	</layout>
+
+	<!-- TRANSITIONS -->
+
+	<transition id="MediaPlayerHeaderFooterShowHideTransition" duration="250"><![CDATA[
+		function onBegin(application, header, footer, flag) {
+			this.flag = flag;
+			this.layer0 = new Layer;
+			this.layer1 = new Layer;
+			if (flag) {
+				header.visible = true;
+				footer.visible = true;
+			}
+			this.layer0.attach(header);
+			this.layer1.attach(footer);
+		}
+		function onEnd(application, header, footer, flag) {
+			this.layer0.detach();
+			this.layer1.detach();
+			if (!flag) {
+				header.visible = false;
+				footer.visible = false;
+			}
+		}
+		function onStep(fraction) {
+			var flag = this.flag;
+			var header = this.layer0;
+			var footer = this.layer1;
+			header.translation = { y: (0 - header.height) * (flag ? (1 - fraction) : fraction ) };
+			footer.translation = { y: footer.height * (flag ? (1 - fraction) : fraction ) };
+		}
+	]]></transition>
+
+	<!-- EXPORTS -->
+
+	exports.Player = Player;
+	exports.PlayerBehavior = PlayerBehavior;
+	exports.MediaButtonBehavior = MediaButtonBehavior;
+	exports.videoBackgroundSkin = videoBackgroundSkin;
+
+</module>

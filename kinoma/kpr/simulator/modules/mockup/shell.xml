@@ -1,0 +1,785 @@
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+     
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+     
+       http://www.apache.org/licenses/LICENSE-2.0
+     
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	<require path="mockup/keyboard" id="KEYBOARD"/>
+	
+	<behavior id="ShellBehavior">
+		<field id="applicationItem" value="null"/>
+		<field id="applicationsMenu" value="null"/>
+		<field id="background" value="'black'"/>
+		<field id="device" value="null"/>
+		<field id="deviceItem" value="null"/>
+		<field id="devicesMenu" value="null"/>
+		<field id="horizontal" value="'Horizontal'"/>
+		<field id="host" value="null"/>
+		<field id="orientation" value="'Horizontal'"/>
+		<field id="preferences" value="'kprSimulatorPreferences.json'"/>
+		<field id="screen" value="null"/>
+		<field id="touchImages" value="[]"/>
+		<field id="touchImageURL" value="mergeURI(shell.url, '../../simulator/modules/fingerprint.png')"/>
+		<field id="vertical" value="'Vertical'"/>
+		
+		<method id="buildApplicationsMenu" params="data"><![CDATA[
+			var menu = {
+				title: "Applications", 
+				items: [],
+			};
+			var items = menu.items;
+			if ("applications" in data) {
+				var base = shell.url;
+				var index = 1;
+				data.applications.forEach(function(item) {
+					if (typeof(item) == "string") {
+						var directory = mergeURI(base, item);
+						if (Files.exists(directory) == Files.directoryType) {
+							var iterator = new Files.Iterator(directory);
+							var info;
+							while (info = iterator.getNext()) {
+								if (info.type == Files.directoryType) {
+									var url = mergeURI(directory, info.path + "/application.xml");
+									if (Files.exists(url)) {
+										try {
+											var item = Grammar.load(url);
+											if (!item.title) 
+												item.title = info.path;
+											if (item.id && item.program) {
+												item.url = mergeURI(url, item.program);
+												items.push(item);
+											}
+										}
+										catch(e) {
+										}
+									}
+								}
+							}
+						}
+					}
+					else {
+						if (!item.title) {
+							item.title = "Application " + index;
+							index++;
+						}
+						if (item.id && item.program) {
+							item.url = mergeURI(base, item.program);
+							items.push(item);
+						}
+					}
+				});
+			}
+			menu.items.sort(this.compareTitle);
+			menu.items.every(this.indexItem);
+			return menu;
+		]]></method>
+		<method id="buildCustomMenu"><![CDATA[
+		]]></method>
+		<method id="buildDevice"><![CDATA[
+			delete this.screen;
+			var item = this.deviceItem;
+			if (!item.exports)
+				item.exports = require(item.url);
+			if (this.orientation in item.exports)
+				this.device = new item.exports[this.orientation](this);
+			else if (this.horizontal in item.exports) {
+				this.orientation = this.horizontal;
+				this.device = new item.exports[this.horizontal](this);
+			}
+			else if (this.vertical in item.exports) {
+				this.orientation = this.vertical;
+				this.device = new item.exports[this.vertical](this);
+			}
+		]]></method>
+		<method id="buildDevicesMenu" params="data"><![CDATA[
+			var menu = {
+				title: "Devices", 
+				items: [],
+			};
+			var items = menu.items;
+			if ("devices" in data) {
+				var base = shell.url;
+				var index = 1;
+				data.devices.forEach(function(item) {
+					if (typeof(item) == "string") {
+						var directory = mergeURI(base, item);
+						if (Files.exists(directory) == Files.directoryType) {
+							var iterator = new Files.Iterator(directory);
+							var info;
+							while (info = iterator.getNext()) {
+								if (info.type == Files.directoryType) {
+									var url = mergeURI(directory, info.path + "/device.xml");
+									if (Files.exists(url)) {
+										try {
+											item = Grammar.load(url);
+											if (!item.title) 
+												item.title = info.path;
+											if (item.module) {
+												item.url = mergeURI(url, item.module);
+												items.push(item);
+											}
+										}
+										catch(e) {
+										}
+									}
+								}
+							}
+						}
+					}
+					else {
+						if (!item.title) {
+							item.title = "Device " + index;
+							index++;
+						}
+						if (item.module) {
+							item.url = mergeURI(base, item.module);
+							items.push(item);
+						}
+					}
+				});
+			}
+			menu.items.sort(this.compareTitle);
+			menu.items.every(this.indexItem);
+			return menu;
+		]]></method>
+		<method id="buildGrammar" params=""><![CDATA[
+			var manifest = {};
+			manifest.application = Object.create(Object.prototype, {
+				check: { configurable: true, enumerable: false, writable: true, value: false },
+				command: { configurable: true, enumerable: false, writable: true, value: "SelectApplication" },
+				id: { configurable: true, enumerable: false, writable: true, value: "" },
+				index: { configurable: true, enumerable: false, writable: true, value: 0 },
+				program: { configurable: true, enumerable: false, writable: true, value: "" },
+				title: { configurable: true, enumerable: false, writable: true, value: "" },
+				url: { configurable: true, enumerable: false, writable: true, value: "" },
+				version: { configurable: true, enumerable: false, writable: true, value: "1.0" },
+			});
+			manifest.device = Object.create(Object.prototype, {
+				check: { configurable: true, enumerable: false, writable: true, value: false },
+				command: { configurable: true, enumerable: false, writable: true, value: "SelectDevice" },
+				exports: { configurable: true, enumerable: false, writable: true, value: null },
+				index: { configurable: true, enumerable: false, writable: true, value: 0 },
+				module: { configurable: true, enumerable: false, writable: true, value: "" },
+				title: { configurable: true, enumerable: false, writable: true, value: "" },
+				url: { configurable: true, enumerable: false, writable: true, value: "" },
+				version: { configurable: true, enumerable: false, writable: true, value: "1.0" },
+			});
+			var g = new Grammar;
+			g.namespace("http://www.kinoma.com/kpr/1", "kpr");
+			g.object(manifest.application, "/kpr:application", {
+				id: g.string("@id"),
+				program: g.string("@program"),
+				title: g.string("@title"),
+				version: g.string("@version"),
+			});
+			g.object(manifest.device, "/kpr:device", {
+				module: g.string("@module"),
+				title: g.string("@title"),
+				version: g.string("@version"),
+			});
+			g.link();
+		]]></method>
+		<method id="buildHelpMenu" params=""><![CDATA[
+			return {
+				title: "Help", 
+				items: [
+					{ title: "Kinoma Developer", command: "Support" },
+					null,
+					{ title: "About Kinoma Simulator", command: "About"},
+				]
+			};
+		]]></method>
+		<method id="buildHost"><![CDATA[
+			var item = this.applicationItem;
+			this.host = new Host({left: 0, right: 0, top: 0, bottom: 0}, item.url, item.id);
+		]]></method>
+		<method id="buildHostMenu" params=""><![CDATA[
+			return { 
+				title: "Host", 
+				items: [
+					{ title: "Reload", key: "L", command: "ReloadHost" },
+					null,
+					{ title: "Break", key: "B", command: "BreakHost"},
+					{ title: "Debug", command: "ToggleHostDebugging"},
+					null,
+					{ title: "Profile", key: "", command: "ToggleHostProfiling"},
+					{ title: "Purge", key: "", command: "PurgeHost"},
+				]
+			};
+		]]></method>
+		<method id="buildShellMenu" params=""><![CDATA[
+			return { 
+				title: "Shell", 
+				items: [
+					{ title: "Rotate", key: "R", command: "RotateDevice" },
+					{ title: "Touch Mode", key: "T", command: "ToggleShellTouchMode" },
+					null,
+					{ title: "Break", command: "BreakShell"},
+					{ title: "Debug", command: "ToggleShellDebugging"},
+					null,
+					{ title: "Profile", key: "", command: "ToggleShellProfiling"},
+					{ title: "Purge", key: "", command: "PurgeShell"},
+					null,
+					{ title: "Delete Cookies", key: "", command: "DeleteCookies"},
+					{ title: "Empty Cache", key: "", command: "EmptyCache"},
+					{ title: "Forget Passwords", key: "", command: "ForgetPasswords"},
+					null,
+					{ title: "White", key: "", command: "SelectBackground" },
+					{ title: "Gray", key: "", command: "SelectBackground" },
+					{ title: "Black", key: "", command: "SelectBackground" },
+					null,
+					{ title: "Exit", key: "Q", command: "Quit"},
+				]
+			};
+		]]></method>
+		
+		<method id="canAbout"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canBreakHost"><![CDATA[
+			var host = this.host;
+			return host ? host.debugging : false; 
+		]]></method>
+		<method id="canBreakShell"><![CDATA[
+			return shell.debugging; 
+		]]></method>
+		<method id="canDeleteCookies"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canEmptyCache"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canForgetPasswords"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canPurgeHost"><![CDATA[
+			return this.host ? true : false; 
+		]]></method>
+		<method id="canPurgeShell"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canQuit"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canReloadHost"><![CDATA[
+			return this.host ? true : false;
+		]]></method>
+		<method id="canRotateDevice"><![CDATA[
+			var item = this.deviceItem;
+			if (this.orientation == this.horizontal)
+				return this.vertical in item.exports; 
+			return this.horizontal in item.exports; 
+		]]></method>
+		<method id="canSelectApplication" params="shell, item"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canSelectBackground" params="shell, item"><![CDATA[
+			item.check = this.background == item.title.toLowerCase();
+			return true; 
+		]]></method>
+		<method id="canSelectDevice" params="shell, item"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canSupport" params="shell, item"><![CDATA[
+			return true; 
+		]]></method>
+		<method id="canToggleHostDebugging" params="shell, item"><![CDATA[
+			var host = this.host;
+			item.check = host ? host.debugging : false;
+			return host ? true : false; 
+		]]></method>
+		<method id="canToggleHostProfiling" params="shell, item"><![CDATA[
+			var host = this.host;
+			item.check = host ? host.profiling : false;
+			return host ? true : false;
+		]]></method>
+		<method id="canToggleShellDebugging" params="shell, item"><![CDATA[
+			item.check = shell.debugging;
+			return true; 
+		]]></method>
+		<method id="canToggleShellProfiling" params="shell, item"><![CDATA[
+			item.check = shell.profiling;
+			return true; 
+		]]></method>
+		<method id="canToggleShellTouchMode" params="shell, item"><![CDATA[
+			item.check = shell.touchMode;
+			return item.check; 
+		]]></method>
+		
+		<method id="compareTitle" params="a, b"><![CDATA[
+			return a.title.toLowerCase().compare(b.title.toLowerCase()); 
+		]]></method>
+		
+		<method id="doAbout"><![CDATA[
+			shell.alert("about", "Kinoma Simulator", "Copyright © 2012 Marvell. All rights reserved. Kinoma is a registered trademark of Kinoma, Inc."); 
+		]]></method>
+		<method id="doBreakHost"><![CDATA[
+			this.host["debugger"](); 
+		]]></method>
+		<method id="doBreakShell"><![CDATA[
+			debugger; 
+		]]></method>
+		<method id="doDeleteCookies"><![CDATA[
+			HTTP.Cookies.clear(); 
+		]]></method>
+		<method id="doEmptyCache"><![CDATA[
+			HTTP.Cache.clear(); 
+		]]></method>
+		<method id="doForgetPasswords"><![CDATA[
+			HTTP.Keychain.clear(); 
+		]]></method>
+		<method id="doPurgeHost"><![CDATA[
+			this.host.purge(); 
+		]]></method>
+		<method id="doPurgeShell"><![CDATA[
+			shell.purge(); 
+		]]></method>
+		<method id="doQuit" params="shell"><![CDATA[
+			shell.quit(); 
+		]]></method>
+		<method id="doReloadHost" params="shell, item"><![CDATA[
+			if (shell.transitioning)
+				return;
+			system.keyboard.visible = false;
+			this.screen.run(new CloseHostTransition(250), this.host);
+			this.buildHost();
+			this.screen.run(new OpenHostTransition(250), this.host);
+		]]></method>
+		<method id="doRotateDevice" params="shell, item"><![CDATA[
+			if (shell.transitioning)
+				return;
+			if (this.orientation == this.horizontal)
+				this.orientation = this.vertical;
+			else
+				this.orientation = this.horizontal;
+			var device = this.device;
+			var screen = this.screen;
+			this.buildDevice();
+			var angle = this.orientation == this.vertical ? 90 : -90;
+			shell.run(new RotateDeviceTransition(500), device, this.device, angle, screen, this.screen, this.host, system.keyboard.visible ? screen.last : null);
+		]]></method>
+		<method id="doSelectApplication" params="shell, item, delta"><![CDATA[
+			if (shell.transitioning)
+				return;
+			if (item.check)
+				return;
+			var former = this.applicationItem;
+			former.check = false;
+			item.check = true;
+			this.applicationItem = item;
+			var host = this.host;
+			this.buildHost();
+			if (!delta) delta = item.index < former.index ? -1 : 1;
+			shell.run(new SelectApplicationTransition(500), host, this.host, delta, this.device, this.screen);
+		]]></method>
+		<method id="doSelectApplicationBy" params="shell, delta"><![CDATA[
+			var menu = this.applicationsMenu;
+			if (menu) {
+				var i = this.applicationItem.index + delta;
+				var c = menu.items.length;
+				if (i < 0)
+					i = c - 1;
+				else if (c <= i)
+					i = 0; 
+				this.doSelectApplication(shell, menu.items[i], delta);
+			}
+		]]></method>
+		<method id="doSelectBackground" params="shell, item"><![CDATA[
+			this.setBackground(shell, item.title.toLowerCase());
+		]]></method>
+		<method id="doSelectDevice" params="shell, item, delta"><![CDATA[
+			if (shell.transitioning)
+				return;
+			if (item.check)
+				return;
+			var former = this.deviceItem;
+			former.check = false;
+			item.check = true;
+			this.deviceItem = item;
+			var device = this.device;
+			var screen = this.screen;
+			this.buildDevice();
+			if (!delta) delta = item.index < former.index ? -1 : 1;
+			shell.run(new SelectDeviceTransition(500), device, this.device, delta, screen, this.screen, this.host, system.keyboard.visible ? screen.last : null);
+		]]></method>
+		<method id="doSelectDeviceBy" params="shell, delta"><![CDATA[
+			var menu = this.devicesMenu;
+			if (menu) {
+				var i = this.deviceItem.index + delta;
+				var c = menu.items.length;
+				if (i < 0)
+					i = c - 1;
+				else if (c <= i)
+					i = 0; 
+				this.doSelectDevice(shell, menu.items[i], delta);
+			}
+		]]></method>
+		<method id="doSupport" params="shell, item"><![CDATA[
+			launchURI("http://developer.kinoma.com"); 
+		]]></method>
+		<method id="doToggleHostDebugging"><![CDATA[
+			this.host.debugging = !this.host.debugging; 
+		]]></method>
+		<method id="doToggleHostProfiling"><![CDATA[
+			this.host.profiling = !this.host.profiling; 
+		]]></method>
+		<method id="doToggleShellDebugging"><![CDATA[
+			shell.debugging = !shell.debugging; 
+		]]></method>
+		<method id="doToggleShellProfiling"><![CDATA[
+			shell.profiling = !shell.profiling; 
+		]]></method>
+		<method id="doToggleShellTouchMode"><![CDATA[
+			shell.touchMode = !shell.touchMode; 
+		]]></method>
+		
+		<method id="findApplicationByTitle" params="title"><![CDATA[
+			var menu = this.applicationsMenu;
+			if (menu) {
+				var items = menu.items;
+				var c = items.length;
+				for (var i = 0; i < c; i ++)  {
+					if (items[i].title == title) {
+						return i;
+					}
+				}
+			}
+			return -1;
+		]]></method>
+		<method id="findDeviceByTitle" params="title"><![CDATA[
+			var menu = this.devicesMenu;
+			if (menu) {
+				var items = menu.items;
+				var c = items.length;
+				for (var i = 0; i < c; i ++)  {
+					if (items[i].title == title) {
+						return i;
+					}
+				}
+			}
+			return -1;
+		]]></method>
+		<method id="indexItem" params="item, index"><![CDATA[
+			item.index = index;
+			return true;
+		]]></method>
+		<method id="install" params="id, path"><![CDATA[
+			var hostIndex = this.findHostByID(shell, id);
+			if (hostIndex < 0) {
+				this.buildHostMenu(shell, path);
+				shell.updateMenus();
+			}
+		]]></method>
+		<method id="launch" params="id, breakOnStart"><![CDATA[
+			var hostIndex = this.findHostByID(shell, id);
+			if (hostIndex >= 0)
+				this.doSelectHost(shell, this.hostMenu.items[hostIndex], undefined, breakOnStart);
+		]]></method>
+		<method id="launchHost" params="host"><![CDATA[
+			host.launch();
+			host.adapt();
+		]]></method>
+		<method id="onCreate" params="shell, data"><![CDATA[
+			this.buildGrammar();
+			shell.windowTitle = "Kinoma Simulator";
+			var menus = [], menu;
+			menus.push(this.buildShellMenu());
+			menu = this.buildDevicesMenu(data);
+			if (menu.items.length > 1) {
+				this.devicesMenu = menu;
+				menus.push(menu);
+			}
+			else if (menu.items.length > 0)
+				this.deviceItem = menu.items[0];
+			else {
+				trace("NO DEVICES!\n");
+				throw;
+			}
+			menus.push(this.buildHostMenu());
+			menu = this.buildApplicationsMenu(data);
+			if (menu.items.length > 1) {
+				this.applicationsMenu = menu;
+				menus.push(menu);
+			}
+			else if (menu.items.length > 0)
+				this.applicationItem = menu.items[0];
+			else {
+				trace("NO APPLICATIONS!\n");
+				throw;
+			}
+			menu = this.buildCustomMenu(data);
+			if (menu) 
+				menus.push(menu);
+			menus.push(this.buildHelpMenu());
+			shell.menus = menus;
+			if ("preferences" in data)
+				this.preferences = data.preferences;
+			this.readPreferences(shell);
+		]]></method>
+		<method id="onGetSystemKeyboardVisible" params="shell, showIt"><![CDATA[
+			return KEYBOARD.isShown();
+		]]></method>
+		<method id="onInvoke" params="shell, message"><![CDATA[
+			var query = parseQuery(message.query);
+			switch (message.name) {
+			case "quit":
+				shell.quit(); 
+				break;
+			default:
+				message.status = 404;
+				break;
+			}
+		]]></method>
+		<method id="onKeyDown" params="shell, key"><![CDATA[
+			var code = key.charCodeAt(0);
+			if (code == 28)
+				this.doSelectApplicationBy(shell, -1);
+			else if (code == 29)
+				this.doSelectApplicationBy(shell, 1);
+			else if (code == 30)
+				this.doSelectDeviceBy(shell, -1);
+			else if (code == 31)
+				this.doSelectDeviceBy(shell, 1);
+			else if (code == 0xF0002)
+				shell.dump();
+		]]></method>
+		<method id="onQuit" params="shell"><![CDATA[
+			this.host.quit();
+			this.writePreferences(shell);
+		]]></method>
+		<method id="onSetSystemKeyboardVisible" params="shell, showIt"><![CDATA[
+			KEYBOARD.show(showIt, this.screen);
+		]]></method>
+		<method id="onTouchBegan" params="target, id, x, y"><![CDATA[
+			if (target.touchMode) {
+				var image = new Picture({left: x - 20, top:  y - 20}, this.touchImageURL);
+				this.touchImages[id] = image;
+				target.add(image);
+			}
+		]]></method>
+		<method id="onTouchEnded" params="target, id, x, y"><![CDATA[
+			if (target.touchMode) {
+				var image = this.touchImages[id];
+				if (image) {
+					target.remove(image);
+					delete this.touchImages[id];
+				}
+				target.touchMode = true; // center cursor
+			}
+		]]></method>
+		<method id="onTouchMoved" params="target, id, x, y"><![CDATA[
+			if (target.touchMode) {
+				var image = this.touchImages[id];
+				if (image)
+					image.position = { x: x - 20, y: y - 20 };
+			}
+		]]></method>
+		<method id="quitHost" params="host"><![CDATA[
+			host.quit();
+		]]></method>
+		<method id="readPreferences" params="shell"><![CDATA[
+			var applicationIndex = -1;
+			var deviceIndex = -1;
+			try {
+				var url = mergeURI(Files.preferencesDirectory, this.preferences);
+				if (Files.exists(url)) {
+					var preferences = JSON.parse(Files.readText(url));
+					if ("applicationTitle" in preferences)
+						applicationIndex = this.findApplicationByTitle(preferences.applicationTitle);
+					if ("background" in preferences)
+						this.setBackground(shell, preferences.background);
+					else
+						this.setBackground(shell, "black");
+					if ("deviceTitle" in preferences)
+						deviceIndex = this.findDeviceByTitle(preferences.deviceTitle);
+					if ("orientation" in preferences)
+						this.orientation = preferences.orientation;
+					if ("windowState" in preferences)
+						shell.windowState = preferences.windowState;
+				}
+			}
+			catch(e) {
+			}
+			if (this.applicationsMenu) {
+				if (applicationIndex < 0) applicationIndex = 0;
+				var applicationItem = this.applicationsMenu.items[applicationIndex];
+				this.applicationItem = applicationItem;
+				this.applicationItem.check = true;
+			}
+			if (this.devicesMenu) {
+				if (deviceIndex < 0) deviceIndex = 0;
+				var deviceItem = this.devicesMenu.items[deviceIndex];
+				this.deviceItem = deviceItem;
+				this.deviceItem.check = true;
+			}
+			this.buildDevice(this.deviceItem);
+			this.buildHost(this.applicationItem);
+			this.screen.add(this.host);
+			shell.add(this.device);
+			this.launchHost(this.host);
+		]]></method>
+		<method id="setBackground" params="shell, color"><![CDATA[
+			this.background = color;
+			shell.skin = new Skin(color);
+		]]></method>
+		<method id="writePreferences" params="shell"><![CDATA[
+			try {
+				var url = mergeURI(Files.preferencesDirectory, this.preferences);
+				var preferences = {
+					background: this.background,
+					orientation: this.orientation,
+					windowState: shell.windowState,
+				};
+				if (this.applicationsMenu)
+					preferences.applicationTitle = this.applicationItem.title;
+				if (this.devicesMenu)
+					preferences.deviceTitle = this.deviceItem.title;
+				Files.writeText(url, JSON.stringify(preferences));
+			}
+			catch(e) {
+			}
+		]]></method>
+	</behavior>
+
+	<transition id="CloseHostTransition">
+		<method id="onBegin" params="container, content"><![CDATA[
+			var layer = this.layer = new Layer;
+			layer.attach(content);
+		]]></method>
+		<method id="onEnd" params="container, content"><![CDATA[
+			this.layer.detach();
+			shell.behavior.quitHost(content);
+			container.remove(content);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			this.layer.opacity = 1 - fraction;
+		]]></method>
+	</transition>
+
+	<transition id="OpenHostTransition">
+		<method id="onBegin" params="container, content"><![CDATA[
+			container.add(content);
+			shell.behavior.launchHost(content);
+			var layer = this.layer = new Layer;
+			layer.attach(content);
+			layer.opacity = 0;
+		]]></method>
+		<method id="onEnd" params="container, content"><![CDATA[
+			this.layer.detach();
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			this.layer.opacity = fraction;
+		]]></method>
+	</transition>
+
+	<transition id="RotateDeviceTransition">
+		<method id="onBegin" params="container, formerDevice, currentDevice, angle, formerScreen, currentScreen, host, keyboard"><![CDATA[
+			var layer = this.layer = new Layer;
+			layer.attach(formerDevice);
+			layer.origin = { x: formerDevice.width / 2, y: formerDevice.height / 2};
+			this.angle = angle;
+		]]></method>
+		<method id="onEnd" params="container, formerDevice, currentDevice, angle, formerScreen, currentScreen, host, keyboard"><![CDATA[
+			this.layer.detach();
+			if (keyboard)
+				formerScreen.remove(keyboard);
+			if (host) {
+				host.rotating = true;
+				formerScreen.remove(host);
+			}
+			container.remove(formerDevice);
+			container.add(currentDevice);
+			if (host) {
+				currentScreen.add(host);
+				host.rotating = false;
+				host.adapt();
+			}
+			if (keyboard) {
+				currentScreen.add(keyboard);
+				KEYBOARD.adapt();
+			}
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			this.layer.rotation = this.angle * fraction;
+		]]></method>
+	</transition>
+
+	<transition id="SelectApplicationTransition">
+		<method id="onBegin" params="container, formerHost, currentHost, sign, device, screen"><![CDATA[
+			screen.add(currentHost);
+			shell.behavior.launchHost(currentHost);
+			var formerLayer = this.formerLayer = new Layer;
+			formerLayer.attach(formerHost);
+			this.formerDelta = (0 - sign) * device.width;
+			var currentLayer = this.currentLayer = new Layer;
+			currentLayer.attach(currentHost);
+			this.currentDelta = sign * device.width;
+		]]></method>
+		<method id="onEnd" params="container, formerHost, currentHost, sign, device, screen"><![CDATA[
+			this.currentLayer.detach();
+			this.formerLayer.detach();
+			shell.behavior.quitHost(formerHost);
+			screen.remove(formerHost);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			this.formerLayer.translation = {x: this.formerDelta * fraction};
+			this.currentLayer.translation = {x: this.currentDelta * (1 - fraction)};
+		]]></method>
+	</transition>
+
+	<transition id="SelectDeviceTransition">
+		<method id="onBegin" params="container, formerDevice, currentDevice, sign, formerScreen, currentScreen, host, keyboard"><![CDATA[
+			var formerLayer = this.formerLayer = new Layer;
+			formerLayer.capture(formerDevice);
+			var coordinates = formerLayer.coordinates;
+			delete coordinates.left;
+			delete coordinates.top;
+			formerLayer.coordinates = coordinates;
+			this.formerDelta = (0 - sign) * container.height;
+			if (keyboard)
+				formerScreen.remove(keyboard);
+			if (host) {
+				host.rotating = true;
+				formerScreen.remove(host);
+			}
+			container.replace(formerDevice, formerLayer);
+			container.add(currentDevice);
+			if (host) {
+				currentScreen.add(host);
+				host.rotating = false;
+				host.adapt();
+			}
+			if (keyboard) {
+				currentScreen.add(keyboard);
+				KEYBOARD.adapt();
+			}
+			var currentLayer = this.currentLayer = new Layer;
+			currentLayer.attach(currentDevice);
+			this.currentDelta = sign * container.height;
+		]]></method>
+		<method id="onEnd" params="container, formerDevice, currentDevice, sign, formerScreen, currentScreen, host, keyboard"><![CDATA[
+			this.currentLayer.detach();
+			container.remove(this.formerLayer);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			this.formerLayer.translation = {y: this.formerDelta * fraction};
+			this.currentLayer.translation = {y: this.currentDelta * (1 - fraction)};
+		]]></method>
+	</transition>
+</module>

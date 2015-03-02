@@ -1,0 +1,254 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+    
+    <require id="ExtensionManager" path="kdt/core/ExtensionManager"/>
+
+    <!-- orientation constants -->
+    <variable id="HORIZONTAL_RIGHT" value="'horizontal-right'"/>
+    <variable id="HORIZONTAL_LEFT" value="'horizontal-left'"/>
+    <variable id="VERTICAL" value="'vertical'"/>
+    <variable id="UPSIDE_DOWN" value="'upside-down'"/>
+
+    <!-- touch constants -->
+    <variable id="NONE" value="'none'"/>
+    <variable id="SINGLE" value="'single'"/>
+    <variable id="MULTI" value="'multi'"/>
+
+    <function id="createDeviceExtension">
+        <![CDATA[
+            return Object.create( manifest.device );
+        ]]>
+    </function>
+    
+    <function id="createDeviceExtensionMockup">
+        <![CDATA[
+            return Object.create( manifest.mockup );
+        ]]>
+    </function>
+    
+    <function id="createDeviceExtensionBackground">
+        <![CDATA[
+            return Object.create( manifest.background );
+        ]]>
+    </function>
+    
+    <function id="createDeviceExtensionScreen">
+        <![CDATA[
+            return Object.create( manifest.screen );
+        ]]>
+    </function>
+    
+    <function id="createDeviceExtensionEvent">
+        <![CDATA[
+            return Object.create( manifest.event );
+        ]]>
+    </function>
+
+    <function id="getRotation" params="orientation">
+        <![CDATA[
+            var rotation = 0;
+        
+            switch( orientation )
+            {
+                case HORIZONTAL_RIGHT:
+                    rotation = 90;
+                    break;
+                case HORIZONTAL_LEFT:
+                    rotation = 270;
+                    break;
+                case UPSIDE_DOWN:
+                    rotation = 180;
+                    break;
+            }
+            
+            return rotation;
+        ]]>
+    </function>
+    
+    <function id="isOrientationSupported" params="orientation">
+        <![CDATA[
+            var supported = false;
+        
+            switch( orientation )
+            {
+                case HORIZONTAL_RIGHT:
+                case HORIZONTAL_LEFT:
+                case VERTICAL:
+                case UPSIDE_DOWN:
+                    supported = true;
+            }
+            
+            return supported;
+        ]]>
+    </function>
+
+    <function id="newInstance" params="pathList">
+        <![CDATA[
+            return new DeviceManager( pathList );
+        ]]>
+    </function>
+
+    <class id="DeviceManager" like="ExtensionManager">
+        <constructor params="pathList">
+            <![CDATA[
+                ExtensionManager.ExtensionManager.call( this, pathList );
+            ]]>
+        </constructor>
+        
+        <method id="getExtensionFilename">
+            <![CDATA[
+                return "device.xml";
+            ]]>
+        </method>
+        
+        <method id="createExtensionInfo" params="extension, url">
+            <![CDATA[
+                return new DeviceInfo( extension, url, extension.module != null ? mergeURI( url, extension.module ) : "kdt/simulator/SimulatorDevice" );
+            ]]>
+        </method>
+    </class>
+    
+    <class id="DeviceInfo" like="ExtensionManager.ExtensionInfo">
+        <field id="device"/>
+        
+        <constructor params="extension, url, module">
+            <![CDATA[
+                ExtensionManager.ExtensionInfo.call( this, extension, url, module );
+
+                if( this.exports != null && "newInstance" in this.exports )
+                    this.device = this.exports.newInstance( this );
+            ]]>
+        </constructor>
+        
+        <method id="getDevice">
+            <![CDATA[
+                return this.device;
+            ]]>
+        </method>
+    </class>
+
+    <script>
+        <![CDATA[
+            var manifest = new Object();
+            
+            manifest.device = Object.create( Object.prototype, {
+                module: { configurable: true, enumerable: false, writable: true, value: null },
+                id: { configurable: true, enumerable: false, writable: true, value: "" },
+                title: { configurable: true, enumerable: false, writable: true, value: "" },
+                icon: { configurable: true, enumerable: false, writable: true, value: null },
+                touch: { configurable: true, enumerable: false, writable: true, value: NONE },
+                keyboard: { configurable: true, enumerable: false, writable: true, value: false },
+                orientations: { configurable: true, enumerable: false, writable: true, value: null },
+                simulator: { configurable: true, enumerable: false, writable: true, value: null },
+                mockups: { configurable: true, enumerable: false, writable: true, value: [] },
+                variations: { configurable: true, enumerable: false, writable: true, value: [] },
+                events: { configurable: true, enumerable: false, writable: true, value: [] }
+            });
+
+            manifest.variation = Object.create( Object.prototype, {
+                id: { configurable: true, enumerable: false, writable: true, value: "" },
+                title: { configurable: true, enumerable: false, writable: true, value: null },
+                icon: { configurable: true, enumerable: false, writable: true, value: null },
+                mockups: { configurable: true, enumerable: false, writable: true, value: [] }
+            });
+
+            manifest.screen = Object.create( Object.prototype, {
+                x: { configurable: true, enumerable: false, writable: true, value: 0 },
+                y: { configurable: true, enumerable: false, writable: true, value: 0 },
+                width: { configurable: true, enumerable: false, writable: true, value: 0 },
+                height: { configurable: true, enumerable: false, writable: true, value: 0 }
+            });
+            
+            manifest.background = Object.create( Object.prototype, {
+                src: { configurable: true, enumerable: false, writable: true, value: null },
+                mask: { configurable: true, enumerable: false, writable: true, value: null },
+                color: { configurable: true, enumerable: false, writable: true, value: null },
+                width: { configurable: true, enumerable: false, writable: true, value: null },
+                height: { configurable: true, enumerable: false, writable: true, value: null }
+            });
+            
+            manifest.mockup = Object.create( Object.prototype, {
+                backgrounds: { configurable: true, enumerable: false, writable: true, value: [] },
+                screens: { configurable: true, enumerable: false, writable: true, value: [] }
+            });
+
+            manifest.event = Object.create( Object.prototype, {
+                id: { configurable: true, enumerable: false, writable: true, value: "" },
+                title: { configurable: true, enumerable: false, writable: true, value: "" },
+                key: { configurable: true, enumerable: false, writable: true, value: "" },
+                description: { configurable: true, enumerable: false, writable: true, value: "" },
+                data: { configurable: true, enumerable: false, writable: true, value: null }
+            });
+            
+            var g = new Grammar();
+            
+            g.namespace( "http://www.kinoma.com/kpr/device/1", "kpr" );
+
+            g.object( manifest.screen, "kpr:screen", {
+                x: g.number("@x"),
+                y: g.number("@y"),
+                width: g.number("@width"),
+                height: g.number("@height")
+            });
+
+            g.object( manifest.background, "kpr:background", {
+                src: g.string("@src"),
+                mask: g.string("@mask"),
+                color: g.string("@color"),
+                width: g.number("@width"),
+                height: g.number("@height")
+            });
+
+            g.object( manifest.mockup, "kpr:mockup", {
+                backgrounds: g.array(".", manifest.background),
+                screens: g.array(".", manifest.screen)
+            });
+            
+            g.object( manifest.variation, "kpr:variation", {
+                id: g.string("@id"),
+                title: g.string("@title"),
+                icon: g.string("@icon"),
+                mockups: g.array(".", manifest.mockup),
+            });
+
+            g.object( manifest.event, "/kpr:event", {
+                id: g.string("@id"),
+                title: g.string("@title"),
+                key: g.string("@key"),
+                data: g.string("@data"),
+                description: g.string("@description")
+            });
+
+            g.object( manifest.device, "/kpr:device", {
+                module: g.string("@module"),
+                id: g.string("@id"),
+                title: g.string("@title"),
+                icon: g.string("@icon"),
+                touch: g.string("@touch"),
+                keyboard: g.string("@keyboard"),
+                orientations: g.string("@orientations"),
+                simulator: g.string("@simulator"),
+                mockups: g.array(".", manifest.mockup),
+                variations: g.array(".", manifest.variation),
+                events: g.array(".", manifest.event)
+            });
+            
+            g.link();
+        ]]>
+    </script>
+
+</module>

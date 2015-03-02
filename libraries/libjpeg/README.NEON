@@ -1,0 +1,353 @@
+/*
+ * ARM NEON optimizations for libjpeg-turbo
+ *
+ * Copyright (C) 2009-2011 Nokia Corporation and/or its subsidiary(-ies).
+ * All rights reserved.
+ * Contact: Alexander Bokovoy <alexander.bokovoy@nokia.com>
+ *
+ * This software is provided 'as-is', without any express or implied
+ * warranty.  In no event will the authors be held liable for any damages
+ * arising from the use of this software.
+ *
+ * Permission is granted to anyone to use this software for any purpose,
+ * including commercial applications, and to alter it and redistribute it
+ * freely, subject to the following restrictions:
+ *
+ * 1. The origin of this software must not be misrepresented; you must not
+ *    claim that you wrote the original software. If you use this software
+ *    in a product, an acknowledgment in the product documentation would be
+ *    appreciated but is not required.
+ * 2. Altered source versions must be plainly marked as such, and must not be
+ *    misrepresented as being the original software.
+ * 3. This notice may not be removed or altered from any source distribution.
+ */
+
+/*
+ * File:		README
+ * Contains:	Describe the NEON optimization used in libjpeg
+ *				The current NEON optimization in libjpeg used for Fsk is almost based
+ *				on libjpeg-turbo, so we add the above copyright annoucement here.
+ *
+ *
+ * Written by:	Nick Wu
+ *
+ * Copyright:	Copyright (C) 2012 Marvell, Inc.
+ *
+ */
+
+
+1. IDCT
+
+1.1 IDCT FAST with no-vector
+
+For the idct fast algorithm, all description and implementation can refer to jidctfst.c, which is also used in the fsk customized jidctfst2.c
+
+We use 8-bit JSAMPLES in the jpeg codec of Fsk, so
+
+#define CONST_BITS  8
+#define PASS1_BITS  2
+
+#if CONST_BITS == 8
+#define FIX_1_082392200  ((INT32)  277)		/* FIX(1.082392200) */
+#define FIX_1_414213562  ((INT32)  362)		/* FIX(1.414213562) */
+#define FIX_1_847759065  ((INT32)  473)		/* FIX(1.847759065) */
+#define FIX_2_613125930  ((INT32)  669)		/* FIX(2.613125930) */
+
+All const multipliers will upscale by left-shift 8 bits, and the multiply macro will descale the result after multply the dequanted coeffient and upscaled const multiplier.
+
+
+#define MULTIPLY(var,const)  ((DCTELEM) DESCALE((var) * (const), CONST_BITS))
+
+
+1.2 IDCT FAST with NEON
+
+The idct fast implementation with neon is same to the one used in jidctfst.c. All operations are based on quad vector register, in the beginning of the neon function all coeff and dct table will be loaded to vector register by 8x8.
+
+/* Load and dequantize coefficients into NEON registers
+     * with the following allocation:
+     *       0 1 2 3 | 4 5 6 7
+     *      ---------+--------
+     *   0 | d16     | d17     ( q8  )
+     *   1 | d18     | d19     ( q9  )
+     *   2 | d20     | d21     ( q10 )
+     *   3 | d22     | d23     ( q11 )
+     *   4 | d24     | d25     ( q12 )
+     *   5 | d26     | d27     ( q13 )
+     *   6 | d28     | d29     ( q14 )
+     *   7 | d30     | d31     ( q15 )
+*/
+
+/*
+ * the inverse DCT (Discrete Cosine Transform). It uses the same calculations
+ * and produces exactly the same output as IJG's original 'jpeg_idct_ifast'
+ * function from jidctfst.c
+ *
+ * Normally 1-D AAN DCT needs 5 multiplications and 29 additions.
+ * But in ARM NEON case some extra additions are required because VQDMULH
+ * instruction can't handle the constants larger than 1. So the expressions
+ * like "x * 1.082392200" have to be converted to "x * 0.082392200 + x",
+ * which introduces an extra addition. Overall, there are 6 extra additions
+ * per 1-D IDCT pass, totalling to 5 VQDMULH and 35 VADD/VSUB instructions.
+ */
+
+
+Load all ifast const into d0 with 16bits width
+/* Attached prototype */
+#define XFIX_1_082392200 d0[0]
+#define XFIX_1_414213562 d0[1]
+#define XFIX_1_847759065 d0[2]
+#define XFIX_2_613125930 d0[3]
+
+jsimd_idct_ifast_neon_consts:
+    .short (277 * 128 - 256 * 128) /* XFIX_1_082392200 */
+    .short (362 * 128 - 256 * 128) /* XFIX_1_414213562 */
+    .short (473 * 128 - 256 * 128) /* XFIX_1_847759065 */
+    .short (669 * 128 - 512 * 128) /* XFIX_2_613125930 */
+
+	adr             ip, jsimd_idct_ifast_neon_consts
+    vld1.16         {d0}, [ip, :64] /* load constants */
+
+Then we will see vector multiply instructions in IDCT Fast Neon code as follow:
+	
+/* 1-D IDCT, pass 1 */
+    vqdmulh.s16     q4,  q2,  XFIX_1_414213562
+
+    vqdmulh.s16     q6,  q1,  XFIX_2_613125930
+
+    vqdmulh.s16     q4,  q1,  XFIX_1_847759065
+
+    vqdmulh.s16     q6,  q2,  XFIX_1_414213562
+
+    vqdmulh.s16     q4,  q5,  XFIX_1_082392200
+
+For the NEON instruction VQDMULH, can refer to ARM Information Center:
+
+VQ{R}DMULH (by vector or by scalar)
+	Vector Saturating Doubling Multiply instructions multiply their operands and double the results. They return only the high half of the results.
+	If any of the results overflow, they are saturated. The sticky QC flag (FPSCR bit[27]) is set if saturation occurs.
+
+An example:
+	In IDCT Fast C reference code, we will deal with the pixels in Even Row when we do the first IDCT_COL_8 :
+
+	int q6 = q2 - q6; // q2, q6 are dequanted value, should be in 16-bits width
+	int q6 = q6 * w2 = q6 * FIX_1_414213562 = q6 * (1.414213562 * (1 << 8)) = q6 * 362;
+	int q6 = q4 - (q6 >> 8);
+
+	But in Neon version, we have load all 8 pixels in 8 rows to 8 Double vector registers, load dct table in 8 lines to 8 Doubleword vector register. Then do dequantize firstly and store eight 16-bit width results in one row to a Quadword vector register, and 8 rows corespond to 8 Quadword vector registers.
+	We will store the const FIX_1_414213562 in a Doubleword vector register to implement the vector multiply as "q6 = q6 * w2". But as the above expression, (q2 - q6) will be signed 32-bits integer, so (q6 * w2) will possibly beyond 32 bits, the the vector multiply based on 8 16bits in a Quadword register will lose some most-significate bits. So we will convert the w2 (1.414213562) to (1 + 0.414213562), then it will be
+	q6 = q4 - (q6 + (q6 * (0.414213562 * 256) >> 8)) = q4 - (q6 + ((q6 * (362 - 256)) >> 8))
+	
+	Because we use the instruction vqdmulh.s16, we will expand the (362 - 256) above by multiply 128 to keep the integer part.
+
+1.3 IDCT FAST C Reference Code
+	
+		#define w11  ((INT16)  2688)
+		#define w22  ((INT16)  13568)
+		#define w33  ((INT16)  27776)
+		#define w44  ((INT16)  20096)
+		#define IDCT_COL_8( coef, quant, wk, offset )												\
+		{																							\
+			if (coef[8*1+offset] == 0 && coef[8*2+offset] == 0 &&									\
+				coef[8*3+offset] == 0 && coef[8*4+offset] == 0 &&									\
+				coef[8*5+offset] == 0 && coef[8*6+offset] == 0 &&									\
+				coef[8*7+offset] == 0)																\
+			{																						\
+				/* AC terms all zero */																\
+				int dc = coef[8*0+offset] * quant[8*0+offset];										\
+																									\
+				wk[8*0+offset] = dc;																\
+				wk[8*1+offset] = dc;																\
+				wk[8*2+offset] = dc;																\
+				wk[8*3+offset] = dc;																\
+				wk[8*4+offset] = dc;																\
+				wk[8*5+offset] = dc;																\
+				wk[8*6+offset] = dc;																\
+				wk[8*7+offset] = dc;																\
+			}																						\
+			else																					\
+			{   		\
+				int q0, q1, q2, q3, q4, q5, q6, q7, qq1, qq2, qq3, qq4, qq5, qq6;											\
+																									\
+				q0 = coef[8*0+offset] * quant[8*0+offset];											\
+				q1 = coef[8*1+offset] * quant[8*1+offset];											\
+				q2 = coef[8*2+offset] * quant[8*2+offset];											\
+				q3 = coef[8*3+offset] * quant[8*3+offset];											\
+				q4 = coef[8*4+offset] * quant[8*4+offset];											\
+				q5 = coef[8*5+offset] * quant[8*5+offset];											\
+				q6 = coef[8*6+offset] * quant[8*6+offset];											\
+				q7 = coef[8*7+offset] * quant[8*7+offset];											\
+																									\
+				sub(qq2, q2, q6); \
+				add(q6, q2, q6); \
+				sub(qq1, q3, q5); \
+				add(q5, q3, q5); \
+				sub(qq5, q1, q7); \
+				add(q7, q1, q7); \
+				mul(qq4, qq2, w22); \
+				mul(qq6, qq1, w44); \
+				add(qq3, qq1, qq1); \
+				sub(qq1, qq5, qq1); \
+				addrs(q2, qq2, qq4, 15); \
+				mul(qq4, qq1, w33); \
+				sub(qq2, q7, q5); \
+				addrs(qq3, qq3, qq6, 15); \
+				mul(qq6, qq2, w22); \
+				addrs(qq1, qq1, qq4, 15); \
+				mul(qq4, qq5, w11); \
+				sub(q2, q2, q6); \
+				addrs(qq2, qq2, qq6, 15); \
+				sub(qq6, q0, q4); \
+				add(q4, q0, q4); \
+				addrs(q1, qq5, qq4, 15); \
+				add(qq5, qq6, q2); \
+				sub(q2, qq6, q2); \
+				add(qq6, q7, q5); \
+				add(q0, q4, q6); \
+				sub(qq3, qq6, qq3); \
+				sub(q4, q4, q6); \
+				sub(qq3, qq3, qq1); \
+				sub(qq1, q1, qq1); \
+				add(qq2, qq3, qq2); \
+				sub(q7, q0, qq6); \
+				add(qq1, qq1, qq2); \
+				add(q0, q0, qq6); \
+				add(q6, qq5, qq3); \
+				sub(q1, qq5, qq3); \
+				sub(q5, q2, qq2); \
+				add(q2, q2, qq2);\
+				sub(q3, q4, qq1); \
+				add(q4, q4, qq1); \
+				wk[8*0+offset] = q0;																\
+				wk[8*1+offset] = q1;																\
+				wk[8*2+offset] = q2;																\
+				wk[8*3+offset] = q3;																\
+				wk[8*4+offset] = q4;																\
+				wk[8*5+offset] = q5;																\
+				wk[8*6+offset] = q6;																\
+				wk[8*7+offset] = q7;																\
+			}																						\
+		}
+
+		#define IDCT_ROW_8( CONST_255, wk, outptr, offset )											\
+		{																							\
+			if (wk[1+offset] == 0 && wk[2+offset] == 0 &&											\
+				wk[3+offset] == 0 && wk[4+offset] == 0 &&											\
+				wk[5+offset] == 0 && wk[6+offset] == 0 &&											\
+				wk[7+offset] == 0)																	\
+			{																						\
+				int dc = wk[0+offset];																		\
+				dc = 128 + (dc>>5);																	\
+				CLIP(dc, CONST_255);																\
+				outptr[0] = dc;																\
+				outptr[1] = dc;																\
+				outptr[2] = dc;																\
+				outptr[3] = dc;																\
+				outptr[4] = dc;																\
+				outptr[5] = dc;																\
+				outptr[6] = dc;																\
+				outptr[7] = dc;																\
+		} \
+		else \
+		{																			\
+				int q0, q1, q2, q3, q4, q5, q6, q7, qq1, qq2, qq3, qq4, qq5,qq6;											\
+				q0 = wk[0+offset];																			\
+				q1 = wk[1+offset];																			\
+				q2 = wk[2+offset];																			\
+				q3 = wk[3+offset];																			\
+				q4 = wk[4+offset];																			\
+				q5 = wk[5+offset];																			\
+				q6 = wk[6+offset];																			\
+				q7 = wk[7+offset];																			\
+				sub(qq2, q2, q6); \
+				add(q6, q2, q6); \
+				sub(qq1, q3, q5); \
+				add(q5, q3, q5); \
+				sub(qq5, q1, q7); \
+				add(q7, q1, q7); \
+				mul(qq4, qq2, w22); \
+				mul(qq6, qq1, w44); \
+				add(qq3, qq1, qq1); \
+				sub(qq1, qq5, qq1); \
+				addrs(q2, qq2, qq4, 15); \
+				mul(qq4, qq1, w33); \
+				sub(qq2, q7, q5); \
+				addrs(qq3, qq3, qq6, 15); \
+				mul(qq6, qq2, w22); \
+				addrs(qq1, qq1, qq4, 15); \
+				mul(qq4, qq5, w11); \
+				sub(q2, q2, q6); \
+				addrs(qq2, qq2, qq6, 15); \
+				sub(qq6, q0, q4); \
+				add(q4, q0, q4); \
+				addrs(q1, qq5, qq4, 15); \
+				add(qq5, qq6, q2); \
+				sub(q2, qq6, q2); \
+				add(qq6, q7, q5); \
+				add(q0, q4, q6); \
+				sub(qq3, qq6, qq3); \
+				sub(q4, q4, q6); \
+				sub(qq3, qq3, qq1); \
+				sub(qq1, q1, qq1); \
+				add(qq2, qq3, qq2); \
+				sub(q7, q0, qq6); \
+				add(qq1, qq1, qq2); \
+				add(q0, q0, qq6); \
+				add(q6, qq5, qq3); \
+				sub(q1, qq5, qq3); \
+				sub(q5, q2, qq2); \
+				add(q2, q2, qq2);\
+				sub(q3, q4, qq1); \
+				add(q4, q4, qq1); \
+				int t;	\
+					t= 128 + (q0>>5); CLIP(t,CONST_255); outptr[0] =t;							\
+					t= 128 + (q1>>5); CLIP(t,CONST_255); outptr[1] =t;							\
+					t= 128 + (q2>>5); CLIP(t,CONST_255); outptr[2] =t;							\
+					t= 128 + (q3>>5); CLIP(t,CONST_255); outptr[3] =t;							\
+					t= 128 + (q4>>5); CLIP(t,CONST_255); outptr[4] =t;							\
+					t= 128 + (q5>>5); CLIP(t,CONST_255); outptr[5] =t;							\
+					t= 128 + (q6>>5); CLIP(t,CONST_255); outptr[6] =t;							\
+					t= 128 + (q7>>5); CLIP(t,CONST_255); outptr[7] =t;							\
+			}	\
+		}
+
+		void jpeg_idct_ifast_8x8_c														
+		(																				
+			j_decompress_ptr	cinfo,													
+			jpeg_component_info *compptr,
+			JCOEFPTR			coef,
+			JSAMPARRAY			output_buf, 
+			JDIMENSION			output_col
+		)
+		{
+			IFAST_MULT_TYPE	*quant = (IFAST_MULT_TYPE *) compptr->dct_table;
+			JSAMPROW		out0 = output_buf[0] + output_col;
+			JSAMPROW		out1 = output_buf[1] + output_col;
+			JSAMPROW		out2 = output_buf[2] + output_col;
+			JSAMPROW		out3 = output_buf[3] + output_col;
+			JSAMPROW		out4 = output_buf[4] + output_col;
+			JSAMPROW		out5 = output_buf[5] + output_col;
+			JSAMPROW		out6 = output_buf[6] + output_col;
+			JSAMPROW		out7 = output_buf[7] + output_col;
+			TMP_TYPE		wk[64];	/* buffers data between passes */
+			int				CONST_255 = 255;
+
+			IDCT_COL_8(coef, quant, wk, 0 );
+			IDCT_COL_8(coef, quant, wk, 1 );
+			IDCT_COL_8(coef, quant, wk, 2 );
+			IDCT_COL_8(coef, quant, wk, 3 );
+			IDCT_COL_8(coef, quant, wk, 4 );
+			IDCT_COL_8(coef, quant, wk, 5 );
+			IDCT_COL_8(coef, quant, wk, 6 );
+			IDCT_COL_8(coef, quant, wk, 7 );
+
+			IDCT_ROW_8( CONST_255, wk, out0, 0*8 );
+			IDCT_ROW_8( CONST_255, wk, out1, 1*8 );
+			IDCT_ROW_8( CONST_255, wk, out2, 2*8 );
+			IDCT_ROW_8( CONST_255, wk, out3, 3*8 );
+			IDCT_ROW_8( CONST_255, wk, out4, 4*8 );
+			IDCT_ROW_8( CONST_255, wk, out5, 5*8 );
+			IDCT_ROW_8( CONST_255, wk, out6, 6*8 );
+			IDCT_ROW_8( CONST_255, wk, out7, 7*8 );
+		}
+
+

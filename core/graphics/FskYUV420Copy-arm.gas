@@ -1,0 +1,490 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+@ This file was automatically generated from
+@ /home/mkellner/fsk/core/graphics/FskYUV420Copy.s
+@ on Mon, 26 Jan 2009 21:16:36 GMT
+@	.text
+@	.align 2
+@	.global doCopyAlignedPlane
+@	.type	doCopyAlignedPlane, %function
+@
+@doCopyPlane:
+
+	.text	@CODE, READONLY
+
+	.global	doCopyPlane
+	.global	interleave_yuv420_aligned_arm_v4
+	.global	interleave_yuv420_misaligned_arm_v4
+	.global	HasARM5eHelper
+	.global	HasARMv6Helper
+
+doCopyPlane:
+
+src	.req	r0 
+srcBump	.req	r1 
+dst	.req	r2 
+dstBump	.req	r3 
+width	.req	r4 
+height	.req	r5 
+
+	stmfd	r13!,{r4-r11,r14} @ 9 registers, 36 bytes
+
+	ldr	width,[sp, #40]
+	ldr	height,[sp, #36]
+
+	pld	[src]
+
+	orr	r6, src, dst @ src | dst
+	add	r7, width, srcBump @ width + srcBump
+	orr	r6, r6, r7 @ src | dst | srcRowBytes
+	add	r7, width, dstBump @ width + dstBump
+	orr	r6, r6, r7 @ src | dst | srcRowBytes | dstRowBytes
+	tst	r6,#3
+	bne	doCopyPlaneMisaligned
+
+	.balign	16
+align_vloop:	
+	subs	r6, width, #16 @ working width minus the first round
+	blt	align_tail @ finish
+
+align_hloop:	
+	ldmia	src!,{r8,r9,r10,r11} @ load 16 pixels
+	subs	r6, r6, #16 @ subtract out next round of pixels
+	stmia	dst!,{r8,r9,r10,r11} @ store 16 pixels
+	blt	align_checktail
+	ldmia	src!,{r8,r9,r10,r11} @ load 16 pixels
+	subs	r6, r6, #16 @ subtract out next round of pixels
+	stmia	dst!,{r8,r9,r10,r11} @ store 16 pixels
+	blt	align_checktail
+	ldmia	src!,{r8,r9,r10,r11} @ load 16 pixels
+	subs	r6, r6, #16 @ subtract out next round of pixels
+	stmia	dst!,{r8,r9,r10,r11} @ store 16 pixels
+	blt	align_checktail
+	ldmia	src!,{r8,r9,r10,r11} @ load 16 pixels
+	subs	r6, r6, #16 @ subtract out next round of pixels
+	stmia	dst!,{r8,r9,r10,r11} @ store 16 pixels
+	bge	align_hloop
+
+align_checktail:	
+	adds	r6, r6, #16 @ tail byte count
+	bne	align_tail_loop @ assuming most copies have no tail, so tail handling can take extra branches
+
+align_row_done:	
+	subs	height, height, #1 @ down height counter
+
+	add	src, src, srcBump @ src += srcBump
+	pld	[src]
+	add	dst, dst, dstBump @ dst += dstBump
+		
+	bne	align_vloop @ do another line
+
+	ldmfd	r13!,{r4-r11,pc} @ return
+
+align_tail:	
+	add	r6, r6, #16 @ tail bytes
+align_tail_loop:	
+	ldrb	r8, [src], #1 @ load 1 pixel
+	subs	r6, r6, #1 @ down counter
+	strb	r8, [dst], #1 @ store 1 pixel
+	bne	align_tail_loop @ loop
+
+	b	align_row_done @ finish line
+
+	.balign	16
+
+@
+@ handles both misaligned sources and destinations, including rowBytes which change the alignment between scan-lines
+@ moves 8 pixels/bytes per loop iteration, not counting heads & tails
+@
+doCopyPlaneMisaligned:	
+
+misalign_vloop:	
+	mov	r6, width @ width counter
+
+	ands	r7, dst, #3 @ test dest alignment
+	beq	dest_aligned @ dest already aligned
+
+	rsb	r10, r7, #4
+	sub	r6, r6, r10 @ subtract out dst alignment adjustment from width
+
+	sub	r10, pc, #8
+	add	pc, r10, r7, lsl #3 @ jump to copying
+
+	ldrb	r7, [src], #1 @ load 1 pixel
+	strb	r7, [dst], #1 @ store 1 pixel
+
+	ldrb	r7, [src], #1 @ load 1 pixel
+	strb	r7, [dst], #1 @ store 1 pixel
+
+	ldrb	r7, [src], #1 @ load 1 pixel
+	strb	r7, [dst], #1 @ store 1 pixel
+
+dest_aligned:	
+	bic	r7, src, #3 @ aligned source	
+	ldr	r8, [r7], #4 @ load first word of source
+
+	and	r10, src, #3 @ misalignment of source in bytes
+	mov	r10, r10, lsl #3 @ misalignment of source in bits
+	subs	r6, r6, #8
+	rsb	r11, r10, #32
+	blt	misalign_tail
+
+misalign_hloop:	
+	ldmia	r7!,{r9, lr} @ load 8 pixels
+
+	mov	r8, r8, lsr r10 @ merge contents of r8/r9/lr into r8/r9 aligned to the destination
+	orr	r8, r8, r9, lsl r11
+	mov	r9, r9, lsr r10
+	orr	r9, r9, lr, lsl r11
+
+	stmia	dst!,{r8, r9} @ store 8 pixels
+
+	subs	r6, r6, #8 @ subtract out next round
+
+	mov	r8, lr @ last word of source for start of next next iteration
+
+	bge	misalign_hloop
+
+	add	r6, r6, #8
+	ands	r6, r6, #7 @ tail byte count
+	bne	misalign_tail @ assuming most copies have no tail, so tail handling can take extra branches
+
+	sub	src, r7, r11, lsr #3 @ back up in source to beginning of buffered data
+
+misalign_row_done:	
+	subs	height, height, #1 @ down height counter
+
+	add	src, src, srcBump @ src += srcBump
+	pld	[src]
+	add	dst, dst, dstBump @ dst += dstBump
+		
+	bne	misalign_vloop @ do another line
+
+	ldmfd	r13!,{r4-r11,pc} @ return
+
+misalign_tail:	
+	sub	src, r7, r11, lsr #3 @ back up in source to beginning of buffered data
+misalign_tail_loop:	
+	ldrb	r8, [src], #1 @ load 1 pixel
+	subs	r6, r6, #1 @ down counter
+	strb	r8, [dst], #1 @ store 1 pixel
+	bne	misalign_tail_loop @ loop
+
+	b	misalign_row_done @ finish line
+
+	@ENDP
+
+
+@
+@interleave
+@
+		
+y0	.req	r0 
+u0	.req	r1 
+v0	.req	r2 
+yuv0	.req	r3 
+y1	.req	r4 
+
+	.unreq	height
+height	.req	r5 
+	.unreq	width
+width	.req	r6 
+yrb	.req	r7 
+uvrb	.req	r8 
+yuvrb	.req	r9 
+		
+y_stride	.req	r7 
+width0	.req	r8 
+
+w0	.req	r9 
+w1	.req	r10 
+w2	.req	r12 
+w3	.req	r14 
+
+	.equ REGIS_SHIFT_iii, (8*4)
+	.equ CACHE_SHIFT_iii, (2*4)
+	.equ SP_SHIFT_iii, (REGIS_SHIFT_iii + CACHE_SHIFT_iii)
+
+	.equ uv_stride_SHIFT_iii, (0*4)
+	.equ yuv_stride_SHIFT_iii, (1*4)
+	.equ height_SHIFT_iii, (0*4 + SP_SHIFT_iii)
+	.equ width_SHIFT_iii, (1*4 + SP_SHIFT_iii)
+	.equ yrb_SHIFT_iii, (2*4 + SP_SHIFT_iii)
+	.equ uvrb_SHIFT_iii, (3*4 + SP_SHIFT_iii)
+	.equ yuvrb_SHIFT_iii, (3*4 + SP_SHIFT_iii)
+		
+		
+interleave_yuv420_misaligned_arm_v4:
+	stmfd	sp!,{r4-r10,lr}
+	sub	sp,sp,#CACHE_SHIFT_iii
+		
+	add	w3,sp,#height_SHIFT_iii
+	ldmia	w3,{height-yuvrb} 
+		
+	add	y1, y0, yrb
+
+	rsb	y_stride, width, yrb, lsl #1
+	sub	w3, uvrb, width, lsr #1
+	str	w3, [sp, #uv_stride_SHIFT_iii]
+
+	add	w3, width, width, lsl #1
+	sub	w3, yuvrb, w3
+	str	w3, [sp, #yuv_stride_SHIFT_iii]
+		
+	mov	width, width, lsr #1
+	mov	height, height, lsr #1
+	mov	width0, width
+		
+
+mark_interleave_yuv:	
+	ldrb	w0, [u0], #1
+	ldrb	w1, [v0], #1
+	ldrh	w2, [y0], #2
+	ldrh	w3, [y1], #2
+	orr	w1, w0, w1, lsl #8 @u0, v0
+	strh	w1, [yuv0], #2
+	strh	w2, [yuv0], #2
+	strh	w3, [yuv0], #2
+
+	subs	width, width, #1
+	bne	mark_interleave_yuv
+		
+	ldr	w2, [sp, #uv_stride_SHIFT_iii]
+	ldr	w3, [sp, #yuv_stride_SHIFT_iii]
+	subs	height, height, #1
+	mov	width, width0
+	add	y0, y0, y_stride
+	add	y1, y1, y_stride
+	add	u0, u0, w2
+	add	v0, v0, w2
+	add	yuv0, yuv0, w3
+	bne	mark_interleave_yuv
+
+	add	sp,sp,#CACHE_SHIFT_iii
+	ldmfd	sp!,{r4-r10,pc}
+
+	@ENDP
+
+		
+	.unreq	y0
+y0	.req	r0 
+	.unreq	u0
+u0	.req	r1 
+	.unreq	v0
+v0	.req	r2 
+	.unreq	yuv0
+yuv0	.req	r3 
+	.unreq	y1
+y1	.req	r4 
+
+height_i1	.req	r5 
+width_i1	.req	r6 
+yrb_i1	.req	r7 
+uvrb_i1	.req	r8 
+yuv_i1	.req	r9 
+tmp_i1	.req	r10 
+
+half_height_i2	.req	r5 
+quarter_width_i2	.req	r6 
+y_stride_i2	.req	r7 
+uv_stride_i2	.req	r8 
+yuv_stride_i2	.req	r9 
+frac_width_i2	.req	r10 
+tmp_i2	.req	r11 
+
+		
+	.unreq	w0
+w0	.req	r7 
+	.unreq	w1
+w1	.req	r8 
+	.unreq	w2
+w2	.req	r9 
+	.unreq	w3
+w3	.req	r10 
+w4	.req	r11 
+w5	.req	r12 
+w6	.req	r14 
+
+	.equ REGIS_SHIFT_iiii, (9*4)
+	.equ CACHE_SHIFT_iiii, (5*4)
+	.equ SP_SHIFT_iiii, (REGIS_SHIFT_iiii + CACHE_SHIFT_iiii)
+
+	.equ quarter_width_SHIFT_iiii, (0)
+	.equ y_stride_SHIFT_iiii, (4)
+	.equ uv_stride_SHIFT_iiii, (8)
+	.equ yuv_stride_SHIFT_iiii, (12)
+	.equ frac_width_SHIFT_iiii, (16)
+	.equ height_SHIFT_iiii, (0*4 + SP_SHIFT_iiii)
+	.equ width_SHIFT_iiii, (1*4 + SP_SHIFT_iiii)
+	.equ yrb_SHIFT_iiii, (2*4 + SP_SHIFT_iiii)
+	.equ uvrb_SHIFT_iiii, (3*4 + SP_SHIFT_iiii)
+	.equ yuv_SHIFT_iiii, (4*4 + SP_SHIFT_iiii)
+		
+		
+interleave_yuv420_aligned_arm_v4:
+	stmfd	sp!,{r4-r11,lr}
+	sub	sp,sp,#CACHE_SHIFT_iiii
+		
+	add	tmp_i1,sp,#height_SHIFT_iiii
+	ldmia	tmp_i1,{height_i1-yuv_i1} 
+		
+	rsb	tmp_i1, width_i1, yrb_i1, lsl #1
+	str	tmp_i1, [sp, #y_stride_SHIFT_iiii]
+		
+	sub	tmp_i1, uvrb_i1, width_i1,lsr #1
+	str	tmp_i1, [sp, #uv_stride_SHIFT_iiii]
+
+	add	tmp_i1, width_i1, width_i1,lsl #1
+	sub	tmp_i1, yuv_i1, tmp_i1
+	str	tmp_i1, [sp, #yuv_stride_SHIFT_iiii]
+
+	and	tmp_i1, width_i1, #7
+	mov	tmp_i1, tmp_i1, lsr #1
+	str	tmp_i1, [sp, #frac_width_SHIFT_iiii]
+		
+	mov	quarter_width_i2, width_i1, lsr #3
+	str	quarter_width_i2, [sp, #quarter_width_SHIFT_iiii]
+		
+	mov	half_height_i2, height_i1, lsr #1
+	add	y1, y0, yrb
+
+mark_interleave_yuv_2:	
+	ldr	w0, [u0], #4
+	ldr	w1, [v0], #4
+		
+	ldr	w2, [y0], #4
+	ldr	w3, [y1], #4
+		
+	and	w4, w0, #0xff
+	orr	w4, w4, w1, lsl #8
+	mov	w4, w4, lsl #16
+	mov	w4, w4, lsr #16
+	orr	w4, w4, w2, lsl #16
+	str	w4, [yuv0], #4
+
+	mov	w5, w3, lsl #16
+	mov	w5, w5, lsr #16
+	mov	w4, w0, lsr #8
+	and	w4, w4, #0xff
+	orr	w4, w5, w4, lsl #16
+	mov	w5, w1, lsr #8
+	orr	w4, w4, w5, lsl #24
+	str	w4, [yuv0], #4
+		
+	mov	w3, w3, lsr #16
+	mov	w3, w3, lsl #16
+	orr	w4, w3, w2, lsr #16
+	str	w4, [yuv0], #4
+	@;;;;;;;;;;;;;;;;;;;	
+
+	mov	w0, w0, lsr #16
+	mov	w1, w1, lsr #16
+		
+	ldr	w2, [y0], #4
+	ldr	w3, [y1], #4
+		
+	and	w4, w0, #0xff
+	orr	w4, w4, w1, lsl #8
+	mov	w4, w4, lsl #16
+	mov	w4, w4, lsr #16
+	orr	w4, w4, w2, lsl #16
+	str	w4, [yuv0], #4
+
+	mov	w5, w3, lsl #16
+	mov	w5, w5, lsr #16
+	mov	w4, w0, lsr #8
+	and	w4, w4, #0xff
+	orr	w4, w5, w4, lsl #16
+	mov	w5, w1, lsr #8
+	orr	w4, w4, w5, lsl #24
+	str	w4, [yuv0], #4
+		
+	mov	w3, w3, lsr #16
+	mov	w3, w3, lsl #16
+	orr	w4, w3, w2, lsr #16
+	str	w4, [yuv0], #4
+	@;;;;;;;;;;;;;;;;;;;	
+
+	subs	quarter_width_i2, quarter_width_i2, #1
+	bne	mark_interleave_yuv_2
+
+	ldr	w2, [sp, #frac_width_SHIFT_iiii]
+	cmp	w2, #0
+	beq	mark_interleave_yuv_3_end
+mark_interleave_yuv_3_start:	
+	ldrb	w3, [u0], #1
+	ldrb	w4, [v0], #1
+	ldrh	w5, [y0], #2
+	ldrh	w6, [y1], #2
+	orr	w4, w3, w4, lsl #8 @u0, v0
+	strh	w4, [yuv0], #2
+	strh	w5, [yuv0], #2
+	strh	w6, [yuv0], #2
+
+	subs	w2, w2, #1
+	bne	mark_interleave_yuv_3_start 
+mark_interleave_yuv_3_end:	
+		
+	add	tmp_i2,sp,#quarter_width_SHIFT_iiii
+	ldmia	tmp_i2,{quarter_width_i2-frac_width_i2} 
+		
+	subs	half_height_i2, half_height_i2, #1
+	add	y0, y0, y_stride_i2
+	add	y1, y1, y_stride_i2
+	add	u0, u0, uv_stride_i2
+	add	v0, v0, uv_stride_i2
+	add	yuv0, yuv0, yuv_stride_i2
+	bne	mark_interleave_yuv_2
+
+	add	sp,sp,#CACHE_SHIFT_iiii
+	ldmfd	sp!,{r4-r11,pc}
+
+	@ENDP
+
+HasARM5eHelper:
+
+	mov	r1, #2
+	qadd	r1, r1, r1
+	qadd	r1, r1, r1
+	qadd	r1, r1, r1
+	qadd	r1, r1, r1
+
+	cmp	r1, #32
+	movne	r0, #0
+	moveq	r0, #1
+		
+	mov	pc, lr
+
+	@ENDP
+
+HasARMv6Helper:
+
+	mov	r1, #38
+	usat	r1, #5, r1
+
+	cmp	r1, #31
+	movne	r0, #0
+	moveq	r0, #1
+		
+	mov	pc, lr
+
+	@ENDP
+
+
+	.end
+#endif

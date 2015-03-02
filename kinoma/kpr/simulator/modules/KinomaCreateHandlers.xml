@@ -1,0 +1,245 @@
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	<behavior id="FilterBehavior"><![CDATA[
+		function onAccept(handler, message) {
+			return true;
+		}
+		function onInvoke(handler, message) {
+			if (this.onFilter(handler, message))
+				this.onProcess(handler, message);
+		}
+		function onFilter(handler, message) {
+			// authentication ?
+			return true;
+		}
+		function onProcess(handler, message) {
+			debugger
+		}
+		function parseQuery(s) {
+			var result = {};
+			if (s) {
+				var a = s.split("&");
+				for (var i = 0, c = a.length; i < c; i++) {
+					var b = a[i].split("=");
+					result[b[0]] = decodeURIComponent(b[1]);
+				}
+			}
+			return result;
+		}
+		function resolvePath(query) {
+			var path;
+			if ("app" in query)
+				path = mergeURI(shell.behavior.applicationsDirectory, query.app);
+			else if ("path" in query)
+				path = "file://" + query.path;
+			else if ("special" in query) {
+				if (query.special == "Documents")
+					path = mergeURI(Files.documentsDirectory, query.special);
+				else if (query.special == "Preferences")
+					path = mergeURI(Files.preferencesDirectory, query.special);
+				else if (query.special == "Temporary")
+					path = mergeURI(Files.temporaryDirectory, query.special);
+				else
+					path = "";
+			}
+			else
+				path = "";
+			return path;
+		}
+	]]></behavior>
+	
+	<behavior id="HostFilterBehavior" like="FilterBehavior"><![CDATA[
+		function onFilter(handler, message) {
+			if (FilterBehavior.prototype.onFilter.call(this, handler, message)) {
+				if (shell.behavior.host)
+					return true;
+				message.status = 500;
+			}
+			return false;
+		}
+	]]></behavior>
+	
+	<handler path="/debuggerAddress">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				var query = this.parseQuery(message.query);
+                setEnvironmentVariable("debugger", query.host + ":" + query.port);
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/debuggerConnect">
+		<behavior like="HostFilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				shell.behavior.host.debugging = true;
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/debuggerConnectAutomatically">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/doEndProfile">
+		<behavior like="HostFilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				shell.behavior.host.profiling = false;
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/doProfile">
+		<behavior like="HostFilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				shell.behavior.host.profiling = true;
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/debuggerDisconnect">
+		<behavior like="HostFilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				shell.behavior.host.debugging = false;
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/deleteFile">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				var query = this.parseQuery(message.query);
+				var path = this.resolvePath(query);
+				Files.deleteFile(path);
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/exit">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				shell.quit(); 
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/install">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				var query = this.parseQuery(message.query);
+				var path = this.resolvePath(query);
+				shell.behavior.install(query.id, path);
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/launch">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				var query = this.parseQuery(message.query);
+				var parts = parseURI(query.uri);
+				var breakOnStart = false;
+				breakOnStart = ("breakOnStart" in query) && (query.breakOnStart == "true");
+				shell.behavior.launch(parts.authority, breakOnStart);
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/uninstall">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				var query = this.parseQuery(message.query);
+				shell.behavior.uninstall(query.id);
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/uploadFile">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				if (!message.uploaded()) {
+					var query = this.parseQuery(message.query);
+					var path = this.resolvePath(query);
+					Files.ensureDirectory(path);
+					message.upload(path);
+				}
+			}
+		]]></behavior>
+	</handler>
+		
+	<handler path="/ping">
+		<behavior like="FilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				message.responseText = "hello @ " + (new Date);
+			}
+		]]></behavior>
+	</handler>
+		
+	<handler path="/xsbug">
+		<behavior like="HostFilterBehavior"><![CDATA[
+			function onProcess(handler, message) {
+				var query = this.parseQuery(message.query);
+				if ("break" in query)
+					shell.behavior.host.debug();
+				else if ("trace" in query)
+					shell.behavior.host.trace(query.trace + "\n");
+			}
+		]]></behavior>
+	</handler>
+	
+	<script><![CDATA[
+		var manifest = {};
+		manifest.application = Object.create(Object.prototype, {
+			check: { configurable: true, enumerable: false, writable: true, value: false },
+			command: { configurable: true, enumerable: false, writable: true, value: "SelectHost" },
+			id: { configurable: true, enumerable: false, writable: true, value: "" },
+			index: { configurable: true, enumerable: false, writable: true, value: 0 },
+			program: { configurable: true, enumerable: false, writable: true, value: "" },
+			title: { configurable: true, enumerable: false, writable: true, value: "" },
+			url: { configurable: true, enumerable: false, writable: true, value: "" },
+			version: { configurable: true, enumerable: false, writable: true, value: "1.0" },
+		});
+		manifest.device = Object.create(Object.prototype, {
+			check: { configurable: true, enumerable: false, writable: true, value: false },
+			command: { configurable: true, enumerable: false, writable: true, value: "SelectDevice" },
+			exports: { configurable: true, enumerable: false, writable: true, value: null },
+			index: { configurable: true, enumerable: false, writable: true, value: 0 },
+			module: { configurable: true, enumerable: false, writable: true, value: "" },
+			title: { configurable: true, enumerable: false, writable: true, value: "" },
+			url: { configurable: true, enumerable: false, writable: true, value: "" },
+			version: { configurable: true, enumerable: false, writable: true, value: "1.0" },
+		});
+		var g = new Grammar;
+		g.namespace("http://www.kinoma.com/kpr/1", "kpr");
+		g.object(manifest.application, "/kpr:application", {
+			id: g.string("@id"),
+			program: g.string("@program"),
+			title: g.string("@title"),
+			version: g.string("@version"),
+		});
+		g.object(manifest.device, "/kpr:device", {
+			module: g.string("@module"),
+			title: g.string("@title"),
+			version: g.string("@version"),
+		});
+		g.link();
+	]]></script>
+
+</module>

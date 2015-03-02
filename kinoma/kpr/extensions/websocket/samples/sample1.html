@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Sample 1</title>
+</head>
+<body onLoad="run('ws://echo.websocket.org/');">
+
+<script type="text/javascript">
+	function run(url) {
+		var sock = new WebSocket(url);
+		sock.onopen = function(s, a2, a3, a4) {
+			console.log("OPEN", [s, a2, a3, a4]);
+			sock.send("Hello world");
+		};
+		sock.onerror = function(s, a2, a3, a4) {
+			console.log("ERROR", [s, a2, a3, a4]);
+		};
+		sock.onmessage = function(s, a2, a3, a4) {
+			console.log("MESSAGE", [s, a2, a3, a4]);
+			sock.close();
+		};
+		sock.onclose = function(s, a2, a3, a4) {
+			console.log("CLOSE", [s, a2, a3, a4]);
+		};
+	}
+</script>
+</body>
+</html>

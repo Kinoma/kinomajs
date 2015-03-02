@@ -1,0 +1,33 @@
+\begin{theindex}
+
+  \item fp\_abs, \hyperpage{9}
+  \item fp\_add, \hyperpage{11}
+  \item fp\_cmp, \hyperpage{10}
+  \item fp\_cmp\_mag, \hyperpage{10}
+  \item fp\_cnt\_lsb, \hyperpage{10}
+  \item fp\_div, \hyperpage{11}
+  \item fp\_div\_2, \hyperpage{10}
+  \item fp\_div\_2d, \hyperpage{10}
+  \item fp\_exptmod, \hyperpage{11}
+  \item fp\_gcd, \hyperpage{11}
+  \item fp\_init, \hyperpage{8}
+  \item fp\_init\_copy, \hyperpage{8}
+  \item fp\_invmod, \hyperpage{11}
+  \item fp\_iseven, \hyperpage{9}
+  \item fp\_isodd, \hyperpage{9}
+  \item fp\_isprime, \hyperpage{12}
+  \item fp\_iszero, \hyperpage{9}
+  \item fp\_lcm, \hyperpage{11}
+  \item fp\_lshd, \hyperpage{10}
+  \item fp\_mod, \hyperpage{11}
+  \item fp\_mod\_2d, \hyperpage{10}
+  \item fp\_mul, \hyperpage{11}
+  \item fp\_mul\_2, \hyperpage{10}
+  \item fp\_mul\_2d, \hyperpage{10}
+  \item fp\_neg, \hyperpage{9}
+  \item fp\_rshd, \hyperpage{10}
+  \item fp\_set, \hyperpage{8}
+  \item fp\_sqr, \hyperpage{11}
+  \item fp\_sub, \hyperpage{11}
+
+\end{theindex}

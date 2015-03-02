@@ -1,0 +1,363 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+	<require path="../../mobile/control" id="CONTROL"/>
+	<require path="../../mobile/transition" id="TRANSITION"/>
+	<script><![CDATA[
+		for (var i in TRANSITION)
+			exports[i] = TRANSITION[i];
+	]]></script>
+	
+	<texture id="mainTexture" small="assets/main.png"/>
+
+
+
+
+	<skin id="blackSkin" color="black"/>
+	<skin id="redSkin" color="red"/>
+	<skin id="whiteSkin" color="white"/>
+	
+	<skin id="applicationSkin" color="black"/>
+	<style id="applicationStyle" font="18px" color="black" align="left,middle"/>
+	<script>
+      if( application != null )
+		   application.style = applicationStyle;
+	</script>
+
+	<variable id="screenFooterHeight" value="50"/>
+	<variable id="screenHeaderHeight" value="50"/>
+	
+	<!-- HEADER -->
+	
+	<skin id="headerSkin" color="#D0000000"/>
+	<style id="headerStyle" font="bold 22px" color="white" align="left"/>
+	
+	<variable id="headerTitleSkin" value="null"/>
+	<style id="plainHeaderTitleStyle">
+		<margins right="50"/>
+	</style>
+	<style id="toolHeaderTitleStyle">
+		<margins left="10" right="10"/>
+	</style>
+	
+	<skin id="backButtonSkin" texture="mainTexture" x="0" y="0" width="50" height="50">
+		<states offset="50" names="DISABLED,ENABLED,SELECTED"/>
+	</skin>
+	
+	<variable id="headerTitleSkin" value="null"/>
+	<style id="headerTitleStyle" font="bold 22px" color="white" align="left">
+		<margins left="10" right="10"/>
+	</style>
+	
+	<variable id="toolButtonSkin" value="null"/>
+	
+	<skin id="searchTitleSkin" texture="mainTexture" x="50" y="0" width="100" height="50">
+		<tiles left="25" right="25"/>
+	</skin>
+	
+	<!-- FOOTER -->
+	
+	<variable id="footerSkin" value="headerSkin"/>
+
+	<!-- BUTTON -->
+	
+	<texture id="toolTexture" large="assets/tools.png"/>
+	
+	<variable id="toolDisabledEffect" value="null"/>
+	<effect id="toolEnabledEffect">
+		<colorize color="white"/>
+	</effect>
+	<effect id="toolSelectedEffect">
+		<colorize color="#acd473"/>
+	</effect>
+	<variable id="toolSkin" value="new CONTROL.Skin(toolTexture, toolDisabledEffect, toolEnabledEffect, toolSelectedEffect)"/>
+	<script>
+		exports.STOP = 0;
+		exports.PLAY = 1;
+		exports.PAUSE = 2;
+		exports.NEXT = 3;
+		exports.PREVIOUS = 4;
+		exports.FULL = 5;
+		exports.NOT_FULL = 6;
+		exports.SEARCH = 7;
+	</script>
+	
+	<style id="buttonStyle" font="bold 20px" align="center">
+		<states colors="white,white,#acd473"/>
+	</style>
+	<variable id="buttonLineMiddleSkin" value="null"/>
+	<variable id="buttonLineLeftSkin" value="buttonLineMiddleSkin"/>
+	<variable id="buttonLineRightSkin" value="buttonLineMiddleSkin"/>
+	
+	<!-- DIALOG -->
+	
+	<skin id="cancellerSkin">
+		<states colors="transparent,#A0000000"/>
+	</skin>
+	<texture id="dialogBoxTexture" small="assets/dialogBox.png"/>
+	<skin id="dialogBoxSkin" texture="dialogBoxTexture"  x="0" y="0" width="70" height="70">
+		<tiles left="30" right="30" top="30" bottom="30"/>
+		<margins left="20" right="20" top="20" bottom="20"/>
+	</skin>
+	
+	<variable id="dialogDisabledEffect" value="null"/>
+	<effect id="dialogEnabledEffect">
+		<colorize color="#404040"/>
+	</effect>
+	<effect id="dialogSelectedEffect">
+		<colorize color="#598527"/>
+	</effect>
+	<texture id="dialogButtonsTexture" large="assets/dialogButtons.png"/>
+	<variable id="dialogButtonsSkin" value="new CONTROL.Skin(dialogButtonsTexture, dialogDisabledEffect, dialogEnabledEffect, dialogSelectedEffect)"/>
+	<script>
+		exports.CANCEL = 0;
+		exports.OK = 1;
+		exports.CHECK_OFF = 2;
+		exports.CHECK_ON = 3;
+		exports.RADIO_OFF = 4;
+		exports.RADIO_ON = 5;
+		exports.RETRY = 6;
+	</script>
+	
+	<skin id="dialogHeaderSkin" color="#eaeaea">
+		<borders bottom="1" color="#9b9b9b"/>
+	</skin>
+	<skin id="dialogScrollerSkin" color="#eaeaea"/>
+	<skin id="dialogFooterSkin" color="#eaeaea">
+		<borders top="1" color="#9b9b9b"/>
+	</skin>
+	<variable id="dialogButtonSkin" value="null"/>
+	<style id="dialogButtonStyle" font="bold 20px" align="center">
+		<margins left="10" right="10"/>
+		<states colors="white,white,#acd473"/>
+	</style>
+	<style id="dialogCancelStyle" font="bold 20px" align="left">
+		<states colors="transparent,#404040,#598527"/>
+	</style>
+	<style id="dialogCommentStyle" font="20px" color="#404040" align="left,middle">
+		<margins left="10" right="10" top="10" bottom="10"/>
+	</style>
+	<skin id="dialogFieldSkin">
+		<states colors="transparent,transparent,transparent,#acd473"/>
+	</skin>
+	<style id="dialogLabelStyle" font="20px" color="#404040" align="left,middle">
+		<margins left="10" right="5" top="0" bottom="0"/>
+	</style>
+	<style id="dialogLabelRightStyle" font="20px" color="#404040" align="right,middle">
+		<margins left="5" right="10" top="0" bottom="0"/>
+	</style>
+	<style id="dialogValueStyle" font="bold 20px" color="#404040" align="right,middle">
+		<margins left="5" right="10" top="0" bottom="0"/>
+	</style>
+	<style id="dialogOKStyle" font="bold 20px" align="right">
+		<states colors="transparent,#404040,#598527"/>
+	</style>
+	<style id="dialogTitleStyle" font="bold 22px" color="#404040" align="center">
+		<margins left="10" right="10"/>
+	</style>
+	<style id="dialogSubtitleStyle" font="bold 20px" color="#404040" align="center">
+		<margins left="10" right="10"/>
+	</style>
+	<style id="dialogCaptionStyle" font="20px" color="#404040" align="center">
+		<margins left="10" right="10"/>
+	</style>
+	<variable id="dialogFooterHeight" value="40"/>
+	<variable id="dialogHeaderHeight" value="44"/>
+	<variable id="dialogItemHeight" value="40"/>
+	
+	<!-- FIELD -->
+	
+	<texture id="fieldDeleterTexture" small="assets/fieldDeleter.png"/>
+	<skin id="fieldDeleterSkin" texture="fieldDeleterTexture" x="0" y="0" width="40" height="40">
+		<variants offset="0"/>
+		<states offset="40"/>
+	</skin>
+	<skin id="fieldLabelSkin">
+		<states colors="transparent,transparent,#C0C0C0,#acd473"/>
+	</skin>
+	<style id="fieldLabelStyle" font="bold 20px" color="black" align="left,middle">
+		<margins left="5" right="5" top="5" bottom="5"/>
+	</style>
+	<skin id="fieldScrollerSkin" color="white"/>
+		
+	<!-- LIST -->
+
+	<variable id="defaultLineHeight" value="40"/>
+
+	<skin id="lineSkin">
+		<states colors="white,#acd473"/>
+	</skin>
+	
+	<texture id="busyTexture" small="assets/busy.png"/>
+	<skin id="busySkin" texture="busyTexture" x="0" y="0" width="40" height="40">
+		<variants offset="40"/>
+	</skin>
+	<variable id="busyCount" value="16"/>
+	
+	<skin id="emptySkin" texture="mainTexture" x="50" y="150" width="50" height="50">
+	</skin>
+
+	<style id="errorStyle" font="bold 14px" color="black" align="center"/>
+	<skin id="errorSkin" texture="busyTexture" x="640" y="0" width="40" height="40">
+	</skin>
+	
+	<skin id="moreSkin" texture="mainTexture" x="150" y="0" width="50" height="50">
+		<states offset="50" names="DISABLED,ENABLED,SELECTED"/>
+	</skin>
+	
+	<!-- MEDIA -->
+	
+	<skin id="mediaButtonBackgroundSkin" texture="mainTexture" x="0" y="150" width="50" height="50"/>
+	
+	<skin id="mediaSeekerBarSkin" texture="mainTexture" x="45" y="50" width="60" height="50">
+		<tiles left="15" right="25"/>
+		<states offset="50"/>
+	</skin>
+	<skin id="mediaSeekerButtonSkin" texture="mainTexture" x="110" y="50" width="30" height="50">
+		<states offset="50"/>
+	</skin>
+	<skin id="mediaSeekerLabelSkin" texture="mainTexture" x="150" y="150" width="50" height="50"/>
+	
+	<style id="mediaSeekerStyle" font="bold 16px" color="white" align="center"/>
+	<style id="mediaSeekerLeftStyle" font="bold 16px" color="white" align="left"/>
+	<style id="mediaSeekerRightStyle" font="bold 16px" color="white" align="right"/>
+	<style id="mediaSeekerTopStyle" font="bold 16px" color="white" align="center"/>
+	<style id="mediaSeekerBottomStyle" font="bold 16px" color="white" align="center"/>
+	<skin id="mediaSeekerTopSkin">
+		<borders left="1" top="1" right="1" color="#959595"/>
+	</skin>
+	<skin id="mediaSeekerBottomSkin" color="#959595"/>
+	
+	<!-- SLIDER -->
+	
+	<skin id="horizontalSliderBarSkin" texture="mainTexture" x="45" y="50" width="60" height="50">
+		<tiles left="15" right="25"/>
+		<states offset="50"/>
+	</skin>
+	<skin id="horizontalSliderButtonSkin" texture="mainTexture" x="110" y="50" width="30" height="50">
+		<states offset="50"/>
+	</skin>
+	
+	<skin id="verticalSliderBarSkin" texture="mainTexture" x="200" y="95" width="50" height="60">
+		<tiles top="15" bottom="25"/>
+		<states offset="50"/>
+	</skin>
+	<skin id="verticalSliderButtonSkin" texture="mainTexture" x="250" y="110" width="50" height="30">
+		<states offset="50"/>
+	</skin>
+	
+	<!-- SCROLLER -->
+	
+	<variable id="scrollerSkin" value="null"/>
+
+	<texture id="horizontalScrollbarTexture" small="assets/horizontalScrollbar.png"/>
+	<skin id="horizontalScrollbarSkin" texture="horizontalScrollbarTexture" x="0" y="0" width="40" height="10">
+		<tiles left="10" right="10"/>
+	</skin>
+	
+	<texture id="horizontalScrollerShadowTexture" small="assets/horizontalScrollerShadow.png"/>
+	<skin id="leftScrollerShadowSkin" texture="horizontalScrollerShadowTexture" x="0" y="0" width="20" height="40">
+		<tiles top="0" bottom="0"/>
+	</skin>
+	<skin id="rightScrollerShadowSkin" texture="horizontalScrollerShadowTexture" x="20" y="0" width="20" height="40">
+		<tiles top="0" bottom="0"/>
+	</skin>
+
+	<texture id="verticalScrollbarTexture" small="assets/verticalScrollbar.png"/>
+	<skin id="verticalScrollbarSkin" texture="verticalScrollbarTexture" x="0" y="0" width="10" height="40">
+		<tiles top="10" bottom="10"/>
+	</skin>
+	
+	<texture id="verticalScrollerShadowTexture" small="assets/verticalScrollerShadow.png"/>
+	<skin id="topScrollerShadowSkin" texture="verticalScrollerShadowTexture" x="0" y="0" width="40" height="20">
+		<tiles left="0" right="0"/>
+	</skin>
+	<skin id="bottomScrollerShadowSkin" texture="verticalScrollerShadowTexture" x="0" y="20" width="40" height="20">
+		<tiles left="0" right="0"/>
+	</skin>
+	
+	<!-- MENUS -->
+	
+	<texture id="menusTexture" small="assets/menus.png"/>
+	<skin id="menuArrowSkin" texture="menusTexture" x="0" y="0" width="30" height="30">
+		<states offset="30"/>
+	</skin>
+	<skin id="menuBulletSkin" texture="menusTexture" x="30" y="0" width="30" height="30">
+		<states offset="30"/>
+	</skin>
+	<skin id="menuItemSkin">
+		<states colors="white,white,#acd473"/>
+	</skin>
+	<style id="menuItemStyle" font="bold 20px" color="black" align="left,middle">
+		<margins left="0" right="15" top="0" bottom="0"/>
+	</style>
+	
+	<style id="menuButtonStyle" font="bold" align="center">
+		<states colors="white,white,#acd473"/>
+	</style>
+	<variable id="menuButtonSkin" value="null"/>
+	
+	<!-- PROGRESS -->
+
+	<texture id="progressBarTexture" small="assets/progressBar.png"/>
+	<skin id="progressBarSkin" texture="progressBarTexture" x="0" y="0" width="60" height="20">
+		<states offset="20"/>
+		<tiles left="6" right="6"/>
+	</skin>
+	<skin id="progressCombSkin" texture="progressBarTexture" x="0" y="40" width="60" height="20">
+		<tiles left="0" right="0"/>
+	</skin>
+
+	<!-- TAB -->
+	
+	<effect id="tabDisabledEffect">
+		<colorize color="#acd473"/>
+	</effect>
+	<effect id="tabEnabledEffect">
+		<colorize color="white"/>
+	</effect>
+	<effect id="tabSelectedEffect">
+		<colorize color="#acd473"/>
+	</effect>
+	
+	<variable id="tabBarHeight" value="50"/>
+	<skin id="tabBarMiddleSkin">
+		<states colors="#80000000,transparent,transparent"/>
+	</skin>
+	<variable id="tabBarLeftSkin" value="tabBarMiddleSkin"/>
+	<variable id="tabBarRightSkin" value="tabBarMiddleSkin"/>
+	<style id="tabBarStyle" font="bold 14px" align="center">
+		<states colors="#acd473,white,#acd473"/>
+	</style>
+		
+	<skin id="tabLineMiddleSkin">
+		<states colors="white,#D0000000,#D0000000"/>
+	</skin>
+	<variable id="tabLineLeftSkin" value="tabLineMiddleSkin"/>
+	<variable id="tabLineRightSkin" value="tabLineMiddleSkin"/>
+	<style id="tabLineStyle" font="bold 18px" align="center">
+		<states colors="black,white,#acd473"/>
+	</style>
+	
+	<!-- SPINNER -->
+
+	<texture id="spinnerTexture" small="assets/spinner-strip-80px-24cell-blue.png"/>
+	<skin id="spinnerSkin" texture="spinnerTexture" x="0" y="0" width="80" height="80">
+		<variants offset="80"/>
+	</skin>
+	<variable id="spinnerCount" value="24"/>
+</module>

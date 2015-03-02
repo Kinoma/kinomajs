@@ -1,0 +1,1071 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+    
+    <require id="DebugHandlerMessageBehavior" path="DebugHandlerMessageBehavior"/>
+    <require id="AuthenticatedDebugHandlerMessageBehavior" path="AuthenticatedDebugHandlerMessageBehavior"/>
+    <require id="ApplicationManager" path="ApplicationManager"/>
+    <require id="Logger" path="Logger"/>
+    <require id="Preferences" path="Preferences"/>
+    <require id="TransitionHelper" path="TransitionHelper"/>
+    
+    <function id="getBehavior">
+        <![CDATA[
+            return shell.behavior;
+        ]]>
+    </function>
+    
+    <variable id="START_MESSAGE" value="'%com.kinoma.debug=start'"/>
+    <variable id="STOP_MESSAGE" value="'%com.kinoma.debug=stop'"/>
+    
+    <script>
+        <![CDATA[
+            // define constant values that we don't want exported by the module
+            var CREDENTIALS = "credentials";
+            var DEFAULT_PASSWORD = "kinoma";
+            var UPLOAD_PATH = getEnvironmentVariable( "uploadPath" );
+        ]]>
+    </script>
+
+    <class id="DebugBehavior" like="Behavior">
+        <field id="preferences"/>
+        <field id="applicationManager"/>
+        <field id="menuBar"/>
+        <field id="selectedApplication"/>
+        <field id="applicationContainer"/>
+        <field id="background"/>
+        <field id="applicationBackground"/>
+        <field id="profiling"/>
+        <field id="profilingDirectory"/>
+        <field id="systemModulePath"/>
+        <field id="breakpoints"/>
+        <field id="shareConfig"/>
+    
+        <method id="initialize">
+            <![CDATA[
+                // save system module path
+                this.systemModulePath = getEnvironmentVariable( "modulePath" );
+
+                // create the preferences object
+                this.preferences = Preferences.newInstance( this.getPreferencesPath() );
+
+                // allow the debug behavior to initialize defaults from preferences
+                this.initializePrefernces();
+
+                // finish initializing the behavior
+                this.applicationManager = ApplicationManager.newInstance( this.getApplicationSearchPaths(), this.getUploadPath( true ) );
+                this.menuBar = this.createMenuBar();
+                this.background = this.createBackground();
+                
+                // create the background container
+                if( this.background != null )
+                    shell.add( this.background );
+
+                shell.windowTitle = this.getWindowTitle();
+                shell.menus = this.menuBar != null ? this.menuBar.menus : null;
+            ]]>
+        </method>
+        
+        <method id="isDebuggingAllowed">
+            <![CDATA[
+                return this.getPreferences().getPreference( "allowDebugging", "on" ) == "on";
+            ]]>
+        </method>
+        
+        <method id="onLaunch" params="shell">
+            <![CDATA[
+            ]]>
+        </method>
+
+        <method id="getPreferences">
+            <![CDATA[
+                return this.preferences;
+            ]]>
+        </method>
+    
+        <method id="initializePrefernces"/>
+        <method id="exit"/>
+    
+        <method id="getSystemModulePath">
+            <![CDATA[
+                return this.systemModulePath;
+            ]]>
+        </method>
+
+        <method id="createBackground">
+            <![CDATA[
+                return new Container( {left: 0, right: 0, top: 0, bottom: 0}, new Skin( this.getBackgroundColor() ) );
+            ]]>
+        </method>
+
+        <method id="getBackgroundColor">
+            <![CDATA[
+                return "black";
+            ]]>
+        </method>
+        
+        <method id="createMenuBar">
+            <![CDATA[
+                return null;
+            ]]>
+        </method>
+        
+        <method id="setCredentials" params="credentials">
+            <![CDATA[
+                getPreferences().setPreference( CREDENTIALS, credentials );
+                getPreferences().write();
+            ]]>
+        </method>
+        
+        <method id="getDefaultCredentials">
+            <![CDATA[
+                return {username: "kinoma", password: DEFAULT_PASSWORD, required: true};
+            ]]>
+        </method>
+        
+        <method id="getCredentials">
+            <![CDATA[
+                return getPreferences().getPreference( CREDENTIALS, this.getDefaultCredentials() );
+            ]]>
+        </method>
+
+        <method id="getWindowTitle">
+            <![CDATA[
+                return "";
+            ]]>
+        </method>
+
+        <method id="getInfo" params="temporary">
+            <![CDATA[
+                var info = new Object();
+                var uploadPath = this.getUploadPath( temporary == false ? false : true );
+
+                info.root = uploadPath.substring( "file://".length );
+                                
+                return info;
+            ]]>
+        </method>
+        
+        <method id="getDescription">
+            <![CDATA[
+                var description = new Object();
+                
+                description.version = getEnvironmentVariable( "CORE_VERSION" );
+                
+                var credentials = this.getCredentials();
+                
+                description.locked = credentials.required == true && credentials.password != DEFAULT_PASSWORD;
+                description.uuid = shell.uuid;
+                
+                return description;
+            ]]>
+        </method>
+        
+        <method id="getPreferencesPath">
+            <![CDATA[
+                return Files.preferencesDirectory + "kdt/preferences.json";
+            ]]>
+        </method>
+        
+        <method id="getApplicationSearchPaths">
+            <![CDATA[
+                return null;
+            ]]>
+        </method>
+        
+        <method id="getUploadPath" params="temporary">
+            <![CDATA[
+            	if (temporary)
+                   return mergeURI( UPLOAD_PATH != null ? UPLOAD_PATH : Files.preferencesDirectory, "kdt/cache" );
+                return mergeURI( Files.preferencesDirectory, "kdt/samples" );
+            ]]>
+        </method>
+        
+        <method id="getManifestPath" params="path, temporary">
+            <![CDATA[
+                return this.getUploadPath( temporary ) + "/" + path + "/.manifest";
+            ]]>
+        </method>
+        
+        <method id="getApplicationManager">
+            <![CDATA[
+                return this.applicationManager;
+            ]]>
+        </method>
+        
+        <method id="getShareConfig">
+            <![CDATA[
+                if( this.shareConfig == null )
+                {
+                    var ssdpconf = getEnvironmentVariable( "ssdpconf" );
+                    
+                    if( ssdpconf != null )
+                        this.shareConfig = { ssdp: ssdpconf == true };
+                }
+                
+                if( this.shareConfig == null )
+                    this.shareConfig = { ssdp: true };
+            
+                return this.shareConfig;
+            ]]>
+        </method>
+
+        <method id="getSelectedApplication">
+            <![CDATA[
+                return this.selectedApplication;
+            ]]>
+        </method>
+        
+        <method id="getApplicationContainer">
+            <![CDATA[
+                return this.applicationContainer;
+            ]]>
+        </method>
+        
+        <method id="setSelectedApplication" params="applicationInfo, debug, breakOnExceptions">
+            <![CDATA[
+                if( applicationInfo != this.selectedApplication )
+                {
+                    var oldApplicationContainer = this.applicationContainer;
+                    var boe = breakOnExceptions != null ? breakOnExceptions : true;
+
+                    this.setApplicationEnvironment( applicationInfo );
+                    
+                    // send pins vm initialization options to pins vm
+                    shell.invoke( new Message( "pins:breakOnException?break=" + boe ) );
+                    shell.invoke( new Message( "pins:breakOnLaunch?break=" + (debug ? "true" : "false") ) );
+                    
+                    this.applicationContainer = this.getApplicationManager().createApplicationContainer( applicationInfo, debug, boe );
+                    
+                    if( oldApplicationContainer != null )
+                        this.getScreen().run( new TransitionHelper.PushTransition( 350, oldApplicationContainer, this.applicationContainer, TransitionHelper.LEFT, 0 ) );
+                    
+                    else
+                    {
+                        this.getScreen().add( this.applicationContainer );
+                        
+                        this.applicationContainer.launch();
+                        this.applicationContainer.adapt();
+                        
+                        this.applicationStarted();
+                    }
+                    
+                    if( this.profiling )
+                    {
+                       if( this.profilingDirectory != null )
+                           this.applicationContainer.profilingDirectory = this.profilingDirectory;
+                       
+                       this.applicationContainer.profiling = true;
+                    }
+                    
+                    this.selectedApplication = applicationInfo;
+                }
+            ]]>
+        </method>
+        
+        <method id="setInputEvents" params="events"/>
+        
+        <method id="setApplicationEnvironment" params="applicationInfo">
+            <![CDATA[
+                if( applicationInfo.environment != null ) 
+                    this.setEnvironment( applicationInfo.environment, applicationInfo.temporary );
+                
+                // get the current module path
+                var modulePath = getEnvironmentVariable( "modulePath" );
+
+                //
+                // ensure that the application program's parent path is in
+                // the specified modulePath list...
+                //
+                var program = applicationInfo.program;
+                var url = program.slice( 0, program.lastIndexOf( "/" ) + 1 );
+                var path = url.slice( 7 );
+
+                if( modulePath != null )
+                {
+                    var modulePathList = modulePath.split( ";" );
+                    var required = true;
+                    
+                    for( var j = 0; j < modulePathList.length; j++ )
+                    {
+                        if( modulePathList[j] == path || modulePathList[j] == url ) {
+                            required = false;
+                            break;
+                        }
+                    }
+                    
+                    if( required )
+                        modulePath = modulePath + ";" + path;
+                }
+                else
+                    modulePath = path;
+
+                //    
+                // add default module path for application hardwarepins blls
+                //
+                var hwpModulePath = getEnvironmentVariable( "hwpModulePath" );
+                
+                if( hwpModulePath != null )
+                {
+                    url = mergeURI( applicationInfo.url, "./" + hwpModulePath + "/" );
+
+                    if( Files.exists( url ) == Files.directoryType )
+                    {
+                        
+                        if( modulePath == null )
+                            modulePath = url;
+                        else
+                            modulePath = modulePath + ";" + url.slice( 7 );
+                    }    
+                }
+                
+                setEnvironmentVariable( "modulePath", modulePath );
+            ]]>
+        </method>
+        
+        <method id="applicationStarted"/>
+        <method id="applicationStopped"/>
+        
+        <method id="getScreen">
+            <![CDATA[
+                return null;
+            ]]>
+        </method>
+
+        <method id="setProfiling" params="profiling, directory">
+            <![CDATA[
+                if( this.profiling != profiling )
+                {
+                    this.profiling = profiling;
+                    
+                    if( directory != null )
+                        this.profilingDirectory = directory.indexOf( "file://" ) == 0 ? directory : "file://" + directory + "/";
+                    
+                    if( this.applicationContainer != null )
+                    {
+                        if( profiling )
+                        {
+	                        if( this.profilingDirectory != null )
+	                            this.applicationContainer.profilingDirectory =  this.profilingDirectory;
+	                    }
+                    
+                        this.applicationContainer.profiling = profiling;
+                    }
+                }
+            ]]>
+        </method>
+
+        <method id="connect" params="host, port">
+            <![CDATA[
+                setEnvironmentVariable( "debugger", port != null ? host + ":" + port : host );
+                shell.debugging = true;
+            
+                Logger.log( START_MESSAGE );
+            ]]>
+        </method>
+
+        <method id="disconnect" params="terminate">
+            <![CDATA[
+                //trace( "### disconnect: " + terminate + "\n" );
+            
+                if( this.applicationContainer != null )
+                {
+                    if( this.applicationContainer.debugging )
+                    {
+                        Logger.log( STOP_MESSAGE, false, this.applicationContainer );
+                
+                        this.applicationContainer.debugging = false;
+                    }
+                    
+                    if( terminate )
+                    {
+                        this.applicationContainer.quit();
+                        
+                        this.getScreen().remove( this.applicationContainer );
+                        
+                        this.applicationContainer = null;
+                        
+                        this.applicationStopped();
+                    }
+                    
+                    this.selectedApplication = null;
+                    
+                    //shell.debugging = false;
+                    
+                    // reset the modulePath environment variable
+                    setEnvironmentVariable( "modulePath", this.getSystemModulePath() );
+                }
+            ]]>
+        </method>
+        
+        <method id="getApplicationContainerFromParams" params="params">
+            <![CDATA[
+                var applicationInfo = null;
+                var applicationContainer = null;
+
+                if( params.contains( "id" ) )
+                    applicationInfo = this.getApplicationManager().getExtensionById( params.getValue( "id" ) );
+                    
+                else if( params.contains( "url" ) )
+                    applicationInfo = this.getApplicationManager().getExtensionByUrl( params.getValue( "url" ) );
+                
+                if( applicationInfo == this.selectedApplication )
+                    applicationContainer = this.applicationContainer;
+                
+                return applicationContainer;
+            ]]>
+        </method>
+
+        <method id="installApplication" params="url, temporary">
+            <![CDATA[            
+                var applicationInfo = this.getApplicationManager().registerExtension( url, temporary );
+                    
+                return applicationInfo;
+            ]]>
+        </method>
+
+        <method id="uninstallApplication" params="url">
+            <![CDATA[            
+				var applicationManager = this.getApplicationManager();
+				var applicationInfo = applicationManager.getExtensionByUrl( url );
+				if( applicationInfo )
+				{
+					applicationManager.unregisterExtension( applicationInfo );
+					var persistentPath = this.getUploadPath( false );
+					var temporaryPath = this.getUploadPath( true );
+					if( (url.indexOf( persistentPath ) == 0) || (url.indexOf( temporaryPath ) == 0) )
+					{
+						var path = applicationInfo.url.slice( 0, url.lastIndexOf( "/" ) ) + "/";
+						Files.deleteDirectory( path, true );
+					}
+                }
+                return applicationInfo;
+            ]]>
+        </method>
+
+        <method id="setEnvironment" params="variables, temporary">
+            <![CDATA[
+                for( var next in variables )
+                {
+                    //trace( "#### SETTING ENVIRONMENT VARIABLES:\n" );
+                    //trace( "####     " + next + "=" + variables[next] + "\n" );
+                    if( next == "modulePath" )
+                    {
+                        var modifiedModulePath = variables[next].replace( "@", getBehavior().getUploadPath( temporary ) );
+                        var modulePath = getBehavior().getSystemModulePath() != null ? getBehavior().getSystemModulePath() + ";" + modifiedModulePath : modifiedModulePath;
+                        
+                        setEnvironmentVariable( next, modulePath );
+                    }
+                    else
+                        setEnvironmentVariable( next, variables[next] );
+                }
+            ]]>
+        </method>
+
+        <method id="processManifest" params="path">
+            <![CDATA[
+                var manifest = Files.readJSON( path );
+                var root = mergeURI( path, "./" );
+            
+                this.pruneManifestDirectory( root, root, manifest );
+            ]]>
+        </method>
+        
+        <method id="pruneManifestDirectory" params="path, root, manifest">
+            <![CDATA[
+                var it = new Files.Iterator( path );
+                var next = it.getNext();
+                var pendingDeleteFileList = [];
+                
+                while( next != null )
+                {
+                    if( next.type == Files.directoryType )
+                        this.pruneManifestDirectory( mergeURI( path, next.path + "/" ), root, manifest );
+                        
+                    else
+                    {
+                        var file = mergeURI( path, next.path );
+                        var entry = file.substring( root.length );
+                        
+                        // if the compile option is set in the manifest
+                        // then js and xml programs and modules are saved
+                        // as jsb files in the application cache
+                        if( "compile" in manifest && manifest.compile == true )
+                        {
+                            var extensionIndex = entry.lastIndexOf( "." );
+                            var extension = entry.substring( extensionIndex + 1 ).toLowerCase();
+                            
+                            // if the file extensions is jsb then check to see if there is a 
+                            // corresponding jsb, js, or xml file in the manifest... otherwise 
+                            // delete the jsb file...
+                            if( extension == "jsb" )
+                            {
+                                var entry = entry.substring( 0, extensionIndex + 1 );
+
+                                if( ((entry + "jsb") in manifest.checksums || (entry + "js") in manifest.checksums || (entry + "xml") in manifest.checksums) == false )
+                                    pendingDeleteFileList.push( file );
+                            }
+                            
+                            // if the file extension is js or xml and we are compiling, then
+                            // check if there is a corresponding jsb file... if there is a
+                            // jsb then assume that the js/xml file is obsolete...
+                            else if( extension == "js" || extension == "xml" )
+                            {
+                                var entry = mergeURI( root, entry.substring( 0, extensionIndex + 1 ) + "jsb" );
+                                
+                                if( Files.exists( entry ) == Files.fileType )
+                                    pendingDeleteFileList.push( file );
+                            }                 
+                        }
+                        
+                        // check to see if the file has an entry in the
+                        // manifest checksum map... if it doesn't then
+                        // we should remove it from the cache           
+                        else if( (entry in manifest.checksums) == false )
+                            pendingDeleteFileList.push( file );
+                    }
+                        
+                    next = it.getNext();
+                }
+                
+                for( var j = 0; j < pendingDeleteFileList.length; j++ )
+                    Files.deleteFile( pendingDeleteFileList[j] );
+            ]]>
+        </method>
+
+        <method id="handleMessageBegin" params="message"/>
+        <method id="handleMessageEnd" params="message"/>
+        <method id="handleShellQuit" params="message"/>
+
+        <method id="handleLaunch" params="launch">
+            <![CDATA[
+                var temporary = "temporary" in launch ? launch.temporary : true;
+                var application = "application" in launch ? launch.application : null;
+                var profiler = "profiler" in launch ? launch.profiler : null;
+                
+	            var applicationInfo = null;
+	            
+	            if( application != null )
+	            {
+	               if( "id" in application )
+	                   applicationInfo = this.getApplicationManager().getExtensionById( application.id );
+
+                   if( applicationInfo != null )
+                   {
+                       if( temporary != applicationInfo.temporary )
+                       {
+                          this.uninstallApplication( applicationInfo.url );
+                          applicationInfo = null;
+                       }
+                   }
+
+	               if( applicationInfo == null )
+	               {
+	                   if( "path" in application )
+	                       applicationInfo = this.installApplication( "file://" + application.path, temporary );
+	                   
+	                   else if( "app" in application )
+	                       applicationInfo = this.installApplication( this.getUploadPath( temporary ) + "/" + application.app, temporary );
+	               }
+	            }
+	            
+	            if( profiler != null )
+				{
+				    var enabled = "enabled" in profiler && profiler.enabled == true;
+				    var path = "path" in profiler ? profiler.path : mergeURI( shell.url, "../" );
+				    
+				    this.setProfiling( enabled, path );
+				}
+	            
+	            if( applicationInfo != null )
+	            {
+	                // set the application info enviroment variables
+	                if( "environment" in launch )
+                        applicationInfo.environment = launch.environment;           
+	            
+	                // set the initial breakpoins
+	                //if( "breakpoints" in launch )
+	                //   this.setBreakpoints( launch.breakpoints );
+	                
+	                // send a message to the shell to start the application, because if
+	                // we call setSelectedApplication() directly the interface may not
+	                // be fully ready after installing the application... this is the case
+	                // with the tiles in the create shell.
+	                var debug = ("debug" in launch && launch.debug == true) ? "true" : "false";
+	                var breakOnExceptions = ("breakOnExceptions" in launch && launch.breakOnExceptions == true) ? "true" : "false";
+	                
+	                shell.invoke( new Message( "xkpr://shell/start?id=" + applicationInfo.id + "&debug=" + debug + "&breakOnExceptions=" + breakOnExceptions ) );
+                }
+            ]]>
+        </method>
+
+        <method id="setBreakpoints" params="breakpoints">
+            <![CDATA[
+                this.breakpoints = breakpoints;    
+                this.handleSetBreakpoints( breakpoints );
+            ]]>
+        </method>
+        
+        <method id="handleSetBreakpoints" params="breakpoints">
+            <![CDATA[
+                if( breakpoints != null )
+                {
+	                var host = this.getApplicationContainer();
+	
+	                if( host != null )
+	                {
+	                    // 
+	                    // first clear all of the breakpoints in the
+	                    // host and in the pins VM
+	                    // 
+	                    host.clearAllBreakpoints();
+	                    
+	                    var message = new Message("pins:clearAllBreakpoints");
+	                    
+	                    message.setRequestHeader("referrer", "xkpr://" + host.id);
+	                    
+	                    shell.invoke(message);
+	                    
+	                    //
+	                    // iteratre through all of the breakpoints and enable
+	                    // them in the host and pins VM
+	                    //
+		                for( var j = 0; j < breakpoints.length; j++ )
+		                {
+		                    host.setBreakpoint( breakpoints[j].file, breakpoints[j].line );
+		                
+		                    var message = new Message( "pins:setBreakpoint?" + serializeQuery( breakpoints[j] ) );
+		                    
+		                    message.setRequestHeader( "referrer", "xkpr://" + host.id );
+		                    
+		                    shell.invoke( message );
+		                }
+		            }  
+		        }  
+            ]]>
+        </method>
+
+        <method id="onQuit">
+            <![CDATA[
+                this.exit();
+            ]]>
+        </method>
+    </class>
+
+    <!-- export the main prototype -->
+    <variable id="prototype" value="DebugBehavior.prototype"/>
+
+    <!-- debug handlers -->
+    <handler path="/ping">
+        <behavior like="DebugHandlerMessageBehavior"/>
+    </handler>
+
+    <handler path="/description">
+        <behavior like="DebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message ) {
+                    message.responseText = JSON.stringify( getBehavior().getDescription() );
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/description/icon">
+        <behavior like="DebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                    var url = getBehavior().getIcon();
+                    
+                    if( Files.exists( url ) )
+                       message.responseChunk = Files.readChunk( url );
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/">  <!-- this should change to a path like dd.xml, but doing so requires simultaneously updating the SSDP announcement -->
+        <behavior like="DebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                    var url = mergeURI(shell.url, "upnp/dd.xml");
+
+                    if( Files.exists( url ) )
+                    {
+                        var text = Files.readText( url );
+
+                        var name = getBehavior().getDescription().name;
+                        text = text.replace("[friendlyName]", name ? name : "Kinoma Create");
+                        text = text.replace("[udn]", shell.uuid);
+                        
+                        //@@ version
+
+                        message.setResponseHeader("Content-Type", "text/xml; charset=\"utf-8\"");
+                        message.responseText = text;
+                    }
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/info">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <method id="processMessage" params="handler, message, params">
+                <![CDATA[
+                    var temporary = params.getBool( "temporary", true );         
+
+                    message.responseText = JSON.stringify( getBehavior().getInfo( temporary ) );
+                ]]>
+            </method>
+        </behavior>
+    </handler>
+    
+    <handler path="/connect">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                    var host = params.getValue( "host", "localhost" );
+                    var port = params.getValue( "port" );
+                    var temporary = params.getBool( "temporary", true );         
+
+                    getBehavior().connect( host, port );
+                    
+                    message.responseText = JSON.stringify( getBehavior().getInfo( temporary ) );
+                }
+            ]]>
+        </behavior>
+    </handler>
+    
+    <handler path="/disconnect">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) {
+                    getBehavior().disconnect( params.getBool( "terminate", true ) );
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/break">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                /*
+                    if( params.contains( "id" ) || params.contains( "url" ) )
+                    {
+                        var applicationContainer = getBehavior().getApplicationContainerFromParams( params );
+                        
+                        // call the debugger function in the target application container
+                        if( applicationContainer != null && "debugger" in applicationContainer)
+                          applicationContainer["debugger"]();
+                    }
+                    else if( getBehavior().applicationContainer != null && "debugger" in getBehavior().applicationContainer )
+                       getBehavior().applicationContainer["debugger"]();
+                    
+                    else
+                */
+                    debugger;
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/trace">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                    var query = parseQuery( message.query );
+                    var traceInApplication = "id" in query || "url" in query;
+                    
+                    if( params.contains( "id" ) || params.contains( "url" ) )
+                    {
+                        var applicationContainer = getBehavior().getApplicationContainerFromParams( params );
+                        
+                        // call the trace function in the target application container
+                        if( applicationContainer != null )
+                            Logger.log( params.getValue( "out", "" ), true, applicationContainer );
+                    }
+                    else
+                        Logger.log( params.getValue( "out", "" ), true );
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/install">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {    
+                	var temporary = params.getBool( "temporary", true );         
+                    var url = null;
+                
+                    if( params.contains( "path" ) )
+                       url = "file://" + params.getValue( "path" );
+                    
+                    else if( params.contains( "url" ) )
+                       url = params.getValue( "url" );
+                       
+                    else if( params.contains( "app" ) )
+                       url = getBehavior().getUploadPath( temporary ) + "/" + params.getValue( "app" );
+                       
+                    getBehavior().installApplication( url, temporary );
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+	<handler path="/uninstall">
+		<behavior like="AuthenticatedDebugHandlerMessageBehavior">
+			<method id="processMessage" params="handler, message, params"><![CDATA[
+				var model = getBehavior();
+				var url = null;
+				
+				if (params.contains( "id" ))
+				{
+					var applicationInfo = model.getApplicationManager().getExtensionById( params.getValue( "id" ) );
+					if( applicationInfo )
+						url = applicationInfo.url;
+				}
+				
+				else if (params.contains( "path" ))
+					url = "file://" + params.getValue( "path" );
+					
+				else if (params.contains( "url" ))
+					url = params.getValue( "url" );
+					
+				else if (params.contains( "app" ))
+					url = model.getUploadPath(params.getBool( "temporary", true )) + "/" + params.getValue( "app" );
+
+				if( url )
+					model.uninstallApplication( url );
+			]]></method>
+        </behavior>
+    </handler>
+    
+    <handler path="/launch">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                    if( message.method == "POST" )
+                        getBehavior().handleLaunch( JSON.parse( message.requestText ) );
+
+                    else
+                    {
+                        var applicationId = params.getValue( "id" );
+                        var launch = {};
+	                    
+	                    launch.application = { id:applicationId };
+                       
+                        getBehavior().handleLaunch( launch );
+	                }
+                }
+            ]]>
+        </behavior>
+    </handler>
+    
+    <handler path="/start">
+        <behavior like="DebugHandlerMessageBehavior">
+	        <method id="onAccept" params="handler, message">
+	            <![CDATA[
+	                return false;
+	            ]]>
+	        </method>
+	        <method id="processMessage" params="handler, message, params">
+                <![CDATA[
+                    var applicationInfo = getBehavior().getApplicationManager().getExtensionById( params.getValue( "id" ) );
+                    
+                    if( applicationInfo != null )
+                        getBehavior().setSelectedApplication( applicationInfo, params.getBool( "debug", false ), params.getBool( "breakOnExceptions", true ) );
+                ]]>
+            </method>
+        </behavior>
+    </handler>
+
+    <handler path="/upload">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function onAccept( handler, message )
+                {
+                    if( message.method == "PUT" ) 
+                    {
+                        var params = new DebugHandlerMessageBehavior.MessageParams( message );
+                
+                        if( params.contains( "path" ) )
+                        {
+                            var path = getBehavior().getUploadPath( params.getBool( "temporary", true ) ) + "/" + params.getValue( "path" );
+                        
+                            Files.ensureDirectory( path );
+                            
+                            message.requestPath = path;
+                            
+                            return true;
+                        }
+                    }
+                }
+            ]]>
+        </behavior>
+    </handler>
+     
+	<handler path="/unload">
+		<behavior like="AuthenticatedDebugHandlerMessageBehavior">
+			<method id="processMessage" params="handler, message, params"><![CDATA[
+				if( params.contains( "path" ) ) {
+                    var url = getBehavior().getUploadPath(params.getBool( "temporary", true )) + "/" + params.getValue( "path" );
+                    var info = Files.getInfo( url );
+                    if( info )
+                    {
+						if (info.type == Files.directoryType)
+							Files.deleteDirectory( url );
+						else
+							Files.deleteFile( url );
+                    }
+                }
+			]]></method>
+		</behavior>
+	 </handler>
+   
+    <handler path="/manifest">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function onAccept( handler, message )
+                {
+                    if( message.method == "PUT" ) 
+                    {
+                        var params = new DebugHandlerMessageBehavior.MessageParams( message );
+                        
+                        if( params.contains( "put" ) && params.contains( "path" ) )
+                        {
+                            var manifestPath = getBehavior().getManifestPath( params.getValue( "path"  ),  params.getBool( "temporary", true ) );
+                            
+                            Files.ensureDirectory( manifestPath );
+                        
+                            message.requestPath = manifestPath;
+                        
+                        }
+                    }
+                    return true;
+                }
+
+                function processMessage( handler, message, params ) 
+                {
+                    var manifestPath = getBehavior().getManifestPath( params.getValue( "path" ),  params.getBool( "temporary", true ) );
+
+                    if( message.method == "PUT" ) 
+                        getBehavior().processManifest( manifestPath );
+                        
+                    else
+                    {
+                        if( Files.exists( manifestPath ) )
+                            message.responsePath = manifestPath;
+                        else
+                            message.responseText = JSON.stringify( new Object() );
+                    }
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/environment">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <method id="processMessage" params="handler, message, params">
+                <![CDATA[
+                    if( message.method == "POST" )
+                        getBehavior().setEnvironment( JSON.parse( message.requestText ), true );
+                    else
+                        getBehavior().setEnvironment( params.params, true );
+                ]]>
+            </method>
+        </behavior>
+    </handler>
+
+    <handler path="/setBreakpoints">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <method id="processMessage" params="handler, message, params">
+                <![CDATA[
+                    if( message.method == "POST" )
+                        getBehavior().setBreakpoints( JSON.parse( message.requestText ) )
+                ]]>
+            </method>
+        </behavior>
+     </handler>
+
+    <handler path="/profile">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <method id="processMessage" params="handler, message, params">
+                <![CDATA[
+                    var action = params.getValue( "action" );
+                    var directory = params.getValue( "directory", mergeURI( shell.url, "../" ) );
+                    var records = mergeURI( directory, "xsprofile.records.out" );
+                    var symbols = mergeURI( directory, "xsprofile.symbols.out" );
+                    
+                    switch( action )
+                    {
+                        case "start":
+                            // delete the profiler data if it exists before we start profiling
+                            Files.deleteFile( records );
+                            Files.deleteFile( symbols );
+                        
+                            // start profiling
+                            getBehavior().setProfiling( true, directory );
+                            break;
+                            
+                        case "stop":
+                            getBehavior().setProfiling( false );
+                            break;
+                            
+                        case "get":
+                            var file = params.getValue( "file" );
+                            var url = null;
+                            
+                            switch( file )
+                            {
+                                case "records":
+                                   url = records;
+                                   break;
+                                   
+                                case "symbols":
+                                   url = symbols;
+                                   break;
+                            }
+                            
+                            if( url != null && Files.exists( url ) != null )
+                                message.responseChunk = Files.readChunk( url );
+                            else
+                                message.status = 500;
+                                
+                            break;
+                    }
+                ]]>
+            </method>
+        </behavior>
+    </handler>
+
+    <handler path="/quit">
+        <behavior>
+            <method id="onInvoke" params="content, message">
+                <![CDATA[
+                    getBehavior().handleShellQuit( message );
+                ]]>
+            </method>
+        </behavior>
+    </handler>
+</module>

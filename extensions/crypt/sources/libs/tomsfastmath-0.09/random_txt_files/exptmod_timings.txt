@@ -1,0 +1,45 @@
+LTM timings:
+
+Athlon Barton
+Exponentiating   513-bit =>       561/sec,   3909824 cycles
+Exponentiating  1025-bit =>       103/sec,  21175496 cycles
+Exponentiating  2049-bit =>        16/sec, 129845554 cycles
+
+P4 Northwood
+Exponentiating   513-bit =>       284/sec,   9884722 cycles
+Exponentiating  1025-bit =>        47/sec,  59090432 cycles
+Exponentiating  2049-bit =>         6/sec, 427456070 cycles
+
+TFM timings:
+
+Athlon Barton
+  512-bit:   2289257
+ 1024-bit:  12871373
+ 2048-bit:  97211357
+
+P4 Northwood [x86-32]
+  512-bit:   8015598
+ 1024-bit:  55559304
+ 2048-bit: 409861746
+
+P4 Northwood [SSE2]
+  512-bit:   5895000
+ 1024-bit:  39648730
+ 2048-bit: 304110670
+
+<center>
+<table border=1 width=100%>
+<tr><td>Processor</td><td>Size in bits</td><td>x86-32</td> <td>x86-64</td><td>SSE2</td><td>LTM</td></tr>
+<tr><td>P4       </td><td>512         </td><td>8015598</td><td></td>      <td>5895000</td><td>9884722</td></tr>
+<tr><td>         </td><td>1024        </td><td>55559304</td><td></td>     <td>39648730</td><td>59090432</td></tr>
+<tr><td>         </td><td>2048        </td><td>409861746</td><td></td>    <td>304110670</td><td>427456070</td></tr>
+<tr><td>Athlon Barton</td><td>512     </td><td>2289257</td><td></td><td></td><td>3909824</td></tr>
+<tr><td>             </td><td>1024    </td><td>12871373</td><td></td><td></td><td>21175496</td></tr>
+<tr><td>             </td><td>2048    </td><td>97211357</td><td></td><td></td><td>129845554</td></tr>
+<tr><td>Athlon64     </td><td>512     </td><td></td><td>641743</td><td></td><td>2183028</td></tr>
+<tr><td>             </td><td>1042    </td><td></td><td>3167406</td><td></td><td>11900720</td></tr>
+<tr><td>             </td><td>2048    </td><td></td><td>20158609</td><td></td><td>72376416</td></tr>
+</table>
+<b>Cycles per operation</b>
+</center>
+

@@ -1,0 +1,1148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+ 	<require id="CREATIONS" path="creations/creations"/>
+ 	<require id="BUTTONS" path="controls/buttons"/>
+	<require id="CONTROL" path="mobile/control"/>
+
+	<!-- HEADER -->
+	<style id="headerButtonsStyle" font="bold 24px" align="right,middle" lines="1">
+		<states colors="white,#5ab021"/>
+	</style>
+	
+	<skin id="headerSkin" color="#333333"/>
+	
+	<texture id="smallWifiTexture" small="../assets/keyboard/sm-wifi-glyph.png"/>
+	<skin id="smallWifiSkin" texture="smallWifiTexture" x="0" y="0" width="20" height="14"/>
+	
+	<texture id="backButtonTexture" small="../assets/keyboard/back-arrow.png"/>
+	<skin id="backButtonSkin" texture="backButtonTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+	
+	<container id="BackButton" left="0" top="0" like="BUTTONS.Button" skin="backButtonSkin">
+		<behavior like="BUTTONS.ButtonBehavior">        
+			<method id="onTap" params="container"><![CDATA[
+			    var input = textDisplay.label.string;
+				container.bubble("onKeyboardBackButtonTap", input);
+			]]></method>
+        </behavior>
+     	<label name="buttonLabel" left="0" right="0" top="0" bottom="0" style="keyboardButtonStyle"/>
+	</container>
+
+	<behavior id="HeaderButtonBehavior">
+		<method id="onTouchBegan" params="label, id, x, y, ticks">
+			<![CDATA[
+				label.state = 1;
+			]]>
+		</method>
+		<method id="onTouchEnded" params="label, id, x, y, ticks">
+			<![CDATA[
+				label.state = 0;
+				label.delegate("onTap");
+			]]>
+		</method>
+	</behavior>
+		
+	<label id="OKLabel" right="16 + 10" active="true" style="headerButtonsStyle" string="$.okLabel">
+		<behavior like="HeaderButtonBehavior">
+			<method id="onTap" params="label">
+				<![CDATA[
+					var input = textDisplay.label.string;
+					label.bubble("onKeyboardOK", input);
+				]]>
+			</method>
+		</behavior>
+	</label>
+	
+	<label id="CancelLabel" left="16 + 10" active="true" style="headerButtonsStyle" string="$.cancelLabel">
+		<behavior like="HeaderButtonBehavior">
+			<method id="onTap" params="label">
+				<![CDATA[
+					var input = textDisplay.label.string;
+					label.bubble("onKeyboardCancel", input);
+				]]>
+			</method>
+		</behavior>
+	</label>
+	
+	<container id="WifiHeader" left="-16" right="-16" top="0" height="32" skin="CREATIONS.dynamicHeaderSkin">
+		<line left="0" right="0">
+			<label like="CancelLabel"/>
+			<scroller left="5" right="5" like="SCROLLER.HorizontalScroller" loop="true" clip="true">
+				<behavior like="CONTROL.HorizontalTickerBehavior">
+					<method id="onCreate" params="scroller, data"><![CDATA[
+						this.data = data;
+					]]></method>
+					<method id="onDisplaying" params="scroller"><![CDATA[
+						CONTROL.HorizontalTickerBehavior.prototype.onDisplaying.call(this, scroller);
+						if (!scroller.running) {
+							scroller.first.visible = false;	// display the SSID centered in the header
+							scroller.container.container.add(new Label({left: 0, right: 0, top: 0, bottom: 0, style: CREATIONS.blackDynamicHeaderTitleStyle, string: this.data.ssid}));
+						}
+						else {
+							scroller.first.string += ' ';
+						}
+					]]></method>
+				</behavior>
+				<label top="0" bottom="0" style="CREATIONS.blackDynamicHeaderTitleStyle" string="$.ssid"/>
+			</scroller>
+			<label like="OKLabel"/>
+		</line>
+	</container>
+	
+	<container id="KeyboardHeader" left="-16" right="-16" top="0" height="32" skin="CREATIONS.dynamicHeaderSkin">
+		<label like="CancelLabel"/>
+ 		<label top="0" left="0" bottom="0" right="0" style="CREATIONS.blackDynamicHeaderTitleStyle" string="$.title"/>
+		<label like="OKLabel"/>
+	</container>
+	
+	<container id="EmptyHeader" left="-16" right="-16" top="0" height="32" skin="CREATIONS.dynamicHeaderSkin"/>
+			
+	<!-- TEXT DISPLAY -->
+	
+	<style id="textDisplayStyle" font="bold 24px" color="black" align="left,middle" lines="1">
+		<margins left="10" right="10"/>
+	</style>
+
+	<style id="hintTextStyle" font="26px" color="#666666" align="left,middle" lines="1">
+		<margins left="14" right="14"/>
+	</style>
+
+	<texture id="textDisplaySeparatorTexture" small="../assets/keyboard/separator.png"/>
+	
+	<skin id="blueSkin" color="blue"/>
+	<skin id="textDisplaySkin" texture="textDisplaySeparatorTexture" x="0" y="0" width="10" height="1">
+		<tiles left="2" right="2"/>
+	</skin>
+				
+	<scroller id="TextDisplay" left="0" top="0" right="0" height="50">
+		<behavior>
+			<method id="onCreate" params="scroller, data">
+                <![CDATA[
+                    scroller.label.string = data.previousText;
+                    this.data = data;
+                ]]>
+            </method>
+			<method id="onDisplaying" params="scroller">
+                <![CDATA[
+					if (scroller.label.string.length == 0)
+						this.showHintText(scroller);
+                ]]>
+            </method>
+            <method id="onAddCharacter" params="scroller, character">
+                <![CDATA[
+                 	scroller.label.insert(character);
+                 	this.data.previousText = scroller.label.string;
+                 	//trace("\n onAddCharacter previousText: " + this.data.previousText); 
+                 	var b = scroller.label.selectionBounds;
+                 	scroller.reveal(scroller.label.selectionBounds); 
+                ]]>
+            </method>
+            <method id="onDeleteCharacter" params="scroller">
+                <![CDATA[
+                	var label = scroller.label;
+					label.select(label.length - 1, label.length)
+					label.insert();
+					this.data.previousText = scroller.label.string;
+					scroller.reveal(scroller.label.selectionBounds);
+					if (label.string.length == 0)
+						this.showHintText(scroller);
+                ]]>
+            </method>
+            <method id="hideHintText" params="scroller">
+                <![CDATA[
+                	scroller.hintTextLabel.visible = false;
+                ]]>
+            </method>
+            <method id="showHintText" params="scroller">
+                <![CDATA[
+                	scroller.hintTextLabel.visible = true;
+                ]]>
+            </method>
+        </behavior>
+		<label name="label" editable="true" left="0" style="textDisplayStyle" string="'12345678901234567890123456'">
+			<behavior>
+                 <method id="onDisplayed" params="label">
+                     <![CDATA[
+						label.select(label.length, label.length);
+						label.focus();
+                     ]]>
+                 </method>
+             </behavior>
+		</label>
+		<content left="0" right="0" bottom="4" skin="textDisplaySkin"/>
+		<label name="hintTextLabel" left="0" right="0" top="0" bottom="0" visible="false" style="hintTextStyle">
+			<behavior>
+                 <method id="onCreate" params="label, data">
+                     <![CDATA[
+						if ("hintText" in data)
+							label.string = data.hintText;
+                     ]]>
+                 </method>
+             </behavior>			
+		</label>
+	</scroller>
+	
+	<!-- KEYBOARD -->
+	
+	<style id="keyboardButtonStyle" font="bold 30px" color="white" align="middle,center" lines="1"/>
+	<style id="keyboardSmallButtonStyle" font="bold 26px" color="white" align="middle,center" lines="1"/>
+
+	<container id="KeyboardButtonContainer" left="0" top="0" width="32" height="36">
+		<behavior>
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+					container.coordinates = { left : 0, top : 0, width : data.width, height : container.height };
+                	var keyboardContent;
+                	var type = "labeledButton";
+                    if (data.hasOwnProperty("type"))
+                    	type = data.type;
+                    switch (type) {
+                    	case "spacer":
+	                    	keyboardContent = new KeyboardSpacer(data);
+                    	break
+                    	case "labeledButton":
+	                    	keyboardContent = new KeyboardLabeledButton(data);
+                    	break
+                    	case "enterButton":
+	                    	keyboardContent = new KeyboardEnterButton(data);
+                    	break
+                    	case "glyphButton":
+	                    	keyboardContent = new KeyboardGlyphButton(data);
+                    	break
+                    }
+                    container.add(keyboardContent);
+                ]]>
+            </method>                        
+        </behavior>		
+	</container>
+
+	<effect id="selectedEffect">
+		<colorize color="#333333"/>
+	</effect>
+		
+	<content id="KeyboardSpacer" left="0" top="0" bottom="0" visible="false" active="false">
+		<behavior>
+            <method id="onCreate" params="content, data">
+                <![CDATA[
+					content.coordinates = { left : 0, top : 0, width : data.width, height : content.height };
+                ]]>
+            </method>
+        </behavior>
+	</content>
+	
+	<variable id="keyboardButtonSkin" value="new THEME.DynamicSkin( THEME.buttonTexture, THEME.disabledEffect, THEME.enabledEffect, selectedEffect, undefined,
+															{ left : 10, top : 10, right : 10, bottom : 10 })"/>
+	
+	<behavior id="KeyboardButtonBehavior" like="BUTTONS.ButtonBehavior">
+		<method id="onCreate" params="container, data">
+            <![CDATA[
+            	BUTTONS.ButtonBehavior.prototype.onCreate.call(this, container, data);
+            	container.state = 1;
+                this.actionOnTouchBegan = data.hasOwnProperty("actionOnTouchBegan") && data.actionOnTouchBegan;
+                container.coordinates = { left : 0, top : 0, width : data.width - 4, height : container.height };
+                this.autoRepeat = (data.hasOwnProperty("autoRepeat") && data.autoRepeat);
+                this.autoRepeatInterval = 500;
+            ]]>
+        </method>        
+        <method id="onDisplaying" params="container">
+            <![CDATA[
+            	if (this.data.hasOwnProperty("state"))
+					container.state = this.data.state;
+            ]]>
+        </method>
+		<method id="onTouchBegan" params="container, id, x, y, ticks"><![CDATA[
+			this.changeState(container, 2);
+			if (this.actionOnTouchBegan) {
+ 				container.delegate("onTap");
+ 				if (this.autoRepeat) {
+ 					container.time = 0;
+ 					container.interval = this.autoRepeatInterval;
+ 					container.start();
+ 				}
+ 			}
+         ]]></method>
+		<method id="onTouchEnded" params="container, id, x, y, ticks"><![CDATA[
+			if (! this.actionOnTouchBegan)
+				container.delegate("onTap");
+			else if (this.autoRepeat)
+				container.stop();
+			this.changeState(container, 1);
+         ]]></method>
+         <method id="onTap" params="container">
+             <![CDATA[
+				if (this.data.hasOwnProperty("action"))
+					this.data.action(container);
+             ]]>
+         </method>
+         <method id="onTimeChanged" params="container">
+             <![CDATA[
+                 if (this.autoRepeat && this.actionOnTouchBegan)
+                 	this.onTap(container);
+             ]]>
+         </method>
+    </behavior>
+    
+	<behavior id="KeyboardLabeledButtonBehavior" like="KeyboardButtonBehavior">
+		<method id="onCreate" params="container, data">
+			<![CDATA[
+				KeyboardButtonBehavior.prototype.onCreate.call(this, container, data);
+				container.buttonLabel.string = data.label;
+			]]>
+		</method> 
+		<method id="onTap" params="container"><![CDATA[
+			KeyboardButtonBehavior.prototype.onTap.call(this, container);
+			var data = this.data;
+			if (! data.hasOwnProperty("action")) {
+				var character;
+				if (data.hasOwnProperty("string"))
+					character = data.string;
+				else
+					character = container.buttonLabel.string;
+				container.bubble("onAddCharacter", character);
+			}
+		]]></method>			
+	</behavior>                
+   	<container id="KeyboardLabeledButton" left="0" top="0" width="32" height="36" like="BUTTONS.Button" behavior="KeyboardLabeledButtonBehavior" skin="keyboardButtonSkin">
+	    <label name="buttonLabel" left="0" right="0" top="0" bottom="0">
+	    	<behavior>
+                <method id="onDisplaying" params="label">
+                    <![CDATA[
+                    	label.style = label.string.length > 1 ? keyboardSmallButtonStyle : keyboardButtonStyle;
+                    ]]>
+                </method>
+            </behavior>
+	    </label>
+    </container>
+	
+	<behavior id="KeyboardEnterButtonBehavior" like="KeyboardLabeledButtonBehavior">
+		<method id="onDisplaying" params="container">
+			<![CDATA[
+				container.bubble("setOKButtonLabel", container.buttonLabel);
+			]]>
+		</method> 
+	</behavior>                
+	<container id="KeyboardEnterButton" like="KeyboardLabeledButton" behavior="KeyboardEnterButtonBehavior"/>
+
+	
+	<texture id="shiftKeyTexture" small="../assets/keyboard/shiftkey.png"/>
+	<skin id="shiftKeySkin" texture="shiftKeyTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+	
+	<texture id="deleteKeyTexture" small="../assets/keyboard/deletekey.png"/>
+	<skin id="deleteKeySkin" texture="deleteKeyTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+	
+   	<container id="KeyboardGlyphButton" left="0" top="0" width="32" height="36" like="BUTTONS.Button" skin="keyboardButtonSkin">
+		<behavior like="KeyboardButtonBehavior">
+			<method id="onCreate" params="container, data">
+	            <![CDATA[
+	            	KeyboardButtonBehavior.prototype.onCreate.call(this, container, data);
+	                container.buttonGlyph.skin = data.skin;
+	                container.buttonGlyph.state = 1;
+	            ]]>
+	        </method> 			
+	        <method id="onDisplaying" params="container">
+	            <![CDATA[
+	            	KeyboardButtonBehavior.prototype.onDisplaying.call(this, container);
+	            	if (this.data.hasOwnProperty("state"))
+						container.buttonGlyph.state = this.data.state;
+	            ]]>
+	        </method>
+  		</behavior>                
+	    <content name="buttonGlyph" left="0" right="0" top="2" bottom="2"/>
+    </container>
+	
+	<skin id="whiteSkin" color="white"/>
+
+	<behavior id="KeyboardBehavior">
+		<method id="onAddCharacter" params="column, character">
+			<![CDATA[
+				debugger
+			]]>
+		</method>
+		<method id="onCreate" params="column, data">
+			<![CDATA[
+				this.data = data;
+			]]>
+		</method>
+		<method id="onDeleteCharacter" params="column">
+			<![CDATA[
+				debugger
+			]]>
+		</method>
+		<method id="onEnter" params="column">
+			<![CDATA[
+				debugger
+			]]>
+		</method>
+		<method id="onRebuildKeyboard" params="column, keyboardLayout">
+			<![CDATA[
+				var data = this.data;
+				switch (keyboardLayout) {
+					case "StandardLowercase":
+						data.keyboard = standardLowerCaseKeys;
+					break
+					case "StandardUppercase":
+						data.keyboard = standardUpperCaseKeys;
+					break
+					case "StandardNumeric":
+						data.keyboard = standardNumericKeys;
+					break
+					case "StandardSymbol":
+						data.keyboard = standardSymbolKeys;
+					break
+
+					case "EmailLowercase":
+						data.keyboard = emailLowerCaseKeys;
+					break
+					case "EmailUppercase":
+						data.keyboard = emailUpperCaseKeys;
+					break
+					case "EmailNumeric":
+						data.keyboard = emailNumericKeys;
+					break
+					case "EmailSymbol":
+						data.keyboard = emailSymbolKeys;
+					break
+
+					case "URLLowercase":
+						data.keyboard = urlLowerCaseKeys;
+					break
+					case "URLUppercase":
+						data.keyboard = urlUpperCaseKeys;
+					break
+					case "URLNumeric":
+						data.keyboard = urlNumericKeys;
+					break
+					case "URLSymbol":
+						data.keyboard = urlSymbolKeys;
+					break
+				}
+			]]>
+		</method>
+	</behavior>
+	
+	<column id="KeyboardLayout" left="0" right="0" bottom="0">
+		<scope with="$.keyboard">
+			<container left="3" right="0" height="$.rowHeight">
+				<line top="0" bottom="0">
+					<scope with="$.firstRow"> 
+						<iterate on="$.keys">
+							<container like="KeyboardButtonContainer"/>
+						</iterate>
+				   </scope>
+				</line>
+			</container>
+			<container left="3" right="0" height="$.rowHeight">
+				<line top="0" bottom="0">
+					<scope with="$.secondRow">
+						<iterate on="$.keys">
+							<container like="KeyboardButtonContainer"/>
+						</iterate>
+					</scope>
+				</line>
+			</container>
+			<container left="3" right="0" height="$.rowHeight">
+				<line top="0" bottom="0">
+					<scope with="$.thirdRow">
+						<iterate on="$.keys">
+							<container like="KeyboardButtonContainer"/>
+						</iterate>
+					</scope>
+				</line>
+			</container>
+			<container left="3" right="0" height="$.rowHeight - 2">
+				<line top="0" bottom="0">
+					<scope with="$.fourthRow">
+						<iterate on="$.keys">
+							<container like="KeyboardButtonContainer"/>
+						</iterate>
+					</scope>
+				</line>
+			</container>
+		</scope>
+	</column>
+
+	<column id="Keyboard" left="0" right="0" bottom="0">
+		<behavior like="KeyboardBehavior">
+           <method id="setOKButtonLabel" params="column, label">
+                <![CDATA[
+                    label.string = this.data.okLabel;
+                ]]>
+            </method>
+            <method id="getButtonText" params="column, buttonData">
+                <![CDATA[
+                    return buttonData.label;
+                ]]>
+            </method>
+			<method id="onAddCharacter" params="column, character">
+				<![CDATA[
+					textDisplay.behavior.onAddCharacter(textDisplay, character);
+					textDisplay.delegate("hideHintText");
+				]]>
+			</method>
+			<method id="onDeleteCharacter" params="column">
+				<![CDATA[
+					textDisplay.delegate("hideHintText");
+					textDisplay.behavior.onDeleteCharacter(textDisplay);
+				]]>
+			</method>
+            <method id="onEnter" params="column">
+                <![CDATA[
+                    var input = textDisplay.label.string;
+                    column.bubble("onKeyboardEnter", input);
+                ]]>
+            </method>
+            <method id="onRebuildKeyboard" params="column, keyboardLayout">
+                <![CDATA[
+                	var saveString = textDisplay.label.string;
+ 					var container = column.container;
+					container.remove(column);
+               		KeyboardBehavior.prototype.onRebuildKeyboard.call(this, column, keyboardLayout);
+					keyboard = new Keyboard(this.data);
+					container.add(keyboard);
+					keyboard.delegate("updateReferences");
+					textDisplay.label.string = saveString;
+					textDisplay.delegate("hideHintText");
+               ]]>
+            </method>
+			<method id="updateReferences" params="column">
+                <![CDATA[
+					keyboard = column;
+					textDisplay = keyboard.textDisplay;
+                ]]>
+            </method>
+        </behavior>
+       
+        <container name="textDisplay" like="TextDisplay"/>
+      
+		<scope with="$.keyboard">
+			<container left="3" right="0" height="$.rowHeight">
+				<line top="0" bottom="0">
+					<scope with="$.firstRow"> 
+	                    <iterate on="$.keys">
+	                    	<container like="KeyboardButtonContainer"/>
+	                    </iterate>
+	               </scope>
+				</line>
+			</container>
+			<container left="3" right="0" height="$.rowHeight">
+				<line top="0" bottom="0">
+					<scope with="$.secondRow">
+	                    <iterate on="$.keys">
+	                    	<container like="KeyboardButtonContainer"/>
+	                    </iterate>
+	                </scope>
+				</line>
+			</container>
+			<container left="3" right="0" height="$.rowHeight">
+				<line top="0" bottom="0">
+					<scope with="$.thirdRow">
+	                    <iterate on="$.keys">
+	                    	<container like="KeyboardButtonContainer"/>
+	                    </iterate>
+	                </scope>
+				</line>
+			</container>
+			<container left="3" right="0" height="$.rowHeight - 2">
+				<line top="0" bottom="0">
+					<scope with="$.fourthRow">
+	                    <iterate on="$.keys">
+	                    	<container like="KeyboardButtonContainer"/>
+	                    </iterate>
+	                </scope>
+				</line>
+			</container>
+		</scope>
+	</column>
+
+	<behavior id="KeyboardScreenBehavior">
+        <method id="onCreate" params="container, data">
+            <![CDATA[
+            	this.data = data;
+            ]]>
+        </method>
+        <method id="onDisplaying" params="container">
+            <![CDATA[
+            	header = container.header;
+            	container.keyboard.delegate("updateReferences");
+            ]]>
+        </method>
+        <method id="getInput" params="container">
+            <![CDATA[
+            	return textDisplay.label.string;
+            ]]>
+        </method>
+    </behavior>
+
+   	<container id="KeyboardScreen" left="0" right="0" top="0" bottom="0" behavior="KeyboardScreenBehavior" skin="whiteSkin">
+		<container name="header" like="KeyboardHeader"/>
+		<container name="keyboard" like="Keyboard"/>
+	</container>
+	        
+	<container id="WifiKeyboardScreen" left="0" right="0" top="0" bottom="0" behavior="KeyboardScreenBehavior" skin="whiteSkin">
+		<container name="header" like="WifiHeader"/>
+		<container name="keyboard" like="Keyboard"/>
+	</container>
+	
+    <script>
+        <![CDATA[            
+        
+        	/*
+        	
+        		Data format:
+	        		
+	        		type		["labeledButton, "glyphButton", "spacer"]		default is "labeledButton"
+	
+	        		width 						width of container, button widths are four pixels less to allow for default spacing, for additional spacing use type : "spacer"
+					state						state of the buton skin (0 disabled, 1 enabled, 2 enabled pressed / shifted)
+	        		actionOnTouchBegan			set to true for buttons that act upon touchBegan instaed of touchEnded
+	        		action						an optional inline function will be called when the button is clicked on with the button container as a parameter
+	        		
+	        		for "labeledButton"
+	        			label					display label
+	        			string					optional, the text to enter when key is pressed, defaults to label
+	        			
+	        		for "glyphButton"
+	        			skin					3 state (disabled, enabled, enabled pressed) skin for the glyph button
+	        			
+	        		for "spacer"
+	        									use width to adjust amount of space
+	        									
+	        	Module Global Variables:
+	        	
+	        		keyboard
+	        		header
+	        		textDisplay
+        	*/
+        	
+        	// STANDARD KEYBOARD
+        	
+        	var standardLowerCaseKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "q", width : 32 },
+        				{ label : "w", width : 32 },
+        				{ label : "e", width : 32 },
+        				{ label : "r", width : 32 },
+        				{ label : "t", width : 32 },
+        				{ label : "y", width : 32 },
+        				{ label : "u", width : 32 },
+        				{ label : "i", width : 32 },
+        				{ label : "o", width : 32 },
+        				{ label : "p", width : 32 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+         				{ label : "a", width : 32 },
+        				{ label : "s", width : 32 },
+        				{ label : "d", width : 32 },
+        				{ label : "f", width : 32 },
+        				{ label : "g", width : 32 },
+        				{ label : "h", width : 32 },
+        				{ label : "j", width : 32 },
+        				{ label : "k", width : 32 },
+        				{ label : "l", width : 32 },     
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ type : "glyphButton", skin : shiftKeySkin, actionOnTouchBegan : true, state : 1, width : 40, action : function(button) { button.bubble("onRebuildKeyboard", "StandardUppercase") }  },
+          				{ type : "spacer", width : 8 },
+         				{ label : "z", width : 32 },
+        				{ label : "x", width : 32 },
+        				{ label : "c", width : 32 },
+        				{ label : "v", width : 32 },
+        				{ label : "b", width : 32 },
+        				{ label : "n", width : 32 },
+        				{ label : "m", width : 32 },
+          				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : ".?123", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "StandardNumeric") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : "Space", string : " ", width : 150 },
+          				{ type : "spacer", width : 8 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
+        	var standardUpperCaseKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "Q", width : 32 },
+        				{ label : "W", width : 32 },
+        				{ label : "E", width : 32 },
+        				{ label : "R", width : 32 },
+        				{ label : "T", width : 32 },
+        				{ label : "Y", width : 32 },
+        				{ label : "U", width : 32 },
+        				{ label : "I", width : 32 },
+        				{ label : "O", width : 32 },
+        				{ label : "P", width : 32 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+         				{ label : "A", width : 32 },
+        				{ label : "S", width : 32 },
+        				{ label : "D", width : 32 },
+        				{ label : "F", width : 32 },
+        				{ label : "G", width : 32 },
+        				{ label : "H", width : 32 },
+        				{ label : "J", width : 32 },
+        				{ label : "K", width : 32 },
+        				{ label : "L", width : 32 },     
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ type : "glyphButton", skin : shiftKeySkin, actionOnTouchBegan : true, state : 2, width : 40, action : function(button) { button.bubble("onRebuildKeyboard", "StandardLowercase") }  },
+          				{ type : "spacer", width : 8 },
+         				{ label : "Z", width : 32 },
+        				{ label : "X", width : 32 },
+        				{ label : "C", width : 32 },
+        				{ label : "V", width : 32 },
+        				{ label : "B", width : 32 },
+        				{ label : "N", width : 32 },
+        				{ label : "M", width : 32 },
+          				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "#", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "StandardNumeric") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : "Space", string : " ", width : 150 },
+          				{ type : "spacer", width : 8 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
+        	var standardNumericKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "1", width : 32 },
+        				{ label : "2", width : 32 },
+        				{ label : "3", width : 32 },
+        				{ label : "4", width : 32 },
+        				{ label : "5", width : 32 },
+        				{ label : "6", width : 32 },
+        				{ label : "7", width : 32 },
+        				{ label : "8", width : 32 },
+        				{ label : "9", width : 32 },
+        				{ label : "0", width : 32 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+        				{ label : "-", width : 32 },
+        				{ label : "/", width : 32 },
+        				{ label : ":", width : 32 },
+        				{ label : ";", width : 32 },
+        				{ label : "(", width : 32 },
+        				{ label : ")", width : 32 },
+        				{ label : "$", width : 32 },
+        				{ label : "&", width : 32 },
+        				{ label : "@", width : 32 },
+        				{ label : '"', width : 32 },   
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ actionOnTouchBegan : true, state : 1, label : "#+=", width : 42, action : function(button) { button.bubble("onRebuildKeyboard", "StandardSymbol") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : ".", width : 44 },
+        				{ label : ",", width : 44 },
+        				{ label : "?", width : 44 },
+        				{ label : "!", width : 44 },
+        				{ label : "'", width : 44 },
+           				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "ABC", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "StandardLowercase") } },
+          				{ type : "spacer", width : 8 },
+        				{ label : "Space", string : " ", width : 150 },
+          				{ type : "spacer", width : 8 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
+        	var standardSymbolKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "[", width : 32 },
+        				{ label : "]", width : 32 },
+        				{ label : "{", width : 32 },
+        				{ label : "}", width : 32 },
+        				{ label : "#", width : 32 },
+        				{ label : "%", width : 32 },
+        				{ label : "^", width : 32 },
+        				{ label : "*", width : 32 },
+        				{ label : "+", width : 32 },
+        				{ label : "=", width : 32 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+        				{ label : "_", width : 32 },
+        				{ label : "\\", width : 32 },
+        				{ label : "|", width : 32 },
+        				{ label : "-", width : 32 },
+        				{ label : "<", width : 32 },
+        				{ label : ">", width : 32 },
+        				{ label : "∑", width : 32 },
+        				{ label : "£", width : 32 },
+        				{ label : "¥", width : 32 },
+        				{ label : "•", width : 32 },   
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ actionOnTouchBegan : true, state : 1, label : "123", width : 42, action : function(button) { button.bubble("onRebuildKeyboard", "StandardNumeric") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : ".", width : 44 },
+        				{ label : ",", width : 44 },
+        				{ label : "?", width : 44 },
+        				{ label : "!", width : 44 },
+        				{ label : "'", width : 44 },
+           				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "ABC", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "StandardLowercase") } },
+          				{ type : "spacer", width : 8 },
+        				{ label : "Space", string : " ", width : 150 },
+          				{ type : "spacer", width : 8 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+               	
+           // EMAIL KEYBOARD
+           
+			var emailLowerCaseKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : standardLowerCaseKeys.firstRow,
+        		secondRow : standardLowerCaseKeys.secondRow,
+        		thirdRow : {
+          			keys : [ 
+          				{ type : "glyphButton", skin : shiftKeySkin, actionOnTouchBegan : true, state : 1, width : 40, action : function(button) { button.bubble("onRebuildKeyboard", "EmailUppercase") }  },
+          				{ type : "spacer", width : 8 },
+         				{ label : "z", width : 32 },
+        				{ label : "x", width : 32 },
+        				{ label : "c", width : 32 },
+        				{ label : "v", width : 32 },
+        				{ label : "b", width : 32 },
+        				{ label : "n", width : 32 },
+        				{ label : "m", width : 32 },
+          				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+           		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : ".?123", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "EmailNumeric") }  },
+        				{ label : "Space", string : " ", width : 60 },
+        				{ label : "@", width : 53 },
+        				{ label : ".", width : 51 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+        	
+        	var emailUpperCaseKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : standardUpperCaseKeys.firstRow,
+        		secondRow : standardUpperCaseKeys.secondRow,
+        		thirdRow : {
+          			keys : [ 
+          				{ type : "glyphButton", skin : shiftKeySkin, actionOnTouchBegan : true, state : 2, width : 40, action : function(button) { button.bubble("onRebuildKeyboard", "EmailLowercase") }  },
+          				{ type : "spacer", width : 8 },
+         				{ label : "Z", width : 32 },
+        				{ label : "X", width : 32 },
+        				{ label : "C", width : 32 },
+        				{ label : "V", width : 32 },
+        				{ label : "B", width : 32 },
+        				{ label : "N", width : 32 },
+        				{ label : "M", width : 32 },
+          				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : emailLowerCaseKeys.fourthRow
+        	};
+
+        	var emailNumericKeys = {
+        		rowHeight : 40,
+
+        		firstRow : standardNumericKeys.firstRow,
+
+        		secondRow : {
+          			keys : [ 
+           				{ type : "spacer", width : 10 },
+        				{ label : "$", width : 50 },
+        				{ label : "!", width : 50 },
+        				{ label : "-", width : 50 },
+        				{ label : "@", width : 50 },
+        				{ label : "=", width : 50 },
+        				{ label : "#", width : 50 },   
+            			{ type : "spacer", width : 10 },
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ actionOnTouchBegan : true, state : 1, label : "#+=", width : 42, action : function(button) { button.bubble("onRebuildKeyboard", "EmailSymbol") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : ".", width : 55 },
+        				{ label : "_", width : 55 },
+        				{ label : "-", width : 55 },
+        				{ label : "+", width : 55 },
+           				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+           		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "ABC", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "EmailLowercase") }  },
+        				{ label : "Space", string : " ", width : 60 },
+        				{ label : "@", width : 53 },
+        				{ label : ".", width : 51 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
+         	var emailSymbolKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "'", width : 32 },
+        				{ label : "|", width : 32 },
+        				{ label : "{", width : 32 },
+        				{ label : "}", width : 32 },
+        				{ label : "?", width : 32 },
+        				{ label : "%", width : 32 },
+        				{ label : "^", width : 32 },
+        				{ label : "*", width : 32 },
+        				{ label : "/", width : 32 },
+        				{ label : "=", width : 32 },
+        			]
+        		},
+        		secondRow : emailNumericKeys.secondRow,
+         		thirdRow : {
+          			keys : [ 
+          				{ actionOnTouchBegan : true, state : 1, label : "123", width : 42, action : function(button) { button.bubble("onRebuildKeyboard", "EmailNumeric") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : ".", width : 44 },
+        				{ label : ",", width : 44 },
+        				{ label : "?", width : 44 },
+        				{ label : "!", width : 44 },
+        				{ label : "'", width : 44 },
+           				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : emailNumericKeys.fourthRow
+         	};
+               	
+            // URL KEYBOARD
+           
+			var urlLowerCaseKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : standardLowerCaseKeys.firstRow,
+        		secondRow : standardLowerCaseKeys.secondRow,
+        		thirdRow : {
+          			keys : [ 
+          				{ type : "glyphButton", skin : shiftKeySkin, actionOnTouchBegan : true, state : 1, width : 40, action : function(button) { button.bubble("onRebuildKeyboard", "URLUppercase") }  },
+          				{ type : "spacer", width : 8 },
+         				{ label : "z", width : 32 },
+        				{ label : "x", width : 32 },
+        				{ label : "c", width : 32 },
+        				{ label : "v", width : 32 },
+        				{ label : "b", width : 32 },
+        				{ label : "n", width : 32 },
+        				{ label : "m", width : 32 },
+          				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+           		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : ".?123", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "URLNumeric") }  },
+        				{ label : ".", width : 51 },
+        				{ label : "/", width : 53 },
+        				{ label : ".com", width : 60 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+        	
+			var urlUpperCaseKeys = {
+        		rowHeight : 40,
+        		
+        		firstRow : standardUpperCaseKeys.firstRow,
+        		secondRow : standardUpperCaseKeys.secondRow,
+        		thirdRow : {
+          			keys : [ 
+          				{ type : "glyphButton", skin : shiftKeySkin, actionOnTouchBegan : true, state : 1, width : 40, action : function(button) { button.bubble("onRebuildKeyboard", "URLUppercase") }  },
+          				{ type : "spacer", width : 8 },
+         				{ label : "z", width : 32 },
+        				{ label : "x", width : 32 },
+        				{ label : "c", width : 32 },
+        				{ label : "v", width : 32 },
+        				{ label : "b", width : 32 },
+        				{ label : "n", width : 32 },
+        				{ label : "m", width : 32 },
+          				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+           		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : ".?123", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "URLNumeric") }  },
+        				{ label : ".", width : 51 },
+        				{ label : "/", width : 53 },
+        				{ label : ".com", width : 60 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+        	
+        	var urlNumericKeys = {
+        		rowHeight : 40,
+
+        		firstRow : standardNumericKeys.firstRow,
+
+        		secondRow : {
+          			keys : [ 
+           				{ type : "spacer", width : 10 },
+        				{ label : "@", width : 50 },
+        				{ label : "&", width : 50 },
+        				{ label : "%", width : 50 },
+        				{ label : "?", width : 50 },
+        				{ label : ",", width : 50 },
+        				{ label : "=", width : 50 },   
+            			{ type : "spacer", width : 10 },
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ actionOnTouchBegan : true, state : 1, label : "#+=", width : 42, action : function(button) { button.bubble("onRebuildKeyboard", "URLSymbol") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : "_", width : 55 },
+        				{ label : ":", width : 55 },
+        				{ label : "-", width : 55 },
+        				{ label : "+", width : 55 },
+           				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+           		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "ABC", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "URLLowercase") }  },
+        				{ label : ".", width : 60 },
+        				{ label : "/", width : 53 },
+        				{ label : ".com", width : 51 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};          
+           
+        	var urlSymbolKeys = {
+        		rowHeight : 40,
+
+        		firstRow : standardNumericKeys.firstRow,
+
+        		secondRow : {
+          			keys : [ 
+           				{ type : "spacer", width : 10 },
+        				{ label : "*", width : 50 },
+        				{ label : "$", width : 50 },
+        				{ label : "#", width : 50 },
+        				{ label : "!", width : 50 },
+        				{ label : "'", width : 50 },
+        				{ label : "^", width : 50 },   
+            			{ type : "spacer", width : 10 },
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ actionOnTouchBegan : true, state : 1, label : "123", width : 42, action : function(button) { button.bubble("onRebuildKeyboard", "URLNumeric") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : "_", width : 55 },
+        				{ label : ";", width : 55 },
+        				{ label : "(", width : 55 },
+        				{ label : ")", width : 55 },
+           				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+           		fourthRow : urlNumericKeys.fourthRow
+        	};          
+           
+           var emptyKeyboardData = {
+            	keyboard : standardLowerCaseKeys,
+            }
+
+           var wifikeyboardData = {
+            	wifiNetworkName : "NetworkName",
+            	hidden : true,
+            	keyboard : standardLowerCaseKeys
+            }
+
+	        var keyboard;
+	        var header;
+	        var textDisplay;
+
+			exports.emailKeyboard = emailLowerCaseKeys;
+	        exports.urlKeyboard = urlLowerCaseKeys;
+	        exports.standardKeyboard = standardLowerCaseKeys;
+        ]]>
+    </script>
+</module>

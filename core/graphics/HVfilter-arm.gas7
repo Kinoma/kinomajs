@@ -1,0 +1,204 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+	.text @CODE, READONLY
+	.fpu    neon
+
+	.macro DISPLAY_NEON_REG	idx0
+	STMFD   sp!, {r0-r12,lr}
+	SUB     sp, sp, #256
+	mov	r0,sp
+	mov	r8,r0	
+
+	vst1.8	\idx0,[r8]!
+
+	MRS     r4, cpsr        @ preserve flags
+	BL      my_check_reg
+	MSR     cpsr_f, r4      @ restore flags
+
+	add	sp,sp,#256
+	LDMFD   sp!, {r0-r12,lr}
+	.endm
+
+	.macro DISPLAY_NEON_REGQ idx0,idx1
+	STMFD   sp!, {r0-r12,lr}
+	sub     sp, sp, #256
+	mov     r0,sp
+	mov     r8,r0  
+
+	vst1.8  {\idx0,\idx1},[r8]!
+
+	MRS     r4, cpsr        @ preserve flags
+	BL      my_check_regq
+	MSR     cpsr_f, r4      @ restore flags
+
+	add     sp,sp,#256
+	LDMFD   sp!, {r0-r12,lr}
+	.endm
+
+	.macro STORE_RONDING_VEC
+	vqrshrn.u32	st_d0,mul_acc0,#kFilterFracBits
+	vqrshrn.u32	st_d1,mul_acc1,#kFilterFracBits
+	vshrn.u16	d24,q11,#0
+	vst1.u8		d24,[dst]!
+	.endm
+
+	.global	HVFilterRun_arm_v7_s
+
+	dst				.req		r0
+	src				.req		r1
+	fptr			.req		r2
+	numComponents	.req		r3
+	n_numComponents	.req		r4
+	RowBytes		.req		r5	
+	Radius			.req		r6
+	sm_ptr			.req		r8
+	sp_ptr			.req		r9
+	f_ptr			.req		r10
+	w				.req		r7
+	k				.req		r11
+	acc				.req		r12
+
+	src_vec			.req		d10	
+	f_vec			.req		d11
+	mul_vec_q		.req		q6
+	mul_vec_q1		.req		q10
+	mul_vec_d0		.req		d12
+	mul_vec_d1		.req		d13
+	mul_acc0		.req		q8	
+	mul_acc1		.req		q9	
+	sm_vec			.req		d14
+	sp_vec			.req		d15
+	st_d0			.req		d22
+	st_d1			.req		d23
+	
+
+	.equ REGIS_SHIFT_ROW, (10*4)
+	.equ REGIS_SHIFT_RAD, (11*4)
+	.equ kFilterFracBits, (12)
+
+	
+HVFilterRun_arm_v7_s:
+	stmfd		sp!, {r4-r12,lr}
+	mov			n_numComponents,#0
+	sub			n_numComponents,n_numComponents,numComponents
+	ldr			RowBytes, [sp, #REGIS_SHIFT_ROW]
+	ldr			Radius, [sp, #REGIS_SHIFT_RAD]
+
+	asrs 		w,RowBytes,#3
+	beq			HVFilterRun_tail
+	movs		k,Radius
+	beq			HVFilterRun_start_Wzero
+
+	HVFilterRun_start:
+	mov			f_ptr,fptr
+	sub			sm_ptr,src,numComponents
+	add			sp_ptr,src,numComponents
+
+	vld1.u16	f_vec[],[f_ptr]!
+	vld1.u8		src_vec,[src]!
+	vmovl.u8	mul_vec_q,src_vec
+	vmull.u16	mul_acc0,mul_vec_d0,f_vec
+	vmull.u16	mul_acc1,mul_vec_d1,f_vec
+	mov			k,Radius
+	@beq			HVFilterRun_Neon_W
+
+	HVFilterRun_loop:
+	vld1.u16	f_vec[],[f_ptr]!
+	vld1.u8		sm_vec,[sm_ptr],n_numComponents
+	vld1.u8		sp_vec,[sp_ptr],numComponents
+
+	vaddl.u8	mul_vec_q,sm_vec,sp_vec
+	vmlal.u16	mul_acc0,mul_vec_d0,f_vec
+	vmlal.u16	mul_acc1,mul_vec_d1,f_vec
+	
+	subs		k,k,#1
+	bne			HVFilterRun_loop
+
+	HVFilterRun_Neon_W:
+	@STORE VEC HERE	
+	@vqrshrn.u32	st_d0,mul_acc0,#kFilterFracBits
+	@vqrshrn.u32	st_d1,mul_acc1,#kFilterFracBits
+	@vshrn.u16	d24,q11,#0
+	@vst1.u8		d24,[dst]!
+	STORE_RONDING_VEC
+
+	subs		w,w,#1	
+	bne			HVFilterRun_start
+	b			HVFilterRun_tail			
+
+	HVFilterRun_start_Wzero:
+	mov         f_ptr,fptr
+	vld1.u16    f_vec[],[f_ptr]!
+	vld1.u8     src_vec,[src]!
+	vmovl.u8    mul_vec_q,src_vec
+	vmull.u16   mul_acc0,mul_vec_d0,f_vec
+	vmull.u16   mul_acc1,mul_vec_d1,f_vec
+
+	@vqrshrn.u32 st_d0,mul_acc0,#kFilterFracBits
+	@vqrshrn.u32 st_d1,mul_acc1,#kFilterFracBits
+	@vshrn.u16   d24,q11,#0
+	@vst1.u8     d24,[dst]!
+	STORE_RONDING_VEC
+
+	subs        w,w,#1
+	bne         HVFilterRun_start_Wzero
+
+
+	HVFilterRun_tail:
+	ands		w,RowBytes,#7
+	beq			HVFilterRun_end
+
+
+	HVFilterRun_tail_loop0:
+	mov			f_ptr,fptr
+	mov			sm_ptr,src
+	mov			sp_ptr,src
+	ldrb		k,[src],#1
+	ldrh		acc,[f_ptr],#2
+	mul			acc,k,acc
+	movs		k,Radius
+	beq			HVFilterRun_W
+
+	stmfd		sp!,{src,Radius}
+	HVFilterRun_tail_loop1:
+	ldrb		src,[sm_ptr,-numComponents]!	
+	ldrb		Radius,[sp_ptr,numComponents]!	
+	add			src,src,Radius
+	ldrh		Radius,[f_ptr],#2
+	mla			acc,src,Radius,r12
+
+	subs		k,k,#1
+	bne			HVFilterRun_tail_loop1
+	ldmfd		sp!,{src,Radius}
+	
+	HVFilterRun_W:
+	mov			k,#(1<<(kFilterFracBits-1))
+	add			acc,acc,k
+	asr			acc,acc,#kFilterFracBits
+	strb		acc,[dst],#1
+		
+	subs		w,w,#1	
+	bne			HVFilterRun_tail_loop0
+
+	HVFilterRun_end:
+	ldmfd		sp!,{r4-r12,pc}
+
+	
+.end	
+
+#endif	

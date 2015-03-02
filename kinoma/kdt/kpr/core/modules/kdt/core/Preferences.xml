@@ -1,0 +1,85 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+    <function id="newInstance" params="path">
+        <![CDATA[
+            return new Preferences( path );
+        ]]>
+    </function>
+
+    <class id="Preferences">
+        <field id="preferencesPath"/>
+        <field id="preferences"/>
+        
+        <constructor params="path">
+            <![CDATA[
+                this.preferencesPath = path;
+                this.preferences = new Object();
+                this.read();
+            ]]>
+        </constructor>
+        
+        <method id="read">
+            <![CDATA[
+                try 
+                {
+                    if( Files.exists( this.preferencesPath ) ) 
+                        this.preferences = JSON.parse( Files.readText( this.preferencesPath ) );
+                    else
+                        this.preferences = new Object();
+                }
+                catch( ex ) {
+                }
+            ]]>
+        </method>
+        
+        <method id="write">
+            <![CDATA[
+                var text = JSON.stringify( this.preferences ) + "\n";
+
+                try 
+                {
+                    Files.deleteFile( this.preferencesPath );
+                    Files.ensureDirectory( this.preferencesPath );
+                    Files.writeText( this.preferencesPath, text );
+                }
+                catch( ex ) {
+                   trace( "#### ex: " + ex + "\n" );
+                }
+            ]]>
+        </method>
+        
+        <method id="hasPreference" params="key">
+            <![CDATA[
+                return key in this.preferences;
+            ]]>
+        </method>
+        
+        <method id="getPreference" params="key, defaultValue">
+            <![CDATA[
+                return key in this.preferences ? this.preferences[key] : defaultValue;
+            ]]>
+        </method>
+        
+        <method id="setPreference" params="key, value">
+            <![CDATA[
+                this.preferences[key] = value;
+            ]]>
+        </method>
+    </class>
+
+</module>

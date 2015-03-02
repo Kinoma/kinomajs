@@ -1,0 +1,306 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	<!-- SLIDER -->
+	
+	<behavior id="SliderBehavior"><![CDATA[
+		function changeState(container, state) {
+			container.last.state = state;
+		}
+		function getMax(container) {
+			return this.data.max;
+		}
+		function getMin(container) {
+			return this.data.min;
+		}
+		function getOffset(container, size) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var value = this.getValue(container);
+			return Math.round(((value - min) * size) / (max - min));
+		}
+		function getValue(container) {
+			return this.data.value;
+		}
+		function onAdapt(container) {
+			this.onLayoutChanged(container);
+		}
+		function onCreate(container, data) {
+			this.data = data;
+		}
+		function onDisplaying(container) {
+			this.onLayoutChanged(container);
+			this.onValueChanged(container);
+		}
+		function onLayoutChanged(container) {
+		}
+		function onTouchBegan(container, id, x, y, ticks) {
+			container.captureTouch(id, x, y, ticks);
+			this.changeState(container, 1);
+			this.onTouchMoved(container, id, x, y, ticks);
+		}
+		function onTouchEnded(container, id, x, y, ticks) {
+			this.changeState(container, 0);
+		}
+		function onTouchMoved(container, id, x, y, ticks) {
+			debugger
+		}
+		function onValueChanged(container) {
+		}
+		function setOffset(container, size, offset) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var value = min + ((offset * (max - min)) / size);
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setValue(container, value);
+		}
+		function setValue(container, value) {
+			this.data.value = value;
+		}
+	]]></behavior>
+	
+	<behavior id="HorizontalSliderBehavior" like="SliderBehavior"><![CDATA[
+		function onLayoutChanged(container) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var size = (background.width - button.width);
+			var offset = this.getOffset(container, size);
+			button.x = background.x + offset;
+			bar.width = button.width + offset;
+		}
+		function onTouchMoved(container, id, x, y, ticks) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var size = (background.width - button.width);
+			var offset = (x - (button.width >> 1) - background.x);
+			this.setOffset(container, size, offset);
+			this.onLayoutChanged(container);
+			this.onValueChanged(container);
+		}
+	]]></behavior>
+	
+	<layout id="HorizontalSlider" active="true" behavior="HorizontalSliderBehavior">
+		<content left="0" right="0" top="0" bottom="0" skin="THEME.horizontalSliderBarSkin" state="0"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.horizontalSliderBarSkin" state="1"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.horizontalSliderButtonSkin" state="0"/>
+	</layout>
+	
+	<behavior id="HorizontalLogSliderBehavior" like="HorizontalSliderBehavior"><![CDATA[
+		function getOffset(container, size) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var value = this.getValue(container);
+			var logMin = Math.log(min);
+			var maxv = Math.log(max);
+			return Math.round(((Math.log(value) - logMin) * size) / (maxv - logMin));
+		}
+		function setOffset(container, size, offset) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var logMin = Math.log(min);
+			var logMax = Math.log(max);
+			var value = Math.exp(logMin + (offset * (logMax - logMin) / size));
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setValue(container, value);
+		}
+	]]></behavior>
+	
+	<layout id="HorizontalLogSlider" active="true" behavior="HorizontalLogSliderBehavior">
+		<content left="0" right="0" top="0" bottom="0" skin="THEME.horizontalSliderBarSkin" state="0"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.horizontalSliderBarSkin" state="1"/>
+		<content left="0" width="30" top="0" bottom="0" skin="THEME.horizontalSliderButtonSkin" state="0"/>
+	</layout>
+	
+	<behavior id="VerticalSliderBehavior" like="SliderBehavior"><![CDATA[
+		function onLayoutChanged(container) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var size = (background.height - button.height);
+			var offset = this.getOffset(container, size);
+			button.y = background.y + background.height - offset - button.height;
+			bar.height = button.height + offset;
+		}
+		function onTouchMoved(container, id, x, y, ticks) {
+			var button = container.last;
+			var bar = button.previous;
+			var background = bar.previous;
+			var size = (background.height - button.height);
+			var offset = background.y + background.height - (y + (button.height >> 1));
+			this.setOffset(container, size, offset);
+			this.onLayoutChanged(container);
+			this.onValueChanged(container);
+		}
+	]]></behavior>
+	
+	<layout id="VerticalSlider" active="true" behavior="VerticalSliderBehavior">
+		<content left="0" right="0" top="0" bottom="0" skin="THEME.verticalSliderBarSkin" state="0"/>
+		<content left="0" right="0" height="30" bottom="0" skin="THEME.verticalSliderBarSkin" state="1"/>
+		<content left="0" right="0" top="0" height="30" skin="THEME.verticalSliderButtonSkin" state="0"/>
+	</layout>
+	
+	<behavior id="VerticalLogSliderBehavior" like="VerticalSliderBehavior"><![CDATA[
+		function getOffset(container, size) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var value = this.getValue(container);
+			var logMin = Math.log(min);
+			var maxv = Math.log(max);
+			return Math.round(((Math.log(value) - logMin) * size) / (maxv - logMin));
+		}
+		function setOffset(container, size, offset) {
+			var min = this.getMin(container);
+			var max = this.getMax(container);
+			var logMin = Math.log(min);
+			var logMax = Math.log(max);
+			var value = Math.exp(logMin + (offset * (logMax - logMin) / size));
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setValue(container, value);
+		}
+	]]></behavior>
+	
+	<layout id="VerticalLogSlider" active="true" behavior="VerticalLogSliderBehavior">
+		<content left="10" right="20" top="0" bottom="0" skin="THEME.verticalSliderBarSkin" state="0"/>
+		<content left="10" right="20" height="30" bottom="0" skin="THEME.verticalSliderBarSkin" state="1"/>
+		<content left="10" right="20" top="0" height="30" skin="THEME.verticalSliderButtonSkin" state="0"/>
+	</layout>
+	
+	<!-- CanvasSlider -->
+	
+	<function id="roundRect" params="ctx, x, y, width, height, radius, fill, stroke">
+		if (typeof stroke == undefined)
+			stroke = true;
+		if (typeof radius == undefined)
+			radius = 5;
+		ctx.beginPath();
+		ctx.moveTo(x + radius, y);
+		ctx.lineTo(x + width - radius, y);
+		ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+		ctx.lineTo(x + width, y + height - radius);
+		ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+		ctx.lineTo(x + radius, y + height);
+		ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+		ctx.lineTo(x, y + radius);
+		ctx.quadraticCurveTo(x, y, x + radius, y);
+		ctx.closePath();
+		if (stroke)
+			ctx.stroke();
+		if (fill)
+			ctx.fill();
+    </function>
+    
+	<behavior id="CanvasSliderBehavior" like="SliderBehavior">
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			this.thumbTouchBeganXOffset = 0;
+            this.knobHeight = canvas.height;
+            this.knobWidth = this.knobHeight * (22 / 38);
+			this.sliderBarHeight = this.knobHeight * (16 / 38);
+            this.halfKnobWidth = this.knobWidth / 2;
+            this.insetWidth = this.knobWidth + 8;
+            this.halfInsetWidth = this.insetWidth / 2;
+           	this.trackingWidth = canvas.width - this.insetWidth;    
+			SliderBehavior.prototype.onDisplaying.call(this, canvas);
+		]]></method>
+		<method id="onTouchBegan" params="canvas, id, x, y, ticks"><![CDATA[
+            canvas.captureTouch(id, x, y, ticks);
+           	var hitThumb = this.hitTestThumb(canvas, x, y);
+			if (hitThumb)
+				this.thumbTouchBeganXOffset = this.getThumbTouchBeganXOffset(canvas, x);
+			else {
+				this.thumbTouchBeganXOffset = 0;
+            	this.onTouchMoved(canvas, id, x, y, ticks);
+            }
+		]]></method>
+		<method id="onTouchEnded" params="canvas, id, x, y, ticks"><![CDATA[
+		]]></method>
+		<method id="onTouchMoved" params="canvas, id, x, y, ticks"><![CDATA[
+			x -= this.thumbTouchBeganXOffset;
+			var size = this.trackingWidth;
+			var offset = (x - canvas.x - this.halfInsetWidth);
+			this.setOffset(canvas, size, offset);
+			this.onValueChanged(canvas);
+		]]></method>
+		<method id="getOffset" params="canvas, size"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = this.getValue(canvas);
+			return Math.round(((value - min) * size) / (max - min));
+		]]></method>
+		<method id="hitTestThumb" params="canvas, x, y"><![CDATA[
+			x -= canvas.container.x;
+			y -= canvas.container.y;
+			var b = this.getThumbBounds(canvas);
+			return (x >= b.x && x <= (b.x + b.width) && y >= b.y && y <= (b.y + b.height));	
+		]]></method>
+		<method id="getThumbBounds" params="canvas"><![CDATA[
+            var offset = this.getOffset(canvas, this.trackingWidth);
+			return {
+				x : offset + 4, 
+				y : 3, 
+				width : this.knobWidth, 
+				height : this.knobHeight - 6 
+			}
+		]]></method>
+		<method id="getThumbTouchBeganXOffset" params="canvas, x"><![CDATA[
+			x -= canvas.container.x;
+			var b = this.getThumbBounds(canvas);
+			var centerX = b.x + (b.width / 2);
+			var deltaX = x - centerX;
+			return deltaX;
+		]]></method>
+		<method id="onValueChanged" params="canvas"><![CDATA[
+            var active = canvas.active;
+            var trackingWidth = this.trackingWidth;
+            var offset = this.getOffset(canvas, trackingWidth);
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "black";
+            var sliderBarHeight = this.sliderBarHeight;
+            var sliderBarTop = (canvas.height / 2) - (sliderBarHeight / 2);
+            ctx.fillStyle =  "#e6e6e6";
+            ctx.fillRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+            ctx.fillStyle =  "#8acc50";
+            ctx.fillRect(this.halfInsetWidth, sliderBarTop, offset, sliderBarHeight);
+			ctx.lineWidth = 2;
+            ctx.strokeRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+       
+			ctx.fillStyle = "white";										// thumb  
+			ctx.lineWidth = 4;	
+			var b = this.getThumbBounds(canvas);
+			roundRect(ctx, b.x, b.y, b.width, b.height, 4, true, true);
+		]]></method>
+    </behavior>
+
+    <container id="CanvasSlider" width="172" height="38">
+        <canvas name="canvas" left="0" right="0" top="0" bottom="0" active="true">
+            <behavior like="CanvasSliderBehavior">
+				<method id="onCreate" params="canvas, data"><![CDATA[
+                    CanvasSliderBehavior.prototype.onCreate.call(this, canvas, data);                   
+                    this.data = data;                   
+				]]></method>
+				<method id="onValueChanged" params="canvas"><![CDATA[
+                    CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
+ 				]]></method>
+          </behavior>
+        </canvas>
+    </container>
+
+</module>

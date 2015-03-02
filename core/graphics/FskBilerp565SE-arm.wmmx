@@ -1,0 +1,187 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+
+.text   @CODE, READONLY
+.global FskBilerp565SE_arm_wMMX_dj
+.type   FskBilerp565SE_arm_wMMX_dj, %function
+.global FskBilerp565SE_arm_wMMX_di
+.type   FskBilerp565SE_arm_wMMX_di, %function
+.global FskBilerp565SE_arm_wMMX_didj
+.type   FskBilerp565SE_arm_wMMX_didj, %function
+.global	FskBilerp565SESetImm_arm_wMMX_s
+.type   FskBilerp565SESetImm_arm_wMMX_s, %function
+
+
+
+dij			.req	r0
+s			.req	r1
+rb			.req	r2
+
+
+p_all		.req	wr0
+p_rb		.req	wr1
+p_g			.req	wr2
+p_rbw		.req	wr3
+p_gw		.req	wr4
+dj0j_v		.req	wr5
+di0i_v		.req	wr6
+
+maskp00p10	.req	wr15		@0x7e0 0x7e0 0xf81f 0xf81f
+add_v01		.req	wr14	@0100   4008
+i_7e0		.req	wr13
+i_8010		.req	wr12
+i_f81f		.req	wr11
+i_0200		.req	wr10
+i_1f83fw	.req	wr9
+i_3fw		.req	wr8
+i_fe0w		.req	wr7
+
+FskBilerp565SESetImm_arm_wMMX_s:
+	.fnstart
+	STMFD       sp!,        {r4-r5}
+	ldr		r4,=0x07e007e0
+	ldr		r5,=0xf81ff81f
+	tmcrr	maskp00p10,r4,r5
+	
+	ldr		r4,=0x0100
+	ldr		r5,=0x4008
+	tmcrr	add_v01,r4,r5
+	
+	ldr         r4,         =0x7e0
+	tbcsth      i_7e0,      r4
+
+	ldr         r4,         =0xfe0
+	tbcstw      i_fe0w,     r4
+
+	ldr         r4,         =0xf81f
+	tbcsth      i_f81f,     r4
+
+	ldr         r4,         =0x1f83f
+	tbcstw      i_1f83fw,   r4
+
+	ldr			r4,			=0x200
+	tbcstw		i_0200,		r4
+
+	ldr			r4,			=0x8010
+	tbcstw      i_8010,		r4
+	
+	mov         r4,         #0x3f
+	tbcstw      i_3fw,      r4
+	
+	
+	LDMFD       sp!, 		{r4-r5}
+	mov 	pc,lr
+	.fnend
+
+
+FskBilerp565SE_arm_wMMX_dj:
+.fnstart
+	STMFD		sp!,        {r4}
+	ldrh		r3,			[s,rb]
+	rsb			r4,			dij,	#16
+	ldrh		r1,			[s]
+	orr			r4,			r4,		dij,lsl #16
+	tmcrr		dj0j_v,		r4,		r4
+
+	orr			r1,			r1,		r3,lsl #16
+	tmcrr		p_all,		r1,		r1
+
+	wand		p_all,		p_all,	maskp00p10
+	wmaddu		p_all,		p_all,	dj0j_v
+	LDMFD		sp!, 		{r4}
+	waddw		p_all,		p_all,	add_v01
+	wsrlw		p_all,		p_all,	#4
+	wand		p_all,		p_all,	maskp00p10
+	waccw		p_all,		p_all
+	textrmuh	r0,			p_all,	#0
+	mov			pc,			lr
+.fnend
+
+FskBilerp565SE_arm_wMMX_di:
+.fnstart
+	STMFD		sp!,        {r4}
+	ldrh		r3,			[s,#2]
+	ldrh		r1,			[s]
+	rsb			r4,			dij,	#16
+	orr			r4,			r4,		dij,lsl #16
+	tmcrr		dj0j_v,		r4,		r4
+
+	orr			r1,			r1,		r3,lsl #16
+	tmcrr		p_all,		r1,		r1
+
+	wand		p_all,		p_all,	maskp00p10
+	wmaddu		p_all,		p_all,	dj0j_v
+	LDMFD		sp!,		{r4}
+	waddw		p_all,		p_all,	add_v01
+	wsrlw		p_all,		p_all,	#4
+	wand		p_all,		p_all,	maskp00p10
+	waccw		p_all,		p_all
+	textrmuh	r0,			p_all,	#0
+	mov			pc,			lr
+.fnend
+
+
+FskBilerp565SE_arm_wMMX_didj:
+	.fnstart
+	STMFD		sp!,        {r4-r5}
+	rsb			r4,			r0,		#16
+	orr			r4,			r4,		r0,lsl #16
+	tmcrr		di0i_v,     r4,		r4
+
+	rsb			r4,			r1,		#16
+	orr			r4,			r4,		r1,lsl #16
+	ldrh		r5,			[r2,#2]
+	tmcrr		dj0j_v,     r4,   	r4
+
+	ldrh		r4,			[r2]
+	ldrh		r0,			[r2,r3]!
+	ldrh		r1,			[r2,#2]
+	orr			r4,			r4,		r5,lsl #16
+	orr			r0,			r0,		r1,lsl #16
+	tmcrr		p_all,      r4,		r0
+
+	wand		p_g,		p_all,	i_7e0
+	wand		p_rb,		p_all,	i_f81f
+	wmaddu		p_gw,		p_g,	di0i_v
+	wmaddu		p_rbw,		p_rb,	di0i_v
+
+	wsrlw		p_gw,       p_gw,   #3
+	wsrlw		p_rbw,      p_rbw,  #3
+	wunpckehuh	di0i_v,     dj0j_v
+	wand		p_rbw,      p_rbw,  i_1f83fw
+	wmulwl		p_rbw,      p_rbw,  di0i_v
+	wand		p_gw,       p_gw,   i_fe0w
+	
+	wpackwus	p_g,        p_gw,   p_gw
+	LDMFD		sp!, 		{r4-r5}
+	wmaddu		p_gw,       p_g,    dj0j_v
+	waccw		p_rbw,      p_rbw
+
+	waddw		p_rbw,		p_rbw,	i_8010
+	waddw		p_gw,		p_gw,	i_0200
+	
+	wsrlw		p_rbw,      p_rbw,  #5
+	wsrlw		p_gw,       p_gw,   #5
+	
+	wand		p_rbw,      p_rbw,  i_f81f
+	wand		p_gw,       p_gw,   i_7e0
+	wor			p_gw,       p_gw,   p_rbw
+	textrmuh	r0,         p_gw,   #0
+	mov			pc,         lr
+.fnend
+#endif

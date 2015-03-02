@@ -1,0 +1,36 @@
+/*
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+*/
+#ifndef __KINOMA_UTILITIES_BUF_PRINT_H__
+#define __KINOMA_UTILITIES_BUF_PRINT_H__
+
+#include <stdio.h>
+#include <string.h>
+//#include <math.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void buf_printf(int is_interleaved, unsigned char* yPtr, int rowbytes, int height, int x, int y, const char* fmt, ...);
+
+#ifdef __cplusplus
+}
+#endif
+
+
+#endif	//__KINOMA_UTILITIES_BUF_PRINT_H__
+

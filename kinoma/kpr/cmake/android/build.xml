@@ -1,0 +1,154 @@
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<project basedir="." name="android_platform">
+	<property file="${config.basedir}/${target.platform}/build.properties" />
+
+	<property name="env.ANDROID_NDK" value="" />
+
+	<if>
+		<available file="${env.ANDROID_NDK}/RELEASE.TXT" />
+		<then>
+			<loadfile srcFile="${env.ANDROID_NDK}/RELEASE.TXT" property="ndk.release" />
+			<propertyregex property="ANDROID_NDK64"
+				input="${ndk.release}"
+				regexp="r.* \(64-bit\)"
+				replace="1"
+				defaultValue="0"
+				casesensitive="false" />
+		</then>
+		<else>
+			<echo>Your Android NDK is either too old or not installed properly.</echo>
+			<echo>Please use "brew install android-ndk" or install it according to</echo>
+			<echo>Google's documentation: 'Installing the NDK'</echo>
+			<echo>https://developer.android.com/tools/sdk/ndk/index.html#Installing</echo>
+			<echo>and then export ANDROID_NDK=/usr/local/opt/android-ndk</echo>
+			<echo>or to the path you installed the NDK in your shell.</echo>
+			<fail>Unusable NDK</fail>
+		</else>
+	</if>
+
+	<if>
+		<not>
+			<available file="${env.ANDROID_SDK}/README" />
+		</not>
+		<then>
+			<echo>Your Android SDK is not available for building this product.</echo>
+			<echo>Please use "brew install android-sdk" or install it according to</echo>
+			<echo>Google's documentation: 'Installing the Stand-alone SDK Tools'</echo>
+			<echo>https://developer.android.com/sdk/installing/index.html?pkg=tools</echo>
+			<echo>and then export ANDROID_SDK=/usr/local/opt/android-sdk</echo>
+			<echo>or to the path you installed the SDK in your shell.</echo>
+			<fail>Unusable SDK</fail>
+		</then>
+	</if>
+
+	<if>
+		<available file="${env.HOME}/.android.keystore.info" />
+		<then>
+			<property name="ant.build.type" value="release" />
+		</then>
+	</if>
+	<property name="ant.build.type" value="debug" />
+
+	<target name="copy-files" depends="load-defaults,config">
+		<property name="ndk.path" value="${build.tmp}/ndk" />
+		<property name="ndk.project.path" value="${ndk.path}/project" />
+		<property name="ndk.project.path.tmp" value="${ndk.path}/project_temp" />
+		<property name="ndk.project.bin" value="${ndk.project.path}/bin" />
+		<property name="ndk.project.gen" value="${ndk.project.path}/gen" />
+		<property name="ndk.project.libraries" value="${ndk.project.path}/libs/armeabi" />
+		<property name="ndk.project.objects" value="${ndk.project.path}/obj/local/armeabi" />
+		<property name="ndk.play.path" value="${f_home}/build/android/inNDK" />
+		<property name="ndk.kpr.path" value="${f_home}/kinoma/kpr/make/android/ndk" />
+
+		<mkdir dir="${ndk.project.path.tmp}" />
+		<property name="ant.build.type" value="debug" />
+		<copy todir="${ndk.path}" file="${ndk.play.path}/Play/Application.mk" />
+		<copy todir="${ndk.project.path.tmp}" file="${ndk.kpr.path}/project/AndroidManifest.xml" />
+		<copy todir="${ndk.project.path.tmp}" file="${ndk.kpr.path}/project/build.xml" />
+		<copy todir="${ndk.project.path.tmp}" file="${ndk.play.path}/Play/project/proguard.cfg" />
+		<copy todir="${ndk.project.path.tmp}" file="${ndk.play.path}/Play/project/project.properties" />
+		<preprocess source="${ndk.play.path}/Play/project/src/com/kinoma/kinomaplay" destination="${ndk.project.path.tmp}/java">
+			<cfgFile file="${build.tmp}/permissions.cfg" />
+		</preprocess>
+		<copy todir="${ndk.project.path.tmp}/jni" file="${ndk.kpr.path}/project/jni/Android.mk" />
+		<copy todir="${ndk.project.path.tmp}/jni">
+			<fileset dir="${ndk.play.path}/kinoma" excludes="Android.mk" />
+		</copy>
+		<if>
+			<available file="${kpr.application.path}/android" type="dir" />
+			<then>
+				<copy todir="${ndk.project.path.tmp}/res">
+					<fileset dir="${kpr.application.path}/android" />
+				</copy>
+			</then>
+		</if>
+		<copy todir="${ndk.project.path.tmp}/res/layout" file="${ndk.play.path}/Play/project/res/layout/main.xml" />
+		<copy todir="${ndk.project.path.tmp}/res/values" file="${ndk.kpr.path}/project/res/values/strings.xml" />
+		<copy todir="${ndk.project.path.tmp}/res/xml" file="${ndk.kpr.path}/project/res/xml/kconfig.xml" />
+		<copy todir="${ndk.project.path.tmp}/res">
+			<fileset dir="${ndk.play.path}/Play/project/res" />
+		</copy>
+	</target>
+
+	<target name="fix-name" depends="copy-files">
+		<property name="features.path" value="${build.tmp}/features.txt" />
+		<property name="permissions.path" value="${build.tmp}/permissions.txt" />
+		<property name="versions.path" value="${build.tmp}/versions.properties" />
+
+		<loadfile property="manifest.features" srcFile="${features.path}" />
+		<loadfile property="manifest.permissions" srcFile="${permissions.path}" />
+		<property file="${versions.path}" />
+
+		<replace dir="${ndk.project.path.tmp}">
+			<fileset dir="${ndk.project.path.tmp}" />
+			<replacefilter token="com.kinoma.kinomaplay" value="${manifest.namespace}" />
+			<replacefilter token="com/kinoma/kinomaplay" value="${manifest.namespace.java}" />
+			<replacefilter token="#OBJECT_BASE#" value="${manifest.namespace.java.objectbase}" />
+			<replacefilter token="#NAMESPACE#" value="${manifest.namespace}" />
+			<replacefilter token="#VERSION#" value="${manifest.version} (${core.version})" />
+			<replacefilter token="#KPR_APPLICATION#" value="${manifest.namespace.app.name}" />
+			<replacefilter token="#APP_NAME#" value="${manifest.name}" />
+			<replacefilter token="Kinoma Play" value="Kinoma ${manifest.name}" />
+			<replacefilter token="#MANIFEST_FEATURES#" value="${manifest.features}" />
+			<replacefilter token="#MANIFEST_PERMISSIONS#" value="${manifest.permissions}" />
+			<replacefilter token="#VERSION_MINIMUM#" value="${version.minimum}" />
+			<replacefilter token="#VERSION_TARGET#" value="${version.target}" />
+		</replace>
+	</target>
+
+	<target name="copy-key-info" depends="copy-files">
+		<if>
+			<equals arg1="${ant.build.type}" arg2="release" />
+			<then>
+				<copy tofile="${ndk.project.path.tmp}/local.properties" file="${env.HOME}/.android.keystore.info" overwrite="true" />
+			</then>
+		</if>
+	</target>
+
+	<target name="package" depends="load-defaults,config,fix-name,copy-key-info">
+		<copy todir="${ndk.project.path}" overwrite="true">
+			<fileset dir="${ndk.project.path.tmp}" />
+		</copy>
+		<delete dir="${ndk.project.path.tmp}" />
+		<mkdir dir="${ndk.project.path}/src/com/marvell/kinoma" />
+		<symlink link="${ndk.project.path}/src/com/marvell/kinoma/${manifest.namespace.app.name}" resource="${ndk.project.path}/java" overwrite="true" />
+		<exec executable="android" failonerror="true">
+			<arg line="update project -p ${ndk.project.path}" />
+		</exec>
+	</target>
+</project>

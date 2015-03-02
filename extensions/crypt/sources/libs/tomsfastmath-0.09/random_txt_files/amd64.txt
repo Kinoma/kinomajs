@@ -1,0 +1,43 @@
+AMD64 timings
+
+using ISO C
+mult
+  512-bit:       496
+ 1024-bit:      1717
+ 2048-bit:      7200
+sqr
+  512-bit:       448
+ 1024-bit:      1760
+ 2048-bit:      7099
+mont
+  512-bit:      1416
+ 1024-bit:      5156
+ 2048-bit:     20820
+expt
+  512-bit:   1520207
+ 1024-bit:  10603520
+ 2048-bit:  84893649
+
+using amd64
+mult
+  512-bit:       292
+ 1024-bit:       945
+ 2048-bit:      3620
+sqr
+  512-bit:       238
+ 1024-bit:       801
+ 2048-bit:      2853
+mont
+  512-bit:       731
+ 1024-bit:      1730
+ 2048-bit:      5462
+Exptmod:
+  512-bit:    641743
+ 1024-bit:   3167406
+ 2048-bit:  20158609
+
+LTM exptmods
+
+Exponentiating   513-bit =>       825/sec,   2183028 cycles
+Exponentiating  1025-bit =>       151/sec,  11900720 cycles
+Exponentiating  2049-bit =>        24/sec,  72376416 cycles

@@ -1,0 +1,918 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+	.text @CODE, READONLY
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@ our wonderful WMMX debug tool @@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+	.macro BNIE_CHECK_REG_00 stop_flag, idx
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	mov     r3, sp			@core registers, but no sp
+	SUB     sp, sp, #256	@give enough head room
+	
+	@// Now we are safe to corrupt registers
+	mov	  r0, #\stop_flag
+	mov   r1, #\idx
+
+	mov   r2, sp
+	mov   r2, r2, lsr #3
+	mov   r2, r2, lsl #3
+	add	  r2, r2, #8		@8 byte aligned
+	mov	  sp, r2			@wmmx registers
+	str	  r3, [sp]			@entry sp
+	add	  r8, sp, #8
+	
+	wstrd   wr0,  [r8], #8
+	wstrd   wr1,  [r8], #8
+	wstrd   wr2,  [r8], #8
+	wstrd   wr3,  [r8], #8
+	wstrd   wr4,  [r8], #8
+	wstrd   wr5,  [r8], #8
+	wstrd   wr6,  [r8], #8
+	wstrd   wr7,  [r8], #8
+	wstrd   wr8,  [r8], #8
+	wstrd   wr9,  [r8], #8
+	wstrd   wr10, [r8], #8
+	wstrd   wr11, [r8], #8
+	wstrd   wr12, [r8], #8
+	wstrd   wr13, [r8], #8
+	wstrd   wr14, [r8], #8
+	wstrd   wr15, [r8]
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_reg_wmmx
+	MSR     cpsr_f, r4      @// restore flags
+
+	add		r8, sp, #8
+	wldrd   wr0,  [r8], #8
+	wldrd   wr1,  [r8], #8
+	wldrd   wr2,  [r8], #8
+	wldrd   wr3,  [r8], #8
+	wldrd   wr4,  [r8], #8
+	wldrd   wr5,  [r8], #8
+	wldrd   wr6,  [r8], #8
+	wldrd   wr7,  [r8], #8
+	wldrd   wr8,  [r8], #8
+	wldrd   wr9,  [r8], #8
+	wldrd   wr10, [r8], #8
+	wldrd   wr11, [r8], #8
+	wldrd   wr12, [r8], #8
+	wldrd   wr13, [r8], #8
+	wldrd   wr14, [r8], #8
+	wldrd   wr15, [r8]
+
+	ldr		sp, [sp]
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+	.macro BNIE_CHECK_MEM_00 idx, addr, offset, size
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	@// Now we are safe to corrupt registers
+	mov	  r12, \addr
+	mov	  r0, #\idx
+	mov	  r1, r12
+	mov   r2, #\offset
+	mov   r3, #\size
+
+	mov     r5, sp			@core registers, but no sp
+	SUB     sp, sp, #256	@give enough head room
+
+	mov   r6, sp
+	mov   r6, r6, lsr #3
+	mov   r6, r6, lsl #3
+	add	  r6, r6, #8		@8 byte aligned
+	mov	  sp, r6			@wmmx registers
+	str	  r5, [sp]			@entry sp
+	add	  r8, sp, #8
+	
+	wstrd   wr0,  [r8], #8
+	wstrd   wr1,  [r8], #8
+	wstrd   wr2,  [r8], #8
+	wstrd   wr3,  [r8], #8
+	wstrd   wr4,  [r8], #8
+	wstrd   wr5,  [r8], #8
+	wstrd   wr6,  [r8], #8
+	wstrd   wr7,  [r8], #8
+	wstrd   wr8,  [r8], #8
+	wstrd   wr9,  [r8], #8
+	wstrd   wr10, [r8], #8
+	wstrd   wr11, [r8], #8
+	wstrd   wr12, [r8], #8
+	wstrd   wr13, [r8], #8
+	wstrd   wr14, [r8], #8
+	wstrd   wr15, [r8], #8
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_mem_wmmx
+	MSR     cpsr_f, r4      @// restore flags
+
+	add		r8, sp, #8
+	wldrd   wr0,  [r8], #8
+	wldrd   wr1,  [r8], #8
+	wldrd   wr2,  [r8], #8
+	wldrd   wr3,  [r8], #8
+	wldrd   wr4,  [r8], #8
+	wldrd   wr5,  [r8], #8
+	wldrd   wr6,  [r8], #8
+	wldrd   wr7,  [r8], #8
+	wldrd   wr8,  [r8], #8
+	wldrd   wr9,  [r8], #8
+	wldrd   wr10, [r8], #8
+	wldrd   wr11, [r8], #8
+	wldrd   wr12, [r8], #8
+	wldrd   wr13, [r8], #8
+	wldrd   wr14, [r8], #8
+	wldrd   wr15, [r8], #8
+
+	ldr		sp, [sp]
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+	.global jpeg_idct_8x8_wmmx
+	.type jpeg_idct_8x8_wmmx, %function
+	.align 4
+
+.equ	CONST_1_082392200 5376 @ 2 * (277 * 128 - 256 *128)  @@XFIX_1_082392200
+.equ	CONST_1_414213562 27136 @ 2*(362*128 - 256*128) @@XFIX_1_414213562
+.equ	CONST_1_847759065 55552	@ 2*(473*128 - 256*128) @@XFIX_1_847759065
+.equ	CONST_2_613125930 40192 @ 2* (669*128 - 512*128) @@XFIX_2_613125930
+
+quant_block	.req	r0
+coef_block	.req	r1
+output_buf	.req	r2
+tmp	.req	r3
+
+dct_quant	.req	r4
+coef	.req	r5
+
+offset_addr	.req	r6
+value0	.req	r7
+value1	.req	r8
+value_word_l	.req	r9
+value_word_h	.req	r9
+
+dst_l	.req	r10
+dst_h	.req	r11
+
+const_128	.req	r12
+const_1_082	.req	r12
+const_1_414	.req	r12
+const_1_847	.req	r12
+const_2_613	.req	r12
+
+wr_coef_halfline_0	.req	wr0
+wr_coef_halfline_1	.req	wr1
+wr_coef_halfline_2	.req	wr2
+wr_coef_halfline_3	.req	wr3
+
+wr_coef_halfline_4	.req	wr4
+wr_coef_halfline_5	.req	wr5
+wr_coef_halfline_6	.req	wr6
+wr_coef_halfline_7	.req	wr7
+
+wr_quant_halfline_0	.req	wr4
+wr_quant_halfline_1	.req	wr5
+wr_quant_halfline_2	.req	wr6
+wr_quant_halfline_3	.req	wr7
+
+wr_quant_halfline_4	.req	wr8
+wr_quant_halfline_5	.req	wr9
+wr_quant_halfline_6	.req	wr10
+wr_quant_halfline_7	.req	wr11
+
+wr_tmp0	.req	wr8
+wr_tmp1	.req	wr9
+wr_tmp2	.req	wr10
+wr_tmp3	.req	wr11
+wr_tmp4	.req	wr12
+
+
+wr_coef_halfline_0_trans	.req	wr8
+wr_coef_halfline_1_trans	.req	wr9
+wr_coef_halfline_2_trans	.req	wr10
+wr_coef_halfline_3_trans	.req	wr11
+
+wr_coef_trans_tmp_0	.req	wr12
+wr_coef_trans_tmp_1	.req	wr13
+wr_coef_trans_tmp_2	.req	wr14
+wr_coef_trans_tmp_3	.req	wr15
+
+wr_coef_halfline_4_trans	.req	wr8
+wr_coef_halfline_5_trans	.req	wr9
+wr_coef_halfline_6_trans	.req	wr10
+wr_coef_halfline_7_trans	.req	wr11
+
+wr_const_1_082	.req	wr8
+wr_const_1_414	.req	wr9
+wr_const_1_847	.req	wr10
+wr_const_2_613	.req	wr11
+
+wr_const_128_sl5	.req	wr12
+wr_dst	.req	wr13
+
+
+
+	.macro	LOAD_CONST_COEF
+	mov	const_1_082, #CONST_1_082392200
+	TBCSTH	wr_const_1_082, const_1_082
+	
+	mov	const_1_414, #CONST_1_414213562
+	TBCSTH	wr_const_1_414, const_1_414
+
+	mov	const_1_847, #CONST_1_847759065
+	TBCSTH	wr_const_1_847, const_1_847
+
+	mov	const_2_613, #CONST_2_613125930
+	TBCSTH	wr_const_2_613, const_2_613
+	
+	.endm
+
+	.macro	LOAD_BLOCK8_HALFLINE addr, offset, wr_reg
+	add	offset_addr, \addr, #\offset
+	ldrh	value0, [offset_addr], #2
+	ldrh	value1, [offset_addr], #2
+	orr	value_word_l, value0, value1, lsl #16
+	TINSRW	\wr_reg, 0
+
+	ldrh	value0, [offset_addr], #2
+	ldrh	value1, [offset_addr], #2
+	orr	value_word_h, value0, value1, lsl #16
+	TINSRW	\wr_reg, 1
+	.endm
+
+	
+	.macro TRANSPOSE_4X4_BLOCK wr_src0, wr_src1, wr_src2, wr_src3, wr_dst0, wr_dst1, wr_dst2, wr_dst3
+	WUNPCKILH	wr_coef_trans_tmp_0, \wr_src0, \wr_src1
+	WUNPCKIHH	wr_coef_trans_tmp_1, \wr_src0, \wr_src1
+	WUNPCKILH	wr_coef_trans_tmp_2, \wr_src2, \wr_src3
+	WUNPCKIHH	wr_coef_trans_tmp_3, \wr_src2, \wr_src3
+	WUNPCKILW	\wr_dst0, wr_coef_trans_tmp_0, wr_coef_trans_tmp_2
+	WUNPCKIHW	\wr_dst1, wr_coef_trans_tmp_0, wr_coef_trans_tmp_2
+	WUNPCKILW	\wr_dst2, wr_coef_trans_tmp_1, wr_coef_trans_tmp_3
+	WUNPCKIHW	\wr_dst3, wr_coef_trans_tmp_1, wr_coef_trans_tmp_3
+	.endm
+	
+	.macro IDCT_HALF_COLUMNS
+	WSUBH	wr_tmp0, wr_coef_halfline_0, wr_coef_halfline_4
+	WADDH	wr_coef_halfline_4, wr_coef_halfline_0, wr_coef_halfline_4
+	WMOV	wr_coef_halfline_0, wr_tmp0
+
+	WSUBH	wr_tmp1, wr_coef_halfline_2, wr_coef_halfline_6
+	WADDH	wr_coef_halfline_6, wr_coef_halfline_2, wr_coef_halfline_6
+	WMOV	wr_coef_halfline_2, wr_tmp1
+
+	WSUBH	wr_tmp0, wr_coef_halfline_3, wr_coef_halfline_5
+	WADDH	wr_coef_halfline_5, wr_coef_halfline_3, wr_coef_halfline_5
+	WMOV	wr_coef_halfline_3, wr_tmp0
+	
+	WSUBH	wr_tmp1, wr_coef_halfline_1, wr_coef_halfline_7
+	WADDH	wr_coef_halfline_7, wr_coef_halfline_1, wr_coef_halfline_7
+	WMOV	wr_coef_halfline_1, wr_tmp1
+
+	WMULSM	wr_tmp3, wr_coef_halfline_2, wr_const_1_414
+	WADDH	wr_tmp2, wr_coef_halfline_3, wr_coef_halfline_3
+	WADDH	wr_coef_halfline_2, wr_coef_halfline_2, wr_tmp3
+	WMULSM	wr_tmp3, wr_coef_halfline_3, wr_const_2_613	
+	WSUBH	wr_tmp0, wr_coef_halfline_1, wr_coef_halfline_3
+	WADDH	wr_tmp2, wr_tmp2, wr_tmp3
+	WMULSM	wr_tmp3, wr_tmp0, wr_const_1_847
+	WSUBH	wr_tmp1, wr_coef_halfline_7, wr_coef_halfline_5
+	WADDH	wr_tmp0, wr_tmp0, wr_tmp3
+	WMULSM	wr_tmp3, wr_tmp1, wr_const_1_414
+	WADDH	wr_tmp1, wr_tmp1, wr_tmp3
+
+	WMULSM	wr_tmp3, wr_coef_halfline_1, wr_const_1_082
+	WSUBH	wr_coef_halfline_2, wr_coef_halfline_6, wr_coef_halfline_2
+	WSUBH	wr_tmp4, wr_coef_halfline_0, wr_coef_halfline_2
+	WADDH	wr_coef_halfline_2, wr_coef_halfline_0, wr_coef_halfline_2
+	WADDH	wr_coef_halfline_0, wr_coef_halfline_4, wr_coef_halfline_6
+	WSUBH	wr_coef_halfline_4, wr_coef_halfline_4, wr_coef_halfline_6
+	WADDH	wr_coef_halfline_1, wr_coef_halfline_1, wr_tmp3
+	WADDH	wr_tmp3, wr_coef_halfline_7, wr_coef_halfline_5
+	WSUBH	wr_tmp2, wr_tmp3, wr_tmp2
+	WSUBH	wr_tmp2, wr_tmp2, wr_tmp0
+	WADDH	wr_tmp1, wr_tmp2, wr_tmp1
+	WSUBH	wr_tmp0, wr_coef_halfline_1, wr_tmp0
+	WADDH	wr_tmp0, wr_tmp0, wr_tmp1
+
+	WSUBH	wr_coef_halfline_7, wr_coef_halfline_0, wr_tmp3
+	WADDH	wr_coef_halfline_0, wr_coef_halfline_0, wr_tmp3
+	WADDH	wr_coef_halfline_6, wr_tmp4, wr_tmp2
+	WSUBH	wr_coef_halfline_1, wr_tmp4, wr_tmp2
+	WSUBH	wr_coef_halfline_5, wr_coef_halfline_2, wr_tmp1
+	WADDH	wr_coef_halfline_2, wr_coef_halfline_2, wr_tmp1
+	WSUBH	wr_coef_halfline_3, wr_coef_halfline_4, wr_tmp0
+	WADDH	wr_coef_halfline_4, wr_coef_halfline_4, wr_tmp0
+
+	.endm
+
+	.macro	DEQ_HALF_COLUMNS
+
+	@@@ load first 4x4 block in 8x8 and dequant
+	@load block
+
+	LOAD_BLOCK8_HALFLINE	dct_quant, 0, wr_quant_halfline_0
+	LOAD_BLOCK8_HALFLINE	dct_quant, 16, wr_quant_halfline_1
+	LOAD_BLOCK8_HALFLINE	dct_quant, 32, wr_quant_halfline_2
+	LOAD_BLOCK8_HALFLINE	dct_quant, 48, wr_quant_halfline_3
+	
+	LOAD_BLOCK8_HALFLINE	coef, 0, wr_coef_halfline_0
+	LOAD_BLOCK8_HALFLINE	coef, 16, wr_coef_halfline_1
+	LOAD_BLOCK8_HALFLINE	coef, 32, wr_coef_halfline_2
+	LOAD_BLOCK8_HALFLINE	coef, 48, wr_coef_halfline_3
+
+	@dequant
+	WMULSL	wr_coef_halfline_0, wr_coef_halfline_0, wr_quant_halfline_0
+	WMULSL	wr_coef_halfline_1, wr_coef_halfline_1, wr_quant_halfline_1
+	WMULSL	wr_coef_halfline_2, wr_coef_halfline_2, wr_quant_halfline_2
+	WMULSL	wr_coef_halfline_3, wr_coef_halfline_3, wr_quant_halfline_3
+
+	@@@ load third 4x4 block in 8x8 and dequant
+	@load block
+	LOAD_BLOCK8_HALFLINE	dct_quant, 64, wr_quant_halfline_4
+	LOAD_BLOCK8_HALFLINE	dct_quant, 80, wr_quant_halfline_5
+	LOAD_BLOCK8_HALFLINE	dct_quant, 96, wr_quant_halfline_6
+	LOAD_BLOCK8_HALFLINE	dct_quant, 112, wr_quant_halfline_7
+
+	LOAD_BLOCK8_HALFLINE	coef, 64, wr_coef_halfline_4
+	LOAD_BLOCK8_HALFLINE	coef, 80, wr_coef_halfline_5
+	LOAD_BLOCK8_HALFLINE	coef, 96, wr_coef_halfline_6
+	LOAD_BLOCK8_HALFLINE	coef, 112, wr_coef_halfline_7
+
+	@dequant
+	WMULSL	wr_coef_halfline_4, wr_coef_halfline_4, wr_quant_halfline_4
+	WMULSL	wr_coef_halfline_5, wr_coef_halfline_5, wr_quant_halfline_5
+	WMULSL	wr_coef_halfline_6, wr_coef_halfline_6, wr_quant_halfline_6
+	WMULSL	wr_coef_halfline_7, wr_coef_halfline_7, wr_quant_halfline_7
+
+	.endm
+
+
+jpeg_idct_8x8_wmmx:
+	.fnstart
+	stmfd sp!, {r0-r12, lr}
+	
+	@@align tmp address to 8 bytes alignment to store transposed matrix
+
+	@@@@@@@@Columns first, but just half of columns because of limited wmmx registers
+
+	@@Left half firstly
+
+	mov	dct_quant, quant_block	
+	mov	coef, coef_block
+
+	@load and dequant left half columns
+	DEQ_HALF_COLUMNS
+
+	@load constant coef
+	LOAD_CONST_COEF
+
+	@now idct left half-columns
+	IDCT_HALF_COLUMNS
+
+	@transpose this first 4x4 block to first 4x4 block
+	TRANSPOSE_4X4_BLOCK wr_coef_halfline_0, wr_coef_halfline_1, wr_coef_halfline_2, wr_coef_halfline_3, wr_coef_halfline_0_trans, wr_coef_halfline_1_trans, wr_coef_halfline_2_trans, wr_coef_halfline_3_trans
+	
+	@store this tranposed block
+	@TODO: will hidden this pipeline because consecutive WSTRD will result heavy cycle penalty
+	WSTRD	wr_coef_halfline_0_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_1_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_2_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_3_trans, [tmp], #8
+
+
+	@transpose third 4x4 block to second 4x4 block
+	TRANSPOSE_4X4_BLOCK wr_coef_halfline_4, wr_coef_halfline_5, wr_coef_halfline_6, wr_coef_halfline_7, wr_coef_halfline_4_trans, wr_coef_halfline_5_trans, wr_coef_halfline_6_trans, wr_coef_halfline_7_trans
+
+	@store this tranposed block
+	@TODO: will hidden this pipeline because consecutive WSTRD will result heavy cycle penalty
+	WSTRD	wr_coef_halfline_4_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_5_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_6_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_7_trans, [tmp], #8
+
+
+	@@Right half secondly
+	add	dct_quant, quant_block, #8
+	add	coef, coef_block, #8
+
+	@load and dequant right half columns
+	DEQ_HALF_COLUMNS
+
+	@load constant coef
+	LOAD_CONST_COEF
+
+	@now idct right half-columns
+	IDCT_HALF_COLUMNS
+
+	@transpose this 4x4 block, which will be stored to third block
+	TRANSPOSE_4X4_BLOCK wr_coef_halfline_0, wr_coef_halfline_1, wr_coef_halfline_2, wr_coef_halfline_3, wr_coef_halfline_0_trans, wr_coef_halfline_1_trans, wr_coef_halfline_2_trans, wr_coef_halfline_3_trans
+	
+	@store this tranposed block
+	WSTRD	wr_coef_halfline_0_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_1_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_2_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_3_trans, [tmp], #8
+
+
+	@transpose this 4x4 block, which will be stored to fourth 4x4 block
+	TRANSPOSE_4X4_BLOCK wr_coef_halfline_4, wr_coef_halfline_5, wr_coef_halfline_6, wr_coef_halfline_7, wr_coef_halfline_4_trans, wr_coef_halfline_5_trans, wr_coef_halfline_6_trans, wr_coef_halfline_7_trans
+
+	@store this tranposed block
+	WSTRD	wr_coef_halfline_4_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_5_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_6_trans, [tmp], #8
+	WSTRD	wr_coef_halfline_7_trans, [tmp], #8
+
+
+	@@@@@@@@Then Row, actually same to above because the matrix has been transposed
+
+	@@Left half firstly
+	
+	LOAD_BLOCK8_HALFLINE	tmp, 0, wr_coef_halfline_0
+	LOAD_BLOCK8_HALFLINE	tmp, 8, wr_coef_halfline_1
+	LOAD_BLOCK8_HALFLINE	tmp, 16, wr_coef_halfline_2
+	LOAD_BLOCK8_HALFLINE	tmp, 24, wr_coef_halfline_3
+
+	LOAD_BLOCK8_HALFLINE	tmp, 64, wr_coef_halfline_4
+	LOAD_BLOCK8_HALFLINE	tmp, 72, wr_coef_halfline_5
+	LOAD_BLOCK8_HALFLINE	tmp, 80, wr_coef_halfline_6
+	LOAD_BLOCK8_HALFLINE	tmp, 88, wr_coef_halfline_7
+
+	@load constant coef
+	LOAD_CONST_COEF
+
+	IDCT_HALF_COLUMNS
+
+	TRANSPOSE_4X4_BLOCK wr_coef_halfline_0, wr_coef_halfline_1, wr_coef_halfline_2, wr_coef_halfline_3, wr_coef_halfline_0_trans, wr_coef_halfline_1_trans, wr_coef_halfline_2_trans, wr_coef_halfline_3_trans
+
+	@descale and send out 
+	mov	const_128, #0x80
+	mov	const_128_sl5, const_128, lsl #5
+	TBCSTH	wr_const_128_sl5, const_128_sl5
+
+	WADDH	wr_coef_halfline_0_trans, wr_coef_halfline_0_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_1_trans, wr_coef_halfline_1_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_2_trans, wr_coef_halfline_2_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_3_trans, wr_coef_halfline_3_trans, wr_const_128_sl5
+
+	WSRLHG	wr_coef_halfline_0_trans, wc_shift_r_5
+	WSRLHG	wr_coef_halfline_1_trans, wc_shift_r_5
+	WPACKHUS	wr_dst, wr_coef_halfline_0_trans, wr_coef_halfline_1_trans
+	TMCRR	wr_dst, dst_l, dst_h
+	str	dst_l, [output_buf]
+	str	dst_h, [output_buf, #8]
+	
+	WSRLHG	wr_coef_halfline_2_trans, wc_shift_r_5
+	WSRLHG	wr_coef_halfline_3_trans, wc_shift_r_5
+	WPACKHUS	wr_dst, wr_coef_halfline_2_trans, wr_coef_halfline_3_trans
+	TMCRR	wr_dst, dst_l, dst_h
+	str	dst_l, [output_buf, #16]
+	str	dst_h, [output_buf, #24]
+
+	TRANSPOSE_4X4_BLOCK wr_coef_halfline_4, wr_coef_halfline_5, wr_coef_halfline_6, wr_coef_halfline_7, wr_coef_halfline_4_trans, wr_coef_halfline_5_trans, wr_coef_halfline_6_trans, wr_coef_halfline_7_trans
+
+	@descale and send out 
+	mov	const_128, #0x80
+	mov	const_128_sl5, const_128, lsl #5
+	TBCSTH	wr_const_128_sl5, const_128_sl5
+
+	WADDH	wr_coef_halfline_4_trans, wr_coef_halfline_4_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_5_trans, wr_coef_halfline_5_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_6_trans, wr_coef_halfline_6_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_7_trans, wr_coef_halfline_7_trans, wr_const_128_sl5
+
+	WSRLHG	wr_coef_halfline_4_trans, wc_shift_r_5
+	WSRLHG	wr_coef_halfline_5_trans, wc_shift_r_5
+	WPACKHUS	wr_dst, wr_coef_halfline_4_trans, wr_coef_halfline_5_trans
+	TMCRR	wr_dst, dst_l, dst_h
+	str	dst_l, [output_buf, #4]
+	str	dst_h, [output_buf, #12]
+
+	WSRLHG	wr_coef_halfline_6_trans, wc_shift_r_5
+	WSRLHG	wr_coef_halfline_7_trans, wc_shift_r_5
+	WPACKHUS	wr_dst, wr_coef_halfline_6_trans, wr_coef_halfline_trans
+	TMCRR	wr_dst, dst_l, dst_h
+	str	dst_l, [output_buf, #20]
+	str	dst_h, [output_buf, #28]
+
+
+	@@Right half secondly
+	LOAD_BLOCK8_HALFLINE	tmp, 32, wr_coef_halfline_0
+	LOAD_BLOCK8_HALFLINE	tmp, 40, wr_coef_halfline_1
+	LOAD_BLOCK8_HALFLINE	tmp, 48, wr_coef_halfline_2
+	LOAD_BLOCK8_HALFLINE	tmp, 56, wr_coef_halfline_3
+
+	LOAD_BLOCK8_HALFLINE	tmp, 96, wr_coef_halfline_4
+	LOAD_BLOCK8_HALFLINE	tmp, 104, wr_coef_halfline_5
+	LOAD_BLOCK8_HALFLINE	tmp, 112, wr_coef_halfline_6
+	LOAD_BLOCK8_HALFLINE	tmp, 120, wr_coef_halfline_7 
+
+	@load constant coef
+	LOAD_CONST_COEF
+
+	IDCT_HALF_COLUMNS
+
+	TRANSPOSE_4X4_BLOCK wr_coef_halfline_0, wr_coef_halfline_1, wr_coef_halfline_2, wr_coef_halfline_3, wr_coef_halfline_0_trans, wr_coef_halfline_1_trans, wr_coef_halfline_2_trans, wr_coef_halfline_3_trans
+
+	@descale and send out
+	mov	const_128, #0x80
+	mov	const_128_sl5, const_128, lsl #5
+	TBCSTH	wr_const_128_sl5, const_128_sl5
+
+	WADDH	wr_coef_halfline_0_trans, wr_coef_halfline_0_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_1_trans, wr_coef_halfline_1_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_2_trans, wr_coef_halfline_2_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_3_trans, wr_coef_halfline_3_trans, wr_const_128_sl5
+
+	WSRLHG	wr_coef_halfline_0_trans, wc_shift_r_5
+	WSRLHG	wr_coef_halfline_1_trans, wc_shift_r_5
+	WPACKHUS	wr_dst, wr_coef_halfline_0_trans, wr_coef_halfline_1_trans
+	TMRCC	dst_l, dst_h, wr_dst
+	str	dst_l, [output_buf, #32]
+	str	dst_h, [output_buf, #40]
+	
+	WSRLHG	wr_coef_halfline_2_trans, wc_shift_r_5
+	WSRLHG	wr_coef_halfline_3_trans, wc_shift_r_5
+	WPACKHUS	wr_dst, wr_coef_halfline_2_trans, wr_coef_halfline_3_trans
+	TMRCC	dst_l, dst_h, wr_dst
+	str	dst_l, [output_buf, #48]
+	str	dst_h, [output_buf, #56]
+
+	TRANSPOSE_4X4_BLOCK wr_coef_halfline_4, wr_coef_halfline_5, wr_coef_halfline_6, wr_coef_halfline_7, wr_coef_halfline_4_trans, wr_coef_halfline_5_trans, wr_coef_halfline_6_trans, wr_coef_halfline_7_trans
+
+	@descale and send out
+	mov	const_128, #0x80
+	mov	const_128_sl5, const_128, lsl #5
+	TBCSTH	wr_const_128_sl5, const_128_sl5
+
+	WADDH	wr_coef_halfline_4_trans, wr_coef_halfline_4_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_5_trans, wr_coef_halfline_5_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_6_trans, wr_coef_halfline_6_trans, wr_const_128_sl5
+	WADDH	wr_coef_halfline_7_trans, wr_coef_halfline_7_trans, wr_const_128_sl5
+
+	WSRLHG	wr_coef_halfline_4_trans, wc_shift_r_5
+	WSRLHG	wr_coef_halfline_5_trans, wc_shift_r_5
+	WPACKHUS	wr_dst, wr_coef_halfline_4_trans, wr_coef_halfline_5_trans
+	TMRRC	dst_l, dst_h, wr_dst
+	str	dst_l, [output_buf, #36]
+	str	dst_h, [output_buf, #44]
+
+	WSRLHG	wr_coef_halfline_6_trans, wc_shift_r_5
+	WSRLHG	wr_coef_halfline_7_trans, wc_shift_r_5
+	WPACKHUS	wr_dst, wr_coef_halfline_6_trans, wr_coef_halfline_trans
+	TMRCC	dst_l, dst_h, wr_dst
+	str	dst_l, [output_buf, #52]
+	str	dst_h, [output_buf, #60]
+
+	ldfmd	sp!, {r0-r12, pc}
+
+	.fnend
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+	.global yuv2rgb565_wmmx
+	.type yuv2rgb565_wmmx, %function
+	.align 4
+
+.balign 16
+yuv2rgb565_consts:
+	.short 0, 0, 0, 0
+	.short 22971, -11277, -23401, 29033
+	.short -128, -128, -128, -128
+	.short -128, -128, -128, -128
+
+
+.equ	REGIS_SHIFT,	(14*4)
+.equ	CACHE_SHIFT,	(1*4)
+.equ	SP_SHIFT,	(REGIS_SHIFT + CACHE_SHIFT)
+.equ	NUM_ROW_SHIFT,	(SP_SHIFT + 0 * 4)
+
+@.equ	CONST_G_CB,	(-11277)	@(1 << 15) * 0.34414
+.equ	CONST_G_CB,	0xffffd3f3	@(1 << 15) * 0.34414
+@.equ	CONST_G_CR,	(-23401)	@(1 << 15) * 0.71414
+.equ	CONST_G_CR,	0xffffa497	@(1 << 15) * 0.71414
+.equ	CONST_R_CR,	22971	@(1 << 14) * 1.40200
+.equ	CONST_B_CB,	29033	@(1 << 14) * 1.77200	
+
+output_width	.req r0
+input_yuv	.req r1
+input_row	.req r2
+output_rgb	.req r3
+num_rows	.req r4
+
+srb		.req r5
+
+@CONST_31	.req r5
+@CONST_63	.req r6
+
+
+w0	.req	r10
+w1	.req	r11
+
+addr_y	.req	r7
+addr_u	.req	r8
+addr_v	.req	r9
+
+width4	.req	r6
+
+dst_l	.req	r10
+dst_h	.req	r11
+
+const_g_cb	.req	r10
+const_g_cr	.req	r10
+const_r_cr	.req	r10
+const_b_cb	.req	r10
+
+wr_const_128	.req	wr0
+wr_const_r_cr	.req	wr1
+wr_const_b_cb	.req	wr2
+
+wr_y_tmp	.req	wr15
+wr_u_tmp	.req	wr15
+wr_v_tmp	.req	wr15
+
+wr_const_g_cb	.req	wr4
+wr_const_g_cr	.req	wr5
+wr_const_g_cbcr	.req	wr3
+
+wr_y_word_l	.req	wr4
+wr_y_word_h	.req	wr5
+
+wr_y	.req	wr8
+wr_u	.req	wr6
+wr_v	.req	wr7
+
+wr_rgb_l	.req	wr8
+wr_rgb_h	.req	wr9
+
+wr_rgb_word_lower .req	wr10
+wr_rgb_word_upper .req	wr11
+
+wr_uv_l	.req	wr8
+wr_uv_h	.req	wr9
+
+wr_g_cbcr_l	.req	wr10
+wr_g_cbcr_h	.req	wr11
+
+wr_g_word_lower	.req	wr8
+wr_g_word_upper	.req	wr9
+
+wr_r	.req	wr13
+wr_g	.req	wr14
+wr_b	.req	wr15
+
+wr_dst	.req	wr15
+
+wc_shift_r_3	.req	wcgr0
+wc_shift_r_2	.req	wcgr1
+wc_shift_l_5	.req	wcgr2
+wc_shift_l_11	.req	wcgr3
+
+wc_shift_r_14	.req	wcgr0
+wc_shift_r_15	.req	wcgr1
+
+	.macro	YUV_TO_R_B const_wr, yuv_wr, rgb_wr
+	@TODO rounding
+	WMULSM	wr_rgb_h, \yuv_wr, \const_wr
+	WMULSL	wr_rgb_l, \yuv_wr, \const_wr
+	
+	WUNPCKIHH wr_rgb_word_upper, wr_rgb_l, wr_rgb_h
+	WUNPCKILH wr_rgb_word_lower, wr_rgb_l, wr_rgb_h
+
+	WSRAWG	wr_rgb_word_upper, wr_rgb_word_upper, wc_shift_r_14
+	WSRAWG	wr_rgb_word_lower, wr_rgb_word_lower, wc_shift_r_14
+
+	WADDW	wr_rgb_word_upper, wr_rgb_word_upper, wr_y_word_h
+	WADDW	wr_rgb_word_lower, wr_rgb_word_lower, wr_y_word_l
+	WPACKWUS	\rgb_wr, wr_rgb_word_lower, wr_rgb_word_upper
+	.endm
+
+	.macro	YUV_TO_RGB565
+	@ u - 128
+	WSUBH	wr_u, wr_u, wr_const_128
+	@ v - 128
+	WSUBH	wr_v, wr_v, wr_const_128
+
+	@ calculate r/b firstly
+	mov w0, #14
+	TMCR	wc_shift_r_14, w0
+
+	YUV_TO_R_B wr_const_r_cr, wr_v, wr_r
+
+	YUV_TO_R_B wr_const_b_cb, wr_u, wr_b
+
+	@WMULSM	wr_r_cr_h, wr_v, wr_const_r_cr
+	@WMULSL	wr_r_cr_l, wr_v, wr_const_r_cr
+	@WUNPCKIHH wr_r_cr_word_upper, wr_r_cr_l, wr_r_cr_h
+	@WUNPCKILH wr_r_cr_word_lower, wr_r_cr_l, wr_r_cr_l
+	@WSRAHG	wr_r_cr_word_upper, wr_r_cr_word_upper, wc_shift_r_14
+	@WSRAHG	wr_r_cr_word_lower, wr_r_cr_word_lower, wc_shift_r_14
+	@WADDW	wr_r_word_upper, wr_r_cr_word_upper, wr_y_word_h
+	@WADDW	wr_r_word_lower, wr_r_cr_word_lower, wr_y_word_l
+	@WPACKWUS wr_r, wr_r_word_lower, wr_r_word_upper
+
+	@then calculate color g
+	@ unpack u/v for 4 pixels to two wmmx vector registers
+	WUNPCKIHH wr_uv_h, wr_v, wr_u
+	WUNPCKILH wr_uv_l, wr_v, wr_u
+
+	@4 pixels finish ((const_g_cb) * u +(const_g_cr) * v)
+	WMADDS wr_g_cbcr_h, wr_uv_h, wr_const_g_cbcr
+	WMADDS wr_g_cbcr_l, wr_uv_l, wr_const_g_cbcr
+
+	@TODO: rounding
+	@right-shift 15
+	mov w0, #15
+	TMCR	wc_shift_r_15, w0
+	WSRAWG	wr_g_cbcr_h, wr_g_cbcr_h, wc_shift_r_15
+	WSRAWG	wr_g_cbcr_l, wr_g_cbcr_l, wc_shift_r_15
+
+	@add Y
+	WADDW	wr_g_word_upper, wr_g_cbcr_h, wr_y_word_h
+	WADDW	wr_g_word_lower, wr_g_cbcr_l, wr_y_word_l
+
+	WPACKWUS wr_g, wr_g_word_lower, wr_g_word_upper
+	@produce rgb565
+	mov w0, #3
+	TMCR	wc_shift_r_3, w0
+	WSRLHG	wr_r, wr_r, wc_shift_r_3
+	WSLLHG	wr_r, wr_r, wc_shift_l_11
+
+	mov w0, #2
+	TMCR	wc_shift_r_2, w0
+	WSRLHG	wr_g, wr_g, wc_shift_r_2
+	WSLLHG	wr_g, wr_g, wc_shift_l_5
+	
+	WSRLHG	wr_b, wr_b, wc_shift_r_3
+	WOR	wr_b, wr_b, wr_g
+	WOR	wr_dst, wr_b, wr_r
+	.endm
+
+
+
+yuv2rgb565_wmmx:
+	.fnstart
+	stmfd sp!, {r0-r12, lr}
+
+	ldr	num_rows, [sp, #NUM_ROW_SHIFT] 
+	ldr	addr_y, [input_yuv]
+	ldr	addr_u, [input_yuv, #4]
+	ldr	addr_v, [input_yuv, #8]
+
+	@prepare constants
+	mov w0, #128
+	TBCSTH	wr_const_128, w0
+
+	mov w0, #5
+	TMCR	wc_shift_l_5, w0
+
+	mov w0, #11
+	TMCR	wc_shift_l_11, w0 
+
+	ldr const_r_cr, =CONST_R_CR
+	TBCSTH	wr_const_r_cr, const_r_cr 
+
+	ldr const_b_cb, =CONST_B_CB
+	TBCSTH	wr_const_b_cb, const_b_cb	
+
+	ldr	const_g_cb, =CONST_G_CB
+	TBCSTH	wr_const_g_cb, const_g_cb
+	ldr	const_g_cr, =CONST_G_CR
+	TBCSTH	wr_const_g_cr, const_g_cr
+
+	@unpack cb/cr for color G operation
+	@order: const_g_cb/const_g_cr/const_g_cb/const_g_cr
+	WUNPCKIHH wr_const_g_cbcr, wr_const_g_cr, wr_const_g_cb
+
+yuv2rgb565_start:
+	movs	width4, output_width
+	beq	yuv2rgb565_tail_3
+
+yuv2rgb565_iter:
+	@get yuv's address
+
+	@load 4 pixels
+	ldr	w0, [addr_y], #4
+	TINSRW	wr_y_tmp, w0, #0
+	WUNPCKELUB	wr_y, wr_y_tmp
+
+	@extend 8bits depth y to 32bits
+	WUNPCKELUH	wr_y_word_l, wr_y
+	WUNPCKEHUH	wr_y_word_h, wr_y
+
+	ldr	w0, [addr_u], #4
+	TINSRW	wr_u_tmp, w0, #0
+	WUNPCKELUB	wr_u, wr_u_tmp
+
+	ldr	w0, [addr_v], #4
+	TINSRW	wr_v_tmp, w0, #0
+	WUNPCKELUB	wr_v, wr_v_tmp
+		
+	YUV_TO_RGB565	
+	
+	TMRRC	dst_l, dst_h, wr_dst
+	subs	width4, width4, #1
+	
+	strd	dst_l, [output_rgb], #8
+
+yuv2rgb565_tail_3:
+	ands	w1, output_width, #0x3
+	beq	yuv2rgb565_tail_0
+
+	ldr	w0, [addr_y]
+	TINSRW	wr_y_tmp, w0, #0
+	WUNPCKELUB	wr_y, wr_y_tmp
+
+	@extend 8bits depth y to 32bits
+	WUNPCKELUH	wr_y_word_l, wr_y
+	WUNPCKEHUH	wr_y_word_h, wr_y
+
+	ldr	w0, [addr_u]
+	TINSRW	wr_u_tmp, w0, #0
+	WUNPCKELUB	wr_u, wr_u_tmp
+
+	ldr	w0, [addr_v]
+	TINSRW	wr_v_tmp, w0, #0
+	WUNPCKELUB	wr_v, wr_v_tmp
+
+	YUV_TO_RGB565	
+	
+	TMRRC	dst_l, dst_h, wr_dst
+	movs	w1, w1, lsl #31
+	beq	yuv2rgb565_tail_2
+	bcc	yuv2rgb565_tail_1
+
+	add	addr_y, addr_y, #3
+	add	addr_u, addr_u, #3
+	add	addr_v, addr_v, #3
+
+	str	dst_l, [output_rgb], #4
+	strh	dst_h, [output_rgb], #2
+	
+	b	yuv2rgb565_tail_0
+	
+yuv2rgb565_tail_2:
+	add	addr_y, addr_y, #2
+	add	addr_u, addr_u, #2
+	add	addr_v, addr_v, #2
+
+	str	dst_l, [output_rgb], #4
+	b	yuv2rgb565_tail_0
+	
+yuv2rgb565_tail_1:
+	add	addr_y, addr_y, #1
+	add	addr_u, addr_u, #1
+	add	addr_v, addr_v, #1
+
+	strh	dst_l, [output_rgb], #2
+
+yuv2rgb565_tail_0:
+	subs	num_rows, #1
+	addne	addr_y, addr_y, srb
+	addne	addr_u, addr_u, srb
+	addne	addr_v, addr_v, srb
+	bne	yuv2rgb565_start
+	
+	ldmfd	sp!, {r0-r12, pc}
+	.fnend	
+
+
+

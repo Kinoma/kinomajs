@@ -1,0 +1,3494 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+@ This file was automatically generated from
+@ C:/fsk-windows/bin/win32/Debug/../../..//kinoma/ADS2gas/files/yuv420torgb-arm-v7.s
+@ on Sun, 10 Jan 2010 01:51:20 GMT
+
+@---------------
+@BEGIN	.include	"yuv420torgb-arm-gas-s.h"
+@---------------
+
+@ This file was automatically generated from
+@ C:/fsk-windows/bin/win32/Debug/../../..//kinoma/ADS2gas/files/yuv420torgb-arm-s.h
+@ on Sun, 10 Jan 2010 01:49:59 GMT
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@
+@yuv420i(interleave)
+@features
+@ downscale: 0.0 ~ 1.0		;all coverage
+@ upscale  : 1.0 ~ 2.0		;all shapes, edge use generic block
+@ upscale  : 2.0 ~ 5.0		;reduced shape set, dege use generic block
+@ upscale  : 5.0 ~ 128.0	;all generic block
+@ generic  : 0.0 ~			;analog(non-interleave)
+@ bc	   : brightness and contrast control
+@ pixformat: 16RGB565SE and 32BGRA
+@ sprite   : supported except for generic case
+@
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@
+@
+@performance historic data
+@for reference, may not be up to date!!!!!
+@
+@scale factor		1.0  0.98 0.90 0.80 0.75 0.60 0.50 0.40 0.33
+@analog				 52    55   64   80   90  136  187  283  400
+@pattern			 65    69   75   88   95  ???  177  233  306
+@pattern interlaced  74    75   86  101  107  142  174  237  306
+@unity   interlaced  76   xx
+@unity				 72   xx
+@
+@scale factor		1.0  1.10 1.20 1.33 1.50 1.75 2.0 3.0 4.0
+@analog				 52   47   43  37    33  28   22  13   9
+@pattern interlaced  74   71    67  61    52  42   31  xx   xx
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.equ SHIFT_R_rgb565se, (15)
+	.equ SHIFT_G_rgb565se, (14)
+	.equ SHIFT_B_rgb565se, (15)
+	.equ SHIFT_R_bgra32, (12)
+	.equ SHIFT_G_bgra32, (12)
+	.equ SHIFT_B_bgra32, (12)
+	.equ BITS_R_rgb565se, (5)
+	.equ BITS_G_rgb565se, (6)
+	.equ BITS_B_rgb565se, (5)
+	.equ BITS_R_bgra32, (8)
+	.equ BITS_G_bgra32, (8)
+	.equ BITS_B_bgra32, (8)
+	.equ BLEND_SPRITE_PARAM_BYTES, (16)
+	.equ COPY_SPRITE_PARAM_BYTES, (8)
+	
+	.equ CACHE_LINE_SIZE_ARM_V7,	(64)
+	.equ PREFETCH_DISTANCE_ARM_V7,  (CACHE_LINE_SIZE_ARM_V7*2)
+	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+	.macro	SET_ALPHA_rgb565se pix, value
+	.endm
+		
+
+
+	.macro	SET_ALPHA_bgra32 pix, value
+	orr	\pix, \pix, #(\value<<24)
+	.endm
+
+
+	.macro	ldr_rgb565se a, b, c
+	ldrh	\a, \b, \c
+	.endm
+
+
+	.macro	ldr_bgra32 a, b, c
+	ldr	\a, \b, \c
+	.endm
+
+
+	.macro	str_rgb565se a, b, c
+	strh	\a, \b, \c
+	.endm
+
+
+	.macro	str_bgra32 a, b, c
+	str	\a, \b, \c
+	.endm
+
+
+	.macro	ldrne_rgb565se a, b, c
+	ldrneh	\a, \b, \c
+	.endm
+
+
+	.macro	ldrne_bgra32 a, b, c
+	ldrne	\a, \b, \c
+	.endm
+
+
+	.macro	strne_rgb565se a, b, c
+	strneh	\a, \b, \c
+	.endm
+
+
+	.macro	strne_bgra32 a, b, c
+	strne	\a, \b, \c
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	ALIGN_4 ppp
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	add	\ppp, \ppp, #3 @align to long
+	mov	\ppp, \ppp, lsr #2
+	mov	\ppp, \ppp, lsl #2
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	COPY_LINE_xx mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	ands	w0, w0, #3
+	beq	\mark\().end
+\mark\().start:	
+	ldr\pix_format	w1, [dst, #\pix_bytes]!
+	str\pix_format	w1, [w5, #\pix_bytes]!
+		
+	subs	w0, w0, #1
+	bne	\mark\().start
+\mark\().end:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	BLOCK_MEMSET dst, xxx, block_value, block_width, block_stride, block_height, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	cmp	\block_width, #0
+	beq	\mark\().end
+	cmp	\block_height, #0
+	beq	\mark\().end
+	mov	\xxx, \block_width
+\mark\().start:	
+	str\pix_format	\block_value, [\dst], #\pix_bytes
+	subs	\xxx, \xxx, #1
+	bne	\mark\().start
+	subs	\block_height, \block_height, #1
+	movne	\xxx, \block_width
+	add	\dst, \dst, \block_stride
+	bne	\mark\().start
+\mark\().end:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	REPEAT_PIX dst, xxx, block_value, block_width, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	cmp	\block_width, #0
+	beq	\mark\().end
+	mov	\xxx, \block_width
+\mark\().start:	
+	str\pix_format	\block_value, [\dst], #\pix_bytes
+	subs	\xxx, \xxx, #1
+	bne	\mark\().start
+\mark\().end:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+
+	.macro	DOUBLE_LINE_D2Q_NEON_16		src_D, dst_Q, tmp_Q
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	VSHLL.u16		\dst_Q, \src_D, #16
+	vmovl.u16		\tmp_Q, \src_D
+	vorr			\dst_Q, \dst_Q, \tmp_Q
+
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+
+
+	.macro	COPY_BUFFER version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	cmp	this_width, #0x01
+	bne	\version\().generic_start
+\version\().single_top:		
+	ldr\pix_format	this_w0, [this_src], #\pix_bytes
+	str\pix_format	this_w0, [this_dst], #\pix_bytes
+		
+	subs	this_height, this_height, #1
+	beq	\version\().end
+	addne	this_src, this_src, drb
+	addne	this_dst, this_dst, drb
+	subne	this_src, this_src, this_width, lsl #(\pix_bytes>>1)
+	subne	this_dst, this_dst, this_width, lsl #(\pix_bytes>>1)
+	movne	this_width, this_width, lsr #1
+	bne	\version\().single_top
+\version\().generic_start:	
+	mov	this_width, this_width, lsr #1
+\version\().generic_top:		
+	ldr\pix_format	this_w0, [this_src], #\pix_bytes
+	ldr\pix_format	this_w1, [this_src], #\pix_bytes
+	str\pix_format	this_w0, [this_dst], #\pix_bytes
+	str\pix_format	this_w1, [this_dst], #\pix_bytes
+		
+	subs	this_width, this_width, #1
+	bne	\version\().generic_top
+		
+	@take care of last one	
+	ldrh	this_width, [pattern, #0]
+	ands	this_width, this_width, #1
+	ldrne\pix_format	this_w0, [this_src], #\pix_bytes
+	strne\pix_format	this_w0, [this_dst], #\pix_bytes
+		
+	subs	this_height, this_height, #1
+	ldrneh	this_width, [pattern, #0]
+	addne	this_src, this_src, drb
+	addne	this_dst, this_dst, drb
+	subne	this_src, this_src, this_width, lsl #(\pix_bytes>>1)
+	subne	this_dst, this_dst, this_width, lsl #(\pix_bytes>>1)
+	movne	this_width, this_width, lsr #1
+	bne	\version\().generic_top
+\version\().end:	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	BLEND_AND_COPY version, pix_format, pix_bytes, back_buffer_shift, front_buffer_shift
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@local variable
+this_width	.req	r8 
+this_height	.req	r9 
+this_src	.req	r10 
+this_dst	.req	r11 
+this_w0	.req	r12 
+this_w1	.req	r14 
+	ALIGN_4	pattern
+	mov	w0, r0
+	ldr	r0, [pattern, #4]
+	mov	w1, r1
+	mov	w2, r2
+	mov	w3, r3
+	bl	blend_proc
+	mov	r0, w0
+	mov	r1, w1
+	mov	r2, w2
+	mov	r3, w3
+		
+	ldr	this_src, [sp, #\back_buffer_shift]
+	ldr	this_dst, [sp, #\front_buffer_shift]
+	ldrh	this_width, [pattern, #0]
+	ldrh	this_height, [pattern, #2]
+		
+	add	this_dst, this_dst, #\pix_bytes
+	COPY_BUFFER	\version, \pix_format, \pix_bytes
+	ldrh	this_width, [pattern, #0]
+	ldr	dst, [sp, #\front_buffer_shift]
+	add	pattern, pattern, #COPY_SPRITE_PARAM_BYTES @skip width, height
+	add	dst, dst, this_width, lsl #(\pix_bytes>>1)
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	GET_PATTERN_INTERLACE switch, mark
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	ldrb	w1, [pattern], #1
+	add	w0, pc, #(\switch - \mark)
+	ldr	pc, [w0, w1, lsl #2]
+\mark:		
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	DOWN_SCALE_PROC_TABLE version
+	.long	\version\().case_common_EOF @0
+	.long	\version\().case_down_EOL_0 @1
+	.long	\version\().case_down_SKIP @4
+	.long	\version\().case_down_5 @5
+	.long	\version\().case_down_6 @6
+	.long	\version\().case_down_EOL_1 @2
+	.long	\version\().case_down_7 @7
+	.long	\version\().case_down_9 @8
+	.long	\version\().case_down_QH_1 @16
+	.long	\version\().case_down_QH_2_HOR @17
+	.long	\version\().case_down_QH_2_VER @18
+	.long	\version\().case_down_10 @9
+	.long	\version\().case_down_11 @10
+	.long	\version\().case_down_EOL_2 @3
+	.long	\version\().case_down_13 @11
+	.long	\version\().case_down_14 @12
+	.long	\version\().case_down_15 @13
+	.long	\version\().case_down_2x2_near @14
+	.long	\version\().case_down_2x2_far @15
+	.long	\version\().case_common_Switch_Buffer_S @19
+	.long	\version\().case_common_Copy_Buffer_S @20
+	.long	\version\().case_common_Blend_S @21
+
+
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_DOWN_SCALE_BC_CONVERSION arch, version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmfd	sp!,{r4-r11,lr}
+	sub	sp,sp,#CACHE_SHIFT_dspi
+	add	w5,sp,#pattern_SHIFT_dspi
+	ldmia	w5,{pattern-dst_width_1} 
+		
+	mov	w4, drb, asl #1
+	sub	w4, w4, dst_width_1, asl #(\pix_bytes>>1)
+	str	w4, [sp, #dst_double_stride_SHIFT_dspi]
+	ldr	src_width_1, [pattern], #4
+	sub	w4, w4, drb
+	str	w4, [sp, #dst_single_stride_SHIFT_dspi]
+	add	w4, src_width_1, src_width_1, lsl #1 @yuv_width_bytes = width * 3
+	sub	w4, yuvrb_1, w4
+	str	w4, [sp, #yuv_double_stride_SHIFT_dspi]
+		
+	sub	dst, dst, #\pix_bytes
+	SET_CONST\pix_format	
+
+	vmov.u16	uv_16, #0	
+	
+	vmov.u16	const128_16, #128	
+	mov			w4,		Cx, lsl #16
+	mov			w4,		w4, asr #16
+	vdup.u16	Cxb_16,	w4				@Cxb
+	mov			w2,		Cx, lsr #17		@51
+	vdup.s16	Cxt_half_16,	w2		@Cxt_half
+	vshl.s16	Cxt_16, Cxt_half_16, #1	@Cxt
+
+
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_9, \version\().mark_first
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_common_EOF:		
+	add	sp,sp,#CACHE_SHIFT_dspi
+	ldmfd	sp!,{r4-r11,pc}
+\version\().case_down_EOL_0:		
+	ldrb	w5, [pattern], #1
+	ldr	yuvrb_2, [sp, #yuvrb_SHIFT_dspi]
+	add	w2, pc, #(\version\().switch_band_9 - \version\().mark_EOL_0) 
+	ldr	w2, [w2, w5,lsl #2]
+\version\().mark_EOL_0:	
+	add	yuv, yuv, yuvrb_2
+	mov	pc, w2
+\version\().case_down_SKIP:	@00	
+	ldrb	w5, [pattern], #1
+	add	w2, pc, #(\version\().switch_band_9 - \version\().mark_SKIP) 
+	ldr	w2, [w2, w5, lsl #2]
+\version\().mark_SKIP:		
+	add	yuv, yuv, #6
+	mov	pc, w2
+	@00	
+\version\().case_down_5:	@01	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #3] @00
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_5_mark, \pix_format, \pix_bytes
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@version.switch_band_5
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@01	
+\version\().case_down_6:	@00	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #1] @00
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_6_mark, \pix_format, \pix_bytes
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_6
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_down_EOL_1:	
+	ldrb	w5, [pattern], #1
+	ldr	yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_dspi]
+	ldr	dst_single_stride_2, [sp, #dst_single_stride_SHIFT_dspi]
+	add	w2, pc, #(\version\().switch_band_9 - \version\().mark_EOL_1) 
+	ldr	w2, [w2, w5,lsl #2]
+\version\().mark_EOL_1:	
+	add	yuv, yuv, yuv_double_stride_2
+	add	dst, dst, dst_single_stride_2 
+	mov	pc, w2
+	@01	
+\version\().case_down_7:	@01	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #1] @yp 
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv, #3] @yp 
+	PATTERN_INTERLEAVE_BASIC_step2	\arch, \version\().switch_band_9, \version\().pattern_7_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_7
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@00	
+\version\().case_down_9:	@10 		
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #2] @00
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_9_mark, \pix_format, \pix_bytes
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_9:	
+	DOWN_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_down_QH_1:	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 
+	ldrb	w4, [yuv], #1 
+	ldrb	w3, [yuv], #1 
+	ldrb	w2, [yuv], #1 
+	add	w5, w5, w4
+	add	w5, w5, w3
+	add	w5, w5, w2
+	mov	w5, w5, lsr #2
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_QH_1_mark, \pix_format, \pix_bytes
+	mov	pc, w2
+\version\().case_down_QH_2_HOR:	
+	PATTERN_INTERLEAVE_2_in_4_hor_avg	\arch, \version\().switch_band_9, \version\().pattern_QH_2_HOR_mark, \pix_format, \pix_bytes
+\version\().case_down_QH_2_VER:	
+	PATTERN_INTERLEAVE_2_in_4_ver_avg	\arch, \version\().switch_band_9, \version\().pattern_QH_2_VER_mark, \pix_format, \pix_bytes
+	@10	
+\version\().case_down_10:	@00	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #0] @00
+	PATTERN_INTERLEAVE_1_in_4	\arch, \version\().switch_band_9, \version\().pattern_10_mark, \pix_format, \pix_bytes
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_10
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@10	
+\version\().case_down_11:	@10	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv, #0] @yp 
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv, #2] @yp 
+	PATTERN_INTERLEAVE_BASIC_step2	\arch, \version\().switch_band_14, \version\().pattern_11_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	add	yuv, yuv, #4
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_11
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_down_EOL_2:	
+	ldr	yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_dspi]
+	ldr	dst_double_stride_2, [sp, #dst_double_stride_SHIFT_dspi]
+	add	yuv, yuv, yuv_double_stride_2
+	add	dst,dst,dst_double_stride_2 
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().mark_after_EOL_2
+	@00	
+\version\().case_down_13:	@11	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #3 @v
+	ldrb	w5, [yuv], #1 @yp 
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv], #1 @yp 
+	PATTERN_INTERLEAVE_BASIC_step2	\arch, \version\().switch_band_14, \version\().pattern_13_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_13
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@11	
+\version\().case_down_14:	@00	
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv], #3 @yp 
+	PATTERN_INTERLEAVE_BASIC_step2	\arch, \version\().switch_band_14, \version\().pattern_14_mark, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	mov	pc, w2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_14:	
+	DOWN_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+	@11	
+	@11	
+\version\().case_down_15:		
+	PATTERN_INTERLEAVE_4_in_4	\arch, \version\().switch_band_14, \version\().mark_case_kDownScalePattern_15, \pix_format, \pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@$version.switch_band_15
+@	DOWN_SCALE_PROC_TABLE $version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+		
+
+		
+\version\().case_down_2x2_near:	
+
+	PATTERN_INTERLEAVE_2x2x2 \arch, \version\().switch_band_14, \version\().case_down_2x2_near_mark, \pix_format, \pix_bytes
+
+\version\().case_down_2x2_far:	
+
+
+	@add dst, dst, #(8*\pix_bytes)
+
+@@@@@
+
+	@GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_down_2x2_far_mark
+
+
+\version\().case_common_Switch_Buffer_S:	
+	str	dst, [sp, #sprite_front_buffer_SHIFT_dspi]
+	ldr	dst, [sp, #sprite_back_buffer_SHIFT_dspi]
+	sub	dst, dst, #\pix_bytes
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_common_Switch_Buffer_S_mark
+\version\().case_common_Copy_Buffer_S:	
+	BLEND_AND_COPY	\version\().blend_and_copy, \pix_format, \pix_bytes, sprite_back_buffer_SHIFT_dspi, sprite_front_buffer_SHIFT_dspi
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_common_Copy_Buffer_S_mark
+\version\().case_common_Blend_S:	
+	ALIGN_4	pattern
+	mov	w0, r0
+	mov	w1, r1
+	mov	w2, r2
+	mov	w3, r3
+	mov	r0, pattern
+	bl	parse_proc
+	mov	r0, w0
+	mov	r1, w1
+	mov	r2, w2
+	mov	r3, w3
+		
+	add	pattern, pattern, #BLEND_SPRITE_PARAM_BYTES @skip width, height
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_common_Pattern_Blend_S_mark
+
+
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+	.macro	UP_SCALE_PROC_TABLE version
+	.long	\version\().case_common_EOF @0				@0
+	.long	\version\().kUpScalePattern_Neon1_4			@1
+	.long	\version\().kUpScalePattern_Neon1_5			@2
+	.long	\version\().kUpScalePattern_Neon1_6 		@3
+	.long	\version\().kUpScalePattern_Neon1_7 		@4
+	.long	\version\().kUpScalePattern_Neon1_8 		@5
+	.long	\version\().kUpScalePattern_Neon1_9 		@6
+	.long	\version\().kUpScalePattern_Neon1_10 		@7
+	.long	\version\().kUpScalePattern_Neon1_11 		@8
+	.long	\version\().kUpScalePattern_Neon1_12 		@9
+	.long	\version\().kUpScalePattern_Neon1_13 		@10
+	.long	\version\().kUpScalePattern_Neon1_14 		@11
+	.long	\version\().kUpScalePattern_Neon1_15 		@12
+	.long	\version\().kUpScalePattern_Neon1_16 		@13
+	.long	\version\().kUpScalePattern_Neon1_17 		@14
+	.long	\version\().kUpScalePattern_Neon1_18 		@15
+	.long	\version\().kUpScalePattern_Neon1_19		@16
+	.long	\version\().kUpScalePattern_Neon1_20		@17
+	.long	\version\().kUpScalePattern_Neon1_21		@18
+	.long	\version\().case_common_Switch_Buffer		@19
+	.long	\version\().case_common_Copy_Buffer			@20
+	.long	\version\().case_common_Blend				@21
+	.long	\version\().kUpScalePattern_GENERIC_COPY_BOTH_EOL @22
+	.long	\version\().kUpScalePattern_GENERIC_COPY_TOP_EOL  @23
+	.long	\version\().kUpScalePattern_GENERIC_COPY_BOT_EOL  @24
+	.long	\version\().case_up_GENERIC_EOL				@25
+	.long	\version\().case_up_GENERIC_BLOCK			@26
+	.long	\version\().kUpScalePattern_Neon1_4x2		@27
+	.long	\version\().kUpScalePattern_Neon1_4x3
+	.long	\version\().kUpScalePattern_Neon1_5x2
+	.long	\version\().kUpScalePattern_Neon1_5x3
+	.long	\version\().kUpScalePattern_Neon1_5x4
+	.long	\version\().kUpScalePattern_Neon1_6x2
+	.long	\version\().kUpScalePattern_Neon1_6x3
+	.long	\version\().kUpScalePattern_Neon1_6x4
+	.long	\version\().kUpScalePattern_Neon1_7x3
+	.long	\version\().kUpScalePattern_Neon1_7x4
+	.long	\version\().kUpScalePattern_Neon1_7x5
+	.long	\version\().kUpScalePattern_Neon1_8x3
+	.long	\version\().kUpScalePattern_Neon1_8x4
+	.long	\version\().kUpScalePattern_Neon1_8x5				@40
+	.long	\version\().kUpScalePattern_Neon1_9x4				@41
+	.long	\version\().kUpScalePattern_Neon1_9x5				@42
+	.long	\version\().kUpScalePattern_Neon1_9x6				@43
+	.long	\version\().kUpScalePattern_Neon1_GENERIC_2x1_TOP	@44
+	.long	\version\().kUpScalePattern_Neon1_GENERIC_2x1_BOT	@45
+	.long	\version\().kUpScalePattern_Neon1_GENERIC_2x2		@46
+		
+	.endm	
+		
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_UP_SCALE_BC_CONVERSION arch, version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+@yuv					.req	r0 
+@dst					.req	r1 
+@xBx					.req	r2 
+@Cx						.req	r3 
+@pattern				.req	r4 
+@drb					.req	r5 
+@		
+@FREE_1					.req	r6 
+@FREE_2					.req	r7 
+@		
+@yuvrb_1				.req	r6 
+@dst_width_1			.req	r7 
+@src_width_1			.req	r8 
+@yuvrb_2				.req	r8 
+@yuv_double_stride_2	.req	r8 
+@dst_single_stride_2	.req	r9 
+@dst_double_stride_2	.req	r9 
+@dst_tripple_stride_2	.req	r9 
+@dst_quad_stride_2		.req	r9 
+@		
+@w0						.req	r8 
+@w1						.req	r9 
+@w2						.req	r10 
+@w3						.req	r11 
+@w4						.req	r12 
+@	
+	
+dst0					.req	r1 
+dst1					.req	r14 
+
+vv0						.req	r6 
+vv1						.req	r7 
+
+
+	stmfd	sp!,{r4-r11,lr}
+	sub	sp,sp,#CACHE_SHIFT_usxxpi
+	add	w5,sp,#pattern_SHIFT_usxxpi
+	ldmia	w5,{pattern-dst_width_1} 
+		
+	sub	w4, drb, dst_width_1, lsl #(\pix_bytes>>1)
+	str	w4, [sp, #dst_single_stride_SHIFT_usxxpi]
+	add	w4, w4, drb
+	str	w4, [sp, #dst_double_stride_SHIFT_usxxpi]
+	add	w4, w4, drb
+	str	w4, [sp, #dst_tripple_stride_SHIFT_usxxpi]
+	add	w4, w4, drb
+	str	w4, [sp, #dst_quad_stride_SHIFT_usxxpi]
+	ldr	src_width_1, [pattern], #4
+	add	w4, src_width_1, src_width_1, lsl #1 @yuv_width_bytes = width * 3
+	sub	w4, yuvrb_1, w4
+	str	w4, [sp, #yuv_double_stride_SHIFT_usxxpi]
+
+	BNIE_CHECK	0, 0, yuv
+
+	vmov.u16	uv_16, #0	
+	
+	vmov.u16	const128_16, #128	
+	mov			w4,		Cx, lsl #16
+	mov			w4,		w4, asr #16
+	vdup.u16	Cxb_16,	w4				@Cxb
+	mov			w2,		Cx, lsr #17		@51
+	vdup.s16	Cxt_half_16,	w2		@Cxt_half
+	vshl.s16	Cxt_16, Cxt_half_16, #1	@Cxt
+	
+	ldrb	vv0, [pattern], #1
+	ldrb	vv1, [pattern], #1
+	
+	@dst0 ==> dst
+	mla	dst1, vv0, drb, dst0
+	SET_CONST\pix_format	
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_44, \version\().first_mark
+	
+@;;;;;;;;;;;;;;;;;
+\version\().case_common_EOF:	
+
+	BNIE_CHECK	0, 0, yuv
+
+	add	sp,sp,#CACHE_SHIFT_usxxpi
+	ldmfd	sp!,{r4-r11,pc}
+
+	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_0:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+
+\version\().case_common_Switch_Buffer:	
+
+	BNIE_CHECK	0, 19, yuv
+
+	str	dst, [sp, #sprite_front_buffer_SHIFT_usxxpi]
+	ldr	dst, [sp, #sprite_back_buffer_SHIFT_usxxpi]
+	sub	dst, dst, #\pix_bytes
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_44, \version\().case_common_Switch_Buffer_S_mark
+\version\().case_common_Copy_Buffer:	
+	BLEND_AND_COPY	\version\().blend_and_copy, \pix_format, \pix_bytes, sprite_back_buffer_SHIFT_usxxpi, sprite_front_buffer_SHIFT_usxxpi
+	GET_PATTERN_INTERLACE	\version\().switch_band_44, \version\().Pattern_Copy_Buffer_S_mark
+\version\().case_common_Blend:	
+	ALIGN_4	pattern
+	mov	w0, r0
+	mov	w1, r1
+	mov	w2, r2
+	mov	w3, r3
+	mov	r0, pattern
+	bl	parse_proc
+	mov	r0, w0
+	mov	r1, w1
+	mov	r2, w2
+	mov	r3, w3
+		
+	add	pattern, pattern, #BLEND_SPRITE_PARAM_BYTES @skip width, height
+	GET_PATTERN_INTERLACE	\version\().switch_band_44, \version\().Pattern_Blend_S_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_19:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_GENERIC_2x1_TOP:	
+
+hh_tmp			.req	r8 
+pix_value		.req	r9 
+hh0				.req	r10 
+hh1				.req	r11 
+
+	BNIE_CHECK	0, 44, yuv
+
+	str		vv0,  [sp, #vv0_SHIFT_usxxpi]
+	str		vv1,  [sp, #vv1_SHIFT_usxxpi]
+
+	@a	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	@b	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	@c	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	@str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	@d	
+	PATTERN_upscale_step_f	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	@str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+
+	ldrb	hh0, [pattern], #1 
+	ldrb	hh1, [pattern], #1 
+	ldr		vv0,  [sp, #vv0_SHIFT_usxxpi]
+	ldr		vv1,  [sp, #vv1_SHIFT_usxxpi]
+
+	ldr\pix_format	pix_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	REPEAT_PIX	dst0, hh_tmp, pix_value, hh0, \version\().case_up_kUpScalePattern_Neon1_GENERIC_2x1_TOP_mark_0, \pix_format, \pix_bytes
+
+	ldr\pix_format	pix_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	REPEAT_PIX	dst0, hh_tmp, pix_value, hh1, \version\().case_up_kUpScalePattern_Neon1_GENERIC_2x1_TOP_mark_1, \pix_format, \pix_bytes
+
+	mla	dst1, vv0, drb, dst0
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_44, \version\().case_kUpScalePattern_Neon1_GENERIC_2x1_TOP
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_44:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_GENERIC_2x1_BOT:	
+
+hh_tmp			.req	r8 
+pix_value		.req	r9 
+hh0				.req	r10 
+hh1				.req	r11 
+
+	BNIE_CHECK	0, 45, yuv
+
+	str		dst1, [sp, #dst1_SHIFT_usxxpi]
+	str		vv0,  [sp, #vv0_SHIFT_usxxpi]
+	str		vv1,  [sp, #vv1_SHIFT_usxxpi]
+
+	@a	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	@str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	@b	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	@str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	@c	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	@d	
+	PATTERN_upscale_step_f	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+
+	ldrb	hh0, [pattern], #1 
+	ldrb	hh1, [pattern], #1 
+	ldr		dst1, [sp, #dst1_SHIFT_usxxpi]
+	ldr		vv0,  [sp, #vv0_SHIFT_usxxpi]
+	ldr		vv1,  [sp, #vv1_SHIFT_usxxpi]
+
+	add		hh_tmp, hh0, hh1
+	add		dst0, dst0, hh_tmp, lsl #(\pix_bytes>>1)
+
+	ldr\pix_format	pix_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	REPEAT_PIX	dst1, hh_tmp, pix_value, hh0, \version\().case_up_kUpScalePattern_Neon1_GENERIC_2x1_BOT_mark_0, \pix_format, \pix_bytes
+
+	ldr\pix_format	pix_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+	REPEAT_PIX	dst1, hh_tmp, pix_value, hh1, \version\().case_up_kUpScalePattern_Neon1_GENERIC_2x1_BOT_mark_1, \pix_format, \pix_bytes
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_44 \version\().case_kUpScalePattern_Neon1_GENERIC_2x1_BOT
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_45:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_GENERIC_2x2:		
+
+	BNIE_CHECK	0, 46, yuv
+
+	str		dst1, [sp, #dst1_SHIFT_usxxpi]
+	str		vv0,  [sp, #vv0_SHIFT_usxxpi]
+	str		vv1,  [sp, #vv1_SHIFT_usxxpi]
+
+	@a	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	@b	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	@c	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	@d	
+	PATTERN_upscale_step_f	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+
+	ldrb	hh0, [pattern], #1 
+	ldrb	hh1, [pattern], #1 
+	ldr		dst1, [sp, #dst1_SHIFT_usxxpi]
+	ldr		vv0,  [sp, #vv0_SHIFT_usxxpi]
+	ldr		vv1,  [sp, #vv1_SHIFT_usxxpi]
+
+	ldr\pix_format	pix_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	REPEAT_PIX	dst0, hh_tmp, pix_value, hh0, \version\().case_up_kUpScalePattern_Neon1_GENERIC_2x2_mark_0, \pix_format, \pix_bytes
+
+	ldr\pix_format	pix_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	REPEAT_PIX	dst0, hh_tmp, pix_value, hh1, \version\().case_up_kUpScalePattern_Neon1_GENERIC_2x2_mark_1, \pix_format, \pix_bytes
+
+	@
+	ldr\pix_format	pix_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	REPEAT_PIX	dst1, hh_tmp, pix_value, hh0, \version\().case_up_kUpScalePattern_Neon1_GENERIC_2x2_mark_2, \pix_format, \pix_bytes
+	
+	ldr\pix_format	pix_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+	REPEAT_PIX	dst1, hh_tmp, pix_value, hh1, \version\().case_up_kUpScalePattern_Neon1_GENERIC_2x2_mark_3, \pix_format, \pix_bytes
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_44, \version\().case_kUpScalePattern_Neon1_GENERIC_2x2
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_46:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().case_up_GENERIC_EOL:		
+
+	BNIE_CHECK	0, 25, yuv
+
+repeats_x	.req	r10 
+	ldr	yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_usxxpi]
+	ldr	dst_single_stride_2, [sp, #dst_single_stride_SHIFT_usxxpi]
+	
+	add		repeats_x, vv0, vv1
+	sub		repeats_x, repeats_x, #1
+
+	ldrb	vv0, [pattern], #1
+	ldrb	vv1, [pattern], #1
+
+	add	yuv, yuv, yuv_double_stride_2
+	add	dst0,dst0,dst_single_stride_2
+	mla	dst0, repeats_x, drb, dst0
+	mla	dst1, vv0, drb, dst0
+	
+				
+	GET_PATTERN_INTERLACE	\version\().switch_band_44, \version\().case_GENERIC_EOL_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_25:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_GENERIC_COPY_BOTH_EOL:		
+
+@@@@@@@@
+@bl \version\().case_up_GENERIC_EOL
+
+@w0						.req	r8 
+@w1						.req	r9 
+@w2						.req	r10 
+@w3						.req	r11 
+@w4						.req	r12 
+@	
+@memcpy_single	touches r0, r1, r2, r3
+@free: r4, r5, r6, r7
+
+hx	.req	r12
+
+	BNIE_CHECK	0, 22, yuv
+
+	ldr	dst_single_stride_2, [sp, #dst_single_stride_SHIFT_usxxpi]
+	sub dst0, dst0, drb
+	sub dst1, dst1, drb
+	add dst0, dst0, dst_single_stride_2
+	add dst1, dst1, dst_single_stride_2
+	
+	mov	 w0, r0
+	mov  w1, r1	@dst0
+	mov  w2, r2
+	mov  w3, r3							@dst1 will not be cached, after we are done, we regenerate it
+
+	ldr	 r2, [sp, #dst_width_SHIFT_usxxpi]
+	mov	 r0, dst1
+
+	mov	 r1, dst1
+	sub  hx, vv1, #1
+	mov  r2, r2, lsl #(\pix_bytes>>1)	@len
+
+\version\().copy_both_EOL_mark_start_0:
+	add  r0, r0, drb
+	bl	 memcpy_single					@dst, src, len
+	subs hx, hx, #1
+	bne	 \version\().copy_both_EOL_mark_start_0
+
+	mov	 r0, w1
+	mov	 r1, w1
+	sub	 hx, vv0, #1
+	
+\version\().copy_both_EOL_mark_start_1:
+	add  r0, r0, drb
+	bl   memcpy_single					@dst, src, len
+	subs hx, hx, #1
+	bne	\version\().copy_both_EOL_mark_start_1
+		
+	mov	 r0, w0
+	mov  r1, w1
+	mov  r2, w2
+	mov  r3, w3
+	
+	ldr	 yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_usxxpi]
+	add	 repeats_x, vv0, vv1
+
+	ldrb vv0, [pattern], #1
+	ldrb vv1, [pattern], #1
+
+	add	 yuv, yuv, yuv_double_stride_2
+	mla	 dst0, repeats_x, drb, dst0
+	mla	 dst1, vv0, drb, dst0
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_26, \version\().kUpScalePattern_GENERIC_COPY_BOTH_EOL_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_22:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_GENERIC_COPY_TOP_EOL:		
+
+	BNIE_CHECK	0, 23, yuv
+
+	ldr	dst_single_stride_2, [sp, #dst_single_stride_SHIFT_usxxpi]
+	sub dst0, dst0, drb
+	sub dst1, dst1, drb
+	add dst0, dst0, dst_single_stride_2
+	add dst1, dst1, dst_single_stride_2
+	
+	mov	 w0, r0
+	mov  w1, r1
+	mov  w2, r2
+	mov  w3, r3
+	
+	ldr	 r2, [sp, #dst_width_SHIFT_usxxpi]
+	mov	 r0, dst0
+	mov	 r1, dst0
+	sub  hx, vv0, #1
+	mov  r2, r2, lsl #(\pix_bytes>>1)	@len
+
+\version\().copy_top_EOL_mark_start_0:
+	add  r0, r0, drb
+	bl   memcpy_single	@dst, src, len
+	subs hx, #1
+	bne	 \version\().copy_top_EOL_mark_start_0
+
+	mov	 r0, w0
+	mov  r1, w1
+	mov  r2, w2
+	mov  r3, w3
+	
+	ldr	 yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_usxxpi]
+	add	 repeats_x, vv0, vv1
+
+	ldrb vv0, [pattern], #1
+	ldrb vv1, [pattern], #1
+
+	add	 yuv, yuv, yuv_double_stride_2
+	mla	 dst0, repeats_x, drb, dst0
+	mla	 dst1, vv0, drb, dst0
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_26, \version\().kUpScalePattern_GENERIC_COPY_TOP_EOL_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_23:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_GENERIC_COPY_BOT_EOL:		
+
+	BNIE_CHECK	0, 24, yuv
+
+	ldr	dst_single_stride_2, [sp, #dst_single_stride_SHIFT_usxxpi]
+	sub dst0, dst0, drb
+	sub dst1, dst1, drb
+	add dst0, dst0, dst_single_stride_2
+	add dst1, dst1, dst_single_stride_2
+	
+	mov	 w0, r0
+	mov  w1, r1
+	mov  w2, r2
+	mov  w3, r3
+	
+	ldr	 r2, [sp, #dst_width_SHIFT_usxxpi]
+	mov	 r0, dst1
+	mov	 r1, dst1
+	sub  hx, vv1, #1
+	mov  r2, r2, lsl #(\pix_bytes>>1)	@len
+
+\version\().copy_bot_EOL_mark_start_1:
+	add  r0, r0, drb
+	bl   memcpy_single			@dst, src, len
+	subs hx, #1
+	bne	 \version\().copy_bot_EOL_mark_start_1
+		
+	mov	 r0, w0
+	mov  r1, w1
+	mov  r2, w2
+	mov  r3, w3
+	
+	ldr	 yuv_double_stride_2, [sp, #yuv_double_stride_SHIFT_usxxpi]
+	add	 repeats_x, vv0, vv1
+
+	ldrb vv0, [pattern], #1
+	ldrb vv1, [pattern], #1
+
+	add	 yuv, yuv, yuv_double_stride_2
+	mla	 dst0, repeats_x, drb, dst0
+	mla	 dst1, vv0, drb, dst0
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_26, \version\().kUpScalePattern_GENERIC_COPY_BOT_EOL_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_24:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().case_up_GENERIC_BLOCK:	@26	
+
+	BNIE_CHECK	0, 26, yuv
+
+	@str		dst0, [sp, #dst0_SHIFT_usxxpi]
+	str		dst1, [sp, #dst1_SHIFT_usxxpi]
+	str		vv0,  [sp, #vv0_SHIFT_usxxpi]
+	str		vv1,  [sp, #vv1_SHIFT_usxxpi]
+
+	@a	
+	PATTERN_upscale_step_1	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	@b	
+	PATTERN_upscale_step_2	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	@c	
+	PATTERN_upscale_step_3	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	@d	
+	PATTERN_upscale_step_f	\arch, \pix_format, \pix_bytes
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+
+
+xxx				.req	r7 
+block_value		.req	r8 
+block_width		.req	r9 
+block_stride	.req	r10 
+block_height	.req	r11 
+dst_cache		.req	r12 
+	@01	
+	@23	
+
+	ldr		dst1, [sp, #dst1_SHIFT_usxxpi]
+
+	mov	dst_cache, dst0
+	ldr\pix_format	block_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (0*\pix_bytes))]
+	ldrb	block_width, [pattern, #0] @x0<=x0,x1,y0,y1
+	ldrb	block_height, [sp, #vv0_SHIFT_usxxpi] @y0<=x0,x1,y0,y1
+	sub	block_stride, drb, block_width, lsl #(\pix_bytes>>1)
+	BLOCK_MEMSET	dst0, xxx, block_value, block_width, block_stride, block_height, \version\().case_up_GENERIC_BLOCK_mark_0, \pix_format, \pix_bytes
+
+	add	dst0, dst_cache, block_width, lsl #(\pix_bytes>>1)
+	mov	dst_cache, dst0
+	ldr\pix_format	block_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (1*\pix_bytes))]
+	ldrb	block_width, [pattern, #1] @x1<=x0,x1,y0,y1
+	ldrb	block_height, [sp, #vv0_SHIFT_usxxpi] @y0<=x0,x1,y0,y1
+	sub	block_stride, drb, block_width, lsl #(\pix_bytes>>1)
+	BLOCK_MEMSET	dst0, xxx, block_value, block_width, block_stride, block_height, \version\().case_up_GENERIC_BLOCK_mark_1, \pix_format, \pix_bytes
+
+	add	dst0, dst_cache, block_width, lsl #(\pix_bytes>>1)	@sit dst0 in final place
+
+	@
+	mov	dst_cache, dst1
+	ldr\pix_format	block_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (2*\pix_bytes))]
+	ldrb	block_width, [pattern, #0] @x0<=x0,x1,y0,y1
+	ldrb	block_height, [sp, #vv1_SHIFT_usxxpi] @y1<=x0,x1,y0,y1
+	sub	block_stride, drb, block_width, lsl #(\pix_bytes>>1)
+	BLOCK_MEMSET	dst1, xxx, block_value, block_width, block_stride, block_height, \version\().case_up_GENERIC_BLOCK_mark_2, \pix_format, \pix_bytes
+	
+	add	dst1, dst_cache, block_width, lsl #(\pix_bytes>>1)
+	mov	dst_cache, dst1
+	ldr\pix_format	block_value, [sp, #(generic_block_cache_SHIFT_usxxpi + (3*\pix_bytes))]
+	ldrb	block_width,  [pattern, #1] @x0<=x0,x1,y0,y1
+	ldrb	block_height, [sp, #vv1_SHIFT_usxxpi] @y1<=x0,x1,y0,y1
+	sub	block_stride, drb, block_width, lsl #(\pix_bytes>>1)
+	BLOCK_MEMSET	dst1, xxx, block_value, block_width, block_stride, block_height, \version\().case_up_GENERIC_BLOCK_mark_3, \pix_format, \pix_bytes
+
+	add	dst1, dst_cache, block_width, lsl #(\pix_bytes>>1)	@sit dst1 in final place
+
+	ldr		vv0,  [sp, #vv0_SHIFT_usxxpi]
+	ldr		vv1,  [sp, #vv1_SHIFT_usxxpi]
+	add	pattern, pattern, #2
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_26, \version\().case_generic_block_mark
+	
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_26:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+\version\().kUpScalePattern_Neon1_4:	
+\version\().kUpScalePattern_Neon1_4x2:	
+
+	BNIE_CHECK	0, 1, dst0
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	store_2x2x2_line\pix_format 0, [dst0]!
+	store_2x2x2_line\pix_format 1, [dst1]!
+	
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_26, \version\().case_kUpScalePattern_Neon1_4x2_mark
+
+
+@	ldrb	w5, [pattern], #1
+@	vst1.32     {rgb565r_0}, [dst0]!
+@	add	w2, pc, #(\version\().switch_band_200 - \version\().case_kUpScalePattern_Neon1_4x2_mark) 
+@	ldr	w2, [w2, w5, lsl #2]
+@\version\().case_special_block_mark:	
+@	vst1.32     {rgb565r_1}, [dst1]!
+@	mov	pc, w2
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_1:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+\version\().kUpScalePattern_Neon1_4x3:	
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	BNIE_CHECK	0, 28, yuv
+
+	store_2x2x2_line\pix_format 0, [dst0]!
+
+	store_2x2x2_line\pix_format 1, [dst1]
+	add			dst1, dst1, drb	
+	store_2x2x2_line\pix_format 1, [dst1]!
+	sub			dst1, dst1, drb
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_26, \version\().case_kUpScalePattern_Neon1_4x3_mark
+
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_28:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	
+\version\().kUpScalePattern_Neon1_5:
+\version\().kUpScalePattern_Neon1_5x2:	
+
+	BNIE_CHECK	0, 2, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+	
+	store_2x2x2_line\pix_format 0, [dst0]!
+	store_2x2x2_line_row\pix_format 0, 3, [dst0]!
+	
+	store_2x2x2_line\pix_format 1, [dst1]!
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_26, \version\().case_kUpScalePattern_Neon1_5x2_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_2:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+\version\().kUpScalePattern_Neon1_5x3:		
+
+	BNIE_CHECK	0, 30, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	store_2x2x2_line\pix_format 0, [dst0]!
+	store_2x2x2_line_row\pix_format 0, 3, [dst0]!
+	
+	store_2x2x2_line\pix_format 1, [dst1]
+	add			dst1, dst1, drb
+	store_2x2x2_line\pix_format 1, [dst1]!
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]
+	sub			dst1, dst1, drb
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_33, \version\().case_kUpScalePattern_Neon1_5x3_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_30:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_5x4:	
+
+	BNIE_CHECK	0, 31, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	store_2x2x2_line\pix_format 0, [dst0]
+	add			dst0, dst0, drb
+	store_2x2x2_line\pix_format 0, [dst0]!
+	store_2x2x2_line_row\pix_format 0, 3, [dst0]
+	sub			dst0, dst0, drb
+	store_2x2x2_line_row\pix_format 0, 3, [dst0]!
+	
+	store_2x2x2_line\pix_format 1, [dst1]
+	add			dst1, dst1, drb
+	store_2x2x2_line\pix_format 1, [dst1]!
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]
+	sub			dst1, dst1, drb
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]!
+	
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_33, \version\().case_kUpScalePattern_Neon1_5x4_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_31:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+\version\().kUpScalePattern_Neon1_6:	
+\version\().kUpScalePattern_Neon1_6x2:	
+
+	BNIE_CHECK	0, 3, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	store_2x2x2_line_row\pix_format 0, 0, [dst0]!
+	store_2x2x2_line\pix_format 0, [dst0]!			
+	store_2x2x2_line_row\pix_format 0, 3, [dst0]!
+
+	store_2x2x2_line_row\pix_format 1, 0, [dst1]!
+	store_2x2x2_line\pix_format 1, [dst1]!		
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_33, \version\().case_kUpScalePattern_Neon1_6x2_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_3:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_6x3:	
+
+	BNIE_CHECK	0, 33, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	store_2x2x2_line_row\pix_format 0, 0, [dst0]!
+	store_2x2x2_line\pix_format 0, [dst0]!			
+	store_2x2x2_line_row\pix_format 0, 3, [dst0]!
+	
+	store_2x2x2_line_row\pix_format 1, 1, [dst1]
+	add			dst1, dst1, drb
+	store_2x2x2_line_row\pix_format 1, 1, [dst1]!
+	store_2x2x2_line\pix_format 1, [dst1]
+	sub			dst1, dst1, drb
+	store_2x2x2_line\pix_format 1, [dst1]!
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]	
+	add			dst1, dst1, drb
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]!
+	sub			dst1, dst1, drb
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_33, \version\().case_kUpScalePattern_Neon1_6x3_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_33:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+\version\().kUpScalePattern_Neon1_6x4:		
+
+	BNIE_CHECK	0, 34, yuv
+	
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	store_2x2x2_line_row\pix_format 0, 1, [dst0]
+	add			dst0, dst0, drb
+	store_2x2x2_line_row\pix_format 0, 1, [dst0]!
+	store_2x2x2_line\pix_format 1, [dst0]
+	sub			dst0, dst0, drb
+	store_2x2x2_line\pix_format 1, [dst0]!
+	store_2x2x2_line_row\pix_format 0, 3, [dst0]	
+	add			dst0, dst0, drb
+	store_2x2x2_line_row\pix_format 0, 3, [dst0]!
+	sub			dst0, dst0, drb
+	
+	store_2x2x2_line_row\pix_format 1, 1, [dst1]
+	add			dst1, dst1, drb
+	store_2x2x2_line_row\pix_format 1, 1, [dst1]!
+	store_2x2x2_line\pix_format 1, [dst1]
+	sub			dst1, dst1, drb
+	store_2x2x2_line\pix_format 1, [dst1]!
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]	
+	add			dst1, dst1, drb
+	store_2x2x2_line_row\pix_format 1, 3, [dst1]!
+	sub			dst1, dst1, drb
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_33, \version\().case_kUpScalePattern_Neon1_6x4_mark
+
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_34:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+
+\version\().kUpScalePattern_Neon1_7x3:	
+
+	BNIE_CHECK	0, 35, yuv
+
+	@add			yuv, yuv, #12
+	@add			dst0, dst0, #14
+	@add			dst1, dst1, #14
+	@GET_PATTERN_INTERLACE	\version\().switch_band_2011, \version\().case_kUpScalePattern_Neon1_7733_mark
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+	ldr\pix_format		w0, [dst0, #(7*\pix_bytes)]	@cache it for later fix up
+	ldr\pix_format		w1, [dst1, #(7*\pix_bytes)]
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]
+	str\pix_format		w0, [dst0, #(7*\pix_bytes)]!
+	
+	store_4x2x2_line\pix_format 1, [dst1]
+	str\pix_format		w1, [dst1, #(7*\pix_bytes)]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]
+	sub 	dst1, dst1, drb
+	add 	dst1, dst1, #(7*\pix_bytes)
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_33, \version\().case_kUpScalePattern_Neon1_7x3_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_35:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+\version\().kUpScalePattern_Neon1_7x4:
+
+	BNIE_CHECK	0, 36, yuv
+
+	@add			yuv, yuv, #12
+	@add			dst0, dst0, #14
+	@add			dst1, dst1, #14
+	@GET_PATTERN_INTERLACE	\version\().switch_band_2011, \version\().case_kUpScalePattern_Neon1_7744_mark
+
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+	
+	ldr\pix_format		w1, [dst0, #(7*\pix_bytes)]	@cache it for later fix up
+	ldr\pix_format		w2, [dst1, #(7*\pix_bytes)]
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]
+	str\pix_format		w1, [dst0, #(7*\pix_bytes)]	
+	add				dst0, dst0, drb
+	store_4x2x2_line\pix_format 0, [dst0]
+	str\pix_format		w2, [dst0, #(7*\pix_bytes)]!
+	sub				dst0, dst0, drb
+
+	store_4x2x2_line\pix_format 1, [dst1]
+	str\pix_format		w2, [dst1, #(7*\pix_bytes)]
+	add				dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]
+	sub				dst1, dst1, drb
+	add				dst1, dst1, #(7*\pix_bytes)
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_33, \version\().case_kUpScalePattern_Neon1_7x4_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_36:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	
+\version\().kUpScalePattern_Neon1_7x5:	
+
+	BNIE_CHECK	0, 37, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+	
+	ldr\pix_format		w1, [dst0, #(7*\pix_bytes)]	@cache it for later fix up
+	ldr\pix_format		w2, [dst1, #(7*\pix_bytes)]
+	
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]
+	str\pix_format		w1, [dst0, #(7*\pix_bytes)]
+	add				dst0, dst0, drb
+	store_4x2x2_line\pix_format 0, [dst0]
+	str\pix_format		w1, [dst0, #(7*\pix_bytes)]!
+	sub				dst0, dst0, drb
+
+	store_4x2x2_line\pix_format 1, [dst1]
+	str\pix_format		w2, [dst1, #(7*\pix_bytes)]
+	add				dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]
+	str\pix_format		w2, [dst1, #(7*\pix_bytes)]	
+	add				dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]
+	sub				dst1, dst1, drb, lsl #1
+	add				dst1, dst1, #(7*\pix_bytes)
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_40, \version\().case_kUpScalePattern_Neon1_7x5_mark
+	
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_37:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	
+\version\().kUpScalePattern_Neon1_8x3:		
+
+	BNIE_CHECK	0, 38, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]!
+	
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]!
+	sub 	dst1, dst1, drb
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_40, \version\().case_kUpScalePattern_Neon1_8x3_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_38:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_8x4:		
+
+	BNIE_CHECK	0, 39, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line\pix_format 0, [dst0]!
+	sub 	dst0, dst0, drb
+	
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]!
+	sub 	dst1, dst1, drb
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_40, \version\().case_kUpScalePattern_Neon1_8x4_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_39:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_8x5:		
+
+	BNIE_CHECK	0, 40, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line\pix_format 0, [dst0]!
+	sub 	dst0, dst0, drb
+	
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst0]!
+	sub 	dst1, dst1, drb, lsl #1
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_40, \version\().case_kUpScalePattern_Neon1_8x5_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_40:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_9x4:		
+
+	BNIE_CHECK	0, 41, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line\pix_format 0, [dst0]!
+	sub 	dst0, dst0, drb
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	sub 	dst0, dst0, drb
+
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]!
+	sub 	dst1, dst1, drb
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]	
+	add 	dst1, dst1, drb	
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+	sub 	dst1, dst1, drb
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_40, \version\().case_kUpScalePattern_Neon1_9x4_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_41:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_9x5:		
+
+	BNIE_CHECK	0, 42, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+	
+	store_4x2x2_line\pix_format 0, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line\pix_format 0, [dst0]!
+	sub 	dst0, dst0, drb
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	sub 	dst0, dst0, drb
+
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]!
+	sub 	dst1, dst1, drb, lsl #1
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]	
+	add 	dst1, dst1, drb
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]
+	add 	dst1, dst1, drb	
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+	sub 	dst1, dst1, drb, lsl #1
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_40, \version\().case_kUpScalePattern_Neon1_9x5_mark
+
+@$@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_42:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+\version\().kUpScalePattern_Neon1_9x6:		
+
+	BNIE_CHECK	0, 43, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line\pix_format 0, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line\pix_format 0, [dst0]!
+	sub 	dst0, dst0, drb, lsl #1
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]
+	add 	dst0, dst0, drb
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	sub 	dst0, dst0, drb, lsl #1
+	
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, drb
+	store_4x2x2_line\pix_format 1, [dst1]!
+	sub 	dst1, dst1, drb, lsl #1
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]	
+	add 	dst1, dst1, drb
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]
+	add 	dst1, dst1, drb	
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+	sub 	dst1, dst1, drb, lsl #1
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_40, \version\().case_kUpScalePattern_Neon1_9x6_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_43:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_7:	
+
+	BNIE_CHECK	1, 4, dst0
+	
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	ldr\pix_format		w0, [dst0, #(7*\pix_bytes)]	@cache it for later fix up
+	ldr\pix_format		w1, [dst1, #(7*\pix_bytes)]
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]
+	str\pix_format		w0, [dst0, #(7*\pix_bytes)]!
+	
+	store_4x2x2_line\pix_format 1, [dst1]
+	add 	dst1, dst1, #(7*\pix_bytes)
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_7, \version\().case_kUpScalePattern_Neon1_7_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_4:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_8:	
+	
+	BNIE_CHECK	0, 5, pattern
+
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]!	
+	store_4x2x2_line\pix_format 1, [dst1]!
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_7, \version\().case_kUpScalePattern_Neon1_8_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_5:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_9:	
+
+	BNIE_CHECK	0, 6, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+	
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line\pix_format 0, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+	
+	store_4x2x2_line\pix_format 1, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+		
+	GET_PATTERN_INTERLACE	\version\().switch_band_7, \version\().case_kUpScalePattern_Neon1_9_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_6:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_10:	
+
+	BNIE_CHECK	0, 7, yuv
+	
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+		
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_4x2x2_line\pix_format 0, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+
+	store_4x2x2_line_row_pix\pix_format 1, 0, 0, [dst1]!
+	store_4x2x2_line\pix_format 1, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_7, \version\().case_kUpScalePattern_Neon1_10_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_7:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_11:		
+
+	BNIE_CHECK	1, 8
+	
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_4x2x2_line_row\pix_format 0, 0, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 0, 3, [dst0]!
+	store_4x2x2_line_row\pix_format 0, 1, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+
+	store_4x2x2_line_row_pix\pix_format 1, 0, 0, [dst1]!
+	store_4x2x2_line_row\pix_format 1, 0, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 0, 3, [dst1]!
+	store_4x2x2_line_row\pix_format 1, 1, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_7, \version\().case_kUpScalePattern_Neon1_11_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_8:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_12:		
+
+	BNIE_CHECK	0, 9, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_4x2x2_line_row\pix_format 0, 0, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 0, 3, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 0, [dst0]!
+	store_4x2x2_line_row\pix_format 0, 1, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+
+	store_4x2x2_line_row_pix\pix_format 1, 0, 0, [dst1]!
+	store_4x2x2_line_row\pix_format 1, 0, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 0, 3, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 0, [dst1]!
+	store_4x2x2_line_row\pix_format 1, 1, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_7, \version\().case_kUpScalePattern_Neon1_12_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_9:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_13:		
+
+	BNIE_CHECK	1, 10
+	
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_4x2x2_line_row\pix_format 0, 0, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 0, 3, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 0, [dst0]!
+	store_4x2x2_line_row\pix_format 0, 1, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+
+	store_4x2x2_line_row_pix\pix_format 1, 0, 0, [dst1]!
+	store_4x2x2_line_row\pix_format 1, 0, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 0, 3, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 0, [dst1]!
+	store_4x2x2_line_row\pix_format 1, 1, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_7, \version\().case_kUpScalePattern_Neon1_13_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_10:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_14:		
+
+	BNIE_CHECK	0, 11, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_4x2x2\pix_format
+
+	store_4x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_4x2x2_line_row\pix_format 0, 0, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 0, 3, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 0, 3, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 0, [dst0]!
+	store_4x2x2_line_row\pix_format 0, 1, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+	store_4x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+
+	store_4x2x2_line_row_pix\pix_format 1, 0, 0, [dst1]!
+	store_4x2x2_line_row\pix_format 1, 0, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 0, 3, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 0, 3, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 0, [dst1]!
+	store_4x2x2_line_row\pix_format 1, 1, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+	store_4x2x2_line_row_pix\pix_format 1, 1, 3, [dst1]!
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_kUpScalePattern_Neon1_14_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_11:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().kUpScalePattern_Neon1_15:
+
+	BNIE_CHECK	0, 12, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	ldrb		w0, [dst0, #15*(\pix_bytes)]
+	ldrb		w1, [dst1, #15*(\pix_bytes)]
+	
+	pack_8x2x2\pix_format
+
+	store_8x2x2_line\pix_format 0, [dst0]!	
+	store_8x2x2_line\pix_format 1, [dst0]!
+	str\pix_format w0, [dst0, #(-1*\pix_bytes)]!
+	
+	store_8x2x2_line\pix_format 2, [dst1]!
+	store_8x2x2_line\pix_format 3, [dst1]!
+	str\pix_format w1, [dst1, #(-1*\pix_bytes)]!
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_kUpScalePattern_Neon1_15_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_12:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_16:		
+
+	BNIE_CHECK	0, 13, yuv
+	
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_8x2x2\pix_format
+
+	store_8x2x2_line\pix_format 0, [dst0]!
+	store_8x2x2_line\pix_format 1, [dst0]!
+	
+	store_8x2x2_line\pix_format 2, [dst1]!
+	store_8x2x2_line\pix_format 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_kUpScalePattern_Neon1_16_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_13:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_17:	
+
+	BNIE_CHECK	0, 14, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_8x2x2\pix_format
+
+	store_8x2x2_line\pix_format 0, [dst0]!	
+	store_8x2x2_line\pix_format 1, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	
+	store_8x2x2_line\pix_format 2, [dst1]!
+	store_8x2x2_line\pix_format 3, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 3, 1, 3, [dst1]!
+	
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_kUpScalePattern_Neon1_17_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_14:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().kUpScalePattern_Neon1_18:		
+
+	BNIE_CHECK	0, 15, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_8x2x2\pix_format
+
+	store_8x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_8x2x2_line\pix_format 0, [dst0]!	
+	store_8x2x2_line\pix_format 1, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	
+	store_8x2x2_line_row_pix\pix_format 2, 0, 0, [dst1]!
+	store_8x2x2_line\pix_format 2, [dst1]!
+	store_8x2x2_line\pix_format 3, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 3, 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_kUpScalePattern_Neon1_18_mark
+	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_15:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_19:		
+
+	BNIE_CHECK	0, 16, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+	
+	pack_8x2x2\pix_format
+
+	store_8x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_8x2x2_line\pix_format 0, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+	store_8x2x2_line\pix_format 1, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	
+	store_8x2x2_line_row_pix\pix_format 2, 0, 0, [dst1]!
+	store_8x2x2_line\pix_format 2, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 2, 1, 3, [dst1]!
+	store_8x2x2_line\pix_format 3, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 3, 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_14, \version\().case_kUpScalePattern_Neon1_19_mark
+	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_16:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_20:		
+
+	BNIE_CHECK	0, 17, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+	
+	pack_8x2x2\pix_format
+
+	store_8x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_8x2x2_line\pix_format 0, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 1, 0, 0, [dst0]!
+	store_8x2x2_line\pix_format 1, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	
+	store_8x2x2_line_row_pix\pix_format 2, 0, 0, [dst1]!
+	store_8x2x2_line\pix_format 2, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 2, 1, 3, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 3, 0, 0, [dst1]!
+	store_8x2x2_line\pix_format 3, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 3, 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_18, \version\().case_kUpScalePattern_Neon1_20_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@\version\().switch_band_17:	
+@	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+\version\().kUpScalePattern_Neon1_21:		
+
+	BNIE_CHECK	0, 18, yuv
+
+	PATTERN_INTERLEAVE_2x2x2_simple \arch, \pix_format, \pix_bytes
+
+	pack_8x2x2\pix_format
+
+	store_8x2x2_line_row_pix\pix_format 0, 0, 0, [dst0]!
+	store_8x2x2_line\pix_format 0, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 0, 1, 3, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 1, 0, 0, [dst0]!
+	store_8x2x2_line\pix_format 1, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	store_8x2x2_line_row_pix\pix_format 1, 1, 3, [dst0]!
+	
+	store_8x2x2_line_row_pix\pix_format 2, 0, 0, [dst1]!
+	store_8x2x2_line\pix_format 2, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 2, 1, 3, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 3, 0, 0, [dst1]!
+	store_8x2x2_line\pix_format 3, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 3, 1, 3, [dst1]!
+	store_8x2x2_line_row_pix\pix_format 3, 1, 3, [dst1]!
+
+	GET_PATTERN_INTERLACE	\version\().switch_band_18, \version\().case_kUpScalePattern_Neon1_21_mark
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\version\().switch_band_18:	
+	UP_SCALE_PROC_TABLE	\version
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+	.endm
+
+@---------------
+@END	.include	"yuv420torgb-arm-gas-s.h"
+@---------------
+	
+@	IMPORT	memcpy
+@	IMPORT	parse_proc
+@	IMPORT	blend_proc
+	.text	@CODE, READONLY
+	.fpu    neon
+		
+	@BlackJack	Treo    0.75	    0.5		Sony/Ericsson 1.0		
+	.global	yuv420ito16RGB565SE_down_scale_bc_p_arm_v7 @74			102		131/135		186			142
+	.global	yuv420ito32BGRA_down_scale_bc_p_arm_v7 @71			104
+		
+	.global	yuv420ito16RGB565SE_up_scale_bc_p_arm_v7
+	.global	yuv420ito32BGRA_up_scale_bc_p_arm_v7
+	.global	yuv420ito16RGB565SE_generic_scale_bc_arm_v7 @49			66/72
+	.global	yuv420ito32BGRA_generic_scale_bc_arm_v7 @49
+		
+@dummy place holder
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	SET_CONST_rgb565se
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	SET_CONST_bgra32
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.endm
+		
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@ our wonderful NEON debug tool @@@@@@@@@@@@
+@@@@@@@@@@@@                               @@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+	.macro BNIE_CHECK_REG_0 stop_flag, idx
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	@// Drop stack to give us some workspace
+	SUB     sp, sp, #256
+	
+	@// Now we are safe to corrupt registers
+	mov	  r0, #\stop_flag
+	mov   r1, #\idx
+	mov   r2, sp
+
+	mov	  r8, r2
+	
+	vst1.8   {D0  - D3 }, [r8]!
+	vst1.8   {D4  - D7 }, [r8]!
+	vst1.8   {D8  - D11}, [r8]!
+	vst1.8   {D12 - D15}, [r8]!
+	vst1.8   {D16 - D19}, [r8]!
+	vst1.8   {D20 - D23}, [r8]!
+	vst1.8   {D24 - D27}, [r8]!
+	vst1.8   {D28 - D31}, [r8]!	
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_reg
+	MSR     cpsr_f, r4      @// restore flags
+
+	mov   r8, sp
+	vld1.8   {D0  - D3 }, [r8]!
+	vld1.8   {D4  - D7 }, [r8]!
+	vld1.8   {D8  - D11}, [r8]!
+	vld1.8   {D12 - D15}, [r8]!
+	vld1.8   {D16 - D19}, [r8]!
+	vld1.8   {D20 - D23}, [r8]!
+	vld1.8   {D24 - D27}, [r8]!
+	vld1.8   {D28 - D31}, [r8]!	
+
+
+	ADD     sp, sp, #256
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+
+	.macro BNIE_CHECK_MEM_0 idx, addr, offset, size
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	@//drop stack to give us some workspace
+	SUB     sp, sp, #256
+	
+	@// Now we are safe to corrupt registers
+	mov	  r4, \addr
+	mov	  r1, r4
+	mov	  r0, #\idx
+	mov   r2, #\offset
+	mov   r3, #\size
+
+	mov	  r8, sp
+	
+	vst1.8   {D0  - D3 }, [r8]!
+	vst1.8   {D4  - D5 }, [r8]!
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_mem
+	MSR     cpsr_f, r4      @// restore flags
+
+	mov   r8, sp
+	vld1.8   {D0  - D3 }, [r8]!
+	vld1.8   {D4  - D5 }, [r8]!
+
+	ADD     sp, sp, #256
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+
+
+
+	.macro BNIE_CHECK_MEM_00 idx, addr, offset, size
+			
+	STMFD   sp!, {r0-r12, lr}
+	
+	@// Now we are safe to corrupt registers
+	mov  r4, \addr
+	
+	mov	  r0, #\idx
+	mov	  r1, r4
+	mov   r2, #\offset
+	mov   r3, #\size
+	
+	MRS     r4, cpsr        @// preserve flags
+	BL      my_check_mem
+	MSR     cpsr_f, r4      @// restore flags
+
+	LDMFD	sp!, {r0-r12,lr}
+
+	.endm
+
+
+	.macro BNIE_CHECK stop_flag, idx, addr
+
+	@BNIE_CHECK0 \stop_flag, \idx, \addr
+	@BNIE_CHECK_REG_0 0, \idx
+	@BNIE_CHECK0 1, \idx, \addr
+			
+	.endm
+
+
+
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+		
+
+
+		
+@D0[0123]
+@D1[0123]
+
+
+
+@ up	 = u - 128
+@ vp	 = v - 128
+@ red5   = vp * 204
+@ green6 = 51 * up + 102*vp
+@ blue5  = 255 * up
+
+@i: 0,1,2,3
+
+@ yp[i]	= y * C2 + Bx;		
+
+@ p = ( yp[i] + (uvr<<1) ) >> 15;	
+@	my_pin_31;					
+								
+@	pix  = p << (11);			
+								
+@	p = ( yp[i] - uvg) >> 14;		
+@	my_pin_63;					
+								
+@	pix |= p << (5);			
+								
+@	p = (yp[i] + uvb) >> 15;		
+@	my_pin_31;					
+								
+@	pix |= p;					
+
+const128_16		.req	Q0 
+
+const_Cx_16		.req	Q1
+Cxt_16			.req		D2
+Cxt_half_16		.req		D3
+
+const_Cx_16_2	.req	Q2
+Cxb_16			.req		D4
+
+
+ytop_bot		.req	Q3
+ytop8			.req		D6 
+ybot8			.req		D7
+
+uv_16			.req	Q7
+u_16			.req		D14
+v_16			.req		D15
+
+y_16			.req	Q8 
+y_16_0			.req		D16 
+y_16_1			.req		D17 
+
+y_32			.req	Q9 
+y_32_0			.req		D18 
+y_32_1			.req		D19 
+
+uvr_32			.req	Q10 
+uvr_32_0		.req		D20 
+uvr_32_1		.req		D21 
+
+uvg_32			.req	Q11 
+uvg_32_0		.req		D22 
+uvg_32_1		.req		D23 
+
+uvb_32			.req	Q12 
+uvb_32_0		.req		D24 
+uvb_32_1		.req		D25 
+
+up51			.req	Q13	@temp use for middle result
+
+red_32			.req	Q13
+red_32_0		.req		D26
+red_32_1		.req		D27
+
+green_32		.req	Q14
+green_32_0		.req		D28
+green_32_1		.req		D29
+
+blue_32			.req	Q15
+blue_32_0		.req		D30
+blue_32_1		.req		D31
+
+red_16			.req	Q5
+red_16_0		.req		D10
+red_16_1		.req		D11
+
+green_16		.req	Q6
+green_16_0		.req		D12
+green_16_1		.req		D13
+
+blue_16			.req	Q4
+blue_16_0		.req		D8
+blue_16_1		.req		D9
+
+rgb565r			.req	Q5
+rgb565r_0		.req		D10
+rgb565r_1		.req		D11
+
+rgb565g			.req	Q6
+rgb565g_0		.req		D12
+rgb565g_1		.req		D13
+
+rgb565b			.req	Q4
+rgb565b_0		.req		D8
+rgb565b_1		.req		D9
+
+bg_16			.req	Q6
+bg_16_0			.req		D12
+bg_16_1			.req		D13
+
+alpha_16		.req	Q7
+ra_16			.req	Q7
+ra_16_0			.req		D14
+ra_16_1			.req		D15
+
+rgb565_0		.req	Q5
+rgb565_0_0		.req		D10
+rgb565_0_1		.req		D11
+
+rgb565_1		.req	Q6
+rgb565_1_0		.req		D12
+rgb565_1_1		.req		D13
+
+rgb565_2		.req	Q7
+rgb565_2_0		.req		D14
+rgb565_2_1		.req		D15
+
+rgb565_3		.req	Q8
+rgb565_3_0		.req		D16
+rgb565_3_1		.req		D17	
+
+bgra_bg_16_0	.req	Q6
+bgra_bg_16_0_0	.req		D12
+bgra_bg_16_0_1	.req		D13
+
+bgra_ra_16_0	.req	Q7
+bgra_ra_16_0_0	.req		D14
+bgra_ra_16_0_1	.req		D15
+	
+bgra_bg_16_1	.req	Q8
+bgra_bg_16_1_0	.req		D16
+bgra_bg_16_1_1	.req		D17	
+
+bgra_ra_16_1	.req	Q9
+bgra_ra_16_1_0	.req		D18
+bgra_ra_16_1_1	.req		D19
+
+bgra_bg_16_2	.req	Q10
+bgra_bg_16_2_0	.req		D20
+bgra_bg_16_2_1	.req		D21
+	
+bgra_ra_16_2	.req	Q11
+bgra_ra_16_2_0	.req		D22
+bgra_ra_16_2_1	.req		D23
+
+bgra_bg_16_3	.req	Q12
+bgra_bg_16_3_0	.req		D24
+bgra_bg_16_3_1	.req		D25
+
+bgra_ra_16_3	.req	Q13
+bgra_ra_16_3_0	.req		D26
+bgra_ra_16_3_1	.req		D27	
+	
+	
+	.macro pack_2x2x2_rgb565se
+	VSRI.16		rgb565r, rgb565g,   #BITS_B_rgb565se
+	VSRI.16		rgb565r, rgb565b,   #(BITS_G_rgb565se + BITS_B_rgb565se )
+	.endm
+
+	.macro pack_2x2x2_bgra32
+	vmvn.s16	alpha_16,	#0
+	VSRI.16		green_16, blue_16,   #8
+	VSRI.16		alpha_16, red_16,   #8
+	.endm
+
+	.macro pack_4x2x2_rgb565se
+	vmov.16		rgb565_1, rgb565_0
+	vzip.16		rgb565_0, rgb565_1		
+	.endm
+
+	.macro pack_4x2x2_bgra32
+	vmov.16		bgra_bg_16_1, bgra_bg_16_0
+	vzip.16		bgra_bg_16_0, bgra_bg_16_1
+	vmov.16		bgra_ra_16_1, bgra_ra_16_0
+	vzip.16		bgra_ra_16_0, bgra_ra_16_1
+	.endm
+
+	.macro pack_8x2x2_rgb565se
+	vmov.16		rgb565_2, rgb565_0
+	vzip.16		rgb565_0, rgb565_2
+
+	vmov.16		rgb565_1, rgb565_0
+	vzip.16		rgb565_0, rgb565_1
+
+	vmov.16		rgb565_3, rgb565_2
+	vzip.16		rgb565_2, rgb565_3
+	.endm
+
+	.macro pack_8x2x2_bgra32
+	vmov.16		bgra_bg_16_2, bgra_bg_16_0
+	vzip.16		bgra_bg_16_0, bgra_bg_16_2
+	vmov.16		bgra_ra_16_2, bgra_ra_16_0
+	vzip.16		bgra_ra_16_0, bgra_ra_16_2
+
+	vmov.16		bgra_bg_16_1, bgra_bg_16_0
+	vzip.16		bgra_bg_16_0, bgra_bg_16_1
+	vmov.16		bgra_ra_16_1, bgra_ra_16_0
+	vzip.16		bgra_ra_16_0, bgra_ra_16_1
+
+	vmov.16		bgra_bg_16_3, bgra_bg_16_2
+	vzip.16		bgra_bg_16_2, bgra_bg_16_3
+	vmov.16		bgra_ra_16_3, bgra_ra_16_2
+	vzip.16		bgra_ra_16_2, bgra_ra_16_3	
+	.endm
+	
+	.macro store_2x2x2_rgb565se
+	add			dst, dst, #2
+	vst1.32     {rgb565r_0}, [dst]
+	add			dst, dst, drb
+	vst1.32     {rgb565r_1}, [dst]!
+	sub			dst, dst, drb
+	sub			dst, dst, #2
+	.endm
+
+	.macro store_2x2x2_bgra32
+	add			dst, dst, #4
+	vst2.16     {bg_16_0, ra_16_0}, [dst]
+	add			dst, dst, drb
+	vst2.16     {bg_16_1, ra_16_1}, [dst]!
+	sub			dst, dst, drb
+	sub			dst, dst, #4
+	.endm
+
+	.macro store_2x2x2_line_rgb565se		line, dst
+	vst1.16     {rgb565r_\line}, \dst
+	.endm
+
+	.macro store_2x2x2_line_bgra32			line, dst
+	vst2.16     {bg_16_\line, ra_16_\line}, \dst
+	.endm
+
+	.macro store_2x2x2_line_row_rgb565se	line, row, dst
+	vst1.16     {rgb565r_\line[\row]}, \dst
+	.endm
+	
+	.macro store_2x2x2_line_row_bgra32		line, row, dst
+	vst2.16     {bg_16_\line[\row], ra_16_\line[\row]}, \dst
+	.endm
+
+	.macro store_4x2x2_line_rgb565se		line, dst
+	vst1.16     {rgb565_\line}, \dst
+	.endm
+
+	.macro store_4x2x2_line_bgra32			line, dst
+	vst2.16     {bgra_bg_16_\line, bgra_ra_16_\line}, \dst
+	.endm
+
+	.macro store_8x2x2_line_rgb565se		line, dst
+	vst1.16     {rgb565_\line}, \dst
+	.endm
+
+	.macro store_8x2x2_line_bgra32			line, dst
+	vst2.16     {bgra_bg_16_\line, bgra_ra_16_\line}, \dst
+	.endm
+
+	.macro store_4x2x2_line_row_rgb565se	line, row, dst
+	vst1.16     {rgb565_\line\()_\row}, \dst
+	.endm
+	
+	.macro store_4x2x2_line_row_bgra32		line, row, dst
+	vst2.16     {bgra_bg_16_\line\()_\row, bgra_ra_16_\line\()_\row}, \dst
+	.endm
+	
+	.macro store_4x2x2_line_row_pix_rgb565se	line, row, pix, dst
+	vst1.16     {rgb565_\line\()_\row[\pix]}, \dst
+	.endm
+	
+	.macro store_4x2x2_line_row_pix_bgra32		line, row, pix, dst
+	vst2.16     {bgra_bg_16_\line\()_\row[\pix], bgra_ra_16_\line\()_\row[\pix]}, \dst
+	.endm
+
+	.macro store_8x2x2_line_row_pix_rgb565se	line, row, pix, dst
+	vst1.16     {rgb565_\line\()_\row[\pix]}, \dst
+	.endm
+	
+	.macro store_8x2x2_line_row_pix_bgra32		line, row, pix, dst
+	vst2.16     {bgra_bg_16_\line\()_\row[\pix], bgra_ra_16_\line\()_\row[\pix]}, \dst
+	.endm
+	
+	.macro	PATTERN_INTERLEAVE_2x2x2 arch, switch, mark, pix_format, pix_bytes
+
+ 	vmov.u16	uv_16, #0	
+	pld [yuv, #(64) ]
+
+	vld1.8  u_16[0],    [yuv]
+	vld1.8  u_16[2],    [yuv]!
+	vld1.8  v_16[0],    [yuv]
+	vld1.8  v_16[2],	[yuv]!
+	vld1.16 ytop8[0],   [yuv]!
+	vld1.16 ytop8[2],   [yuv]!
+
+	vld1.8  u_16[4],    [yuv]
+	vld1.8  u_16[6],    [yuv]!
+	vld1.8  v_16[4],    [yuv]
+	vld1.8  v_16[6],    [yuv]!
+	vld1.16 ytop8[1],   [yuv]!
+	vld1.16 ytop8[3],   [yuv]!
+
+	vsub.s16	uv_16,	uv_16, const128_16	@offset uu uu, vv vv
+	
+	@@@uvr, uvg, uvb
+	vmull.s16	up51, Cxt_half_16, u_16	@up*51 (0-3)
+	vmull.s16	uvg_32, Cxt_16, v_16	@vp*102 (0-3)
+	vshl.s32	uvb_32, up51,  #2		@up*204
+	vadd.s32	uvg_32, uvg_32, up51	@uvg=vp*102 + up*51 (0-3)
+	
+	vmovl.u8	y_16,	ytop8			@yy yy, yy yy
+	
+	vsub.s32	uvr_32, uvg_32, up51	@uvr_half=vp*102 (0-3)
+	
+	vdup.s32	y_32,  xBx				@xBx
+	
+	vshl.s32	uvr_32, uvr_32,  #1		@uvr=vp*204 (0-3)
+	
+	VMLAL.s16	y_32, Cxb_16,  y_16_0	@yp=xBx + y*Cxb (0-3)	
+	
+	vadd.s32	uvb_32, uvb_32, up51	@uvb=up*255 (0-3)	
+	
+	vadd.s32	red_32,   y_32, uvr_32 	@red5  =yp + uvr (0-3)
+	vsub.s32	green_32, y_32, uvg_32  @green6=yp - uvg (0-3)
+	vadd.s32	blue_32,  y_32, uvb_32 	@blue5 =yp + uvb (0-3)
+	
+	vdup.s32	y_32,  xBx				@xBx
+
+	VQSHRUN.s32	red_16_0,	red_32,	 #4	@red5 <16>
+	
+	VMLAL.s16	y_32, Cxb_16,  y_16_1	@yp = xBx + y *  Cxb
+	
+	VQSHRUN.s32	green_16_0,  green_32,#4	@green5 <16>
+	VQSHRUN.s32	blue_16_0,	blue_32, #4	@blue5 <16>
+	
+	ldrb	w5, [pattern], #1
+	
+	vadd.s32	red_32,   y_32, uvr_32	@red5  =yp + uvr (0-3)
+	vsub.s32	green_32, y_32, uvg_32 	@green6=yp - uvg (0-3)
+	vadd.s32	blue_32,  y_32, uvb_32	@blue5 =yp + uvb (0-3)
+
+	VQSHRUN.s32	red_16_1,	red_32,	 #4	@red5   <16>
+	VQSHRUN.s32	green_16_1,  green_32,#4	@green5 <16>
+	VQSHRUN.s32	blue_16_1,	blue_32, #4	@blue5  <16>
+
+	pack_2x2x2\pix_format
+
+	add	w2, pc, #(\switch - \mark) 
+	ldr	w2, [w2, w5, lsl #2]
+\mark:	
+	store_2x2x2\pix_format
+
+	mov	pc, w2
+	
+
+	.endm
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+
+
+
+
+	.macro	PATTERN_INTERLEAVE_2x2x2_simple arch, pix_format, pix_bytes
+
+ 	vmov.u16	uv_16, #0	
+	pld [yuv, #(64) ]
+
+	vld1.8  u_16[0],    [yuv]
+	vld1.8  u_16[2],    [yuv]!
+	vld1.8  v_16[0],    [yuv]
+	vld1.8  v_16[2],	[yuv]!
+	vld1.16 ytop8[0],   [yuv]!
+	vld1.16 ytop8[2],   [yuv]!
+
+	vld1.8  u_16[4],    [yuv]
+	vld1.8  u_16[6],    [yuv]!
+	vld1.8  v_16[4],    [yuv]
+	vld1.8  v_16[6],    [yuv]!
+	vld1.16 ytop8[1],   [yuv]!
+	vld1.16 ytop8[3],   [yuv]!
+
+	vsub.s16	uv_16,	uv_16, const128_16	@offset uu uu, vv vv
+	
+	@@@uvr, uvg, uvb
+	vmull.s16	up51, Cxt_half_16, u_16	@up*51 (0-3)
+	vmull.s16	uvg_32, Cxt_16, v_16	@vp*102 (0-3)
+	vshl.s32	uvb_32, up51,  #2		@up*204
+	vadd.s32	uvg_32, uvg_32, up51	@uvg=vp*102 + up*51 (0-3)
+	
+	vmovl.u8	y_16,	ytop8			@yy yy, yy yy
+	
+	vsub.s32	uvr_32, uvg_32, up51	@uvr_half=vp*102 (0-3)
+	
+	vdup.s32	y_32,  xBx				@xBx
+	
+	vshl.s32	uvr_32, uvr_32,  #1		@uvr=vp*204 (0-3)
+	
+	VMLAL.s16	y_32, Cxb_16,  y_16_0	@yp=xBx + y*Cxb (0-3)	
+	
+	vadd.s32	uvb_32, uvb_32, up51	@uvb=up*255 (0-3)	
+	
+	vadd.s32	red_32,   y_32, uvr_32 	@red5  =yp + uvr (0-3)
+	vsub.s32	green_32, y_32, uvg_32  @green6=yp - uvg (0-3)
+	vadd.s32	blue_32,  y_32, uvb_32 	@blue5 =yp + uvb (0-3)
+	
+	vdup.s32	y_32,  xBx				@xBx
+
+	VQSHRUN.s32	red_16_0,	red_32,	 #4	@red5 <16>
+	
+	VMLAL.s16	y_32, Cxb_16,  y_16_1	@yp = xBx + y *  Cxb
+	
+	VQSHRUN.s32	green_16_0,  green_32,#4	@green5 <16>
+	VQSHRUN.s32	blue_16_0,	blue_32, #4	@blue5 <16>
+	
+	vadd.s32	red_32,   y_32, uvr_32	@red5  =yp + uvr (0-3)
+	vsub.s32	green_32, y_32, uvg_32 	@green6=yp - uvg (0-3)
+	vadd.s32	blue_32,  y_32, uvb_32	@blue5 =yp + uvb (0-3)
+
+	VQSHRUN.s32	red_16_1,	red_32,	 #4	@red5   <16>
+	VQSHRUN.s32	green_16_1,  green_32,#4	@green5 <16>
+	VQSHRUN.s32	blue_16_1,	blue_32, #4	@blue5  <16>
+
+	pack_2x2x2\pix_format
+	
+	@add			dst, dst, #\pix_bytes
+	@vst1.32     {rgb565r_0}, [dst]
+	@add			dst, dst, drb
+	@vst1.32     {rgb565r_1}, [dst]!
+	@sub			dst, dst, drb
+	@sub			dst, dst, #(\pix_bytes)
+	
+
+	.endm
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+
+
+
+
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;	
+
+
+	@input: dst0, drb, len, vv1
+
+        .global memcpy_single
+        .type	memcpy_single, %function
+        .align 4
+
+	.equ CACHE_LINE_SIZE,	(64)
+	.equ PREFETCH_DISTANCE, (CACHE_LINE_SIZE*4)
+
+memcpy_single:
+        .fnstart
+        .save       {r0-r4, lr}
+        stmfd       sp!, {r0-r4, lr}
+
+memcpy_start:
+		@ldrh r3, [r1], #2 
+		@strh r3, [r0], #2 
+		@subs r2, #2
+		@bne  memcpy_start
+        @ldmfd  sp!, {r0-r4, pc}
+
+        /* start preloading as early as possible */
+        pld         [r1, #(CACHE_LINE_SIZE*0)]
+        pld         [r1, #(CACHE_LINE_SIZE*1)]
+
+        /* do we have at least 16-bytes to copy (needed for alignment below) */
+        cmp         r2, #16
+        blo         5f
+
+        /* align destination to half cache-line for the write-buffer */
+        rsb         r3, r0, #0
+        ands        r3, r3, #0xF
+        beq         0f
+
+        /* copy up to 15-bytes (count in r3) */
+        sub         r2, r2, r3
+        movs        r4, r3, lsl #31
+        ldrmib      lr, [r1], #1
+        strmib      lr, [r0], #1
+        ldrcsb      r4, [r1], #1
+        ldrcsb      lr, [r1], #1
+        strcsb      r4, [r0], #1
+        strcsb      lr, [r0], #1
+        movs        r4, r3, lsl #29
+        bge         1f
+        /*copies 4 bytes, destination 32-bits aligned*/
+        vld4.8      {d8[0], d9[0], d10[0], d11[0]}, [r1]!
+        vst4.8      {d8[0], d9[0], d10[0], d11[0]}, [r0, :32]!
+1:      bcc         2f
+        /* copies 8 bytes, destination 64-bits aligned*/
+        vld1.8      {d8}, [r1]!
+        vst1.8      {d8}, [r0, :64]!
+2:
+
+0:      /* preload immediately the next cache line, which we may need */
+        pld         [r1, #(CACHE_LINE_SIZE*0)]
+        pld         [r1, #(CACHE_LINE_SIZE*1)]
+
+        /* make sure we have at least 64 bytes to copy */
+        subs        r2, r2, #64
+        blo         2f
+
+        /* preload all the cache lines we need.
+         * NOTE: the number of pld below depends on PREFETCH_DISTANCE,
+         * ideally would would increase the distance in the main loop to
+         * avoid the goofy code below. In practice this doesn't seem to make
+         * a big difference.
+         */
+        pld         [r1, #(CACHE_LINE_SIZE*2)]
+        pld         [r1, #(CACHE_LINE_SIZE*3)]
+        pld         [r1, #(PREFETCH_DISTANCE)]
+
+1:      /* The main loop copies 64 bytes at a time */
+        vld1.8      {d8  - d11},   [r1]!
+        vld1.8      {d12  - d15},   [r1]!
+        pld         [r1, #(PREFETCH_DISTANCE)]
+        subs        r2, r2, #64
+        vst1.8      {d8  - d11},   [r0, :128]!
+        vst1.8      {d12  - d15},   [r0, :128]!
+        bhs         1b
+
+2:      /* fix-up the remaining count and make sure we have >= 32 bytes left */
+        add         r2, r2, #64
+        subs        r2, r2, #32
+        blo         4f
+
+3:      /* 32 bytes at a time. These cache lines were already preloaded */
+        vld1.8      {d8 - d11},  [r1]!
+        subs        r2, r2, #32
+        vst1.8      {d8 - d11},  [r0, :128]!
+        bhs         3b
+
+4:      /* less than 32 left */
+        add         r2, r2, #32
+        tst         r2, #0x10
+        beq         5f
+        /* copies 16 bytes, 128-bits aligned*/
+        vld1.8      {d8, d9}, [r1]!
+        vst1.8      {d8, d9}, [r0, :128]!
+
+5:      /* copy up to 15-bytes (count in r2) */
+        movs        r4, r2, lsl #29
+        bcc         1f
+        vld1.8      {d8}, [r1]!
+        vst1.8      {d8}, [r0]!
+1:      bge         2f
+        vld4.8      {d8[0], d9[0], d10[0], d11[0]}, [r1]!
+        vst4.8      {d8[0], d9[0], d10[0], d11[0]}, [r0]!
+2:      movs        r4, r2, lsl #31
+        ldrmib      r3, [r1], #1
+        ldrcsb      r4, [r1], #1
+        ldrcsb      lr, [r1], #1
+        strmib      r3, [r0], #1
+        strcsb      r4, [r0], #1
+        strcsb      lr, [r0], #1
+
+        ldmfd       sp!, {r0-r4, pc}
+        @bx          lr
+
+        .fnend
+
+
+	.macro	PATTERN_INTERLEAVE_4_in_4 arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+		
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	sub	w1, w1, #128 @vp-128     	
+	smulbb	w2, w0, w2 @up*51
+	smlabt	w0, w1, Cx, w2
+	smlabb	w4, w5, Cx, xBx @yp
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	add	w3, w4, w2, lsl #1 @red5   = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	usat	w3, #BITS_R\pix_format, w3, asr #SHIFT_R\pix_format @red5
+	usat	w5, #BITS_B\pix_format, w5, asr #SHIFT_B\pix_format @red5
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+		
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	ldrb	w5, [yuv], #1 @yp 
+	usat	w4, #BITS_G\pix_format, w4, asr #SHIFT_G\pix_format
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	smlabb	w4, w5, Cx, xBx
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	@2nd	
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	usat	w3, #BITS_G\pix_format, w3, asr #SHIFT_G\pix_format
+	usat	w5, #BITS_R\pix_format, w5, asr #SHIFT_R\pix_format
+	add	w4, w4, w1 @blue5  = yp + up*255
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [yuv], #1 @y1 
+	usat	w4, #BITS_B\pix_format, w4, asr #SHIFT_B\pix_format
+		
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+	smlabb	w4, w5, Cx, xBx
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]
+	@1st	
+	add	w3, w4, w2, lsl #1 @red5   = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	usat	w3, #BITS_R\pix_format, w3, asr #SHIFT_R\pix_format
+	usat	w5, #BITS_B\pix_format, w5, asr #SHIFT_B\pix_format
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+	ldrb	w5, [yuv], #1 @y1 
+	usat	w4, #BITS_G\pix_format, w4, asr #SHIFT_G\pix_format
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+		
+	@2nd	
+	smlabb	w4, w5, Cx, xBx
+	sub	w0, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	usat	w0, #BITS_G\pix_format, w0, asr #SHIFT_G\pix_format
+	usat	w5, #BITS_R\pix_format, w5, asr #SHIFT_R\pix_format
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	orr	w3, w0, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [pattern], #1
+		
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	ldr	w2, [w2, w5, lsl #2]
+\mark:	
+	usat	w4, #BITS_B\pix_format, w4, asr #SHIFT_B\pix_format
+	add	dst, dst, #\pix_bytes
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+	mov	pc, w2
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+
+	.macro	PATTERN_INTERLEAVE_1_in_4 arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0:uvg
+@w1:uvb
+@w2:uvr_half
+		
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	sub	w1, w1, #128 @vp-128     	
+	smulbb	w2, w0, w2 @up*51
+	smlabt	w0, w1, Cx, w2
+	smlabb	w4, w5, Cx, xBx @yp
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	add	w5, w4, w1 @blue5  = yp + up*255
+	add	w3, w4, w2, lsl #1 @red5   = yp + vp*204
+	usat	w3, #BITS_R\pix_format, w3, asr #SHIFT_R\pix_format @red5
+	usat	w5, #BITS_B\pix_format, w5, asr #SHIFT_B\pix_format @red5
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+		
+	ldrb	w5, [pattern], #1
+	add	w2, pc, #(\switch - \mark) 
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+\mark:	
+	ldr	w2, [w2, w5, lsl #2]
+	usat	w4, #BITS_G\pix_format, w4, asr #SHIFT_G\pix_format @red5
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_BASIC_step1 arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	smulbb	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	smlabt	w0, w1, Cx, w2
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	smlabb	w4, w5, Cx, xBx @yp
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	add	w3, w4, w2, lsl #1 @red5 = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	usat	w3, #BITS_R\pix_format, w3, asr #SHIFT_R\pix_format @red5
+	usat	w5, #BITS_B\pix_format, w5, asr #SHIFT_B\pix_format @red5
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_BASIC_step2 arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	usat	w4, #BITS_G\pix_format, w4, asr #SHIFT_G\pix_format @red5
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	smlabb	w4, w5, Cx, xBx
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	@2nd	
+		
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	usat	w3, #BITS_G\pix_format, w3, asr #SHIFT_G\pix_format @red5
+	usat	w5, #BITS_R\pix_format, w5, asr #SHIFT_R\pix_format @red5
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [pattern], #1
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	ldr	w2, [w2, w5, lsl #2]
+\mark:	
+	usat	w4, #BITS_B\pix_format, w4, asr #SHIFT_B\pix_format @red5
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_2_in_4_ver_avg arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+	ldrb	w4, [yuv], #1 @yp 
+		
+	sub	w0, w0, #128 @up-128
+	mov	w2, Cx, lsr #17 @51
+	smulbb	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	smlabt	w0, w1, Cx, w2
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	add	w5, w5, w4
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	mov	w5, w5, lsr #1 
+	smlabb	w4, w5, Cx, xBx @yp
+		
+	add	w3, w4, w2, lsl #1 @red5 = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	usat	w3, #BITS_R\pix_format, w3, asr #SHIFT_R\pix_format @red5
+	usat	w5, #BITS_B\pix_format, w5, asr #SHIFT_B\pix_format @red5
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+		
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	ldrb	w5, [yuv], #1 @yp 
+	usat	w4, #BITS_G\pix_format, w4, asr #SHIFT_G\pix_format @red5
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	ldrb	w4, [yuv], #1 @yp 
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	@2nd	
+	add	w5, w5, w4
+	mov	w5, w5, lsr #1 
+	smlabb	w4, w5, Cx, xBx
+		
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	usat	w3, #BITS_G\pix_format, w3, asr #SHIFT_G\pix_format @red5
+	usat	w5, #BITS_R\pix_format, w5, asr #SHIFT_R\pix_format @red5
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w0, [pattern], #1
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	ldr	w2, [w2, w0, lsl #2]
+\mark:	
+	usat	w4, #BITS_B\pix_format, w4, asr #SHIFT_B\pix_format @red5
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, drb]
+		
+	mov	pc, w2
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_INTERLEAVE_2_in_4_hor_avg arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+	ldrb	w4, [yuv, #1] @yp 
+		
+	sub	w0, w0, #128 @up-128
+	mov	w2, Cx, lsr #17 @51
+	smulbb	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	smlabt	w0, w1, Cx, w2
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	add	w5, w5, w4
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	mov	w5, w5, lsr #1 
+	smlabb	w4, w5, Cx, xBx @yp
+		
+	add	w3, w4, w2, lsl #1 @red5 = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	usat	w3, #BITS_R\pix_format, w3, asr #SHIFT_R\pix_format @red5
+	usat	w5, #BITS_B\pix_format, w5, asr #SHIFT_B\pix_format @red5
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb
+		
+	ldrb	w5, [yuv], #2 @yp 
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	usat	w4, #BITS_G\pix_format, w4, asr #SHIFT_G\pix_format @red5
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	ldrb	w4, [yuv], #1 @yp 
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+	@2nd	
+	add	w5, w5, w4
+	mov	w5, w5, lsr #1 
+	smlabb	w4, w5, Cx, xBx
+		
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	usat	w3, #BITS_G\pix_format, w3, asr #SHIFT_G\pix_format @red5
+	usat	w5, #BITS_R\pix_format, w5, asr #SHIFT_R\pix_format @red5
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [pattern], #1
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	ldr	w2, [w2, w5, lsl #2]
+\mark:	
+	usat	w4, #BITS_B\pix_format, w4, asr #SHIFT_B\pix_format @red5
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+	SET_ALPHA\pix_format	w3, 0xff
+	str\pix_format	w3, [dst, #\pix_bytes]!
+		
+	mov	pc, w2
+
+
+	.endm
+yuv	.req	r0 
+dst	.req	r1 
+xBx	.req	r2 
+Cx	.req	r3 
+pattern	.req	r4 
+drb	.req	r5 
+FREE_1	.req	r6 
+FREE_2	.req	r6 
+yuvrb_1	.req	r6 
+dst_width_1	.req	r7 
+src_width_1	.req	r8 
+yuvrb_2	.req	r8 
+yuv_double_stride_2	.req	r8 
+dst_single_stride_2	.req	r9 
+dst_double_stride_2	.req	r9 
+w0	.req	r8 
+w1	.req	r9 
+w2	.req	r10 
+w3	.req	r11 
+w4	.req	r12 
+w5	.req	r14 
+	.equ REGIS_SHIFT_dspi, (9*4)
+	.equ CACHE_SHIFT_dspi, (4*4)
+	.equ SP_SHIFT_dspi, (REGIS_SHIFT_dspi + CACHE_SHIFT_dspi)
+	.equ yuv_double_stride_SHIFT_dspi, (0)
+	.equ dst_single_stride_SHIFT_dspi, (4)
+	.equ dst_double_stride_SHIFT_dspi, (8)
+	.equ sprite_front_buffer_SHIFT_dspi, (12)
+	.equ pattern_SHIFT_dspi, (0*4 + SP_SHIFT_dspi)
+	.equ drb_SHIFT_dspi, (1*4 + SP_SHIFT_dspi)
+	.equ yuvrb_SHIFT_dspi, (2*4 + SP_SHIFT_dspi)
+	.equ width_SHIFT_dspi, (3*4 + SP_SHIFT_dspi)
+	.equ sprite_back_buffer_SHIFT_dspi, (4*4 + SP_SHIFT_dspi)
+yuv420ito16RGB565SE_down_scale_bc_p_arm_v7:
+	PATTERN_DOWN_SCALE_BC_CONVERSION	none, downscale_rgb565se_bc_pi_v7_, _rgb565se, 2
+	@ENDP
+		
+		
+yuv420ito32BGRA_down_scale_bc_p_arm_v7:
+	PATTERN_DOWN_SCALE_BC_CONVERSION	none, downscale_bgra32_bc_pi_v7_, _bgra32, 4
+	@ENDP
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_1 arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@w0: uvg
+@w1: uvb
+@w2: uvr_half
+	ldrb	w0, [yuv], #1 @u
+	ldrb	w1, [yuv], #1 @v
+	ldrb	w5, [yuv], #1 @yp 
+		
+	PATTERN_INTERLEAVE_BASIC_step1	\arch, \pix_format, \pix_bytes
+	ldrb	w5, [yuv], #1 @yp 
+	usat	w4, #BITS_G\pix_format, w4, asr #SHIFT_G\pix_format @red5
+	orr	w3, w3, w4, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_2 arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@2nd	
+	smlabb	w4, w5, Cx, xBx
+		
+	sub	w3, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	usat	w3, #BITS_G\pix_format, w3, asr #SHIFT_G\pix_format @red5
+	usat	w5, #BITS_R\pix_format, w5, asr #SHIFT_R\pix_format @red5
+	orr	w3, w3, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	add	w4, w4, w1 @blue5  = yp + up*255
+	ldrb	w5, [yuv], #1 @y1 
+	usat	w4, #BITS_B\pix_format, w4, asr #SHIFT_B\pix_format @red5
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb	
+		
+	.endm
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_3 arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	@1st	
+	smlabb	w4, w5, Cx, xBx
+	add	w3, w4, w2, lsl #1 @red5   = yp + vp*204
+	add	w5, w4, w1 @blue5  = yp + up*255
+	usat	w3, #BITS_R\pix_format, w3, asr #SHIFT_R\pix_format @red5
+	usat	w5, #BITS_B\pix_format, w5, asr #SHIFT_B\pix_format @red5
+	sub	w4, w4, w0 @green6 = yp - 51*up - 102*vp
+	orr	w3, w5, w3, lsl #(BITS_G\pix_format + BITS_B\pix_format) @rrrrr,??????,bbbbb
+	ldrb	w5, [yuv], #1 @y1 
+	usat	w4, #BITS_G\pix_format, w4, asr #SHIFT_G\pix_format @red5
+	orr	w3, w3, w4, lsl #BITS_B\pix_format @rrrrr,gggggg,bbbbb
+		
+	@2nd	
+	smlabb	w4, w5, Cx, xBx
+	sub	w0, w4, w0 @green6 = yp - 51*up - 102*vp
+	add	w5, w4, w2, lsl #1 @red5   = yp + vp*204
+	usat	w0, #BITS_G\pix_format, w0, asr #SHIFT_G\pix_format @red5
+	usat	w5, #BITS_R\pix_format, w5, asr #SHIFT_R\pix_format @red5
+		
+	.endm
+		
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_4 arch, switch, mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	orr	w3, w0, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+		
+	ldrb	w5, [pattern], #1
+		
+	add	w4, w4, w1 @blue5  = yp + up*255
+	add	w2, pc, #(\switch - \mark) 
+	ldr	w2, [w2, w5,lsl #2]
+\mark:	
+	usat	w4, #BITS_B\pix_format, w4, asr #SHIFT_B\pix_format @red5
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PATTERN_upscale_step_f arch, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	orr	w3, w0, w5, lsl #(BITS_G\pix_format) @?????,rrrrr,gggggg
+	add	w4, w4, w1 @blue5  = yp + up*255
+	usat	w4, #BITS_B\pix_format, w4, asr #SHIFT_B\pix_format @red5
+	orr	w3, w4, w3, lsl #(BITS_B\pix_format) @rrrrr,gggggg,bbbbb
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	COPY_LINE_00 mark, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+\mark:	
+	ldr\pix_format	w1, [dst, #\pix_bytes]!
+	ldr\pix_format	w2, [dst, #\pix_bytes]!
+	ldr\pix_format	w3, [dst, #\pix_bytes]!
+	ldr\pix_format	w4, [dst, #\pix_bytes]!
+	str\pix_format	w1, [w5, #\pix_bytes]!
+	str\pix_format	w2, [w5, #\pix_bytes]!
+	str\pix_format	w3, [w5, #\pix_bytes]!
+	str\pix_format	w4, [w5, #\pix_bytes]!
+		
+	subs	w0, w0, #1
+	bne	\mark
+	.endm
+	.unreq	yuv
+yuv	.req	r0 
+	.unreq	dst
+dst	.req	r1 
+	.unreq	xBx
+xBx	.req	r2 
+	.unreq	Cx
+Cx	.req	r3 
+	.unreq	pattern
+pattern	.req	r4 
+	.unreq	drb
+drb	.req	r5 
+		
+	.unreq	FREE_1
+FREE_1	.req	r6 
+	.unreq	FREE_2
+FREE_2	.req	r7 
+		
+	.unreq	yuvrb_1
+yuvrb_1	.req	r6 
+	.unreq	dst_width_1
+dst_width_1	.req	r7 
+	.unreq	src_width_1
+src_width_1	.req	r8 
+	.unreq	yuvrb_2
+yuvrb_2	.req	r8 
+	.unreq	yuv_double_stride_2
+yuv_double_stride_2	.req	r8 
+	.unreq	dst_single_stride_2
+dst_single_stride_2	.req	r9 
+	.unreq	dst_double_stride_2
+dst_double_stride_2	.req	r9 
+dst_tripple_stride_2	.req	r9 
+dst_quad_stride_2	.req	r9 
+		
+	.unreq	w0
+w0	.req	r8 
+	.unreq	w1
+w1	.req	r9 
+	.unreq	w2
+w2	.req	r10 
+	.unreq	w3
+w3	.req	r11 
+	.unreq	w4
+w4	.req	r12 
+	.unreq	w5
+w5	.req	r14 
+	.equ REGIS_SHIFT_usxxpi, (9*4)
+	.equ CACHE_SHIFT_usxxpi, (16*4)
+	.equ SP_SHIFT_usxxpi, (REGIS_SHIFT_usxxpi + CACHE_SHIFT_usxxpi)
+	.equ yuv_double_stride_SHIFT_usxxpi, (0)
+	.equ dst_single_stride_SHIFT_usxxpi, (4)
+	.equ dst_double_stride_SHIFT_usxxpi, (8)
+	.equ dst_tripple_stride_SHIFT_usxxpi, (12)
+	.equ dst_quad_stride_SHIFT_usxxpi, (16)
+	.equ sprite_front_buffer_SHIFT_usxxpi, (20)
+	.equ generic_block_cache_SHIFT_usxxpi, (24)
+	.equ dst0_SHIFT_usxxpi, (40)
+	.equ dst1_SHIFT_usxxpi, (44)
+	.equ vv0_SHIFT_usxxpi, (48)
+	.equ vv1_SHIFT_usxxpi, (52)
+	.equ pattern_SHIFT_usxxpi, (0*4 + SP_SHIFT_usxxpi)
+	.equ drb_SHIFT_usxxpi, (1*4 + SP_SHIFT_usxxpi)
+	.equ yuvrb_SHIFT_usxxpi, (2*4 + SP_SHIFT_usxxpi)
+	.equ dst_width_SHIFT_usxxpi, (3*4 + SP_SHIFT_usxxpi)
+	.equ sprite_back_buffer_SHIFT_usxxpi, (4*4 + SP_SHIFT_usxxpi)
+yuv420ito16RGB565SE_up_scale_bc_p_arm_v7:
+	PATTERN_UP_SCALE_BC_CONVERSION	none, upscale_rgb565se_bc_pi_v7_, _rgb565se, 2
+	@ENDP
+		
+yuv420ito32BGRA_up_scale_bc_p_arm_v7:
+	PATTERN_UP_SCALE_BC_CONVERSION	none, upscale_bgra32_bc_pi_v7_, _bgra32, 4
+	@ENDP
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	.equ REGIS_SHIFT_si, (14*4)
+	.equ CACHE_SHIFT_si, (1*4)
+	.equ SP_SHIFT_si, (REGIS_SHIFT_si + CACHE_SHIFT_si )
+	.equ dst_stride_SHIFT_si, (0*4)
+	.equ yuv0_SHIFT_si, (0*0 +SP_SHIFT_si)
+	.equ dst_width_SHIFT_si, (1*4 +SP_SHIFT_si)
+	.equ x0_SHIFT_si, (2*4 +SP_SHIFT_si)
+	.equ y0_SHIFT_si, (3*4 +SP_SHIFT_si)
+	.equ yuvrb_SHIFT_si, (4*4 +SP_SHIFT_si)
+	.equ drb_SHIFT_si, (5*4 +SP_SHIFT_si)
+	.equ dy_SHIFT_si, (6*4 +SP_SHIFT_si)
+	.equ dst_height_SHIFT_si, (7*4 +SP_SHIFT_si)
+	.unreq	dst
+dst	.req	r0 
+	.unreq	xBx
+xBx	.req	r1 
+	.unreq	Cx
+Cx	.req	r2 
+dx	.req	r3 
+	.unreq	yuv
+yuv	.req	r4 
+dst_width	.req	r5 
+x	.req	r6 
+y	.req	r7 
+	.unreq	FREE_1
+FREE_1	.req	r8 
+	.unreq	FREE_2
+FREE_2	.req	r9 
+		
+@first init			
+yuvrb	.req	r8 
+	.unreq	drb
+drb	.req	r9 
+		
+@line init			
+dst_height	.req	r8 
+drb_w0	.req	r10 
+dy_w1	.req	r11 
+yuvrb_w1	.req	r11 
+dst_stride_w2	.req	r12 
+last_y_w2	.req	r12 
+yuv0_w3	.req	r14 
+		
+@scratch			
+	.unreq	w0
+w0	.req	r10 
+	.unreq	w1
+w1	.req	r11 
+	.unreq	w2
+w2	.req	r12 
+	.unreq	w3
+w3	.req	r14 
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	GENERIC_SCALE_BC_INTERLEAVE_CONVERSION arch, version, pix_format, pix_bytes
+@;;;;;;;;;;;;;;;;;;;;;;;;;;; 
+	stmdb	sp!, {r0 - r12, lr}
+	sub	sp, sp, #CACHE_SHIFT_si
+		
+	add	w3,sp,#yuv0_SHIFT_si
+	ldmia	w3,{yuv-drb} @r4-r9		
+		
+	@mov		x, x, lsr #16	;no fract pix offset to start with	
+	@mov		x, x, lsl #16	
+	@mov		y, y, lsr #16	
+	@mov		y, y, lsl #16	
+	str	x, [sp, #x0_SHIFT_si]
+	str	y, [sp, #y0_SHIFT_si]
+		
+	sub	w3, drb, dst_width, lsl #(\pix_bytes>>1)
+	str	w3, [sp, #dst_stride_SHIFT_si]
+	mov	w3, y, lsr #17
+	mla	yuv, w3, yuvrb, yuv @yuv has to be held in register for the whole line
+	mov	y, y, lsr #15
+	and	y, y, #2
+	ldr	dst_height, [sp, #dst_height_SHIFT_si]
+		
+\version\().start:	
+	mov	w0, x, lsr #17
+	add	w1, w0, w0, lsl #2
+	add	w1, w0, w1
+	add	w2, yuv, w1
+	mov	w0, x, lsr #16
+	and	w0, w0, #1
+	orr	w3, w0, y
+		
+	ldrb	w0, [w2], #1 @u
+	ldrb	w1, [w2], #1 @v
+	ldrb	w3, [w2, w3] @y
+		
+	mov	w2, Cx, lsr #17 @51
+	sub	w0, w0, #128 @up-128
+	smulbb	w2, w0, w2 @up*51
+	sub	w1, w1, #128 @vp-128     	
+	smlabt	w0, w1, Cx, w2
+	add	w1, w2, w2, lsl #2 @uvb:		up*255
+	smlabb	w3, Cx, w3, xBx @yp
+	sub	w2, w0, w2 @uvr_half:	vp*102
+		
+	add	w2, w3, w2, lsl #1 @red5   = yp + vp*204
+	add	w1, w3, w1 @blue5  = yp + up*255
+	usat	w2, #BITS_R\pix_format, w2, asr #SHIFT_R\pix_format @red5
+	usat	w1, #BITS_B\pix_format, w1, asr #SHIFT_B\pix_format @red5
+	sub	w0, w3, w0 @green6 = yp - 51*up - 102*vp
+	orr	w2, w1, w2, lsl #(BITS_G\pix_format + BITS_B\pix_format ) @rrrrr,??????,bbbbb	
+	usat	w0, #BITS_G\pix_format, w0, asr #SHIFT_G\pix_format @red5
+	orr	w2, w2, w0, lsl #BITS_B\pix_format @rrrrr,gggggg,bbbbb
+	subs	dst_width, dst_width, #1
+	SET_ALPHA\pix_format	w2, 0xff
+	str\pix_format	w2, [dst], #\pix_bytes
+	addne	x, x, dx
+	bne	\version\().start
+\version\().check_next_line:	
+	ldr	dst_stride_w2, [sp, #dst_stride_SHIFT_si]
+	ldr	y, [sp, #y0_SHIFT_si]
+	ldr	dy_w1, [sp, #dy_SHIFT_si]
+	subs	dst_height, dst_height, #1
+	ldr	dst_width, [sp, #dst_width_SHIFT_si]
+		
+	beq	\version\().end @exit
+		
+	add	dst, dst, dst_stride_w2
+	mov	last_y_w2, y, lsr #16
+	add	y, y, dy_w1
+	str	y, [sp, #y0_SHIFT_si]
+	mov	w0, y, lsr #16
+	cmp	w0, last_y_w2
+	ldrne	yuvrb_w1, [sp, #yuvrb_SHIFT_si]
+	ldrne	yuv0_w3, [sp, #yuv0_SHIFT_si] @yuv0
+	ldrne	x, [sp, #x0_SHIFT_si] @x0
+	movne	w0, y, lsr #17 @w0 was dst_stride
+	mlane	yuv, yuvrb_w1, w0, yuv0_w3
+	movne	y, y, lsr #15
+	andne	y, y, #2
+	bne	\version\().start @next line
+		
+	@now copy last line	
+	ldr	drb_w0, [sp, #drb_SHIFT_si] @yuv0
+	sub	w0, dst, drb_w0
+\version\().copy_line_start:	@copy last line	
+	ldr\pix_format	w1, [w0], #\pix_bytes
+	subs	dst_width, dst_width, #1
+	str\pix_format	w1, [dst], #\pix_bytes
+	bne	\version\().copy_line_start
+	bl	\version\().check_next_line
+\version\().end:	
+	add	sp, sp, #CACHE_SHIFT_si
+	ldmia	sp!, {r0 - r12, pc}
+	.endm
+yuv420ito16RGB565SE_generic_scale_bc_arm_v7:
+	GENERIC_SCALE_BC_INTERLEAVE_CONVERSION	none, generic_scale_16RGB565SE_bc_i_v7_, _rgb565se, 2
+	@ENDP
+yuv420ito32BGRA_generic_scale_bc_arm_v7:
+	GENERIC_SCALE_BC_INTERLEAVE_CONVERSION	none, generic_scale_32BGRA_bc_i_v7_, _bgra32, 4
+	@ENDP
+	.end
+#endif

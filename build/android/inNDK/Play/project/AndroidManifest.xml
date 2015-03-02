@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+      package="com.kinoma.kinomaplay"
+      android:versionCode="10" android:versionName="6.1.212">
+      <!--       android:installLocation="internalOnly"
+       -->
+
+<!-- Kinoma-begin:LOCATION -->
+	<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+<!-- 	<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>   implicit with ACCESS_FINE_LOCATION	-->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+<!-- Kinoma-end:LOCATION -->
+
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+	<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+	<uses-permission android:name="android.permission.INTERNET" />
+
+	<uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+
+<!-- Kinoma-begin:Telephony -->
+	<uses-permission android:name="android.permission.CALL_PHONE" />		<!-- yelp uses this, but we run without it -->
+	<uses-permission android:name="android.permission.READ_PHONE_STATE"/>	<!--  for Secure.ANDROID_ID -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+<!-- Kinoma-end:Telephony -->
+
+<!-- Kinoma-begin:RecordAudio -->
+	<uses-permission android:name="android.permission.RECORD_AUDIO" />
+<!-- Kinoma-end:RecordAudio -->
+
+	<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+<!-- Kinoma-begin:ExternalStorage -->
+	<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+<!-- 	<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>  implicit with WRITE_EXTERNAL_STORAGE -->
+<!-- Kinoma-end:ExternalStorage -->
+	
+<!-- Kinoma-begin:Bluetooth -->
+	<uses-permission android:name="android.permission.BLUETOOTH" />			<!--  device user name for DLNA, if bluetooth is off, name still can't be read -->
+	<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />		<!-- needed on 4.2 to fetch BT device name -->
+<!-- Kinoma-end:Bluetooth -->
+
+<!-- Kinoma-begin:ReadContacts -->
+	<uses-permission android:name="android.permission.READ_CONTACTS"/>		<!--  used for Send (via email) -->
+<!-- Kinoma-end:ReadContacts -->
+
+<!-- Kinoma-begin:Camera -->
+<!--
+	<uses-permission android:name="android.permission.CAMERA" />
+	<uses-feature android:name="android.hardware.camera" />
+	<uses-feature android:name="android.hardware.camera.autofocus" />
+	<uses-feature android:name="android.hardware.camera.flash" />
+-->
+<!-- Kinoma-end:Camera -->
+	
+	
+<!--
+	<uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+	<uses-permission android:name="android.permission.STATUS_BAR" />
+	
+	<uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS" />
+	<uses-permission android:name="android.permission.READ_SMS" />
+	<uses-permission android:name="android.permission.RECEIVE_SMS" />
+	<uses-permission android:name="android.permission.SEND_SMS" />
+
+	<uses-permission android:name="android.permission.SET_DEBUG_APP" />
+	<uses-permission android:name="android.permission.SET_ORIENTATION" />
+-->
+
+
+<!-- 
+
+	<uses-permission android:name="android.permission.SET_PREFERRED_APPLICATIONS" /> try without
+-->
+
+    <uses-sdk android:minSdkVersion="7" 
+    			android:targetSdkVersion="17"/>
+    <supports-screens android:anyDensity="true"
+    					android:normalScreens="true"
+    					android:largeScreens="true"
+    					android:xlargeScreens="true"/>
+    <application android:persistent="true"
+    			android:label="@string/app_name"
+    			android:icon="@drawable/icon"
+    			android:largeHeap="true"
+    			>
+    			<!--
+				 android:debuggable="true"
+			 -->
+                   <!-- 
+			To Force Portrait, use this:
+                  android:configChanges="keyboardHidden|locale|screenLayout|fontScale"
+                  android:screenOrientation="portrait"  
+
+			To allow auto-rotate, use this:
+                  android:configChanges="keyboardHidden|orientation|locale|screenLayout|fontScale"
+                  android:screenOrientation="sensor"  
+                   -->
+        <activity android:name=".KinomaPlay"
+                  android:label="@string/app_name"
+                  android:theme="@style/Theme.NoBackground"
+                  android:configChanges="keyboard|keyboardHidden|navigation|orientation|locale|screenLayout|fontScale|uiMode|screenSize|smallestScreenSize"
+                  android:screenOrientation="sensor"  
+				  android:windowSoftInputMode="adjustPan|stateHidden"
+				  android:alwaysRetainTaskState="true"
+                  android:launchMode="singleTask">
+     			<!--  android:theme="@android:style/Theme.NoTitleBar.Fullscreen" -->
+             <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+<!--
+                <category android:name="android.intent.category.HOME" />
+-->
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            
+            <intent-filter>
+                <action android:name="KinomaPlay.installAndGo" />
+                <data android:mimeType="text/*" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="KinomaPlay.launch" />
+                <data android:mimeType="text/*" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+                
+                 
+            
+      <!-- 
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data android:name="android.app.searchable" 
+                       android:resource="@xml/searchable" />
+         -->
+        </activity>
+
+	    <service android:name=".KinomaService"/>
+	    
+	    <receiver android:name=".RemoteControlReceiver">
+  			<intent-filter>
+				<action android:name="android.intent.action.MEDIA_BUTTON" />
+			</intent-filter>
+		</receiver>          
+	    
+    </application>
+</manifest> 

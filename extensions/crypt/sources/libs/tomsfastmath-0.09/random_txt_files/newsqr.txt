@@ -1,0 +1,36 @@
+New code added in TFM v0.03
+
+OLD 64-bit...[athlon64]
+
+Squaring:
+  256-bit:        89
+  512-bit:       234
+ 1024-bit:       815
+ 2048-bit:      2851
+
+NEW 64-bit ...
+
+Squaring:
+  256-bit:        89
+  512-bit:       228
+ 1024-bit:       691
+ 2048-bit:      2228
+
+
+OLD 32-bit [athlonxp]
+
+Squaring:
+
+  256-bit:       327
+  512-bit:      1044
+ 1024-bit:      3646
+ 2048-bit:     17055
+
+NEW 32-bit
+
+Squaring:
+
+  256-bit:       332
+  512-bit:       894
+ 1024-bit:      2983
+ 2048-bit:     10385

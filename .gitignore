@@ -1,0 +1,15 @@
+# General
+local.properties
+/bin
+/tmp
+*~
+*.swp
+
+# xs
+/xs/bin
+/xs/lib
+/xs/tmp
+/xs/sources/xslib/xsPlatform.h.gch
+
+# Freetype
+/libraries/freetype/src

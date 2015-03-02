@@ -1,0 +1,532 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+#if defined(__linux__) && defined(__ELF__)
+.section .note.GNU-stack,"",%progbits /* mark stack as non-executable */
+#endif
+
+.macro	defglobal name
+#if __clang__
+	.align 2
+	.global	_\name
+_\name:
+#else
+	.global \name
+\name:
+#endif
+.endm
+
+.macro defglobal_v7 name
+#if __clang__
+	.align 2
+	.global	_\name
+#else
+	.func \name
+	.global \name
+#endif
+.endm
+
+
+.macro defname name
+#if __clang__
+_\name:
+#else
+\name:
+#endif
+.endm
+
+.macro defendfunc
+#if __clang__
+	; nop
+#else
+	.endfunc
+#endif
+.endm
+
+.macro	defend
+#if __clang__
+	; nop
+#else
+	.end
+#endif
+.endm
+
+#if __clang__
+.macro	submis	op1, op2, op3
+	submi	\op1, \op2, \op3
+.endm
+#endif
+
+.macro fpu
+#if __clang__
+	;nop
+#else
+	.fpu neon
+#endif
+.endm
+
+.macro object_armv7a
+#if __clang__
+	;nop
+#else
+	.arch armv7a
+	.object_arch armv7a
+#endif
+.endm
+
+.text
+fpu
+object_armv7a
+.arm
+
+	width		.req		r0
+	pix			.req		r1
+	prev		.req		r2
+	s_bpp		.req		r2
+	uplen		.req		r3
+	val0		.req		r4
+	val1		.req		r5
+	s_prior		.req		r6
+
+defglobal upFilter_arm_v7_s
+	upFilter_loop:
+	vld1.8		{d0,d1},[pix]
+	vld1.8		{d2,d3},[prev]!
+	vadd.u8		q0,q0,q1
+	vst1.8		{d0,d1},[pix]!
+	subs		width,  width,#1
+	bne			upFilter_loop
+	bx 			lr
+
+defglobal subFilter3_arm_v7_s
+	STMFD		sp!, {r4-r6,lr}
+	mov			s_bpp,#3
+	sub			s_prior,pix,s_bpp
+	mov			uplen, #12
+	vld1.8		d27,[s_prior],s_bpp
+	vld1.8		{d22,d23}, [s_prior], uplen
+	subFilter3_loop:
+	pld			[s_prior,#0]
+	@pld			[pix,#0]
+	vadd.u8		d24,  d27,  d22
+	vext.8		d5,  d22, d23, #3
+	vst1.32		{d24[0]},[pix], s_bpp
+	vadd.u8		d25,  d24,  d5
+	vext.8		d6,  d22, d23, #6
+	vst1.32		{d25[0]},  [pix], s_bpp
+	vadd.u8		d26,  d25,  d6
+	vext.8		d7,  d23, d23, #1
+	vst1.32		{d26[0]},  [pix], s_bpp
+	vadd.u8		d27,  d26,  d7
+	vld1.8		{d22,d23}, [s_prior], uplen
+	vst1.32		{d27[0]},  [pix], s_bpp
+
+	subs		width, width,  #1
+	bne			subFilter3_loop
+	subFilter3_out:
+	LDMFD		sp!, {r4-r6,pc}
+
+defglobal subFilter4_align_arm_v7_s
+	STMFD		sp!, {r4-r6,lr}
+	sub			s_prior,pix,s_bpp
+	lsrs		uplen,width,#4
+	beq			subFilter4_align_tail
+
+	vld1.8		d3,[s_prior],s_bpp
+	subFilter4_align_loop:
+	vld4.32		{d4[],d5[],d6[],d7[]},[s_prior]!
+	pld			[s_prior,#0]
+	@pld			[pix,#0]
+	vadd.u8		d0,  d3,  d4
+	vadd.u8		d1,  d0,  d5
+	vadd.u8		d2,  d1,  d6
+	vadd.u8		d3,  d2,  d7
+	vst4.32		{d0[0],d1[0],d2[0],d3[0]},[pix]!
+	subs		uplen, 	uplen,  #1
+	bne			subFilter4_align_loop
+
+	sub			s_prior,s_prior,s_bpp
+	subFilter4_align_tail:
+	ands		width,width,#15
+	beq			subFilter4_align_out
+
+	subFilter4_align_tail_loop:
+	ldrb		val0,[pix]
+	ldrb		val1,[s_prior],#1
+	add			val0,val0,val1
+	strb		val0,[pix],#1
+
+	subs		width,width,#1
+	bne			subFilter4_align_tail_loop
+	subFilter4_align_out:
+	LDMFD		sp!, {r4-r6,pc}
+
+	a_w		.req	r0
+	a_pix	.req	r1
+	a_prev	.req	r2
+	a_bpp	.req	r3
+	a_prior	.req	r4
+	a_len	.req	r5
+	a_val0	.req	r6
+	a_val1	.req	r7
+	a_val2	.req	r3
+
+
+defglobal averageFilter3_arm_v7_s
+	STMFD		sp!, {r4-r5,lr}
+	sub			a_prior,a_pix,a_bpp
+	vmov.i8		d3,#0
+	mov			a_len,#12
+	vld1.8		d3,[a_prior],a_bpp
+	vld1.8		{d22,d23},[a_prior], a_len
+	averageFilter3_loop:
+	vld1.8		{d20,d21},[a_prev], a_len
+	@pld			[a_pix,#0]
+	pld			[a_prev,#0]
+	pld			[a_prior,#0]
+	vext.8		d5,d22,d23,#3
+	vhadd.u8	d0,d3,d20
+	vext.8		d17, d20, d21, #3
+	vadd.u8		d0,  d0,  d22
+	vext.8		d6,  d22, d23, #6
+	vhadd.u8	d1,  d0,  d17
+	vext.8		d18, d20, d21, #6
+	vadd.u8		d1,  d1,  d5
+	vext.8		d7,  d23, d23, #1
+	vld1.8		{d22,d23},    [a_prior], a_len
+	vst1.32		{d0[0]},  [a_pix], a_bpp
+	vhadd.u8	d2,  d1,  d18
+	vst1.32		{d1[0]},  [a_pix], a_bpp
+	vext.8		d19, d21, d21, #1
+	vadd.u8		d2,  d2,  d6
+	vhadd.u8	d3,  d2,  d19
+	vst1.32		{d2[0]},  [a_pix], a_bpp
+	vadd.u8		d3,  d3,  d7
+	vst1.32		{d3[0]},  [a_pix], a_bpp
+	subs		a_w, a_w, #1
+	bne			averageFilter3_loop
+	LDMFD		sp!, {r4-r5,pc}
+
+
+defglobal averageFilter4_arm_v7_s
+	STMFD		sp!, {r4-r7,lr}
+	sub			a_prior,a_pix,a_bpp
+	lsrs		a_len,a_w,#4
+	beq			averageFilter4_tail
+
+	vld1.u8		d3,[a_prior],a_bpp
+	averageFilter4_loop:
+	vld2.32		{d5[0],d6[0]},[a_prev]!
+	vld2.32		{d7[0],d8[0]},[a_prev]!
+	vld2.32		{d17[0],d18[0]},[a_prior]!
+	vld2.32		{d19[0],d20[0]},[a_prior]!
+	@pld			[a_pix,#0]
+	pld			[a_prev,#0]
+	pld			[a_prior,#0]
+
+	vhadd.u8	d0,d5,d3
+	vadd.u8		d0,d0,d17	
+	vhadd.u8	d1,d6,d0
+	vadd.u8		d1,d1,d18	
+	vhadd.u8	d2,d7,d1
+	vadd.u8		d2,d2,d19	
+	vhadd.u8	d3,d8,d2
+	vadd.u8		d3,d3,d20	
+
+	vst2.32		{d0[0],d1[0]},[a_pix]!
+	vst2.32		{d2[0],d3[0]},[a_pix]!
+
+	subs		a_len,a_len,#1
+	bne			averageFilter4_loop
+	sub			a_prior,a_prior,a_bpp
+
+	averageFilter4_tail:
+	ands		a_w,a_w,#15
+	beq			averageFilter4_out
+
+	averageFilter4_loop_tail:
+	ldrb		a_val0,[a_prev],#1
+	ldrb		a_val1,[a_prior],#1
+
+	add			a_val0,a_val0,a_val1
+	lsr			a_val0,a_val0,#1
+
+	ldrb		a_val2,[a_pix]
+	add			a_val2,a_val2,a_val0
+	strb		a_val2,[a_pix],#1
+
+	subs		a_w,a_w,#1
+	bne			averageFilter4_loop_tail
+
+	averageFilter4_out:
+	LDMFD		sp!, {r4-r7,pc}
+
+
+defglobal averageFilter4_align_arm_v7_s
+	STMFD		sp!, {r4-r7,lr}
+	sub			a_prior,a_pix,a_bpp
+	lsrs		a_len,a_w,#4
+	beq			averageFilter4_align_tail
+
+	vld1.u8		d3,[a_prior],a_bpp
+	averageFilter4_align_loop:
+	vld4.32		{d5[0],d6[0],d7[0],d8[0]},[a_prev,:128]!
+	vld4.32		{d17[0],d18[0],d19[0],d20[0]},[a_prior,:128]!
+
+	pld			[a_prev,#0]
+	pld			[a_prior,#0]
+	@pld			[a_pix,#0]
+	vhadd.u8	d0,d5,d3
+	vadd.u8		d0,d0,d17	
+	vhadd.u8	d1,d6,d0
+	vadd.u8		d1,d1,d18	
+	vhadd.u8	d2,d7,d1
+	vadd.u8		d2,d2,d19	
+	vhadd.u8	d3,d8,d2
+	vadd.u8		d3,d3,d20	
+	vst4.32		{d0[0],d1[0],d2[0],d3[0]},[a_pix,:128]!
+
+	subs		a_len,a_len,#1
+	bne			averageFilter4_align_loop
+
+	sub			a_prior,a_prior,a_bpp
+	averageFilter4_align_tail:
+	ands		a_w,a_w,#15
+	beq			averageFilter4_align_out
+
+	averageFilter4_align_loop_tail:
+	ldrb		a_val0,[a_prev],#1
+	ldrb		a_val1,[a_prior],#1
+
+	add			a_val0,a_val0,a_val1
+	lsr			a_val0,a_val0,#1
+
+	ldrb		a_val2,[a_pix]
+	add			a_val2,a_val2,a_val0
+	strb		a_val2,[a_pix],#1
+
+	subs		a_w,a_w,#1
+	bne			averageFilter4_align_loop_tail
+
+	averageFilter4_align_out:
+	LDMFD		sp!, {r4-r7,pc}
+
+	p_w			.req	r0
+	p_pix		.req	r1
+	p_prev		.req	r2
+	p_bpp		.req	r3
+	p_prior		.req	r4
+	p_prevPrior	.req	r5
+	a_v			.req	r6
+	b_v			.req	r7
+	c_v			.req	r8
+	pa_v		.req	r9
+	pb_v		.req	r10
+	pc_v		.req	r11
+	p			.req	r12
+	pix_v		.req	r3
+	p_len		.req	r12
+
+
+	.macro  paeth	rx,ra,rb,rc
+	vaddl.u8	q12, \ra, \rb           @ a + b
+	vaddl.u8	q15, \rc, \rc           @ 2*c
+	vabdl.u8	q13, \rb, \rc           @ pa
+	vabdl.u8	q14, \ra, \rc           @ pb
+	vabd.u16	q15, q12, q15           @ pc
+	vcle.u16	q12, q13, q14           @ pa <= pb
+	vcle.u16	q13, q13, q15           @ pa <= pc
+	vcle.u16	q14, q14, q15           @ pb <= pc
+	vand		q12, q12, q13           @ pa <= pb && pa <= pc
+	vmovn.u16	d28, q14
+	vmovn.u16	\rx, q12
+	vbsl		d28, \rb, \rc
+	vbsl		\rx, \ra, d28
+	.endm
+
+	.macro paeth_tail	align
+	paethFilter4_loop_tail_\align:
+	ldrb		a_v,[p_prior],#1
+	ldrb		b_v,[prev],#1
+	ldrb		c_v,[p_prevPrior],#1
+	ldrb		pix_v,[p_pix]
+
+	add			pc_v,a_v,b_v
+	sub			pc_v,pc_v,c_v,LSL #1
+	sub			pa_v,b_v,c_v
+	sub			pb_v,a_v,c_v
+
+	cmp			pa_v,#0
+	rsblt		pa_v,pa_v,#0	
+
+	cmp			pb_v,#0
+	rsblt		pb_v,pb_v,#0
+
+	cmp			pc_v,#0
+	rsblt		pc_v,pc_v,#0
+
+	cmp			pa_v,pb_v
+	cmple		pa_v,pc_v
+	ble			compare_end_a_\align
+
+	cmp			pb_v,pc_v
+	ble			compare_end_b_\align
+	mov			p,c_v
+	b			compare_end_\align
+
+	compare_end_b_\align:
+	mov			p,b_v
+	b			compare_end_\align
+	compare_end_a_\align:
+	mov			p,a_v
+
+	compare_end_\align:
+
+	add			p,p,pix_v
+	strb		p,[p_pix],#1
+
+	subs		p_w,p_w,#1
+	bne			paethFilter4_loop_tail_\align
+	.endm
+
+defglobal paethFilter3_arm_v7_s
+	STMFD		sp!, {r4-r5,lr}
+	sub			p_prevPrior,p_prev,p_bpp
+	sub			p_prior,p_pix,p_bpp
+
+	vld1.8		d3,[p_prior],p_bpp
+	vld1.8		d4,[p_prevPrior],p_bpp
+	mov			lr,  #12
+	vld1.8		{d22,d23},    [p_prior], lr
+	paethFilter3_loop:
+	vld1.8		{d20,d21},    [p_prevPrior], lr
+	pld			[p_prevPrior,#0]
+	pld			[p_prior,#0]
+	@pld			[p_pix,#0]
+	paeth		d0,  d3,  d20, d4
+	vext.8		d5,  d22, d23, #3
+	vadd.u8		d0,  d0,  d22
+	vext.8		d17, d20, d21, #3
+	paeth		d1,  d0,  d17, d20
+	vst1.32		{d0[0]},  [p_pix], p_bpp
+	vext.8		d6,  d22, d23, #6
+	vadd.u8		d1,  d1,  d5
+	vext.8		d18, d20, d21, #6
+	paeth		d2,  d1,  d18, d17
+	vext.8		d7,  d23, d23, #1
+	vld1.8		{d22,d23},    [p_prior], lr
+	vst1.32		{d1[0]},  [p_pix], p_bpp
+	vadd.u8		d2,  d2,  d6
+	vext.8		d19, d21, d21, #1
+	paeth		d3,  d2,  d19, d18
+	vst1.32		{d2[0]},  [p_pix], p_bpp
+	vmov		d4,  d19
+	vadd.u8		d3,  d3,  d7
+	vst1.32		{d3[0]},  [p_pix], p_bpp
+	subs		p_w, p_w, #1
+	bne			paethFilter3_loop
+	LDMFD		sp!, {r4-r5,pc}
+
+
+
+defglobal paethFilter4_arm_v7_s
+	STMFD		sp!, {r4-r12,lr}
+	sub			p_prevPrior,p_prev,p_bpp
+	sub			p_prior,p_pix,p_bpp
+
+	lsrs		p_len,p_w,#4
+	beq			paethFilter4_tail
+
+	vld1.u8		d3,[p_prior],p_bpp
+	vld1.u8		d16,[p_prevPrior],p_bpp
+paethFilter4_loop:
+	vld2.32		{d5[0],d6[0]},[p_prior]!
+	vld2.32		{d7[0],d8[0]},[p_prior]!
+	vld2.32		{d17[0],d18[0]},[p_prevPrior]!
+	vld2.32		{d19[0],d20[0]},[p_prevPrior]!
+	pld			[p_prevPrior,#0]
+	pld			[p_prior,#0]
+	@pld			[p_pix,#0]
+	paeth		d0,d3,d17,d16
+	vadd.u8		d0,d0,d5
+	paeth		d1,  d0,  d18, d17
+	vadd.u8		d1,  d1,  d6
+	paeth		d2,  d1,  d19, d18
+	vadd.u8		d2,  d2,  d7
+	paeth		d3,  d2,  d20, d19
+	vadd.u8		d3,  d3,  d8
+	vmov.u8		d16,d20
+	vst2.32		{d0[0],d1[0]},[p_pix]!
+	vst2.32		{d2[0],d3[0]},[p_pix]!
+	subs		p_len,p_len,#1
+	bne			paethFilter4_loop
+	mov			prev,p_prevPrior
+	sub			p_prior,p_prior,p_bpp
+	sub			p_prevPrior,p_prevPrior,p_bpp
+
+	paethFilter4_tail:
+	ands		p_w,p_w,#15
+	beq			paethFilter4_out
+
+	paeth_tail	unalign
+
+	paethFilter4_out:
+	LDMFD		sp!, {r4-r12,pc}
+
+defglobal paethFilter4_align_arm_v7_s
+	STMFD		sp!, {r4-r12,lr}
+	sub			p_prevPrior,p_prev,p_bpp
+	sub			p_prior,p_pix,p_bpp
+	lsrs		p_len,p_w,#4
+	beq			paethFilter4_align_tail
+
+	vld1.u8		d3,[p_prior],p_bpp
+	vld1.u8		d16,[p_prevPrior],p_bpp
+	paethFilter4_align_loop:
+	vld4.32		{d5[0],d6[0],d7[0],d8[0]},[p_prior]!
+	vld4.32		{d17[0],d18[0],d19[0],d20[0]},[p_prevPrior]!
+	pld			[p_prevPrior,#0]
+	pld			[p_prior,#0]
+	@pld			[p_pix,#0]
+	paeth		d0,  d3,  d17, d16
+	vadd.u8		d0,  d0,  d5
+	paeth		d1,  d0,  d18, d17
+	vadd.u8		d1,  d1,  d6
+	paeth		d2,  d1,  d19, d18
+	vadd.u8		d2,  d2,  d7
+	paeth		d3,  d2,  d20, d19
+	vadd.u8		d3,  d3,  d8
+	vmov.u8		d16,d20
+
+	vst4.32		{d0[0],d1[0],d2[0],d3[0]},[p_pix,:128]!
+	subs		p_len,p_len,#1
+	bne			paethFilter4_align_loop
+	mov			prev,p_prevPrior
+	sub			p_prior,p_prior,p_bpp
+	sub			p_prevPrior,p_prevPrior,p_bpp
+
+paethFilter4_align_tail:
+	ands		p_w,p_w,#15
+	beq			paethFilter4_align_out
+
+	paeth_tail	align
+
+paethFilter4_align_out:
+	LDMFD		sp!, {r4-r12,pc}
+
+defend
+#endif

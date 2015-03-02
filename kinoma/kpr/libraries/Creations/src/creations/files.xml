@@ -1,0 +1,811 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	<require id="CREATIONS" path="creations/creations"/>
+	<require id="CDIALOG" path="creations/dialog"/>	
+	<require id="SKEYBOARD" path="creations/keyboard"/>
+   	<require id="KEYBOARD" path="mobile/keyboard"/>
+   	<require id="BUTTONS" path="controls/buttons"/>
+	<require id="CONTROL" path="mobile/control"/>
+    <require id="SCREEN" path="mobile/screen"/>
+    <require id="DIALOG" path="mobile/dialog"/>
+    <require id="MODEL" path="mobile/model"/>
+    <require id="SCROLLER" path="mobile/scroller"/>
+    <require id="TOOL" path="mobile/tool"/>
+   	<require id="LOCALE" path="locale"/>
+ 	<require id="FINGERS" path="fingers"/>
+	<require id="TOUCH_STATES" path="pictureTouchStates"/>
+	
+
+	<variable id="listItemHeight" value="40"/>
+	<variable id="listDeleteIconSize" value="40"/>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- ASSETS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+    <texture id="fileIconsTexture" small="../assets/files-strip-32x32.png"/>
+    <skin id="fileIconsSkin" texture="fileIconsTexture" x="0" y="0" width="32" height="32" aspect="fit">
+    	<variants offset="32"/>
+    </skin>
+    <texture id="editModeTexture" small="../assets/files-header-pencil.png"/>
+    <skin id="editModeSkin" texture="editModeTexture" x="0" y="0" width="32" height="32">
+    	<states offset="32"/>
+    </skin>
+    <texture id="deleteIconTexture" small="../assets/files-header-trash.png"/>
+    <skin id="deleteIconSkin" texture="deleteIconTexture" x="0" y="0" width="32" height="32">
+    	<states offset="32"/>
+    </skin>
+	<skin id="whiteSkin" color="white"/>
+	<skin id="blackSkin" color="black"/>
+	<skin id="volumeHeaderSkin" color="#6cb535"/>
+	<skin id="dividerLineSkin" color="#e2e2e2"/>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- STYLES -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<style id="itemNameStyle" font="24px" color="black" align="left,middle" lines="1"/>
+	<style id="itemDetailsStyle" font="19px" color="black" align="left,middle" leading="-15" lines="1"/>
+	<style id="textFileStyle" font="18px Fira Mono" color="black" align="left" lines="all">
+		<margins left="4" right="4"/>
+	</style>
+	<style id="binaryFileStyle" font="18px Fira Mono" color="black" align="middle,center" lines="all">
+		<margins left="1" right="1"/>
+	</style>
+	<style id="noItemsStyle" font="bold 20px" color="gray" align="middle,center" lines="1"/>
+	<style id="volumeHeaderStyle" font="22px" color="white" align="left,middle" lines="1">
+		<margins left="10" right="10"/>
+	</style>
+	<style id="volumeNameStyle" font="24px" color="black" align="left,middle" lines="1"/>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- HANDLERS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<handler path="/directory">
+		<behavior like="MODEL.ScreenBehavior"><![CDATA[
+			function hasSelection(data, delta) {
+				var selection = data.selection + delta;
+				return (0 <= selection) && (selection < data.items.length)
+			}
+			function getSelection(data, delta) {
+				data.selection += delta;
+				return data.items[data.selection];
+			}
+			function onDescribe(query, selection) {
+				var path = selection.path + selection.name + "/";
+				var data = {
+					Screen: FilesScreen,
+					relativePathTitleFrom: selection.relativePathTitleFrom,
+					items: null,
+					path: path,
+					item: selection,
+					editing: false,
+					editable: selection.editable,
+					more: false,
+					scroll: {
+						x: 0,
+						y: 0
+					},
+					selection: -1,
+				};
+				if (selection.relativePathTitleFrom)
+					data.title = path.slice(selection.relativePathTitleFrom.length, -1);
+				else
+					data.title = pathToTitle(path);
+				if (selection.editable)
+					data.ToolButton = FilesScreenToolButton;
+				if ("skin" in selection)
+					data.skin = selection.skin;
+				if ("style" in selection)
+					data.style = selection.style;
+				if ("extensions" in selection)
+					data.extensions = selection.extensions;
+				return data;
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/file">
+		<behavior like="MODEL.ScreenBehavior"><![CDATA[
+			function hasSelection(data, delta) {
+				var selection = data.selection + delta;
+				return (0 <= selection) && (selection < data.items.length)
+			}
+			function getSelection(data, delta) {
+				data.selection += delta;
+				return data.items[data.selection];
+			}
+			function onDescribe(query, selection) {
+				var data = {
+					Screen: FileScreen,
+					title: pathToTitle(selection.name),
+					titleStyle : CREATIONS.whiteDynamicHeaderTitleStyle,
+					item: selection,
+					scroll: {
+						x: 0,
+						y: 0
+					},
+					selection: -1,
+				};
+				if (selection.editable)
+					data.ToolButton = FileScreenToolButton;
+				if ("skin" in selection) {
+					data.skin = selection.skin;
+					var colors = data.skin.fillColors;
+					var white = "#ffffff";
+					if (white == colors[0] && white == colors[1] && white == colors[2] && white == colors[3])
+						data.titleStyle = CREATIONS.blackDynamicHeaderTitleStyle
+				}
+				if ("style" in selection)
+					data.style = selection.style;
+				return data;
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/iterateDirectory">
+		<behavior like="MODEL.CommandBehavior"><![CDATA[
+			function onQuery(handler, query) {
+				var items = [];
+				try {
+					var iterator = new Files.Iterator(query.path), info;
+					while (info = iterator.getNext())
+						items.push(info);
+					items.sort(this.compareNames);
+				}
+				catch (e) {
+				}
+				handler.message.responseText = JSON.stringify(items);
+			}
+			function compareNames(a, b) {
+				return a.path.toLowerCase().compare(b.path.toLowerCase());
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/confirm">
+        <behavior like="MODEL.DialogBehavior">
+            <method id="onDescribe" params="query">
+                return {
+                    Dialog: CDIALOG.Box,
+                    action: "/delete",
+                    items: [
+						{
+                            Item: DIALOG.Caption,
+                            string: query.message
+						},
+                    ],
+                    ok: "OK",
+                    cancel: "Cancel",
+                };
+            </method>
+        </behavior>
+    </handler>
+
+	<handler path="/delete">
+		<behavior like="MODEL.CommandBehavior"><![CDATA[
+			function onQuery(handler, query) {
+				application.distribute("onItemDeleting", query.type, query.path, query.name);
+				application.distribute("onItemDelete", query.type, query.path, query.name);
+			}
+		]]></behavior>
+	</handler>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- BEHAVIORS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<behavior id="FileListBehavior" like="SCREEN.ListBehavior"><![CDATA[
+		function onCreate(list, data) {
+			if (this.hasDirtyItems(data.items)) {
+				data.items = null;
+				data.selection = -1;
+			}
+			this.audioExtensions = ["mp3","m4a","wav"];
+			this.imageExtensions = ["bmp","gif","jpg","jpeg","png"];
+			this.videoExtensions = ["flv","mp4","mov","qt"];
+			this.textExtensions = ["c","cfg","conf","htm","html","js","json","log","script","sh","txt","xml","xs"];
+
+			SCREEN.ListBehavior.prototype.onCreate.call(this, list, data);
+		}
+		function addItemLine(list, item) {
+			list.add(new FileLine(item));
+		}
+		function addBusyLine(list, item) {
+			list.add(new Content);
+		}
+		function addEmptyLine(list) {
+			list.add(new EmptyLine);
+		}
+		function createMessage(list, data) {
+			var message = new Message("/iterateDirectory?path=" + encodeURIComponent(data.path));
+			return message;
+		}
+		function getItems(list, message, results) {
+			var data = this.data;
+			var now = Date.now();
+			var today = LOCALE.today();
+			var items = [];
+			for (var i = 0, c = results.length; i < c; ++i) {
+				var item = results[i];
+				if (Files.linkType == item.type)
+					continue;
+				if ("extensions" in data) {
+					var extension = this.getExtension(item.path);
+					if (!extension || !data.extensions.some(this.matchExtension, extension)) {
+						continue;
+					}
+				}
+				item.name = item.path;
+				item.path = data.path;
+				item.thumbnail = "";
+				item.dirty = false;
+				item.editable = data.editable;
+				item.relativePathTitleFrom = ("relativePathTitleFrom" in data) ? data.relativePathTitleFrom : "";
+				if ("style" in data)
+					item.style = data.style;
+				if ("skin" in data)
+					item.skin = data.skin;
+				if (item.type == Files.fileType) {
+					item.extension = this.getExtension(item.name);
+					if (this.isVideo(item.extension)) {
+						item.type = "video";
+						item.variant = 4;
+					}
+					else if (this.isAudio(item.extension)) {
+						item.type = "audio";
+						item.variant = 2;
+					}
+					else if (this.isImage(item.extension)) {
+						item.type = "image";
+						item.thumbnail = item.path + item.name;
+						item.variant = 5;
+					}
+					else if (this.isText(item.extension)) {
+						item.type = "text";
+						item.variant = 1;
+					}
+					else if (!this.sniff(item)) {
+						item.type = "document";
+						item.variant = 0;
+					}
+					var info = Files.getInfo(item.path + item.name);
+					if (info) {
+						item.size = LOCALE.formatBytes(info.size);
+						item.date = LOCALE.formatDateTime(new Date(info.date), today, 0, now);
+					}
+					else {
+						item.size = item.date = "";
+					}
+					if (data.editing)
+						setEditAction(item)
+					else
+						item.action = "/file";
+					items.push(item);
+				}
+				else if (item.type == Files.directoryType) {
+					item.type = "directory";
+					item.variant = 3;
+					item.size = "";
+					item.date = "";
+					if (data.editing)
+						setEditAction(item)
+					else
+						item.action = "/directory";
+					items.push(item);
+				}
+			}
+			return items;
+		}
+		function hasMore(list, message, result) {
+			return false;
+		}
+		function onItemDelete(list, type, path, name) {
+			var pathName = path + name;
+			if ("directory" == type)
+				Files.deleteDirectory(pathName + '/', true);
+			else
+				Files.deleteFile(pathName);
+			this.reload(list);
+		}
+		function matchExtension(extension) {
+			return this.toLowerCase() == extension;
+		}
+		function isVideo(extension) {
+			return this.videoExtensions.some(this.matchExtension, extension);
+		}
+		function isAudio(extension) {
+			return this.audioExtensions.some(this.matchExtension, extension);
+		}
+		function isImage(extension) {
+			return this.imageExtensions.some(this.matchExtension, extension);
+		}
+		function isText(extension) {
+			return this.textExtensions.some(this.matchExtension, extension);
+		}
+		function sniff(item) {
+			return false; // @@ need to find a quicker implementation
+			var pathName = item.path + item.name;
+			var identified = false;
+			try {
+				var str = Files.readText(pathName);
+				if (str && (0 == str.indexOf("<?xml"))) {
+					item.type = "text";
+					item.variant = 1;
+					identified = true;
+				}
+			}
+			catch(e) {
+			}
+			return identified;
+		}
+		function isDirty(item) {
+			return item.dirty;
+		}
+		function hasDirtyItems(items) {
+			if (!items) return false;
+			return items.some(this.isDirty);
+		}
+		function getExtension(file) {
+			var extension = "";
+			try {
+				var dot = file.lastIndexOf(".");
+				extension = (dot > 0) ? file.slice(dot + 1) : "";
+			}
+			catch(e) {
+			}
+			return extension;
+		}
+	]]></behavior>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- LAYOUTS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<container id="Screen" left="0" right="0" top="0" bottom="0">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+			]]></method>	
+			<method id="getScreen" params="container"><![CDATA[
+				return container;
+			]]></method>	
+		</behavior>
+	</container>
+
+	<label id="EmptyLine" left="listDeleteIconSize" right="0" height="50" style="noItemsStyle" string="'No Items'"/>
+
+	<media id="AVContainer" left="0" right="0" top="0" bottom="0" url="$">
+		<behavior><![CDATA[
+			function onLoaded(media) {
+				media.start();
+				media.bubble("onItemLoaded");
+			}
+			function onItemDeleting(media) {
+				media.stop();
+				media.url = null;
+			}
+			function onFinished(media) {
+				media.time = 0;
+				media.start();
+			}
+		]]></behavior>
+	</media>
+	
+	<container id="PictureContainer" left="0" right="0" top="0" bottom="0">
+		<behavior like="FINGERS.TouchBehavior"><![CDATA[
+			function onCreate(container, data) {
+				FINGERS.TouchBehavior.prototype.onCreate.call(this, container, data);		
+				this.data = data;
+				this.loaded = false;
+				container.active = true;
+				container.exclusiveTouch = true;
+				container.multipleTouch = true;
+			}
+			function buildTouchStateMachine(container) {
+            	var allowRotation = true;												
+				return TOUCH_STATES.buildPictureTouchStateMachine(container, container.picture, allowRotation);
+			}
+			function onIdleInteraction(container) {
+				this.data.dynamicHeader.distribute("collapseHeader");
+			}
+			function onPhotoViewChanged(container, imageIsFitted) {
+				if (imageIsFitted)
+					this.data.dynamicHeader.distribute("expandHeader");
+			}
+		]]></behavior>
+		<picture name="picture" url="$.pathName" aspect="draw">
+			<behavior><![CDATA[
+				function onCreate(picture) {
+					this.loaded = false;
+				}
+				function onLoaded(picture) {
+					if (!picture.ready) return;
+					
+					picture.bubble("onItemLoaded");
+					picture.opacity = 0;
+					this.loaded = true;
+					this.fitPicture(picture);
+				}
+				function fitPicture(picture) {
+					if (this.loaded) {
+						var fitWidth, fitHeight;
+						if (picture.width <= picture.container.width && picture.height <= picture.container.height) {
+							this.fitType = "fit";
+							fitWidth = picture.width;
+							fitHeight = picture.height;
+						}
+						else {
+							this.fitType = "fill";
+							picture.coordinates = {left: 0, right: 0, top: 0, bottom: 0};
+						}
+						TOUCH_STATES.fitPicture(picture, 0, this.fitType, fitWidth, fitHeight);
+					}
+				}
+				function onItemDeleting(picture) {
+					picture.url = null;
+				}
+			]]></behavior>
+		</picture>
+	</container>
+
+	<container id="GenericFileContainer" left="0" right="0" top="0" bottom="0" style="binaryFileStyle">
+		<behavior><![CDATA[
+			function onCreate(container, data) {
+				this.data = data;
+				this.data.HEX.string = this.toHex(this.data.chunk);
+			}
+			function onDisplayed(container) {
+				container.bubble("onItemLoaded");
+			}
+			function onUndisplayed(container) {
+				this.data.chunk.free();
+			}
+			function toHex(chunk) {
+				var output = "0000:  ";
+				var ascii = "";
+				var hexBytesPerLine = 8;
+				var hexBytesInLine = 0;
+				var lines = 0;
+				var length = (chunk.length < 65536 ? chunk.length : 65536);
+                var lineCount = Math.round((length + hexBytesPerLine - 1) / hexBytesPerLine);
+                var temp = new Array(lineCount);
+				for (var i = 0; i < length; i++) {
+					var byte = chunk.peek(i);
+					var hex = byte.toString(16);
+					if (byte < 16)
+						hex = '0' + hex;
+					++hexBytesInLine;
+					output += hex + " ";
+					ascii += (byte > 31 && byte < 127 ? String.fromCharCode(byte) : '.');
+					if (hexBytesInLine == hexBytesPerLine) {
+                        temp[lines] = output + "  " + ascii;
+						++lines;
+						hexBytesInLine = 0;
+						output = ("0000" + (hexBytesPerLine * lines).toString(16)).slice(-4) + ":  ";
+						ascii = "";
+					}
+				}
+				if (0 != hexBytesInLine) {
+					for (var i = 0, length = hexBytesPerLine - ascii.length + 1; i < length; ++i)
+						ascii += " ";
+					var leftover = hexBytesPerLine - hexBytesInLine;
+					for (var i = 0, length = (leftover * 2) + (leftover - 1) + 1; i < length; ++i)
+						output += " ";
+                    temp[lines] = output + "  " + ascii;
+				}
+
+				return temp.join("\n");
+			}
+		]]></behavior>
+		
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<text anchor="HEX" left="0" right="0"/>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+		</scroller>
+	</container>
+
+
+	<label id="CodeViewerTextLine" left="0" height="$.height" string="$.text"/>
+
+	<container id="CodeViewerContainer" left="0" right="0" top="0" bottom="0">
+		<behavior><![CDATA[
+			function onDisplayed(container) {
+				container.bubble("onItemLoaded");
+			}
+		]]></behavior>
+		<scroller anchor="DYNAMIC_SCROLLER" left="0" right="0" top="0" bottom="0" like="SCROLLER.VerticalScroller" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<scroller left="0" right="0" top="0" bottom="undefined" like="SCROLLER.HorizontalScroller">
+				<column left="0" top="0" style="$.style">
+					<behavior><![CDATA[
+						function onCreate(column, data) {
+							this.data = data;
+						}
+						function onDisplaying(column) {
+							//var text = this.data.text.replace(/\r\n?/g, "\n");
+							var text = this.data.text;	// FogBugz 109111 - text replace takes too long and doesn't seem necessary on K4
+							var lines = text.split("\n");
+							var c = lines.length;
+							if (c && (0 == lines[c-1].length))
+								--c;
+							var lineHeight = this.data.style.measure(' ').height;
+							for (var i = 0; i < c; ++i) {
+								column.add(new CodeViewerTextLine({text: lines[i], height: lineHeight}));
+							}
+						}
+						function onDisplayed(column) {
+							// @@ disable until we can get the header to draw correctly in the collapsed mode
+							// this.data.DYNAMIC_SCROLLER.scrollTo(0, column.height);
+							// this.data.DYNAMIC_SCROLLER.delegate("updateScrolled");
+						}
+					]]></behavior>
+				</column>
+				<content like="SCROLLER.HorizontalScrollbar">
+					<behavior like="SCROLLER.HorizontalScrollbarBehavior">
+						<method id="onScrolled" params="scrollbar"><![CDATA[
+							SCROLLER.HorizontalScrollbarBehavior.prototype.onScrolled.call(this, scrollbar);
+							var container = scrollbar.container.container;
+							scrollbar.y = container.y + container.height - scrollbar.height;
+						]]></method>	
+					</behavior>
+				</content>
+			</scroller>
+			<content like="SCROLLER.VerticalScrollbar"/>
+		</scroller>
+	</container>
+
+	<container id="FileScreenToolButton" like="CREATIONS.ToolButton" skin="deleteIconSkin">
+		<behavior like="CREATIONS.ToolButtonBehavior"><![CDATA[
+			function onTap(container) {
+				var item = this.data.item;
+				var prompt = "Delete '" + item.name + "'?";
+				var url = "/confirm?" + serializeQuery({message: prompt, type: item.type, path: item.path, name: item.name});
+				container.invoke(new Message(url));
+			}
+		]]></behavior>
+	</container>
+			
+	<container id="FileScreen" like="Screen">
+		<content top="0" left="0" right="0" height="32" skin="whiteSkin"/>
+   		<container anchor="BODY" left="0" right="0" top="32" bottom="0" skin="whiteSkin">
+			<behavior><![CDATA[
+				function onCreate(container, data) {
+					this.data = data;
+				}
+				function onDisplaying(container) {
+					if ("skin" in this.data) {
+						container.skin = this.data.skin;
+						container.previous.skin = this.data.skin;
+					}
+				}
+				function onDisplayed(container) {
+					var type = this.data.item.type;
+					var pathName = this.data.item.path + this.data.item.name;
+					if ("image" == type)
+						container.add(new PictureContainer({ pathName : pathName, dynamicHeader : this.data.HEADER }));
+					else if ("audio" == type || "video" == type)
+						container.add(new AVContainer(pathName));
+					else if ("text" == type) {
+						var text = Files.readText(pathName);
+						container.add(new CodeViewerContainer({text: text, style: ("style" in this.data ? this.data.style : textFileStyle), ANIMATOR : this.data.ANIMATOR}));
+					}
+					else {
+						var chunk = Files.readChunk(pathName);
+						container.add(new GenericFileContainer({title: this.data.title, chunk: chunk, ANIMATOR : this.data.ANIMATOR }));
+					}
+				}
+				function onItemLoaded(container) {
+					container.remove(this.data.BUSY);
+				}
+				function onItemDelete(container, type, path, name) {
+					var pathName = path + name;
+					Files.deleteFile(pathName);
+					this.data.item.dirty = true;
+					container.invoke(new Message("/back"));
+				}
+			]]></behavior>
+			<picture anchor="BUSY" like="CREATIONS.BusyPicture"/>
+		</container>
+		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<container id="FileLine" left="0" right="0" height="listItemHeight" active="true" style="itemNameStyle" skin="THEME.lineSkin">
+		<behavior like="SCREEN.ListItemBehavior"><![CDATA[
+			function onTap(line) {
+				if (line.container.behavior.data.editing)
+					SCREEN.ListItemBehavior.prototype.onTouchCancelled.call(this, line);
+				SCREEN.ListItemBehavior.prototype.onTap.call(this, line);
+			}
+		]]></behavior>
+		<line left="0" right="0">
+			<container left="0" width="listDeleteIconSize">
+				<content left="4" width="32" height="32" skin="fileIconsSkin" variant="6"/>
+			</container>
+			<container left="6" width="205">
+				<line left="0" right="0">
+					<container width="32" height="32">
+						<content skin="fileIconsSkin" variant="$.variant"/>
+						<thumbnail left="0" right="0" top="0" bottom="0" url="$.thumbnail">
+							<behavior><![CDATA[
+								function onLoaded(thumbnail) {
+									if (thumbnail.ready)
+										thumbnail.previous.visible = false;
+								}
+							]]></behavior>
+						</thumbnail>
+					</container>
+					<text left="4" right="2" string="$.name"/>
+				</line>
+			</container>
+			<text left="0" width="110" top="2" bottom="0">
+				<block style="itemDetailsStyle" string="$.date"/>
+				<block style="itemDetailsStyle" string="$.size"/>
+			</text>
+		</line>
+		<content left="0" right="0" bottom="0" height="1" skin="dividerLineSkin"/>
+	</container>
+
+	<container id="FilesScreenToolButton" like="CREATIONS.ToolButton" skin="editModeSkin">
+		<behavior like="CREATIONS.ToolButtonBehavior"><![CDATA[
+			function onDisplayed(container) {
+				container.visible = ("items" in this.data && 0 != this.data.items.length);
+			}
+			function onTap(container) {
+				if (this.data.editing) {
+					container.state = 1;
+					application.distribute("onEditEnd");
+				}
+				else {
+					container.state = 3;
+					application.distribute("onEditBegin");
+				}
+				this.data.editing = !this.data.editing;
+			}
+		]]></behavior>
+	</container>
+
+	<container id="FilesScreen" like="Screen">
+		<content left="0" top="0" right="0" height="32" skin="whiteSkin"/>
+		<container anchor="BODY" left="0" right="0" top="32" bottom="0" skin="whiteSkin">
+			<behavior><![CDATA[
+				function onCreate(container, data) {
+					this.data = data;
+				}
+				function onEditBegin(container) {
+					this.data.items.forEach(setEditAction);
+					container.run(new ListEditTransition, this.data.LIST, 1);
+				}
+				function onEditEnd(container) {
+					this.data.items.forEach(clearEditAction);
+					container.run(new ListEditTransition, this.data.LIST, 0);
+				}
+				function onScreenEnding(container) {
+					if (this.data.editing) {
+						this.data.LIST.coordinates = {left: -listDeleteIconSize, right: 0, top: 0};
+						this.data.editing = false;
+					}
+				}
+			]]></behavior>
+     
+			<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+				<column anchor="LIST" left="-listDeleteIconSize" behavior="FileListBehavior" right="0" top="0"/>
+				<content like="SCROLLER.VerticalScrollbar"/>
+			</scroller>
+		</container>
+		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<label id="VolumeHeaderLine" left="0" right="0" height="24" style="volumeHeaderStyle" skin="volumeHeaderSkin" string="$"/>
+
+	<container id="VolumeNameLine" left="0" right="0" height="40" active="true" skin="THEME.lineSkin" behavior="SCREEN.ListItemBehavior">
+		<line left="0" right="0">
+			<content left="4" width="32" height="32" skin="fileIconsSkin" variant="$.variant"/>
+			<label left="5" right="0" top="0" bottom="0" style="volumeNameStyle" string="$.name"/>
+		</line>
+		<content left="0" right="0" bottom="0" height="1" skin="dividerLineSkin"/>
+	</container>
+
+	<container id="VolumesScreen" left="0" right="0" top="0" bottom="0" skin="whiteSkin">
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" bottom="0" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior"><![CDATA[
+					function addLines(list, items, more) {
+						list.add(new VolumeHeaderLine("Available Volumes"));
+						for (var i = 0, c = items.length; i < c; ++i) {
+							var item = items[i];
+							var path = item.path;
+							if ("/" != path.charAt(path.length-1))
+								path += "/"
+							item.action = this.data.action + "?" + serializeQuery({path: path, url: mergeURI("file://", path)});
+							item.variant = item.removable ? 8 : 7;
+							list.add(new VolumeNameLine(item));
+						}
+					}
+					function load(list, more) {
+						var volumes = [];
+						var platform = system.platform;
+						var iterator = new Files.VolumeIterator;
+						var volume;
+						while (volume = iterator.getNext()) {
+							if ("linux" == platform) {
+								volume.removable = (-1 != volume.path.indexOf("/mnt/SD")) ? true : false;
+							}
+							else {
+								var info = Files.getVolumeInfo(volume.path);
+								volume.removable = info.removable;
+							}
+							if ("rootfs" == volume.name)
+								volume.name = "Internal";
+							else
+								volume.name = volume.path;
+							volumes.push(volume);
+						}
+						this.data.items = volumes;
+						this.addLines(list, volumes, more);
+					}
+				]]></behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+		</scroller>
+		<container like="CREATIONS.DynamicHeader"/>
+	</container>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- TRANSITIONS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<transition id="ListEditTransition" duration="200"><![CDATA[
+		function onBegin(body, list, flag) {
+			this.list = list;
+			this.flag = flag;
+		}
+		function onEnd(body, list, flag) {
+		}
+		function onStep(fraction) {
+			if (this.flag) {
+				this.list.coordinates = {left: (-listDeleteIconSize * Math.quadEaseIn(1 - fraction)), right: 0, top: 0};
+			}
+			else {
+				this.list.coordinates = {left: (-listDeleteIconSize * Math.quadEaseOut(fraction)), right: 0, top: 0};
+			}
+		}
+	]]></transition>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- MODEL -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+    <script>
+		var pathToTitle = function(path) {
+			var title = (0 == path.indexOf("file://")) ? path.slice(7) : path;
+			title = title + '  ';
+			return title;
+		}
+		var setEditAction = function(item) {
+			var prompt = "Delete '" + item.name + "'?";
+			item.action = "/confirm?" + serializeQuery({message: prompt, type: item.type, path: item.path, name: item.name});
+		}
+		var clearEditAction = function(item) {
+			item.action = ("directory" == item.type ? "/directory" : "/file");
+		}
+    </script>
+</module>

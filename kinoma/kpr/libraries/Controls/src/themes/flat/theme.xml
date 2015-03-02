@@ -1,0 +1,125 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	
+	<script><![CDATA[
+		var DynamicSkin = function(texture, disabledEffect, enabledEffect, selectedEffect, variantWidth, tiles, margins, aspect) {
+			var saveEffect = texture.effect;
+			var srcScale = texture.scale;
+			var srcWidth = texture.width;
+			var srcHeight = texture.height;
+			var dstScale = screenScale;
+			var dstWidth = Math.round(srcWidth / dstScale);
+			var dstHeight = Math.round(srcHeight / dstScale);
+			var port = new Port({width: dstWidth, height: dstHeight * 3});
+			port.behavior = {
+				onDraw: function(port) {
+					port.effect = disabledEffect;
+					port.drawImage(texture, 0, 0, dstWidth, dstHeight, 0, 0, srcWidth, srcHeight);
+					port.effect = enabledEffect;
+					port.drawImage(texture, 0, dstHeight, dstWidth, dstHeight, 0, 0, srcWidth, srcHeight);
+					port.effect = selectedEffect;
+					port.drawImage(texture, 0, dstHeight << 1, dstWidth, dstHeight, 0, 0, srcWidth, srcHeight);
+				}
+			}
+			var result = new Texture(port, srcScale);
+			var height = Math.round(srcHeight / srcScale);
+			var width = (variantWidth == undefined) ? height : Math.round(variantWidth / scale);
+			Skin.call(this, result, {x:0, y:0, width:height, height:height}, width, height, tiles, margins, aspect);
+			result.effect = saveEffect;
+		};
+		DynamicSkin.prototype = Skin.prototype;
+		
+		exports.DynamicSkin = DynamicSkin;
+	]]></script>
+
+	<skin id="whiteSkin" color="white"/>
+	
+	<!-- BUTTON -->
+
+	<effect id="disabledEffect">
+		<colorize color="#9d9d9d"/>
+	</effect>
+	<effect id="enabledEffect">
+		<colorize color="gray"/>
+	</effect>
+	<effect id="selectedEffect">
+		<colorize color="#88a4ee"/>
+	</effect>
+	
+	<style id="buttonStyle" font="bold 20px" align="center">
+		<states colors="#9d9d9d,gray,#88a4ee"/>
+	</style>
+
+	<texture id="buttonTexture" large="assets/core-button-2x.png"/>
+	
+	<variable id="buttonSkin" value="new DynamicSkin( buttonTexture, disabledEffect, enabledEffect, selectedEffect, undefined,
+															{ left : 10, top : 10, right : 10, bottom : 10 })"/>
+	
+	<style id="buttonStyle" font="bold 20px" align="center">
+		<states colors="black,black,black"/>
+	</style>
+
+	<style id="labeledButtonStyle" font="bold 20px" align="left">
+		<states colors="gray,gray,#88a4ee"/>
+	</style>
+
+	<texture id="glyphTexture" large="assets/core-glyph-strip-60px.png"/>
+	<variable id="glyphSkin" value="new DynamicSkin(glyphTexture, disabledEffect, enabledEffect, selectedEffect)"/>
+	<script>
+		exports.CHECKBOX_UNSELECTED = 0;
+		exports.CHECKBOX_SELECTED = 1;
+		exports.RADIO_UNSELECTED = 2;
+		exports.RADIO_SELECTED = 3;
+	</script>
+	
+	
+	<!-- SLIDER -->
+	
+	<texture id="mainTexture" small="assets/main.png"/>
+	
+	<skin id="horizontalSliderBarSkin" texture="mainTexture" x="45" y="50" width="60" height="50">
+		<tiles left="15" right="25"/>
+		<states offset="50"/>
+	</skin>
+	<skin id="horizontalSliderButtonSkin" texture="mainTexture" x="110" y="50" width="30" height="50">
+		<states offset="50"/>
+	</skin>
+	
+	<skin id="verticalSliderBarSkin" texture="mainTexture" x="200" y="95" width="50" height="60">
+		<tiles top="15" bottom="25"/>
+		<states offset="50"/>
+	</skin>
+	<skin id="verticalSliderButtonSkin" texture="mainTexture" x="250" y="110" width="50" height="30">
+		<states offset="50"/>
+	</skin>
+	
+	<!-- SWITCH -->
+	
+	<texture id="switchButtonTexture" large="assets/toggle-switch.png"/>
+
+    <skin id="switchBarSkin" texture="switchButtonTexture" x="100" y="0" width="60" height="40">
+        <tiles left="20" right="20"/>
+        <states offset="40"/>
+    </skin>
+    <skin id="switchButtonSkin" texture="switchButtonTexture" x="160" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    <skin id="switchTextSkin" texture="switchButtonTexture" x="200" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    
+</module>

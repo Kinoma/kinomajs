@@ -1,0 +1,114 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+    <function id="newInstance">
+        <![CDATA[
+            return new MenuBar();
+        ]]>
+    </function>
+
+    <class id="MenuBar">
+        <field id="menus"/>
+    
+        <constructor>
+            <![CDATA[
+                this.menus = new Array();
+            ]]>
+        </constructor>
+        
+        <method id="addMenu" params="title">
+            <![CDATA[
+                var menu = new Menu( title );
+                
+                this.menus.push( menu );
+            
+                return menu;
+            ]]>
+        </method>
+    </class>
+    
+    <class id="Menu">
+        <field id="title"/>
+        <field id="items"/>
+        <field id="command"/>
+    
+        <constructor params="title, command">
+            <![CDATA[
+                this.title = title;
+                this.command = command;
+                this.items = null;
+            ]]>
+        </constructor>
+        
+        <method id="clearMenuItems">
+            <![CDATA[
+                this.items = null;
+            ]]>
+        </method>
+        
+        <method id="addMenuItem" params="title, command, key, data">
+            <![CDATA[
+                var item = title != null ? new MenuItem( title, command, key, data ) : null;
+
+                if( this.items == null )
+                    this.items = new Array();
+                
+                this.items.push( item );
+                
+                return item;
+            ]]>
+        </method>
+        
+        <method id="addMenu" params="title, command">
+            <![CDATA[
+                var menu = new Menu( title, command );
+                
+                if( this.items == null )
+                    this.items = new Array();
+                
+                this.items.push( menu );
+                
+                return menu;
+            ]]>
+        </method>
+        
+        <method id="addSeparator">
+            <![CDATA[
+                this.addMenuItem( null );
+            ]]>
+        </method>
+    </class>
+
+    <class id="MenuItem" like="Menu">
+        <field id="key"/>
+        <field id="data"/>
+        <field id="check"/>
+        
+        <constructor params="title, command, key, data">
+            <![CDATA[
+                Menu.call( this, title, command );
+                
+                this.key = key;
+                this.data = data;
+                this.check = false;
+            ]]>
+        </constructor>
+    </class>
+
+</module>
+
+

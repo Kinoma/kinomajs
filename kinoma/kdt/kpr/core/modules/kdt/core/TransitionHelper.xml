@@ -1,0 +1,249 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+    <variable id="UP" value="1"/>
+    <variable id="DOWN" value="-1"/>
+    <variable id="RIGHT" value="1"/>
+    <variable id="LEFT" value="-1"/>
+
+    <class id="BaseTransition" like="Transition">
+        <field id="src"/>
+        <field id="dst"/>
+        <field id="data"/>
+        <field id="callback"/>
+        <field id="context"/>
+        
+        <constructor params="duration, src, dst, data, callback, context">
+            <![CDATA[
+                this.src = { container:src, layer:null };
+                this.dst = { container:dst, layer:null };
+                this.data = data;
+                this.callback = callback;
+                this.context = context;
+                
+                Transition.call( this, duration );
+            ]]>
+        </constructor>
+        
+        <method id="onBegin" params="container">
+            <![CDATA[
+                this.transitionStart( container );
+            ]]>
+        </method>
+        
+        <method id="onEnd" params="container">
+            <![CDATA[
+                // detach the src and dst containers from their layers
+                if( this.src != null && this.src.layer != null ) {
+                    this.src.layer.detach();
+                    this.src.layer = null;  
+                }
+            
+                if( this.dst != null  && this.dst.layer != null ) {
+                    this.dst.layer.detach();
+                    this.dst.layer = null;
+                }
+            
+                this.transitionEnd( container );
+                
+                if( this.callback != null )
+                    this.callback( this.context );
+            ]]>
+        </method>
+        
+        <method id="onStep" params="fraction">
+            <![CDATA[
+                this.transitionStep( this.transformStepValue( fraction ) );
+            ]]>
+        </method>
+        
+        <method id="transformStepValue" params="value">
+            <![CDATA[
+                return 1 - Math.pow( 1 - value, 2 );
+            ]]>
+        </method>
+        
+        <method id="transitionStart" params="container"/>
+        <method id="transitionEnd" params="container"/>
+        <method id="transitionStep" params="value"/>
+        
+        <method id="getSrcContainer">
+            <![CDATA[
+                return this.src != null ? this.src.container : null;
+            ]]>
+        </method>
+        
+        <method id="getSrcLayer">
+            <![CDATA[
+                if( this.src != null )
+                {
+                    if( this.src.layer == null ) {
+                        this.src.layer = new Layer();
+                        this.src.layer.attach( this.src.container );
+                    }
+                        
+                    return this.src.layer;
+                }
+                else
+                    return null;
+            ]]>
+        </method>
+        
+        <method id="getDstContainer">
+            <![CDATA[
+                return this.dst != null ? this.dst.container : null;
+            ]]>
+        </method>
+        
+        <method id="getDstLayer">
+            <![CDATA[
+                if( this.dst != null )
+                {
+                    if( this.dst.layer == null ) {
+                        this.dst.layer = new Layer();
+                        this.dst.layer.attach( this.dst.container );
+                    }
+                        
+                    return this.dst.layer;
+                }
+                else
+                    return null;
+            ]]>
+        </method>
+    </class>
+
+    <class id="PushTransition" like="BaseTransition">
+        <field id="srcSize"/>
+        <field id="dstSize"/>
+        
+        <constructor params="duration, src, dst, dirx, diry, callback, context">
+            <![CDATA[
+                BaseTransition.call( this, duration, src, dst, {dirx:dirx,diry:diry}, callback, context );
+            ]]>
+        </constructor>
+        
+        <method id="transitionStart" params="container">
+            <![CDATA[
+                this.srcSize = {width: (0 - this.data.dirx) * container.width, height: (0 - this.data.diry) * container.height};
+                this.dstSize = {width: this.data.dirx * container.width, height: this.data.diry * container.height};
+
+                // add the dst container to the parent
+                container.add( this.getDstContainer() );
+                
+                // adapt the dst application if it is a host container
+                if( "adapt" in this.getDstContainer() )
+                    this.getDstContainer().adapt();
+                    
+                // launch the dst application if it is a host container
+                if( "launch" in this.getDstContainer() )
+                    this.getDstContainer().launch();
+                
+                // setup the src and dst layers for doing the animation
+                this.getDstLayer().translation = {x:this.data.dirx ? this.data.dirx * container.width : 0, y:this.data.diry ? this.data.diry * container.height : 0};
+            ]]>
+        </method>
+        
+        <method id="transitionEnd" params="container">
+            <![CDATA[
+                // remove the src container
+                // quit the src application if it is a host container
+                if( "quit" in this.getSrcContainer() )
+                    this.getSrcContainer().quit();
+                
+                // remove the src container
+                container.remove( this.getSrcContainer() );
+            ]]>
+        </method>
+        
+        <method id="transitionStep" params="value">
+            <![CDATA[
+                this.getSrcLayer().translation = {x: this.data.dirx ? this.srcSize.width * value : 0, y: this.data.diry ? this.srcSize.height * value : 0};
+                this.getDstLayer().translation = {x: this.data.dirx ? this.dstSize.width * (1 - value) : 0, y: this.data.diry ? this.dstSize.height * (1 - value) : 0};
+            ]]>
+        </method>
+    </class>
+
+    <class id="RotateTransition" like="BaseTransition">
+        <field id="backgroundColor"/>
+    
+        <constructor params="duration, src, dst, deg, backgroundColor, callback, context">
+            <![CDATA[
+                this.backgroundColor = backgroundColor;
+                    
+                BaseTransition.call( this, duration, src, dst, {deg:deg}, callback, context );
+            ]]>
+        </constructor>
+        
+        <method id="transitionStart" params="container">
+            <![CDATA[
+                // this is a hack to get rotation with transparent png working over
+                // a solid backgound color... hopefully rotation will be fixed one
+                // day and the backgroundColor fix can be removed!!!
+                if( this.backgroundColor != null )
+                {
+                    var backgroundContainer = new Container( this.getSrcContainer().coordinates, new Skin( this.backgroundColor ) );
+                    
+                    container.remove( this.getSrcContainer() );
+                    
+                    this.getSrcContainer().coordinates = { left:0, right:0, top:0, bottom:0 };
+                    
+                    backgroundContainer.add( this.getSrcContainer() );
+                    
+                    container.add( backgroundContainer );
+                
+                    this.src = { container:backgroundContainer, layer:null };
+                }
+            
+                this.getSrcLayer().origin = {x: this.getSrcContainer().width / 2, y: this.getSrcContainer().height / 2};
+            ]]>
+        </method>
+        
+        <method id="transitionEnd" params="container">
+            <![CDATA[
+                container.remove( this.getSrcContainer() );
+                container.add( this.getDstContainer() );
+            ]]>
+        </method>
+        
+        <method id="transitionStep" params="value">
+            <![CDATA[
+                this.getSrcLayer().rotation = this.data.deg * value;
+            ]]>
+        </method>
+    </class>
+
+    <class id="FadeTransition" like="BaseTransition">
+        <constructor params="duration, src, dst, callback, context">
+            <![CDATA[
+                BaseTransition.call( this, duration, src, dst, null, callback, context );
+            ]]>
+        </constructor>
+        
+        <method id="transitionStep" params="value">
+            <![CDATA[
+                // if there is a src container then we fade it out
+                if( this.getSrcContainer() != null )
+                    this.getSrcLayer().opacity = 1 - value;
+                
+                // if there is a dst container then we fade it in
+                if( this.getDstContainer() != null )
+                    this.getDstLayer().opacity = value;
+            ]]>
+        </method>
+    </class>
+
+</module>

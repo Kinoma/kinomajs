@@ -1,0 +1,343 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+	.text @CODE, READONLY
+	.fpu    neon
+
+@@ Register defines
+	
+filter_len		.req		r0
+filter_coeffs	.req		r1
+src				.req		r2
+dst				.req		r3
+rb				.req		r5	
+	
+
+	.equ REGIS_SHIFT_si, (2*4)
+	
+@@ Macros in general
+	.macro conversion_16RGB565SE_to_32ARGB
+	vmovl.u8		q2, d2
+	vmovl.u16		q3, d2
+	vmov.u32		q5, #0x3
+	vshl.u8			q2, q2, q5
+	vsri.u8			q2, q2, #5
+	vshl.u16		q3, q3, #5
+	vshr.u16		q3, q3, #8
+	vsri.u8			q3, q3, #6
+	vzip.u16		q2, q3
+	.endm
+
+	.macro hdot_src_load_4_32bit
+	vld1.s32		d2, [src]!
+	vld1.s32		d3, [src]!
+	vmovl.u8		q2, d2
+	vmovl.u8		q3, d3
+	.endm
+
+	.macro hdot_src_load_2_32bit
+	vld1.s32		d2, [src]!
+	vmovl.u8		q2, d2
+	.endm
+
+	.macro hdot_src_load_1_32bit
+	vld1.s32		d2[0], [src]!
+	vmovl.u8		q2, d2
+	.endm
+	
+	.macro hdot_src_load_4_32ARGB
+	hdot_src_load_4_32bit
+	.endm
+
+	.macro hdot_src_load_4_32BGRA
+	hdot_src_load_4_32bit
+	.endm
+
+	.macro hdot_src_load_4_32ABGR
+	hdot_src_load_4_32bit
+	.endm
+
+	.macro hdot_src_load_4_32RGBA
+	hdot_src_load_4_32bit
+	.endm
+
+	.macro hdot_src_load_4_16RGB565SE
+	vld1.s16		d2, [src]!
+	conversion_16RGB565SE_to_32ARGB
+	.endm
+
+	.macro hdot_src_load_2_32ARGB
+	hdot_src_load_2_32bit
+	.endm
+
+	.macro hdot_src_load_2_32BGRA
+	hdot_src_load_2_32bit
+	.endm
+
+	.macro hdot_src_load_2_32ABGR
+	hdot_src_load_2_32bit
+	.endm
+
+	.macro hdot_src_load_2_32RGBA
+	hdot_src_load_2_32bit
+	.endm
+
+	.macro hdot_src_load_2_16RGB565SE
+	vld1.s32		d2[0], [src]!
+	conversion_16RGB565SE_to_32ARGB
+	.endm
+
+	.macro hdot_src_load_1_32ARGB
+	hdot_src_load_1_32bit
+	.endm
+
+	.macro hdot_src_load_1_32BGRA
+	hdot_src_load_1_32bit
+	.endm
+
+	.macro hdot_src_load_1_32ABGR
+	hdot_src_load_1_32bit
+	.endm
+
+	.macro hdot_src_load_1_32RGBA
+	hdot_src_load_1_32bit
+	.endm
+
+	.macro hdot_src_load_1_16RGB565SE
+	vld1.s16		d2[0], [src]!
+	conversion_16RGB565SE_to_32ARGB
+	.endm
+	
+	.macro hdot_dst_store_32ARGB
+	vqrshrn.s32		d0, q4, #8
+	vrev64.16		d0, d0
+	vst1.16			d0, [dst]
+	.endm
+
+	.macro hdot_dst_store_32BGRA
+	vqrshrn.s32		d0, q4, #8
+	vst1.16			d0, [dst]
+	.endm
+
+	.macro hdot_dst_store_32ABGR
+	vqrshrn.s32		d0, q4, #8
+	vrev64.16		d1, d0
+	vsli.64			d1, d0, #16
+	vst1.16			d1, [dst]
+	.endm
+
+	.macro hdot_dst_store_32RGBA
+	vqrshrn.s32		d0, q4, #8
+	vrev64.16		d1, d0
+	vsli.64			d0, d1, #16
+	vst1.16			d0, [dst]
+	.endm
+
+	.macro hdot_dst_store_16RGB565SE
+	vqrshrn.s32		d0, q4, #8
+	vrev64.16		d0, d0
+	mov				r4, #0x3FC0
+	vmov.u16		d0[0], r4
+	vst1.16			d0, [dst]
+	.endm
+	
+	.macro vdot_dst_store_32ARGB
+	vqshrn.s32		d0, q4, #16
+	vqrshrun.s16	d0, q0, #4
+	vrev32.8		d0, d0
+	vst1.32			d0[0], [dst]
+	.endm
+
+	.macro vdot_dst_store_32BGRA
+	vqshrn.s32		d0, q4, #16
+	vqrshrun.s16	d0, q0, #4
+	vst1.32			d0[0], [dst]
+	.endm
+
+	.macro vdot_dst_store_32ABGR
+	vqshrn.s32		d0, q4, #16
+	vqrshrun.s16	d0, q0, #4
+	vrev32.8		d1, d0
+	vsri.32			d1, d0, #8
+	vst1.32			d1[0], [dst]
+	.endm
+
+	.macro vdot_dst_store_32RGBA
+	vqshrn.s32		d0, q4, #16
+	vqrshrun.s16	d0, q0, #4
+	vrev32.8		d1, d0
+	vsli.32			d0, d1, #8
+	vst1.32			d0[0], [dst]
+	.endm
+
+	.macro vdot_dst_store_16RGB565SE
+	vqshrn.s32		d0, q4, #16
+	vrshr.s16		d1, d0, #6
+	vshl.s16		d1, d1, #2
+	vrshr.s16		d0, d0, #7
+	vshl.s16		d0, d0, #3
+	vqmovun.s16		d0, q0
+	vshr.u32		d2, d0, #27
+	vshr.u64		d3, d0, #50
+	vshr.u32		d4, d0, #11
+	vsli.u16		d2, d3, #5
+	vsli.u16		d2, d4, #11
+	vst1.16			d2[0], [dst]
+	.endm
+	
+	.macro HDOT_INTERPOLATION pixformat
+	push			{r4}
+	
+	vmov.u16		q4, #0
+
+	pld				[src, #512]
+
+	lsrs			r4, filter_len, #2
+	beq				HDot_\pixformat\()_tail2
+
+	HDot_\pixformat\()_start:
+	vld1.s16		d0, [filter_coeffs]!
+
+	hdot_src_load_4_\pixformat
+	
+	vmlal.s16		q4, d4, d0[0]
+	vmlal.s16		q4, d5, d0[1]
+	vmlal.s16		q4, d6, d0[2]
+	vmlal.s16		q4, d7, d0[3]
+
+	subs			r4, r4, #1
+	bne				HDot_\pixformat\()_start
+
+	HDot_\pixformat\()_tail2:
+	ands			r4, filter_len, #2
+	beq				HDot_\pixformat\()_tail1
+
+	vld1.s32		d0[0], [filter_coeffs]!
+
+	hdot_src_load_2_\pixformat
+			
+	vmlal.s16		q4, d4, d0[0]
+	vmlal.s16		q4, d5, d0[1]
+
+	HDot_\pixformat\()_tail1:
+	ands			r4, filter_len, #1
+	beq				HDot_\pixformat\()_tail0
+
+	vld1.s16		d0[0], [filter_coeffs]
+
+	hdot_src_load_1_\pixformat
+			
+	vmlal.s16		q4, d4, d0[0]
+
+	HDot_\pixformat\()_tail0:
+	hdot_dst_store_\pixformat
+	
+	pop				{r4}
+	bx				lr
+	
+	.endm
+
+	.macro VDOT_INTERPOLATION pixformat
+	push			{r4}
+	push			{r5}
+	
+	add				r4, sp, #REGIS_SHIFT_si	
+	ldr				rb, [r4]
+	
+	vmov.u16		q4, #0
+	
+	lsrs			r4, filter_len, #2
+	beq				VDot_\pixformat\()_tail2
+
+	VDot_\pixformat\()_start:
+	vld1.s16		d0, [filter_coeffs]!
+	vld1.s16		d1, [src], rb
+	vld1.s16		d2, [src], rb
+	vld1.s16		d3, [src], rb
+	vld1.s16		d4, [src], rb
+			
+	vmlal.s16		q4, d1, d0[0]
+	vmlal.s16		q4, d2, d0[1]
+	vmlal.s16		q4, d3, d0[2]
+	vmlal.s16		q4, d4, d0[3]
+			
+	subs			r4, r4, #1
+	bne				VDot_\pixformat\()_start
+
+	VDot_\pixformat\()_tail2:
+
+	ands			r4, filter_len, #2
+	beq				VDot_\pixformat\()_tail1
+		
+	vld1.s32		d0[0], [filter_coeffs]!
+   	vld1.s16		d1, [src], rb
+	vld1.s16		d2, [src], rb
+			
+	vmlal.s16		q4, d1, d0[0]
+	vmlal.s16		q4, d2, d0[1]
+
+	VDot_\pixformat\()_tail1:
+
+	ands			r4, filter_len, #1
+	beq				VDot_\pixformat\()_tail0
+
+	vld1.s16		d0, [filter_coeffs]
+   	vld1.s16		d1, [src]
+	vmlal.s16		q4, d1, d0[0]
+
+	VDot_\pixformat\()_tail0:
+	vdot_dst_store_\pixformat
+
+	pop				{r5}
+	pop				{r4}
+	bx				lr
+
+	.endm
+
+
+	.global	HDot32ARGB_arm_v7_s
+	.global	VDot32ARGB_arm_v7_s
+	.global	HDot32BGRA_arm_v7_s
+	.global	VDot32BGRA_arm_v7_s
+	.global	HDot32ABGR_arm_v7_s
+	.global	VDot32ABGR_arm_v7_s
+	.global	HDot32RGBA_arm_v7_s
+	.global	VDot32RGBA_arm_v7_s
+	.global	HDot16RGB565SE_arm_v7_s
+	.global	VDot16RGB565SE_arm_v7_s
+
+HDot32ARGB_arm_v7_s:
+	HDOT_INTERPOLATION 32ARGB
+VDot32ARGB_arm_v7_s:
+	VDOT_INTERPOLATION 32ARGB
+HDot32BGRA_arm_v7_s:
+	HDOT_INTERPOLATION 32BGRA
+VDot32BGRA_arm_v7_s:
+	VDOT_INTERPOLATION 32BGRA
+HDot32ABGR_arm_v7_s:
+	HDOT_INTERPOLATION 32ABGR
+VDot32ABGR_arm_v7_s:
+	VDOT_INTERPOLATION 32ABGR
+HDot32RGBA_arm_v7_s:
+	HDOT_INTERPOLATION 32RGBA
+VDot32RGBA_arm_v7_s:
+	VDOT_INTERPOLATION 32RGBA
+HDot16RGB565SE_arm_v7_s:
+	HDOT_INTERPOLATION 16RGB565SE
+VDot16RGB565SE_arm_v7_s:
+	VDOT_INTERPOLATION 16RGB565SE
+#endif (__arm__)

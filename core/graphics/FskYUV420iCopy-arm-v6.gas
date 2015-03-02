@@ -1,0 +1,751 @@
+@
+@     Copyright (C) 2010-2015 Marvell International Ltd.
+@     Copyright (C) 2002-2010 Kinoma, Inc.
+@
+@     Licensed under the Apache License, Version 2.0 (the "License");
+@     you may not use this file except in compliance with the License.
+@     You may obtain a copy of the License at
+@
+@       http://www.apache.org/licenses/LICENSE-2.0
+@
+@     Unless required by applicable law or agreed to in writing, software
+@     distributed under the License is distributed on an "AS IS" BASIS,
+@     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+@     See the License for the specific language governing permissions and
+@     limitations under the License.
+@
+#if (__arm__)
+@ This file was automatically generated from
+@ C:/fsk-windows/bin/win32/Debug/../../..//kinoma/ADS2gas/files/FskYUV420iCopy-arm-v6.s
+@ on Fri, 24 Apr 2009 14:53:05 GMT
+
+@	.include	"FskYUV420iCopy-arm-s.h"	@@//header, this file as example
+@ BSF begin inline include of "FskYUV420iCopy-arm-s.h"
+
+	.macro	INTERLEAVE_YUV420i_CW90_MISALIGNED arch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmdb	sp!, {RA-RZ, lr} @//!!!MUST MATCH!!! REGIS_SHIFT_id, preserve 6 registers here as example
+	sub	sp, sp, #LOCAL_SHIFT_cw090_misaligned @//expend stack for local stack variables
+		
+	add	w0, sp, #height_SHIFT_cw090_misaligned
+	ldmia	w0,{height-yuvrb} 
+		
+	add	y1, y0, yrb
+	rsb	y_stride, width, yrb, lsl #1
+	sub	uv_stride, uvrb, width, lsr #1
+	str	uv_stride, [sp, #uv_stride_SHIFT_cw090_misaligned]
+		
+	mov	width, width, lsr #1
+	str	width, [sp, #width_SHIFT_cw090_misaligned]
+	mov	height, height, lsr #1
+		
+	sub	w0, height, #1
+	add	w0, w0, w0, lsl #1
+	add	yuv0, yuv0, w0, lsl #1
+	mov	yuv, yuv0
+	PLD_1_\arch	[yuv]
+	PLD_2_\arch	[yuv, yuvrb]
+	PLD_3_\arch	[yuv, yuvrb, lsl #1]
+	PLD_3_\arch	[yuv, yuvrb, lsl #2]
+		
+mark_interleave_yuv420i_cw090_misaligned_\arch:	
+		
+	ldrb	w0, [u0], #1 @u
+	ldrb	w1, [v0], #1 @v
+	ldrb	w3, [y0], #1 @3
+	ldrb	w2, [y1], #1 @2
+	orr	w0, w0, w1, lsl #8 @v,u
+	ldrb	w1, [y0], #1 @5
+	strh	w0, [yuv, #0] @
+	ldrb	w0, [y1], #1 @4
+	orr	w2, w2, w3, lsl #8 @3,2
+	strh	w2, [yuv, #2] @3,2
+	orr	w0, w0, w1, lsl #8 @5,4
+	strh	w0, [yuv, #4] 
+		
+	add	yuv, yuv, yuvrb
+	PLD_1_\arch	[yuv]
+	PLD_3_\arch	[yuv, yuvrb, lsl #2]
+	subs	width, width, #1
+	bne	mark_interleave_yuv420i_cw090_misaligned_\arch
+		
+	subs	height, height, #1
+	ldrne	uv_stride, [sp, #uv_stride_SHIFT_cw090_misaligned]
+	ldrne	width, [sp, #width_SHIFT_cw090_misaligned]
+	subne	yuv0, yuv0, #6
+	movne	yuv, yuv0
+	PLD_1_\arch	[yuv]
+	PLD_2_\arch	[yuv, yuvrb]
+	PLD_3_\arch	[yuv, yuvrb, lsl #1]
+	PLD_3_\arch	[yuv, yuvrb, lsl #2]
+	addne	y0, y0, y_stride
+	addne	y1, y1, y_stride
+	addne	u0, u0, uv_stride
+	addne	v0, v0, uv_stride
+	bne	mark_interleave_yuv420i_cw090_misaligned_\arch
+	add	sp,sp,#LOCAL_SHIFT_cw090_misaligned
+	ldmfd	sp!,{RA-RZ,pc}
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	INTERLEAVE_YUV420i_CW270_MISALIGNED arch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmdb	sp!, {RA-RZ, lr} @//!!!MUST MATCH!!! REGIS_SHIFT_id, preserve 6 registers here as example
+	sub	sp, sp, #LOCAL_SHIFT_cw270_misaligned @//expend stack for local stack variables
+		
+	add	w0, sp, #height_SHIFT_cw270_misaligned
+	ldmia	w0,{height-yuvrb} 
+		
+	add	y1, y0, yrb
+	rsb	y_stride, width, yrb, lsl #1
+	sub	uv_stride, uvrb, width, lsr #1
+	str	uv_stride, [sp, #uv_stride_SHIFT_cw270_misaligned]
+		
+	mov	width, width, lsr #1
+	sub	w0, width, #1
+	mla	yuv0, w0, yuvrb, yuv0
+	str	width, [sp, #width_SHIFT_cw270_misaligned]
+	mov	height, height, lsr #1
+	mov	yuv, yuv0
+	PLD_1_\arch	[yuv]
+	PLD_2_\arch	[yuv, -yuvrb]
+		
+mark_interleave_yuv420i_cw270_misaligned_\arch:	
+	ldrb	w0, [u0], #1 @u
+	ldrb	w1, [v0], #1 @v
+	ldrb	w2, [y0], #1 @4
+	ldrb	w3, [y1], #1 @5
+	orr	w0, w0, w1, lsl #8 @v,u
+	ldrb	w1, [y1], #1 @3
+	strh	w0, [yuv, #0] @
+	ldrb	w0, [y0], #1 @2
+	orr	w2, w2, w3, lsl #8 @5,4
+	strh	w2, [yuv, #4] @5,4
+	orr	w0, w0, w1, lsl #8 @3,2
+	strh	w0, [yuv, #2] 
+		
+	sub	yuv, yuv, yuvrb
+	@PLD_1_$arch	 [yuv]	
+	@PLD_2_$arch	 [yuv, -yuvrb]	
+	PLD_3_\arch	[yuv, -yuvrb, lsl #3]
+	subs	width, width, #1
+	bne	mark_interleave_yuv420i_cw270_misaligned_\arch
+		
+	subs	height, height, #1
+	ldrne	uv_stride, [sp, #uv_stride_SHIFT_cw270_misaligned]
+	ldrne	width, [sp, #width_SHIFT_cw270_misaligned]
+	addne	yuv0, yuv0, #6
+	movne	yuv, yuv0
+	PLD_1_\arch	[yuv]
+	PLD_2_\arch	[yuv, -yuvrb]
+	PLD_3_\arch	[yuv, -yuvrb, lsl #1]
+	PLD_3_\arch	[yuv, -yuvrb, lsl #2]
+	addne	y0, y0, y_stride
+	addne	y1, y1, y_stride
+	addne	u0, u0, uv_stride
+	addne	v0, v0, uv_stride
+	bne	mark_interleave_yuv420i_cw270_misaligned_\arch
+	add	sp,sp,#LOCAL_SHIFT_cw270_misaligned
+	ldmfd	sp!,{RA-RZ,pc}
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	ROTATE_YUV420i_CW90 arch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmdb	sp!, {RA-RZ, lr} @//!!!MUST MATCH!!! REGIS_SHIFT_id, preserve 6 registers here as example
+	sub	sp, sp, #LOCAL_SHIFT_rcw90 @//expend stack for local stack variables
+		
+	add	w0, sp, #src_rb_SHIFT_rcw90
+	ldmia	w0,{src_rb-dst_rb} 
+		
+	mov	width, width, lsr #1
+	mov	width0, width
+	mov	height, height, lsr #1
+		
+	add	w0, width, width, lsl #1
+	sub	src_stride, src_rb, w0, lsl #1
+		
+	sub	w0, height, #1
+	add	w0, w0, w0, lsl #1
+	add	dst, dst, w0, lsl #1
+		
+	PLD_1_\arch	[dst]
+	PLD_2_\arch	[dst, dst_rb]
+	PLD_3_\arch	[dst, dst_rb, lsl #1]
+	PLD_3_\arch	[dst, dst_rb, lsl #2]
+		
+	mov	dst0, dst
+		
+mark_rotate_yuv420i_rcw090_\arch:	
+		
+	ldrh	w0, [src], #2 @u
+	ldrb	w2, [src], #1 @3
+	ldrb	w4, [src], #1 @5
+	ldrb	w1, [src], #1 @2
+	ldrb	w3, [src], #1 @4
+	strh	w0, [dst, #0] @
+	orr	w0, w1, w2, lsl #8 @3,2
+	strh	w0, [dst, #2] @
+	orr	w0, w3, w4, lsl #8 @5,4
+	strh	w0, [dst, #4]
+		
+	add	dst, dst, dst_rb
+	@PLD_1_$arch	 [dst]	
+	PLD_3_\arch	[dst, dst_rb, lsl #2]
+	subs	width, width, #1
+	bne	mark_rotate_yuv420i_rcw090_\arch
+		
+	subs	height, height, #1
+	subne	dst0, dst0, #6
+	movne	dst, dst0
+	PLD_1_\arch	[dst]
+	PLD_2_\arch	[dst, dst_rb]
+	PLD_3_\arch	[dst, dst_rb, lsl #1]
+	PLD_3_\arch	[dst, dst_rb, lsl #2]
+	movne	width, width0
+	addne	src, src, src_stride
+	bne	mark_rotate_yuv420i_rcw090_\arch
+	add	sp,sp,#LOCAL_SHIFT_rcw90
+	ldmfd	sp!,{RA-RZ,pc}
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	ROTATE_YUV420i_CW270 arch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmdb	sp!, {RA-RZ, lr} @//!!!MUST MATCH!!! REGIS_SHIFT_id, preserve 6 registers here as example
+	sub	sp, sp, #LOCAL_SHIFT_rcw270 @//expend stack for local stack variables
+		
+	add	w0, sp, #src_rb_SHIFT_rcw270
+	ldmia	w0,{src_rb-dst_rb} 
+		
+	mov	width, width, lsr #1
+	mov	width0, width
+	mov	height, height, lsr #1
+		
+	sub	w0, width, #1
+	mla	dst, dst_rb, w0, dst
+		
+	add	w0, width, width, lsl #1
+	sub	src_stride, src_rb, w0, lsl #1
+		
+	PLD_2_\arch	[src, #0]
+	PLD_2_\arch	[src, #16]
+	PLD_2_\arch	[src, #32]
+	PLD_1_\arch	[dst]
+	PLD_2_\arch	[dst, -dst_rb]
+	PLD_3_\arch	[dst, -dst_rb, lsl #1]
+	PLD_3_\arch	[dst, -dst_rb, lsl #2]
+		
+	mov	dst0, dst
+		
+mark_rotate_yuv420i_rcw270_\arch:	
+		
+	ldrh	w0, [src], #2 @u
+	ldrb	w3, [src], #1 @3
+	ldrb	w1, [src], #1 @5
+	ldrb	w4, [src], #1 @2
+	ldrb	w2, [src], #1 @4
+	PLD_2_\arch	[src, #32]
+	strh	w0, [dst, #0] @
+	orr	w0, w1, w2, lsl #8 @3,2
+	strh	w0, [dst, #2] @
+	orr	w0, w3, w4, lsl #8 @5,4
+	strh	w0, [dst, #4]
+		
+	sub	dst, dst, dst_rb
+	PLD_3_\arch	[dst, -dst_rb, lsl #2]
+	subs	width, width, #1
+	bne	mark_rotate_yuv420i_rcw270_\arch
+		
+	subs	height, height, #1
+	addne	dst0, dst0, #6
+	movne	dst, dst0
+	PLD_2_\arch	[src, #0]
+	PLD_2_\arch	[src, #16]
+	PLD_2_\arch	[src, #32]
+	PLD_1_\arch	[dst]
+	PLD_2_\arch	[dst, -dst_rb]
+	PLD_3_\arch	[dst, -dst_rb, lsl #1]
+	PLD_3_\arch	[dst, -dst_rb, lsl #2]
+	movne	width, width0
+	addne	src, src, src_stride
+	bne	mark_rotate_yuv420i_rcw270_\arch
+	add	sp,sp,#LOCAL_SHIFT_rcw270
+	ldmfd	sp!,{RA-RZ,pc}
+	.endm
+@
+@a destination driven variation
+@ similar performance, not used
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	ROTATE_YUV420i_DCW270 arch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmdb	sp!, {RA-RZ, lr} @//!!!MUST MATCH!!! REGIS_SHIFT_id, preserve 6 registers here as example
+	sub	sp, sp, #LOCAL_SHIFT_drcw270 @//expend stack for local stack variables
+		
+	add	w0, sp, #src_rb_SHIFT_drcw270
+	ldmia	w0,{src_rb-dst_rb} 
+		
+	mov	height, height, lsr #1
+	mov	height0, height
+	mov	width, width, lsr #1
+		
+	add	w0, height, height, lsl #1
+	sub	dst_stride, dst_rb, w0, lsl #1
+		
+	sub	w0, width, #1
+	add	w0, w0, w0, lsl #1
+	add	src, src, w0, lsl #1
+		
+	PLD_2_\arch	[dst, #0]
+	PLD_2_\arch	[dst, #16]
+	PLD_2_\arch	[dst, #32]
+	PLD_1_\arch	[src]
+	PLD_2_\arch	[src, src_rb]
+	PLD_3_\arch	[src, src_rb, lsl #1]
+	PLD_3_\arch	[src, src_rb, lsl #2]
+		
+	mov	src0, src
+		
+mark_rotate_yuv420i_drcw270_\arch:	
+		
+	ldrh	w0, [src, #0] @u
+	ldrb	w1, [src, #3] @3
+	ldrb	w2, [src, #5] @5
+	ldrb	w3, [src, #2] @2
+	ldrb	w4, [src, #4] @4
+	PLD_2_\arch	[dst, #32]
+	add	src, src, src_rb
+	PLD_1_\arch	[src]
+	PLD_3_\arch	[src, src_rb, lsl #2]
+	strh	w0, [dst], #2 @
+	orr	w0, w1, w2, lsl #8 @3,2
+	strh	w0, [dst], #2 @
+	orr	w0, w3, w4, lsl #8 @5,4
+	strh	w0, [dst], #2 
+	subs	height, height, #1
+	bne	mark_rotate_yuv420i_drcw270_\arch
+		
+	subs	width, width, #1
+	subne	src0, src0, #6
+	movne	src, src0
+	PLD_2_\arch	[dst, #0]
+	PLD_2_\arch	[dst, #16]
+	PLD_2_\arch	[dst, #32]
+	PLD_1_\arch	[src]
+	PLD_2_\arch	[src, src_rb]
+	PLD_3_\arch	[src, src_rb, lsl #1]
+	PLD_3_\arch	[src, src_rb, lsl #2]
+	movne	height, height0
+	addne	dst, dst, dst_stride
+	bne	mark_rotate_yuv420i_drcw270_\arch
+	add	sp,sp,#LOCAL_SHIFT_drcw270
+	ldmfd	sp!,{RA-RZ,pc}
+	.endm
+
+@ BSF end inline include of "FskYUV420iCopy-arm-s.h"
+		
+	.text	@CODE, READONLY
+		
+	@EXPORT  |interleave_yuv420i_cw090_misaligned_arm_v6|	
+	.global	interleave_yuv420i_cw180_misaligned_arm_v6
+	@EXPORT  |interleave_yuv420i_cw270_misaligned_arm_v6|	
+		
+	@EXPORT  |interleave_yuv420i_cw090_aligned_arm_v6|	
+	@EXPORT  |interleave_yuv420i_cw180_aligned_arm_v6|	
+	@EXPORT  |interleave_yuv420i_cw270_aligned_arm_v6|	
+		
+	@EXPORT  |rotate_yuv420i_cw090_arm_v6|	
+	.global	rotate_yuv420i_cw180_arm_v6
+	@EXPORT  |rotate_yuv420i_cw270_arm_v6|	
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PLD_1_v6 param1
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	pld	\param1
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PLD_2_v6 param1, param2
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	pld	\param1, \param2
+	.endm
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	PLD_3_v6 param1, param2, param3
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	pld	\param1, \param2, \param3
+	.endm
+y0	.req	r0 
+u0	.req	r1 
+v0	.req	r2 
+yuv0	.req	r3 
+y1	.req	r4 
+yuv	.req	r14 
+height	.req	r5 
+width	.req	r6 
+yrb	.req	r7 
+uvrb	.req	r8 
+yuvrb	.req	r9 
+y_stride	.req	r7 
+uv_stride	.req	r8 
+w0	.req	r10 
+w1	.req	r11 
+w2	.req	r12 
+w3	.req	r8 @uv_stride
+RA	.req	r4 @first register to push into stack at entry
+RZ	.req	r11 @second last, and then it is lr=>pc
+	.equ REGIS_SHIFT_cw090_misaligned, (9*4) @//registers pushed into stack to preserve caller state: 6 here as example
+	.equ LOCAL_SHIFT_cw090_misaligned, (2*4) @//local stack variables: 2 here as example
+	.equ SP_SHIFT_cw090_misaligned, (REGIS_SHIFT_cw090_misaligned + LOCAL_SHIFT_cw090_misaligned) @//total up shift from stack input
+	.equ uv_stride_SHIFT_cw090_misaligned, (0*4)
+	.equ y_stride_SHIFT_cw090_misaligned, (1*4)
+	.equ height_SHIFT_cw090_misaligned, (0*4 + SP_SHIFT_cw090_misaligned)
+	.equ width_SHIFT_cw090_misaligned, (1*4 + SP_SHIFT_cw090_misaligned)
+	.equ yrb_SHIFT_cw090_misaligned, (2*4 + SP_SHIFT_cw090_misaligned)
+	.equ uvrb_SHIFT_cw090_misaligned, (3*4 + SP_SHIFT_cw090_misaligned)
+	.equ yuvrb_SHIFT_cw090_misaligned, (3*4 + SP_SHIFT_cw090_misaligned)
+@|interleave_yuv420i_cw090_misaligned_arm_v6| PROC
+@	INTERLEAVE_YUV420i_CW90_MISALIGNED v6
+@  ENDP	;interleave_yuv420i_cw090_misaligned_arm_v6
+	.equ REGIS_SHIFT_cw270_misaligned, (9*4) @//registers pushed into stack to preserve caller state: 6 here as example
+	.equ LOCAL_SHIFT_cw270_misaligned, (2*4) @//local stack variables: 2 here as example
+	.equ SP_SHIFT_cw270_misaligned, (REGIS_SHIFT_cw270_misaligned + LOCAL_SHIFT_cw090_misaligned) @//total up shift from stack input
+	.equ uv_stride_SHIFT_cw270_misaligned, (0*4)
+	.equ y_stride_SHIFT_cw270_misaligned, (1*4)
+	.equ height_SHIFT_cw270_misaligned, (0*4 + SP_SHIFT_cw270_misaligned)
+	.equ width_SHIFT_cw270_misaligned, (1*4 + SP_SHIFT_cw270_misaligned)
+	.equ yrb_SHIFT_cw270_misaligned, (2*4 + SP_SHIFT_cw270_misaligned)
+	.equ uvrb_SHIFT_cw270_misaligned, (3*4 + SP_SHIFT_cw270_misaligned)
+	.equ yuvrb_SHIFT_cw270_misaligned, (3*4 + SP_SHIFT_cw270_misaligned)
+@|interleave_yuv420i_cw270_misaligned_arm_v6| PROC
+@	INTERLEAVE_YUV420i_CW270_MISALIGNED v6
+@  ENDP	;interleave_yuv420i_cw270_misaligned_arm_v6
+	.unreq	y0
+y0	.req	r0 
+	.unreq	u0
+u0	.req	r1 
+	.unreq	v0
+v0	.req	r2 
+	.unreq	yuv
+yuv	.req	r3 
+	.unreq	y1
+y1	.req	r4 
+	.unreq	height
+height	.req	r5 
+	.unreq	width
+width	.req	r6 
+	.unreq	yrb
+yrb	.req	r7 
+	.unreq	uvrb
+uvrb	.req	r8 
+	.unreq	yuvrb
+yuvrb	.req	r9 
+	.unreq	y_stride
+y_stride	.req	r7 
+	.unreq	uv_stride
+uv_stride	.req	r8 
+yuv_stride	.req	r9 
+	.unreq	w0
+w0	.req	r10 
+	.unreq	w1
+w1	.req	r11 
+	.unreq	w2
+w2	.req	r12 
+	.unreq	w3
+w3	.req	r14 
+	.unreq	RA
+RA	.req	r4 @first register to push into stack at entry
+	.unreq	RZ
+RZ	.req	r11 @second last, and then it is lr=>pc
+	.equ REGIS_SHIFT_cw180_misaligned, (9*4) @//registers pushed into stack to preserve caller state: 6 here as example
+	.equ LOCAL_SHIFT_cw180_misaligned, (2*4) @//local stack variables: 2 here as example
+	.equ SP_SHIFT_cw180_misaligned, (REGIS_SHIFT_cw180_misaligned + LOCAL_SHIFT_cw180_misaligned) @//total up shift from stack input
+	.equ uv_stride_SHIFT_cw180_misaligned, (0*4)
+	.equ y_stride_SHIFT_cw180_misaligned, (1*4)
+	.equ height_SHIFT_cw180_misaligned, (0*4 + SP_SHIFT_cw180_misaligned)
+	.equ width_SHIFT_cw180_misaligned, (1*4 + SP_SHIFT_cw180_misaligned)
+	.equ yrb_SHIFT_cw180_misaligned, (2*4 + SP_SHIFT_cw180_misaligned)
+	.equ uvrb_SHIFT_cw180_misaligned, (3*4 + SP_SHIFT_cw180_misaligned)
+	.equ yuvrb_SHIFT_cw180_misaligned, (3*4 + SP_SHIFT_cw180_misaligned)
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	INTERLEAVE_YUV420i_CW180_MISALIGNED arch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmdb	sp!, {RA-RZ, lr} @//!!!MUST MATCH!!! REGIS_SHIFT_id, preserve 6 registers here as example
+	sub	sp, sp, #LOCAL_SHIFT_cw180_misaligned @//expend stack for local stack variables
+		
+	add	w0, sp, #height_SHIFT_cw180_misaligned
+	ldmia	w0,{height-yuvrb} 
+		
+	add	y1, y0, yrb
+	rsb	y_stride, width, yrb, lsl #1
+	sub	uv_stride, uvrb, width, lsr #1
+		
+	mov	width, width, lsr #1
+	str	width, [sp, #width_SHIFT_cw090_misaligned]
+	mov	height, height, lsr #1
+		
+	mla	yuv, yuvrb, height, yuv 
+	add	w0, width, width, lsl #1
+	sub	yuv_stride, yuvrb, w0, lsl #1
+	sub	yuv, yuv, yuv_stride
+	sub	yuv, yuv, #6 
+	pld	[yuv]
+	pld	[yuv, #-16]
+	pld	[yuv, #-32]
+		
+mark_interleave_yuv420i_cw180_misaligned_\arch:	
+	ldrb	w0, [u0], #1 @u
+	ldrb	w1, [v0], #1 @v
+	ldrh	w2, [y1], #2 @3,2
+	ldrh	w3, [y0], #2 @5,4
+	pld	[yuv, #-32]
+	orr	w0, w0, w1, lsl #8 @v,u	
+	strh	w0, [yuv], #2
+	rev16	w2, w2 @2,3
+	rev16	w3, w3 @4,5
+	strh	w2, [yuv], #2 
+	strh	w3, [yuv], #-10 
+		
+	subs	width, width, #1
+	bne	mark_interleave_yuv420i_cw180_misaligned_\arch
+		
+	subs	height, height, #1
+	ldrne	width, [sp, #width_SHIFT_cw180_misaligned]
+	subne	yuv, yuv, yuv_stride
+	pld	[yuv]
+	pld	[yuv, -yuv_stride]
+	addne	y0, y0, y_stride
+	addne	y1, y1, y_stride
+	addne	u0, u0, uv_stride
+	addne	v0, v0, uv_stride
+	bne	mark_interleave_yuv420i_cw180_misaligned_\arch
+	add	sp,sp,#LOCAL_SHIFT_cw180_misaligned
+	ldmfd	sp!,{RA-RZ,pc}
+	.endm
+interleave_yuv420i_cw180_misaligned_arm_v6:
+	INTERLEAVE_YUV420i_CW180_MISALIGNED	v6
+	@ENDP
+	.unreq	height
+height	.req	r0 
+	.unreq	width
+width	.req	r1 
+src	.req	r2 
+dst	.req	r3 
+src_rb	.req	r4 
+dst_rb	.req	r5 
+src_stride	.req	r4 
+dst_stride	.req	r5 
+width0	.req	r6 
+dst0	.req	r12 
+	.unreq	w0
+w0	.req	r7 
+	.unreq	w1
+w1	.req	r8 
+	.unreq	w2
+w2	.req	r9 
+	.unreq	w3
+w3	.req	r10 
+w4	.req	r11 
+	.unreq	RA
+RA	.req	r4 @first register to push into stack at entry
+	.unreq	RZ
+RZ	.req	r11 @second last, and then it is lr=>pc
+	.equ REGIS_SHIFT_rcw90, (9*4) @//registers pushed into stack to preserve caller state: 6 here as example
+	.equ LOCAL_SHIFT_rcw90, (0*4) @//local stack variables: 2 here as example
+	.equ SP_SHIFT_rcw90, (REGIS_SHIFT_rcw90 + LOCAL_SHIFT_rcw90) @//total up shift from stack input
+	.equ src_rb_SHIFT_rcw90, (0*4 + SP_SHIFT_rcw90)
+	.equ dst_rb_SHIFT_rcw90, (1*4 + SP_SHIFT_rcw90)
+@|rotate_yuv420i_cw090_arm_v6| PROC
+@	ROTATE_YUV420i_CW90 v6
+@ ENDP	;rotate_yuv420i_cw090_arm_v6
+	.unreq	height
+height	.req	r0 
+	.unreq	width
+width	.req	r1 
+	.unreq	src
+src	.req	r2 
+	.unreq	dst
+dst	.req	r3 
+	.unreq	src_rb
+src_rb	.req	r4 
+	.unreq	dst_rb
+dst_rb	.req	r5 
+	.unreq	src_stride
+src_stride	.req	r4 
+	.unreq	dst_stride
+dst_stride	.req	r5 
+	.unreq	width0
+width0	.req	r6 
+	.unreq	w0
+w0	.req	r7 
+	.unreq	w1
+w1	.req	r8 
+	.unreq	w2
+w2	.req	r9 
+	.unreq	w3
+w3	.req	r10 
+	.unreq	w4
+w4	.req	r11 
+	.unreq	RA
+RA	.req	r4 @first register to push into stack at entry
+	.unreq	RZ
+RZ	.req	r11 @second last, and then it is lr=>pc
+	.equ REGIS_SHIFT_rcw180, (9*4) @//registers pushed into stack to preserve caller state: 6 here as example
+	.equ LOCAL_SHIFT_rcw180, (0*4) @//local stack variables: 2 here as example
+	.equ SP_SHIFT_rcw180, (REGIS_SHIFT_rcw180 + LOCAL_SHIFT_rcw180) @//total up shift from stack input
+	.equ src_rb_SHIFT_rcw180, (0*4 + SP_SHIFT_rcw180)
+	.equ dst_rb_SHIFT_rcw180, (1*4 + SP_SHIFT_rcw180)
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;		
+
+
+	.macro	ROTATE_YUV420i_CW180 arch
+@;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	stmdb	sp!, {RA-RZ, lr} @//!!!MUST MATCH!!! REGIS_SHIFT_id, preserve 6 registers here as example
+	sub	sp, sp, #LOCAL_SHIFT_rcw180 @//expend stack for local stack variables
+		
+	add	w0, sp, #src_rb_SHIFT_rcw180
+	ldmia	w0,{src_rb-dst_rb} 
+		
+	pld	[src]
+	pld	[src, #16]
+	pld	[src, #32]
+		
+	mov	width, width, lsr #1
+	mov	height, height, lsr #1
+	mov	width0, width
+		
+	add	w0, width, width, lsl #1
+	mla	dst, dst_rb, height, dst
+	sub	src_stride, src_rb, w0, lsl #1
+	sub	dst_stride, dst_rb, w0, lsl #1
+		
+	sub	dst, dst, dst_stride
+	sub	dst, dst, #6
+		
+	pld	[dst]
+	pld	[dst, #-16]
+	pld	[dst, #-32]
+		
+mark_rotate_yuv420i_rcw180_\arch:	
+		
+	ldrh	w0, [src], #2 @u
+	ldrh	w2, [src], #2 @5,4
+	ldrh	w1, [src], #2 @3,2
+	strh	w0, [dst], #2 @
+	pld	[src, #+32]
+	pld	[dst, #-32]
+	rev16	w2, w2
+	rev16	w1, w1
+	strh	w1, [dst], #2
+	strh	w2, [dst], #-10 
+	subs	width, width, #1
+	bne	mark_rotate_yuv420i_rcw180_\arch
+		
+	subs	height, height, #1
+	subne	dst, dst, dst_stride
+	pld	[src]
+	pld	[src, #16]
+	pld	[src, #32]
+	pld	[dst]
+	pld	[dst, -dst_stride]
+	movne	width, width0
+	addne	src, src, src_stride
+	bne	mark_rotate_yuv420i_rcw180_\arch
+	add	sp,sp,#LOCAL_SHIFT_rcw180
+	ldmfd	sp!,{RA-RZ,pc}
+	.endm
+rotate_yuv420i_cw180_arm_v6:
+	ROTATE_YUV420i_CW180	v6
+	@ENDP
+	.unreq	height
+height	.req	r0 
+	.unreq	width
+width	.req	r1 
+	.unreq	src
+src	.req	r2 
+	.unreq	dst
+dst	.req	r3 
+	.unreq	src_rb
+src_rb	.req	r4 
+	.unreq	dst_rb
+dst_rb	.req	r5 
+	.unreq	src_stride
+src_stride	.req	r4 
+	.unreq	width0
+width0	.req	r6 
+	.unreq	dst0
+dst0	.req	r12 
+	.unreq	w0
+w0	.req	r7 
+	.unreq	w1
+w1	.req	r8 
+	.unreq	w2
+w2	.req	r9 
+	.unreq	w3
+w3	.req	r10 
+	.unreq	w4
+w4	.req	r11 
+	.unreq	RA
+RA	.req	r4 @first register to push into stack at entry
+	.unreq	RZ
+RZ	.req	r11 @second last, and then it is lr=>pc
+	.equ REGIS_SHIFT_rcw270, (9*4) @//registers pushed into stack to preserve caller state: 6 here as example
+	.equ LOCAL_SHIFT_rcw270, (0*4) @//local stack variables: 2 here as example
+	.equ SP_SHIFT_rcw270, (REGIS_SHIFT_rcw270 + LOCAL_SHIFT_rcw270) @//total up shift from stack input
+	.equ src_rb_SHIFT_rcw270, (0*4 + SP_SHIFT_rcw270)
+	.equ dst_rb_SHIFT_rcw270, (1*4 + SP_SHIFT_rcw270)
+@|rotate_yuv420i_cw270_arm_v6| PROC
+@	ROTATE_YUV420i_CW270 v6
+@  ENDP	;rotate_yuv420i_cw270_arm_v6
+	.unreq	height
+height	.req	r0 
+	.unreq	width
+width	.req	r1 
+	.unreq	src
+src	.req	r2 
+	.unreq	dst
+dst	.req	r3 
+	.unreq	src_rb
+src_rb	.req	r4 
+	.unreq	dst_rb
+dst_rb	.req	r5 
+	.unreq	src_stride
+src_stride	.req	r4 
+	.unreq	dst_stride
+dst_stride	.req	r5 
+height0	.req	r6 
+src0	.req	r12 
+	.unreq	w0
+w0	.req	r7 
+	.unreq	w1
+w1	.req	r8 
+	.unreq	w2
+w2	.req	r9 
+	.unreq	w3
+w3	.req	r10 
+	.unreq	w4
+w4	.req	r11 
+	.unreq	RA
+RA	.req	r4 @first register to push into stack at entry
+	.unreq	RZ
+RZ	.req	r11 @second last, and then it is lr=>pc
+	.equ REGIS_SHIFT_drcw270, (9*4) @//registers pushed into stack to preserve caller state: 6 here as example
+	.equ LOCAL_SHIFT_drcw270, (0*4) @//local stack variables: 2 here as example
+	.equ SP_SHIFT_drcw270, (REGIS_SHIFT_drcw270 + LOCAL_SHIFT_drcw270) @//total up shift from stack input
+	.equ src_rb_SHIFT_drcw270, (0*4 + SP_SHIFT_drcw270)
+	.equ dst_rb_SHIFT_drcw270, (1*4 + SP_SHIFT_drcw270)
+@|rotate_yuv420i_dcw270_arm_v6| PROC
+@	ROTATE_YUV420i_DCW270 v6
+@  ENDP	;rotate_yuv420i_dcw270_arm_v6
+	.end
+#endif

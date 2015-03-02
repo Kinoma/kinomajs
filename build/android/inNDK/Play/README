@@ -1,0 +1,6 @@
+This directory "Play" is the Android application
+that links with the JNI glue library.
+
+Put this whole directory in
+<ndkDir>/apps/
+

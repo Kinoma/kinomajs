@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     Copyright (C) 2010-2015 Marvell International Ltd.
+     Copyright (C) 2002-2010 Kinoma, Inc.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	
+	<require id="CONTROL" path="mobile/control"/>
+   	<require id="BUTTONS" path="controls/buttons"/>
+	<require id="DIALOG" path="mobile/dialog"/>
+
+    <variable id="dialogFooterHeight" value="45"/>
+	
+	<!-- Bump up point sizes for Fira Sans -->
+	<script>
+		THEME.dialogCaptionStyle.size = 25;
+		THEME.dialogSubtitleStyle.size = 23;
+		THEME.dialogCommentStyle.size = 23;
+    </script>
+	
+	<container id="Box" left="0" right="0" top="0" bottom="0" skin="THEME.cancellerSkin" active="true">
+		<layout skin="THEME.dialogBoxSkin" active="true">
+			<behavior><![CDATA[
+				function onCancel(layout) {
+					layout.container.delegate("onCancel");
+					layout.container.distribute("onDialogCanceled");
+					application.behavior.closeDialog(layout.container);
+					return true;
+				}	
+				function onCancelBegan(layout) {
+					if ('cancelButton' in this && this.cancelButton)
+						this.cancelButton.delegate('onTouchBegan');
+				}
+				function onCancelEnded(dialog) {
+					if ('cancelButton' in this && this.cancelButton)
+						this.cancelButton.delegate('onTouchEnded');
+				}
+				function onChanged(layout) {
+					if ('okButton' in this && this.okButton)
+						this.okButton.active = layout.container.delegate("canOK");
+					return true;
+				}
+				function onCreate(layout, data) {
+					this.data = data;
+					this.query = data.query;
+					var header = layout.first;
+					var scroller = header.next;
+					var footer = scroller.next;
+					var column = scroller.first;
+					var headerHeight = 0;
+					var footerHeight = 0;
+					if ('title' in data && data.title) {
+						headerHeight = THEME.dialogHeaderHeight;
+						header.coordinates = { left:0, right: 0, top:0, height:headerHeight };
+						header.add(new DIALOG.Title(data.title));
+					}
+					var items = data.items;
+					var c = items.length;
+					var labelWidth = 0;
+					for (var i = 0; i < c; i++) {
+						var item = items[i];
+						if ("label" in item) {
+							var size = THEME.dialogLabelStyle.measure(item.label);
+							if (labelWidth < size.width)
+								labelWidth = size.width;
+						}
+					}
+					column.add(new DIALOG.Spacer());
+					for (var i = 0; i < c; i++) {
+						var item = items[i];
+						if ('id' in item && item.id && item.id in this.query)
+							item.value = this.query[item.id];
+						if (!('value' in item) || item.value === undefined)
+							item.value = "";
+						if ('Item' in item && item.Item) {
+							item.labelWidth = labelWidth;
+							column.add(new item.Item(item));
+						}
+					}
+					column.add(new DIALOG.Spacer());
+
+					var canCancel = ('cancel' in data && data.cancel);
+					var canOK = ('ok' in data && data.ok);
+					if (canCancel || canOK) {
+						footerHeight = dialogFooterHeight;
+						footer.coordinates = { left:0, right: 0, height : footerHeight, bottom : 0 };
+						if (canCancel) {
+							this.cancelButton = new Cancel(data.cancel);
+							if (false == canOK)
+								this.cancelButton.coordinates = { width : 100 };
+							footer.add(this.cancelButton);
+						}
+						if (canOK) {
+							this.okButton = new OK(data.ok);
+							if (false == canCancel)
+								this.okButton.coordinates = { width : 100 };
+							footer.add(this.okButton);
+						}
+					}
+					scroller.coordinates = { left:0, right: 0, top:headerHeight, bottom:footerHeight };
+				}
+				function onDisplaying(layout) {
+					this.former = layout.focus();
+					this.onChanged(layout);
+				}
+				function onKeyDown(layout, key, repeat, ticks) {
+					var code = key.charCodeAt(0);
+					if ((code == 8) || (code == 0xF0001))
+						this.onCancelBegan(layout);
+					else if ((code == 3) || (code == 13))
+						this.onOKBegan(layout);
+           			if ((Event.FunctionKeyPower == code) || (0xF000C == code))
+                		return false;
+					return true;
+				}
+				function onKeyUp(layout, key, repeat, ticks) {
+					var code = key.charCodeAt(0);
+					if ((code == 8) || (code == 0xF0001))
+						this.onCancelEnded(layout);
+					else if ((code == 3) || (code == 13))
+						this.onOKEnded(layout);
+           			if ((Event.FunctionKeyPower == code) || (0xF000C == code))
+                		return false;
+					return true;
+				}
+				function onOK(layout) {
+					var data = this.data;
+					var items = data.items;
+					var c = items.length;
+					var query = this.query;
+					for (var i = 0; i < c; i++) {
+						var item = items[i];
+						if ('id' in item && item.id) 
+							query[item.id] = item.value;
+					}
+					layout.container.delegate("onOK", query);
+					application.behavior.closeDialog(layout.container);
+					return true;
+				}	
+				function onOKBegan(layout) {
+					var button = this.okButton;
+					if (button)
+						button.behavior.onTouchBegan(button);
+				}
+				function onOKEnded(dialog) {
+					var button = this.okButton;
+					if (button)
+						button.behavior.onTouchEnded(button);
+				}
+				function onMeasureHorizontally(layout) {
+					return Math.min(application.width - 40, 480);
+				}
+				function onMeasureVertically(layout) {
+					var header = layout.first;
+					var scroller = header.next;
+					var footer = scroller.next;
+					var column = scroller.first;
+					var size = column.measure();
+					var height = header.height + size.height + footer.height;
+					return Math.min(height, application.height);
+					return height;
+				}
+				function onScreenBegan(layout) {
+					layout.distribute("onAutofocus", this);
+				}
+				function onUndisplayed(layout) {
+					if (this.former)
+						this.former.focus();
+				}
+			]]></behavior>
+			<line left="0" right="0" top="0" height="0"/>
+			<scroller left="0" right="0" top="0" bottom="0" behavior="SCROLLER.VerticalScrollerBehavior" active="true" clip="true">
+				<column left="0" right="0" top="0"/>
+				<content like="SCROLLER.TopScrollerShadow"/>
+				<content like="SCROLLER.BottomScrollerShadow"/>
+			</scroller>
+			<container left="0" right="0" height="0" bottom="0"/>
+		</layout>
+	</container>
+
+	<!-- Buttons -->
+	
+	<style id="buttonStyle" font="24px" color="white" align="middle,left" lines="1"/>
+
+	<texture id="buttonTexture" small="../assets/button-3-part.png"/>
+	
+
+	<effect id="okEnabledEffect">
+		<colorize color="#5ab021"/>
+	</effect>
+	<effect id="cancelEnabledEffect">
+		<colorize color="gray"/>
+	</effect>
+	<effect id="selectedEffect">
+		<colorize color="#333333"/>
+	</effect>
+	<variable id="okButtonSkin" value="new THEME.DynamicSkin( buttonTexture, THEME.disabledEffect, okEnabledEffect, selectedEffect, undefined,
+														{ left : 3, right : 3, top : 3, bottom : 3 })"/>
+			
+	<variable id="cancelButtonSkin" value="new THEME.DynamicSkin( buttonTexture, THEME.disabledEffect, cancelEnabledEffect, selectedEffect, undefined,
+														{ left : 3, right : 3, top : 3, bottom : 3 })"/>
+			
+
+	<container id="OK" bottom="10" right="20" width="100" height="32" skin="okButtonSkin">
+		<behavior like="CONTROL.ButtonBehavior">
+			function onTouchEnded(container) {
+				container.bubble("onOK");
+			}
+		</behavior>               
+	    <label string="$" style="buttonStyle"/>		
+	</container>
+	
+	<container id="Cancel" active="true" bottom="10" left="20" width="100" height="32" skin="cancelButtonSkin">
+		<behavior like="CONTROL.ButtonBehavior">
+			function onTouchEnded(container) {
+				container.bubble("onCancel");
+			}
+		</behavior>               
+	    <label string="$" style="buttonStyle"/>		
+	</container>
+	
+	<texture id="circularProgressTexture" small="../assets/circular-progress.png"/>
+	<behavior id="CircularProgressCanvasBehavior">
+		<method id="computeRatio" params="canvas"><![CDATA[
+			this.ratio = 0;
+		]]></method>
+		<method id="draw" params="canvas"><![CDATA[
+			var ctx = canvas.getContext("2d");
+			var x = 60;
+			var y = 60;
+			var width = 120;
+			var height = 120;
+			var r = 60;
+
+			ctx.save();
+			var scale = this.scale;
+			var dx = width - (scale * width);
+			var dy = height - (scale * height);
+			ctx.translate(0.5 * dx, 0.5 * dy);
+			ctx.scale(scale, scale);
+
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			
+			ctx.beginPath();
+			ctx.arc(x, y, r - 1, 0, 2 * Math.PI);
+			ctx.closePath();
+			ctx.lineWidth = 2;
+			ctx.strokeStyle = "#2870b0";
+			ctx.stroke();
+						
+			ctx.beginPath();
+			ctx.arc(x, y, r - 5, 0 - (Math.PI / 2), (2 * Math.PI * this.ratio) - (Math.PI / 2));
+			ctx.lineWidth = 10;
+			ctx.strokeStyle = "#2870b0";
+			ctx.stroke();
+		
+			ctx.translate(x, y);
+			ctx.rotate(this.angle * Math.PI / 180);
+			ctx.drawImage(circularProgressTexture, 0, 0, 120, 120, -x, -y, 120, 120);
+			ctx.restore();
+		]]></method>
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			if (undefined != data && "scale" in data)
+				this.scale = data.scale;
+			else
+				this.scale = 1;
+		]]></method>
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			this.angle = 0;
+			this.computeRatio(canvas);
+			this.draw(canvas);
+			canvas.start();
+		]]></method>
+		<method id="onTimeChanged" params="canvas"><![CDATA[
+			this.angle++;
+			if (this.angle == 360)
+				this.angle = 0;
+			this.computeRatio(canvas);
+			this.draw(canvas);
+		]]></method>
+	</behavior>
+	<canvas id="CircularProgressCanvas" width="122" height="122" behavior="CircularProgressCanvasBehavior">
+	</canvas>
+</module>
