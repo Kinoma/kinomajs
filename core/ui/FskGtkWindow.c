@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKWINDOW_PRIV__
 #define __FSKBITMAP_PRIV__
 
@@ -341,6 +341,7 @@ static void FskGtkWindowLoop(void *refcon)
 
 	gtkWin->owner = fskWindow;
 	gtkWin->window = win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_default_size(win, 750, 505);
 
 	//	Set App Icon
 	char *iconPath = FskStrDoCat(FskGetApplicationPath(), "fsk.png");
@@ -360,8 +361,6 @@ static void FskGtkWindowLoop(void *refcon)
 
 	gtkWin->da = gtk_drawing_area_new();
 
-	// TODO: this function has one issue: window can not be changed to less size.
-	gtk_widget_set_size_request(gtkWin->da, 750, 505); // The min size for Creator
 	gtk_widget_show(gtkWin->da);
 
 	gtkWin->accelGroup = gtk_accel_group_new();

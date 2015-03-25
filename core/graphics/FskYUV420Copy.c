@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKVIDEOSPRITE_PRIV__
 #include "FskYUV420Copy.h"
 #include "FskVideoSprite.h"
@@ -523,7 +523,6 @@ extern void interleave_yuv420i_cw180_aligned_arm_v6( unsigned char	*y0, unsigned
 extern void rotate_yuv420i_cw180_arm_v6(int height, int width, unsigned char *src, unsigned char *dst, int src_rb, int dst_rb );
 //extern void rotate_yuv420i_cw270_arm_v6(int height, int width, unsigned char *src, unsigned char *dst, int src_rb, int dst_rb );
 
-//***bnie: before they are really implemented: 15 cases
 #define interleave_yuv420i_cw090_aligned_arm_v4		interleave_yuv420i_cw090_misaligned_arm_v4
 #define interleave_yuv420i_cw180_aligned_arm_v4		interleave_yuv420i_cw180_misaligned_arm_v4
 #define interleave_yuv420i_cw270_aligned_arm_v4		interleave_yuv420i_cw270_misaligned_arm_v4
@@ -535,7 +534,6 @@ extern void rotate_yuv420i_cw180_arm_v6(int height, int width, unsigned char *sr
 //#define interleave_yuv420i_cw090_aligned_arm_v6		interleave_yuv420i_cw090_misaligned_arm_v6
 #define interleave_yuv420i_cw180_aligned_arm_v6		interleave_yuv420i_cw180_misaligned_arm_v6
 //#define interleave_yuv420i_cw270_aligned_arm_v6		interleave_yuv420i_cw270_misaligned_arm_v6
-//***bnie: before they are really implemented: 15 cases
 
 
 void FskYUV420Interleave_CW000_v4( unsigned char	*y0, unsigned char	*u0, unsigned char	*v0, unsigned char	*yuv0, int height, int width, int yrb, int uvrb, int yuvrb	)
@@ -645,7 +643,7 @@ void ConfigCopyYUV420iProcs( int implementation )
 	else
 #endif
 #ifndef SUPPORT_YUV420_WMMX_OPT
-	if( implementation >= FSK_ARCH_ARM_V6 )	//***bnie:fix android 1/19/2011
+	if( implementation >= FSK_ARCH_ARM_V6 )
 	{
 		FskYUV420Interleave_CW000_universal = FskYUV420Interleave_CW000_v4;
 		FskYUV420Interleave_CW090_universal = FskYUV420Interleave_CW090_v5;

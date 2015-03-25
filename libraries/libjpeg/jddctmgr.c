@@ -20,7 +20,6 @@
 #include "jpeglib.h"
 #include "jdct.h"		/* Private declarations for DCT subsystem */
 
-//***bnie
 extern int g_UseOpenMaxIDCT;
 /*
  * The decompressor input side (jdinput.c) saves away the appropriate
@@ -234,7 +233,7 @@ start_pass (j_decompress_ptr cinfo)
 	else
 
 	{
-		//***bnie: kinoma optimization with OpenMax, 9/2/2009
+		//kinoma optimization with OpenMax, 9/2/2009
 		long *ifmtbl2 = (long *)compptr->dct_table2;
 		omxICJP_DCTQuantInvTableInit( qtbl->quantval,ifmtbl2 );
 	}
@@ -305,7 +304,7 @@ jinit_inverse_dct (j_decompress_ptr cinfo)
     /* Mark multiplier table not yet set up for any method */
     idct->cur_method[ci] = -1;
 
-	//***bnie: kinoma optimization with OpenMax, 9/2/2009
+	//kinoma optimization with OpenMax, 9/2/2009
 	compptr->dct_table2 = 
 	  (*cinfo->mem->alloc_small) ((j_common_ptr) cinfo, JPOOL_IMAGE,
 				  64*4);

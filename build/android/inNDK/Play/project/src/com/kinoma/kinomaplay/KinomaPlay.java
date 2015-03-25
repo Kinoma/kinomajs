@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 package com.kinoma.kinomaplay;
 
 import java.io.File;
@@ -63,6 +63,10 @@ import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.content.res.XmlResourceParser;
+//#ifdefined C2D_MESSAGE
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
+//#endif
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -81,6 +85,9 @@ import android.net.Uri;
 import android.net.http.SslError;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+//#ifdefined C2D_MESSAGE
+import android.os.AsyncTask;
+//#endif
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -137,6 +144,11 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.TextView.OnEditorActionListener;
 
+//#ifdefined C2D_MESSAGE
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.gcm.GoogleCloudMessaging;
+import com.google.android.gms.common.GooglePlayServicesUtil;
+//#endif
 
 public class KinomaPlay extends Activity
 {
@@ -171,6 +183,26 @@ public class KinomaPlay extends Activity
     final int kSetKeyboard = 4;
     public native int callFskInt(int param, int val);
     Boolean mBuildWantsGL = false;
+//#ifdefined C2D_MESSAGE
+	Boolean mRemoteNotificationRegistered = false;
+    int getRemoteNotificationType() {
+		SharedPreferences prefs = getPreferences();
+		int type = prefs.getInt(kRemoteNotificationTypeKey, 0);
+		Log.i("kinoma", "RemoteNotificationType=" + type);
+		return type;
+	}
+    void setRemoteNotificationType(int type) {
+		SharedPreferences prefs = getPreferences();
+		Editor editor = prefs.edit();
+		editor.putInt(KinomaPlay.kRemoteNotificationTypeKey, type);
+		editor.commit();
+	}
+    String mBuildRemoteNotificationID = null;
+	public final static int kNotificationIDRemote = 1;
+    static final String kConfigName = "KinomaPlayConfig";
+    static final String kRemoteNotificationMessageKey = "RemoteNotificationMessage";
+    static final String kRemoteNotificationTypeKey = "RemoteNotificationType";
+//#endif
 
     final int kFskKeyboardTypeAlphanumeric = 0x100;
     final int kFskKeyboardTypePhone12Keys = 0x200;
@@ -206,11 +238,30 @@ public class KinomaPlay extends Activity
 
 	public native static void doFskOnTextChanged(String str, int start, int before, int count);
 
+//#ifdefined C2D_MESSAGE
+	public native static void doFskOnRemoteNotificationRegistered(String str);
+	public native static void doFskOnRemoteNotification(String str);
+	public native static void checkLaunched();
+	public static boolean getLaunched() {
+		try {
+			checkLaunched();
+		} catch (UnsatisfiedLinkError error) {
+			// Application may not be launched
+			return false;
+		}
+		return true;
+	}
+//#endif
+
 	public native static void fskPhoneStateChanged(int what, int state);
 	public native static void fskPhoneSSIDChanged(String ssid);
 	public native static void fskPhoneOperatorChanged(String operator);
 
 	public native static void fskSetVolumeMax(int max);
+
+//#ifdefined C2D_MESSAGE
+	public native static String fskGetEnvironment(String key);
+//#endif
 
 	public native static void setIMEEnabled(int enabled);
 
@@ -335,6 +386,9 @@ public class KinomaPlay extends Activity
 	private int mApplistLoaded = 0;
 
 	private boolean gInitialized = false;
+//#ifdefined C2D_MESSAGE
+	static boolean active = false;
+//#endif
 	private boolean mPaused = false;
 	private ReentrantLock mPreloadApps = new ReentrantLock();
 
@@ -376,6 +430,10 @@ public class KinomaPlay extends Activity
     int mOldNetworkType = -13;
 	int mOldServiceState = -13;
 	int mOldWifiSignalLevel = -13;
+
+//#ifdefined C2D_MESSAGE
+	private final static int PLAY_SERVICES_RESOLUTION_REQUEST = 9000;
+//#endif
 
 	/*******************************************************/
 	public String getUsername(){
@@ -1040,6 +1098,23 @@ public class KinomaPlay extends Activity
 			case 2:
 				mFskView.setInitialized(true);
 				gInitialized = true;
+
+//#ifdefined C2D_MESSAGE
+				String value = fskGetEnvironment("remoteNotification");
+				if ((value != null) && !value.contentEquals("0")) {
+					setRemoteNotificationType(Integer.parseInt(value));
+				} else {
+					setRemoteNotificationType(0);
+				}
+				value = fskGetEnvironment("remoteNotificationID");
+				if (value != null) {
+					Log.i("Kinoma", "doInit - remoteNotificationID is valid");
+					mBuildRemoteNotificationID = value;
+				}
+
+				Log.i("Kinoma", "doInit - about to registerRemoteNotification");
+				registerRemoteNotification();
+//#endif
 				break;
 			case 3:
 				callFsk(kJNISetupForCallbacks, "");	// sets up callback for doLaunch (web)
@@ -1912,6 +1987,9 @@ private void createGpsDisabledAlert(){
 
 		}
 		mPaused = true;
+//#ifdefined C2D_MESSAGE
+		active = false;
+//#endif
 
 		super.onPause();
 
@@ -1967,11 +2045,19 @@ private void createGpsDisabledAlert(){
 //#endif
 
 		mPaused = false;
+//#ifdefined C2D_MESSAGE
+		active = true;
+//#endif
 //		Log.i("Kinoma", "onResume - about to super.onResume");
 		super.onResume();
 
 //		Log.i("Kinoma", "onResume - about to registerRemoteControl");
 		registerRemoteControl();
+
+//#ifdefined C2D_MESSAGE
+		Log.i("Kinoma", "onResume - about to registerRemoteNotification");
+		registerRemoteNotification();
+//#endif
 
         CookieSyncManager.getInstance().startSync();
 	}
@@ -4108,6 +4194,75 @@ private void unregisterRemoteControl() {
         System.err.println("unexpected " + ie);
     }
 }
+
+//#ifdefined C2D_MESSAGE
+	private SharedPreferences getPreferences() {
+		return getSharedPreferences(kConfigName, Context.MODE_PRIVATE);
+	}
+
+	private void notifyIfSaved() {
+		SharedPreferences prefs = getPreferences();
+		String message = prefs.getString(kRemoteNotificationMessageKey, null);
+		if (message != null) {
+			Log.i("kinoma", "kRemoteNotificationMessage=" + message);
+			doFskOnRemoteNotification(message);
+			Editor editor = prefs.edit();
+			editor.remove(kRemoteNotificationMessageKey);
+			editor.commit();
+		}
+	}
+
+	private void registerRemoteNotification() {
+		Log.i("kinoma", "registerRemoteNotification");
+
+		if ( !gInitialized || mIsEmulator || (getRemoteNotificationType() == 0) || (mBuildRemoteNotificationID == null) ) {
+			Log.i("kinoma", "no need to register");
+			return;
+		}
+
+		if (mRemoteNotificationRegistered) {
+			notifyIfSaved();
+			return;
+		}
+
+		int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(this);
+
+		if (resultCode != ConnectionResult.SUCCESS) {
+			Log.i("kinoma", "GCM is not available");
+			if (GooglePlayServicesUtil.isUserRecoverableError(resultCode)) {
+				GooglePlayServicesUtil.getErrorDialog(resultCode, this,
+													  PLAY_SERVICES_RESOLUTION_REQUEST).show();
+			} else {
+				doFskOnRemoteNotificationRegistered(null);
+				setRemoteNotificationType(0);
+				mRemoteNotificationRegistered = true;
+			}
+			return;
+		}
+
+		Log.i("kinoma", "start registering");
+		final Context context = this.getApplicationContext();
+		new AsyncTask<Void, Void, Void>() {
+			@Override
+				protected Void doInBackground(Void... params) {
+				try {
+					GoogleCloudMessaging gcm = GoogleCloudMessaging.getInstance(context);
+					if (gcm != null) {
+						String regid = gcm.register(mBuildRemoteNotificationID);
+						Log.i("kinoma", "registerRemoteNotification ID=" + regid);
+						doFskOnRemoteNotificationRegistered(regid);
+						mRemoteNotificationRegistered = true;
+
+						notifyIfSaved();
+					}
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				return null;
+			}
+		}.execute(null, null, null);
+    }
+//#endif
 
 public class NoisyAudioStreamReceiver extends BroadcastReceiver {
 

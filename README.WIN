@@ -1,0 +1,7 @@
+If you encounter a problem with the Windows build where mt.exe is failing:
+"Unable to write manifest file", you can try disabling your antivirus from
+scanning the ${F_HOME}/bin and ${F_HOME}/tmp directories.
+
+This issue is commented on at:
+https://connect.microsoft.com/VisualStudio/feedback/details/682867/error-msb6006-mt-exe-exited-with-code-31
+

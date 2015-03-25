@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKBITMAP_PRIV__	/* To get access to the FskBitmap data structure */
 
 #include "FskSpan.h"
@@ -342,49 +342,49 @@ FlatAlphaBlendFillSpan32(FskSpan *span, UInt8 alpha)
 
 
 /*******************************************************************************
- * FlatAlphaFillSpan32ARGB - alpha in the MS byte
+ * FlatAlphaFillSpanA32 - alpha in the MS byte
  *******************************************************************************/
 
 static void
-FlatAlphaFillSpan32ARGB(FskSpan *span)
+FlatAlphaFillSpanA32(FskSpan *span)
 {
 	UInt32	color	= span->fillColor.p32;
 	UInt8	alpha	= (UInt8)(color >> 24);									/* Alpha is in the MS byte for this pixel format */
 
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
-		UInt32	dx;
-		UInt32	*p;
+		UInt32	dx, *p;
 		for (dx = span->dx, p = (UInt32*)(span->p); dx--; p++)
-			FskBlend32(p, color, alpha);
+			FskAlphaA32(p, color);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
 		FlatAlphaBlendFillSpan32(span, alpha);
 	}
 }
-#define FlatAlphaFillSpan32ABGR FlatAlphaFillSpan32ARGB
+#define FlatAlphaFillSpan32ABGR FlatAlphaFillSpanA32
+#define FlatAlphaFillSpan32ARGB FlatAlphaFillSpanA32
 
 
 /*******************************************************************************
- * FlatAlphaFillSpan32BGRA - alpha in the LS byte
+ * FlatAlphaFillSpan32A - alpha in the LS byte
  *******************************************************************************/
 
 static void
-FlatAlphaFillSpan32BGRA(FskSpan *span)
+FlatAlphaFillSpan32A(FskSpan *span)
 {
 	UInt32	color	= span->fillColor.p32;
 	UInt8	alpha	= (UInt8)(color >> 0);									/* Alpha is in the LS byte for this pixel format */
 
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
-		UInt32	dx;
-		UInt32	*p;
+		UInt32	dx, *p;
 		for (dx = span->dx, p = (UInt32*)(span->p)	; dx--; p++)
-			FskBlend32(p, color, alpha);
+			FskAlpha32A(p, color);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
 		FlatAlphaBlendFillSpan32(span, alpha);
 	}
 }
-#define FlatAlphaFillSpan32RGBA FlatAlphaFillSpan32BGRA
+#define FlatAlphaFillSpan32RGBA FlatAlphaFillSpan32A
+#define FlatAlphaFillSpan32BGRA FlatAlphaFillSpan32A
 
 
 /*******************************************************************************
@@ -429,15 +429,8 @@ FskErr
 FskInitSolidColorSpanFromColor(FskSpan *span, FskBitmap dstBM, const FskFixedMatrix3x2 *M, UInt32 quality, FskConstColorRGBA color)
 {
 	FskErr						err;
-	FskColorRGBARecord			preColor;
-	Boolean						preMul;
 	UNUSED(M);
 	UNUSED(quality);
-
-	if (FskBitmapGetAlphaIsPremultiplied(dstBM, &preMul), preMul) {
-		FskPremultiplyColorRGBA(color, &preColor);
-		color = &preColor;
-	}
 
 	err = FskConvertColorRGBAToBitmapPixel(color, dstBM->pixelFormat, &span->fillColor);		/* Convert color */
 

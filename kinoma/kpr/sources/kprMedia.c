@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKMEDIAPLAYER_PRIV__ 1 
 
 #include "kprBehavior.h"
@@ -28,6 +28,9 @@
 #include "kprURL.h"
 #include "kprUtilities.h"
 #include "kprShell.h"
+#if TARGET_OS_IPHONE
+#include "kpr_iOS.h"
+#endif
 
 #define kprMediaGetState(SELF) (SELF->state)
 #define kprMediaSetState(SELF,STATE) (SELF->state = STATE)
@@ -485,10 +488,18 @@ void KprMediaFeedback(KprMedia self, Boolean metadataChanged, Boolean stateChang
 		kprDelegateMetadataChanged(self);
 	if (stateChanged)
 		kprDelegateStateChanged(self);
-	if (timeChanged)
+	if (timeChanged) {
 		kprDelegateTimeChanged(self);
-	if (finished)
+#if TARGET_OS_IPHONE
+		KprSystemNowPlayingInfoSetTime(self->duration / 1000.0, self->time / 1000.0);
+#endif
+	}
+	if (finished) {
 		kprDelegateFinished(self);
+#if TARGET_OS_IPHONE
+		KprSystemNowPlayingInfoSetMetadata(NULL, NULL);
+#endif
+	}
 }
 
 FskErr KprMediaLoad(KprMedia self, UInt32 type, char* path, char* mime, char* user, char* password)
@@ -625,6 +636,9 @@ void KprMediaOnMetaDataChange(void* it)
 	KprMedia self = it;
 	FskMediaPlayer mp = self->mp;
 	FskMediaPropertyValueRecord meta;
+#if TARGET_OS_IPHONE
+	FskMediaPropertyValueRecord artwork = {0};
+#endif
 	Boolean flag = false;
 	
     FskMemPtrDisposeAt(&self->title);
@@ -665,13 +679,24 @@ void KprMediaOnMetaDataChange(void* it)
 				FskBitmap bitmap = NULL;
 				if (kFskErrNone == FskImageDecompressData(mime + length, meta.value.data.dataSize - length, mime, NULL, 0, 0, NULL, NULL, &bitmap)) {
 					self->cover = bitmap;
+#if TARGET_OS_IPHONE
+					artwork = meta;
+#endif
 				}
 			}
+#if !TARGET_OS_IPHONE
 			FskMediaPropertyEmpty(&meta);
+#endif
 		}
 	}
 	else
 		self->flags |= kprMediaVideo;
+
+#if TARGET_OS_IPHONE
+	KprSystemNowPlayingInfoSetMetadata(self, &artwork);
+	FskMediaPropertyEmpty(&artwork);
+#endif
+
 	KprMediaFeedback(self, true, false, false, false, kFskErrNone);
 }
 

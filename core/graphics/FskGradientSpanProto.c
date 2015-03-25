@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #if (FskName3(fsk,DstPixelKind,PixelPacking) == fskUniformChunkyPixelPacking)
 
 
@@ -78,13 +78,8 @@ FskName2(AlphaRampFillSpan,DstPixelKind)(FskSpan *span)
 				span->fillColor.rgba.g = (UInt8)(gd->g >> (kRampFillBits - 8));
 				span->fillColor.rgba.b = (UInt8)(gd->b >> (kRampFillBits - 8));
 				span->fillColor.rgba.a = (UInt8)(gd->a >> (kRampFillBits - 8));
-				if (span->fillColor.rgba.a != 255) {
-					span->fillColor.rgba.r = FskAlphaMul(span->fillColor.rgba.r, span->fillColor.rgba.a);
-					span->fillColor.rgba.g = FskAlphaMul(span->fillColor.rgba.g, span->fillColor.rgba.a);
-					span->fillColor.rgba.b = FskAlphaMul(span->fillColor.rgba.b, span->fillColor.rgba.a);
-				}
 				FskName3(fskConvert,fsk32RGBAFormatKind,DstPixelKind)(span->fillColor.p32);
-				FskName2(FskAlphaBlackSourceOver,DstPixelKind)((UInt32*)p, span->fillColor.p32);
+				FskName2(FskAlpha,DstPixelKind)((UInt32*)p, span->fillColor.p32);
 			#elif FskName3(fsk,DstPixelKind,Bytes) == 3															/* Build 3 byte color */
 				FskName2(fskConvertFixed,DstPixelKind)(gd->r, gd->g, gd->b, kRampFillBits, span->fillColor.p24);
 				FskBlend24((Fsk24BitType*)p, span->fillColor.p24, (UInt8)(gd->a >> (kRampFillBits - 8)));
@@ -102,11 +97,6 @@ FskName2(AlphaRampFillSpan,DstPixelKind)(FskSpan *span)
 				span->fillColor.rgba.g = (UInt8)(gd->g >> (kRampFillBits - 8));
 				span->fillColor.rgba.b = (UInt8)(gd->b >> (kRampFillBits - 8));
 				span->fillColor.rgba.a = alpha;
-				if (span->fillColor.rgba.a != 255) {
-					span->fillColor.rgba.r = FskAlphaMul(span->fillColor.rgba.r, span->fillColor.rgba.a);
-					span->fillColor.rgba.g = FskAlphaMul(span->fillColor.rgba.g, span->fillColor.rgba.a);
-					span->fillColor.rgba.b = FskAlphaMul(span->fillColor.rgba.b, span->fillColor.rgba.a);
-				}
 				FskName3(fskConvert,fsk32RGBAFormatKind,DstPixelKind)(span->fillColor.p32);
 			#elif FskName3(fsk,DstPixelKind,Bytes) == 3															/* Build 3 byte color */
 				FskName2(fskConvertFixed,DstPixelKind)(gd->r, gd->g, gd->b, kRampFillBits, span->fillColor.p24);

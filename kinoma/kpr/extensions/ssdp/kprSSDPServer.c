@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #include "kpr.h"
 #include "kprHTTPClient.h"
 #include "kprShell.h"
@@ -31,13 +31,15 @@ static FskInstrumentedTypeRecord KprSSDPServerInstrumentation = { NULL, sizeof(F
 
 static KprSSDPServer gKprSSDPServers = NULL;
 
-FskErr KprSSDPServerNew(KprSSDPServer *it, UInt32 port, const char* path, UInt32 expire, const char* uuid, const char* type)
+FskErr KprSSDPServerNew(KprSSDPServer *it, const char* scheme, UInt32 port, const char* path, UInt32 expire, const char* uuid, const char* type)
 {
 	FskErr err = kFskErrNone;
 	KprSSDPServer self = NULL;
 
 	bailIfError(FskMemPtrNewClear(sizeof(KprSSDPServerRecord), it));
 	self = *it;
+	self->scheme = FskStrDoCopy(scheme);
+	bailIfNULL(self->scheme);
 	self->port = port;
 	self->path = FskStrDoCopy(path);
 	bailIfNULL(self->path);
@@ -68,6 +70,7 @@ void KprSSDPServerDispose(KprSSDPServer self)
 	}
 	FskMemPtrDispose(self->type);
 	FskMemPtrDispose(self->path);
+	FskMemPtrDispose(self->scheme);
 	FskInstrumentedItemDispose(self);
 	FskMemPtrDispose(self);
 }
@@ -76,7 +79,7 @@ FskErr KprSSDPServerStart(KprSSDPServer self)
 {
 	FskErr err = kFskErrNone;
 	KprSSDPDevice device = NULL;
-	bailIfError(KprSSDPDeviceNew(&device, self->port, self->path, 0, 0, self->uuid, self->type, self->services));
+	bailIfError(KprSSDPDeviceNew(&device, self->scheme, self->port, self->path, 0, 0, self->uuid, self->type, self->services));
 	FskListAppend(&gKprSSDPServers, self);
 	FskThreadPostCallback(KprHTTPGetThread(), (FskThreadCallback)KprSSDPAddDevice, device, NULL, NULL, NULL);
 	if (self->registeredCallback)

@@ -1,21 +1,22 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKBITMAP_PRIV__
 #define __FSKPORT_PRIV__
+#define __FSKWINDOW_PRIV__
 #include "FskCanvas.h"
 #include "FskGlyphPath.h"
 #include "FskPixelOps.h"
@@ -65,6 +66,16 @@ static KprDispatchRecord KprCanvasDispatchRecord = {
 	KprContentUpdate
 };
 
+
+static FskBitmapFormatEnum PreferredPixelFormat(void)
+{
+	#if 0//FSKBITMAP_OPENGL
+		if (gShell->window->usingGL)
+			return kFskBitmapFormatGLRGBA;
+	#endif
+	return kFskBitmapFormatDefaultRGBA;
+}
+
 FskErr KprCanvasNew(KprCanvas* it,  KprCoordinates coordinates)
 {
 	FskErr err = kFskErrNone;
@@ -77,7 +88,7 @@ FskErr KprCanvasNew(KprCanvas* it,  KprCoordinates coordinates)
 	self->flags = kprVisible;
 	KprContentInitialize((KprContent)self, coordinates, NULL, NULL);
 	if (coordinates->width && coordinates->height) {
-		bailIfError(FskCanvasNew(coordinates->width, coordinates->height, kFskBitmapFormatDefaultRGBA, &self->cnv));
+		bailIfError(FskCanvasNew(coordinates->width, coordinates->height, PreferredPixelFormat(), &self->cnv));
         FskCanvas2dSetOpenGLSourceAccelerated(self->cnv, true);
     }
 bail:
@@ -86,7 +97,7 @@ bail:
 
 /* DISPATCH */
 
-void KprCanvasDispose(void* it) 
+void KprCanvasDispose(void* it)
 {
 	KprCanvas self = it;
 	if (self->cnv)
@@ -94,7 +105,7 @@ void KprCanvasDispose(void* it)
 	KprContentDispose(it);
 }
 
-void KprCanvasDraw(void* it, FskPort port, FskRectangle area UNUSED) 
+void KprCanvasDraw(void* it, FskPort port, FskRectangle area UNUSED)
 {
 	KprCanvas self = it;
 	if (self->cnv) {
@@ -121,13 +132,13 @@ FskBitmap KprCanvasGetBitmap(void* it, FskPort port, Boolean* owned)
 	return result;
 }
 
-void KprCanvasPlaced(void* it) 
+void KprCanvasPlaced(void* it)
 {
 	FskErr err = kFskErrNone;
 	KprCanvas self = it;
 	SInt32 width, height;
 	FskRectangleRecord bounds;
-	if (self->coordinates.width && self->coordinates.height) 
+	if (self->coordinates.width && self->coordinates.height)
 		goto bail;
 	width = self->bounds.width;
 	height = self->bounds.height;
@@ -138,7 +149,7 @@ void KprCanvasPlaced(void* it)
 	if ((width != bounds.width) || (height != bounds.height)) {
 		FskCanvasDispose(self->cnv);
 		self->cnv = NULL;
-		bailIfError(FskCanvasNew(width, height, kFskBitmapFormatDefaultRGBA, &self->cnv));
+		bailIfError(FskCanvasNew(width, height, PreferredPixelFormat(), &self->cnv));
         FskCanvas2dSetOpenGLSourceAccelerated(self->cnv, true);
 		self->flags |= kprDisplaying;
 	}
@@ -234,7 +245,7 @@ void KPR_canvas_set_size(xsMachine *the)
 			FskCanvasDispose(self->cnv);
 			self->cnv = NULL;
 			if (width && height) {
-				bailIfError(FskCanvasNew(width, height, kFskBitmapFormatDefaultRGBA, &self->cnv));
+				bailIfError(FskCanvasNew(width, height, PreferredPixelFormat(), &self->cnv));
                 FskCanvas2dSetOpenGLSourceAccelerated(self->cnv, true);
             }
 		}
@@ -262,7 +273,7 @@ void KPR_canvas_set_width(xsMachine *the)
 			FskCanvasDispose(self->cnv);
 			self->cnv = NULL;
 			if (width && bounds.height) {
-				bailIfError(FskCanvasNew(width, bounds.height, kFskBitmapFormatDefaultRGBA, &self->cnv));
+				bailIfError(FskCanvasNew(width, bounds.height, PreferredPixelFormat(), &self->cnv));
                 FskCanvas2dSetOpenGLSourceAccelerated(self->cnv, true);
             }
 		}
@@ -290,7 +301,7 @@ void KPR_canvas_set_height(xsMachine *the)
 			FskCanvasDispose(self->cnv);
 			self->cnv = NULL;
 			if (bounds.width && height) {
-				bailIfError(FskCanvasNew(bounds.width, bounds.height, kFskBitmapFormatDefaultRGBA, &self->cnv));
+				bailIfError(FskCanvasNew(bounds.width, bounds.height, PreferredPixelFormat(), &self->cnv));
                 FskCanvas2dSetOpenGLSourceAccelerated(self->cnv, true);
             }
 		}
@@ -384,13 +395,13 @@ void KPR_canvasRenderingContext2D_save(xsMachine *the)
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
 	FskCanvas2dSave(ctx);
 }
- 
+
 void KPR_canvasRenderingContext2D_restore(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
 	FskCanvas2dRestore(ctx);
 }
- 
+
 // transformations
 void KPR_canvasRenderingContext2D_scale(xsMachine *the)
 {
@@ -555,7 +566,7 @@ static void KPR_canvasRenderingContext2D_setStyle(xsMachine *the, xsBooleanValue
 				FskCanvas2dSetFillStyleColor(ctx, &color);
 		}
 	}
-	else 
+	else
 		xsArg(0) = xsCall2(xsArg(0), xsID("setStyle"), xsThis, xsBoolean(stroke));
 }
 

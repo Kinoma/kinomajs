@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKMEDIAREADER_PRIV__
 #include "FskMediaReader.h"
 #include "FskDIDLGenMedia.h"
@@ -902,7 +902,6 @@ int ts_seek_packet_by_time( MPEGReader mpeg, unsigned int time, int *seek_offset
 		
 		if( IS_VALID_TIME(&frame_time_dec) )
 		{
-			//MPEGReaderTrack track = mpeg->mpeg_tracks;//***bnie: for now
 			unsigned int this_time = GET_TIME_64( &frame_time_dec) - mpeg->time_init_fsk64;
 			int is_video_sync = 0;
 			unsigned char *bs_bytes = mpeg->mpeg_bytes + bs_offset;
@@ -1002,7 +1001,6 @@ int ps_seek_packet_by_time( MPEGReader mpeg, unsigned int time, int *seek_offset
 
 		if( IS_VALID_TIME(&frame_time_dec) )
 		{
-			//MPEGReaderTrack track = mpeg->mpeg_tracks;//***bnie: for now
 			unsigned int	this_time = GET_TIME_64(&frame_time_dec) - mpeg->time_init_fsk64;
 			int				is_video_sync = 0;
 			unsigned char	*bs_bytes = mpeg->mpeg_bytes + bs_offset;
@@ -1018,7 +1016,7 @@ int ps_seek_packet_by_time( MPEGReader mpeg, unsigned int time, int *seek_offset
 					
 					is_video_sync = sample_flag == kFskImageFrameTypeSync;
 				}
-				else//***bnie: take care of non-avc case later
+				else// take care of non-avc case later
 					is_video_sync = 1;//kFskImageFrameTypeSync;
 			}
 
@@ -1620,10 +1618,6 @@ FskErr mpegReaderExtract(FskMediaReader reader, void *readerState, FskMediaReade
 			}	
 #endif
 
-			//***bnie coverity check warning
-			//CID 10618: Dereference before null check (REVERSE_INULL)
-			//Dereferencing pointer "mpeg->mpeg_bytes".
-			
 			err = md_ts_process_sample( mpeg->md, 0, mpeg->mpeg_bytes, &is_video, &bs_bytes, &bs_size, &time_pre, &time_dec );
 			dlog("passed 1 packet, is_video = %d, bs_size = %d\n", is_video, bs_size);
 			BAIL_IF_ERR(err);
@@ -1698,7 +1692,7 @@ FskErr mpegReaderExtract(FskMediaReader reader, void *readerState, FskMediaReade
 		if( is_video  && bs_size != 0 )
 		{
 			int sample_flag = kFskImageFrameTypeSync;
-			MPEGReaderTrack track = mpeg->mpeg_tracks;//***bnie: for now
+			MPEGReaderTrack track = mpeg->mpeg_tracks;
 			//int keeper_condition = 0;
 			
 			if( mpeg->md->video_format == TRACK_H264   || mpeg->md->video_format == TRACK_H264_x )
@@ -1706,7 +1700,7 @@ FskErr mpegReaderExtract(FskMediaReader reader, void *readerState, FskMediaReade
 				err = check_avc_sync( 0, bs_bytes, bs_size, &sample_flag );
 				BAIL_IF_ERR(err);
 			}
-			else if (mpeg->md->video_format == TRACK_MPEG1V || mpeg->md->video_format == TRACK_MPEG2V)//***bnie: take care of non-avc case later
+			else if (mpeg->md->video_format == TRACK_MPEG1V || mpeg->md->video_format == TRACK_MPEG2V)
 			{
 				//sample_flag = kFskImageFrameTypeSync;
 				int dc_size, pic_type;
@@ -1814,7 +1808,7 @@ FskErr mpegReaderExtract(FskMediaReader reader, void *readerState, FskMediaReade
 		}
 		else if( !is_video  && bs_size != 0 )
 		{
-			MPEGReaderTrack track = mpeg->mpeg_tracks->next;//***bnie: for now
+			MPEGReaderTrack track = mpeg->mpeg_tracks->next;
 			int i;
 
 			mpeg->audio_total_size += bs_size;
@@ -2284,7 +2278,6 @@ FskErr mpegReaderTrackGetFormatInfo(void *state, void *trackState, UInt32 proper
 	}
 	//else if (kMPEGMediaTypeAudio == track->mediaType && 0 == FskStrCompare(track->format, "x-audio-codec/ac3")) 
 	//{
-	//	//***bnie:???
 	//}
 	else
 	{
@@ -2337,7 +2330,7 @@ FskErr mpegReaderVideoTrackGetFrameRate(void *state, void *trackState, UInt32 pr
 		}
 		else
 		{
-			frame_dur = 0; //***bnie : need to implement
+			frame_dur = 0; //need to implement
 			dlog("mpeg->is_ts is false, frame_dur: %d\n", frame_dur );
 		}
 

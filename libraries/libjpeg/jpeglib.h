@@ -86,7 +86,7 @@ typedef struct {
    * CAUTION: IJG versions prior to v6a kept this array in zigzag order.
    */
 #ifdef SUPPORT_OPENMAX//QUANT_USE_8_BITS
-  //***bnie: kinoma optimization with OpenMax	9/2/2009
+  //kinoma optimization with OpenMax	9/2/2009
   UINT8 quantval[DCTSIZE2];	/* quantization step for each coefficient */
 #else
   UINT16 quantval[DCTSIZE2];	/* quantization step for each coefficient */
@@ -184,7 +184,7 @@ typedef struct {
   /* Private per-component storage for DCT or IDCT subsystem. */
   void * dct_table;
 
-  void * dct_table2;//***bnie: kinoma optimization using OpenMax  9/2/2009
+  void * dct_table2;//kinoma optimization using OpenMax  9/2/2009
 } jpeg_component_info;
 
 

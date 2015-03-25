@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKTHREAD_PRIV__
 
 #define _WIN32_WINNT 0x0400
@@ -198,12 +198,13 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 	win->isFullscreenWindow = ((windowStyle & kFskWindowFullscreen) != 0);
 
 #if (TARGET_OS_IPHONE)
-	{
-		float scale;
-		scale = FskCocoaDeviceScreenScaleFactor();
-		if (1.0 < scale)
-			FskPortScaleSet(win->port, FskRoundFloatToFixed(scale));
-	}
+	// screenScale will be available after cocoa window is created.
+	//{
+	//	float scale;
+	//	scale = FskCocoaDeviceScreenScaleFactor();
+	//	if (1.0 < scale)
+	//		FskPortScaleSet(win->port, FskRoundFloatToFixed(scale));
+	//}
 #elif TARGET_OS_MAC || TARGET_OS_WIN32
 	{
 		const char *value = FskEnvironmentGet("screenScale");
@@ -284,6 +285,10 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
     #if TARGET_OS_IPHONE
         if (!FskCocoaWindowCreate(win, (windowStyle & kFskWindowCustom), (windowStyle & kFskWindowFullscreen), width, height))
             BAIL(kFskErrMemFull);
+		float scale;
+		FskCocoaWindowGetScreenScale(win, &scale);
+		if (1.0 < scale)
+			FskPortScaleSet(win->port, FskRoundFloatToFixed(scale));
     #else /* !TARGET_OS_IPHONE */
         if (!FskCocoaWindowCreate(win, (windowStyle & kFskWindowCustom), width, height))
             BAIL(kFskErrMemFull);
@@ -3038,11 +3043,149 @@ FskErr FskWindowCancelStillDownEvents(FskWindow window) { return kFskErrUnimplem
 
 #endif /* !TARGET_OS_WIN32 && !!TARGET_OS_MAC && !!TARGET_OS_LINUX */
 
+#if SUPPORT_EXTERNAL_SCREEN
+static FskListMutex gExtScreenList = NULL;
+static FskListMutex	gExtScreenChangeCBList = NULL;
+
+struct FskExtScreenRecord {
+	struct FskExtScreenRecord *next;
+	int identifier;
+	FskDimensionRecord size;
+	FskInstrumentedItemDeclaration
+};
+
+#if SUPPORT_INSTRUMENTATION
+
+static FskInstrumentedTypeRecord gExtScreenNotifierInstrumentation = {
+	NULL,
+	sizeof(FskInstrumentedTypeRecord),
+	"externalScreen",
+	FskInstrumentationOffset(FskExtScreenNotifierRecord),
+	NULL,
+	0,
+	NULL,
+	NULL
+};
+#endif /* SUPPORT_INSTRUMENTATION */
+FskInstrumentedTypePrintfsDefine(ExtScreen, gExtScreenNotifierInstrumentation);
+
+FskExtScreenNotifier FskExtScreenAddNotifier(FskExtScreenChangedCallback callback, void *param, char *debugName)
+{
+	FskExtScreenNotifier notif = NULL;
+	FskThread thread = FskThreadGetCurrent();
+	UInt32 nameLen = debugName ? FskStrLen(debugName) + 1 : 0;
+
+	if (kFskErrNone == FskMemPtrNewClear(sizeof(FskExtScreenNotifierRecord) + nameLen, &notif)) {
+		FskExtScreenPrintfDebug("ExtScreenNotifier NEW -- %x", notif);
+		notif->callback = callback;
+		notif->param = param;
+
+		notif->thread = thread;
+		if (nameLen)
+			FskMemMove(notif->name, debugName, nameLen);
+
+		FskListMutexPrepend(gExtScreenChangeCBList, notif);
+		FskInstrumentedItemNew(notif, notif->name, &gExtScreenNotifierInstrumentation);
+	}
+	return notif;
+}
+
+void FskExtScreenRemoveNotifier(FskExtScreenNotifier callback)
+{
+	FskExtScreenPrintfDebug("ExtScreenNotifier REMOVE -- %x", callback);
+	if (NULL != callback) {
+		FskListMutexRemove(gExtScreenChangeCBList, callback);
+		FskInstrumentedItemDispose(callback);
+		FskMemPtrDispose(callback);
+	}
+	FskExtScreenPrintfDebug("ExtScreenNotifier REMOVE -- %x done", callback);
+}
+
+void FskExtScreenHandleConnected(int identifier, FskDimension size) {
+#if SUPPORT_INSTRUMENTATION
+	FskExtScreenPrintfDebug("ExtScreenNotifier Connected -- identifier is: %d", identifier);
+#endif /* SUPPORT_INSTRUMENTATION */
+
+	FskExtScreen screen = NULL;
+
+	if (kFskErrNone == FskMemPtrNewClear(sizeof(FskExtScreenRecord), &screen)) {
+		screen->identifier = identifier;
+		screen->size = *size;
+
+		FskListMutexPrepend(gExtScreenList, screen);
+
+		FskExtScreenNotifier notif = (FskExtScreenNotifier)gExtScreenChangeCBList->list;
+		while (notif) {
+			(*notif->callback)(kFskExtScreenStatusNew, screen->identifier, &screen->size, notif->param);
+			notif = notif->next;
+		}
+	}
+}
+
+void FskExtScreenHandleDisconnected(int identifier) {
+#if SUPPORT_INSTRUMENTATION
+	FskExtScreenPrintfDebug("ExtScreenNotifier Disconnected -- identifier is: %d", identifier);
+#endif /* SUPPORT_INSTRUMENTATION */
+
+	FskExtScreen screen = NULL;
+
+	screen = (FskExtScreen)gExtScreenList->list;
+	while (screen) {
+		if (screen->identifier == identifier) {
+			break;
+		}
+		screen = screen->next;
+	}
+
+	if (screen) {
+		FskExtScreenNotifier notif = (FskExtScreenNotifier)gExtScreenChangeCBList->list;
+		while (notif) {
+			(*notif->callback)(kFskExtScreenStatusRemoved, screen->identifier, NULL, notif->param);
+			notif = notif->next;
+		}
+	}
+}
+
+void FskExtScreenHandleChanged(int identifier, FskDimension newSize) {
+#if SUPPORT_INSTRUMENTATION
+	FskExtScreenPrintfDebug("ExtScreenNotifier Changed -- identifier is: %d", identifier);
+#endif /* SUPPORT_INSTRUMENTATION */
+
+	FskExtScreen screen = NULL;
+
+	screen = (FskExtScreen)gExtScreenList->list;
+	while (screen) {
+		if (screen->identifier == identifier) {
+			break;
+		}
+		screen = screen->next;
+	}
+
+	if (screen) {
+		screen->size = *newSize;
+
+		FskExtScreenNotifier notif = (FskExtScreenNotifier)gExtScreenChangeCBList->list;
+		while (notif) {
+			(*notif->callback)(kFskExtScreenStatusChanged, screen->identifier, &screen->size, notif->param);
+			notif = notif->next;
+		}
+	}
+}
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
+
 FskErr FskWindowInitialize(void)
 {
 	FskErr err;
 	err = FskListMutexNew(&gWindowList, "windowList");
 	BAIL_IF_ERR(err);
+
+#if SUPPORT_EXTERNAL_SCREEN
+	err = FskListMutexNew(&gExtScreenList, "screenList");
+	BAIL_IF_ERR(err);
+
+	err = FskListMutexNew(&gExtScreenChangeCBList, "screenChangeCBList");
+	BAIL_IF_ERR(err);
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 
 bail:
 	return kFskErrNone;
@@ -3059,6 +3202,11 @@ void FskWindowTerminate(void)
 		}
 		FskWindowDispose(w);
 	}
+
+#if SUPPORT_EXTERNAL_SCREEN
+	FskListMutexDispose(gExtScreenChangeCBList);
+	FskListMutexDispose(gExtScreenList);
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 
 }
 

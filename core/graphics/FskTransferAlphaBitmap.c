@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKBITMAP_PRIV__	/* To get access to the FskBitmap data structure */
 
 #include "FskTransferAlphaBitmap.h"
@@ -736,8 +736,6 @@ static void FskUnityColorize8A16RGB565SE_C(const FskRectBlitParams *p)
 	SInt32			drb		= p->dstRowBytes - (p->dstWidth<<1);
 	unsigned char	*alpha_color  = (unsigned char *)&p->alpha;
 
-	//dlog( "bnie_197!!! FskUnityColorize8A16RGB565SE_c(), width: %d, height: %d, srb: %d, drb: %d, red: %d, green: %d, blue: %d, alpha: %d\n",
-	//		(int)p->dstWidth, (int)p->dstHeight, (int)srb, (int)drb, (int)alpha_color[1], (int)alpha_color[2], (int)alpha_color[3], (int)p->alpha);
 	if( alpha_color[0] == 255 )
 		alpha_blend_255_16rgbse_c( (unsigned char *)p->srcBaseAddr, (unsigned char *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 	else
@@ -752,13 +750,10 @@ static void FskUnityColorize8A32ARGB_C(const FskRectBlitParams *p)
 	unsigned char	*alpha_color  = (unsigned char *)&p->alpha;
 	//unsigned char	alpha_color[4]  = {254, 255, 255, 255};
 
-	//dlog( "bnie_091  !!! FskUnityColorize8A32ARGB_arm_v7(), width: %d, height: %d, srb: %d, drb: %d, red: %d, green: %d, blue: %d, alpha: %d\n",
-	//		(int)p->dstWidth, (int)p->dstHeight, (int)srb, (int)drb, (int)alpha_color[1], (int)alpha_color[2], (int)alpha_color[3], (int)alpha_color[0]);
 	if( alpha_color[0] == 255 )
 		alpha_blend_255_32argb_c( (unsigned char *)p->srcBaseAddr, (unsigned char *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 	else
 	{
-		//verify( (unsigned char *)p->srcBaseAddr, (DST_TYPE *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 		alpha_blend_generic_32argb_c( (unsigned char *)p->srcBaseAddr, (unsigned char *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 	}
 }
@@ -773,8 +768,6 @@ static void FskUnityColorize8A16RGB565SE_arm_v7(const FskRectBlitParams *p)
 	SInt32			drb		= p->dstRowBytes - (p->dstWidth<<1);
 	unsigned char	*alpha_color  = (unsigned char *)&p->alpha;
 
-	//dlog( "bnie_197!!! FskUnityColorize8A16RGB565SE_c(), width: %d, height: %d, srb: %d, drb: %d, red: %d, green: %d, blue: %d, alpha: %d\n",
-	//		(int)p->dstWidth, (int)p->dstHeight, (int)srb, (int)drb, (int)alpha_color[1], (int)alpha_color[2], (int)alpha_color[3], (int)p->alpha);
 	if( alpha_color[0] == 255 )
 		alpha_blend_255_16rgbse_arm_v7( (unsigned char *)p->srcBaseAddr, (unsigned char *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 	else
@@ -789,13 +782,10 @@ static void FskUnityColorize8A32ARGB_arm_v7(const FskRectBlitParams *p)
 	unsigned char	*alpha_color  = (unsigned char *)&p->alpha;
 	//unsigned char	alpha_color[4]  = {254, 255, 255, 255};
 
-	//dlog( "bnie_091  !!! FskUnityColorize8A32ARGB_arm_v7(), width: %d, height: %d, srb: %d, drb: %d, red: %d, green: %d, blue: %d, alpha: %d\n",
-	//		(int)p->dstWidth, (int)p->dstHeight, (int)srb, (int)drb, (int)alpha_color[1], (int)alpha_color[2], (int)alpha_color[3], (int)alpha_color[0]);
 	if( alpha_color[0] == 255 )
 		alpha_blend_255_32argb_arm_v7( (unsigned char *)p->srcBaseAddr, (unsigned char *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 	else
 	{
-		//verify( (unsigned char *)p->srcBaseAddr, (DST_TYPE *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 		alpha_blend_generic_32argb_arm_v7( (unsigned char *)p->srcBaseAddr, (unsigned char *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 	}
 }
@@ -826,7 +816,6 @@ static void FskUnityColorize8A32ARGB_wmmx(const FskRectBlitParams *p)
 		alpha_blend_255_32argb_wmmx( (unsigned char *)p->srcBaseAddr, (unsigned char *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 	else
 	{
-		//verify( (unsigned char *)p->srcBaseAddr, (DST_TYPE *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 		alpha_blend_generic_32argb_wmmx( (unsigned char *)p->srcBaseAddr, (unsigned char *)p->dstBaseAddr, alpha_color, p->dstWidth, p->dstHeight, srb, drb );
 	}
 }

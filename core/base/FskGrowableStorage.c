@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 /**
 	\file	FskGrowableStorage.c
 	\brief	Resizable storage.
@@ -435,7 +435,7 @@ bail:
 FskErr
 FskGrowableStorageVAppendF(FskGrowableStorage storage, const char *fmt, va_list ap) {
 	FskErr	err;
-	size_t	n0, n1;
+	UInt32	n0, n1;
 	char	*str;
 	va_list	ap2;
 
@@ -985,9 +985,9 @@ FskGrowableBlobArrayRemoveItem(FskGrowableBlobArray array, UInt32 index)
 static FskErr
 InitBlobDirEntry(BlobEntry *dirPtr, FskGrowableBlobArray array, UInt32 itemSize, UInt32 *id)
 {
-	FskErr			err;
-	unsigned long	z		= (itemSize + (BLOB_ALIGN - 1)) & ~(BLOB_ALIGN - 1);				/* Bump new item size up to a nice number */
-	unsigned long	offset	= FskGrowableStorageGetSize(array->data);							/* Get location of new data */
+	FskErr	err;
+	UInt32	z		= (itemSize + (BLOB_ALIGN - 1)) & ~(BLOB_ALIGN - 1);						/* Bump new item size up to a nice number */
+	UInt32	offset	= FskGrowableStorageGetSize(array->data);									/* Get location of new data */
 
 	FskMemSet(dirPtr, 0, array->directory->itemSize);											/* Clear directory entry */
 
@@ -1443,7 +1443,7 @@ FskGrowableBlobArrayGetIndexFromIDOfItem(FskConstGrowableBlobArray array, UInt32
 	*index = kFskGrowableBlobArrayUnassignedID;
 	BAIL_IF_NULL((dirPtr = GetConstDirectoryEntryFromIdOfItemInGrowableBlobArray(array, id)), err, kFskErrItemNotFound);
 	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, 0, (const void**)(const void*)(&dir0)));
-	*index = ((const char*)dirPtr - (const char*)dir0) / array->directory->itemSize;
+	*index = (UInt32)(((const char*)dirPtr - (const char*)dir0) / array->directory->itemSize);
 
 bail:
 	return err;

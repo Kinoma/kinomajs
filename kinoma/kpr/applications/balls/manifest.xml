@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
+|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
 -->
 <fsk xmlns="http://www.kinoma.com/Fsk/1" xmlns:build="http://www.kinoma.com/Fsk/manifest/1">
 	<rootvm>
@@ -50,7 +50,7 @@
 			<variable name="ios" value="true" platform="iphone"/>
 
 			<variable name="modulePath" value="[applicationPath]/bin/modules/" />
-			<variable name="shellPath" value="[applicationPath]bin/mockupShell.jsb" platform="linux/gtk,mac"/>
+			<variable name="shellPath" value="[applicationPath]bin/mockupShell.jsb" platform="linux/gtk,mac,win"/>
 			<variable name="shellPath" value="[applicationPath]program/deviceShell.jsb" platform="iphone" />
 			<variable name="shellPath" value="[applicationPath]res/raw/kinoma.jet/program/deviceShell.jsb" platform="android" />
 			<variable name="shellPath" value="[applicationPath]program/deviceShell.jsb" platform="linux/bg3cdp,linux/bg2dtv,linux/aspen" />
@@ -79,6 +79,7 @@
 
 		<extension href="KplFrameBuffer" build:from="[kplPath]/framebuffer/KplFrameBuffer.mk" platform="linux/aspen,linux/bg3cdp,linux/bg2dtv" build:embed="true"/>
 		<bytecode href="FskSSL" build:from="[extensions]ssl/FskSSL.mk" platform="mac,linux,win" build:embed="true" build:style="nonembed"/> <!-- only for non embeding platforms -->
+		<bytecode href="FskSSLAll" build:from="[extensions]ssl/FskSSLAll.mk" platform="mac,iphone,linux,win,android" build:embed="true"/>
 	</rootvm>
 	<vm name="Crypt" platform="none" build:style="embed">
 		<extension href="Crypt" build:from="[extensions]crypt/Crypt.mk" build:embed="true"/>
@@ -86,20 +87,17 @@
 	<vm name="kpr" platform="none">
 		<extension href="kpr" build:from="[kpr]/kpr.mk" build:embed="true" />
 	</vm>
-	<vm name="sslroot" platform="none">
-		<bytecode href="FskSSLAll" build:from="[extensions]ssl/FskSSLAll.mk" platform="mac,iphone,linux,win,android" build:embed="true"/>
-	</vm>
 
 	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls" destinationPath="program" platform="android,iphone,linux/bg3cdp,linux/aspen" />
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls/mockupShell.xml" destinationPath="bin" platform="linux/gtk,mac"/>
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/modules" destinationPath="bin/modules" platform="linux/gtk,mac" />
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls" destinationPath="bin/program" platform="linux/gtk,mac" />
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/devices" destinationPath="bin/devices" platform="linux/gtk,mac" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls/mockupShell.xml" destinationPath="bin" platform="linux/gtk,mac,win"/>
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/modules" destinationPath="bin/modules" platform="linux/gtk,mac,win" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls" destinationPath="bin/program" platform="linux/gtk,mac,win" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/devices" destinationPath="bin/devices" platform="linux/gtk,mac,win" />
 
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/android" platform="android,iphone,linux" />
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/deviceShell.xml" platform="linux/gtk,mac" />
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/iphone" platform="android,iphone,linux" />
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/manifest.xml" platform="android,iphone,linux" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/android" platform="android,iphone,linux,mac,win" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/deviceShell.xml" platform="linux/gtk,mac,win" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/iphone" platform="android,iphone,linux,mac,win" />
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/manifest.xml" platform="android,iphone,linux,win" />
 	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/mockup" />
 	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/mockupShell.xml" platform="android,iphone,linux/aspen,linux/bg2dtv,linux/bg3cdp" />
 </fsk>

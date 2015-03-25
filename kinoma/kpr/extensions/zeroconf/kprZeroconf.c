@@ -1,24 +1,25 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
+#include "FskAssociativeArray.h"
+#include "FskUUID.h"
 
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
 #include "kpr.h"
 #include "kprHTTPServer.h"
 #include "kprMessage.h"
-
-#include "FskUUID.h"
 
 #include "kprZeroconf.h"
 #include "kprZeroconfCommon.h"
@@ -230,8 +231,14 @@ void KprZeroconfServiceShare(KprService self, char* authority, Boolean shareIt, 
 	if (shareIt && server) {
 		if (!advertisement) {
 			UInt32 port = server ? KprHTTPServerGetPort(server) : 0;
+			Boolean secure = server ? KprHTTPServerIsSecure(server) : false;
 			char* uuid = FskUUIDGetForKey(authority);
-			bailIfError(KprZeroconfAdvertisementNew(&advertisement, type, uuid, port));
+			FskAssociativeArray txt = NULL;
+			if (secure) {
+				txt = FskAssociativeArrayNew();
+				FskAssociativeArrayElementSetString(txt, "secure", "true");
+			}
+			bailIfError(KprZeroconfAdvertisementNew(&advertisement, type, uuid, port, txt));
 			bailIfError(KprZeroconfPlatformAdvertisementStart(advertisement));
 			FskListAppend(&gKprZeroconfAdvertisements, advertisement);
 		}
@@ -296,7 +303,27 @@ void Zeroconf_Advertisement(xsMachine *the)
 	char* serviceType = xsToString(xsArg(0));
 	char* servicName = xsToString(xsArg(1));
 	int servicPort = xsToInteger(xsArg(2));
-	xsThrowIfFskErr(KprZeroconfAdvertisementNew(&self, serviceType, servicName, servicPort));
+	xsIntegerValue c = xsToInteger(xsArgc);
+	FskAssociativeArray txt = NULL;
+	if ((c > 3) && xsIsInstanceOf(xsArg(3), xsObjectPrototype)) {
+		xsVars(2);
+		xsEnterSandbox();
+		fxPush(xsArg(3));
+		fxRunForIn(the);
+		txt = FskAssociativeArrayNew();
+		for (xsVar(0) = fxPop(); xsTypeOf(xsVar(0)) != xsNullType; xsVar(0) = fxPop()) {
+			if (xsTypeOf(xsVar(0)) == xsStringType) {
+				xsVar(1) = xsGetAt(xsArg(3), xsVar(0));
+				if (!xsIsInstanceOf(xsVar(1), xsObjectPrototype)) {
+					char* name = xsToString(xsVar(0));
+					char* value = xsToString(xsVar(1));
+					FskAssociativeArrayElementSetString(txt, name, value);
+				}
+			}
+		}
+		xsLeaveSandbox();
+	}
+	xsThrowIfFskErr(KprZeroconfAdvertisementNew(&self, serviceType, servicName, servicPort, txt));
 	xsSetHostData(xsResult, self);
 	self->registeredCallback = Zeroconf_advertisement_registeredCallback;
 	self->unregisteredCallback = Zeroconf_advertisement_unregisteredCallback;

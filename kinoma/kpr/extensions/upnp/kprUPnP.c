@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKHTTPSERVER_PRIV__
 #define __FSKMEDIAREADER_PRIV__
 
@@ -538,7 +538,7 @@ FskErr KprUPnPAddDevice(KprContext context, KprUPnPDevice device)
 	FskStrCat(path, "/description");
 	if (device->configId)
 		configId = FskStrToNum(device->configId);
-	bailIfError(KprSSDPDeviceNew(&ssdpDevice, KprHTTPServerGetPort(server), path, 0, configId, device->uuid, device->type, NULL));
+	bailIfError(KprSSDPDeviceNew(&ssdpDevice, KprHTTPServerIsSecure(server) ? "https" : "http", KprHTTPServerGetPort(server), path, 0, configId, device->uuid, device->type, NULL));
 	{	// add services
 		KprUPnPService service;
 		for (service = device->service; service; service = service->next) {
@@ -2746,6 +2746,10 @@ KprDelegateRecord kprUPnPHandlerBehaviorDelegateRecord = {
 	KprDefaultBehaviorMeasureVertically,
 	KprDefaultBehaviorMetadataChanged,
 	KprDefaultBehaviorQuit,
+#if SUPPORT_REMOTE_NOTIFICATION
+	KprDefaultBehaviorRemoteNotificationRegistered,
+	KprDefaultBehaviorRemoteNotified,
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 	KprDefaultBehaviorScrolled,
 	KprDefaultBehaviorSensorBegan,
 	KprDefaultBehaviorSensorChanged,
@@ -4126,8 +4130,8 @@ void UPnP_Controller_subscribe(xsMachine *the)
 		
 		size = 32 + FskStrLen(controller->ip);
 		xsThrowIfFskErr(FskMemPtrNewClear(size, &url));
-		snprintf(url, size, "http://%s:%lu/upnp/event",
-			controller->ip, KprHTTPServerGetPort(server));
+		snprintf(url, size, "%s://%s:%lu/upnp/event",
+			KprHTTPServerIsSecure(server) ? "https" : "http", controller->ip, KprHTTPServerGetPort(server));
 		xsThrowIfFskErr(KprUPnPSubscriptionNew(&subscription, service, url, self->subscriptionTimeout));
 		service->subscription = subscription;
 		KprUPnPSubscriptionSubscribe(subscription, controller);

@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 //#include "fips180.h"
 #include <time.h>
 #include "md5.h"
@@ -1947,7 +1947,7 @@ FskErr KprRetainableNew(KprRetainable *it)
 	FskErr err = kFskErrNone;
 	KprRetainable self = NULL;
 
-	bailIfError(FskMemPtrNew(sizeof(KprRetainableRecord), &self));
+	bailIfError(KprMemPtrNew(sizeof(KprRetainableRecord), &self));
 
 	self->retainCount = 1;
 
@@ -1960,7 +1960,7 @@ bail:
 FskErr KprRetainableDispose(KprRetainable self)
 {
 	if (self) {
-		FskMemPtrDispose(self);
+		KprMemPtrDispose(self);
 	}
 	return kFskErrNone;
 }
@@ -1984,7 +1984,7 @@ FskErr KprMemoryChunkNew(UInt32 size, const void *data, KprMemoryChunk *it)
 	KprMemoryChunk self = NULL;
 	char *p;
 
-	bailIfError(FskMemPtrNew(sizeof(KprMemoryChunkRecord) + size + 1, &self));
+	bailIfError(KprMemPtrNew(sizeof(KprMemoryChunkRecord) + size + 1, &self));
 	bailIfError(KprRetainableNew(&self->retainable));
 
 	self->next = NULL;
@@ -1998,7 +1998,7 @@ FskErr KprMemoryChunkNew(UInt32 size, const void *data, KprMemoryChunk *it)
 
 bail:
 	if (err) {
-		FskMemPtrDispose(self);
+		KprMemPtrDispose(self);
 	}
 	return err;
 }
@@ -2008,7 +2008,7 @@ FskErr KprMemoryChunkDispose(KprMemoryChunk self)
 	if (self && KprRetainableRelease(self->retainable)) {
 		KprMemoryChunkDispose(self->next);
 		KprRetainableDispose(self->retainable);
-		FskMemPtrDispose(self);
+		KprMemPtrDispose(self);
 	}
 	return kFskErrNone;
 }
@@ -2052,12 +2052,18 @@ FskErr KprMemoryChunkToScript(KprMemoryChunk self, xsMachine *the, xsSlot *ref)
 	FskErr err;
 	FskMemPtr data = NULL;
 
-	bailIfError(FskMemPtrNewFromData(self->size, KprMemoryChunkStart(self), &data));
+	bailIfError(KprMemPtrNewFromData(self->size, KprMemoryChunkStart(self), &data));
 
 	xsMemPtrToChunk(the, ref, data, self->size, false);
 
 bail:
 	return err;
+}
+
+Boolean KprMemoryChunkIsSame(KprMemoryChunk a, KprMemoryChunk b)
+{
+	if (a == NULL || b == NULL || a->size != b->size) return false;
+	return FskMemCompare(KprMemoryChunkStart(a), KprMemoryChunkStart(b), a->size) == 0;
 }
 
 /** KprSocketReader */
@@ -2073,8 +2079,8 @@ FskErr KprSocketReaderNew(KprSocketReader *it, FskSocket skt, KprSocketReaderSta
 	FskErr err = kFskErrNone;
 	KprSocketReader self = NULL;
 
-	bailIfError(FskMemPtrNewClear(sizeof(KprSocketReaderRecord), &self));
-	bailIfError(FskMemPtrNewFromData(sizeof(KprSocketReaderState) * stateCount, states, &self->states));
+	bailIfError(KprMemPtrNewClear(sizeof(KprSocketReaderRecord), &self));
+	bailIfError(KprMemPtrNewFromData(sizeof(KprSocketReaderState) * stateCount, states, &self->states));
 
 	self->stateCount = stateCount;
 	self->socket = skt;
@@ -2097,10 +2103,10 @@ FskErr KprSocketReaderDispose(KprSocketReader self)
 			FskThreadRemoveDataHandler(&self->handler);
 			self->socket = NULL;
 
-			FskMemPtrDispose(self->leftover);
-			FskMemPtrDispose(self->states);
+			KprMemPtrDispose(self->leftover);
+			KprMemPtrDispose(self->states);
 
-			FskMemPtrDispose(self);
+			KprMemPtrDispose(self);
 		}
 	}
 	return kFskErrNone;
@@ -2179,7 +2185,7 @@ FskErr KprSocketReaderReadDataFrom(KprSocketReader self, void *buffer, UInt32 *s
 	int ip, port, amt;
 
 	err = FskNetSocketRecvUDP(self->socket, buffer, *size, &amt, &ip, &port);
-	FskDebugStr("READ DATAGRAM: size: %ld err: %d", amt, err);
+//	FskDebugStr("READ DATAGRAM: size: %ld err: %d", amt, err);
 	if (err != kFskErrNone) return err;
 
 	*size = amt;
@@ -2211,7 +2217,7 @@ FskErr KprSocketReaderReadBytes(KprSocketReader self, void *buffer, size_t targe
 			FskMemCopy(p, leftover, remains);
 
 			self->leftoverLength = size - remains;
-			err = FskMemPtrNewFromData(self->leftoverLength, leftover + remains, &self->leftover);
+			err = KprMemPtrNewFromData(self->leftoverLength, leftover + remains, &self->leftover);
 
 			remains = 0;
 			self->bufferLength += remains;
@@ -2222,7 +2228,7 @@ FskErr KprSocketReaderReadBytes(KprSocketReader self, void *buffer, size_t targe
 			self->bufferLength += size;
 		}
 
-		FskMemPtrDispose(leftover);
+		KprMemPtrDispose(leftover);
 		if (err != kFskErrNone) return err;
 		if (remains == 0) goto done;
 	}
@@ -2254,7 +2260,7 @@ FskErr KprSocketReaderReadHTTPHeaders(KprSocketReader self, FskHeaders *headers)
 		if (size < kHeaderBufferSize) {
 			FskMemCopy(buffer, self->leftover, size);
 
-			FskMemPtrDispose(self->leftover);
+			KprMemPtrDispose(self->leftover);
 			self->leftover = NULL;
 			self->leftoverLength = 0;
 		} else {
@@ -2286,7 +2292,7 @@ FskErr KprSocketReaderUnreadBytes(KprSocketReader self, void *buffer, size_t len
 
 	if (self->leftover) return kFskErrBadState;
 
-	bailIfError(FskMemPtrNewFromData(length, buffer, &self->leftover));
+	bailIfError(KprMemPtrNewFromData(length, buffer, &self->leftover));
 	self->leftoverLength = length;
 
 bail:
@@ -2303,7 +2309,7 @@ FskErr KprSocketWriterNew(KprSocketWriter *it, FskSocket skt, void *refcon)
 	FskErr err = kFskErrNone;
 	KprSocketWriter self = NULL;
 
-	bailIfError(FskMemPtrNewClear(sizeof(KprSocketWriterRecord), &self));
+	bailIfError(KprMemPtrNewClear(sizeof(KprSocketWriterRecord), &self));
 
 	self->socket = skt;
 	self->refcon = refcon;
@@ -2323,9 +2329,9 @@ FskErr KprSocketWriterDispose(KprSocketWriter self)
 			FskThreadRemoveDataHandler(&self->handler);
 			self->socket = NULL;
 
-			FskMemPtrDispose(self->pendingData);
+			KprMemPtrDispose(self->pendingData);
 
-			FskMemPtrDispose(self);
+			KprMemPtrDispose(self);
 		}
 	}
 	return kFskErrNone;
@@ -2348,12 +2354,12 @@ void KprSocketWriterSendBytes(KprSocketWriter self, void *buffer, UInt32 length)
 		UInt8 *data;
 
 		newLength = oldLength + length;
-		bailIfError(FskMemPtrNew(newLength, &data));
+		bailIfError(KprMemPtrNew(newLength, &data));
 
 		FskMemCopy(data, self->pendingData, oldLength);
 		FskMemCopy(data + oldLength, buffer, length);
 
-		FskMemPtrDispose(self->pendingData);
+		KprMemPtrDispose(self->pendingData);
 		self->pendingData = data;
 		self->pendingLength = newLength;
 	} else {
@@ -2384,7 +2390,7 @@ static void KprSocketWriterDataWriter(FskThreadDataHandler handler UNUSED, FskTh
 
 	err = KprSocketWriterTrySendingData(self, buffer, length);
 
-	FskMemPtrDispose(buffer);
+	KprMemPtrDispose(buffer);
 
 	if (err) {
 		CALLBACK(errorCallback)(kKprSocketErrorOnWrite, err, self->refcon);
@@ -2423,7 +2429,7 @@ static FskErr KprSocketWriterTrySendingData(KprSocketWriter self, void *buffer, 
 	}
 
 	if (length > 0 && !self->disposeRequested) {
-		bailIfError(FskMemPtrNewFromData(length, (UInt8 *)buffer + sent, &self->pendingData));
+		bailIfError(KprMemPtrNewFromData(length, (UInt8 *)buffer + sent, &self->pendingData));
 		self->pendingLength = length;
 		FskThreadAddDataHandler(&self->handler, (FskThreadDataSource)self->socket, KprSocketWriterDataWriter, false, true, self);
 	}
@@ -2451,7 +2457,7 @@ FskErr KprSocketServerNew(KprSocketServer *it, void *refcon)
 	FskErr err = kFskErrNone;
 	KprSocketServer self = NULL;
 
-	bailIfError(FskMemPtrNewClear(sizeof(KprSocketServerRecord), &self));
+	bailIfError(KprMemPtrNewClear(sizeof(KprSocketServerRecord), &self));
 
 	self->refcon = refcon;
 
@@ -2470,7 +2476,7 @@ FskErr KprSocketServerDispose(KprSocketServer self)
 			KprPortListenerDispose(self->listeners);
 		}
 
-		FskMemPtrDispose(self);
+		KprMemPtrDispose(self);
 	}
 	return kFskErrNone;
 }
@@ -2513,7 +2519,7 @@ FskErr KprPortListenerNew(KprSocketServer server, UInt16 port, const char *inter
 	FskNetInterfaceRecord *ifc = NULL;
 
 	FskDebugStr("KprPortListenerNew - interfaceName: %s", interfaceName);
-	bailIfError(FskMemPtrNewClear(sizeof(KprPortListenerRecord), &self));
+	bailIfError(KprMemPtrNewClear(sizeof(KprPortListenerRecord), &self));
 	self->server = server;
 	self->interfaceName = FskStrDoCopy(interfaceName);
 	bailIfNULL(self->interfaceName);
@@ -2564,9 +2570,9 @@ FskErr KprPortListenerDispose(KprPortListener self)
 			FskListRemove((FskList*)&self->server->listeners, self);
 		}
 
-		FskMemPtrDispose(self->interfaceName);
+		KprMemPtrDispose(self->interfaceName);
 
-		FskMemPtrDispose(self);
+		KprMemPtrDispose(self);
 		FskDebugStr("KprPortListenerDispose - listener: %x", (int) self);
 	}
 	return kFskErrNone;

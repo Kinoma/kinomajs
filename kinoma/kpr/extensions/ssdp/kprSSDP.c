@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #include "kpr.h"
 #include "kprBehavior.h"
 #include "kprHandler.h"
@@ -116,7 +116,7 @@ void KprSSDPServiceShare(KprService self, char* authority, Boolean shareIt, Bool
 		if (!KprSSDPGetDevice(uuid)) {
 			char type[256];
 			snprintf(type, sizeof(type), kKPRSSDPKinomaServe, authority);
-			bailIfError(KprSSDPDeviceNew(&device, KprHTTPServerGetPort(server), "/", 1800, -1, uuid, type, NULL));
+			bailIfError(KprSSDPDeviceNew(&device, KprHTTPServerIsSecure(server) ? "https" : "http", KprHTTPServerGetPort(server), "/", 1800, -1, uuid, type, NULL));
 			KprSSDPAddDevice(device);
 		}
 	}
@@ -179,11 +179,15 @@ void SSDP_Server(xsMachine *the)
 	char* path = xsToString(xsArg(2));
 	UInt32 expire = xsToInteger(xsArg(3));
 	char* uuid = FskUUIDGetForKey(type);
+	char* scheme = "http";
+	if ((xsToInteger(xsArgc) > 4) && !xsIsInstanceOf(xsArg(4), xsObjectPrototype)) {
+		scheme = xsToString(xsArg(4));
+	}
 	FskDebugStr("%s", __FUNCTION__);
 
 	{
 		xsTry {
-			xsThrowIfFskErr(KprSSDPServerNew(&self, port, path, expire, uuid, type));
+			xsThrowIfFskErr(KprSSDPServerNew(&self, scheme, port, path, expire, uuid, type));
 			xsSetHostData(xsResult, self);
 			self->registeredCallback = SSDP_server_registeredCallback;
 			self->unregisteredCallback = SSDP_server_unregisteredCallback;

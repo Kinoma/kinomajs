@@ -1,28 +1,24 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #include "stdlib.h"
 #include "stdio.h"
 #include "string.h"
 
-#ifndef APP_ONLY
 #include "audiotonecontroller.h"
-#else
-#define FskMemCopy memcpy
-#endif
 
 #define ROUND11		(1 << 10)
 #define ROUND13		(1 << 12)
@@ -619,7 +615,6 @@ int GetFilter(int lo, int hi, int sampleRate, ToneControl *t)
 	return 0;
 }
 
-#ifndef APP_ONLY
 
 typedef struct 
 {
@@ -799,125 +794,3 @@ FskErr tonecontrollerSetSettings(void *stateIn, void *obj, UInt32 propertyID, Fs
 
 	return err;
 }
-#else
-
-#include "kinoma_utilities.h"
-
-#define kMaxInputSamples	1024
-
-int main_tone(int argc, char ** argv)
-{
-	char	*infile  = argv[1]; 
-	char	outfile[256];
-	float	bits	 = 16;
-	long	sampleRate; 
-	long	numChannels; 
-	long	sampleTotla; 
-	int		frame_size = 1024;
-	FILE	*inputFile;
-	FILE	*outputFile;
-	int		lo = 8;
-	int		hi = -8;
-
-	unsigned char   *in_buff;
-	unsigned char   *out_buff;
-	ToneControl		t;
-
-	MyTimer	*mytimer = MyTimerNew();
-	unsigned char bands[16];
-
-	wav_create_for_read( infile, &sampleRate, &numChannels,&sampleTotla, &inputFile );
-	
-	{
-		char dst_ext[255];
-		
-		sprintf( dst_ext, "B%4d_T%4d", lo, hi );
-
-		//dst_16rgb
-		strcpy( outfile, infile );
-		strcat( outfile, dst_ext );
-		strcat( outfile, ".wav" );
-		
-		wav_create_for_write( outfile, sampleRate, numChannels, &outputFile );
-	}
-
-	#define MinValue(a, b)			(((a) < (b)) ? (a) : (b))
-	frame_size = MinValue(kMaxInputSamples, frame_size);
-	in_buff	 =(unsigned char *)malloc( frame_size * 2 * numChannels );
-	out_buff =(unsigned char *)malloc( frame_size * 2 * numChannels );
-
-	memset(&t, 0, sizeof( ToneControl ) );
-
-	GetFilter( lo, hi, sampleRate, &t );
-
-	while(1) 
-	{
-		static int	frameCount = 0;
-		int			actual_frame_size = 0;
-		int			j;
-					
-		frameCount++;
-		
-		actual_frame_size = wav_read( inputFile, numChannels, frame_size, (short *)in_buff );
-		if( actual_frame_size <= 0 )
-			break;
-
-		MyTimerStart(mytimer);
-		if( numChannels == 1 )
-			ToneControlMono(&t, actual_frame_size, (short *)in_buff, (short *)out_buff);
-		else
-			ToneControlStereo(&t, actual_frame_size, (short *)in_buff, (short *)out_buff);
-
-		MyTimerStop(mytimer);
-		wav_write( (short *)out_buff, numChannels, actual_frame_size, outputFile );
-	} 
-
-	{
-		float diff = MyTimerDur(mytimer);
-		fprintf(stderr, "Total time [%10.4f]s\n", diff);
-	}
-	MyTimerDispose(mytimer);
-	fclose( inputFile );
-	fclose( outputFile );
-	
-	if(1)
-	{
-		int diff = 0;
-		//char ref_path[255] = "C:\\test_eq\\t2_B+128_T-128_ref.wav";//t2_mono_B+128_T-128_ref3.wav";
-		//char ref_path[255] = "C:\\test_eq\\t2_mono_B+8_T-8_ref.wav";
-		char ref_path[255] = "C:\\test_eq\\t2_B+8_T-8_ref.wav";
-
-		diff = diff_files( outfile, ref_path );
-
-		if( diff )
-			printf( "XXX\n");
-		else
-			printf( "VVV\n");
-	}
-
-		return 0;
-}
-
-int main(int argc, char ** argv0)
-{
-	int i;
-	char paramStr0[2][255] = 
-		{ 
-			"\\avc_test\\rt_test.exe",
-#ifdef _WIN32_WCE
-			//"\\avc_test\\t2_mono.wav"
-			"\\avc_test\\t2.wav"
-#else
-			//"C:\\test_eq\\t2_mono.wav"
-			"C:\\test_eq\\t2.wav"
-#endif
-		};
-	char *argv[2];
-
-	argv[0] = paramStr0[0];
-	argv[1] = paramStr0[1];
-
-	return main_tone(2, argv);
-}
-
-#endif  //APP_ONLY

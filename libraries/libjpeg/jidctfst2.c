@@ -1,19 +1,3 @@
-/*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
 /* this file is derived from jidctfst.c
 8x8, 1x1 generate the same result with optimizatin on clipping
 4x4, 2x2 are derived from fast 8x8 with further simpification and optimization
@@ -83,8 +67,7 @@ void jpeg_idct_4x4_arm_v6(int w12, int w34, int wk, int quant, int coef, int out
  * declared INT32, so a 32-bit multiply will be used.
  */
 
-#define TMP_TYPE	short	//***is it enough?  bnie --4/26/08
-//#define TMP_TYPE	int	//***is it enough?  bnie --4/26/08
+#define TMP_TYPE	short	
 #define CLIP(val, limit) if (((unsigned int) val) > (unsigned int) limit) val = limit & ~(((signed int) val) >> 31)
 #define add( a, b, c )		a = b + c
 #define sub( a, b, c )		a = b - c
@@ -621,7 +604,7 @@ void jpeg_idct_ifast_8x8_arm_v7
 	jpeg_idct_8x8_arm_v7(compptr->dct_table, coef, output_buf, output_col);
 }
 
-//***bnie: for win32 debug only, very very slow...
+//for win32 debug only, very very slow...
 /*
 void jpeg_idct_add_sat_c(short *src, unsigned char *dst, int const_128_128 )
 {
@@ -666,7 +649,7 @@ void jpeg_idct_ifast_8x8_openmax_c
 }
 */
 
-//***bnie: borrowed from kinoma_utilities.h
+//borrowed from kinoma_utilities.h
 #if defined( WIN32) || defined( _WIN32_WCE )
 #include <windows.h>
 
@@ -805,7 +788,7 @@ void jpeg_idct_ifast_1x1_arm_v5
 	output_buf[0][output_col] =t;	
 }
 
-//***bnie: need to optimize the following to arm v6
+//need to optimize the following to arm v6
 void jpeg_idct_ifast_4x4_arm_v6
 (	
 	j_decompress_ptr	cinfo, 
@@ -1035,7 +1018,7 @@ int config_ifast_idct(int implementation )
 
 //#ifdef SUPPORT_OPENMAX
 //#ifdef IDCT_IFAST_8x8_C_SUPPORTED 
-//***bnie: for win32 debug only, very very slow...
+//for win32 debug only, very very slow...
 //			jpeg_idct_ifast_8x8_universal = jpeg_idct_ifast_8x8_openmax_c;
 //			imp_out = FSK_ARCH_C;
 //#endif

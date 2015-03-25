@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #include "kpr.h"
 #include "kprImage.h"
 #include "kprMessage.h"
@@ -27,6 +27,12 @@
 #import <AVFoundation/AVFoundation.h>
 #import <AVFoundation/AVAsset.h>
 #import <AVFoundation/AVAssetExportSession.h>
+#import <MediaPlayer/MediaPlayer.h>
+
+#import "kpr_iOS.h"
+
+#import "FskCocoaApplicationPhone.h"
+#import "FskCocoaViewControllerPhone.h"
 
 static void KprALServiceStart(KprService self, FskThread thread, xsMachine* the);
 static void KprALServiceStop(KprService self);
@@ -285,5 +291,249 @@ void KprALServiceInvoke(KprService service UNUSED, KprMessage message)
 		}
 	}
 }
+
+/*
+ * Metadata updater
+ */
+
+@interface KprSystemNowPlayingInfo : NSObject
+
++ (KprSystemNowPlayingInfo *)sharedInstance;
+
+@property (nonatomic, readonly) BOOL idling;
+@property(retain, atomic) NSDictionary *metadata;
+
+- (void)reset;
+- (void)update:(NSDictionary *)info append:(BOOL)append;
+
+- (void)startIdling;
+- (void)stopIdling;
+
+@end
+
+void
+KprSystemNowPlayingInfoSetIdling(Boolean idling)
+{
+	KprSystemNowPlayingInfo *updater = [KprSystemNowPlayingInfo sharedInstance];
+
+	if (idling)
+	{
+		if (!updater.idling)
+		{
+			[updater startIdling];
+		}
+	}
+	else
+	{
+		if (updater.idling)
+		{
+			[updater stopIdling];
+		}
+	}
+}
+
+Boolean
+KprSystemNowPlayingInfoGetIdling(void)
+{
+	return [KprSystemNowPlayingInfo sharedInstance].idling ? true : false;
+}
+
+static void
+appendArtworkToInfo(NSData *data, NSMutableDictionary *info)
+{
+	if (data != nil) {
+		UIImage *image = [UIImage imageWithData:data];
+		if (image) {
+			MPMediaItemArtwork *artwork = [[MPMediaItemArtwork alloc] initWithImage:image];
+			info[MPMediaItemPropertyArtwork] = artwork;
+			[artwork release];
+		}
+	}
+}
+
+void
+KprSystemNowPlayingInfoSetMetadata(KprMedia media, FskMediaPropertyValue artwork)
+{
+	NSMutableDictionary *info;
+
+	if (media == NULL)
+	{
+		[[KprSystemNowPlayingInfo sharedInstance] update:nil append:NO];
+		return;
+	}
+
+	info = [NSMutableDictionary dictionaryWithCapacity:10];
+
+	if (media->artist) {
+		info[MPMediaItemPropertyArtist] = [NSString stringWithCString:media->artist encoding:NSUTF8StringEncoding];
+	}
+
+	if (media->album) {
+		info[MPMediaItemPropertyAlbumTitle] = [NSString stringWithCString:media->album encoding:NSUTF8StringEncoding];
+	}
+
+	if (media->title) {
+		info[MPMediaItemPropertyTitle] = [NSString stringWithCString:media->title encoding:NSUTF8StringEncoding];
+	}
+
+	if (media->duration) {
+		info[MPMediaItemPropertyPlaybackDuration] = @(media->duration);
+	}
+
+	if (media->cover && (artwork->type == kFskMediaPropertyTypeImage)) {
+		char* mime = (char*)artwork->value.data.data;
+		UInt32 mimeLen = FskStrLen(mime) + 1;
+		NSData *data = [NSData dataWithBytes:artwork->value.data.data + mimeLen length:artwork->value.data.dataSize - mimeLen];
+		appendArtworkToInfo(data, info);
+	}
+
+	[[KprSystemNowPlayingInfo sharedInstance] update:info append:NO];
+}
+
+void
+KprSystemNowPlayingInfoSetUPnPMetadata(KprUPnPMetadata metadata)
+{
+	NSMutableDictionary *info;
+
+	if (metadata == NULL)
+	{
+		[[KprSystemNowPlayingInfo sharedInstance] update:nil append:NO];
+		return;
+	}
+
+	info = [NSMutableDictionary dictionaryWithCapacity:10];
+
+	if (metadata->artist) {
+		info[MPMediaItemPropertyArtist] = [NSString stringWithCString:metadata->artist encoding:NSUTF8StringEncoding];
+	}
+
+	if (metadata->album) {
+		info[MPMediaItemPropertyAlbumTitle] = [NSString stringWithCString:metadata->album encoding:NSUTF8StringEncoding];
+	}
+
+	if (metadata->title) {
+		info[MPMediaItemPropertyTitle] = [NSString stringWithCString:metadata->title encoding:NSUTF8StringEncoding];
+	}
+
+	if (metadata->creator) {
+		info[MPMediaItemPropertyComposer] = [NSString stringWithCString:metadata->creator encoding:NSUTF8StringEncoding];
+	}
+
+	if (metadata->genre) {
+		info[MPMediaItemPropertyGenre] = [NSString stringWithCString:metadata->genre encoding:NSUTF8StringEncoding];
+	}
+
+	if (metadata->track) {
+		info[MPMediaItemPropertyAlbumTrackNumber] = @(metadata->track);
+	}
+
+	if (metadata->duration) {
+		info[MPMediaItemPropertyPlaybackDuration] = @(metadata->duration);
+	}
+
+	if (metadata->artworkUri) {
+		NSURL *url = [NSURL URLWithString:[NSString stringWithCString:metadata->artworkUri encoding:NSUTF8StringEncoding]];
+		NSURLRequest *request = [NSURLRequest requestWithURL:url];
+		[NSURLConnection sendAsynchronousRequest:(NSURLRequest*) request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse* response, NSData* data, NSError* connectionError) {
+			if (connectionError == nil) {
+				appendArtworkToInfo(data, info);
+			}
+		}];
+	}
+
+	[[KprSystemNowPlayingInfo sharedInstance] update:info append:NO];
+}
+
+void
+KprSystemNowPlayingInfoSetTime(double duration, double position)
+{
+	NSDictionary *info = @{MPMediaItemPropertyPlaybackDuration: @(duration), MPNowPlayingInfoPropertyElapsedPlaybackTime: @(position), MPNowPlayingInfoPropertyPlaybackRate: @1.0};
+	[[KprSystemNowPlayingInfo sharedInstance] update:info append:YES];
+}
+
+@implementation KprSystemNowPlayingInfo {
+	NSTimer *_timer;
+}
+
+static KprSystemNowPlayingInfo *metadataUpdater = NULL;
+
++ (KprSystemNowPlayingInfo *)sharedInstance
+{
+	static dispatch_once_t onceToken;
+	dispatch_once(&onceToken, ^{
+		metadataUpdater = [[KprSystemNowPlayingInfo alloc] init];
+	});
+	return metadataUpdater;
+}
+
+- (id)init
+{
+	self = [super init];
+	if (self) {
+		[self reset];
+	}
+	return self;
+}
+
+- (void)reset
+{
+	self.metadata = @{};
+}
+
+- (void)update:(NSDictionary *)info append:(BOOL)append
+{
+	if (append == NO) {
+		[self reset];
+	}
+
+	NSMutableDictionary	*metadata = [NSMutableDictionary dictionaryWithDictionary:self.metadata];
+	[metadata addEntriesFromDictionary:info];
+	self.metadata = metadata;
+
+	[MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = metadata;
+}
+
+- (void)startIdling
+{
+	if (_timer) return;
+
+	_timer = [[NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:@selector(idle:) userInfo:nil repeats:YES] retain];
+	_idling = YES;
+}
+
+- (void)stopIdling
+{
+	if (_timer == nil) return;
+
+	[_timer invalidate];
+	[_timer release];
+	_timer = nil;
+	_idling = NO;
+}
+
+- (void)idle:(NSTimer *)timer
+{
+	FskCocoaViewController *viewController = [FskCocoaApplication sharedApplication].mainViewController;
+	if ([viewController isDisplayLinkActive] == NO) {
+		FskEvent fskEvent;
+		FskTimeRecord updateTime;
+		FskWindow win = viewController.fskWindow;
+
+	    FskTimeGetNow(&updateTime);
+		FskErr err = FskEventNew(&fskEvent, kFskEventWindowBeforeUpdate, &updateTime, kFskEventModifierNotSet);
+		if (err == kFskErrNone) FskWindowEventSend(win, fskEvent);
+	}
+}
+
+- (void)dealloc
+{
+	self.metadata = nil;
+
+	[self stopIdling];
+
+    [super dealloc];
+}
+
+@end
 
 #endif

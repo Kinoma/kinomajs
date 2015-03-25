@@ -731,7 +731,7 @@ int nb_encode(void *state, void *vin, SpeexBits *bits)
    }
    
 #ifdef FIXED_POINT
-   //***bnie: kinoma enhancement
+   //kinoma enhancement
    st->frame_level = ol_gain>>12;//4*(1+PSHR32(ol_gain,SIG_SHIFT));
    
    /*Quantize and transmit open-loop excitation gain*/
@@ -1965,7 +1965,7 @@ int nb_encoder_ctl(void *state, int request, void *ptr)
       *((char**)ptr) = st->stack;
       break;
 
-   //***bnie: kinoma enhancement
+   //kinoma enhancement
    case SPEEX_GET_FRAME_LEVEL:
       *((int*)ptr) = st->frame_level;
       break;

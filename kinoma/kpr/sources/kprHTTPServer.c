@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKHTTPSERVER_PRIV__
 
 #if TARGET_OS_WIN32
@@ -32,6 +32,7 @@
 #include "kprContent.h"
 #include "kprHandler.h"
 #include "kprHTTPClient.h"
+#define __KPRHTTPSERVER_PRIV__
 #include "kprHTTPServer.h"
 #include "kprMessage.h"
 #include "kprShell.h"
@@ -115,7 +116,7 @@ static FskInstrumentedTypeRecord KprHTTPServerInstrumentation = { NULL, sizeof(F
 
 KprHTTPServer gKprHTTPServerList = NULL;
 
-FskErr KprHTTPServerNew(KprHTTPServer* it, char* authority, char* path, UInt32 preferredPort)
+FskErr KprHTTPServerNew(KprHTTPServer* it, char* authority, char* path, UInt32 preferredPort, FskSocketCertificateRecord* certs)
 {
 	FskErr err = kFskErrNone;
 	UInt32 i;
@@ -123,14 +124,9 @@ FskErr KprHTTPServerNew(KprHTTPServer* it, char* authority, char* path, UInt32 p
 	UInt32 port = KprEnvironmentGetUInt32("httpServerPort", 8080);
 	UInt32 portRange = KprEnvironmentGetUInt32("httpServerPortRange", 10);
 	KprHTTPServer server = NULL, previous = NULL;
-	char* id = NULL;
-	
-	bailIfError(FskMemPtrNew(FskStrLen(authority) + FskStrLen(path) + 1, &id));
-	FskStrCopy(id, authority);
-	FskStrCat(id, path);
 
 	for (server = FskListGetNext(gKprHTTPServerList, NULL); server; server = FskListGetNext(gKprHTTPServerList, server)) {
-		if (FskStrCompareCaseInsensitive(server->id, id) == 0)
+		if (FskStrCompareCaseInsensitive(server->authority, authority) == 0)
 			return kFskErrDuplicateElement;
 		if (preferredPort && (server->port == preferredPort))
 			return kFskErrDuplicateElement;
@@ -146,50 +142,44 @@ FskErr KprHTTPServerNew(KprHTTPServer* it, char* authority, char* path, UInt32 p
 	self->authorityLength = FskStrLen(authority);
 	if (preferredPort) {
 		self->port = preferredPort;
-		err = FskHTTPServerCreate(self->port, NULL, &self->server, self, false);
+		err = FskHTTPServerCreate(self->port, NULL, &self->server, self, certs ? true : false);
 	}
 	else {
 		self->port = port;
 		for (i = 0; i < portRange; i++) {
-			err = FskHTTPServerCreate(self->port, NULL, &self->server, self, false);
+			err = FskHTTPServerCreate(self->port, NULL, &self->server, self, certs ? true : false);
 			if (!err)
 				break;
 			self->port++;
 		}
 	}
 	bailIfError(err);
+	if (certs) {
+		bailIfError(FskHTTPServerSetCertificates(self->server, certs));
+	}
 	self->vectors.requestCondition = KprHTTPServerRequestConditionCallback;
 	self->vectors.requestReceiveRequest = KprHTTPServerRequestBodyCallback;
 	self->vectors.requestGenerateResponseBody = KprHTTPServerResponseBodyCallback;
 	bailIfError(FskHTTPServerSetCallbacks(self->server, &self->vectors));
-	self->id = id;
-	self->idLength = FskStrLen(id);
 	if (previous)
 		FskListInsertAfter(&gKprHTTPServerList, self, previous);
 	else
 		FskListPrepend(&gKprHTTPServerList, self);
 	FskInstrumentedItemNew(self, NULL, &KprHTTPServerInstrumentation);
-	FskInstrumentedItemPrintfVerbose(self, "map ip:%d TO %s", self->port, id);
+	FskInstrumentedItemPrintfVerbose(self, "map ip:%d TO %s", self->port, authority);
 	return err;
 bail:
 	KprHTTPServerDispose(self);
-	KprMemPtrDispose(id);
 	return err;
 }
 
 void KprHTTPServerDispose(KprHTTPServer self)
 {
 	if (self) {
-//@@		char type[256];
-//@@		char* uuid;
-//@@		snprintf(type, sizeof(type), kKPRSSDPKinomaServe, self->authority);
-//@@		uuid = FskUUIDGetForKey(type);
 		FskListRemove(&gKprHTTPServerList, self);
 		FskHTTPServerDispose(self->server);
 		self->server = NULL;
-//@@		FskThreadPostCallback(KprHTTPGetThread(), (FskThreadCallback)KprSSDPRemoveDevice, FskStrDoCopy(uuid), (void*)true, NULL, NULL);
 		KprMemPtrDispose(self->authority);
-		KprMemPtrDispose(self->id);
 		FskInstrumentedItemDispose(self);
 		KprMemPtrDispose(self);
 	}
@@ -199,7 +189,7 @@ KprHTTPServer KprHTTPServerGet(char* id)
 {
 	KprHTTPServer server = NULL;
 	for (server = FskListGetNext(gKprHTTPServerList, NULL); server; server = FskListGetNext(gKprHTTPServerList, server)) {
-		if (FskStrCompareCaseInsensitive(server->id, id) == 0)
+		if (FskStrCompareCaseInsensitive(server->authority, id) == 0)
 			return server;
 	}
 	return NULL;
@@ -213,6 +203,11 @@ UInt32 KprHTTPServerGetPort(KprHTTPServer self)
 UInt32 KprHTTPServerGetTimeout(KprHTTPServer self)
 {
 	return self->server->keepAliveTimeout;
+}
+
+Boolean KprHTTPServerIsSecure(KprHTTPServer self)
+{
+	return self->server->ssl;
 }
 
 void KprHTTPServerSetTimeout(KprHTTPServer self, UInt32 timeout)
@@ -261,11 +256,6 @@ FskErr KprHTTPServerRequestConditionCallback(FskHTTPServerRequest request, UInt3
 					request->state = kHTTPServerError;
 					return err;
 				}
-				// pathLength = FskStrLen(parts.path);
-				// bailIfError(FskMemPtrNewClear(7 + server->idLength + pathLength + 1, &url));
-				// FskStrCopy(url, "xkpr://");
-				// FskStrNCat(url, server->id, server->idLength);
-				// FskStrNCat(url, parts.path, pathLength);
 				bailIfError(KprMessageNew(&message, requestURI));
 				bailIfError(KprHTTPTargetNew(&target, message));
 
@@ -292,13 +282,13 @@ FskErr KprHTTPServerRequestConditionCallback(FskHTTPServerRequest request, UInt3
 #endif
                 message->request.callback = KprHTTPTargetMessageRequestCallback; // @@
                 message->request.target = target; // @@
-				if (!FskStrCompare(server->id, gShell->id))
+				if (!FskStrCompare(server->authority, gShell->id))
 					KprContextAccept(gShell, message);
 				else {
 					KprContentLink link = gShell->applicationChain.first;
 					while (link) {
 						KprApplication application = (KprApplication)link->content;
-						if (application->id && (!FskStrCompare(server->id, application->id))) {
+						if (application->id && (!FskStrCompare(server->authority, application->id))) {
 							KprContextAccept(application, message);
 							break;
 						}
@@ -331,13 +321,13 @@ FskErr KprHTTPServerRequestConditionCallback(FskHTTPServerRequest request, UInt3
 				FskListAppend(&gShell->messages, message);
 				message->usage++; // message queue
 
-				if (!FskStrCompare(server->id, gShell->id))
+				if (!FskStrCompare(server->authority, gShell->id))
 					KprContextInvoke(gShell, message);
 				else {
 					KprContentLink link = gShell->applicationChain.first;
 					while (link) {
 						KprApplication application = (KprApplication)link->content;
-						if (application->id && (!FskStrCompare(server->id, application->id))) {
+						if (application->id && (!FskStrCompare(server->authority, application->id))) {
 							KprContextInvoke(application, message);
 							break;
 						}
@@ -937,7 +927,6 @@ bail:
 static Boolean KprContextGetServices(xsMachine *the, xsSlot slot, char* services, UInt32 size)
 {
 	Boolean shareIt = false;
-	xsVars(2);
 	
 	xsEnterSandbox();
 	fxPush(slot);
@@ -945,7 +934,7 @@ static Boolean KprContextGetServices(xsMachine *the, xsSlot slot, char* services
 	for (xsVar(0) = fxPop(); xsTypeOf(xsVar(0)) != xsNullType; xsVar(0) = fxPop()) {
 		if (xsTypeOf(xsVar(0)) == xsStringType) {
 			xsVar(1) = xsGetAt(slot, xsVar(0));
-			if (xsTest(xsVar(1))) {
+			if ((xsTypeOf(xsVar(1)) == xsBooleanType) && xsTest(xsVar(1))) {
 				char* service = xsToString(xsVar(0));
 				shareIt = true;
 				FskStrNCat(services, service, size);
@@ -957,6 +946,15 @@ static Boolean KprContextGetServices(xsMachine *the, xsSlot slot, char* services
 	return shareIt;
 }
 
+
+void KPR_context_get_serverIsSecure(xsMachine *the)
+{
+	KprContext context = xsGetContext(the);
+	KprHTTPServer self = KprHTTPServerGet(context->id);
+	if (self) {
+		xsResult = xsBoolean(KprHTTPServerIsSecure(self));
+	}
+}
 
 void KPR_context_get_serverPort(xsMachine *the)
 {
@@ -986,6 +984,7 @@ void KPR_context_discover(xsMachine *the)
 	KprContext context = xsGetContext(the);
 	char services[256] = ":";
 	if ((xsToInteger(xsArgc) > 1) && xsIsInstanceOf(xsArg(1), xsObjectPrototype)) {
+		xsVars(2);
 		KprContextGetServices(the, xsArg(1), services, 255);
 		KprServicesDiscover((KprContext)context, xsToString(xsArg(0)), services);
 	}
@@ -1007,7 +1006,7 @@ void KPR_context_set_shared(xsMachine *the)
 	if (xsTest(xsArg(0))) {
 		if (!self) {
 			UInt32 port = KprEnvironmentGetUInt32((context == (KprContext)gShell) ? "httpShellPort" : "httpApplicationPort", 0);
-			xsThrowIfFskErr(KprHTTPServerNew(&self, context->id, "", port));
+			xsThrowIfFskErr(KprHTTPServerNew(&self, context->id, "", port, NULL));
 			KprHTTPServerStart(self);
 			KprServicesShare((KprContext)context, true, NULL);
 		}
@@ -1027,7 +1026,8 @@ void KPR_context_share(xsMachine *the)
 	KprContext context = xsGetContext(the);
 	KprHTTPServer self = KprHTTPServerGet(context->id);
 	Boolean shareIt;
-	char services[256] = ":";;
+	char services[256] = ":";
+	xsVars(2);
 	
 	if (xsIsInstanceOf(xsArg(0), xsObjectPrototype)) {
 		shareIt = true;
@@ -1036,10 +1036,57 @@ void KPR_context_share(xsMachine *the)
 	else
 		shareIt = xsTest(xsArg(0));
 	
+	xsEnterSandbox();
 	if (shareIt) {
 		if (!self) {
-			UInt32 port = KprEnvironmentGetUInt32((context == (KprContext)gShell) ? "httpShellPort" : "httpApplicationPort", 0);
-			xsThrowIfFskErr(KprHTTPServerNew(&self, context->id, "", port));
+			UInt32 port = 0;
+			FskSocketCertificateRecord* certs = NULL;
+			FskSocketCertificateRecord certsRecord = {
+				NULL, 0,
+				NULL,
+				NULL,
+				NULL, 0,
+			};
+			if (xsIsInstanceOf(xsArg(0), xsObjectPrototype) && xsHas(xsArg(0), xsID("port")))
+				port = xsToInteger(xsGet(xsArg(0), xsID("port")));
+			else
+				port = KprEnvironmentGetUInt32((context == (KprContext)gShell) ? "httpShellPort" : "httpApplicationPort", 0);
+			if (xsIsInstanceOf(xsArg(0), xsObjectPrototype) && xsHas(xsArg(0), xsID("ssl"))) {
+				xsVar(0) = xsGet(xsArg(0), xsID("ssl"));
+				if (xsTest(xsVar(0))) {
+					if (xsTypeOf(xsVar(0)) == xsBooleanType) {
+						certs = &certsRecord;
+					}
+					else if (xsIsInstanceOf(xsArg(0), xsObjectPrototype)) {
+						certs = &certsRecord;
+						if (xsHas(xsVar(0), xsID("certificates"))) {
+							certs->certificates = (void*)xsToString(xsGet(xsVar(0), xsID("certificates")));
+							certs->certificatesSize = FskStrLen(certs->certificates);
+						}
+						if (xsHas(xsVar(0), xsID("policies"))) {
+							certs->policies = xsToString(xsGet(xsVar(0), xsID("policies")));
+						}
+						if (xsHas(xsVar(0), xsID("hostname"))) {
+							certs->hostname = xsToString(xsGet(xsVar(0), xsID("hostname")));
+						}
+						if (xsHas(xsVar(0), xsID("key"))) {
+							certs->key = (void*)xsToString(xsGet(xsVar(0), xsID("key")));
+							certs->keySize = FskStrLen(certs->key);
+						}
+					}
+					if (certs) {
+						if (!certs->certificates) {
+							certs->certificates = (void*)kKprHTTPServerDefaultCretificates;
+							certs->certificatesSize = FskStrLen(kKprHTTPServerDefaultCretificates);
+						}
+						if (!certs->key) {
+							certs->key = (void*)kKprHTTPServerDefaultKey;
+							certs->keySize = FskStrLen(kKprHTTPServerDefaultKey);
+						}
+					}
+				}
+			}
+			xsThrowIfFskErr(KprHTTPServerNew(&self, context->id, "", port, certs));
 			KprHTTPServerStart(self);
 		}
 		KprServicesShare((KprContext)context, true, services);
@@ -1051,6 +1098,7 @@ void KPR_context_share(xsMachine *the)
 			KprHTTPServerDispose(self);
 		}
 	}
+	xsLeaveSandbox();
 	return;
 }
 

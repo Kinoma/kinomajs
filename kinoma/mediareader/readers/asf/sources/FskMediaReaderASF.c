@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKMEDIAREADER_PRIV__
 #include "FskDIDLGenMedia.h"
 #include "FskEndian.h"
@@ -1159,7 +1159,7 @@ void make_esds( unsigned char *codec_data_in, int codec_data_size, unsigned char
 	int				size;
 
 	if( codec_data_size > 94 )
-		codec_data_size = 94;//***bnie: this only works when codec_data_size is less than 94 bytes
+		codec_data_size = 94;//this only works when codec_data_size is less than 94 bytes
 
 	if( s != 0x000001b0 && (s >> 10) != 0x20 ) // special case for MPEG-4 in ASF as per the ASF specification section 11.2 - may need to add a prefix to the esds
 	{

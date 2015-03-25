@@ -1,25 +1,26 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #include "FskCocoaSupportPhone.h"
 #include "FskCocoaViewControllerPhone.h"
 #include "FskCocoaSupportCommon.h"
 #include "FskTime.h"
 
 #include "kpr.h"
+#include "kpr_iOS.h"
 #include "kprUPnP.h"
 #include "kprUtilities.h"
 
@@ -28,8 +29,6 @@
 #import <AVFoundation/AVFoundation.h>
 #import <MediaPlayer/MediaPlayer.h>
 #import <dispatch/dispatch.h>
-
-static BOOL idling = NO;
 
 @interface ToneGenerator : NSObject
 
@@ -45,19 +44,6 @@ static BOOL idling = NO;
 
 @end
 
-@interface KprUPnPMetadataUpdater : NSObject
-
-+ (KprUPnPMetadataUpdater *)sharedInstance;
-
-@property(retain, atomic) NSDictionary *metadata;
-
-- (void)update:(NSDictionary *)info append:(BOOL)append;
-
-- (void)startIdling;
-- (void)stopIdling;
-
-@end
-
 static BOOL gUPnPNeedPositionUpdate;
 
 void KprUPnPControllerServiceActionCallbackPlay_iOS(KprUPnPController self, const char* serviceType)
@@ -67,8 +53,8 @@ void KprUPnPControllerServiceActionCallbackPlay_iOS(KprUPnPController self, cons
 	FskCocoaAudioSessionSetupFakePlaying();
 	
 	[[ToneGenerator sharedInstance] play];
-	
-	[[KprUPnPMetadataUpdater sharedInstance] startIdling];
+
+	KprSystemNowPlayingInfoSetIdling(true);
 }
 
 void KprUPnPControllerServiceActionCallbackStop_iOS(KprUPnPController self, const char* serviceType)
@@ -76,8 +62,8 @@ void KprUPnPControllerServiceActionCallbackStop_iOS(KprUPnPController self, cons
 	// NSLog(@"========= STOP PLAYING ============");
 	
 	[[ToneGenerator sharedInstance] stop];
-	
-	[[KprUPnPMetadataUpdater sharedInstance] stopIdling];
+
+	KprSystemNowPlayingInfoSetIdling(false);
 
 	FskCocoaAudioSessionTearDown();
 }
@@ -85,8 +71,7 @@ void KprUPnPControllerServiceActionCallbackStop_iOS(KprUPnPController self, cons
 void KprUPnPControllerServiceActionCallbackGetPositionInfo_iOS(KprUPnPController self, const char* serviceType, double duration, double position)
 {
 	if (gUPnPNeedPositionUpdate) {
-		NSDictionary *info = @{MPMediaItemPropertyPlaybackDuration: @(duration), MPNowPlayingInfoPropertyElapsedPlaybackTime: @(position), MPNowPlayingInfoPropertyPlaybackRate: @1.0};
-		[[KprUPnPMetadataUpdater sharedInstance] update:info append:YES];
+		KprSystemNowPlayingInfoSetTime(duration, position);
 		gUPnPNeedPositionUpdate = NO;
 	}
 }
@@ -108,56 +93,9 @@ void KprUPnPControllerServiceActionCallbackError_iOS(KprUPnPController self, con
 
 void KprUPnPControllerGotMetadata_iOS(KprUPnPMetadata metadata)
 {
-	KprUPnPMetadataUpdater *updater = [KprUPnPMetadataUpdater sharedInstance];
-	
-	NSMutableDictionary *info = [NSMutableDictionary dictionaryWithCapacity:10];
-	
 	gUPnPNeedPositionUpdate = YES;
-	
-	if (metadata->artist) {
-		info[MPMediaItemPropertyArtist] = [NSString stringWithCString:metadata->artist encoding:NSUTF8StringEncoding];
-	}
-	
-	if (metadata->album) {
-		info[MPMediaItemPropertyAlbumTitle] = [NSString stringWithCString:metadata->album encoding:NSUTF8StringEncoding];
-	}
-	
-	if (metadata->title) {
-		info[MPMediaItemPropertyTitle] = [NSString stringWithCString:metadata->title encoding:NSUTF8StringEncoding];
-	}
-	
-	if (metadata->creator) {
-		info[MPMediaItemPropertyComposer] = [NSString stringWithCString:metadata->creator encoding:NSUTF8StringEncoding];
-	}
-	
-	if (metadata->genre) {
-		info[MPMediaItemPropertyGenre] = [NSString stringWithCString:metadata->genre encoding:NSUTF8StringEncoding];
-	}
-	
-	if (metadata->track) {
-		info[MPMediaItemPropertyAlbumTrackNumber] = @(metadata->track);
-	}
-	
-	if (metadata->duration) {
-		info[MPMediaItemPropertyPlaybackDuration] = @(metadata->duration);
-	}
-	
-	if (metadata->artworkUri) {
-		NSURL *url = [NSURL URLWithString:[NSString stringWithCString:metadata->artworkUri encoding:NSUTF8StringEncoding]];
-		NSURLRequest *request = [NSURLRequest requestWithURL:url];
-		[NSURLConnection sendAsynchronousRequest:(NSURLRequest*) request queue:[NSOperationQueue mainQueue] completionHandler:^(NSURLResponse* response, NSData* data, NSError* connectionError) {
-			if (connectionError == nil) {
-				UIImage *image = [UIImage imageWithData:data];
-				if (image) {
-					MPMediaItemArtwork *artwork = [[MPMediaItemArtwork alloc] initWithImage:image];
-					[updater update:@{MPMediaItemPropertyArtwork:artwork} append:YES];
-					[artwork release];
-				}
-			}
-		}];
-	}
-	
-	[updater update:info append:NO];
+
+	KprSystemNowPlayingInfoSetUPnPMetadata(metadata);
 }
 
 void KprUPnPControllerUtility_iOS(KprUPnPController self, char* actionName)
@@ -165,98 +103,12 @@ void KprUPnPControllerUtility_iOS(KprUPnPController self, char* actionName)
 	if (FskStrCompare(actionName, "finalize") == 0) {
 		[[ToneGenerator sharedInstance] stop];
 
-		[[KprUPnPMetadataUpdater sharedInstance] stopIdling];
-
-		[[KprUPnPMetadataUpdater sharedInstance] update:nil append:NO];
+		KprSystemNowPlayingInfoSetIdling(false);
+		KprSystemNowPlayingInfoSetUPnPMetadata(NULL);
 
 		FskCocoaAudioSessionTearDown();
 	}
 }
-
-@implementation KprUPnPMetadataUpdater {
-	NSTimer *_timer;
-}
-
-static KprUPnPMetadataUpdater *metadataUpdater = NULL;
-
-+ (KprUPnPMetadataUpdater *)sharedInstance
-{
-	static dispatch_once_t onceToken;
-	dispatch_once(&onceToken, ^{
-		metadataUpdater = [[KprUPnPMetadataUpdater alloc] init];
-	});
-	return metadataUpdater;
-}
-
-- (id)init
-{
-	self = [super init];
-	if (self) {
-		[self reset];
-	}
-	return self;
-}
-
-- (void)reset
-{
-	self.metadata = @{};
-}
-
-- (void)update:(NSDictionary *)info append:(BOOL)append
-{
-	if (append == NO) {
-		[self reset];
-	}
-	
-	NSMutableDictionary	*metadata = [NSMutableDictionary dictionaryWithDictionary:self.metadata];
-	[metadata addEntriesFromDictionary:info];
-	self.metadata = metadata;
-	
-	[MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = metadata;
-}
-
-- (void)startIdling
-{
-	if (_timer) return;
-	
-	_timer = [[NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:@selector(idle:) userInfo:nil repeats:YES] retain];
-	idling = YES;
-}
-
-- (void)stopIdling
-{
-	if (_timer == nil) return;
-	
-	[_timer invalidate];
-	[_timer release];
-	_timer = nil;
-	idling = NO;
-}
-
-- (void)idle:(NSTimer *)timer
-{
-	FskCocoaViewController *viewController = [FskCocoaViewController sharedViewController];
-	if ([viewController isDisplayLinkActive] == NO) {
-		FskEvent fskEvent;
-		FskTimeRecord updateTime;
-		FskWindow win = FskWindowGetActive();
-		
-	    FskTimeGetNow(&updateTime);
-		FskErr err = FskEventNew(&fskEvent, kFskEventWindowBeforeUpdate, &updateTime, kFskEventModifierNotSet);
-		if (err == kFskErrNone) FskWindowEventSend(win, fskEvent);
-	}
-}
-
-- (void)dealloc
-{
-	self.metadata = nil;
-	
-	[self stopIdling];
-	
-    [super dealloc];
-}
-
-@end
 
 @implementation ToneGenerator {
 	AudioComponentInstance toneUnit;
@@ -420,7 +272,7 @@ static OSStatus RenderTone(
 
 void UPnP_Controller_isBackgroundPlaying(xsMachine *the)
 {	
-	if (idling)
+	if (KprSystemNowPlayingInfoGetIdling())
 		xsResult = xsTrue;
 	else
 		xsResult = xsFalse;

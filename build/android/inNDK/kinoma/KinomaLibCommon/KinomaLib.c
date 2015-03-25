@@ -1,19 +1,20 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
 #include <android/log.h>
 #include <stdarg.h>
 #include <string.h>
@@ -32,6 +33,9 @@
 #include "KinomaInterfaceLib.h"
 
 #include "FskEndian.h"
+#if SUPPORT_REMOTE_NOTIFICATION
+#include "FskEnvironment.h"
+#endif
 #include "FskHardware.h"
 #include "FskMain.h"
 #include "FskNetInterface.h"
@@ -2129,6 +2133,17 @@ void JAVANAME(KinomaPlay_setFskKeyboardType)( JNIEnv *env, jobject thiz, jint kb
 void JAVANAME(KinomaPlay_fskSetVolumeMax)( JNIEnv* env, jobject thiz, jint max) {
 	androidMaxVolume = max;
 }
+
+#if SUPPORT_REMOTE_NOTIFICATION
+jstring JAVANAME(KinomaPlay_fskGetEnvironment)( JNIEnv* env, jobject thiz, jstring keystr ) {
+  const char *key = (*env)->GetStringUTFChars(env, keystr, NULL);
+  char *value = FskEnvironmentGet((char *)key);
+  if (!value) {
+    return NULL;
+  }
+  return (*env)->NewStringUTF(env, value);
+}
+#endif
 
 
 void androidSetVolume(int vol) {

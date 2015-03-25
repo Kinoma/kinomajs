@@ -1,18 +1,18 @@
 <!--
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
+|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
 -->
 <project basedir="." default="main" name="kpr">
 	<property name="fsk.application" value="KPR_CONFIG" />
@@ -125,10 +125,11 @@
 			<variable name="XS_DEBUG" value="${xs.tools.config.${build.type}}" />
 			<variable name="KPR2JS" value="${xs.tools.kpr2js}" />
 			<variable name="CMAKE_GENERATOR" value="${cmake.generator}" />
+			<variable name="CMAKE_BUILD_TYPE" value="${build.type}" />
 			<variable name="FREETYPE_VERSION" value="${freetype.version}" />
 			<generator name="${cmake.generator}" buildargs="${build.args}" platform="android">
 				<variable name="CMAKE_TOOLCHAIN_FILE" value="${toolchain.file}" />
-				<variable name="ANDROID_API_LEVEL" value="${android.api.level}" />
+				<variable name="ANDROID_NATIVE_API_LEVEL" value="${android.native.api.level}" />
 				<variable name="ANDROID_NDK" value="${env.ANDROID_NDK}" />
 				<variable name="ANDROID_NDK_HOST_X64" value="${ANDROID_NDK64}" />
 				<variable name="NDK_PROJECT_PATH" value="${ndk.project.path}" />

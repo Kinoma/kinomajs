@@ -52,7 +52,6 @@ enum {
     ANDROID_CPU_ARM_FEATURE_NEON        = (1 << 2),
     ANDROID_CPU_ARM_FEATURE_LDREX_STREX = (1 << 3),
 
-	//***bnie: kinoma extension
     ANDROID_CPU_ARM_FEATURE_ARMv6 = (1 << 11),
     ANDROID_CPU_ARM_FEATURE_ARMv5 = (1 << 12),
     ANDROID_CPU_ARM_FEATURE_ARMv4 = (1 << 13),

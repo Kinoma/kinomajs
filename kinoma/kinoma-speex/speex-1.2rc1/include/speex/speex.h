@@ -159,7 +159,7 @@ extern "C" {
     how much damage we cause if we remove the frame */
 #define SPEEX_GET_ACTIVITY 47
 
-//***bnie: kinoma enhancement
+//kinoma enhancement
 #define SPEEX_GET_FRAME_LEVEL 200
 
 /* Preserving compatibility:*/

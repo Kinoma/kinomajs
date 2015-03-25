@@ -1,19 +1,21 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
 #ifndef __KINOMAINTERFACELIB__
 #define __KINOMAINTERFACELIB__
 
@@ -94,6 +96,12 @@ jboolean	JAVANAME(KinomaPlay_doFskMotionMultipleTouch)(JNIEnv* env, jclass clazz
 void		JAVANAME(KinomaPlay_setWindowUpdateInterval)(JNIEnv* env, jclass clazz, jlong interval);
 void		JAVANAME(KinomaPlay_fskWindowUpdate)(JNIEnv* env, jclass clazz, jlong time);
 void		JAVANAME(KinomaPlay_doFskOnTextChanged)(JNIEnv* env, jclass clazz, jstring str, jint start, jint before, jint count);
+
+#if SUPPORT_REMOTE_NOTIFICATION
+void		JAVANAME(KinomaPlay_doFskOnRemoteNotificationRegistered)(JNIEnv* env, jclass clazz, jstring str);
+void		JAVANAME(KinomaPlay_doFskOnRemoteNotification)(JNIEnv* env, jclass clazz, jstring str);
+void		JAVANAME(KinomaPlay_checkLaunched)(JNIEnv* env, jclass clazz);
+#endif
 
 int			addAMoved(int x, int y, int ms, int pointer);
 void		motionMovedCB(struct FskTimeCallBackRecord *callback, const FskTime time, void *param);

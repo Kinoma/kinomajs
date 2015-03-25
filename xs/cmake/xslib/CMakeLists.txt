@@ -6,7 +6,7 @@
 #     you may not use this file except in compliance with the License.
 #     You may obtain a copy of the License at
 #
-#       http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 #     Unless required by applicable law or agreed to in writing, software
 #     distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,9 +17,15 @@
 cmake_minimum_required(VERSION 2.8)
 project(xslib)
 
-set(CMAKE_C_FLAGS "${BASE_CMAKE_C_FLAGS} -fno-common")
-set(CMAKE_C_FLAGS_DEBUG "-DmxDebug=1 -DmxProfile=1 -g -O1 -Wall -fstrict-aliasing -fstrict-overflow")
-set(CMAKE_C_FLAGS_RELEASE "-O3")
+if (WIN32)
+	set(CMAKE_C_FLAGS "${BASE_CMAKE_C_FLAGS} /c /D WIN32 /D _CRT_SECURE_NO_DEPRECATE /nologo /Zp1")
+	set(CMAKE_C_FLAGS_DEBUG "/D _DEBUG /D mxDebug /D mxProfile /Fp$(TMP_DIR) /MTd /Od /W3 /Z7")
+	set(CMAKE_C_FLAGS_RELEASE "/D NDEBUG /Fp$(TMP_DIR) /MT /O2 /W0")
+else ()
+	set(CMAKE_C_FLAGS "${BASE_CMAKE_C_FLAGS} -fno-common")
+	set(CMAKE_C_FLAGS_DEBUG "-DmxDebug=1 -DmxProfile=1 -g -O1 -Wall -fstrict-aliasing -fstrict-overflow")
+	set(CMAKE_C_FLAGS_RELEASE "-O3")
+endif ()
 
 file(GLOB sources ${XSLIB_DIR}/*.h)
 list(APPEND sources ${XSLIB_DIR}/xsPlatform.c)

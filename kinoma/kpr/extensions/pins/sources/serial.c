@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #ifdef USESERIAL
 
 #include "FskECMAScript.h"
@@ -26,12 +26,15 @@
 #define KPR_NO_GRAMMAR 1
 
 static void writeOne(xsMachine *the, FskSerialIO sio, xsSlot *slot);
+static void serialPoller(FskTimeCallBack callback, const FskTime time, void *param);
 
 void xs_serial(void *data)
 {
     FskSerialIO sio = data;
     if (sio) {
         FskSerialIOPlatformDispose(sio);
+        FskTimeCallbackDispose(sio->pollerCallback);
+
         FskMemPtrDispose(sio);
     }
 }
@@ -264,6 +267,41 @@ void xs_serial_close(xsMachine *the)
 {
     xs_serial(xsGetHostData(xsThis));
     xsSetHostData(xsThis, NULL);
+}
+
+void xs_serial_repeat(xsMachine *the)
+{
+	FskSerialIO sio = xsGetHostData(xsThis);
+
+	if (!sio)
+		xsError(kFskErrBadState);
+
+    if (0 == sio->rxNum)
+        xsThrowDiagnosticIfFskErr(kFskErrBadState, "Cannot poll from transmit only serial connection (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
+
+    if (sio->pollerCallback) {
+        FskTimeCallbackDispose(sio->pollerCallback);
+        sio->pollerCallback = NULL;
+    }
+    
+    sio->poller = (xsTest(xsArg(0))) ? xsGetHostData(xsArg(0)) : NULL;
+
+    if (sio->poller) {
+        FskTimeCallbackNew(&sio->pollerCallback);
+        FskTimeCallbackScheduleNextRun(sio->pollerCallback, serialPoller, sio);
+    }
+}
+
+void serialPoller(FskTimeCallBack callback, const FskTime time, void *param)
+{
+    FskSerialIO sio = param;
+    int numBytes;
+
+
+    if ((kFskErrNone == FskSerialIOPlatformGetByteCount(sio, &numBytes)) && (numBytes > 0))
+        KprPinsPollerRun(sio->poller);
+    
+    FskTimeCallbackScheduleFuture(sio->pollerCallback, 0, 50, serialPoller, param);
 }
 
 #endif /* USESERIAL */

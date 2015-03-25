@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKTHREAD_PRIV__
 #define __FSKNETUTILS_PRIV__
 #include "FskEnvironment.h"
@@ -133,6 +133,7 @@ struct KprSSDPDeviceStruct {
 	UInt32 expire;
 	char* path;
 	UInt32 port;
+	char* scheme;
 	KprSSDPService services;
 	char* type;
 	char* userAgent;
@@ -1548,7 +1549,7 @@ bail:
 #pragma mark - KprSSDPDevice
 #endif
 
-FskErr KprSSDPDeviceNew(KprSSDPDevice *it, UInt32 port, char* path, UInt32 expire, SInt32 configId, char* uuid, char* type, char* services[])
+FskErr KprSSDPDeviceNew(KprSSDPDevice *it, char* scheme, UInt32 port, char* path, UInt32 expire, SInt32 configId, char* uuid, char* type, char* services[])
 {
 	FskErr err = kFskErrNone;
 	KprSSDPDevice self = NULL;
@@ -1558,6 +1559,8 @@ FskErr KprSSDPDeviceNew(KprSSDPDevice *it, UInt32 port, char* path, UInt32 expir
 	bailIfError(FskMemPtrNewClear(sizeof(KprSSDPDeviceRecord), it));
 	self = *it;
 	FskInstrumentedItemNew(self, NULL, &gKprSSDPDeviceInstrumentation);
+	self->scheme = FskStrDoCopy(scheme);
+	bailIfNULL(self->scheme);
 	self->port = port;
 	self->path = FskStrDoCopy(path);
 	bailIfNULL(self->path);
@@ -1597,7 +1600,8 @@ void KprSSDPDeviceDispose(KprSSDPDevice self)
 		KprSSDPPacketDispose(self->update);
 		KprSSDPPacketDispose(self->byebye);
 		KprSSDPPacketDispose(self->alive);
-        FskMemPtrDispose(self->path);
+		FskMemPtrDispose(self->scheme);
+		FskMemPtrDispose(self->path);
 		FskMemPtrDispose(self->uuid);
 		FskMemPtrDispose(self->userAgent);
 		FskMemPtrDispose(self->type);
@@ -2286,7 +2290,7 @@ FskErr KprSSDPPacketAddAliveMessage(KprSSDPPacket self, KprSSDP ssdp, KprSSDPDev
 		kKprSSDPNotifyStartLine
 		"HOST: 239.255.255.250:1900\r\n"
 		"CACHE-CONTROL: max-age=%lu\r\n"
-		"LOCATION: http://%%s:%lu%s\r\n"
+		"LOCATION: %s://%%s:%lu%s\r\n"
 		"NT: %s"
 		"NTS: ssdp:alive\r\n"
 		"SERVER: %s\r\n"
@@ -2296,7 +2300,7 @@ FskErr KprSSDPPacketAddAliveMessage(KprSSDPPacket self, KprSSDP ssdp, KprSSDPDev
 		"%s"
 		"\r\n",
 		device->expire,
-		device->port, device->path,
+		device->scheme, device->port, device->path,
 		KprSSDPPacketGetLineNT(ssdp, device, service, lines[0], 128, variant),
 		device->userAgent,
 		KprSSDPPacketGetLineUSN(ssdp, device, service, lines[1], 128, variant),
@@ -2367,7 +2371,7 @@ FskErr KprSSDPPacketAddResponseMessage(KprSSDPPacket self, KprSSDP ssdp, KprSSDP
 		"CACHE-CONTROL: max-age=%lu\r\n"
 		"%s"
 		"EXT: \r\n"
-		"LOCATION: http://%%s:%lu%s\r\n"
+		"LOCATION: %s://%%s:%lu%s\r\n"
 		"SERVER: %s\r\n"
 		"ST: %s"
 		"%s"
@@ -2377,7 +2381,7 @@ FskErr KprSSDPPacketAddResponseMessage(KprSSDPPacket self, KprSSDP ssdp, KprSSDP
 		"\r\n",
 		device->expire,
 		date,
-		device->port, device->path,
+		device->scheme, device->port, device->path,
 		device->userAgent,
 		KprSSDPPacketGetLineNT(ssdp, device, service, lines[0], 128, variant),
 		KprSSDPPacketGetLineUSN(ssdp, device, service, lines[1], 128, variant),

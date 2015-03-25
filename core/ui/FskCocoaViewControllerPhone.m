@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKWINDOW_PRIV__
 
 #import "FskCocoaViewControllerPhone.h"
@@ -21,13 +21,14 @@
 #import "FskCocoaApplicationPhone.h"
 #import "FskCocoaSupportPhone.h"
 #import "FskCocoaViewPhone.h"
-#import "FskWindow.h"
+#import "FskEnvironment.h"
 #import "FskMain.h"
 
 extern void mainExtensionInitialize(void);
 extern void mainExtensionTerminate(void);
 
 @interface FskCocoaViewController () {
+	CGRect _initialFrame;
 	CADisplayLink *displayLink;
 }
 
@@ -38,14 +39,41 @@ extern void mainExtensionTerminate(void);
 
 @implementation FskCocoaViewController
 
-+ (FskCocoaViewController *)sharedViewController
+@dynamic fskWindow;
+
+- (FskCocoaView *)cocoaView
 {
-	return (FskCocoaViewController *)[FskCocoaApplication sharedApplication].window.rootViewController;
+	if (self.view.subviews.count == 0)
+		return nil;
+	return (FskCocoaView *)[self.view.subviews lastObject];
+}
+
+- (FskWindow)fskWindow
+{
+	if (self.cocoaView == nil)
+		return NULL;
+	return self.cocoaView.fskWindow;
+}
+
+- (BOOL)empty
+{
+	return (self.view.subviews.count == 0) ? YES : NO;
+}
+
+- (id)initWithFrame:(CGRect)frame screenScale:(CGFloat)screenScale
+{
+	self = [super init];
+	if (self != nil)
+	{
+		_initialFrame = frame;	// @@ may change before view is loaded?
+		_screenScale = screenScale;
+	}
+	return self;
 }
 
 - (void)loadView
 {
-    self.view = [[[UIView alloc] initWithFrame:[[UIScreen mainScreen] bounds]] autorelease];
+    self.view = [[[UIView alloc] initWithFrame:_initialFrame] autorelease];
     self.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     self.notifyViewOrientation = NO;
 #if (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_7_0)
@@ -55,6 +83,23 @@ extern void mainExtensionTerminate(void);
 
 - (void)dealloc
 {
+#if SUPPORT_EXTERNAL_SCREEN
+	if (self == [FskCocoaApplication sharedApplication].mainViewController)
+	{
+		[[NSNotificationCenter defaultCenter] removeObserver:self
+														name:UIScreenDidConnectNotification
+													  object:nil];
+
+		[[NSNotificationCenter defaultCenter] removeObserver:self
+														name:UIScreenDidDisconnectNotification
+													  object:nil];
+
+		[[NSNotificationCenter defaultCenter] removeObserver:self
+														name:UIScreenModeDidChangeNotification
+													  object:nil];
+	}
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
+
     self.view = nil;
     [super dealloc];
 }
@@ -69,6 +114,10 @@ extern void mainExtensionTerminate(void);
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+
+	if (self != [FskCocoaApplication sharedApplication].mainViewController)
+		return;
+
     [self performSelector:@selector(fskInitialize) withObject:nil afterDelay:0.0];
 }
 
@@ -76,19 +125,19 @@ extern void mainExtensionTerminate(void);
 {
     [super viewDidUnload];
 
+	if (self != [FskCocoaApplication sharedApplication].mainViewController)
+		return;
+
     if (self.view)
     {
-        FskWindow	fskWindow;
         FskEvent 	fskEvent;
         UInt32		commandID = 0;
-
-        fskWindow = [(FskCocoaView *)[[self.view subviews] lastObject] fskWindow];
 
 		// send Fsk quit event
 		if (kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuCommand, NULL, kFskEventModifierNotSet))
 		{
 			FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(commandID), &commandID);
-			FskWindowEventQueue(fskWindow, fskEvent);
+			FskWindowEventQueue(self.fskWindow, fskEvent);
 		}
     }
     [self fskTerminate];
@@ -97,13 +146,20 @@ extern void mainExtensionTerminate(void);
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
+
+	if (self != [FskCocoaApplication sharedApplication].mainViewController)
+		return;
+
 	[[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
     [self becomeFirstResponder];
 }
 
 - (void)viewWillDisappear:(BOOL)animated {
-    [[UIApplication sharedApplication] endReceivingRemoteControlEvents];
-    [self resignFirstResponder];
+	if (self == [FskCocoaApplication sharedApplication].mainViewController)
+	{
+		[[UIApplication sharedApplication] endReceivingRemoteControlEvents];
+		[self resignFirstResponder];
+	}
     [super viewWillDisappear:animated];
 }
 
@@ -259,43 +315,6 @@ static NSUInteger gSupportedInterfaceOrientations = 0;
     }
 }
 
-@synthesize notifyViewOrientation = notifyViewOrientation_;
-
-- (void)resizeIfNeeded
-{
-    CGRect bounds;
-    FskWindow fskWindow;
-    UInt32 width, height, vWidth, vHeight;
-    CGFloat scale;
-
-    bounds = self.view.bounds;
-    scale = FskCocoaDeviceScreenScaleFactor();
-    vWidth = (UInt32)(bounds.size.width * scale);
-    vHeight = (UInt32)(bounds.size.height * scale);
-    fskWindow = [(FskCocoaView *)[[self.view subviews] lastObject] fskWindow];
-    if (fskWindow == NULL)
-    {
-        [self performSelector:@selector(resizeIfNeeded) withObject:nil afterDelay:0.2];
-        return;
-    }
-    FskCocoaWindowGetSize(fskWindow, &width, &height);
-    if ((width != vWidth) || (height != vHeight))
-    {
-        if (FskCocoaBitmapUseGL())
-        {
-            SInt32 rotation = FskCocoaApplicationGetRotation();
-            if ((rotation == 90) || (rotation == 270))
-            {
-                UInt32 tmp = vWidth;
-                vWidth = vHeight;
-                vHeight = tmp;
-            }
-        }
-        FskCocoaWindowSetSize(fskWindow, vWidth, vHeight);
-        FskWindowCocoaSizeChanged(fskWindow);
-    }
-}
-
 - (void)fskInitialize
 {
     //NSLog(@"fskInitialize started");
@@ -305,7 +324,88 @@ static NSUInteger gSupportedInterfaceOrientations = 0;
 
 	[self setDisplayLinkActive:YES];
 
-    //[self performSelector:@selector(resizeIfNeeded) withObject:nil afterDelay:0.0];
+#if SUPPORT_REMOTE_NOTIFICATION
+	/* Remote Notification */
+	char *env = FskEnvironmentGet("remoteNotification");
+	if (env != NULL)
+	{
+		SInt32 envTypes = FskStrToNum(env);
+		UIApplication *app = [UIApplication sharedApplication];
+
+#if defined (__IPHONE_8_0) && (__IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_8_0)
+		if ([app respondsToSelector:@selector(registerForRemoteNotifications)])
+		{
+			UIUserNotificationType types = UIUserNotificationTypeNone;
+
+			if (envTypes & 1)
+				types |= UIUserNotificationTypeBadge;
+			if (envTypes & 2)
+				types |= UIUserNotificationTypeSound;
+			if (envTypes & 4)
+				types |= UIUserNotificationTypeAlert;
+
+			if (types != UIUserNotificationTypeNone)
+			{
+				/* handle remote notification if recieved on launch */
+				[[FskCocoaApplication sharedApplication] handleRemoteNotification];
+
+				/* register remote notification */
+				UIUserNotificationSettings *settings;
+
+				[app registerForRemoteNotifications];
+
+				settings = [UIUserNotificationSettings settingsForTypes:types categories:nil];
+				[app registerUserNotificationSettings:settings];
+			}
+		}
+		else
+#endif
+		{
+			UIRemoteNotificationType types = UIRemoteNotificationTypeNone;
+
+			if (envTypes & 1)
+				types |= UIRemoteNotificationTypeBadge;
+			if (envTypes & 2)
+				types |= UIRemoteNotificationTypeSound;
+			if (envTypes & 4)
+				types |= UIRemoteNotificationTypeAlert;
+
+			if (types != UIRemoteNotificationTypeNone)
+			{
+				/* handle remote notification if recieved on launch */
+				[[FskCocoaApplication sharedApplication] handleRemoteNotification];
+
+				/* register remote notification */
+				[app registerForRemoteNotificationTypes:types];
+			}
+		}
+	}
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
+
+#if SUPPORT_EXTERNAL_SCREEN
+	env = FskEnvironmentGet("externalScreen");
+	if ((env != NULL) && FskStrToNum(env) > 0)
+	{
+		// check whether the external screen is already connected.
+		[self findExternalScreen];
+
+		[[NSNotificationCenter defaultCenter] addObserver:self
+												 selector:@selector(screenDidConnect:)
+													 name:UIScreenDidConnectNotification
+												   object:nil];
+
+		[[NSNotificationCenter defaultCenter] addObserver:self
+												 selector:@selector(screenDidDisconnect:)
+													 name:UIScreenDidDisconnectNotification
+												   object:nil];
+
+		[[NSNotificationCenter defaultCenter] addObserver:self
+												 selector:@selector(screenModeDidChange:)
+													 name:UIScreenModeDidChangeNotification
+												   object:nil];
+	}
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
+
     //NSLog(@"fskInitialize finished");
 }
 
@@ -323,7 +423,6 @@ static NSUInteger gSupportedInterfaceOrientations = 0;
 
 - (void)throwKeyEvent:(char)keyCode keyDown:(BOOL)down functionKey:(UInt32)functionKey
 {
-	FskWindow fskWindow = [(FskCocoaView *)[[self.view subviews] lastObject] fskWindow];
 	FskEvent fskEvent;
 
 	if (FskEventNew(&fskEvent, down ? kFskEventKeyDown : kFskEventKeyUp, NULL, 0) == kFskErrNone) {
@@ -333,7 +432,7 @@ static NSUInteger gSupportedInterfaceOrientations = 0;
 		FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, 2, chars);
 		if (functionKey)
 			FskEventParameterAdd(fskEvent, kFskEventParameterFunctionKey, sizeof(functionKey), &functionKey);
-		FskWindowEventQueue(fskWindow, fskEvent);
+		FskWindowEventQueue(self.fskWindow, fskEvent);
 	}
 }
 
@@ -384,12 +483,7 @@ static NSUInteger gSupportedInterfaceOrientations = 0;
 
 - (void)doFrame:(id)data
 {
-	if (self.view == nil)
-		return;
-	FskCocoaView *view = (FskCocoaView *)[[self.view subviews] lastObject];
-	if (view == nil)
-		return;
-	FskWindow fskWindow = [view fskWindow];
+	FskWindow fskWindow = self.fskWindow;
 	if (fskWindow == NULL)
 		return;
 
@@ -399,4 +493,62 @@ static NSUInteger gSupportedInterfaceOrientations = 0;
 	time.useconds = (SInt32)((frameTime - time.seconds) * 1000000);
 	FskWindowUpdate(fskWindow, &time);
 }
+
+#if SUPPORT_EXTERNAL_SCREEN
+#if TEST_EXTERNAL_SCREEN
+- (void)setBitmap:(FskBitmap)bitmap
+{
+	if (_bitmap != NULL)
+	{
+		FskBitmapDispose(_bitmap);
+	}
+	_bitmap = bitmap;
+	if (bitmap != NULL)
+	{
+		FskBitmapUse(bitmap);
+		FskPortInvalidateRectangle(self.fskWindow->port, NULL);
+	}
+}
+#endif	/* TEST_EXTERNAL_SCREEN */
+
+- (void)screenDidAdd:(UIScreen *)extScreen
+{
+	FskCocoaApplication *app = [FskCocoaApplication sharedApplication];
+
+	[app addExternalScreen:extScreen];
+}
+
+- (void)screenDidConnect:(NSNotification *)notif
+{
+	[self screenDidAdd:(UIScreen *)notif.object];
+}
+
+- (void)screenDidDisconnect:(NSNotification *)notif
+{
+	UIScreen *extScreen = notif.object;
+	FskCocoaApplication *app = [FskCocoaApplication sharedApplication];
+
+	[app removeExternalScreen:extScreen];
+}
+
+- (void)screenModeDidChange:(NSNotification *)notif
+{
+	UIScreen *extScreen = notif.object;
+	FskCocoaApplication *app = [FskCocoaApplication sharedApplication];
+
+	[app updateExternalScreen:extScreen];
+}
+
+- (void)findExternalScreen
+{
+	NSArray *screens = [UIScreen screens];
+
+	for (NSUInteger i = 1; i < screens.count; i++)
+	{
+		UIScreen *extScreen = [screens objectAtIndex:i];
+		[self screenDidAdd:extScreen];
+	}
+}
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
+
 @end

@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #ifndef __KPRBEHAVIOR__
 #define __KPRBEHAVIOR__
 
@@ -29,6 +29,10 @@ typedef Boolean (*KprBehaviorKeyCallbackProc)(void* it, char* key, UInt32 modifi
 typedef void (*KprBehaviorMarkCallbackProc)(void* it, xsMarkRoot markRoot);
 typedef SInt32 (*KprBehaviorMeasureCallbackProc)(void* it, SInt32 size);
 typedef void (*KprBehaviorMessageCallbackProc)(void* it, KprMessage message);
+#if SUPPORT_REMOTE_NOTIFICATION
+typedef void (*KprBehaviorRemoteNotificationRegisteredCallbackProc)(void* it, const char *deviceToken, const char *osType);
+typedef void (*KprBehaviorRemoteNotificationCallbackProc)(void* it, const char *json);
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 typedef Boolean (*KprBehaviorSensorCallbackProc)(void* it, UInt32 id, double ticks, UInt32 c, double *values);
 typedef void (*KprBehaviorTouchCallbackProc)(void* it, UInt32 id, SInt32 x, SInt32 y, double ticks);
 
@@ -54,6 +58,10 @@ struct KprDelegateStruct {
 	KprBehaviorMeasureCallbackProc measureVertically;
 	KprBehaviorCallbackProc metadataChanged;
 	KprBehaviorCallbackProc quit;
+#if SUPPORT_REMOTE_NOTIFICATION
+	KprBehaviorRemoteNotificationRegisteredCallbackProc remoteNotificationRegistered;
+	KprBehaviorRemoteNotificationCallbackProc remoteNotified;
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 	KprBehaviorCallbackProc scrolled;
 	KprBehaviorSensorCallbackProc sensorBegan;
 	KprBehaviorSensorCallbackProc sensorChanged;
@@ -96,6 +104,10 @@ extern SInt32 KprDefaultBehaviorMeasureHorizontally(void* it, SInt32 width);
 extern SInt32 KprDefaultBehaviorMeasureVertically(void* it, SInt32 height);
 extern void KprDefaultBehaviorMetadataChanged(void* it);
 extern void KprDefaultBehaviorQuit(void* it);
+#if SUPPORT_REMOTE_NOTIFICATION
+extern void KprDefaultBehaviorRemoteNotificationRegistered(void* it, const char *deviceToken, const char *osType);
+extern void KprDefaultBehaviorRemoteNotified(void* it, const char *json);
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 extern void KprDefaultBehaviorScrolled(void* it);
 extern Boolean KprDefaultBehaviorSensorBegan(void* it, UInt32 id, double ticks, UInt32 c, double *values);
 extern Boolean KprDefaultBehaviorSensorChanged(void* it, UInt32 id, double ticks, UInt32 c, double *values);
@@ -137,6 +149,10 @@ FskAPI(FskErr) KprScriptBehaviorNew(KprBehavior* it, KprContent content, xsMachi
 #define kprDelegateMeasureVertically(IT, HEIGHT) (((IT)->behavior) ? (*(IT)->behavior->delegate->measureVertically)(IT, HEIGHT) : HEIGHT)
 #define kprDelegateMetadataChanged(IT) (((IT)->behavior) ? (*(IT)->behavior->delegate->metadataChanged)(IT) : 0)
 #define kprDelegateQuit(IT) (((IT)->behavior) ? (*(IT)->behavior->delegate->quit)(IT) : 0)
+#if SUPPORT_REMOTE_NOTIFICATION
+#define kprDelegateRemoteNotificationRegistered(IT, TOKEN, TYPE) (((IT)->behavior) ? (*(IT)->behavior->delegate->remoteNotificationRegistered)(IT, TOKEN, TYPE) : 0)
+#define kprDelegateRemoteNotified(IT, JSON) (((IT)->behavior) ? (*(IT)->behavior->delegate->remoteNotified)(IT, JSON) : 0)
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 #define kprDelegateScrolled(IT) (((IT)->behavior) ? (*(IT)->behavior->delegate->scrolled)(IT) : 0)
 #define kprDelegateStateChanged(IT) (((IT)->behavior) ? (*(IT)->behavior->delegate->stateChanged)(IT) : 0)
 #define kprDelegateTimeChanged(IT) (((IT)->behavior) ? (*(IT)->behavior->delegate->timeChanged)(IT) : 0)

@@ -1,25 +1,33 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #ifndef __FSKWINDOW__
 #define __FSKWINDOW__
 
 #include "FskPort.h"
 #include "FskEvent.h"
 #include "FskThread.h"
+
+#if defined(__FSKWINDOW_PRIV__)
+#if SUPPORT_EXTERNAL_SCREEN
+FskAPI(void) FskExtScreenHandleConnected(int identifier, FskDimension size);
+FskAPI(void) FskExtScreenHandleDisconnected(int identifier);
+FskAPI(void) FskExtScreenHandleChanged(int identifier, FskDimension newSize);
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
+#endif	/* __FSKWINDOW_PRIV__ */
 
 #if defined(__FSKWINDOW_PRIV__) || SUPPORT_INSTRUMENTATION
 	// implementation headers
@@ -361,6 +369,35 @@ void FskWindowCheckUpdate(void);
 #if TARGET_OS_ANDROID
 void WindowUpdateCallback(void *win, void *unused1, void *unused2, void *unused3);
 #endif
+
+#if SUPPORT_EXTERNAL_SCREEN
+	enum {
+		kFskExtScreenStatusRemoved = 0,
+		kFskExtScreenStatusNew,
+		kFskExtScreenStatusChanged
+	};
+
+	FskDeclarePrivateType(FskExtScreen);
+	typedef void (*FskExtScreenChangedCallback)(UInt32 status, int identifier, FskDimension size, void *param);
+
+#ifndef __FSKWINDOW_PRIV__
+	FskDeclarePrivateType(FskExtScreenNotifier)
+#else
+	typedef struct FskExtScreenNotifierRecord {
+		struct FskExtScreenNotifierRecord *next;
+		FskExtScreenChangedCallback callback;
+		void *param;
+		FskThread thread;
+
+		FskInstrumentedItemDeclaration
+
+		char name[1];		// must be last
+	} FskExtScreenNotifierRecord, *FskExtScreenNotifier;
+#endif
+
+	FskAPI(FskExtScreenNotifier) FskExtScreenAddNotifier(FskExtScreenChangedCallback callback, void *param, char *name);
+	FskAPI(void) FskExtScreenRemoveNotifier(FskExtScreenNotifier callbackRef);
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -1,19 +1,21 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
 #define DEBUG_STDERR 0
 
 #define USE_FRAMEBUFFER_VECTORS 1
@@ -1226,7 +1228,52 @@ JAVANAME(KinomaPlay_doFskKeyEvent)(JNIEnv* env, jclass clazz, jint keyCode, jint
 	return false;
 }
 
+#if SUPPORT_REMOTE_NOTIFICATION
+static void
+sendRemoteNotificationEvent(const char *str, Boolean isRegistration) {
+	FskEvent ev;
+	FskEventCodeEnum evType = isRegistration ? kFskEventSystemRemoteNotificationRegistered : kFskEventSystemRemoteNotification;
 
+	if (FskEventNew(&ev, evType, NULL, kFskEventModifierNotSet) == kFskErrNone) {
+		FskWindow win = FskWindowGetActive();
+		UInt32 strLen = FskStrLen(str);
+		if (strLen > 0) {
+			(void)FskEventParameterAdd(ev, kFskEventParameterStringValue, FskStrLen(str) + 1, str);
+		}
+		//FskWindowEventSend(win, ev);	// Window??
+		FskWindowEventQueue(win, ev);	// Window??
+	}
+}
+
+void
+JAVANAME(KinomaPlay_doFskOnRemoteNotificationRegistered)(JNIEnv* env, jclass clazz, jstring str)
+{
+	FskEvent ev;
+
+	FskInstrumentedTypePrintfDebug(&gAndroidEventTypeInstrumentation, "doFskOnRemoteNotificationRegistered");
+	//FskInstrumentedTypePrintfDebug(&gAndroidEventTypeInstrumentation, "doFskOnRemoteNotificationRegistered %s", str ? (char *)env->GetStringUTFChars(str, NULL) : "null");
+
+	sendRemoteNotificationEvent(str ? env->GetStringUTFChars(str, NULL) : NULL, true);
+}
+
+void
+JAVANAME(KinomaPlay_doFskOnRemoteNotification)(JNIEnv* env, jclass clazz, jstring str)
+{
+	const char *json = env->GetStringUTFChars(str, NULL);
+	UInt32 jsonLen = FskStrLen(json);
+
+	if (jsonLen == 0) {
+		return;
+	}
+
+	sendRemoteNotificationEvent(json, false);
+}
+
+void
+JAVANAME(KinomaPlay_checkLaunched)(JNIEnv* env, jclass clazz)
+{
+}
+#endif
 
 void dupeBitmap(FskBitmap from, FskBitmap to, int modifyStructure) {
 	FskRectangleRecord fR, tR, bR;

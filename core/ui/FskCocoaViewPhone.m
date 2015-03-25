@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKCOCOASUPPORT_PRIV__
 #define __FSKWINDOW_PRIV__
 #define __FSKBITMAP_PRIV__
@@ -25,8 +25,7 @@
 #import "FskString.h"
 #import "FskUtilities.h"
 #if FSKBITMAP_OPENGL
-#import <QuartzCore/QuartzCore.h>
-#import <OpenGLES/EAGLDrawable.h>
+#import <OpenGLES/EAGL.h>
 #if GLES_VERSION == 1 && kFskCocoaCopyBitsUseOpenGL
 #import <OpenGLES/ES1/gl.h>
 #import <OpenGLES/ES1/glext.h>
@@ -37,6 +36,8 @@
 #import <QuartzCore/QuartzCore.h>
 #import <OpenGLES/EAGLDrawable.h>
 #include "FskGLBlit.h"
+#include "FskGLContext.h"
+static EAGLContext *gMainContext = nil;
 #endif
 
 #if SUPPORT_INSTRUMENTATION
@@ -153,6 +154,7 @@ FskInstrumentedSimpleType(CocoaView, cocoaview);													/**< This declares 
 	EAGLContext *context;
 	GLuint viewRenderbuffer, viewFramebuffer;
 	GLuint depthRenderbuffer;
+	FskGLBlitContext blitContext;
 #if GLES_VERSION == 1 && kFskCocoaCopyBitsUseOpenGL
     GLuint _bitmapTexture;
     GLfloat _textureVertices[4][2];
@@ -176,10 +178,13 @@ const float kFskCocoaViewCornerRadius = 8;
 #endif
 
 #pragma mark --- init ---
-- (id)initWithFrame:(CGRect)frame
+- (id)initWithFrame:(CGRect)frame screenScale:(CGFloat)screenScale isMainView:(BOOL)isMainView
 {
 	if (self = [super initWithFrame:frame])
 	{
+        self.contentScaleFactor = screenScale;
+		_isMainView = isMainView;
+
 		_lastTouchedPoint.x = _lastTouchedPoint.y = 0;
 #if MULTI_TOUCHES
         if (FskMemPtrNewClear(kNumberOfFingers * sizeof(UITouch*), &_touches) != kFskErrNone)
@@ -189,6 +194,8 @@ const float kFskCocoaViewCornerRadius = 8;
         }
         self.multipleTouchEnabled = YES;
 #endif
+		self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+		self.autoresizesSubviews = NO;
 #if FSKBITMAP_OPENGL
 		CAEAGLLayer *eaglLayer = (CAEAGLLayer *)self.layer;
 #if GLES_VERSION == 1 && kFskCocoaCopyBitsUseOpenGL
@@ -211,7 +218,12 @@ const float kFskCocoaViewCornerRadius = 8;
 		context = [[EAGLContext alloc] initWithAPI:kEAGLRenderingAPIOpenGLES1];
 		LOGD("initWithFrame: GLES1 context = %p", context);
 #else
- 		context = [[EAGLContext alloc] initWithAPI:(useGL ? kEAGLRenderingAPIOpenGLES2 : kEAGLRenderingAPIOpenGLES1)]; // until copyBits supports ES2
+		if (self.isMainView) {
+			context = [[EAGLContext alloc] initWithAPI:(useGL ? kEAGLRenderingAPIOpenGLES2 : kEAGLRenderingAPIOpenGLES1)]; // until copyBits supports ES2
+			gMainContext = context;
+		} else {
+			context = [[EAGLContext alloc] initWithAPI:(useGL ? kEAGLRenderingAPIOpenGLES2 : kEAGLRenderingAPIOpenGLES1) sharegroup:[gMainContext sharegroup]];
+		}
 		LOGD("initWithFrame: GLES%d context = %p", (useGL ? 2 : 1), context);
 #endif
 
@@ -220,8 +232,12 @@ const float kFskCocoaViewCornerRadius = 8;
 			return nil;
 		}
 
-        self.contentScaleFactor = FskCocoaDeviceScreenScaleFactor();
-
+		if (self.isMainView) {
+			blitContext = FskGLBlitContextGetCurrent();
+		} else {
+			FskGLBlitContextNewFromCurrent(&blitContext);
+			FskGLBlitContextMakeCurrent(blitContext);
+		}
 #if GLES_VERSION == 1 && kFskCocoaCopyBitsUseOpenGL
 	if (!useGL) {
 		glMatrixMode(GL_PROJECTION);
@@ -322,11 +338,7 @@ const float kFskCocoaViewCornerRadius = 8;
     FskMemPtrDispose(_touches);
 #endif
 #if FSKBITMAP_OPENGL
-	if([EAGLContext currentContext] == context)
-	{
-		[EAGLContext setCurrentContext:nil];
-	}
-
+	FskGLBlitContextDispose(blitContext);
 	[context release];
 #else
 	[[NSNotificationCenter defaultCenter] removeObserver:nil];
@@ -342,6 +354,7 @@ const float kFskCocoaViewCornerRadius = 8;
 
 #pragma mark --- getters/setters ---
 
+@synthesize isMainView = _isMainView;
 @dynamic keyboardActive;
 #if TEXT_INPUT_SYSTEM
 @synthesize keyboardString = _keyboardString;
@@ -532,7 +545,7 @@ const float kFskCocoaViewCornerRadius = 8;
 #if FSKBITMAP_OPENGL
 -(void)layoutSubviews
 {
-	[EAGLContext setCurrentContext:context];
+	FskGLBlitContextMakeCurrent(blitContext);
 	[self destroyFramebuffer];
 	[self createFramebuffer];
     FskWindowCocoaSizeChanged(_fskWindow);
@@ -865,7 +878,6 @@ const float kFskCocoaViewCornerRadius = 8;
 {
 #if MULTI_TOUCHES
     UInt32 when = 0;
-	UIWindow *window;
 	UInt32 eventCode = 0, clickCount = 0;
 	SInt32 rotate = FskCocoaApplicationGetRotation();
 	CGPoint cgPoint;
@@ -959,7 +971,6 @@ const float kFskCocoaViewCornerRadius = 8;
             return;
         }
 
-		window = [touch window];
 		cgPoint = [touch locationInView:FskCocoaBitmapUseGL() ? self : nil];
         statusBarHeight = FskCocoaApplicationGetStatusBarHeight();
         if (statusBarHeight > 0)
@@ -1129,8 +1140,8 @@ const float kFskCocoaViewCornerRadius = 8;
 {
 #if FSKBITMAP_OPENGL
 	BOOL ok;
-	LOGD("beginDraw: setCurrentContext(%p), previous=%p", context, [EAGLContext currentContext]);
-	ok = [EAGLContext setCurrentContext:context];
+	LOGD("beginDraw: setCurrentContext(%p), previous=%p, isMain=%s", context, [EAGLContext currentContext], self.isMainView ? "Yes" : "No");
+	ok = (FskGLBlitContextMakeCurrent(blitContext) == kFskErrNone);
 	#if SUPPORT_INSTRUMENTATION
 		if (!ok) LOGE("ERROR: beginDraw: setCurrentContext(%p) FAILS", context);
 	#endif /* SUPPORT_INSTRUMENTATION */
@@ -1142,7 +1153,7 @@ const float kFskCocoaViewCornerRadius = 8;
 #if FSKBITMAP_OPENGL
 	if (viewRenderbuffer) {
 		int retVal;
-		LOGD("endDraw: bind and present RenderBuffer(%d)", viewRenderbuffer);
+		LOGD("endDraw: bind and present RenderBuffer(%d) in context (%p), isMain=%s", viewRenderbuffer, context, self.isMainView ? "Yes" : "No");
 		glBindRenderbuffer(GL_RENDERBUFFER, viewRenderbuffer);
 		#if SUPPORT_INSTRUMENTATION
 			if (LOGE_ENABLED()) {
@@ -1494,7 +1505,7 @@ const float kFskCocoaViewCornerRadius = 8;
 - (UITextPosition *)positionWithinRange:(UITextRange *)range farthestInDirection:(UITextLayoutDirection)direction
 {
     IndexedRange *r = (IndexedRange *)range;
-    NSInteger pos = r.range.location;
+	NSInteger pos;
 
     switch (direction) {
         case UITextLayoutDirectionUp:
@@ -1513,7 +1524,7 @@ const float kFskCocoaViewCornerRadius = 8;
 - (UITextRange *)characterRangeByExtendingPosition:(UITextPosition *)position inDirection:(UITextLayoutDirection)direction
 {
     IndexedPosition *pos = (IndexedPosition *)position;
-    NSRange result = NSMakeRange(pos.index, 1);
+	NSRange result;
 
     switch (direction) {
         case UITextLayoutDirectionUp:
@@ -1555,7 +1566,7 @@ const float kFskCocoaViewCornerRadius = 8;
 - (UITextPosition *)closestPositionToPoint:(CGPoint)point
 {
     xsMachine *the = _the;
-    NSUInteger offset;
+    NSUInteger offset = 0;
 
     xsBeginHost(the);
     xsVars(1);
@@ -1679,11 +1690,7 @@ const float kFskCocoaViewCornerRadius = 8;
     CGRect cgBounds = self.bounds;
     CGFloat scale;
 
-#if FSKBITMAP_OPENGL
-    scale = FskCocoaDeviceScreenScaleFactor();
-#else
     scale = self.contentScaleFactor;
-#endif
     if (1.0 < scale) {
         cgBounds.origin.x *= scale;
         cgBounds.origin.y *= scale;

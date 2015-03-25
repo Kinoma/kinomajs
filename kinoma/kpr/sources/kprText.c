@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKPORT_PRIV__
 #include "FskText.h"
 #include "FskTextConvert.h"
@@ -106,6 +106,7 @@ static void KprTextCascade(void* it, KprStyle style);
 static void KprTextDispose(void* it);
 static void KprTextDraw(void* it, FskPort port, FskRectangle area);
 static void KprTextFitHorizontally(void* it);
+static void KprTextFitVertically(void* it);
 static KprContent KprTextHit(void* it, SInt32 x, SInt32 y);
 //static void KprTextInvalidated(void* it, FskRectangle area);
 static void KprTextMeasureHorizontally(void* it);
@@ -164,7 +165,7 @@ static KprDispatchRecord KprTextDispatchRecord = {
 	KprTextDispose,
 	KprTextDraw,
 	KprTextFitHorizontally,
-	KprContentFitVertically,
+	KprTextFitVertically,
 	KprContentGetBitmap,
 	KprTextHit,
 	KprContentIdle,
@@ -698,9 +699,20 @@ void KprTextFitHorizontally(void* it)
 	}
 	while (content) {
 		(*content->dispatch->fitHorizontally)(content);
+		content = content->next;
+	}
+}
+
+void KprTextFitVertically(void* it) 
+{
+	KprText self = it;
+	KprContent content = self->first;
+	KprContentFitVertically(it);
+	while (content) {
 		(*content->dispatch->fitVertically)(content);
 		content = content->next;
 	}
+	self->flags |= kprContentsPlaced;
 }
 
 KprContent KprTextHit(void* it, SInt32 x, SInt32 y) 

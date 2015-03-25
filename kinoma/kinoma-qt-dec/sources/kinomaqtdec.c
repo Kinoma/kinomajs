@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKIMAGE_PRIV__
 #define __FSKBITMAP_PRIV__
 //#define __FSKMPEGDECODE_PRIV__
@@ -26,7 +26,7 @@
 #include "FskBitmap.h"
 #include "QTReader.h"
 
-#if defined(__LP64__)
+#if TARGET_OS_MAC && (defined(__LP64__) || TARGET_OS_IPHONE)
 #define USE_VIDEO_TOOLBOX	1
 #endif
 #ifdef USE_VIDEO_TOOLBOX
@@ -983,7 +983,22 @@ static FskErr send_out_frame_sync( kinomaQTDecode *state, FskImageDecompress dec
 		
 		if( state->dst_pixel_format == kFskBitmapFormatUYVY )
 		{
-			memcpy(	(void *)dstPtr, (void *)src_y, frame_size );
+			int dst_row = width * 2;
+			int stride = state->yuv_buffer->strd;
+
+			if (dst_row == stride) {
+				dlog("copy 'WITHOUT' padding data");
+				memcpy(	(void *)dstPtr, (void *)src_y, frame_size );
+			}
+			else {
+				int i;
+				dlog("copy 'WITH' padding data");
+				for (i = 0; i < height; i++) {
+					memcpy(	(void *)dstPtr, (void *)src_y, dst_row );
+					dstPtr += dst_row;
+					src_y  += stride;
+				}
+			}
 		}
 		else
 		{
@@ -1015,7 +1030,7 @@ static FskErr send_out_frame_sync( kinomaQTDecode *state, FskImageDecompress dec
 	deco->bits = bits;
 	
 bail:
-	dlog( "out of send_out_frame_async, err %d\n", (int)err);		
+	dlog( "out of send_out_frame_sync, err %d\n", (int)err);		
 	return err;
 }
 
@@ -1024,6 +1039,7 @@ static FskErr send_out_frame_async( kinomaQTDecode	*state, CVPixelBufferRef pixe
 {
 	int						width;
 	int						height;
+	int						stride;
 	FskBitmap				bits = NULL;
 	FskImageDecompress		deco = state->deco;
 	FskImageDecompressComplete	completionFunction = NULL;
@@ -1144,17 +1160,28 @@ static FskErr send_out_frame_async( kinomaQTDecode	*state, CVPixelBufferRef pixe
 		YUVBuffer_pull( state->yuv_buffer, &src_y, &src_u, &src_v, &output_display_time  );
 		frame_size = state->yuv_buffer->frame_size;
 #else
-		{
-			int	qt_strd	= (int)CVPixelBufferGetBytesPerRow(pixelBuffer);
-			frame_size = qt_strd * height;
-			src_y = (unsigned char *)CVPixelBufferGetBaseAddress(pixelBuffer);
-			output_display_time = (int)displayTime;
-		}
-#endif		
+		stride		= (int)CVPixelBufferGetBytesPerRow(pixelBuffer);
+		frame_size 	= stride * height;
+		src_y 		= (unsigned char *)CVPixelBufferGetBaseAddress(pixelBuffer);
+		output_display_time = (int)displayTime;
+#endif
 		
 		if( state->dst_pixel_format == kFskBitmapFormatUYVY )
 		{
-			memcpy(	(void *)dstPtr, (void *)src_y, frame_size );
+			int dst_row = width * 2;
+			if (dst_row == stride) {
+				dlog("copy 'WITHOUT' padding data");
+				memcpy(	(void *)dstPtr, (void *)src_y, frame_size );
+			}
+			else {
+				int i;
+				dlog("copy 'WITH' padding data");
+				for (i = 0; i < height; i++) {
+					memcpy(	(void *)dstPtr, (void *)src_y, dst_row );
+					dstPtr += dst_row;
+					src_y  += stride;
+				}
+			}
 		}
 		else
 #ifndef CACHE_OUTPUT_FRAMES	

@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKBITMAP_PRIV__	/* To get access to the FskBitmap data structure */
 
 #include "FskPath.h"
@@ -367,7 +367,7 @@ FskPathSize(FskConstPath path)
 	for ( ; numSegs--; segPtr = NextConstTaggedPathSegment(segPtr))
 		continue;
 
-	return((const char*)segPtr - (const char*)path);
+	return((UInt32)((const char*)segPtr - (const char*)path));
 }
 
 
@@ -3313,7 +3313,7 @@ FskPathArcLengthTableNew(FskConstPath path, FskArcLengthTable *tab, FskFixed *to
 
 	(**tab).toHere = 0;
 	for (i = numSegs, t = *tab, seg = segs = GetConstPathSegments(path); i--; t++, seg = NextConstTaggedPathSegment(seg)) {
-		t->segOffset = (const char*)seg - (const char*)segs;
+		t->segOffset = (UInt32)((const char*)seg - (const char*)segs);
 		switch (seg->type) {
 			case kFskPathSegmentNull:						EvaluateArcLengthOfNull(                     seg, kLogNumArcEvals, t->subSeg);	break;
 			case kFskPathSegmentClose:						EvaluateArcLengthOfClose(                    seg, kLogNumArcEvals, t->subSeg);	break;

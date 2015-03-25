@@ -1,19 +1,21 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
+#include "FskAssociativeArray.h"
 
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
 #include "kpr.h"
 #include "kprZeroconf.h"
 
@@ -30,7 +32,7 @@ static FskInstrumentedTypeRecord KprZeroconfAdvertisementInstrumentation = { NUL
 
 FskList gZeroconfAdvertisements = NULL;
 
-FskErr KprZeroconfAdvertisementNew(KprZeroconfAdvertisement *it, const char* serviceType, const char* serviceName, UInt32 port)
+FskErr KprZeroconfAdvertisementNew(KprZeroconfAdvertisement *it, const char* serviceType, const char* serviceName, UInt32 port, FskAssociativeArray txt)
 {
 	FskErr err = kFskErrNone;
 	KprZeroconfAdvertisement self = NULL;
@@ -45,6 +47,7 @@ FskErr KprZeroconfAdvertisementNew(KprZeroconfAdvertisement *it, const char* ser
 	self->serviceName = FskStrDoCopy(serviceName);
 	bailIfNULL(self->serviceName);
 	self->port = port;
+	self->txt = txt;
 	FskInstrumentedItemNew(self, NULL, &KprZeroconfAdvertisementInstrumentation);
 	bailIfError(KprZeroconfPlatformAdvertisementNew(self));
 bail:
@@ -56,7 +59,9 @@ bail:
 void KprZeroconfAdvertisementDispose(KprZeroconfAdvertisement self)
 {
 	if (!self) return;
+	KprZeroconfAdvertisementStop(self);
 	KprZeroconfPlatformAdvertisementDispose(self);
+	FskAssociativeArrayDispose(self->txt);
 	FskMemPtrDispose(self->serviceType);
 	FskInstrumentedItemDispose(self);
 	FskMemPtrDispose(self);
@@ -90,8 +95,10 @@ void KprZeroconfAdvertisementServiceRegistered(KprZeroconfAdvertisement self, Kp
 FskErr KprZeroconfAdvertisementStart(KprZeroconfAdvertisement self)
 {
 	FskErr err = kFskErrNone;
-	bailIfError(KprZeroconfPlatformAdvertisementStart(self));
-	FskListAppend(&gZeroconfAdvertisements, self);
+	if (!FskListContains(&gZeroconfAdvertisements, self)) {
+		bailIfError(KprZeroconfPlatformAdvertisementStart(self));
+		FskListAppend(&gZeroconfAdvertisements, self);
+	}
 bail:
 	return err;
 }
@@ -99,10 +106,11 @@ bail:
 FskErr KprZeroconfAdvertisementStop(KprZeroconfAdvertisement self)
 {
 	FskErr err = kFskErrNone;
-	FskListRemove(&gZeroconfAdvertisements, self);
-	bailIfError(KprZeroconfPlatformAdvertisementStop(self));
-	if (self->unregisteredCallback)
-		(*self->unregisteredCallback)(self);
+	if (FskListRemove(&gZeroconfAdvertisements, self)) {
+		bailIfError(KprZeroconfPlatformAdvertisementStop(self));
+		if (self->unregisteredCallback)
+			(*self->unregisteredCallback)(self);
+	}
 bail:
 	return err;
 }

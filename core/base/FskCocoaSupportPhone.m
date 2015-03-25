@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #import <AudioUnit/AudioUnit.h>
 #import <AudioToolbox/AudioToolbox.h>
 #import <AssetsLibrary/AssetsLibrary.h>
@@ -179,7 +179,7 @@ void FskCocoaApplicationSetStatusBarHidden(Boolean hidden)
 
     if (hidden != app.statusBarHidden)
     {
-        FskWindow win = FskWindowGetActive();
+        FskWindow win = [FskCocoaApplication sharedApplication].mainViewController.fskWindow;
 
         [app setStatusBarHidden:hidden withAnimation:UIStatusBarAnimationFade];
         FskWindowCocoaSizeChanged(win);
@@ -309,45 +309,28 @@ void FskCocoaThreadWake(FskThread fskThread)
 #pragma mark --- window ---
 Boolean FskCocoaWindowCreate(FskWindow fskWindow, Boolean isCustomWindow, Boolean isFullScreenWindow, SInt32 width, SInt32 height)
 {
-	Boolean		success = false;
-    FskCocoaApplication *appDelegate = (FskCocoaApplication *)([UIApplication sharedApplication].delegate);
+	Boolean success = false;
+	FskCocoaApplication *app = [FskCocoaApplication sharedApplication];
+	FskCocoaViewController *controller = [app getEmptyController];
     FskCocoaView *view = nil;
-	CGRect		bounds;
+	CGRect bounds;
+	CGFloat screenScale;
+	BOOL isMainView = (controller == app.mainViewController);
 
-	if (fskWindow == NULL) goto bail;
+	if ((fskWindow == NULL) || (controller == nil)) goto bail;
 
-	bounds = [appDelegate.rootView bounds];
-/*
-	bounds = [[UIScreen mainScreen] bounds];
-	if (!isFullScreenWindow)
-        bounds.size = CGSizeMake(width, height);
-*/
-#if 0
-	if (isFullScreenWindow)
-		[[UIApplication sharedApplication] setStatusBarHidden:YES animated:YES];
-#endif
+	screenScale = controller.screenScale;
+	bounds = controller.view.bounds;
 
-    /*if (FskCocoaBitmapUseGL())
-    {
-        fskWindow->rotation = FskCocoaApplicationGetRotation();
-        if (isFullScreenWindow && ((fskWindow->rotation == 90) || (fskWindow->rotation == 270)))
-        {
-            CGFloat tmp = bounds.size.width;
-            bounds.size.width = bounds.size.height;
-            bounds.size.height = tmp;
-        }
-    }*/
 	// create the window
-	view = [[[FskCocoaView alloc] initWithFrame:bounds] autorelease];
+	view = [[[FskCocoaView alloc] initWithFrame:bounds screenScale:screenScale isMainView:isMainView] autorelease];
 	if (view == nil) goto bail;
-    view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    view.autoresizesSubviews = NO;
 
-	[view setFskWindow:fskWindow];
+	view.fskWindow = fskWindow;
 	fskWindow->uiWindow = view;
-	fskWindow->uiWindowController = appDelegate.window.rootViewController;
+	fskWindow->uiWindowController = controller;
 
-	[appDelegate.rootView addSubview:view];
+	[controller.view addSubview:view];
 
 	success = true;
 
@@ -413,25 +396,17 @@ void FskCocoaWindowGetSize(FskWindow fskWindow, UInt32 *width, UInt32 *height)
 	// get the window size
 	windowFrame = [window bounds];
 
-    deviceWidth = windowFrame.size.width * FskCocoaDeviceScreenScaleFactor();
-    deviceHeight = windowFrame.size.height * FskCocoaDeviceScreenScaleFactor();
-    statusBarHeight = FskCocoaApplicationGetStatusBarHeight();
-    if (statusBarHeight > 0)
-    {
-        deviceHeight -= statusBarHeight * FskCocoaDeviceScreenScaleFactor();
-    }
-
-    /*if (FskCocoaBitmapUseGL())
-    {
-        SInt32 rotate = FskCocoaApplicationGetRotation();
-
-        if ((rotate == 90) || (rotate == 270))
-        {
-            UInt32 tmp = deviceHeight;
-            deviceHeight = deviceWidth;
-            deviceWidth = tmp;
-        }
-    }*/
+	CGFloat scale = ((FskCocoaView *)fskWindow->uiWindow).contentScaleFactor;
+    deviceWidth = windowFrame.size.width * scale;
+    deviceHeight = windowFrame.size.height * scale;
+	if (fskWindow->uiWindowController == [FskCocoaApplication sharedApplication].mainViewController)
+	{
+		statusBarHeight = FskCocoaApplicationGetStatusBarHeight();
+		if (statusBarHeight > 0)
+		{
+			deviceHeight -= statusBarHeight * scale;
+		}
+	}
 
 	if (width)
 		*width = deviceWidth;
@@ -458,16 +433,16 @@ void FskCocoaWindowSetSize(FskWindow fskWindow, UInt32 width, UInt32 height)
     }
 
     FskCocoaView *window;
-	CGRect			currentFrame, newFrame;
+	CGRect newFrame;
 
 	if (fskWindow == NULL) return;
 
-    if (1.0 < FskCocoaDeviceScreenScaleFactor()) {
-        width /= FskCocoaDeviceScreenScaleFactor();
-        height /= FskCocoaDeviceScreenScaleFactor();
+	CGFloat scale = ((FskCocoaView *)fskWindow->uiWindow).contentScaleFactor;
+    if (1.0 < scale) {
+        width /= scale;
+        height /= scale;
     }
     window = (FskCocoaView *)(fskWindow->uiWindow);
-	currentFrame = window.frame;
 	newFrame = CGRectMake(0.0, 0.0, (float)width, (float)height);
 
 	// set the window size
@@ -485,11 +460,12 @@ void FskCocoaWindowGetOrigin(FskWindow fskWindow, SInt32 *x, SInt32 *y)
 	// get the window origin
 	frame = window.frame;
 
+	CGFloat scale = ((FskCocoaView *)fskWindow->uiWindow).contentScaleFactor;
 	if (x)
-		*x = frame.origin.x * FskCocoaDeviceScreenScaleFactor();
+		*x = frame.origin.x * scale;
 
 	if (y)
-		*y = ([[UIScreen mainScreen] bounds].size.height - frame.origin.y - frame.size.height) * FskCocoaDeviceScreenScaleFactor();
+		*y = ([[UIScreen mainScreen] bounds].size.height - frame.origin.y - frame.size.height) * scale;
 }
 
 void FskCocoaWindowSetOrigin(FskWindow fskWindow, SInt32 x, SInt32 y)
@@ -499,9 +475,10 @@ void FskCocoaWindowSetOrigin(FskWindow fskWindow, SInt32 x, SInt32 y)
 
 	if (fskWindow == NULL) return;
     if (FskCocoaBitmapUseGL() && (fskWindow->isFullscreenWindow)) return;
-    if (1.0 < FskCocoaDeviceScreenScaleFactor()) {
-        x /= FskCocoaDeviceScreenScaleFactor();
-        y /= FskCocoaDeviceScreenScaleFactor();
+	CGFloat scale = ((FskCocoaView *)fskWindow->uiWindow).contentScaleFactor;
+    if (1.0 < scale) {
+        x /= scale;
+        y /= scale;
     }
     window = (FskCocoaView *)(fskWindow->uiWindow);
 	currentFrame = window.frame;
@@ -646,6 +623,33 @@ Boolean FskCocoaWindowDisplayPaused(FskWindow window)
 	FskCocoaViewController *controller = window->uiWindowController;
 	return [controller isDisplayLinkActive] && ![controller isDisplayLinkRunning];
 }
+
+void FskCocoaWindowGetScreenScale(FskWindow window, float *scale)
+{
+	FskCocoaViewController *controller = window->uiWindowController;
+	*scale = (controller != nil) ? controller.screenScale : 1.0;
+}
+
+#if SUPPORT_EXTERNAL_SCREEN && TEST_EXTERNAL_SCREEN
+FskWindow FskCocoaWindowGetExternalWindow(FskWindow window)
+{
+	FskCocoaApplication *app = [FskCocoaApplication sharedApplication];
+	FskCocoaViewController *controller = [app getExternalViewControllerAtIndex:0];
+
+	return (controller != nil) ? controller.fskWindow : NULL;
+}
+
+void FskCocoaWindowSetBitmapForExternalWindow(FskWindow window, FskBitmap bitmap)
+{
+	FskCocoaApplication *app = [FskCocoaApplication sharedApplication];
+	FskCocoaViewController *controller = [app getExternalViewControllerAtIndex:0];
+
+	if (controller != nil)
+	{
+		controller.bitmap = bitmap;
+	}
+}
+#endif	/* TEST_EXTERNAL_SCREEN && SUPPORT_EXTERNAL_SCREEN */
 
 #pragma mark --- event ---
 void FskCocoaEventSend(FskWindow fskWindow, UInt32 eventClass, UInt32 eventType)
@@ -1676,4 +1680,81 @@ void FskCocoaPhotoAssetsGetImage(FskCocoaPhotoAssetGroup group, int i, FskCocoaP
 void FskCocoaPhotoAssetsDispose(FskCocoaPhotoAssets assets)
 {
 	[(ALAssetsLibrary *)assets release];
+}
+
+#pragma mark --- media ---
+UIImage *
+FskCocoaMediaImageFromArtwork(MPMediaItemArtwork *artwork, SInt32 generation, UInt32 targetWidth, UInt32 targetHeight)
+{
+	if (artwork == nil) {
+		return nil;
+	}
+
+	CGSize size;
+	if (targetWidth && targetHeight) {
+		size.width = targetWidth;
+		size.height = targetHeight;
+	}
+	else {
+		size.width = 150;
+		size.height = 150;
+	}
+
+	CGRect bounds = artwork.bounds;
+	CGFloat half = bounds.size.width / 2, quarter = bounds.size.width / 4;
+	SInt32 percent = (generation <= 4) ? 95 : 40;
+
+	if (size.width < ((half * percent) / 100))
+		size.width = size.height = quarter;
+	else if (size.width < ((half * 3) / 2))
+		size.width = size.height = half;
+	else
+		size.width = size.height = bounds.size.width;
+
+	UIImage *image = [artwork imageWithSize: size];
+
+	return image;
+}
+
+NSString *
+FskCocoaMediaIdFromURLString(NSString *urlString, BOOL urlEncoded)
+{
+	NSURL *url;
+	NSArray *queryArray;
+	NSString *idString = nil;
+
+	if (urlEncoded)
+	{
+#if (__IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_7_0)
+		if (![urlString respondsToSelector:@selector(stringByRemovingPercentEncoding)])
+		{
+			const char *urlStr = [urlString UTF8String];
+			char *decodedStr;
+
+			BAIL_IF_ERR(FskMemPtrNewClear(FskStrLen(urlStr) + 1, &decodedStr));
+			FskStrDecodeEscapedChars(urlStr, decodedStr);
+			urlString = [NSString stringWithUTF8String:decodedStr];
+			FskMemPtrDispose(decodedStr);
+		}
+		else
+#endif
+		{
+			urlString = [urlString stringByRemovingPercentEncoding];
+		}
+	}
+
+	url = [NSURL URLWithString:urlString];
+	queryArray = [url.query componentsSeparatedByString:@"&"];
+
+	for (NSString *queryString in queryArray)
+	{
+		NSArray *pair = [queryString componentsSeparatedByString:@"="];
+		if (pair.count != 2) continue;
+		if (![(NSString *)[pair objectAtIndex:0] isEqualToString:@"id"]) continue;
+		idString = (NSString *)[pair objectAtIndex:1];
+		break;
+	}
+
+bail:
+	return idString;
 }

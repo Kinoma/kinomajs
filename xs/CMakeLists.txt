@@ -6,7 +6,7 @@
 #     you may not use this file except in compliance with the License.
 #     You may obtain a copy of the License at
 #
-#       http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 #     Unless required by applicable law or agreed to in writing, software
 #     distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,21 +22,16 @@ endif()
 
 project(xs)
 
-if (NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE DEBUG)
-else ()
-	string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
-endif ()
+string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
 
-set(F_HOME $ENV{F_HOME})
-set(XS_HOME $ENV{XS_HOME})
+file(TO_CMAKE_PATH ${F_HOME} F_HOME)
+file(TO_CMAKE_PATH ${XS_HOME} XS_HOME)
+file(TO_CMAKE_PATH ${BIN_DIR} BIN_DIR)
+file(TO_CMAKE_PATH ${TMP_DIR} TMP_DIR)
 set(CMAKE_DIR ${CMAKE_SOURCE_DIR}/cmake)
 set(XSLIB_DIR ${XS_HOME}/sources/xslib)
 set(GRAMMAR_DIR ${TMP_DIR}/grammars)
 set(LIBTOMCRYPT ${F_HOME}/extensions/crypt/sources/libs/libtomcrypt-1.13)
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BIN_DIR})
-set(LIBRARY_OUTPUT_PATH ${BIN_DIR})
 
 set(BASE_CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
 set(BASE_CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})

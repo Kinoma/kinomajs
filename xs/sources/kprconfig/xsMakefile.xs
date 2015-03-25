@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
+|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
 -->
 <package>
 	<object name="xsMakefileItem">
@@ -217,7 +217,7 @@
 			var copts = [];
 			for (var i = 0; i < c; i++) {
 				optionPath = version.cOptions[i].name;
-				results = optionPath.match(/"?-[^ ]*(\s*[^-]*)/g);
+				results = optionPath.match(/"?[-\/][^ ]*(\s*[^-\/]*)/g);
 				if (results) {
 					for (var j = 0; j < results.length; j++) {
 						var option = results[j].trim();
@@ -230,10 +230,19 @@
 							case "-D":
 								defs.push(option);
 								break;
+							case "/D":
+								defs.push(option);
+								break;
 							case "-U":
 								defs.push(option);
 								break;
+							case "/U":
+								defs.push(option);
+								break;
 							case "-I":
+								version.cIncludes.push(option.substring(2));
+								break;
+							case "/I":
 								version.cIncludes.push(option.substring(2));
 								break;
 							default:
@@ -246,15 +255,15 @@
 			var c = version.cIncludes.length;
 			if (c) {
 				for (var i = 0; i < c; i++) {
-					path = version.cIncludes[i];
+					path = xsTool.toCMakePath(version.cIncludes[i]);
 					aFile.write('include_directories('); aFile.write(path); aFile.write(')\n');
 				}
 				aFile.write('\n');
 
 				aFile.write('file(GLOB headers\n');
 				for (var i = 0; i < c; i++) {
-					path = version.cIncludes[i];
-					aFile.write('\t"'); aFile.write(path); aFile.write(xsTool.slash); aFile.write('*.h"\n');
+					path = xsTool.toCMakePath(version.cIncludes[i]);
+					aFile.write('\t"'); aFile.write(path); aFile.write('/*.h"\n');
 				}
 				aFile.write(')\n');
 				aFile.write('list(APPEND sources ${headers})\n\n');
@@ -316,7 +325,7 @@
 				if (xsTool.platform == "android")
 					aFile.write('link_directories(${NDK_LIBS_PATH})\n');
 				for (i = 0; i < lincs.length; i++)
-					aFile.write('link_directories(' + lincs[i] + ')\n');
+					aFile.write('link_directories(' + xsTool.toCMakePath(lincs[i]) + ')\n');
 				aFile.write('\n');
 			}
 
@@ -511,7 +520,7 @@
 				theFile.write("xscc(" + this.path + " " + theMakefile.name + ")\n");
 			} else {
 				theFile.write("list(APPEND sources ");
-				theFile.write(this.path.replace("(", "{").replace(")", "}"));
+				theFile.write(xsTool.toCMakePath(this.path.replace("(", "{").replace(")", "}")));
 				theFile.write(")\n");
 			}
 		</function>

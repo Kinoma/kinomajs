@@ -1,24 +1,24 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 
 #include "xsAll.h"
 #if SUPPORT_NEON
 #include "FskArch.h"
-extern int FskHardwareGetARMCPU_All();
+//extern int FskHardwareGetARMCPU_All();
 #endif
 
 
@@ -274,8 +274,6 @@ static void fxTraceSymbol(txMachine* the, txID theIndex)
 #include "xsAccelerator.c"
 #endif
 
-int count = 0;
-
 void fxRunID(txMachine* the, txID theID)
 {
 	txSlot* aFunction = (the->stack + 1)->value.reference;
@@ -306,6 +304,7 @@ void fxRunID(txMachine* the, txID theID)
 		txSlot* volatile aRoute = C_NULL;
 	#ifdef mxAccelerator
 	#if (SUPPORT_NEON)
+		static int count = 0;
 		if(count<1) {
 			count++;
 			the->accelerator = fxRunLoopAccelerator;
@@ -1805,6 +1804,7 @@ void fxRunLoop(txMachine* the, txSlot** theRoute, txJump* theJump)
 			anInstance = fxGetOwnInstance(the, the->stack);
 			anInstance->flag = (txFlag)((the->stack - 1)->value.integer);
 			break;
+		
 		case XS_ALIAS:
 			if (the->stack->kind != XS_REFERENCE_KIND)	
 				mxDebug0(the, XS_TYPE_ERROR, "alias instance: no instance");

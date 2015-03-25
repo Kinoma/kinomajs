@@ -49,7 +49,7 @@
 #include <sys/types.h> /* for off_t */
 #endif
 #if defined _MSC_VER || defined __BORLANDC__ || defined __MINGW32__
-#if _MSC_VER <= 1700 || defined __BORLANDC__ /* @@@ [2G limit] */
+#if _MSC_VER <= 1800 || defined __BORLANDC__ /* @@@ [2G limit] */
 #define fseeko fseek
 #define ftello ftell
 #endif

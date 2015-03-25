@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define DELAY_FSK_RUN_LOOP
 
 #include <AudioToolbox/AudioServices.h>
@@ -47,43 +47,59 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 
 @implementation FskCocoaApplication {
 	UIBackgroundTaskIdentifier _background_task;
+#if SUPPORT_REMOTE_NOTIFICATION
+	NSDictionary *_remoteNotificationUserInfo;
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
+#if SUPPORT_EXTERNAL_SCREEN
+	NSMutableArray *_externalWindows;
+	NSMutableArray *_externalViewControllers;
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 }
 
 @synthesize window = _window;
-@dynamic rootView;
+@dynamic mainViewController;
 
 + (FskCocoaApplication *)sharedApplication
 {
 	return (FskCocoaApplication *)[UIApplication sharedApplication].delegate;
 }
 
-- (UIView *)rootView
+- (FskCocoaViewController *)mainViewController
 {
-    return _window.rootViewController.view;
+	return (FskCocoaViewController *)self.window.rootViewController;
 }
 
-#pragma mark --- methods ---
-- (void)applicationDidFinishLaunching:(UIApplication *)application
+#pragma mark --- UIApplicationDelegate ---
+- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-	CGRect		bounds;
+	UIScreen *mainScreen;
+	CGRect bounds;
     FskCocoaViewController *rootViewController;
     
-    //NSLog(@"applicationDidFinishLaunching start");
-
-	bounds = [[UIScreen mainScreen] bounds];
+	mainScreen = [UIScreen mainScreen];
+	bounds = mainScreen.bounds;
 
 	_window = [[UIWindow alloc] initWithFrame:bounds];
-	if (_window == nil) return;
+	if (_window == nil) return YES;
 
-    rootViewController = [[FskCocoaViewController alloc] init];
-    if (rootViewController == nil) return;
+    rootViewController = [[FskCocoaViewController alloc] initWithFrame:bounds screenScale:mainScreen.scale];
+    if (rootViewController == nil) return YES;
 
-    [_window addSubview:rootViewController.view];
     _window.rootViewController = rootViewController;
+    [_window addSubview:rootViewController.view];
     [rootViewController release];
     [_window makeKeyAndVisible];
 
-    //NSLog(@"applicationDidFinishLaunching done");
+#if SUPPORT_EXTERNAL_SCREEN
+	_externalWindows = [[NSMutableArray alloc] initWithCapacity:0];
+	_externalViewControllers = [[NSMutableArray alloc] initWithCapacity:0];
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
+
+#if SUPPORT_REMOTE_NOTIFICATION
+	_remoteNotificationUserInfo = [[launchOptions objectForKey:UIApplicationLaunchOptionsRemoteNotificationKey] retain];
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
+
+	return YES;
 }
 
 - (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
@@ -121,9 +137,15 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 	[self endBackgroundTask:application];
 	
 	FskEvent fskEvent;
-    FskWindow fskWindow = FskWindowGetActive();
+    FskWindow fskWindow = self.mainViewController.fskWindow;
 
-	[(FskCocoaViewController*)_window.rootViewController setDisplayLinkActive:YES];
+	[self.mainViewController setDisplayLinkActive:YES];
+#if SUPPORT_EXTERNAL_SCREEN
+	for (FskCocoaViewController *externalViewController in _externalViewControllers)
+	{
+		[externalViewController setDisplayLinkActive:YES];
+	}
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 
 	if (fskWindow == NULL) return;
 
@@ -136,7 +158,7 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 
 - (void)applicationDidEnterBackground:(UIApplication*)application
 {
-	FskWindow fskWindow = FskWindowGetActive();
+    FskWindow fskWindow = self.mainViewController.fskWindow;
 	if (fskWindow != NULL)
 	{
 		FskEvent fskEvent;
@@ -146,7 +168,13 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 			FskTimersSetUiActive(false);
 		}
 	}
-	[(FskCocoaViewController*)_window.rootViewController setDisplayLinkActive:NO];
+	[self.mainViewController setDisplayLinkActive:NO];
+#if SUPPORT_EXTERNAL_SCREEN
+	for (FskCocoaViewController *externalViewController in _externalViewControllers)
+	{
+		[externalViewController setDisplayLinkActive:NO];
+	}
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 	FskECMAScriptHibernate();
 #if FSKBITMAP_OPENGL
 	glFinish();
@@ -163,9 +191,13 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 
 - (void)applicationWillResignActive:(UIApplication*)application
 {
-	FskWindow fskWindow = FskWindowGetActive();
+}
 
-	if (fskWindow == NULL) return;
+- (void)applicationDidBecomeActive:(UIApplication *)application
+{
+#if SUPPORT_REMOTE_NOTIFICATION
+	[self resetNotifications];
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 }
 
 - (void)endBackgroundTask:(UIApplication*)application
@@ -178,7 +210,7 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 
 - (void)application:(UIApplication *)application didChangeStatusBarFrame:(CGRect)oldStatusBarFrame
 {
-    FskWindow fskWindow = FskWindowGetActive();
+    FskWindow fskWindow = self.mainViewController.fskWindow;
 
 	if (fskWindow == NULL) return;
 #if !FSKBITMAP_OPENGL
@@ -195,8 +227,287 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 - (void)dealloc
 {
     [_window release];
+#if SUPPORT_EXTERNAL_SCREEN
+	[_externalWindows release];
+	[_externalViewControllers release];
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
     [super dealloc];
 }
+
+#pragma mark --- push notification ---
+
+#if SUPPORT_REMOTE_NOTIFICATION
+- (void)resetNotifications
+{
+	UIApplication *app = [UIApplication sharedApplication];
+	[app setApplicationIconBadgeNumber:0];
+	[app cancelAllLocalNotifications];
+}
+
+- (void)handleRemoteNotification
+{
+	if (_remoteNotificationUserInfo == nil)
+	{
+		return;
+	}
+
+	if ([NSJSONSerialization isValidJSONObject:_remoteNotificationUserInfo])
+	{
+		NSData *data = [NSJSONSerialization dataWithJSONObject:_remoteNotificationUserInfo options:NSJSONWritingPrettyPrinted error:NULL];
+		NSString *string = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] autorelease];
+		const char *cstring = [string UTF8String];
+		//NSLog(@"JSON %s", cstring);
+		FskEvent fskEvent;
+		if (FskEventNew(&fskEvent, kFskEventSystemRemoteNotification, NULL, kFskEventModifierNotSet) == kFskErrNone) {
+			FskWindow fskWindow = self.mainViewController.fskWindow;
+			(void)FskEventParameterAdd(fskEvent, kFskEventParameterStringValue, FskStrLen(cstring) + 1, cstring);
+			//FskWindowEventSend(fskWindow, fskEvent);	// Window??
+			FskWindowEventQueue(fskWindow, fskEvent);	// Window??
+		}
+	}
+
+	[self resetNotifications];
+
+	[_remoteNotificationUserInfo release];
+	_remoteNotificationUserInfo = nil;
+}
+
+- (void)sendRemoteNotificationRegsteredEvent:(NSString *)deviceToken
+{
+	FskEvent fskEvent;
+
+	if (FskEventNew(&fskEvent, kFskEventSystemRemoteNotificationRegistered, NULL, kFskEventModifierNotSet) == kFskErrNone) {
+		const char *token = [deviceToken UTF8String];
+		FskWindow fskWindow = self.mainViewController.fskWindow;
+		(void)FskEventParameterAdd(fskEvent, kFskEventParameterStringValue, FskStrLen(token) + 1, token);
+		//FskWindowEventSend(fskWindow, fskEvent);	// Window??
+		FskWindowEventQueue(fskWindow, fskEvent);	// Window??
+	}
+
+}
+
+- (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken
+{
+	NSString *deviceTokenString = [[deviceToken description] stringByTrimmingCharactersInSet:[NSCharacterSet characterSetWithCharactersInString:@"<>"]];
+
+	deviceTokenString = [deviceTokenString stringByReplacingOccurrencesOfString:@" " withString:@""];
+
+	[self sendRemoteNotificationRegsteredEvent:deviceTokenString];
+
+//    NSLog(@"didRegisterForRemoteNotificationsWithDeviceToken: %@", deviceTokenString);
+}
+
+- (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error
+{
+	[self sendRemoteNotificationRegsteredEvent:@""];
+
+//	NSLog(@"didFailToRegisterForRemoteNotificationsWithError");
+}
+
+#if defined (__IPHONE_8_0) && (__IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_8_0)
+- (void)application:(UIApplication *)application didRegisterUserNotificationSettings:(UIUserNotificationSettings *)notificationSettings
+{
+//	NSLog(@"didRegisterUserNotificationSettings");
+}
+#endif
+
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo
+{
+	_remoteNotificationUserInfo = [userInfo retain];
+	[self handleRemoteNotification];
+}
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
+
+#pragma mark --- external screen ---
+
+#if SUPPORT_EXTERNAL_SCREEN
+#if TEST_EXTERNAL_SCREEN
+Boolean extEventHandler(FskEvent event, UInt32 eventCode, FskWindow window, void *it)
+{
+	Boolean result = false;
+	switch (eventCode) {
+		case kFskEventWindowClose:
+			break;
+		case kFskEventWindowActivated:
+			break;
+		case kFskEventWindowDeactivated:
+			break;
+
+		case kFskEventWindowUpdate: {
+			FskCocoaViewController *controller = (FskCocoaViewController *)window->uiWindowController;
+			if ((controller != nil) && (controller.bitmap != NULL))
+			{
+				//				NSLog(@"bitmaDraw start");
+				FskRectangleRecord srcRect, dstRect;
+				FskBitmapGetBounds(controller.bitmap, &srcRect);
+				FskPort port = window->port;
+				FskPortGetBounds(port, &dstRect);
+				FskPortBitmapDraw(port, controller.bitmap, &srcRect, &dstRect);
+				FskPortResetInvalidRectangle(port);
+				//				NSLog(@"bitmaDraw end");
+			}
+		}
+			break;
+		case kFskEventWindowAfterUpdate:
+			break;
+		case kFskEventWindowBeforeUpdate:
+			break;
+
+		case kFskEventWindowBitmapChanged:
+			break;
+
+		case kFskEventWindowBeforeResize:
+			break;
+		case kFskEventWindowResize:
+			break;
+		case kFskEventWindowAfterResize:
+			result = true;
+			break;
+		case kFskEventMouseDown:
+			break;
+		case kFskEventRightMouseDown:
+			break;
+		case kFskEventMouseDoubleClick:
+			break;
+		case kFskEventMouseUp:
+			break;
+		case kFskEventRightMouseUp:
+			break;
+
+		case kFskEventMouseLeave:
+			break;
+		case kFskEventMouseMoved:
+			break;
+		case kFskEventMouseStillDown:
+			break;
+		case kFskEventMouseWheel:
+			break;
+
+		case kFskEventKeyDown:
+			break;
+		case kFskEventKeyUp:
+			break;
+
+		case kFskEventApplication:
+			break;
+		case kFskEventClipboardChanged:
+			break;
+		case kFskEventMenuCommand:
+			break;
+		case kFskEventMenuStatus:
+			break;
+		case kFskEventWindowOpenFiles:
+			break;
+		case kFskEventWindowDragEnter:
+			break;
+		case kFskEventWindowDragLeave:
+			break;
+		case kFskEventButton:
+			break;
+		case kFskEventWindowTransition:
+			break;
+	}
+
+	return result;
+}
+#endif	/* TEST_EXTERNAL_SCREEN */
+
+- (void)addExternalScreen:(UIScreen *)extScreen
+{
+	FskCocoaViewController *extViewController;
+	UIWindow *extWindow;
+	NSArray	*availableModes = [extScreen availableModes];
+	NSInteger selectedRow = [availableModes count] - 1;
+	CGRect bounds = extScreen.bounds;
+	FskDimensionRecord size;
+
+	extScreen.currentMode = [availableModes objectAtIndex:selectedRow];
+	extScreen.overscanCompensation = UIScreenOverscanCompensationInsetApplicationFrame;
+
+	extWindow = [[[UIWindow alloc] initWithFrame:bounds] autorelease];
+
+	extViewController = [[[FskCocoaViewController alloc] initWithFrame:bounds screenScale:extScreen.scale] autorelease];
+	[extWindow addSubview:extViewController.view];
+	[extWindow makeKeyAndVisible];
+
+	[_externalWindows addObject:extWindow];
+	[_externalViewControllers addObject:extViewController];
+
+	FskDimensionSet(&size, bounds.size.width, bounds.size.height);
+	FskExtScreenHandleConnected((int)extScreen, &size);
+
+#if TEST_EXTERNAL_SCREEN
+	FskWindowEventSetHandler(extViewController.fskWindow, extEventHandler, NULL);
+#endif
+
+	extWindow.screen = extScreen;
+
+	[extViewController setDisplayLinkActive:YES];
+}
+
+- (void)removeExternalScreen:(UIScreen *)extScreen
+{
+	FskCocoaViewController *extViewController;
+	UIWindow *extWindow;
+
+	FskExtScreenHandleDisconnected((int)extScreen);
+
+	for (NSUInteger i = 0; i < _externalWindows.count; i++)
+	{
+		extWindow = [_externalWindows objectAtIndex:i];
+
+		if (![extWindow.screen isEqual:extScreen])
+			continue;
+
+		extViewController = [_externalViewControllers objectAtIndex:i];
+
+		[extViewController setDisplayLinkActive:NO];
+
+		[_externalWindows removeObjectAtIndex:i];
+		[_externalViewControllers removeObjectAtIndex:i];
+
+		break;
+	}
+}
+
+- (void)updateExternalScreen:(UIScreen *)extScreen
+{
+	CGRect bounds = extScreen.bounds;
+	FskDimensionRecord size;
+	FskCocoaViewController *extViewController;
+	UIWindow *extWindow;
+
+	for (NSUInteger i = 0; i < _externalWindows.count; i++)
+	{
+		extWindow = [_externalWindows objectAtIndex:i];
+
+		if (![extWindow.screen isEqual:extScreen])
+			continue;
+
+		extWindow.frame = bounds;
+
+		extViewController = [_externalViewControllers objectAtIndex:i];
+		extViewController.view.frame = bounds;
+
+		break;
+	}
+
+	FskDimensionSet(&size, bounds.size.width, bounds.size.height);
+	FskExtScreenHandleChanged((int)extScreen, &size);
+}
+
+#if TEST_EXTERNAL_SCREEN
+- (FskCocoaViewController *)getExternalViewControllerAtIndex:(NSUInteger)index
+{
+	if (index >= _externalViewControllers.count)
+		return nil;
+
+	return [_externalViewControllers objectAtIndex:index];
+}
+#endif
+#endif
+
+#pragma mark --- methods ---
 
 #if defined(DELAY_FSK_RUN_LOOP)
 - (void)runFskRunLoopCore
@@ -218,22 +529,26 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 	return (FskTimeCompare(&now, &cb->trigger) > 0) ? NO : YES;
 }
 
+- (BOOL)windowCheckEvents:(FskThread)thread withWindow:(FskWindow)win
+{
+	if ((win != NULL) && (win->thread == thread) && !FskListMutexIsEmpty(win->eventQueue))
+		return YES;
+
+	return NO;
+}
+
 - (BOOL)windowCheckEvents:(FskThread)thread
 {
-	FskWindow	win = NULL;
+	if ([self windowCheckEvents:thread withWindow:self.mainViewController.fskWindow])
+		return YES;
 
-	for (UIView *view in self.rootView.subviews) {
-		if (![view isKindOfClass:[FskCocoaView class]])
-			continue;
-
-		win = [(FskCocoaView *)view fskWindow];
-		if (win == NULL)
-			continue;
-
-		if (win->thread == thread) {
-			return !FskListMutexIsEmpty(win->eventQueue) ? YES : NO;
-		}
+#if SUPPORT_EXTERNAL_SCREEN
+	for (FskCocoaViewController *externalViewController in _externalViewControllers)
+	{
+		if ([self windowCheckEvents:thread withWindow:externalViewController.fskWindow])
+			return YES;
 	}
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 
 	return NO;
 }
@@ -322,6 +637,26 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
     }
 
     return rotation;
+}
+
+- (FskCocoaViewController *)getEmptyController
+{
+	if (self.mainViewController.empty)
+	{
+		return self.mainViewController;
+	}
+
+#if SUPPORT_EXTERNAL_SCREEN
+	for (FskCocoaViewController *extController in _externalViewControllers)
+	{
+		if (extController.empty)
+		{
+			return extController;
+		}
+	}
+#endif
+
+	return nil;
 }
 
 @end

@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 /**
 	\file	FskGLBlit.c
 	\brief	OpenGL and OpenGL-ES implementations of blits.
@@ -2588,7 +2588,7 @@ static void ForgetGivenTexturesInAllContexts(GLTexture tx) {
 
 static FskErr GLPortReallyDeletePortTextures(FskGLPort port) {
 	if (port == NULL)
-		return kFskErrBadState;
+		return kFskErrInvalidParameter;
 	#ifdef LOG_TEXTURE_LIFE
 		LOGD("GLPortReallyDeletePortTextures: disposing %ux%u %s texture {#%u,#%u,#%u}", (unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height,
 			GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name, port->texture.nameU, port->texture.nameV);
@@ -2628,7 +2628,7 @@ static FskErr GLPortReallyDeletePortTextures(FskGLPort port) {
 
 static FskErr GLPortReallyDispose(FskGLPort port) {
 	if (port == NULL)
-		return kFskErrBadState;
+		return kFskErrInvalidParameter;
 	GLPortReallyDeletePortTextures(port);
 	GLPortListDeletePort(&(gGLGlobalAssets.activePorts), port);
 	if (port == gCurrentGLPort)
@@ -5892,7 +5892,7 @@ static FskErr SetGLTexture(FskConstBitmap srcBM, FskConstRectangle texRect, GLTe
 
 	#if FSK_DEBUG
 		if (srcBM == NULL || tx == NULL)
-			return kFskErrBadState;
+			return kFskErrInvalidParameter;
 	#endif /* FSK_DEBUG */
 
 	if (srcBM->depth < 8)
@@ -6174,7 +6174,7 @@ static FskErr SetGLWrapture(FskConstBitmap srcBM, FskConstRectangle texRect, GLT
 
 	#if FSK_DEBUG
 		if (srcBM == NULL || tx == NULL)
-			return kFskErrBadState;
+			return kFskErrInvalidParameter;
 	#endif /* FSK_DEBUG */
 
 	tx->flipY = false;	/* Indicate that we loaded the texture, as opposed to being loaded from the screen with the opposite vertical polarity */
@@ -6514,7 +6514,7 @@ static void SetQuadUV(float u0, float u1, float ue, float v0, float v1, float ve
  *	\return			kFskErrNone		if there were no errors.
  ********************************************************************************/
 
-static FskErr AllocTempTileMesh(long needBytes, float **mesh) {
+static FskErr AllocTempTileMesh(UInt32 needBytes, float **mesh) {
 	FskErr err = kFskErrNone;
 
 	*mesh = NULL;
@@ -6564,7 +6564,7 @@ static void NewTileMesh(
 ) {
 	FskErr	err;
 	int		numQX, numQY, numQ, numT, numPts, rowStride, quadStride, i;
-	long	numBytes;
+	UInt32	numBytes;
 	float	*xy, *uv, xa, xb, ya, yb, ue, ve;
 
 	numQX      = (int)(ceil((x1 - x0) / dx));				/* The number of quads in X */
@@ -8056,21 +8056,20 @@ bail:
  *	\return		kFskErrNone	if the port was retrieved successfully.
  ********************************************************************************/
 
-static FskErr GetGLPort(FskBitmap bm, FskGLPort *glPortPtr) {
+FskErr FskGLDstPort(FskBitmap bm, FskGLPort *glPortPtr) {
 	FskErr		err		= kFskErrNone;
 	FskGLPort	glPort	= NULL;
 
 	#if GL_DEBUG
-		BAIL_IF_NULL(bm, err, kFskErrBadState);			/* We don't normally test this, ... */
-		BAIL_IF_NULL(glPortPtr, err, kFskErrBadState);	/* ... because this is an internal call */
+		BAIL_IF_NULL(bm, err, kFskErrInvalidParameter);			/* We don't normally test this, because this is an internal call */
 	#endif /* GL_DEBUG */
 
 	#if TARGET_OS_ANDROID || (TARGET_OS_KPL && BG3CDP)
 		if (!GL_GLOBAL_ASSETS_ARE_INITIALIZED()) {	/* Deferred initialization */
 			err = InitGlobalGLAssets();
 			#if GL_DEBUG
-				if (err)	LOGD("Deferred GL Port initialization in GetGLPort fails with code %d", (int)err);
-				else		LOGD("Deferred GL Port initialization in GetGLPort succeeds");
+				if (err)	LOGD("Deferred GL Port initialization in FskGLDstPort fails with code %d", (int)err);
+				else		LOGD("Deferred GL Port initialization in FskGLDstPort succeeds");
 			#endif /* GL_DEBUG */
 		}
 	#endif /* TARGET_OS_ANDROID */
@@ -8094,8 +8093,8 @@ static FskErr GetGLPort(FskBitmap bm, FskGLPort *glPortPtr) {
 	BAIL_IF_FALSE(glPort->portWidth > 0 && glPort->portHeight > 0, err, kFskErrNotAccelerated);
 
 bail:
-	PRINT_IF_ERROR(err, __LINE__, "GetGLPort");
-	*glPortPtr = err ? NULL : glPort;
+	PRINT_IF_ERROR(err, __LINE__, "FskGLDstPort");
+	if (glPortPtr)	*glPortPtr = err ? NULL : glPort;
 	return err;
 }
 
@@ -8722,6 +8721,7 @@ static FskErr FskGLTextStrikeGlyphRange_(UInt16 firstCodePoint, UInt16 lastCodeP
 					cellHeight	= typeFace->cellHeight;
 	unsigned		x, y, lastX, lastY;
 	UInt32			codePoint;
+
 	#if TARGET_OS_WIN32 || TARGET_OS_MAC
 		FskTextFormatCache tmpCache = NULL;	/* Windows and Mac require that we allocate a cache */
 		if (NULL == typeFace->cache) {
@@ -8926,9 +8926,8 @@ void FskGLTypeFaceDispose(FskGLTypeFace typeFace) {
 FskErr FskGLTypeFaceNew(const char *fontName, UInt32 textSize, UInt32 textStyle, struct FskTextEngineRecord *fte, struct FskTextFormatCacheRecord *cache, FskGLTypeFace *pTypeFace) {
 	FskErr				err				= kFskErrNone;
 	FskGLTypeFace		typeFace;
-	unsigned			z;
 	FskRectangleRecord	bounds;
-    UInt32              integerTextSize;
+	UInt32				z, integerTextSize;
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_TEXT)
 		LOGD("GLTypeFaceNew(fontName=\"%s\" textSize=%g textStyle=$%03X fte=%p cache=%p)", fontName, FloatTextSize(textSize), (int)textStyle, fte, cache);
@@ -8944,7 +8943,7 @@ FskErr FskGLTypeFaceNew(const char *fontName, UInt32 textSize, UInt32 textStyle,
 
 	/* Allocate the typeface data structure */
 	*pTypeFace = NULL;
-	z = strlen(fontName) + 1;
+	z = FskStrLen(fontName) + 1;
 	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(**pTypeFace) + z, pTypeFace));			/* The data structure has the font name storage at the end */
 	typeFace = *pTypeFace;
 	typeFace->fontName			= (char*)(typeFace + 1); FskMemCopy(typeFace->fontName, fontName, z);	/* Copy the font name to its storage at the end of the typeface structure */
@@ -10166,7 +10165,7 @@ FskErr FskGLCapabilitiesGet(FskGLCapabilities *pCaps) {
 	if (NULL != GLSL_version)	for (caps->glslVersion = d, s = GLSL_version; (*d++ = *s++) != 0;) {}	/* Initialize GLSL_version */
 
 	/* Verify that we haven't written outside the buffer */
-	n = d - (char*)caps;
+	n = (UInt32)(d - (char*)caps);
 	if (n > size) {
 		err = kFskErrBufferOverflow;
 		goto bail;
@@ -10284,7 +10283,7 @@ bail:
 FskErr FskGLPortDispose(FskGLPort port) {
 	FskErr err = kFskErrNone;
 	if (port == NULL)
-		return kFskErrBadState;
+		return kFskErrInvalidParameter;
 
 	ForgetGivenTexturesInAllContexts(&port->texture);												/* Obliterate memory of this texture */
 	#if GLES_VERSION == 2
@@ -11382,17 +11381,17 @@ static FskErr GetCompatibleFreePortTexture(FskConstBitmap bm, FskGLPort *newPort
 	glPort->texture.bounds.width  = 0;															/* This forces full initialization */
 	glPort->texture.bounds.height = 0;
 	glPort->texture.glIntFormat   = 0;
-	glPort->texture.filter        = 0;
-	glPort->texture.wrapMode      = 0;
 	glPort->texture.srcBM         = NULL;
 	err = ReshapeTexture(bm, &glPort->texture);													/* glPort is guaranteed to be nonzero at this point */
 	if (kFskErrNone != err && kFskErrTextureTooLarge != err)									/* Too large texture is not a serious error, ... */
 		goto bail;																				/* ... but other are */
 
 gotPort:
-	glPort->texture.bounds.x = 0;																/* Assure that the bounds start out appropriately initialized */
-	glPort->texture.bounds.y = 0;
-	glPort->texture.fboInited = false;
+	glPort->texture.bounds.x	= 0;															/* Assure that the bounds start out appropriately initialized */
+	glPort->texture.bounds.y	= 0;
+	glPort->texture.filter		= 0;
+	glPort->texture.wrapMode	= 0;
+	glPort->texture.fboInited	= false;
 	GLPortListDeletePort(&gGLGlobalAssets.freePorts,   glPort);									/* Remove this port from the free port list ... */
 	GLPortListInsertPort(&gGLGlobalAssets.activePorts, glPort);									/* ... and insert into the active port list */
 	*newPort = glPort;																			/* Return the new port only if successful; otherwise NULL */
@@ -12169,7 +12168,7 @@ FskErr FskGLRectangleFill(FskBitmap dstBM, FskConstRectangle r, FskConstColorRGB
 		LogGLRectangleFill(dstBM, r, color, mode, modeParams);
 	#endif /* LOG_PARAMETERS */
 
-	BAIL_IF_ERR(err = GetGLPort(dstBM, &glPort));
+	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 
 	mode &= kFskGraphicsModeMask;	/* Clear out kFskGraphicsModeBilinear bit */
 
@@ -12301,7 +12300,7 @@ FskErr FskGLBitmapDraw(
 		}
 	#endif /* SUPPORT_YUV420i */
 
-	BAIL_IF_ERR(err = GetGLPort(dstBM, &glPort));
+	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 	if (!srcRect)
 		srcRect = &srcBM->bounds;
 	BAIL_IF_ERR(err = ComputeTransformationSrcDstRects(glPort, &srcBM->bounds, srcRect, dstBM, dstRect, &sRect, &dRect));
@@ -12359,7 +12358,7 @@ FskErr FskGLScaleOffsetBitmap(
 		LogGLScaleOffsetBitmap(srcBM, srcRect, dstBM, dstClip, scaleOffset, opColor, mode, modeParams);
 	#endif /* LOG_PARAMETERS */
 
-	BAIL_IF_ERR(err = GetGLPort(dstBM, &glPort));
+	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 	if (!srcRect)
 		srcRect = &srcBM->bounds;
 	BAIL_IF_ERR(err = SetupBlit(srcBM, srcRect, glPort, dstClip, opColor, mode, modeParams, &jitTexRec, NULL));
@@ -12417,7 +12416,7 @@ FskErr FskGLTileBitmap(
 	FskRectangleRecord	sRect, dRect, texRect, srcBounds;
 	Boolean				srcIsPremultiplied;
 
-	BAIL_IF_ERR(err = GetGLPort(dstBM, &glPort));
+	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 
 	#ifdef LOG_PARAMETERS
 		LogGLTileBitmap(srcBM, srcRect, dstBM, dstRect, dstClip, scale, opColor, mode, modeParams);
@@ -12511,7 +12510,7 @@ FskErr FskGLTransferAlphaBitmap(
 		LogGLTransferAlphaBitmap(srcBM, srcRect, dstBM, dstLocation, dstClip, fgColor, modeParams);
 	#endif /* LOG_PARAMETERS */
 
-	BAIL_IF_ERR(err = GetGLPort(dstBM, &glPort));
+	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 
 	if (dstLocation)	{	dRect.x =  dstLocation->x;	dRect.y =  dstLocation->y;	}
 	else				{	dRect.x = srcBM->bounds.x;	dRect.y = srcBM->bounds.y;	}
@@ -12728,7 +12727,7 @@ FskErr FskGLTextBox(
 
 	BAIL_IF_ERR(err = FskGLTextGetBounds(fte, NULL, text, textLen, textSize, textStyle, fontName, &bounds, cache));
 
-	BAIL_IF_ERR(err = GetGLPort(dstBM, &glPort));
+	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 	tx = GetBitmapTexture(typeFace->bm);
 	#ifdef LOG_TEXT
 		if (tx == NULL)
@@ -12878,7 +12877,7 @@ bail:
 #undef FskGLPerspectiveTransformBitmap
 FskErr FskGLPerspectiveTransformBitmap(
 	FskConstBitmap					srcBM,
-	long							numPoints,
+	UInt32							numPoints,
 	const FskFixedPoint2D			*points,
 	FskBitmap						dstBM,
 	FskConstRectangle				dstClip,
@@ -12894,14 +12893,14 @@ FskErr FskGLPerspectiveTransformBitmap(
 	ShaderState			*shaderState	= NULL;
 	GLTextureRecord		*tx;
 	float				P[3][3], N[3][3];
-	long				i;
+	UInt32				i;
 
 	#if GLES_VERSION == 2
 		float			viewMtx[3][3];
 		FskMemCopy(viewMtx[0], gGLGlobalAssets.matrix[0], sizeof(viewMtx));							/* Save the current matrix, so we can restore it afterward */
 	#endif /* GLES_VERSION == 2 */
 
-	BAIL_IF_ERR(err = GetGLPort(dstBM, &glPort));
+	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 	FskMemSet(&jitTexRec, 0, sizeof(jitTexRec));
 
 	/* Set model matrix */

@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKIMAGE_PRIV__
 
 #include "FskBlit.h"
@@ -161,6 +161,7 @@ FskErr FskBMPDecodeFromMemory(unsigned char *bmpBits, SInt32 bmpBitsLen, FskBitm
 	FskBMP bmp = (FskBMP)bmpBits;
 	UInt8 *srcBits = bmpBits, *dstBits = NULL, *srcEnd = bmpBits + bmpBitsLen;
 	SInt32 srcRowBytes, dstRowBytes;
+    SInt32 rawHeight;
 	UInt32 x, y, width, height, biBitCount, biCompression;
 	UInt8 *palette = NULL, *scanBuffer = NULL;
 	UInt32 mask, shift;
@@ -191,12 +192,14 @@ FskErr FskBMPDecodeFromMemory(unsigned char *bmpBits, SInt32 bmpBitsLen, FskBitm
 		bmp = &scratch;
 		paletteWidth = 3;
 		width = FskEndianS16_LtoN(bmp->biWidth);
-		height = FskEndianS16_LtoN(bmp->biHeight);
+		rawHeight = FskEndianS16_LtoN(bmp->biHeight);
 	}
 	else {
 		width = FskEndianU32_LtoN(bmp->biWidth);
-		height = FskEndianU32_LtoN(bmp->biHeight);
+		rawHeight = FskEndianU32_LtoN(bmp->biHeight);
 	}
+
+    height = (rawHeight >= 0) ? rawHeight : -rawHeight;
 
 	if (dimensions) {
 		dimensions->width = width;
@@ -248,7 +251,8 @@ FskErr FskBMPDecodeFromMemory(unsigned char *bmpBits, SInt32 bmpBitsLen, FskBitm
 	}
 
 	FskBitmapWriteBegin(*bits, (void**)(void*)&dstBits, &dstRowBytes, NULL);
-	dstBits += (height - 1) * dstRowBytes;
+    if (rawHeight > 0)
+        dstBits += (height - 1) * dstRowBytes;
 	mask = (1 << biBitCount) - 1;
 	shift = 8 - biBitCount;
 
@@ -480,7 +484,10 @@ FskErr FskBMPDecodeFromMemory(unsigned char *bmpBits, SInt32 bmpBitsLen, FskBitm
 
 		if (0 == biCompression)
 			srcBits += srcRowBytes;
-		dstBits -= dstRowBytes;
+        if (rawHeight > 0)
+            dstBits -= dstRowBytes;
+        else
+            dstBits += dstRowBytes;
 	}
 
 	if (0 != aSum)

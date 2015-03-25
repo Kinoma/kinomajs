@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #include "kpr.h"
 #include "kprZeroconf.h"
 #include "kprZeroconfCommon.h"
@@ -228,13 +228,38 @@ void KprZeroconfPlatformAdvertisementDispose(KprZeroconfAdvertisement self)
 FskErr KprZeroconfPlatformAdvertisementStart(KprZeroconfAdvertisement self)
 {
 	FskErr err = kFskErrNone;
+	char* txt = NULL;
+	UInt32 size = 0, offset = 0, length;
 	KprZeroconfPlatformAdvertisement advertisement = self->platform;
 	if (!advertisement->service) {
 		DNSServiceErrorType error;
 		DNSServiceRef serviceRef;
 		FskInstrumentedItemPrintfDebug(advertisement, "DNSServiceRegister %s %s %d\n", self->serviceName, self->serviceType, self->port);
+
+		FskAssociativeArrayIterator iterator = FskAssociativeArrayIteratorNew(self->txt);
+		while (iterator) {
+			UInt32 nameLength = FskStrLen(iterator->name);
+			UInt32 valueLength = FskStrLen(iterator->value);
+			length = nameLength + 1 + valueLength;
+			if (length <= 255) {
+				size += length + 1;
+				err = txt ? FskMemPtrRealloc(size + 1, &txt) : FskMemPtrNew(size + 1, &txt);
+				if (err)
+					size -= length + 1;
+				else {
+					txt[offset++] = (char)length;
+					FskStrCopy(txt + offset, iterator->name); offset += nameLength;
+					txt[offset++] = '=';
+					FskStrCopy(txt + offset, iterator->value); offset += valueLength;
+					txt[offset] = 0;
+				}
+			}
+			iterator = FskAssociativeArrayIteratorNext(iterator);
+		}
+		FskAssociativeArrayIteratorDispose(iterator);
+
 		error = DNSServiceRegister(&serviceRef, 0, 0, self->serviceName, self->serviceType, "", NULL, // use default host name
-					htons(self->port), 0, NULL, KprZeroconfPlatformAdvertisementProcess, self);
+					htons(self->port), txt ? FskStrLen(txt) : 0, txt, KprZeroconfPlatformAdvertisementProcess, self);
 		if (error != kDNSServiceErr_NoError) {
 			FskInstrumentedItemPrintfDebug(advertisement, "DNSServiceRegister error %d\n", error);
 			bailIfError(kFskErrNetworkErr);
@@ -242,6 +267,7 @@ FskErr KprZeroconfPlatformAdvertisementStart(KprZeroconfAdvertisement self)
 		bailIfError(KprZeroconfPlatformServiceNew(&advertisement->service, NULL, serviceRef, NULL, 0));
 	}
 bail:
+	FskMemPtrDispose(txt);
 	return err;
 }
 

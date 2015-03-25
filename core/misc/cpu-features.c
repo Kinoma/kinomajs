@@ -56,7 +56,6 @@
 #include <fcntl.h>
 #include <errno.h>
 
-//***bnie: kinoma extension
 #include "FskMemory.h"
 
 static  pthread_once_t     g_once;
@@ -170,7 +169,6 @@ extract_cpuinfo_field(char* buffer, int buflen, const char* field)
     /* Copy the line into a heap-allocated buffer */
     len = q-p;
 
-   //***bnie: kinoma extension
     //result = malloc(len+1);
     result = (char *)FskMemPtrAlloc(len+1);
 
@@ -440,7 +438,6 @@ android_cpuInit(void)
                 hasARMv7 = 1;
             }
 
-		//***bnie: kinoma extension
 	    	else if( end > cpuArch && archNumber >= 6){
                     g_cpuFeatures |= ANDROID_CPU_ARM_FEATURE_ARMv6;
     		}
@@ -474,7 +471,6 @@ android_cpuInit(void)
                         hasARMv7 = 0;
                     }
 
-					//***bnie: kinoma extension
                     //free(cpuProc);
                     FskMemPtrDispose(cpuProc);
                 }
@@ -488,7 +484,6 @@ android_cpuInit(void)
                 g_cpuFeatures |= ANDROID_CPU_ARM_FEATURE_LDREX_STREX;
             }
 
-				//***bnie: kinoma extension
 				//free(cpuArch);
                 FskMemPtrDispose(cpuArch);
         }
@@ -516,7 +511,6 @@ android_cpuInit(void)
                                  ANDROID_CPU_ARM_FEATURE_VFPv3;
             }
 
-				//***bnie: kinoma extension
 				//free(cpuFeatures);
                 FskMemPtrDispose(cpuFeatures);
         }

@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKWINDOW_PRIV__
 
 #include "kprSkin.h"
@@ -119,6 +119,16 @@ void KprDefaultBehaviorQuit(void* it UNUSED)
 {
 }
 
+#if SUPPORT_REMOTE_NOTIFICATION
+void KprDefaultBehaviorRemoteNotificationRegistered(void* it UNUSED, const char *deviceToken UNUSED, const char *osType UNUSED)
+{
+}
+
+void KprDefaultBehaviorRemoteNotified(void* it UNUSED, const char *json UNUSED)
+{
+}
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
+
 void KprDefaultBehaviorScrolled(void* it UNUSED)
 {
 }
@@ -200,6 +210,10 @@ KprDelegateRecord kprDefaultBehaviorDelegateRecord = {
 	KprDefaultBehaviorMeasureVertically,
 	KprDefaultBehaviorMetadataChanged,
 	KprDefaultBehaviorQuit,
+#if SUPPORT_REMOTE_NOTIFICATION
+	KprDefaultBehaviorRemoteNotificationRegistered,
+	KprDefaultBehaviorRemoteNotified,
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 	KprDefaultBehaviorScrolled,
 	KprDefaultBehaviorSensorBegan,
 	KprDefaultBehaviorSensorChanged,
@@ -445,6 +459,10 @@ static SInt32 KprScriptBehaviorMeasureHorizontally(void* it, SInt32 width);
 static SInt32 KprScriptBehaviorMeasureVertically(void* it, SInt32 height);
 static void KprScriptBehaviorMetadataChanged(void* it);
 static void KprScriptBehaviorQuit(void* it);
+#if SUPPORT_REMOTE_NOTIFICATION
+static void KprScriptBehaviorRemoteNotificationRegistered(void* it, const char *token, const char *osType);
+static void KprScriptBehaviorRemoteNotified(void* it, const char *json);
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 static void KprScriptBehaviorScrolled(void* it);
 static Boolean KprScriptBehaviorSensorBegan(void* it, UInt32 id, double ticks, UInt32 c, double *values);
 static Boolean KprScriptBehaviorSensorChanged(void* it, UInt32 id, double ticks, UInt32 c, double *values);
@@ -485,6 +503,10 @@ static KprDelegateRecord KprScriptBehaviorDelegateRecord = {
 	KprScriptBehaviorMeasureVertically,
 	KprScriptBehaviorMetadataChanged,
 	KprScriptBehaviorQuit,
+#if SUPPORT_REMOTE_NOTIFICATION
+	KprScriptBehaviorRemoteNotificationRegistered,
+	KprScriptBehaviorRemoteNotified,
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 	KprScriptBehaviorScrolled,
 	KprScriptBehaviorSensorBegan,
 	KprScriptBehaviorSensorChanged,
@@ -572,6 +594,38 @@ bail:
 	xsEndHostSandboxCode(); \
 	return result
 	
+#if SUPPORT_REMOTE_NOTIFICATION
+#define KprScriptBehaviorRemoteNotificationRegisteredCallback(ID, TOKEN, TYPE) \
+	KprContent content = it; \
+	KprScriptBehavior self = (KprScriptBehavior)content->behavior; \
+	KprScriptBehaviorTraceCallback(#ID); \
+	xsBeginHostSandboxCode(self->the, self->code); \
+	xsVars(4); \
+	xsVar(0) = xsAccess(self->slot); \
+	if (xsFindResult(xsVar(0), ID)) { \
+		xsVar(1) = kprContentGetter(content); \
+		xsVar(2) = (TOKEN) ? xsString((char *)TOKEN) : xsNull; \
+		xsVar(3) = xsString((char *)TYPE); \
+		xsResult = xsCallFunction3(xsResult, xsVar(0), xsVar(1), xsVar(2), xsVar(3)); \
+	} \
+	xsEndHostSandboxCode();
+
+#define KprScriptBehaviorRemoteNotificationCallback(ID, JSON_STRING) \
+	KprContent content = it; \
+	KprScriptBehavior self = (KprScriptBehavior)content->behavior; \
+	KprScriptBehaviorTraceCallback(#ID); \
+	xsBeginHostSandboxCode(self->the, self->code); \
+	xsVars(3); \
+	xsVar(0) = xsAccess(self->slot); \
+	if (xsFindResult(xsVar(0), ID)) { \
+		xsVar(1) = kprContentGetter(content); \
+		xsVar(2) = xsGet(xsGlobal, xsID_JSON); \
+		xsVar(2) = xsCall1(xsVar(2), xsID_parse, xsString((char *)JSON_STRING)); \
+		xsResult = xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsVar(2)); \
+	} \
+	xsEndHostSandboxCode();
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
+
 #define KprScriptBehaviorSensorCallback(ID) \
 	KprContent content = it; \
 	KprScriptBehavior self = (KprScriptBehavior)content->behavior; \
@@ -831,6 +885,18 @@ void KprScriptBehaviorQuit(void* it)
 {
 	KprScriptBehaviorCallback(xsID_onQuit);
 }
+
+#if SUPPORT_REMOTE_NOTIFICATION
+void KprScriptBehaviorRemoteNotificationRegistered(void* it, const char *deviceToken, const char* osType)
+{
+	KprScriptBehaviorRemoteNotificationRegisteredCallback(xsID_onRemoteNotificationRegistered, deviceToken, osType);
+}
+
+void KprScriptBehaviorRemoteNotified(void* it, const char* json)
+{
+	KprScriptBehaviorRemoteNotificationCallback(xsID_onRemoteNotification, json);
+}
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 
 void KprScriptBehaviorScrolled(void* it)
 {

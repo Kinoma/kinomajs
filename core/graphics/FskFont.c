@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #include "FskFont.h"
 #include "FskGrowableStorage.h"
 #include "FskFixedMath.h"
@@ -154,7 +154,7 @@ StringClone(const char *fr, char **to)
 
 	*to = NULL;
 	if (fr != NULL)
-		err = FskMemPtrNewFromData(strlen(fr) + 1, fr, (FskMemPtr*)to);
+		err = FskMemPtrNewFromData(FskStrLen(fr) + 1, fr, (FskMemPtr*)to);
 
 	return err;
 }
@@ -488,10 +488,10 @@ FskFontAddGlyph(
 #endif /* NOT_IN_SVG_TINY */
 
 	offset = 0;
-	SetGloc(&glyph.uniStrIndex,		&offset,	(glyph.numChars + 1) * sizeof(FskUniChar));						/* required */
-	SetGloc(&glyph.pathIndex,		&offset,	FskPathSize(path));												/* required */
-	SetGloc(&glyph.nameIndex,		&offset,	(name     && *name    ) ? (strlen((char*)name)     + 1) : 0);	/* optional */
-	SetGloc(&glyph.langCodeIndex,	&offset,	(langCode && *langCode) ? (strlen((char*)langCode) + 1) : 0);	/* optional */
+	SetGloc(&glyph.uniStrIndex,		&offset,	(glyph.numChars + 1) * sizeof(FskUniChar));							/* required */
+	SetGloc(&glyph.pathIndex,		&offset,	FskPathSize(path));													/* required */
+	SetGloc(&glyph.nameIndex,		&offset,	(name     && *name    ) ? (FskStrLen((char*)name)     + 1) : 0);	/* optional */
+	SetGloc(&glyph.langCodeIndex,	&offset,	(langCode && *langCode) ? (FskStrLen((char*)langCode) + 1) : 0);	/* optional */
 
 	id = HashCharString(uniChar, 0);
 	BAIL_IF_ERR(err = FskGrowableBlobArrayGetPointerToNewEndItem(font->glyphs, offset, &id, (void**)(void*)(&blob), (void**)(void*)(&dir)));

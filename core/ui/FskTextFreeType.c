@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKBITMAP_PRIV__
 #define __FSKTEXT_PRIV__
 #define FSK_FREETYPE_KINOMA_ALLOCATOR 1
@@ -21,6 +21,7 @@
 #include "FskMemory.h"
 #include "FskText.h"
 
+#include "FskAssociativeArray.h"
 #include "FskEdgeEnhancedText.h"
 #include "FskExtensions.h"
 #include "FskPixelOps.h"
@@ -162,6 +163,7 @@ struct FskFTMappingStruct {
 	FskFTAlias language;
 	FskFTFace currentFace;
 	FskFTFace fallbackFace;
+	FskAssociativeArray familyCache;
 };
 
 struct FskFTFamilyStruct {
@@ -362,10 +364,16 @@ static FskFTFace sFskFTFindFont(const char *familyName, UInt32 textStyle, UInt32
 //	FskFreeTypePrintfDebug("textSize was %d now %d", textSize, newTextSize);
 	textSize = newTextSize;
 #endif
+	FskMutexAcquire(gFTMutex);			// caller is responsible for calling release, if this call succeeds
+
 	if (formatCache)
 		closest = ((FskTextFormatCacheFT)formatCache)->fFace;
 	else if (gFskFTMapping) {
 		FskFTAlias alias;
+		// look in family cache
+		family = FskAssociativeArrayElementGetReference(gFskFTMapping->familyCache, familyName);
+		if (family)
+			goto gotFamily;
 		// look for installed font
 		for (family = gFskFTMapping->family; family; family = family->next) {
 			if (!FskStrCompareCaseInsensitive(familyName, family->name))
@@ -410,6 +418,8 @@ static FskFTFace sFskFTFindFont(const char *familyName, UInt32 textStyle, UInt32
 		family = gFskFTMapping->system ? gFskFTMapping->system->family : NULL;
 gotFamily:
 		if (family) {
+			// add to family cache
+			FskAssociativeArrayElementSetReference(gFskFTMapping->familyCache, familyName, family);
 			// get the closest face
 			weight = textStyle & kFskTextBold ? 700 : 400;
 			for (face = family->face; face; face = face->next) {
@@ -1808,6 +1818,7 @@ FskErr FskFTMappingNew(FskFTMapping *it)
 
 	FskFTMapping mapping = NULL;
 	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(FskFTMappingRecord), &mapping));
+	mapping->familyCache = FskAssociativeArrayNew();
 	*it = mapping;
 bail:
 	return err;
@@ -1849,6 +1860,7 @@ void FskFTMappingDispose(FskFTMapping mapping)
 		FskMemPtrDispose(alias->name);
 		FskMemPtrDispose(alias);
 	}
+	FskAssociativeArrayDispose(mapping->familyCache);
 	FskMemPtrDispose(mapping);
 }
 

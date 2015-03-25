@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 /*
 	** ToDo:
 	Interface change notification (done)
@@ -166,7 +166,13 @@ bail:
 
 static FskErr sHTTPServerGotSocket(struct FskSocketRecord *skt, void *refCon) {
 	FskHTTPServerListener listener = (FskHTTPServerListener)refCon;
-	return httpServerListenerStart(listener, skt);
+	listener->handshaking = false;
+	if (listener->http)
+		return httpServerListenerStart(listener, skt);
+	else {
+		FskHTTPServerListenerDispose(listener);
+		return kFskErrOperationFailed;
+	}
 }
 
 static FskErr httpServerListenerAcceptNewConnection(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon) {
@@ -186,9 +192,11 @@ static FskErr httpServerListenerAcceptNewConnection(FskThreadDataHandler handler
 		}
 		if (listener->http->certs != NULL)
 			FskSSLLoadCerts(ssl, listener->http->certs);
+		listener->handshaking = true;
 		err = FskSSLHandshake(ssl, sHTTPServerGotSocket, listener, false);
 		if (err != kFskErrNone) {
-			FskNetSocketClose(ssl);
+			FskSSLDispose(ssl);
+			FskNetSocketClose(skt);
 			return err;
 		}
 		return err;
@@ -250,12 +258,18 @@ bail:
 FskErr FskHTTPServerListenerDispose(FskHTTPServerListener listener) {
 	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerListenerDispose - listener: %x\n", listener);
 	if (listener) {
-		FskThreadRemoveDataHandler(&listener->dataHandler);
-		FskNetSocketClose(listener->skt);
 		if (listener->http && listener->http->listeners)
 			FskListRemove((FskList*)&listener->http->listeners, listener);
-		FskMemPtrDispose(listener->ifcName);
-		FskMemPtrDispose(listener);
+		if (listener->handshaking) {
+			FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerListenerDispose - listener: %x - wait for handshaking\n", listener);
+			listener->http = NULL;
+		}
+		else {
+			FskThreadRemoveDataHandler(&listener->dataHandler);
+			FskNetSocketClose(listener->skt);
+			FskMemPtrDispose(listener->ifcName);
+			FskMemPtrDispose(listener);
+		}
 	}
 	return kFskErrNone;
 }
@@ -389,7 +403,8 @@ FskErr FskHTTPServerCreate(int port, char *interfaceName, FskHTTPServer *server,
 			FskErr notErr = FskNetInterfaceDescribe(i, &ifc);
 			if (notErr) continue;
 			if (ifc->status) {
-				FskHTTPServerListenerAdd(http, port, ifc->name, NULL);
+				notErr = FskHTTPServerListenerAdd(http, port, ifc->name, NULL);
+				if (notErr) err = notErr;
 			}
 			FskNetInterfaceDescriptionDispose(ifc);
 		}

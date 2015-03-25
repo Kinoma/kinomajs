@@ -1,22 +1,24 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define _XOPEN_SOURCE
 #define __FSKHTTPSERVER_PRIV__
+#define	__FSKCOCOASUPPORT_PRIV__
 #include "FskAAScaleBitmap.h"
+#include "FskCocoaSupportPhone.h"
 #include "FskEnvironment.h"
 #include "FskExtensions.h"
 #include "FskECMAScript.h"
@@ -43,6 +45,7 @@
 #import <AVFoundation/AVAsset.h>
 #import <AVFoundation/AVAssetExportSession.h>
 
+#if !TARGET_IPHONE_SIMULATOR
 struct KprLibraryStruct {
 	xsMachine* the;
 	ALAssetsLibrary* library;
@@ -612,13 +615,16 @@ void KprLibraryBuildAlbumSongsArray(xsMachine* the, NSArray *items)
 		number = [song valueForProperty: MPMediaItemPropertyAlbumTrackNumber];
 		xsNewHostProperty(xsVar(1), track_id, xsInteger([number intValue]), xsDefault, xsDontScript);
 
-		number = [song valueForProperty: MPMediaItemPropertyPersistentID];
-		xsVar(2) = xsCall1(xsGlobal, encodeURIComponent_id, xsString((char*)[[number stringValue] UTF8String]));
+		NSURL *url = [song valueForProperty: MPMediaItemPropertyAssetURL];
+		if (url == nil) continue;	// ??
+		xsVar(2) = xsString((char*)[[url absoluteString] UTF8String]);
 
 		xsNewHostProperty(xsVar(1), kind_id, xsInteger(kprLibraryMPSongKind), xsDefault, xsDontScript);
 		xsNewHostProperty(xsVar(1), mime_id, xsNull, xsDefault, xsDontScript);
 		xsNewHostProperty(xsVar(1), url_id, xsVar(2), xsDefault, xsDontScript);
 
+		number = [song valueForProperty: MPMediaItemPropertyPersistentID];
+		xsVar(2) = xsCall1(xsGlobal, encodeURIComponent_id, xsString((char*)[[number stringValue] UTF8String]));
 		xsResult = xsCall1(xsString( "xkpr://library/thumbnail?id="), concat_id, xsVar(2));
 		xsNewHostProperty(xsVar(1), thumbnail_id, xsResult, xsDefault, xsDontScript);
 
@@ -711,13 +717,16 @@ FskErr KprLibraryGetSongsAux(xsMachine* the, NSArray *items)
 		number = [song valueForProperty: MPMediaItemPropertyAlbumTrackNumber];
 		xsNewHostProperty(xsVar(1), track_id, xsInteger([number intValue]), xsDefault, xsDontScript);
 
-		number = [song valueForProperty: MPMediaItemPropertyPersistentID];
-		xsVar(2) = xsCall1(xsGlobal, encodeURIComponent_id, xsString((char*)[[number stringValue] UTF8String]));
+		NSURL *url = [song valueForProperty: MPMediaItemPropertyAssetURL];
+		if (url == nil) continue;	// ??
+		xsVar(2) = xsString((char*)[[url absoluteString] UTF8String]);
 
 		xsNewHostProperty(xsVar(1), kind_id, xsInteger(kprLibraryMPSongKind), xsDefault, xsDontScript);
 		xsNewHostProperty(xsVar(1), mime_id, xsNull, xsDefault, xsDontScript);
 		xsNewHostProperty(xsVar(1), url_id, xsVar(2), xsDefault, xsDontScript);
 
+		number = [song valueForProperty: MPMediaItemPropertyPersistentID];
+		xsVar(2) = xsCall1(xsGlobal, encodeURIComponent_id, xsString((char*)[[number stringValue] UTF8String]));
 		xsResult = xsCall1(xsString( "xkpr://library/thumbnail?id="), concat_id, xsVar(2));
 		xsNewHostProperty(xsVar(1), thumbnail_id, xsResult, xsDefault, xsDontScript);
 
@@ -737,15 +746,6 @@ FskErr KprLibraryGetSongThumbnail(KprMessage message, char* song)
 {
 	FskErr err = kFskErrNone;
 	KprImageTarget target = (KprImageTarget)message->stream;
-	CGSize size;
-	if (target->width && target->height) {
-		size.width = target->width;
-		size.height = target->height;
-	}
-	else {
-		size.width = 150;
-		size.height = 150;
-	}
 	MPMediaQuery* query = [[[MPMediaQuery alloc] init] autorelease];
 	MPMediaPropertyPredicate *idPredicate = [MPMediaPropertyPredicate 
 		predicateWithValue:[NSNumber numberWithLongLong:FskStrToFskInt64(song)]
@@ -754,26 +754,13 @@ FskErr KprLibraryGetSongThumbnail(KprMessage message, char* song)
 	NSArray *items = [query items];
 	for (MPMediaItem *item in items) {
 		MPMediaItemArtwork *artwork = [item valueForProperty: MPMediaItemPropertyArtwork];
-        if (artwork) {
-            CGRect bounds = artwork.bounds;
-            CGFloat half = bounds.size.width / 2, quarter = bounds.size.width / 4;
-            SInt32 percent = (gGeneration <= 4) ? 95 : 40;
-
-            if (size.width < ((half * percent) / 100))
-                size.width = size.height = quarter;
-            else if (size.width < ((half * 3) / 2))
-                size.width = size.height = half;
-            else
-                size.width = size.height = bounds.size.width;
-
-            UIImage *image = [artwork imageWithSize: size];
-            if (image) {
-				//fprintf(stderr, "%dx%d -> %dx%d %s\n", CGImageGetWidth(image.CGImage), CGImageGetHeight(image.CGImage), target->width, target->height, message->url);
- 				bailIfError(FskBitmapNew(size.width, size.height, kFskBitmapFormatDefaultNoAlpha, &target->bitmap));
-                FskBitmapWriteBegin(target->bitmap, NULL, NULL, NULL);
-                    CGContextDrawImage(FskBitmapGetNativeBitmap(target->bitmap), CGRectMake(0, 0, size.width, size.height), image.CGImage);
-                FskBitmapWriteEnd(target->bitmap);
-           }
+		UIImage *image = FskCocoaMediaImageFromArtwork(artwork, gGeneration, target->width, target->height);
+		if (image) {
+   			CGSize size = image.size;
+			bailIfError(FskBitmapNew(size.width, size.height, kFskBitmapFormatDefaultNoAlpha, &target->bitmap));
+			FskBitmapWriteBegin(target->bitmap, NULL, NULL, NULL);
+			CGContextDrawImage(FskBitmapGetNativeBitmap(target->bitmap), CGRectMake(0, 0, size.width, size.height), image.CGImage);
+			FskBitmapWriteEnd(target->bitmap);
         }
         break;
 	}
@@ -802,7 +789,6 @@ FskErr KprLibraryGetMovies(KprLibrary library, KprMessage message)
 				if (url) {
 					xsVar(1) = xsNewInstanceOf(xsObjectPrototype);
 					xsVar(2) = xsString((xsStringValue)[[url absoluteString] UTF8String]);
-					xsNewHostProperty(xsVar(1), xsID("content"), xsVar(2), xsDefault, xsDontScript);
 			
 					NSDate* date = [asset valueForProperty:ALAssetPropertyDate];
 					xsNewHostProperty(xsVar(1), xsID("date"), xsNumber([date timeIntervalSince1970] * 1000.0), xsDefault, xsDontScript);
@@ -883,7 +869,6 @@ FskErr KprLibraryGetPictures(KprLibrary library, KprMessage message)
 				if (url) {
 					xsVar(1) = xsNewInstanceOf(xsObjectPrototype);
 					xsVar(2) = xsString((xsStringValue)[[url absoluteString] UTF8String]);
-					xsNewHostProperty(xsVar(1), xsID("content"), xsVar(2), xsDefault, xsDontScript);
 			
 					NSDate* date = [asset valueForProperty:ALAssetPropertyDate];
 					xsNewHostProperty(xsVar(1), xsID("date"), xsNumber([date timeIntervalSince1970] * 1000.0), xsDefault, xsDontScript);
@@ -1069,7 +1054,7 @@ FskErr KprLibraryGetPictureInfo(KprLibrary library, KprMessage message, char* ur
 		ALAssetRepresentation *representation = [asset defaultRepresentation];
 		if (representation) {
 			char buffer[16];
-			FskStrNumToStr([representation size], buffer, sizeof(buffer));
+			FskStrNumToStr((SInt32)[representation size], buffer, sizeof(buffer));
 			KprMessageSetResponseHeader(message, "content-length", buffer);
 		}
 		else
@@ -1093,7 +1078,7 @@ FskErr KprLibraryServerGetPicture(KprLibrarySession session)
 	ALAssetsLibraryAssetForURLResultBlock resultBlock = ^(ALAsset *asset) {
 		ALAssetRepresentation *representation = [asset defaultRepresentation];
 		if (representation) {
-			session->data.size = [representation size];
+			session->data.size = (SInt32)[representation size];
 			session->error = FskMemPtrNew(session->data.size, &session->data.buffer);
 			if (kFskErrNone == session->error) {
 				if (0 == [representation getBytes:session->data.buffer fromOffset:0 length:session->data.size error:NULL])
@@ -1180,20 +1165,17 @@ FskErr KprLibraryServerGetSong(KprLibrarySession session)
 	FskErr err = kFskErrNone;
 	char* directory = NULL;
 	err = FskDirectoryGetSpecialPath(kFskDirectorySpecialTypeCache, true, NULL, &directory);
-	session->file.path = FskStrDoCat(directory, session->url);
+	NSString *urlString = [NSString stringWithUTF8String:session->url];
+	NSURL *url = [NSURL URLWithString:urlString];
+	NSString *idString = FskCocoaMediaIdFromURLString(urlString, NO);
+	char *file = (idString != nil) ? (char *)[idString UTF8String] : "unknown";
+	session->file.path = FskStrDoCat(directory, file);
     err = FskFileGetFileInfo(directory, &session->file.info);
 	FskMemPtrDispose(directory);
 	if (kFskErrNone == FskFileGetFileInfo(session->file.path, &session->file.info)) {
 		err = FskFileOpen(session->file.path, kFskFilePermissionReadOnly, &session->file.file);
 	}
 	else {
-		MPMediaQuery* query = [[[MPMediaQuery alloc] init] autorelease];
-		MPMediaPropertyPredicate *predicate = [MPMediaPropertyPredicate 
-			predicateWithValue:[NSNumber numberWithLongLong:FskStrToFskInt64(session->url)]
-			forProperty: MPMediaItemPropertyPersistentID];
-		[query addFilterPredicate:predicate];
-		NSArray *items = [query items];
-		NSURL* url = ([items count]) ? [[items objectAtIndex:0] valueForProperty: MPMediaItemPropertyAssetURL] : NULL;
         if (url) {
         	if (0 == FskStrCompare(session->mime, "audio/mpeg")) {
 				FskFile fref;
@@ -1445,13 +1427,7 @@ void Library_sniffMIME(xsMachine *the)
 	else if (kprLibraryMPSongKind == kind) {
 		xsResult = xsString("audio/mp4");
         xsStringValue reference = xsToString(xsArg(1));
-		MPMediaQuery* query = [[[MPMediaQuery alloc] init] autorelease];
-		MPMediaPropertyPredicate *predicate = [MPMediaPropertyPredicate 
-			predicateWithValue:[NSNumber numberWithLongLong:FskStrToFskInt64(reference)]
-			forProperty: MPMediaItemPropertyPersistentID];
-		[query addFilterPredicate:predicate];
-		NSArray *items = [query items];
-		NSURL* url = ([items count]) ? [[items objectAtIndex:0] valueForProperty: MPMediaItemPropertyAssetURL] : NULL;
+        NSURL *url = [NSURL URLWithString:[NSString stringWithUTF8String:reference]];
 		if (url) {
 			AVURLAsset* asset = [AVURLAsset URLAssetWithURL: url options:NULL];
 			NSArray* audioTracks = [asset tracksWithMediaType:AVMediaTypeAudio];
@@ -1471,3 +1447,4 @@ void Library_sniffMIME(xsMachine *the)
 		(void)xsCallFunction1(xsArg(2), xsGlobal, xsUndefined);
 	}
 }
+#endif

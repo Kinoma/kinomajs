@@ -6,7 +6,7 @@
 #     you may not use this file except in compliance with the License.
 #     You may obtain a copy of the License at
 #
-#       http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 #     Unless required by applicable law or agreed to in writing, software
 #     distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,9 +19,15 @@ project(kprconfig)
 
 set(XS_TARGET XSCONFIG)
 
-set(CMAKE_C_FLAGS "${BASE_CMAKE_C_FLAGS} -D${XS_TARGET}")
-set(CMAKE_C_FLAGS_DEBUG "-DmxDebug=1 -g -O1 -Wall")
-set(CMAKE_C_FLAGS_RELEASE "-O3")
+if (WIN32)
+	set(CMAKE_C_FLAGS "${BASE_CMAKE_C_FLAGS} /c /D _CONSOLE /D WIN32 /D _CRT_SECURE_NO_DEPRECATE /D mxXSC=1 /D STATIC=1 /nologo /Zp1")
+	set(CMAKE_C_FLAGS_DEBUG "/D _DEBUG /D mxDebug /Fp$(TMP_DIR) /I$(TMP_DIR) /MTd /Od /W3 /Z7")
+	set(CMAKE_C_FLAGS_RELEASE "/D NDEBUG /Fp$(TMP_DIR) /I$(TMP_DIR) /MT /O2 /W0")
+else ()
+	set(CMAKE_C_FLAGS "${BASE_CMAKE_C_FLAGS} -D${XS_TARGET}")
+	set(CMAKE_C_FLAGS_DEBUG "-DmxDebug=1 -g -O1 -Wall")
+	set(CMAKE_C_FLAGS_RELEASE "-O3")
+endif ()
 
 set(XSC_BASE_OPTIONS -t ${XS_TARGET} -o ${GRAMMAR_DIR})
 set(XSC_OPTIONS_DEBUG ${XSC_BASE_OPTIONS} -d -v)
@@ -37,9 +43,18 @@ list(APPEND sources ${xs_source})
 
 add_executable(${PROJECT_NAME} ${sources})
 set(link_libraries xs)
-if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-	list(APPEND link_libraries -lm -lnsl)
+if (WIN32)
+	target_link_libraries(${PROJECT_NAME} ws2_32.lib)
+else ()
+	if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+		list(APPEND link_libraries -lm -lnsl)
+	endif ()
 endif ()
 target_link_libraries(${PROJECT_NAME} ${link_libraries})
+install(TARGETS ${PROJECT_NAME}
+	RUNTIME DESTINATION ${BIN_DIR}
+	LIBRARY DESTINATION ${BIN_DIR}
+	ARCHIVE DESTINATION ${BIN_DIR}
+)
 
 # vim: set ft=cmake:

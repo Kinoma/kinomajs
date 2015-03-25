@@ -41,16 +41,16 @@
 				bool addCurrentBehind	
 					if addCurrentContent is true and you wish for it to be layered behind formerContent, set to true
 
-				bool removeformerContent	
+				bool removeFormerContent	
 					if you don't wish to have the formerContent removed upon completion, set this to false
 	-->
 	
 	<transition id="AbstractTransition" duration="500">
 		<field id="easeType" value="'quadEaseOut'"/>
-		<field id="removeformerContent" value="true"/>
+		<field id="removeFormerContent" value="true"/>
 		<field id="addCurrentContent" value="true"/>
 		<field id="addCurrentBehind" value="false"/>
-		<field id="optionFields" value="'easeType,removeformerContent,addCurrentContent,addCurrentBehind'"/>
+		<field id="optionFields" value="'easeType,removeFormerContent,addCurrentContent,addCurrentBehind'"/>
 		
   		<method id="onBegin" params="container, formerContent, currentContent, formerData, currentData"><![CDATA[
   			// make these transitions compatible with mobile framework pattern (where options will be supplied in currentData)
@@ -76,7 +76,7 @@
         <method id="onEnd" params="container, formerContent, currentContent"><![CDATA[
 			this.currentLayer.detach();
             this.formerLayer.detach();
-            if ( this.removeformerContent )
+            if ( this.removeFormerContent )
             	container.remove( formerContent);  
             this.onEndTransition( container, formerContent, currentContent );
          ]]></method>
@@ -118,7 +118,7 @@
 	
     <transition id="Push" like="AbstractTransition" duration="500">
  		<field id="direction" value="'left'"/>
-		<field id="optionFields" value="'easeType,removeformerContent,addCurrentContent,direction'"/>
+		<field id="optionFields" value="'easeType,removeFormerContent,addCurrentContent,direction'"/>
  		
 		<method id="onBeginTransition" params="container, formerContent, currentContent, formerData, currentData"><![CDATA[
 			this.formerFromX = this.formerToX = this.currentFromX = this.currentToX = 0;
@@ -171,7 +171,7 @@
      
    	<transition id="Flip" like="AbstractTransition" duration="500">
 		<field id="direction" value="'left'"/>
-		<field id="optionFields" value="'easeType,removeformerContent,addCurrentContent,direction'"/>
+		<field id="optionFields" value="'easeType,removeFormerContent,addCurrentContent,direction'"/>
  
 		<method id="onBeginTransition" params="container, formerContent, currentContent, formerData, currentData"><![CDATA[
 
@@ -309,7 +309,7 @@
 	
     <transition id="Reveal" like="AbstractTransition" duration="350">
  		<field id="direction" value="'up'"/>
-		<field id="optionFields" value="'easeType,removeformerContent,addCurrentContent,direction'"/>
+		<field id="optionFields" value="'easeType,removeFormerContent,addCurrentContent,direction'"/>
  		
 		<method id="onBeginTransition" params="container, formerContent, currentContent, formerData, currentData"><![CDATA[
 			this.currentFromX = this.currentToX = 0;
@@ -358,7 +358,7 @@
  		<field id="direction" value="'down'"/>
  		<field id="addCurrentBehind" value="'true'"/>
 		<field id="easeType" value="'quadEaseIn'"/>
-		<field id="optionFields" value="'easeType,removeformerContent,addCurrentContent,direction'"/>
+		<field id="optionFields" value="'easeType,removeFormerContent,addCurrentContent,direction'"/>
  		
 		<method id="onBeginTransition" params="container, formerContent, currentContent, formerData, currentData"><![CDATA[
 			this.formerFromX = this.formerToX = 0;
@@ -398,7 +398,7 @@
 	-->
     <transition id="TimeTravel" like="AbstractTransition" duration="500">
  		<field id="direction" value="'forward'"/>
-		<field id="optionFields" value="'easeType,removeformerContent,addCurrentContent,direction,xOrigin,yOrigin'"/>
+		<field id="optionFields" value="'easeType,removeFormerContent,addCurrentContent,direction,xOrigin,yOrigin'"/>
  		
 		<method id="onBeginTransition" params="container, formerContent, currentContent, formerData, currentData"><![CDATA[
 			if (this.hasOwnProperty("xOrigin") && this.hasOwnProperty("yOrigin")) {
@@ -442,7 +442,7 @@
 	
     <transition id="ZoomAndSlide" like="AbstractTransition" duration="500">
  		<field id="direction" value="'forward'"/>
-		<field id="optionFields" value="'easeType,removeformerContent,addCurrentContent,addCurrentBehind,direction'"/>
+		<field id="optionFields" value="'easeType,removeFormerContent,addCurrentContent,addCurrentBehind,direction'"/>
  		
 		<method id="onBeginTransition" params="container, formerContent, currentContent, formerData, currentData"><![CDATA[
 			this.formerLayer.origin = { x : this.formerLayer.width / 2, y : this.formerLayer.height / 2 };

@@ -1,19 +1,19 @@
 /*
-     Copyright (C) 2010-2015 Marvell International Ltd.
-     Copyright (C) 2002-2010 Kinoma, Inc.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
-*/
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 #define __FSKECMASCRIPT_PRIV__
 #define __FSKEVENT_PRIV__
 #define __FSKPORT_PRIV__
@@ -107,6 +107,9 @@ static Boolean KprShellKey(void* it, FskEvent event, Boolean down);
 static Boolean KprShellKeyDown(void* it, char* key, UInt32 modifiers, UInt32 repeat, double ticks);
 static Boolean KprShellKeyUp(void* it, char* key, UInt32 modifiers, UInt32 repeat, double ticks);
 static void KprShellLowMemory(void *refcon);
+#if SUPPORT_EXTERNAL_SCREEN
+static void KprShellExtScreenChanged(UInt32 status, int identifier, FskDimension size, void *param);
+#endif /* SUPPORT_EXTERNAL_SCREEN */
 static void KprShellMenuCommand(KprShell self, FskEvent event);
 static void KprShellMenuStatus(KprShell self, FskEvent event);
 static void KprShellMouse(void* it, FskEvent event, KprBehaviorTouchCallbackProc proc);
@@ -291,6 +294,9 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 	xsEndHost(shell);
 	FskNotificationRegister(kFskNotificationLowMemory, KprShellLowMemory, self);
 	FskNotificationRegister(kFskNotificationGLContextLost, KprShellGLContextLost, self);
+#if SUPPORT_EXTERNAL_SCREEN
+	self->extScreenNotifier = FskExtScreenAddNotifier(KprShellExtScreenChanged, self, "KprShellExtScreenChanged");
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 bail:
 	FskMemPtrDispose(preferencePath);
 #if FSK_EXTENSION_EMBED
@@ -511,6 +517,9 @@ double KprShellTicks(void* it UNUSED)
 void KprShellDispose(void* it)
 {
 	KprShell self = it;
+#if SUPPORT_EXTERNAL_SCREEN
+	FskExtScreenRemoveNotifier(self->extScreenNotifier);
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 	FskNotificationUnregister(kFskNotificationGLContextLost, KprShellGLContextLost, self);
 	FskNotificationUnregister(kFskNotificationLowMemory, KprShellLowMemory, self);
 //	FskThreadPostCallback(KprHTTPGetThread(), (FskThreadCallback)KprSSDPForgetServer, FskStrDoCopy(self->id), NULL, NULL, NULL);
@@ -811,6 +820,49 @@ Boolean KprShellEventHandler(FskEvent event, UInt32 eventCode, FskWindow window 
 
 		case kFskEventApplication:
 			break;
+#if SUPPORT_REMOTE_NOTIFICATION
+		case kFskEventSystemRemoteNotificationRegistered: {
+			char buff[256];
+			char *token;
+			UInt32 size;
+			FskEventParameterGetSize(event, kFskEventParameterStringValue, &size);
+			if (size <= sizeof(buff))
+			{
+				char *osType;
+				if (size > 1)
+				{
+					FskEventParameterGet(event, kFskEventParameterStringValue, buff);
+					token = buff;
+				}
+				else
+				{
+					token = NULL;
+				}
+#if TARGET_OS_IPHONE
+				osType = "iOS";
+#elif TARGET_OS_ANDROID
+				osType = "android";
+#else
+				osType = "unknown";
+#endif
+				if (gShell->applicationChain.first)
+					kprDelegateRemoteNotificationRegistered(gShell->applicationChain.first->content, token, osType);
+			}
+			break;
+		}
+		case kFskEventSystemRemoteNotification: {
+			char buff[256];
+			UInt32 size;
+			FskEventParameterGetSize(event, kFskEventParameterStringValue, &size);
+			if (size <= sizeof(buff))
+			{
+				FskEventParameterGet(event, kFskEventParameterStringValue, buff);
+				if (gShell->applicationChain.first)
+					kprDelegateRemoteNotified(gShell->applicationChain.first->content, buff);
+			}
+			break;
+		}
+#endif	/* SUPPORT_REMOTE_NOTIFICATION */
 		case kFskEventClipboardChanged:
 			break;
 		case kFskEventMenuCommand:
@@ -1172,6 +1224,45 @@ void KprShellLowMemory(void *refcon)
 	KprImageCachePurge(gPictureImageCache);
 	KprImageCachePurge(gThumbnailImageCache);
 }
+
+#if SUPPORT_EXTERNAL_SCREEN
+void KprShellExtScreenChanged(UInt32 status, int identifier, FskDimension size, void *param)
+{
+	KprShell self = param;
+
+	switch (status) {
+		case kFskExtScreenStatusNew: {
+			// should support several screens...
+			if (self->extScreenId != 0)
+				break;
+			UInt32 windowStyle = KprEnvironmentGetUInt32("windowStyle", 16);
+			FskWindowNew(&self->extWindow, size->width, size->height, windowStyle, NULL, NULL);
+//			FskWindowEventSetHandler(self->extWindow, KprShellExtEventHandler, self);
+//			kprDelegateExternalScreenChanged(self->applicationChain.first->content, status, identifier, size->width, size->height);
+			break;
+		}
+
+		case kFskExtScreenStatusRemoved: {
+			if (identifier != self->extScreenId)
+				break;
+//			kprDelegateExternalScreenChanged(self->applicationChain.first->content, status, identifier, 0, 0);
+			FskWindowDispose(self->extWindow);
+			self->extWindow = NULL;
+			self->extScreenId = 0;
+			break;
+		}
+
+		case kFskExtScreenStatusChanged: {
+			// Nothing to do? (FskWindow{Cocoa,Android}SizeChanged will be called).
+//			kprDelegateExternalScreenChanged(self->applicationChain.first->content, status, identifier, size->width, size->height);
+			break;
+		}
+
+		default:
+			break;
+	}
+}
+#endif	/* SUPPORT_EXTERNAL_SCREEN */
 
 void KprShellMenuCommand(KprShell self, FskEvent event)
 {

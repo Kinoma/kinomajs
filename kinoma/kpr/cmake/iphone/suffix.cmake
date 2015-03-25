@@ -6,7 +6,7 @@
 #     you may not use this file except in compliance with the License.
 #     You may obtain a copy of the License at
 #
-#       http://www.apache.org/licenses/LICENSE-2.0
+#      http://www.apache.org/licenses/LICENSE-2.0
 #
 #     Unless required by applicable law or agreed to in writing, software
 #     distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,9 +26,6 @@ if (${CMAKE_GENERATOR} STREQUAL "Xcode")
 			add_custom_command(
 				TARGET ${KPR_BINARY_NAME}
 				POST_BUILD
-				COMMAND ${CMAKE_COMMAND} -E make_directory ${PAYLOAD_DIR}
-				COMMAND ${CMAKE_COMMAND} -E copy_directory ${BIN_DIR} ${PAYLOAD_DIR}
-				COMMAND ${PACKAGE}
 				COMMAND ${PACKAGE}
 				WORKING_DIRECTORY ${BUILD_BIN}
 			)
