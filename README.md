@@ -34,11 +34,13 @@ win
 
 
 
+---
+![icon](http://kinoma.com/img/github/osx.png)
 ## MacOS
 
 For MacOS, **Homebrew** is employed to help manage the installation and maintenance of **ant**, **cmake** and **Java**.
 
-1. Get a current version of Xcode from Apple’s App Store
+1. Get a current version of Xcode from Appleâ€™s App Store
 Make sure you run the Xcode app at least once so you can accept the license agreement and install updates.
 2. Install Homebrew (http://brew.sh/)
 
@@ -84,8 +86,8 @@ Java version 1.8.0_25
 cmake 3.0.2
 ant 1.9.4
 
-
-
+---
+![icon](http://kinoma.com/img/github/iOS.png)
 ## iOS
 
 The iOS build of KinomaJS is built on the MacOS Host set up as described above.
@@ -127,8 +129,9 @@ or from the command line:
  You would then add the switch -Dcodesign.id= to your build line:
 
         $ ant -Dtarget.platform=iphone/device -Dcodesign.id=A290...
-
-
+        
+---
+![icon](http://kinoma.com/img/github/xcode.png)
 ## Xcode
 
 1. If you add ide to the ant build line, an Xcode project will be created and Xcode launched. You can then edit and develop within the Xcode environment.
@@ -137,6 +140,7 @@ or from the command line:
 
 2. From Xcode, choose the Application and particular simulator or iOS device.
 
+    ![icon](http://kinoma.com/img/github/xcode-screen.png)
 
 3. Then hit the Play button. The iPhone simulator will launch with the balls app.
 
@@ -145,7 +149,8 @@ or from the command line:
         $ ant -Dtarget.platform=mac ide
 
 
-
+---
+![icon](http://kinoma.com/img/github/android.png)
 ## Android
 
 The Android build of KinomaJS is built on the MacOS Host set up as described above. The Android NDK and SDK are also used.
@@ -209,7 +214,8 @@ Versions:
 Android NDK - stable r10c
 Android SDK - stable 23.0.2
 
-
+---
+![icon](http://kinoma.com/img/github/linux.png)
 
 ## Linux
 
@@ -249,7 +255,8 @@ or from the command line:
   `$F_HOME/bin/linux/gtk/Release/balls/balls`
 
 
-
+---
+![icon](http://kinoma.com/img/github/create.png)
 ## Kinoma Create
 
 Native apps built for Kinoma Create are built on a Linux host machine.
@@ -295,7 +302,8 @@ or from the command line:
   The executable will be at `balls/balls`
 
 
-
+---
+![icon](http://kinoma.com/img/github/windows.png)
 ## Windows
 
 The Windows builds of KinomaJS are built with the Express (free) version of Visual Studio. It has been successfully built with Windows 7, Windows 8, Visual Studio 2010 Express and Visual Studio 2013 Express.
@@ -331,8 +339,3 @@ http://github.org/kinoma/kinomajs
 7. Run the app
   The binary is found in
   `%F_HOME%\bin\win\Release\balls\balls.exe`
-
-
-
-
-
