@@ -1,4 +1,4 @@
-﻿
+   Copyright (C) 2010-2015 Marvell Semiconductor, Inc.
    Copyright (C) 2010-2015 Marvell International Ltd.
    Copyright (C) 2002-2010 Kinoma, Inc.
 
@@ -10,7 +10,6 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-
 
                                  Apache License
                            Version 2.0, January 2004
@@ -188,4 +187,112 @@
       of your accepting any such warranty or additional liability.
 
    END OF TERMS AND CONDITIONS
+
+
+This software is also based on open-source.  Attributions are provided as follows:1. This software is based in part of the work of dtoa. dtoa is licensed under David M. Gay License; the license is available at http://www.netlib.org/fp/dtoa.c
+The author of this software is David M. Gay.
+Copyright (c) 1991, 2000, 2001 by Lucent Technologies.
+ 
+Permission to use, copy, modify, and distribute this software for any purpose without fee is hereby granted, provided that this entire notice is included in all copies of any software which is or includes a copy or modification of this software and in all copies of the supporting documentation for such software.
+
+THIS SOFTWARE IS BEING PROVIDED "AS IS", WITHOUT ANY EXPRESS OR IMPLIED WARRANTY.  IN PARTICULAR, NEITHER THE AUTHOR NOR LUCENT MAKES ANY REPRESENTATION OR WARRANTY OF ANY KIND CONCERNING THE MERCHANTABILITY OF THIS SOFTWARE OR ITS FITNESS FOR ANY PARTICULAR PURPOSE.
+
+2. This software is based in part of the work of expat. expat is licensed under MIT License; the license is available via http://github.com/zerotao/expat
+The MIT License (MIT)
+
+Copyright (c) 1998, 1999, 2000 Thai Open Source Software Center Ltd
+and Clark Cooper
+Copyright (c) 2001, 2002, 2003, 2004, 2005, 2006 Expat maintainers.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+3. This software is based in part of the work of the FreeType Team.  FreeType is licensed under Freetype Project License; the license is available via http://www.freetype.org
+
+
+4. This software is based in part on the work of the Independent JPEG Group". libjpeg is licensed under Independent JPEG Group License;  the license is available via http://www.ijg.org
+
+5. This software is based in part of the work of LibTomCrypt.  LibTomCrypt is licensed under WTFPL; the license is available via http://www.libtom.net
+
+6. This software is based in part of the work of LibTomMath. LibTomMath is licensed under WTFPL; the license is available via http://www.libtom.net
+
+7. This software is based in part of the work of PCRE.  PCRE is licensed under PCRE License; the license is available via http://www.pcre.org
+PCRE LICENCE------------
+
+PCRE is a library of functions to support regular expressions whose syntax
+and semantics are as close as possible to those of the Perl 5 language.
+
+Written by: Philip Hazel <ph10@cam.ac.uk>
+
+University of Cambridge Computing Service,
+Cambridge, England. Phone: +44 1223 334714.
+
+Copyright (c) 1997-2001 University of Cambridge
+
+Permission is granted to anyone to use this software for any purpose on any
+computer system, and to redistribute it freely, subject to the following
+restrictions:
+
+1. This software is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+2. The origin of this software must not be misrepresented, either by
+   explicit claim or by omission. In practice, this means that if you use
+   PCRE in software that you distribute to others, commercially or
+   otherwise, you must put a sentence like this
+
+     Regular expression support is provided by the PCRE library package,
+     which is open source software, written by Philip Hazel, and copyright
+     by the University of Cambridge, England.
+
+   somewhere reasonably visible in your documentation and in any relevant
+   files or online help data or similar. A reference to the ftp site for
+   the source, that is, to
+
+     ftp://ftp.csx.cam.ac.uk/pub/software/programming/pcre/
+
+   should also be given in the documentation. However, this condition is not
+   intended to apply to whole chains of software. If package A includes PCRE,
+   it must acknowledge it, but if package B is software that includes package
+   A, the condition is not imposed on package B (unless it uses PCRE
+   independently).
+
+3. Altered versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+
+4. If PCRE is embedded in any software that is released under the GNU
+   General Purpose Licence (GPL), or Lesser General Purpose Licence (LGPL),
+   then the terms of that licence shall supersede any condition above with
+   which it is incompatible.
+
+The documentation for PCRE, supplied in the "doc" directory, is distributed
+under the same terms as the software itself.
+
+End
+
+8. This software is based in part of the work of TomsFastMath.  TomsFastMath is licensed under WTFPL; the license available via http://www.libtom.net
+
+9. This software is based in part of the work of zlib.  zlib is licensed under zlib/libpng License; the license is available via http://www.zlib.net
+
+
+
+
+
 
