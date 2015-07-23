@@ -291,8 +291,11 @@ FskErr KprHTTPCookieParseString(KprHTTPCookie* it, char* url, char* cookie, char
 	while ((c = *stop)) {
 		if (!self->name && (c == '=')) {
 			bailIfError(KprMemPtrNewClear(stop - start + 1, &self->name));
-			if (escape)
+			if (escape) {
+				*stop = 0;
 				FskStrDecodeEscapedChars(start, self->name);
+				*stop = '=';
+			}
 			else
 				FskStrNCopy(self->name, start, stop - start);
 			start = stop + 1;

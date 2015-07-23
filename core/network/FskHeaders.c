@@ -89,6 +89,7 @@ void FskHeaderStructDispose(FskHeaders *headers)
 	FskMemPtrDispose(headers->filename);
 	FskMemPtrDispose(headers->method);
 	FskMemPtrDispose(headers->protocol);
+	FskMemPtrDispose(headers->responseReasonPhrase);
 	FskMemPtrDispose(headers->lastName);
 	
 	FskAssociativeArrayDispose(headers->parameters);
@@ -126,15 +127,28 @@ static int sParseStartLine(char *startLine, UInt16 headerType, FskHeaders *heade
 
 	headers->headerType = headerType;
 	if (kFskHeaderTypeResponse == headerType) {
-		// Get response code
+		// Get response code and message (if message not in HTTP_Responses)
 		headers->responseCode = FskStrToNum(c);
+		if (headers->flags & kFskHeadersNonStandardResponseReasonPhrase) {
+			c = FskStrChr(c, ' ');
+			if (c) {
+				char *r, *s;
+				s = FskStrStripHeadSpace(c);
+				r = FskFindResponse(headers->responseCode);
+				if (!r || (0 != FskStrCompareCaseInsensitiveWithLength(s, r, FskStrLen(r)))) {
+					headers->responseReasonPhrase = FskStrDoCopy(s);
+					if (NULL != headers->responseReasonPhrase)
+						FskStrStripTailSpace(headers->responseReasonPhrase);
+				}
+			}
+		}
 	}
 	else {
 		char 	*s, *t = NULL;
 		char	*uri = NULL;
 
 		// Get URI
-		if (*c == '/')
+		if ((*c == '/') && !(headers->flags & kFskHeadersDoNotStripURILeadingSlash))
 			c++;
 		s = FskStrChr(c, ' ');
 		if (!s) {
@@ -296,8 +310,39 @@ int FskHeadersParseChunk(char *blob, int blobSize, UInt16 headerType, FskHeaders
 		}
 
 		FskStrStripTailSpace(name);
-			
-		FskAssociativeArrayElementCatenateString(headers->theHeaders, name, value, withComma);
+
+		if (headers->flags & kFskHeadersDoNotMergeDuplicates) { // raw headers
+			FskAssociativeArrayNameList	list;
+			SInt32 nameLen = FskStrLen(name) + 1;
+			SInt32 valueType = kFskStringType;
+			UInt32 valueSize = FskStrLen(value) + 1;
+
+			if (NULL == value) {
+				consumedSize = -1;
+				goto bail;
+			}
+
+			//bailIfError(FskMemPtrNew(sizeof(FskAssociativeArrayNameListRec) + nameLen + valueSize, &list));
+			if (kFskErrNone == FskMemPtrNew(sizeof(FskAssociativeArrayNameListRec) + nameLen + valueSize, &list)) {
+				unsigned char *d = list->data;
+
+				// name
+				FskMemMove(d, name, nameLen);
+				list->name = (char *)d;
+				d += nameLen;
+
+				// value
+				FskMemMove(d, value, valueSize);
+				list->value = (char *)d;
+				list->valueSize = valueSize;
+				list->valueType = valueType;
+
+				list->next = NULL;
+				FskListPrepend(headers->theHeaders, list);
+			}
+		}
+		else
+			FskAssociativeArrayElementCatenateString(headers->theHeaders, name, value, withComma);
 		if (name != headers->lastName) {
 			FskMemPtrDispose(headers->lastName);
 			headers->lastName = FskStrDoCopy(name);
@@ -426,6 +471,12 @@ char *FskFindResponse(int respCode)
 int FskHeaderResponseCode(FskHeaders *headers)
 {
 	return headers->responseCode;
+}
+
+// ------------------------------------------------------------------------
+char *FskHeaderResponseReasonPhrase(FskHeaders *headers)
+{
+	return headers->responseReasonPhrase;
 }
 
 // ------------------------------------------------------------------------

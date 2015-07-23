@@ -502,23 +502,28 @@ FskErr KprApplicationNew(KprApplication* it, char* url, char* id, Boolean breakO
 		BAIL(kFskErrMemFull);
 	FskInstrumentedItemSendMessageNormal(self, kprInstrumentedContentCreateMachine, self);
 	xsBeginHost(self->the);
-	xsResult = xsNewHostFunction(KPR_include, 1);
-	xsSet(xsResult, xsID("uri"), xsString(self->url));
-	xsNewHostProperty(xsGlobal, xsID("include"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-	xsResult = xsNewHostFunction(KPR_require, 1);
-	xsSet(xsResult, xsID("uri"), xsString(self->url));
-	xsNewHostProperty(xsGlobal, xsID("require"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsResult = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID("KPR")), xsID("application")));
 	self->slot = xsResult;
 	xsSetHostData(xsResult, self);
 	(void)xsCall1(xsGet(xsGlobal, xsID("Object")), xsID("seal"), xsResult);
 	xsNewHostProperty(xsGlobal, xsID("application"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsGlobal, xsID("shell"), xsNull, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
+#ifdef mxDebug
+	(void)xsCall1(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(breakOnExceptions));
+#endif
 	if (breakOnStart)
 		xsDebugger();
-    if (breakOnExceptions)
-		(void)xsCall1(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(breakOnExceptions));
+#ifdef XS6	
+	(void)xsCall1(xsGlobal, xsID("require"), xsString(self->url));
+#else
+	xsResult = xsNewHostFunction(KPR_include, 1);
+	xsSet(xsResult, xsID("uri"), xsString(self->url));
+	xsNewHostProperty(xsGlobal, xsID("include"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
+	xsResult = xsNewHostFunction(KPR_require, 1);
+	xsSet(xsResult, xsID("uri"), xsString(self->url));
+	xsNewHostProperty(xsGlobal, xsID("require"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	(void)xsCall1(xsGlobal, xsID("include"), xsString(self->url));
+#endif
 	xsEndHost(self->the);
 	KprContentChainPrepend(&gShell->applicationChain, self, 0, NULL);
 bail:

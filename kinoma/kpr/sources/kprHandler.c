@@ -515,7 +515,7 @@ void KPR_handler_uploadChunk(xsMachine* the)
 			data = xsToString(xsArg(1));
 		else
 			data = xsGetHostData(xsArg(1));
-		snprintf(prefix, 32, "%lX", size);
+		snprintf(prefix, 32, "%lX", size);		//@@
 		offset = FskStrLen(prefix);
 		chunkSize = size + offset + 4;
 		xsThrowIfFskErr(FskMemPtrNewClear(chunkSize, &chunkData));
@@ -769,7 +769,7 @@ FskErr KprUploadStreamNew(KprUploadStream* it, char* url, int at, KprMessage mes
 	self->suffix = at + (SInt32)fileSize;
 	self->size = message->request.size + (SInt32)fileSize;
 	FskStrNumToStr(self->size, value, sizeof(value));
-	KprMessageSetRequestHeader(message, kFskStrContentLength, value);
+	(void)KprMessageSetRequestHeader(message, kFskStrContentLength, value);
 bail:
 	return err;
 }
@@ -894,7 +894,7 @@ FskErr KprUploadChunkStreamNew(KprUploadChunkStream* it, KprMessage message)
 	
 	if (!message->request.body)
 		bailIfError(FskMemPtrNewClear(0, &message->request.body));
-	KprMessageSetRequestHeader(message, kFskStrTransferEncoding, kFskStrChunked);
+	(void)KprMessageSetRequestHeader(message, kFskStrTransferEncoding, kFskStrChunked);
 	self->dispatch = &kprUploadChunkStreamDispatchRecord;
 bail:
 	return err;

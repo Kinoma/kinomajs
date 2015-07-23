@@ -23,8 +23,8 @@
 /*
 	Portable types
 */
-typedef unsigned long UInt32;
-typedef long SInt32;
+typedef unsigned int UInt32;
+typedef int SInt32;
 typedef unsigned short UInt16;
 typedef short SInt16;
 typedef unsigned char UInt8;

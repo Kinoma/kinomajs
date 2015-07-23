@@ -14,6 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+/**
+	\file	FskProjectImage.h
+	\brief	Transformation of an image using a 3x3 matrix.
+*/
 #ifndef __FSKPROJECTIMAGE__
 #define __FSKPROJECTIMAGE__
 

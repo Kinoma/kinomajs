@@ -434,7 +434,7 @@ boolean fsk_empty_output_buffer(j_compress_ptr cinfo)
 void fsk_term_destination(j_compress_ptr cinfo)
 {
 	FskJPEGEncodeState state = (FskJPEGEncodeState)cinfo->dest;
-	SInt32 size = kBufferSize - state->dst.free_in_buffer;
+	SInt32 size = (SInt32)(kBufferSize - state->dst.free_in_buffer);
 
 	if (NULL != state->fref)
 		FskFileWrite(state->fref, size, state->buffer, NULL);

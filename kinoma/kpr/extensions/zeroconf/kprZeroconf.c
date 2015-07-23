@@ -81,10 +81,12 @@ void KprZeroconfServiceStart(KprService service, FskThread thread, xsMachine* th
 {
 	service->machine = the;
 	service->thread = thread;
+	KprZeroconfPlatformStart();
 }
 
 void KprZeroconfServiceStop(KprService service UNUSED)
 {
+	KprZeroconfPlatformStop();
 }
 
 FskErr KprZeroconfServiceNewAuthority(char* type, char** it)
@@ -282,8 +284,8 @@ void Zeroconf_get_serviceType(xsMachine *the)
 void Zeroconf_set_behavior(xsMachine *the)
 {
 	KprZeroconfCommon self = xsGetHostData(xsThis);
-//	if (xsTypeOf(self->behavior) != xsUndefinedType)
-		xsForget(self->behavior);
+	xsForget(self->behavior);
+	self->behavior = xsUndefined;
 	if (xsTest(xsArg(0))) {
 		if (xsIsInstanceOf(xsArg(0), xsObjectPrototype)) {
 			self->behavior = xsArg(0);
@@ -428,7 +430,13 @@ void Zeroconf_Browser(xsMachine *the)
 void Zeroconf_browser(void *it)
 {
 	KprZeroconfBrowser self = it;
-	KprZeroconfBrowserDispose(self);
+	if (self) {
+		xsMachine *the = self->the;
+		KprZeroconfBrowserStop(self);
+		xsForget(self->slot);
+		xsForget(self->behavior);
+		KprZeroconfBrowserDispose(self);
+	}
 }
 
 void Zeroconf_browser_callback(KprZeroconfBrowser self, char* function, KprZeroconfServiceInfo service)
@@ -451,10 +459,11 @@ void Zeroconf_browser_callback(KprZeroconfBrowser self, char* function, KprZeroc
 			if (service->txt) {
 				char* txt = service->txt;
 				UInt32 position = 0, size = FskStrLen(txt);
+				UInt32 length = 0;
 				xsVar(2) = xsNewInstanceOf(xsObjectPrototype);
 				xsSet(xsVar(1), xsID("txt"), xsVar(2));
-				while (position < size) {
-					UInt32 length = txt[position++] & 0xFF;
+				length = txt[position++] & 0xFF;
+				while ((position + length) <= size) {
 					char end;
 					char* equal;
 					if (!length) break;
@@ -468,6 +477,7 @@ void Zeroconf_browser_callback(KprZeroconfBrowser self, char* function, KprZeroc
 					}
 					txt[position + length] = end;
 					position += length;
+					length = txt[position++] & 0xFF;
 				}
 			}
 			if (xsFindResult(xsVar(0), xsID(function))) {

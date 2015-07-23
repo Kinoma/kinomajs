@@ -20,8 +20,12 @@
     android:layout_height="fill_parent"
 	android:theme="@style/Theme.NoBackground">
 
+	<ImageView
+		android:layout_width="wrap_content"
+		android:layout_height="wrap_content"
+		android:src="@drawable/splashscreen" />
 
-    <EditText android:id="@+id/text_view"
+    <com.kinoma.kinomaplay.FskEditText android:id="@+id/text_view"
 	       xmlns:android="http://schemas.android.com/apk/res/android"
         	android:layout_gravity="center_horizontal|top"
              android:layout_x="0dip"
@@ -34,9 +38,10 @@
           	android:cursorVisible="true"
                     android:padding="3dip"
         	android:textColor="#ff0000ff"
+            android:visibility="gone"
             android:text=""
             />
-   	 <EditText android:id="@+id/text_view2"
+	 <com.kinoma.kinomaplay.FskEditText android:id="@+id/text_view2"
 	       xmlns:android="http://schemas.android.com/apk/res/android"
         	android:layout_gravity="center_horizontal|top"
             android:layout_width="fill_parent"
@@ -49,6 +54,7 @@
           	android:cursorVisible="true"
                     android:padding="3dip"
         	android:textColor="#ff00ff00"
+            android:visibility="gone"
             android:text=""
             />
     <SurfaceView android:id="@+id/camera_preview"

@@ -104,14 +104,24 @@
 	</target>
 
 	<target name="xs-build" depends="load-defaults">
-		<cmake srcdir="${xs_home}" bindir="${xs_home}/tmp/${build.platform}" buildtype="Release" cmakeonly="true">
-			<variable name="F_HOME" value="${f_home}" />
-			<variable name="XS_HOME" value="${xs_home}" />
-			<variable name="BIN_DIR" value="${xs_home}/bin/${build.platform}" />
-			<variable name="TMP_DIR" value="${xs_home}/tmp/${build.platform}" />
-			<variable name="CMAKE_BUILD_TYPE" value="${build.type}" />
-			<generator name="NMake Makefiles" platform="windows" />
-		</cmake>
+		<if>
+			<not>
+				<available file="${xs_home}/tmp/${build.platform}/cmake.done" />
+			</not>
+			<then>
+				<cmake srcdir="${xs_home}" bindir="${xs_home}/tmp/${build.platform}" buildtype="Release" cmakeonly="true">
+					<variable name="F_HOME" value="${f_home}" />
+					<variable name="XS_HOME" value="${xs_home}" />
+					<variable name="BIN_DIR" value="${xs_home}/bin/${build.platform}" />
+					<variable name="TMP_DIR" value="${xs_home}/tmp/${build.platform}" />
+					<variable name="CMAKE_BUILD_TYPE" value="${build.type}" />
+					<generator platform="windows">
+						<variable name="CMAKE_BUILD_TYPE" value="NMake Makefiles" />
+					</generator>
+				</cmake>
+				<touch file="${xs_home}/tmp/${build.platform}/cmake.done" />
+			</then>
+		</if>
 		<exec executable="cmake" failonerror="true">
 			<arg line="--build ${xs_home}/tmp/${build.platform} --config ${build.type} --target install" />
 		</exec>
@@ -128,6 +138,7 @@
 	<target name="top-clean" depends="freetype-clean">
 		<delete dir="${f_home}/bin" />
 		<delete dir="${f_home}/tmp" />
+		<var name="config.notNeeded" unset="true" />
 	</target>
 
 	<target name="clean" depends="xs-clean,cmake-clean,freetype-clean,top-clean" />
@@ -160,6 +171,7 @@
 
 	<target name="cmake-clean" depends="load-defaults">
 		<delete dir="${cmake.dir}" />
+		<delete file="${build.tmp}/cmake.done" />
 	</target>
 
 	<target name="ide" depends="load-defaults">
@@ -177,7 +189,6 @@
 		</switch>
 		<var name="cmake.only" value="true" />
 		<antcall target="cmake-build" />
-		<antcall target="package" />
 		<exec executable="${launch.command}">
 			<arg line="${launch.args}" />
 		</exec>

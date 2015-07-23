@@ -133,7 +133,6 @@ FskErr FskThreadCreate(FskThread *threadOut, FskThreadProc procedure, UInt32 fla
 	thread->flags = flags;
 	thread->userProc = procedure;
 	thread->userRefcon = refcon;
-	thread->name = thread->nameBuffer;
 	FskStrCopy(thread->name, name);
 
 	if (thread->flags & kFskThreadFlagsJoinable) {
@@ -1713,7 +1712,6 @@ FskErr FskThreadCreateMain(FskThread *threadOut)
 
 	mainThread = thread;
 	mainThread->flags = kFskThreadFlagsIsMain;
-	thread->name = thread->nameBuffer;
 	FskStrCopy(thread->name, "main");
 
 #if SUPPORT_TIMER_THREAD
@@ -1753,8 +1751,6 @@ FskErr FskThreadTerminateMain(void)
 	FskAssociativeArrayDispose(mainThread->environmentVariables);
 	FskExtensionsTerminateThread(mainThread);
 	FskInstrumentedItemDispose(mainThread);
-	if (mainThread->name != mainThread->nameBuffer)
-		FskMemPtrDispose(mainThread->name);
 	FskListRemove(&gThreads->list, mainThread);
 	FskMemPtrDisposeAt((void **)&mainThread);
 
@@ -1780,7 +1776,6 @@ FskErr FskThreadCreateMain(FskThread *threadOut)
 	if (err) return err;
 
 	mainThread = thread;
-	thread->name = thread->nameBuffer;
 	FskStrCopy(thread->name, "main");
 	thread->flags = kFskThreadFlagsIsMain;
 	thread->pthread = pthread_self();
@@ -1869,7 +1864,6 @@ FskErr FskThreadCreateMain(FskThread *threadOut)
 	if (err) return err;
 
 	mainThread = thread;
-	thread->name = thread->nameBuffer;
 	FskStrCopy(thread->name, "main");
 	thread->flags = kFskThreadFlagsIsMain;
 	thread->pthread = pthread_self();
@@ -1947,7 +1941,6 @@ FskErr FskThreadCreateMain(FskThread *threadOut)
 
 	mainThread = thread;
 	mainThread->flags = kFskThreadFlagsIsMain;
-	thread->name = thread->nameBuffer;
 	FskStrCopy(thread->name, "main");
 
 	FskListMutexPrepend(gThreads, thread);
@@ -1992,8 +1985,6 @@ FskErr FskThreadTerminateMain(void)
 	FskAssociativeArrayDispose(mainThread->environmentVariables);
 	FskExtensionsTerminateThread(mainThread);
 	FskInstrumentedItemDispose(mainThread);
-	if (mainThread->name != mainThread->nameBuffer)
-		FskMemPtrDispose(mainThread->name);
 	FskListRemove(&gThreads->list, mainThread);
 	FskMemPtrDisposeAt((void **)&mainThread);
 
@@ -2038,6 +2029,7 @@ const char* FskThreadName(FskThread thread)
 	return thread ? thread->name : NULL;
 }
 
+//@@ maybe move this to instrumentation...
 char *FskThreadFormatDiagnostic(char *msg, ...)
 {
 #if SUPPORT_XS_DEBUG
@@ -2222,7 +2214,7 @@ FskErr FskConditionTimedWait(FskCondition condition, FskMutex mutex, FskTime tim
 
 	FskMutexAcquire(mutex);
 #elif TARGET_OS_KPL
-	KplConditionTimedWait(condition->kplCond, mutex->kplMutex, (KplTime)timeout);
+	KplConditionTimedWait(condition->kplCond, mutex->kplMutex, timeout);
 #endif
 
 	return kFskErrNone;

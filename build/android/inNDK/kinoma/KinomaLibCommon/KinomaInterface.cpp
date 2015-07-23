@@ -35,9 +35,7 @@
 #include "FskFS.h"
 #include "FskHardware.h"
 #include "FskTextConvert.h"
-#if FSKBITMAP_OPENGL
-	#include "FskGLBlit.h"
-#endif /* FSKBITMAP_OPENGL */
+#include "FskGLBlit.h"
 
 
 #define DELETE_AUTO_UPDATE_APK_ON_LAUNCH 1
@@ -70,7 +68,6 @@ int gScreenHeightMax = 800;
 int gScreenHeight = 762;
 int gScreenDimensionMax = 800;
 
-
 char *staticModel = NULL;
 char *staticOSVersion = NULL;
 char *staticIMEI = NULL;
@@ -101,8 +98,6 @@ int glastX[NUM_TOUCH_POINTERS];
 int glastY[NUM_TOUCH_POINTERS];
 int glastDown[NUM_TOUCH_POINTERS];
 
-int	gUsingBackingAsFramebuffer = 1; 	// first one is set.
-
 int gPendingActivate = 0;
 
 int pendingDoFskSurfaceChanged = 0;
@@ -116,9 +111,6 @@ int gPendingSizeChangeDone = 0;
 int gPendingSystemBar = 0;
 int gPendingSystemBarShow = 0;
 
-int gPendingIMEEnable = -1;
-
-int DO_DELAY = 0;
 int pendingOrientation = -1;
 
 int baseTimeSeconds = 0;
@@ -127,8 +119,6 @@ int baseTimeUseconds = 0;
 extern int gPendingSetKbdSelection;
 extern int gPendingSetKbdSelectionStart;
 extern int gPendingSetKbdSelectionEnd;
-
-int gAndroidTransitionState = 0;
 
 FskTimeRecord gWindowUpdateTime = {0, 0};
 UInt32 gWindowUpdateInterval = 16;
@@ -202,25 +192,6 @@ void androidGetScreenSize(SInt32 *x, SInt32 *y, SInt32 *xmax, SInt32 *ymax) {
 	*y = gScreenHeight;
 	*xmax = gScreenWidthMax;
 	*ymax = gScreenHeightMax;
-}
-
-void androidSetTransitionState(int state) {
-	gAndroidTransitionState = state;
-	if (state == kFskFrameBufferTransitionInitialize) {
-//		sendResidualMouseUps();			// IS THIS RIGHT? MAYBE NOT.
-		// take care of pending items - like showing the keyboard
-		if (gPendingIMEEnable != -1) {
-			doIMEEnable(gPendingIMEEnable != 0);
-			gPendingIMEEnable = -1;
-		}
-	}
-	if (state == kFskFrameBufferTransitionBeforeFinalFrame) {
-		if (fbGlobals->tempBuffer) {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "androidSetTransitionState(2) - disposing fbGlobals->tempBuffer");
-			FskBitmapDispose(fbGlobals->tempBuffer);
-			fbGlobals->tempBuffer = NULL;
-		}
-	}
 }
 
 
@@ -385,7 +356,7 @@ void JAVANAME(KinomaPlay_setDeviceOrientation)( JNIEnv *env, jobject thiz, jint 
 	}
 
 	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "setDeviceOrientation was called. Last orientation was %d, new orientation is %d", myHWInfo.orientation, orientation);
-//	FskFrameBufferGrabScreenForDrawing();
+
 	if (myHWInfo.orientation != orientation) {
 		if (fbGlobals->midSizeChange) {
 			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, " setDeviceOrientation was called -- DURING A SIZE CHANGE (%d) . Last orientation was %d, new orientation is %d", fbGlobals->midSizeChange, myHWInfo.orientation, orientation);
@@ -395,9 +366,7 @@ void JAVANAME(KinomaPlay_setDeviceOrientation)( JNIEnv *env, jobject thiz, jint 
 			pendingOrientation = orientation;
 		}
 	}
-//	myHWInfo.orientation = orientation;
-//DO_DELAY = DO_DELAY ? 0 : 1;
-//	FskFrameBufferReleaseScreenForDrawing();
+
 }
 
 void JAVANAME(KinomaPlay_setDeviceUsername)( JNIEnv *env, jobject thiz, jstring deviceName) {
@@ -830,6 +799,7 @@ void JAVANAME(KinomaPlay_setAndroidBasetime)(JNIEnv* env, jobject thiz, jint s, 
 	baseTimeSeconds = s;
 	baseTimeUseconds = ms * kFskTimeUsecPerMsec;
 }
+
 
 // this routine converts native events to FskEvents for multi-touch
 jboolean
@@ -1275,38 +1245,11 @@ JAVANAME(KinomaPlay_checkLaunched)(JNIEnv* env, jclass clazz)
 }
 #endif
 
-void dupeBitmap(FskBitmap from, FskBitmap to, int modifyStructure) {
-	FskRectangleRecord fR, tR, bR;
-
-	if (from == to)
-		return;
-
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "MDK - bout to dupeBitmap: %x rb: %d - [%d %d %d %d]", from->bits, from->rowBytes, from->bounds.x, from->bounds.y, from->bounds.width, from->bounds.height);
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, " to %x rb: %d - (was) %d [%d %d %d %d]", to->bits, modifyStructure ? from->bounds.width * 2 : to->rowBytes, to->rowBytes, to->bounds.x, to->bounds.y, to->bounds.width, to->bounds.height);
-
-	if (modifyStructure)	{
-		to->bounds = from->bounds;
-		to->rowBytes = to->bounds.width * 2;
-	}
-
-	fR = from->bounds;
-	tR = to->bounds;
-
-// MDK - is this necessary
-	FskRectangleIntersect(&fR, &tR, &bR);
-
-	FskBitmapDraw(from, &bR, to, &bR, NULL, NULL, kFskGraphicsModeCopy, NULL);
-}
-
-
-
-
 /* called from VM thread */
 
 // this should be within a gScreenMutex lock (by the caller)
 
 void androidCheckSizeChangeComplete() {
-
 	if (gPendingSizeChangeDone) {
 		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "androidCheckSizeChangeComplete - gPendingSizeChangeDone(%d) pendingDoFskSurfaceChanged(%d)", gPendingSizeChangeDone, pendingDoFskSurfaceChanged);
 		if (0 == --gPendingSizeChangeDone) {
@@ -1314,45 +1257,20 @@ void androidCheckSizeChangeComplete() {
 				FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "fbGlobals->midSizeChange(%d) =--- lower to %d",  fbGlobals->midSizeChange, fbGlobals->midSizeChange - 1);
 				fbGlobals->midSizeChange--;
 				if (fbGlobals->midSizeChange == 0) {
-// MDK - has to be gScreenWidth here because fbGlobals->frameBuffer hasn't been locked yet
-// do we want tempBuffer here? xxxx
-					if (fbGlobals->backingBuffer->bounds.width != gScreenWidth) {
-						FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "huh? Backing buffer width %d not the same as framebuffer width %d", fbGlobals->backingBuffer->bounds.width, gScreenWidth);
-					}
-					else {
-						FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, " - checkSizeChangeDone - size change reduced to 0 - copy from backing buffer %x to frame buffer %x", fbGlobals->backingBuffer, fbGlobals->frameBuffer);
-						if (pendingOrientation != -1) {
-							FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "******************* pending orientation %d - and about to dupe backing buffer to buffer. maybe try not doing it?", pendingOrientation);
-							if ( ((myHWInfo.orientation == 1 || myHWInfo.orientation == 3) && pendingOrientation == 0)
-							  || ((pendingOrientation == 1 || pendingOrientation == 3) && myHWInfo.orientation == 0) ) {
-								FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "Orientation - Pending: %d, cur: %d - CHANGED", pendingOrientation, myHWInfo.orientation);
-								myHWInfo.orientation = pendingOrientation;
-								FskSetPhoneHWInfo(&myHWInfo);
-								pendingOrientation = -1;
-							}
-							else {
-								FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "Orientation - Pending: %d, cur: %d - CHANGED - but equivalent", pendingOrientation, myHWInfo.orientation);
-							}
+					FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, " - checkSizeChangeDone - size change reduced to 0 - copy from backing buffer %x to frame buffer %x", fbGlobals->backingBuffer, fbGlobals->frameBuffer);
+					if (pendingOrientation != -1) {
+						if ( ((myHWInfo.orientation == 1 || myHWInfo.orientation == 3) && pendingOrientation == 0)
+						  || ((pendingOrientation == 1 || pendingOrientation == 3) && myHWInfo.orientation == 0) ) {
+							FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "Orientation - Pending: %d, cur: %d - CHANGED", pendingOrientation, myHWInfo.orientation);
+							myHWInfo.orientation = pendingOrientation;
+							FskSetPhoneHWInfo(&myHWInfo);
+							pendingOrientation = -1;
 						}
 						else {
-							FskWindow win = FskWindowGetActive();
-							if (win && win->port->bits->glPort) {
-//								FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "#### win: %x - has a glPort -- don't copy from backbuffer", win);
-							}
-							else {
-//								FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "x-x really doing the copy from backing to framebuffer");
-								FskFrameBufferLockSurface(fbGlobals->frameBuffer, NULL, NULL);
-								dupeBitmap(fbGlobals->backingBuffer, fbGlobals->frameBuffer, 0);
-								FskFrameBufferUnlockSurface(fbGlobals->frameBuffer);
-							}
+							FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "Orientation - Pending: %d, cur: %d - CHANGED - but equivalent", pendingOrientation, myHWInfo.orientation);
 						}
 					}
-					if (pendingOrientation != -1) {
-						myHWInfo.orientation = pendingOrientation;
-						FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "_________DO WE EVER GET HERE");
-						FskSetPhoneHWInfo(&myHWInfo);
-						pendingOrientation = -1;
-					}
+
 					if (gPendingSizeChange) {
 						FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "XXX gPendingSizeChangeDone - WAS GOING TO gPendingKbdSelection %d %d - but PendingSizeChange so no.", gPendingSetKbdSelectionStart, gPendingSetKbdSelectionEnd);
 					}
@@ -1364,13 +1282,6 @@ void androidCheckSizeChangeComplete() {
 				}
 			}
 
-/*
-			if (fbGlobals->tempBuffer) {
-				FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "checkPendingSizeChange - disposing fbGlobals->tempBuffer");
-				FskBitmapDispose(fbGlobals->tempBuffer);
-				fbGlobals->tempBuffer = NULL;
-			}
-*/
 			if (gPendingSystemBar) {
 				FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "XXX gPendingSizeChangeDone - gPendingSystemBar - do it");
 				gPendingSystemBar = 0;
@@ -1398,14 +1309,13 @@ void androidAfterWindowResize() {
 
 	if (!win) return;
 
-	FskFrameBufferGrabScreenForDrawing();
-
 	// MDK? still need? --  need this here or we'll flash
 //	sendEventWindowUpdate(win, true, true);
 
 	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "androidAfterWindowResize - fbGlobals->surfaceLocked: %d", fbGlobals->surfaceLocked);
 
 	gPendingSizeChangeDone = 1;
+
 	if (0 == fbGlobals->surfaceLocked && 0 == fbGlobals->backBufferLocked) {
 		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "androidAfterWindowResize - gPendingSizeChangeDone - nothing locked do immediate.");
 		androidCheckSizeChangeComplete();
@@ -1425,15 +1335,16 @@ void androidAfterWindowResize() {
 
 //FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "after FskPortInvalidateRectangle");
 
-	FskFrameBufferReleaseScreenForDrawing();
-
 	/* Window resize done, resume the drawing pump */
 	if (win->useFrameBufferUpdate) {
 		win->updateSuspended = false;
 	}
 }
 
+
 // doFskSurfaceChanged should be called in the thread that draws (kp5-vm)
+//	We FskThreadPostCallback(win->thread, doFskSurfaceChanged, (void*)width, (void*)height, (void*)viewObj, NULL)
+//	from FskView_doFskSurfaceChanged below.
 
 void doFskSurfaceChanged(void *a, void *b, void *c, void *d)
 {
@@ -1447,60 +1358,19 @@ void doFskSurfaceChanged(void *a, void *b, void *c, void *d)
 
 	win = FskWindowGetActive();
 
-	FskFrameBufferGrabScreenForDrawing();
-
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "doFskSurfaceChanged - %d %d (should main be blocked starting here) frameBuffer was %d %d : bits: %x", width, height, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height, fbGlobals->frameBuffer->bits);
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "doFskSurfaceChanged(%d, %d, *, *) (should main be blocked starting here) frameBuffer was %d %d : bits: %x", width, height, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height, fbGlobals->frameBuffer->bits);
 
 	FskRectangleSet(&fbGlobals->frameBuffer->bounds, 0, 0, width, height);
 
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "doFskSurfaceChanged - rowbytes was: %d will be: %d %s", fbGlobals->frameBuffer->rowBytes, width * 2, (fbGlobals->frameBuffer->rowBytes != width * 2) ? "DIFFERENT" : "");
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tdoFskSurfaceChanged - rowbytes was: %d will be: %d %s", fbGlobals->frameBuffer->rowBytes, width * 2, (fbGlobals->frameBuffer->rowBytes != width * 2) ? "DIFFERENT" : "");
 	fbGlobals->frameBuffer->rowBytes = width * 2;
 
 	gScreenWidth = width;
 	gScreenHeight = height;
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "-- setting gScreenWidth: %d and height %d", gScreenWidth, gScreenHeight);
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\t-- setting gScreenWidth: %d and height %d", gScreenWidth, gScreenHeight);
 
-	if (win && win->usingGL)
-		goto here2;
-
-	if (MAX(gScreenWidth, gScreenHeight) > gScreenDimensionMax) {
-		gScreenDimensionMax = MAX(gScreenWidthMax, gScreenHeightMax);
-		needsNewBuffers = true;
-	}
-
-	if (fbGlobals->backingBuffer->surfaceLocked) {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "backingbuffer is locked here - width is %d", fbGlobals->backingBuffer->bounds.width);
-	}
-	else {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "backingbuffer isn't locked here - w: %d h: %d, change to %d %d", fbGlobals->backingBuffer->bounds.width, fbGlobals->backingBuffer->bounds.height, width, height);
-		if (needsNewBuffers) {
-			Boolean wackFrameBuffer = false;
-			FskErr err;
-			if (fbGlobals->backingBuffer->bits == fbGlobals->frameBuffer->bits) {
-				FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "swapping out working bits (frameBuffer is using backingBuffer");
-				wackFrameBuffer = true;
-			}
-			FskBitmapDispose(fbGlobals->backingBuffer);
-			FskBitmapNew(gScreenDimensionMax, gScreenDimensionMax, kFskBitmapFormat16RGB565LE, &fbGlobals->backingBuffer);
-
-			if (wackFrameBuffer) {
-//				FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "wacking the frameBuffer %x:%x, lockCount %d", fbGlobals->frameBuffer, fbGlobals->frameBuffer->bits, fbGlobals->frameBuffer->surfaceLocked);
-				fbGlobals->frameBuffer->bits = fbGlobals->backingBuffer->bits;
-//				fbGlobals->frameBuffer->bounds = fbGlobals->backingBuffer->bounds;
-				FskRectangleSet(&fbGlobals->frameBuffer->bounds, 0, 0, width, height);
-				fbGlobals->frameBuffer->rowBytes = fbGlobals->backingBuffer->rowBytes;
-
-			}
-		}
-	}
-
-	if (!win) {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "-- MDK no active window");
-		goto bail;
-	}
-here2:
 	if (pendingOrientation != -1) {
-		FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "-- myHW.orientation - %d, pendingOrientation %d - prior to AndroidSizeChanged",  myHWInfo.orientation, pendingOrientation);
+		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\t-- myHW.orientation - %d, pendingOrientation %d - prior to AndroidSizeChanged",  myHWInfo.orientation, pendingOrientation);
 		if (pendingOrientation != myHWInfo.orientation) {
 			myHWInfo.orientation = pendingOrientation;
 			FskSetPhoneHWInfo(&myHWInfo);
@@ -1513,47 +1383,28 @@ here2:
 		win->updateSuspended = true;
 	}
 
-	FskWindowAndroidSizeChanged((int)win);
-
-	#if FSKBITMAP_OPENGL
-		if (FskBitmapIsOpenGLDestinationAccelerated(win->bits))	{	/* This checks that win->bits->glPort is not NULL, among other things. */
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "[%s] doFskSurfaceChanged FskGLPortResize((%d, %d)", FskThreadName(FskThreadGetCurrent()), width, height);
-			FskGLPortResize(win->bits->glPort, width, height);		/* This merely sets the view matrix, and has no asynchronous issues. */
-		}
-	#endif /* FSKBITMAP_OPENGL */
+	FskWindowAndroidSizeChanged((int)win);	// This is where GL changes its screen size
 
 	if (gPendingActivate) {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "MDK -- aak! gPendingActivate - call androidDoWindowActivated()");
 		androidDoWindowActivated();
 	}
 
 bail:
 
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "END  doFskSurfaceChanged - %d %d (should main be blocked to here?)", width, height);
-//	if (fbGlobals->midSizeChange) {
-//		fbGlobals->midSizeChange = 0;
-//	}
-
-	FskFrameBufferReleaseScreenForDrawing();
-
-//FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "DONE WITH doFskSurfaceChanged - decrease pendingDoFskSurfaceChanged %d", pendingDoFskSurfaceChanged);
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tEND  doFskSurfaceChanged - %d %d (should main be blocked to here?)", width, height);
 
 	(void)FskMutexAcquire(gSurfaceChangedMutex);
 	myPendingSurfaceChanged = --pendingDoFskSurfaceChanged;
 	myPendingSize = pendingDoFskSurfaceChangedSize;
 	if (myPendingSurfaceChanged > 0) {
-		FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "doFskSurfaceChanged - still something pending %d (%d %d)", myPendingSurfaceChanged, myPendingSize.x, myPendingSize.y);
+		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tdoFskSurfaceChanged - still something pending %d (%d %d)", myPendingSurfaceChanged, myPendingSize.x, myPendingSize.y);
 		if (pendingDoFskSurfaceChangedSize.x != gScreenWidth && pendingDoFskSurfaceChangedSize.y != gScreenHeight) {
 			(void)FskMutexRelease(gSurfaceChangedMutex);
-			#if FSKBITMAP_OPENGL	/* Shouldn't this be in gingerbread? */
-				if (win && win->usingGL)
-					FskGLPortResize(win->bits->glPort, myPendingSize.x, myPendingSize.y);
-			#endif /* FSKBITMAP_OPENGL */
 			doFskSurfaceChanged((void*)myPendingSize.x, (void*)myPendingSize.y, NULL, NULL);		/* TODO: Does this need to be recursive? */
 			(void)FskMutexAcquire(gSurfaceChangedMutex);
 		}
 		else {
-			FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "surfaceChanged size was pending, but size same as now, so ignore.");
+			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tdoFskSurfaceChanged size was pending, but size same as now, so ignore.");
 			pendingDoFskSurfaceChanged--;
 			pendingDoFskSurfaceChangedSize.x = 0;
 			pendingDoFskSurfaceChangedSize.y = 0;
@@ -1561,21 +1412,24 @@ bail:
 	}
 	else {	/* myPendingSurfaceChanged <= 0 */
 		if (myPendingSurfaceChanged < 0)
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "doFskSurfaceChanged - MYPENDINGSURFACECHANGED IS NEGATIVE!!!! RESETTING to 0)", myPendingSurfaceChanged);
+			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tdoFskSurfaceChanged - MYPENDINGSURFACECHANGED IS NEGATIVE!!!! RESETTING to 0)", myPendingSurfaceChanged);
 //		myPendingSurfaceChanged = 0;
 		pendingDoFskSurfaceChangedSize.x = 0;
 		pendingDoFskSurfaceChangedSize.y = 0;
 	}
 	(void)FskMutexRelease(gSurfaceChangedMutex);
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "doFskSurfaceChanged -- returning");
 }
 
 
 jint JAVANAME(FskView_doFskSurfaceChanged)(JNIEnv* env, jobject viewObj, jint width, jint height) {
     FskWindow win;
 
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "FskView_doFskSurfaceChanged(env=%p view=%p w=%d h=%d)", env, viewObj, width, height);
+
 	(void)FskMutexAcquire(gSurfaceChangedMutex);
 	if (pendingDoFskSurfaceChanged) {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "FskView_doFskSurfaceChanged there was already a surfaceChangePending %d, (%d %d) do it later", pendingDoFskSurfaceChanged, width, height);
+		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tFskView_doFskSurfaceChanged there was already a surfaceChangePending %d, (%d %d) do it later", pendingDoFskSurfaceChanged, width, height);
 		if (width != pendingDoFskSurfaceChangedSize.x || height != pendingDoFskSurfaceChangedSize.y) {
 			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "surfaceChangePending NOT same as other surfaceChangePending was %d %d - save for later %d %d", pendingDoFskSurfaceChangedSize.x, pendingDoFskSurfaceChangedSize.y, width, height);
 			pendingDoFskSurfaceChanged++;
@@ -1583,129 +1437,59 @@ jint JAVANAME(FskView_doFskSurfaceChanged)(JNIEnv* env, jobject viewObj, jint wi
 			pendingDoFskSurfaceChangedSize.y = height;
 		}
 		else {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "surfaceChangePending same as other surfaceChangePending - toss");
+			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tsurfaceChangePending same as other surfaceChangePending - toss");
 		}
 		(void)FskMutexRelease(gSurfaceChangedMutex);
-		return 0;
+		goto bail;
 	}
 	(void)FskMutexRelease(gSurfaceChangedMutex);
-	FskFrameBufferGrabScreenForDrawing();
 
-	if (fbGlobals) {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "FskView_doFskSurfaceChanged - FRAMEBUFFER SHOULD BE NEW SIZE fbGlobals->frameBuffer: %p - is %ld x %ld, want: %d x %d",
-		fbGlobals->frameBuffer, fbGlobals->frameBuffer?fbGlobals->frameBuffer->bounds.width:0, fbGlobals->frameBuffer?fbGlobals->frameBuffer->bounds.height:0, width, height);
-	} else {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "FskView_doFskSurfaceChanged - fbGlobals = %p", fbGlobals);
-	}
 	win = FskWindowGetActive();
 	if (win) {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "posting doFskSurfaceChanged callback to window's thread %s (should we lock main here?) ", win->thread->name);
+		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tposting doFskSurfaceChanged callback to window's thread %s (should we lock main here?) ", win->thread->name);
 
 		(void)FskMutexAcquire(gSurfaceChangedMutex);
 		pendingDoFskSurfaceChanged++;
 		(void)FskMutexRelease(gSurfaceChangedMutex);
 		FskThreadPostCallback(win->thread, doFskSurfaceChanged, (void*)width, (void*)height, (void*)viewObj, NULL);
 		if (gPendingActivate) {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "MDK -- aak! gPendingActivate - call androidDoWindowActivated()");
 			androidDoWindowActivated();
 		}
 	}
 
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "-- leaving FskView_doFskSurfaceChanged (should we have waited for kp5-vm thread here and unlocked here?)");
-
 bail:
-	FskFrameBufferReleaseScreenForDrawing();
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "FskView_doFskSurfaceChanged -- returning (should we have waited for kp5-vm thread here and unlocked here?)");
 	return 0;
 }
 
-
-jint
-JAVANAME(FskView_doSizeAboutToChange)(JNIEnv* env, jobject viewObj, jint width, jint height, jint newWidth, jint newHeight) {
-	int i = 0;
-	FskWindow win = FskWindowGetActive();
-
-	if (win == NULL) {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "punt on doSizeAboutToChange because we don't have a window yet.");
-		return 0;
-	}
-
-	gPendingSizeChange++;
-	while (fbGlobals->midSizeChange) {
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "ABOUT TO SIZE CHANGE but fbGlobals->midSizeChange (%d) set pending to %d (from %d x %d to %d x %d)", fbGlobals->midSizeChange, gPendingSizeChange, width, height, newWidth, newHeight);
-		FskThreadYield();
-		FskDelay(100);
-		// MDK - this can spin forever. Should consider a limit here.
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "pending Size Change %d - tempBuffer = %x", i++, fbGlobals->tempBuffer);
-		if (i >= 10) break;
-	}
-	FskFrameBufferGrabScreenForDrawing();
-
-	gPendingSizeChange--;
-
-
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\nABOUT TO CHANGE SIZE -  FRAMEBUFFER STILL OLD SIZE - fbGlobals->frameBuffer: %x - from %d x %d to %d x %d", fbGlobals->frameBuffer, width, height, newWidth, newHeight);
-
-//FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "backing buffer is %x, bits %x", fbGlobals->backingBuffer, fbGlobals->backingBuffer->bits);
-
-	if ((!gUsingBackingAsFramebuffer) &&
-		(fbGlobals->frameBuffer->bits != fbGlobals->backingBuffer->bits)) {
-		FskRectangleRecord r = {0, 0, 1, 1};
-
-		FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "doSizeAboutToChange cycle buffers - fb: %x, bits: %x", fbGlobals->frameBuffer, fbGlobals->frameBuffer->bits);
-		if (fbGlobals->tempBuffer) {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "##### - tempBuffer still exists. about to toss");
-			FskBitmapDispose(fbGlobals->tempBuffer);
-		}
-		if (win && win->port->bits->glPort) {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "#### win: %x - has a glPort", win);
-			FskWindowCopyToBitmap(win, NULL, false, &fbGlobals->tempBuffer);
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, " ####  - copied screen to tempBuffer - bits: %x, frameBuffer bits: %x, backingBuffer bits: %x", fbGlobals->tempBuffer->bits, fbGlobals->frameBuffer->bits, fbGlobals->backingBuffer->bits);
-		}
-		else {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "cycle frame buffers to get source for resize");
-
-			// hack - cycle through buffers by locking/unlocking
-			FskFrameBufferLockSurfaceArea(fbGlobals->frameBuffer, &r, NULL, NULL);
-			FskFrameBufferUnlockSurface(fbGlobals->frameBuffer);
-			FskFrameBufferLockSurfaceArea(fbGlobals->frameBuffer, &r, NULL, NULL);
-
-    		FskBitmapNew(fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height, kFskBitmapFormat16RGB565LE, &fbGlobals->tempBuffer);
-			dupeBitmap(fbGlobals->frameBuffer, fbGlobals->tempBuffer, 0);	// replace rowbytes in backbuffer
-			dupeBitmap(fbGlobals->frameBuffer, fbGlobals->backingBuffer, 1);	// change backingBuffer structure if necessary
-
-        	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "-- after dupe - doSizeAboutToChange orientation %d - done copying %x  to TempBuffer %x. %d %d %d %d", myHWInfo.orientation, fbGlobals->frameBuffer->bits, fbGlobals->tempBuffer ?  fbGlobals->tempBuffer->bits : 0, fbGlobals->frameBuffer->bounds.x, fbGlobals->frameBuffer->bounds.y, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height);
-
-			FskFrameBufferUnlockSurface(fbGlobals->frameBuffer);
-		}
-
-	}
-	else {
-		if (win && win->port->bits->glPort) {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "#### win: %x - has a glPort - don't copy backing buffer to tempBuffer", win);
-		}
-		else {
-	    	FskBitmapNew(fbGlobals->backingBuffer->bounds.width, fbGlobals->backingBuffer->bounds.height, kFskBitmapFormat16RGB565LE, &fbGlobals->tempBuffer);
-			dupeBitmap(fbGlobals->backingBuffer, fbGlobals->tempBuffer, 0);	// replace rowbytes in backbuffer
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "copying backingBuffer %d %d @ %x to tempBuffer %x", fbGlobals->backingBuffer->bounds.width, fbGlobals->backingBuffer->bounds.height, fbGlobals->backingBuffer, fbGlobals->tempBuffer);
-		}
-
-		if (gUsingBackingAsFramebuffer) {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "doSizeAboutToChange - gUsingBackingAsFramebuffer (%d) - is one shot ok?", gUsingBackingAsFramebuffer);
-			gUsingBackingAsFramebuffer--;
-		}
-		else {
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "doSizeAboutToChange - framebuffer WAS backing store");
-		}
-	}
-
-done:
-	fbGlobals->midSizeChange++;
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "set midSizeChange to  - %d", fbGlobals->midSizeChange);
-
-	FskFrameBufferReleaseScreenForDrawing();
-	return 0;
-}
 
 void androidSetFBGlobals(FskFBGlobals globals) {
 	fbGlobals = globals;
+}
+
+FskTimeCallBack delayDismissKeyboard = NULL;
+
+void dismissKbdCallback(struct FskTimeCallBackRecord *callback, const FskTime time, void *param) {
+	fprintf(stderr, "[%s] dismissKbdCallback called\n", FskThreadGetCurrent()->name);
+	doIMEEnable(-1);
+	FskTimeCallbackDispose(delayDismissKeyboard);
+	delayDismissKeyboard = NULL;
+}
+
+void JAVANAME(FskEditText_doDismissKeyboard)(JNIEnv *env, jclass clazz, jint dismiss) {
+
+	fprintf(stderr, "FskEditText_doDismissKeyboard\n");
+	if (doIsIMEEnabled()) {
+		if (!delayDismissKeyboard) {
+			fprintf(stderr, "creating delayDismissKeyboard callback\n");
+			FskTimeCallbackNew(&delayDismissKeyboard);
+		}
+		fprintf(stderr, "[%s] posting future event for dismissKbdCallback\n", FskThreadGetCurrent()->name);
+		FskTimeCallbackScheduleFuture(delayDismissKeyboard, 0, 1, dismissKbdCallback, (void*)1);
+	}
+	else {
+		fprintf(stderr, "[%s] posting KeyEvent for back\n", FskThreadGetCurrent()->name);
+		JAVANAME(KinomaPlay_doFskKeyEvent)(env, clazz, KEYCODE_BACK, 0, ACTION_UP, 0, 0);
+
+	}
 }

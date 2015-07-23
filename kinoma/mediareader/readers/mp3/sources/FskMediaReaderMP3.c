@@ -826,7 +826,7 @@ FskErr mp3ScanProc(void *refCon, UInt32 bytesToRead, void *data, UInt32 *bytesRe
 FskErr mp3RefillReadBuffer(mp3Reader state, UInt32 minimumBytesNeeded)
 {
 	FskErr err = kFskErrNone;
-	UInt32 bytesInBuffer = state->readBufferEnd - state->readBufferPtr;
+	UInt32 bytesInBuffer = (UInt32)(state->readBufferEnd - state->readBufferPtr);
 	UInt32 bytesRead;
 	void *buffer;
 	Boolean firstTime = true;
@@ -944,7 +944,7 @@ readErr:
 
 		state->position += bytesRead;
 		state->readBufferEnd += bytesRead;
-		bytesInBuffer = state->readBufferEnd - state->readBufferPtr;
+		bytesInBuffer = (UInt32)(state->readBufferEnd - state->readBufferPtr);
 
 		if ((kMP3ReadBufferSize == bytesInBuffer) || (bytesInBuffer >= minimumBytesNeeded))
 			break;

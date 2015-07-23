@@ -425,8 +425,6 @@ extern void fxAliasInstance(xsMachine* the, xsSlot* slot);
 void KPR_Sound_patch(xsMachine *the)
 {
 	xsResult = xsGet(xsGlobal, xsID("Sound"));
-	fxAliasInstance(the, &xsResult);
-	xsSet(xsGlobal, xsID("Sound"), xsResult);
 	xsNewHostProperty(xsResult, xsID("volume"), xsNewHostFunction(KPR_Sound_get_volume, 0), xsIsGetter, xsDontScript | xsIsGetter);
 	xsNewHostProperty(xsResult, xsID("volume"), xsNewHostFunction(KPR_Sound_set_volume, 1), xsIsSetter, xsDontScript | xsIsSetter);
 	xsNewHostProperty(xsResult, xsID("hibernate"), xsNewHostFunction(KPR_Sound_hibernate, 0), xsDefault, xsDontScript);

@@ -17,6 +17,9 @@
 #ifndef __KPRZEROCONFCOMMON__
 #define __KPRZEROCONFCOMMON__
 
+void KprZeroconfPlatformStart();
+void KprZeroconfPlatformStop();
+
 typedef struct KprZeroconfServiceInfoStruct KprZeroconfServiceInfoRecord, *KprZeroconfServiceInfo;
 
 struct KprZeroconfServiceInfoStruct {

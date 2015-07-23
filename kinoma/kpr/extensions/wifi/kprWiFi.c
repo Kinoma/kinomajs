@@ -48,8 +48,11 @@ KprServiceRecord gWiFiService = {
 #if  MINITV
 #include <sys/un.h>
 #include <sys/socket.h>
+#include <net/if.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 struct wpa_ctrl {
 	int s;
@@ -60,7 +63,13 @@ struct wpa_ctrl {
 	char* response;
 	UInt32 responseSize;
 };
+
+#ifdef BG3CDP
+#define CONFIG_CTRL_IFACE "/var/run/wpa_supplicant/wlan0"
+#else
 #define CONFIG_CTRL_IFACE "/var/run/wpa_supplicant/mlan0"
+#endif
+
 #define CONFIG_CTRL_IFACE_CLIENT_PREFIX "wpa_ctrl_"
 #define CONFIG_CTRL_IFACE_CLIENT_DIR "/tmp"
 
@@ -316,34 +325,97 @@ bail:
 	return err;
 }
 
+FskErr KprMacAddr(char* request, char* response, UInt32 responseSize, UInt32 *responseLength)
+{
+    struct ifreq ifr;
+    struct ifconf ifc;
+    char buf[1024];
+    int success = 0;
+
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock == -1) { /* handle error*/ };
+
+    ifc.ifc_len = sizeof(buf);
+    ifc.ifc_buf = buf;
+    if (ioctl(sock, SIOCGIFCONF, &ifc) == -1) { /* handle error */ }
+
+    struct ifreq* it = ifc.ifc_req;
+    const struct ifreq* const end = it + (ifc.ifc_len / sizeof(struct ifreq));
+
+    for (; it != end; ++it) {
+        strcpy(ifr.ifr_name, it->ifr_name);
+        // fprintf(stderr, "mac addr ifr_name=%s\n", ifr.ifr_name);
+        if (strcmp(ifr.ifr_name, "wlan0")==0) {
+          if (ioctl(sock, SIOCGIFFLAGS, &ifr) == 0) {
+            if (! (ifr.ifr_flags & IFF_LOOPBACK)) { // don't count loopback
+                if (ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) {
+                    success = 1;
+                    break;
+                }
+            }
+         }
+        }
+        else { /* handle error */ }
+    }
+
+    unsigned char mac_address[6];
+    mac_address[4]  =0xff;
+    mac_address[5]  =0xff;
+    if (success) memcpy(mac_address, ifr.ifr_hwaddr.sa_data, 6);
+    // We only need the last two digits for the system name;
+	sprintf(response, "{\"mac_addr\": \"%02x%02x\"}",mac_address[4], mac_address[5]);
+	FskKprWiFiPrintfDebug("mac_addr %s", response);
+	*responseLength = FskStrLen(response);
+	return kFskErrNone;
+}
 FskErr KprWiFiLevel(char* request, char* response, UInt32 responseSize, UInt32 *responseLength)
 {
 	char line[1035];
 	FILE *fp = NULL;
+    FILE *pp = NULL;
 	FskErr err = kFskErrNotFound;
 
  	fp = fopen("/proc/net/wireless", "r");
-	bailIfNULL(fp);
-	
-	while (fgets(line, sizeof(line)-1, fp) != NULL) {
-		char *linePtr = FskStrStripHeadSpace(line);
-		if (FskStrStr(linePtr, "mlan0")) {
-			char interface[32], status[32], link[32], level[32], noise[32];
-			level[0] = 0;
-			sscanf(linePtr, "%s %s %s %s %s", interface, status, link, level, noise);
-			if (FskStrLen(level)) {
-				snprintf(response, responseSize, "{\"signal_level\": %ld}", FskStrToNum(level));
-				FskKprWiFiPrintfDebug("LEVEL %s", response);
-				*responseLength = FskStrLen(response);
-				err = kFskErrNone;
-			}
-			break;
-		}
-	}
-
-bail:
+    
+    if (fp != NULL){
+        while (fgets(line, sizeof(line)-1, fp) != NULL) {
+            char *linePtr = FskStrStripHeadSpace(line);
+            // wlan0 for BG3CDP
+            if (FskStrStr(linePtr, "mlan0") || FskStrStr(linePtr, "wlan0")) {
+                char interface[32], status[32], link[32], level[32], noise[32];
+                level[0] = 0;
+                sscanf(linePtr, "%s %s %s %s %s", interface, status, link, level, noise);
+                if (FskStrLen(level)) {
+                    snprintf(response, responseSize, "{\"signal_level\": %ld}", FskStrToNum(level));
+                    FskKprWiFiPrintfDebug("LEVEL %s", response);
+                    *responseLength = FskStrLen(response);
+                    err = kFskErrNone;
+                }
+                break;
+            }
+        }
+    }else{
+        pp = popen("iw dev mlan0 link | grep signal", "r");
+        if (pp != NULL){
+            while (fgets(line, sizeof(line)-1, pp) != NULL){
+                char level[32];
+                level[0] = 0;
+                char *linePtr = FskStrStripHeadSpace(line);
+                sscanf(linePtr, "signal: %s dBm", level);
+                if (FskStrLen(level)){
+                    snprintf(response, responseSize, "{\"signal_level\": %ld}", FskStrToNum(level));
+                    FskKprWiFiPrintfDebug("LEVEL %s", response);
+                    *responseLength = FskStrLen(response);
+                    err = kFskErrNone;
+                }
+            }
+        }
+    }
+    
 	if (fp)
 		fclose(fp);
+    if (pp)
+        pclose(pp);
 	if (err)
 		*responseLength = 0;
 	return err;
@@ -626,6 +698,7 @@ FskErr KprAccessPoint(FskAssociativeArray query, char* request, UInt32 requestSi
 	return kFskErrUnimplemented;
 }
 
+
 FskErr KprWiFiLevel(char* request, char* response, UInt32 responseSize, UInt32 *responseLength)
 {
 	FskStrCopy(response, "{\"signal_level\": -64}");
@@ -635,6 +708,12 @@ FskErr KprWiFiLevel(char* request, char* response, UInt32 responseSize, UInt32 *
 }
 
 FskErr KprWPAReset(FskAssociativeArray query, char* request, UInt32 requestSize, char* response, UInt32 responseSize)
+{
+	response[0] = 0;
+	return kFskErrUnimplemented;
+}
+
+FskErr KprMacAddr(char* request, char* response, UInt32 responseSize, UInt32 *responseLength)
 {
 	response[0] = 0;
 	return kFskErrUnimplemented;
@@ -687,6 +766,7 @@ void KprWiFiInvoke(KprService service, KprMessage message)
 		UInt32 length = 0;
 		FskAssociativeArray query = NULL;
 		FskInstrumentedItemSendMessageDebug(message, kprInstrumentedMessageLibraryBegin, message)
+        // fprintf(stderr, "KprWifiInvoke  name=%s\n", message->parts.name);
 		if (message->parts.query)
 			bailIfError(KprQueryParse(message->parts.query, &query));
 		if (FskStrCompareWithLength("status", message->parts.name, message->parts.nameLength) == 0) {
@@ -744,9 +824,34 @@ void KprWiFiInvoke(KprService service, KprMessage message)
 		else if (FskStrCompareWithLength("level", message->parts.name, message->parts.nameLength) == 0) {
 			bailIfError(KprWiFiLevel(request, response, responseSize, &length));
 		}
+		else if (FskStrCompareWithLength("mac_addr", message->parts.name, message->parts.nameLength) == 0) {
+			bailIfError(KprMacAddr(request, response, responseSize, &length));
+		}
+		else if (FskStrCompareWithLength("p2p_start", message->parts.name, message->parts.nameLength) == 0) {
+            fprintf(stderr, "p2p_start: \n");
+            #ifdef BG3CDP
+			    int ret = system("/data/TVShell/system/wifi.sh p2p_start");
+			    sprintf(response, "{\"status\": %d}", ret);
+            #else
+			    FskStrCopy(response, "{\"status\": \"Error: command unsupported in non-bg3.\"}");
+            #endif
+			length = FskStrLen(response);
+            fprintf(stderr, "p2p_start: response=%s\n", response);
+		}
+		else if (FskStrCompareWithLength("p2p_stop", message->parts.name, message->parts.nameLength) == 0) {
+            #ifdef BG3CDP
+			    int ret = system("/data/TVShell/system/wifi.sh p2p_stop");
+			    sprintf(response, "{\"status\": %d}", ret);
+            #else
+			    FskStrCopy(response, "{\"status\": \"Error: command unsupported in non-bg3.\"}");
+            #endif
+			length = FskStrLen(response);
+            fprintf(stderr, "p2p_stop: response=%s\n", response);
+		}
 		else {
 			BAIL(kFskErrNotFound);
 		}
+        // fprintf(stderr, "KprWifiInvoke  response=%s\n", response);
 		KprMessageSetResponseBody(message, response, length);
 		message->status = length ? 200 : 204;
 	bail:

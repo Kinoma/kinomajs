@@ -1409,6 +1409,7 @@ static FskErr sndChannelGetSampleRate(void *state, void *dummy, UInt32 propertyI
 static FskErr sndChannelGetFlags(void *state, void *dummy, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr sndChannelSetHibernate(void *state, void *dummy, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr sndChannelSetAudioCategory(void *state, void *dummy, UInt32 propertyID, FskMediaPropertyValue property);
+static FskErr sndChannelSetRealTime(void *state, void *dummy, UInt32 propertyID, FskMediaPropertyValue property);
 
 static FskMediaPropertyEntryRecord gSndChannelProperties[] = {
 	{kFskMediaPropertyTRInfo,			kFskMediaPropertyTypeData,		NULL,							sndChannelSetTRInfo},
@@ -1419,6 +1420,7 @@ static FskMediaPropertyEntryRecord gSndChannelProperties[] = {
 	{kFskMediaPropertyFlags,			kFskMediaPropertyTypeInteger,	sndChannelGetFlags,				NULL},
 	{kFskMediaPropertyHibernate,		kFskMediaPropertyTypeBoolean,	NULL,							sndChannelSetHibernate},
 	{kFskMediaPropertyAudioCategory,	kFskMediaPropertyTypeInteger,	NULL,	sndChannelSetAudioCategory},
+	{kFskMediaPropertyRealTime,         kFskMediaPropertyTypeBoolean,	NULL,                           sndChannelSetRealTime},
 	{kFskMediaPropertyUndefined,		kFskMediaPropertyTypeUndefined,	NULL,							NULL}
 };
 
@@ -2698,6 +2700,13 @@ FskErr sndChannelSetAudioCategory(void *state, void *dummy, UInt32 propertyID, F
 	FskSndChannel sndChan = (FskSndChannel)state;
 
 	return FskAudioOutSetProperty(sndChan->audioOut, kFskAudioOutPropertyCategory, property);
+}
+
+FskErr sndChannelSetRealTime(void *state, void *dummy, UInt32 propertyID, FskMediaPropertyValue property)
+{
+	FskSndChannel sndChan = (FskSndChannel)state;
+
+	return FskAudioOutSetProperty(sndChan->audioOut, kFskAudioOutPropertyRealTime, property);
 }
 
 FskErr FskAudioMIMEToFormat(const char *mime, UInt32 *audioFormat)

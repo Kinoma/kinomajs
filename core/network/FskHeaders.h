@@ -67,6 +67,12 @@ extern "C" {
 
 
 enum {
+	kFskHeadersDoNotMergeDuplicates = 1 << 0,
+	kFskHeadersDoNotStripURILeadingSlash = 1 << 1,
+	kFskHeadersNonStandardResponseReasonPhrase = 1 << 2
+};
+
+enum {
 	kFskHeaderTypeUnknown = 0,
 	kFskHeaderTypeRequest = 10,
 	kFskHeaderTypeResponse= 20
@@ -75,6 +81,7 @@ enum {
 typedef struct FskHeaders {
 	Boolean		headersParsed;
 	int			headerType;
+	int			flags;
 
 	char		*method;
 	char		*protocol;
@@ -82,6 +89,7 @@ typedef struct FskHeaders {
 	char		*filename;			// Request pre-parsed
 	FskAssociativeArray	parameters;
 	int			responseCode;		// Response code
+	char		*responseReasonPhrase;
 
 	FskAssociativeArray	theHeaders;
 
@@ -128,6 +136,7 @@ enum {
 FskAPI (char *) FskFindResponse(int code);
 
 FskAPI (int) FskHeaderResponseCode(FskHeaders *headers);
+FskAPI (char*) FskHeaderResponseReasonPhrase(FskHeaders *headers);
 FskAPI (int) FskHeaderType(FskHeaders *headers);
 FskAPI (char*) FskHeaderMethod(FskHeaders *headers);
 FskAPI (UInt32) FskHeaderHTTPVersion(FskHeaders *headers);

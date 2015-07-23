@@ -7816,7 +7816,7 @@ static int decode_cpe(stream *ld, SInt32 *sbr_present_flag, int sf_index ) //cha
 		}
 		;//Error Resilience
 		;//LTP_DEC
-		memcpy(ics2, ics1, sizeof(icstream));
+		FskMemCopy(ics2, ics1, sizeof(icstream));
 	}
 	else {
 		ics1->ms_mask_present = 0;

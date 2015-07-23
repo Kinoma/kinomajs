@@ -2323,6 +2323,53 @@ void KprContainerUpdate(void* it, FskPort port, FskRectangle area)
 
 /* CONTAINER ECMASCRIPT */
 
+#ifdef XS6
+static void KPR_container_iterator(xsMachine *the)
+{
+	xsVars(3);
+	xsVar(0) = xsGet(xsFunction, xsID_iterator);
+	xsVar(1) = xsGet(xsThis, xsID_first);
+	xsVar(2) = xsNewInstanceOf(xsObjectPrototype);
+	xsSet(xsVar(2), xsID_value, xsUndefined);
+	xsSet(xsVar(2), xsID_done, xsTrue);
+	xsResult = xsNewInstanceOf(xsVar(0));
+	xsSet(xsResult, xsID_content, xsVar(1));
+	xsSet(xsResult, xsID_result, xsVar(2));
+}
+
+static void KPR_container_iterator_next(xsMachine *the)
+{
+	xsVars(1);
+	xsVar(0) = xsGet(xsThis, xsID_content);
+	xsResult = xsGet(xsThis, xsID_result);
+	if (xsTest(xsVar(0))) {
+		xsSet(xsResult, xsID_value, xsVar(0));
+		xsSet(xsResult, xsID_done, xsFalse);
+		xsVar(0) = xsGet(xsVar(0) , xsID_next);
+		xsSet(xsThis, xsID_content, xsVar(0));
+	}
+	else {
+		xsSet(xsResult, xsID_value, xsUndefined);
+		xsSet(xsResult, xsID_done, xsTrue);
+	}
+}
+#endif
+
+void KPR_Container_patch(xsMachine *the)
+{
+#ifdef XS6
+	xsVars(5);
+	xsVar(0) = xsGet(xsGet(xsGlobal, xsID_KPR), xsID_container);
+	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_Symbol), xsID_iterator);
+	xsVar(2) = xsNewHostFunction(KPR_container_iterator, 0);
+	xsVar(3) = xsNewInstanceOf(xsObjectPrototype);
+	xsVar(4) = xsNewHostFunction(KPR_container_iterator_next, 0);
+	xsSet(xsVar(3), xsID_next, xsVar(4));
+	xsSet(xsVar(2), xsID_iterator, xsVar(3));
+	xsSetAt(xsVar(0), xsVar(1), xsVar(2));
+#endif
+}
+
 void KPR_Container(xsMachine *the)
 {
 	xsIntegerValue c = xsToInteger(xsArgc);

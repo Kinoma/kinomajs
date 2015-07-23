@@ -45,7 +45,7 @@ static void KprPinsListenerFind(KprPinsListener *it, KprPins pins, KprMessage me
 
 static FskErr KprPinsPollerNew(KprPinsPoller *it, KprPinsListener listener, KprMessage message, FskAssociativeArray query);
 static void KprPinsPollerDispose(KprPinsPoller self, KprPinsListener listener);
-static void KprPinsPollerFind(KprPinsPoller *it, KprPinsListener listener, KprMessage message);
+static void KprPinsPollerFind(KprPinsPoller *it, KprPinsListener listener, KprMessage message, SInt32 id);
 static void KprPinsPollerStep(FskTimeCallBack callback, const FskTime time, void *param);
 
 static FskErr exceptionToFskErr(xsMachine *the);
@@ -139,7 +139,7 @@ void KprPinsInvoke(KprService service, KprMessage message)
                     }
                     {
 						xsTry {
-							(void)xsCall0(listener->pins, xsID("close"));
+							(void)xsCall0(xsAccess(listener->pins), xsID("close"));
 						}
 						xsCatch {
 							err = exceptionToFskErr(the);
@@ -167,13 +167,87 @@ void KprPinsInvoke(KprService service, KprMessage message)
 							xsResult = xsDemarshall(message->request.body);
 						else
 							xsResult = xsNewInstanceOf(xsObjectPrototype);
-						(void)xsCall1(listener->pins, xsID("configure"), xsResult);
+						(void)xsCall1(xsAccess(listener->pins), xsID("configure"), xsResult);
 					}
 					xsCatch {
 						err = exceptionToFskErr(the);
 					}
 				}
 				xsEndHostSandboxCode();
+			}
+		}
+		else if (!FskStrCompareWithLength(message->parts.path, "preconfigure", message->parts.pathLength)) {
+			if (listener)
+				err = kFskErrIsBusy;
+			else {
+				err = KprPinsListenerNew(&listener, self, message);
+            }
+			if (!err) {
+				xsBeginHostSandboxCode(listener->the, NULL);
+				{
+					KprMessageScriptTarget target = (KprMessageScriptTarget)message->stream;
+
+					xsTry {
+						if (message->request.body && (message->request.size == 0xFFFFFFFF))
+							xsResult = xsDemarshall(message->request.body);
+						else
+							xsResult = xsNewInstanceOf(xsObjectPrototype);
+						(void)xsCall1(xsAccess(listener->pins), xsID("preconfigure"), xsResult);		//@@ assumes modify in place
+						if (target)
+							target->result = xsMarshall(xsResult);
+					}
+					xsCatch {
+						err = exceptionToFskErr(the);
+					}
+				}
+				xsEndHostSandboxCode();
+				KprPinsListenerDispose(listener, self);
+			}
+		}
+		else if (!FskStrCompareWithLength(message->parts.path, "configuration", message->parts.pathLength)) {
+			if (listener) {
+				xsBeginHostSandboxCode(listener->the, NULL);
+				{
+					KprMessageScriptTarget target = (KprMessageScriptTarget)message->stream;
+
+					xsTry {
+						xsResult = xsCall0(xsAccess(listener->pins), xsID("configuration"));
+						if (target)
+							target->result = xsMarshall(xsResult);
+					}
+					xsCatch {
+						err = exceptionToFskErr(the);
+					}
+				}
+				xsEndHostSandboxCode();
+			}
+			else
+				err = kFskErrNotFound;
+		}
+		else if (!FskStrCompareWithLength(message->parts.path, "metadata/", 9)) {
+			Boolean disposeListener = false;
+			if (!listener) {
+				err = KprPinsListenerNew(&listener, self, message);
+				disposeListener = (kFskErrNone == err);
+            }
+			if (!err) {
+				xsBeginHostSandboxCode(listener->the, NULL);
+				{
+					KprMessageScriptTarget target = (KprMessageScriptTarget)message->stream;
+
+					xsTry {
+						xsResult = xsString(message->parts.path);
+						xsResult = xsCall1(xsAccess(listener->pins), xsID("metadata"), xsResult);
+						if (target)
+							target->result = xsMarshall(xsResult);
+					}
+					xsCatch {
+						err = exceptionToFskErr(the);
+					}
+				}
+				xsEndHostSandboxCode();
+				if (disposeListener)
+					KprPinsListenerDispose(listener, self);
 			}
 		}
 		else if (!FskStrCompareWithLength(message->parts.path, "clearAllBreakpoints", message->parts.pathLength)) {
@@ -283,12 +357,13 @@ void KprPinsInvoke(KprService service, KprMessage message)
 					FskAssociativeArray query = NULL;
 					KprMessageScriptTarget target = (KprMessageScriptTarget)message->stream;
 					char* value;
+					SInt32 id;
 					xsVars(2);
 					{
 						xsTry {
 							if (message->parts.query)
 								xsThrowIfFskErr(KprQueryParse(message->parts.query, &query));
-							xsResult = xsGet(listener->pins, xsID("behaviors"));
+							xsResult = xsGet(xsAccess(listener->pins), xsID("behaviors"));
 							xsResult = xsGetAt(xsResult, xsStringBuffer(message->parts.path + 1, message->parts.pathLength - message->parts.nameLength - 2));
 							if (!xsTest(xsResult))
 								xsThrowDiagnosticIfFskErr(kFskErrNotFound, "BLL %s not found when invoking function %s", xsToString(xsStringBuffer(message->parts.path + 1, message->parts.pathLength - message->parts.nameLength - 2)), xsToString(xsStringBuffer(message->parts.name, message->parts.nameLength)));
@@ -299,14 +374,18 @@ void KprPinsInvoke(KprService service, KprMessage message)
 								xsVar(1) = xsDemarshall(message->request.body);
 						
 							value = FskAssociativeArrayElementGetString(query, "repeat");
+							if (value) {
+								char *idStr = FskAssociativeArrayElementGetString(query, "id");
+								id = idStr ? FskStrToNum(idStr) : 0;
+							}
 							if (!FskStrCompare(value, "on")) {
-								KprPinsPollerFind(&poller, listener, message);
+								KprPinsPollerFind(&poller, listener, message, id);
 								if (poller)
 									xsError(kFskErrIsBusy);
 								xsThrowIfFskErr(KprPinsPollerNew(&poller, listener, message, query));
 							}
 							else if (!FskStrCompare(value, "off")) {
-								KprPinsPollerFind(&poller, listener, message);
+								KprPinsPollerFind(&poller, listener, message, id);
 								if (!poller)
 									xsError(kFskErrNotFound);
 								KprPinsPollerDispose(poller, listener);
@@ -429,9 +508,11 @@ FskErr KprPinsListenerNew(KprPinsListener *it, KprPins pins, KprMessage message)
 		xsResult = xsGet(xsGlobal, xsID("KPR"));
 		for (i = 0; i < kprsCount; i++)
 			xsDelete(xsResult, xsID(kprs[i]));
+#ifndef XS6
 		xsResult = xsNewHostFunction(KPR_require, 1);
 		xsSet(xsResult, xsID("uri"), xsString(gShell->url));
 		xsNewHostProperty(xsGlobal, xsID("require"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
+#endif
 		self->pins = xsGet(xsGlobal, xsID("PINS"));
         xsCall1_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(gBreakOnException));
         if (gBreakOnLaunch)
@@ -536,6 +617,10 @@ FskErr KprPinsPollerNew(KprPinsPoller *it, KprPinsListener listener, KprMessage 
 	if (value)
 		bailIfError(KprURLMerge(listener->referrer, value, &self->url));
 		
+	value = FskAssociativeArrayElementGetString(query, "id");
+	if (value)
+		self->id = FskStrToNum(value);
+
 	value = FskAssociativeArrayElementGetString(query, "timer");
 	if (value) {
 		xsVar(0) = xsGet(xsResult, xsID(value));
@@ -602,12 +687,13 @@ void KprPinsPollerDispose(KprPinsPoller self, KprPinsListener listener)
 	}
 }
 
-void KprPinsPollerFind(KprPinsPoller *it, KprPinsListener listener, KprMessage message)
+void KprPinsPollerFind(KprPinsPoller *it, KprPinsListener listener, KprMessage message, SInt32 id)
 {
 	KprPinsPoller poller = FskListGetNext(listener->pollers, NULL);
 	*it = NULL;
 	while (poller) {
-		if (!FskStrCompareWithLength(message->parts.path, poller->path, message->parts.pathLength))
+		if ((!FskStrCompareWithLength(message->parts.path, poller->path, message->parts.pathLength)) &&
+			(id == poller->id))
 			break;
 		poller = FskListGetNext(listener->pollers, poller);
 	}
@@ -624,10 +710,10 @@ void KprPinsPollerRun(KprPinsPoller self)
 		if (self->parametersAlways > 0) {
 			if (self->parametersAlways == 1)
 				self->parametersAlways = 0;
-			xsResult = xsCallFunction1(self->function, self->instance, self->parameters);
+			xsResult = xsCallFunction1(xsAccess(self->function), xsAccess(self->instance), xsAccess(self->parameters));
 		}
 		else
-			xsResult = xsCallFunction0(self->function, self->instance);
+			xsResult = xsCallFunction0(xsAccess(self->function), xsAccess(self->instance));
 
 		if (self->url && (xsTypeOf(xsResult) != xsUndefinedType)) {
 			KprMessageNew(&message, self->url);

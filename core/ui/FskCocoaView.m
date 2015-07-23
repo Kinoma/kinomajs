@@ -226,16 +226,41 @@ const float kFskCocoaViewCornerRadius = 8;
 - (void)scrollWheel:(NSEvent *)event
 {
 	FskEvent	fskEvent;
-	float		deltaY;
+	float		deltaX, deltaY;
+	int			touched;
+	Boolean		precise;
 
 	if (_fskWindow == NULL) return;
-	deltaY = [event deltaY];
-
+	deltaX = [event scrollingDeltaX];
+	deltaY = [event scrollingDeltaY];
+	precise = [event hasPreciseScrollingDeltas];
+	
+	if (precise)
+		touched = ([event phase] & ~(NSEventPhaseEnded | NSEventPhaseCancelled)) != 0;
+	else {
+		deltaX *= 5;
+		deltaY *= 5;
+		touched = true;
+	}
 	// create and queue the scroll wheel event
-	if (deltaY && FskEventNew(&fskEvent, kFskEventMouseWheel, NULL, kFskEventModifierNotSet) == kFskErrNone)
+	if (FskEventNew(&fskEvent, kFskEventMouseWheel, NULL, kFskEventModifierNotSet) == kFskErrNone)
 	{
-		FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDelta, sizeof(deltaY), &deltaY);
+		FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaX, sizeof(deltaX), &deltaX);
+		FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaY, sizeof(deltaY), &deltaY);
+		FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelTouched, sizeof(touched), &touched);
 		FskWindowEventQueue(_fskWindow, fskEvent);
+	}
+	if (!precise) {
+		deltaX = 0;
+		deltaY = 0;
+		touched = false;
+		if (FskEventNew(&fskEvent, kFskEventMouseWheel, NULL, kFskEventModifierNotSet) == kFskErrNone)
+		{
+			FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaX, sizeof(deltaX), &deltaX);
+			FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaY, sizeof(deltaY), &deltaY);
+			FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelTouched, sizeof(touched), &touched);
+			FskWindowEventQueue(_fskWindow, fskEvent);
+		}
 	}
 }
 

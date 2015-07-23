@@ -122,6 +122,11 @@ bail:
 	return err;
 }
 
+UInt16 KprWebSocketServerGetPort(KprWebSocketServer self)
+{
+	return self->server->port;
+}
+
 static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, void *refcon) {
 	KprWebSocketServer self = refcon;
 	FskErr err = kFskErrNone;
@@ -309,7 +314,7 @@ static void KprWebSocketServerPrepareResponseHeaders(KprWebSocketServerRequest r
 
 static void KprWebSocketServerGenerateErrorResponse(KprWebSocketServerRequest request, int statusCode UNUSED)
 {
-	FskHeaders *responseHeaders = request->responseHeaders;
+//	FskHeaders *responseHeaders = request->responseHeaders;
 
 	// TODO
 }

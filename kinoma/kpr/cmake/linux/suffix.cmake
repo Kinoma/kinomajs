@@ -14,7 +14,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-if (NOT ${CMAKE_BUILD_TYPE} STREQUAL Debug)
+if (${BUILD_TYPE} STREQUAL Release)
 	add_custom_command(
 		TARGET ${KPR_BINARY_NAME}
 		POST_BUILD
@@ -27,10 +27,10 @@ if (NOT ${TARGET_SUBPLATFORM} STREQUAL "/gtk")
 	set(COMPRESS_COMMAND ${CMAKE_COMMAND} -E tar cfz ${CMAKE_PROJECT_NAME}.tgz ${CMAKE_PROJECT_NAME})
 endif ()
 
-add_custom_command(
-	TARGET ${KPR_BINARY_NAME}
-	POST_BUILD
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/${KPR_BINARY_NAME} ${BUILD_BIN}/${MANIFEST_NAME}
+add_custom_target(
+	Package ALL
+	DEPENDS ${KPR_BINARY_NAME} ${PROJECT_DEPENDS}
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/${KPR_BINARY_NAME} ${BUILD_BIN}/${KPR_BINARY_NAME}
 	COMMAND ${COMPRESS_COMMAND}
 	WORKING_DIRECTORY ${BUILD_BIN}/../
 	)

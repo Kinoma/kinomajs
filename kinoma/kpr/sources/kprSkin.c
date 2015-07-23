@@ -166,13 +166,13 @@ FskBitmap KprTextureGetBitmap(KprTexture self, FskPort port, Boolean* owned)
 			FskInt64 size;
 			bailIfError(KprURLToPath(self->url, &path));
 			err = FskFileMap(path, &data, &size, 0, &map);
-            bailIfErrorWithDiagnostic(err, self->the, "Error %s opening texture %s\n", FskInstrumentationGetErrorString(err), FskInstrumentationCleanPath(path));
+            bailIfErrorWithDiagnostic(err, self->context->the, "Error %s opening texture %s\n", FskInstrumentationGetErrorString(err), FskInstrumentationCleanPath(path));
 			if (!self->mime) {
 				err = FskImageDecompressSniffForMIME(data, (UInt32)size, NULL, self->url, &self->mime);
-                bailIfErrorWithDiagnostic(err, self->the, "Unrecognized texture image type %s. Error %s.\n", path, FskInstrumentationGetErrorString(err));
+                bailIfErrorWithDiagnostic(err, self->context->the, "Unrecognized texture image type %s. Error %s.\n", path, FskInstrumentationGetErrorString(err));
 			}
 			err = FskImageDecompressDataWithOrientation(data, (UInt32)size, self->mime, NULL, 0, 0, NULL, NULL, &bitmap);
-            bailIfErrorWithDiagnostic(err, self->the, "Error %s decompressing texture %s\n", FskInstrumentationGetErrorString(err), FskInstrumentationCleanPath(path));
+            bailIfErrorWithDiagnostic(err, self->context->the, "Error %s decompressing texture %s\n", FskInstrumentationGetErrorString(err), FskInstrumentationCleanPath(path));
 			KprTextureSetBitmap(self, bitmap);
 		}
 		else if (self->content) {
@@ -592,6 +592,14 @@ void KPR_Texture(xsMachine *the)
 		xsThrowIfFskErr(KprTextureNew(&self, xsGetContext(the), NULL, NULL, NULL, content, scale));
 	}
 	kprVolatileConstructor(KPR_Texture);
+}
+
+void KPR_texture_get_content(xsMachine *the)
+{
+	KprTexture self = xsGetHostData(xsThis);
+	KprContent content = self->content;
+	if (content)
+		xsResult = kprContentGetter(content);
 }
 
 void KPR_texture_get_effect(xsMachine *the)

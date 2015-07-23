@@ -53,13 +53,7 @@
 	#include "FskGLBlit.h"
 #endif
 
-#if SUPPORT_INSTRUMENTATION
 #include "FskPlatformImplementation.h"
-FskInstrumentedTypeRecord gmediaplayerreaderTypeInstrumentation = {NULL, sizeof(FskInstrumentedTypeRecord), "mediaplayerreader"};
-#define klog(...)  do { FskInstrumentedTypePrintfDebug  (&gmediaplayerreaderTypeInstrumentation, __VA_ARGS__); } while(0)
-#else
-#define klog(...)
-#endif
 
 #if TARGET_OS_WIN32
 	FskErr FskMemPtrNewLarge(UInt32 size, FskMemPtr *mem);
@@ -125,7 +119,6 @@ void readerMediaPlayerInitializeJumpTable(FskMediaPlayerModule module)
 FskErr readerMediaPlayerCanHandle(UInt32 dataSourceType, const char *mime, UInt32 flags)
 {
 	FskErr err = FskMediaReaderNew(NULL, mime, NULL, NULL, NULL, NULL);
-	klog( "into readerMediaPlayerCanHandle" );
 #if FSK_APPLICATION_PLAYDEV || FSK_APPLICATION_PLAY
 	if (kFskErrNone != err) {
 		if (0 == FskStrCompare(mime, "application/vnd.apple.mpegurl"))
@@ -138,7 +131,6 @@ FskErr readerMediaPlayerCanHandle(UInt32 dataSourceType, const char *mime, UInt3
 FskErr readerMediaPlayerSniff(const unsigned char *data, UInt32 dataSize, FskHeaders *headers, const char *uri, char **mime)
 {
 	FskErr err = FskMediaReaderSniffForMIME(data, dataSize, headers, uri, mime);
-	klog( "into readerMediaPlayerSniff" );
 #if FSK_APPLICATION_PLAYDEV || FSK_APPLICATION_PLAY
 	if ((kFskErrNone != err) && data && dataSize) {
 		if ((NULL != FskStrStr((const char*)data, "#EXT-X-STREAM-INF:PROGRAM-ID")) ||
@@ -588,7 +580,6 @@ FskErr readerMediaPlayerModuleNew(FskMediaPlayerModule module, const void *dataS
 	FskErr err = kFskErrNone;
 	readerMediaPlayerModule state;
 
-	klog( "into readerMediaPlayerModuleNew" );
 	// allocate state
 	err = FskMemPtrNewClear(sizeof(readerMediaPlayerModuleRecord), &state);
 	BAIL_IF_ERR(err);
@@ -716,7 +707,6 @@ void readerMediaPlayerModuleDispose(void *stateIn, FskMediaPlayerModule module)
 {
 	readerMediaPlayerModule state = stateIn;
 
-	klog( "%x, into readerMediaPlayerModuleDispose", (int)stateIn );
 	if (state) {
 		FskTimeCallbackDispose(state->refillTimer);
 		FskTimeCallbackDispose(state->bufferingCallback);
@@ -782,7 +772,6 @@ FskErr readerMediaPlayerModuleSetTime(void *stateIn, FskMediaPlayerModule module
 	readerMediaPlayerModule state = stateIn;
 	Boolean needsUpdate;
 
-	klog( "%x, into readerMediaPlayerModuleSetTime", (int)stateIn );
 	if (state->readerRunning) {
 		FskMediaReaderStop(state->reader);
 		state->readerRunning = false;
@@ -806,7 +795,6 @@ FskErr readerMediaPlayerModuleGetTime(void *stateIn, FskMediaPlayerModule module
 {
 	readerMediaPlayerModule state = stateIn;
 
-	klog( "%x, into readerMediaPlayerModuleGetTime", (int)stateIn );
 	if (module->playState < kFskMediaPlayerStatePlaying) {
 		*time = (FskSampleTime)(0.5 + ((double)state->zeroMovieTime) / scale);
 	}
@@ -831,7 +819,6 @@ FskErr readerMediaPlayerModuleStart(void *stateIn, FskMediaPlayerModule module)
 	FskMediaPropertyValueRecord property;
 	UInt32 playerState = kFskMediaPlayerStateStopped;
 
-	klog( "%x, into readerMediaPlayerModuleStart", (int)stateIn );
 	if (kFskErrNone != state->error)
 		return kFskErrBadState;
 
@@ -1110,7 +1097,6 @@ FskErr readerMediaPlayerModuleStop(void *stateIn, FskMediaPlayerModule module)
 	readerMediaPlayerModule state = stateIn;
 	readerMediaPlayerTrack track;
 
-	klog( "%x, into readerMediaPlayerModuleStop", (int)stateIn );
 	state->playing = false;
 	state->doRestart = false;
 
@@ -1200,7 +1186,6 @@ FskErr readerMediaPlayerModuleUpdate(void *stateIn, FskMediaPlayerModule module)
 	Boolean didDraw = false;
 	Boolean doCheckStart = false;
 
-	klog( "%x, into readerMediaPlayerModuleUpdate", (int)stateIn );
 	if (NULL == port)
 		return kFskErrNone;
 
@@ -1363,7 +1348,6 @@ bail:
 FskErr readerMediaPlayerModuleGetMetadata(void *stateIn, FskMediaPlayerModule module, const char *metaDataType, UInt32 index, FskMediaPropertyValue meta, UInt32 *flags)
 {
 	readerMediaPlayerModule state = stateIn;
-	klog( "%x, into readerMediaPlayerModuleGetMetadata", (int)stateIn );
 	return FskMediaReaderGetMetadata(state->reader, metaDataType, index, meta, flags);
 }
 
@@ -1376,7 +1360,6 @@ FskErr readerMediaPlayerModuleGetVideoBitmap(void *stateIn, FskMediaPlayerModule
 	FskRectangleRecord r, natural;
 	readerMediaPlayerTrack track;
 
-	klog( "%x, into readerMediaPlayerModuleGetVideoBitmap", (int)stateIn );
 	FskMediaPlayerGetTime(module->player, (float)state->timeScale, &time);
 
 	if (-1 != state->module->duration) {
@@ -1448,7 +1431,6 @@ FskErr readerMediaPlayerModulePropertyChanged(void *stateIn, FskMediaPlayerModul
 	readerMediaPlayerModule state = stateIn;
 	readerMediaPlayerTrack track;
 
-	klog( "%x, into readerMediaPlayerModulePropertyChanged", (int)stateIn );
 	if (kFskMediaPlayerPropertyBounds == property) {
 		FskEventDispose(state->updateEvent);
 		state->updateEvent = NULL;
@@ -1503,7 +1485,6 @@ FskErr readerMediaPlayerModuleGetTrack(void *stateIn, FskMediaPlayerModule modul
 	readerMediaPlayerModule state = stateIn;
 	readerMediaPlayerTrack track;
 
-	klog( "%x, into readerMediaPlayerModuleGetTrack", (int)stateIn );
 	for (track = state->tracks; NULL != track; track = track->next) {
 		if (0 == index--)
 			break;
@@ -1518,7 +1499,6 @@ FskErr readerMediaPlayerModuleTrackHasProperty(void *stateIn, FskMediaPlayerModu
 {
 	readerMediaPlayerTrack track = trackIn;
 
-	klog( "%x, into readerMediaPlayerModuleTrackHasProperty", (int)stateIn );
 	switch (propertyID) {
 		case kFskMediaPropertyCrop:
 		case kFskMediaPropertyContrast:
@@ -1544,7 +1524,6 @@ FskErr readerMediaPlayerModuleTrackSetProperty(void *stateIn, FskMediaPlayerModu
 	readerMediaPlayerTrack track = trackIn;
 	FskErr err = kFskErrNone;
 
-	klog( "%x, into readerMediaPlayerModuleTrackSetProperty", (int)stateIn );
 	switch (propertyID) {
 		case kFskMediaPropertyCrop:
 			if (kFskMediaPropertyTypeRectangle != property->type)
@@ -1589,7 +1568,6 @@ FskErr readerMediaPlayerModuleTrackGetProperty(void *stateIn, FskMediaPlayerModu
 {
 	readerMediaPlayerTrack track = trackIn;
 
-	klog( "%x, into readerMediaPlayerModuleTrackGetProperty", (int)stateIn );
 	switch (propertyID) {
 		case kFskMediaPropertyCrop:
 			if (!track->hasCrop)
@@ -1611,7 +1589,6 @@ FskErr readerMediaPlayerModuleHasProperty(void *stateIn, FskMediaPlayerModule mo
 	readerMediaPlayerModule state = stateIn;
 	FskErr err = kFskErrNone;
 
-	klog( "%x, into readerMediaPlayerModuleHasProperty", (int)stateIn );
 	switch (propertyID) {
 		case kFskMediaPropertyPlayRate:
 			if (get) *get = false;
@@ -1723,7 +1700,6 @@ FskErr readerMediaPlayerModuleSetProperty(void *stateIn, FskMediaPlayerModule mo
 	readerMediaPlayerTrack track;
 	FskMediaPropertyValueRecord p;
 
-	klog( "%x, into readerMediaPlayerModuleSetProperty", (int)stateIn );
 	switch (propertyID) {
 		case kFskMediaPropertyPlayRate:
 			if (kFskMediaPropertyTypeFloat != property->type) {
@@ -1879,7 +1855,6 @@ FskErr readerMediaPlayerModuleGetProperty(void *stateIn, FskMediaPlayerModule mo
 	readerMediaPlayerModule state = stateIn;
 	FskErr err = kFskErrNone;
 
-	klog( "%x, into readerMediaPlayerModuleGetProperty", (int)stateIn );
 	switch (propertyID) {
 		case kFskMediaPropertyDuration:
 			err = FskMediaReaderGetProperty(state->reader, propertyID, property);
@@ -3236,14 +3211,12 @@ FskErr decompressVideoFrames(readerMediaPlayerTrack track)
         for (pixelFormat.value.integers.count = 0; 0 != preferredYUVFormats[pixelFormat.value.integers.count]; pixelFormat.value.integers.count++)
             ;
 		pixelFormat.type = kFskMediaPropertyTypeUInt32List;
-		klog( "preferredYUVFormats, total: %d==> %d, %d, %d, %d, %d", pixelFormat.value.integers.count, (int)preferredYUVFormats[0],(int)preferredYUVFormats[1],(int)preferredYUVFormats[2],(int)preferredYUVFormats[3],(int)preferredYUVFormats[4] );
 		FskImageDecompressSetProperty(track->video.deco, kFskMediaPropertyPixelFormat, &pixelFormat);
 		FskMemPtrDispose(preferredYUVFormats);
 
         track->video.maxFramesToQueue = kMaxFramesToQueue;
 		if ((kFskErrNone == FskImageDecompressGetProperty(track->video.deco, kFskMediaPropertyMaxFramesToQueue, &framesToQueue)) && (framesToQueue.type == kFskMediaPropertyTypeInteger))
             track->video.maxFramesToQueue = (UInt32)framesToQueue.value.integer;
-		klog( "got track->video.maxFramesToQueue: %d", (int)track->video.maxFramesToQueue);
 	}
 
 	if (track->video.framesAtDecompressor >= track->video.maxFramesToQueue)
@@ -3412,8 +3385,6 @@ void videoTrackDecompressComplete(FskImageDecompress deco, void *refcon, FskErr 
 		FskBitmapDispose(bits);
 		return;
 	}
-
-	klog( "into videoTrackDecompressComplete, bits: %x, frame->decodeTime: %d\n", (int)bits, (int)frame->decodeTime);
 
 	track = frame->track;
 
@@ -4446,6 +4417,12 @@ FskErr httpHeadersReceived(FskHTTPClientRequest request, FskHeaders *responseHea
 	// allocate the download scratch file
 	if (state->http.isDownload && (NULL == state->spool.fref)) {
 		char *tempDir = NULL, *tempPath = NULL, *contentLength;
+
+		if (0 == FskStrCompare(FskEnvironmentGet("mediaplayerreader-downloadandplay"), "never")) {
+			state->http.isDownload = false;
+			state->http.isDownloadFailed = true;
+			goto fail;
+		}
 
 		if (NULL == state->http.downloadPath) {
 			err = FskDirectoryGetSpecialPath(kFskDirectorySpecialTypeTemporary, true, NULL, &tempDir);

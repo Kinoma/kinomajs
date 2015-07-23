@@ -65,6 +65,10 @@ struct KprHTTPServerStruct {
 	UInt32 authorityLength;
 	FskHTTPServer server;
 	FskHTTPServerCallbackVectors vectors;
+	KprHandler handler;
+	xsMachine* the;
+	xsSlot slot;
+	xsIndex* code;
 	FskInstrumentedItemDeclaration
 };
 
@@ -86,7 +90,7 @@ struct KprHTTPTargetFileStruct {
 };
 
 struct KprHTTPTargetStruct {
-	KprHTTPTarget next;
+// 	KprHTTPTarget next;
 	KprMessage message;
 	Boolean processed;
 	FskHTTPServerRequest request;
@@ -105,6 +109,8 @@ static void KprHTTPTargetMessagePrepareUpload(KprMessage message, KprHTTPTargetF
 static void KprHTTPTargetMessageRequestCallback(KprMessage message, void* it);
 static FskErr KprHTTPTargetMessageRequestBodyCallback(KprHTTPTarget self, KprMessage message, char *data, UInt32 size, UInt32 *consumed);
 static FskErr KprHTTPTargetMessageResponseBodyCallback(KprHTTPTarget self, KprMessage message, char *data, UInt32 size, UInt32 *generated);
+
+static void KprHTTPServerCallHandler(KprHTTPServer self, char* function, KprMessage message);
 
 //--------------------------------------------------
 // KprHTTPServer
@@ -126,7 +132,7 @@ FskErr KprHTTPServerNew(KprHTTPServer* it, char* authority, char* path, UInt32 p
 	KprHTTPServer server = NULL, previous = NULL;
 
 	for (server = FskListGetNext(gKprHTTPServerList, NULL); server; server = FskListGetNext(gKprHTTPServerList, server)) {
-		if (FskStrCompareCaseInsensitive(server->authority, authority) == 0)
+		if (authority && FskStrCompareCaseInsensitive(server->authority, authority) == 0)
 			return kFskErrDuplicateElement;
 		if (preferredPort && (server->port == preferredPort))
 			return kFskErrDuplicateElement;
@@ -137,9 +143,11 @@ FskErr KprHTTPServerNew(KprHTTPServer* it, char* authority, char* path, UInt32 p
 	}
 	bailIfError(KprMemPtrNewClear(sizeof(KprHTTPServerRecord), it));
 	self = *it;
-	self->authority = FskStrDoCopy(authority);
-	bailIfNULL(self->authority);
-	self->authorityLength = FskStrLen(authority);
+	if (authority) {
+		self->authority = FskStrDoCopy(authority);
+		bailIfNULL(self->authority);
+		self->authorityLength = FskStrLen(authority);
+	}
 	if (preferredPort) {
 		self->port = preferredPort;
 		err = FskHTTPServerCreate(self->port, NULL, &self->server, self, certs ? true : false);
@@ -166,7 +174,8 @@ FskErr KprHTTPServerNew(KprHTTPServer* it, char* authority, char* path, UInt32 p
 	else
 		FskListPrepend(&gKprHTTPServerList, self);
 	FskInstrumentedItemNew(self, NULL, &KprHTTPServerInstrumentation);
-	FskInstrumentedItemPrintfVerbose(self, "map ip:%d TO %s", self->port, authority);
+	if (authority)
+		FskInstrumentedItemPrintfVerbose(self, "map ip:%d TO %s", self->port, authority);
 	return err;
 bail:
 	KprHTTPServerDispose(self);
@@ -236,7 +245,6 @@ FskErr KprHTTPServerRequestConditionCallback(FskHTTPServerRequest request, UInt3
 	KprHTTPTarget target = refCon;
 	KprMessage message = (target) ? target->message : NULL;
 	KprURLPartsRecord parts;
-	char* url = NULL;
 	
 	switch (condition) {
 		case kFskHTTPConditionConnectionInitialized:
@@ -282,7 +290,9 @@ FskErr KprHTTPServerRequestConditionCallback(FskHTTPServerRequest request, UInt3
 #endif
                 message->request.callback = KprHTTPTargetMessageRequestCallback; // @@
                 message->request.target = target; // @@
-				if (!FskStrCompare(server->authority, gShell->id))
+				if (!server->authority)
+					KprHTTPServerCallHandler(server, "onAccept", message);
+				else if (!FskStrCompare(server->authority, gShell->id))
 					KprContextAccept(gShell, message);
 				else {
 					KprContentLink link = gShell->applicationChain.first;
@@ -320,8 +330,10 @@ FskErr KprHTTPServerRequestConditionCallback(FskHTTPServerRequest request, UInt3
 				message->usage++; // request
 				FskListAppend(&gShell->messages, message);
 				message->usage++; // message queue
-
-				if (!FskStrCompare(server->authority, gShell->id))
+				
+				if (!server->authority)
+					KprHTTPServerCallHandler(server, "onInvoke", message);
+				else if (!FskStrCompare(server->authority, gShell->id))
 					KprContextInvoke(gShell, message);
 				else {
 					KprContentLink link = gShell->applicationChain.first;
@@ -387,8 +399,10 @@ FskErr KprHTTPServerRequestConditionCallback(FskHTTPServerRequest request, UInt3
 	}
 
 bail:
-	if (url)
-		FskMemPtrDispose(url);
+	if (err == kFskErrMemFull) {
+		KprHTTPTargetDispose(target);
+		KprMessageDispose(message);
+	}
 	return err;
 }
 
@@ -435,20 +449,22 @@ bail:
 void KprHTTPTargetDispose(void* it)
 {
 	KprHTTPTarget self = it;
-	KprHTTPTargetFile file = self->upload;
-	if (file) {
-		FskMemPtrDisposeAt(&file->path);
-		FskFileClose(file->file);
+	if (self) {
+		KprHTTPTargetFile file = self->upload;
+		if (file) {
+			FskMemPtrDisposeAt(&file->path);
+			FskFileClose(file->file);
+		}
+		file = self->download;
+		if (file) {
+			FskMemPtrDisposeAt(&file->path);
+			FskFileClose(file->file);
+		}
+		FskMemPtrDispose(self->upload);
+		FskMemPtrDispose(self->download);
+		FskInstrumentedItemDispose(self);
+		FskMemPtrDispose(self);
 	}
-	file = self->download;
-	if (file) {
-		FskMemPtrDisposeAt(&file->path);
-		FskFileClose(file->file);
-	}
-	FskMemPtrDispose(self->upload);
-	FskMemPtrDispose(self->download);
-	FskInstrumentedItemDispose(self);
-	FskMemPtrDispose(self);
 }
 
 void KprHTTPTargetMessageRequestCallback(KprMessage message, void* it)
@@ -721,8 +737,8 @@ void KprNetworkInterfaceAdd(FskNetInterface iface)
 		local = KprNetworkInterfaceIsLocal(existing);
 		bailIfError(FskMemPtrNewClear(45 + FskStrLen(existing->name) + FskStrLen(ip) + 25, &buffer));
 		sprintf(buffer, "xkpr:///network/interface/add?name=%s&ip=%s&MAC=%02x:%02x:%02x:%02x:%02x:%02x&local=%d", existing->name, ip, MAC[0], MAC[1], MAC[2], MAC[3], MAC[4], MAC[5], local);
-		KprMessageNew(&message, buffer);
-		if (message) KprMessageNotify(message);
+		bailIfError(KprMessageNew(&message, buffer));
+		KprMessageNotify(message);
 	}
 bail:
 	FskMemPtrDispose(buffer);
@@ -790,8 +806,8 @@ void KprNetworkInterfaceNotifyConnect(Boolean setup)
 	}
 	if (setup)
 		FskStrCat(buffer, "&setup=true");
-	KprMessageNew(&message, buffer);
-	if (message) KprMessageNotify(message);
+	if (KprMessageNew(&message, buffer) == kFskErrNone)
+		KprMessageNotify(message);
 }
 
 void KprNetworkInterfaceRemove(FskNetInterface iface)
@@ -813,8 +829,8 @@ void KprNetworkInterfaceRemove(FskNetInterface iface)
 		local = KprNetworkInterfaceIsLocal(existing);
 		bailIfError(FskMemPtrNewClear(51 + FskStrLen(existing->name) + FskStrLen(ip), &buffer));
 		sprintf(buffer, "xkpr:///network/interface/remove?ip=%s&name=%s&local=%d", ip, existing->name, local);
-		KprMessageNew(&message, buffer);
-		if (message) KprMessageNotify(message);
+		bailIfError(KprMessageNew(&message, buffer));
+		KprMessageNotify(message);
 	}
 bail:
 	FskNetInterfaceDescriptionDispose(existing);
@@ -1137,3 +1153,166 @@ void KPR_system_get_SSID(xsMachine *the)
 	}
 #endif
 }
+
+//--------------------------------------------------
+// KPR HTTP Server
+//--------------------------------------------------
+
+void KPR_HTTP_Server(xsMachine *the)
+{
+	KprHTTPServer self = NULL;
+	static UInt32 serverIndex = 0;
+	xsVars(2);
+	xsEnterSandbox();
+
+	{
+		xsTry {
+			UInt32 port = 0;
+			FskSocketCertificateRecord* certs = NULL;
+			FskSocketCertificateRecord certsRecord = {
+				NULL, 0,
+				NULL,
+				NULL,
+				NULL, 0,
+			};
+			if (xsIsInstanceOf(xsArg(0), xsObjectPrototype) && xsHas(xsArg(0), xsID("port")))
+				port = xsToInteger(xsGet(xsArg(0), xsID("port")));
+			if (xsIsInstanceOf(xsArg(0), xsObjectPrototype) && xsHas(xsArg(0), xsID("ssl"))) {
+				xsVar(0) = xsGet(xsArg(0), xsID("ssl"));
+				if (xsTest(xsVar(0))) {
+					if (xsTypeOf(xsVar(0)) == xsBooleanType) {
+						certs = &certsRecord;
+					}
+					else if (xsIsInstanceOf(xsArg(0), xsObjectPrototype)) {
+						certs = &certsRecord;
+						if (xsHas(xsVar(0), xsID("certificates"))) {
+							certs->certificates = (void*)xsToString(xsGet(xsVar(0), xsID("certificates")));
+							certs->certificatesSize = FskStrLen(certs->certificates);
+						}
+						if (xsHas(xsVar(0), xsID("policies"))) {
+							certs->policies = xsToString(xsGet(xsVar(0), xsID("policies")));
+						}
+						if (xsHas(xsVar(0), xsID("hostname"))) {
+							certs->hostname = xsToString(xsGet(xsVar(0), xsID("hostname")));
+						}
+						if (xsHas(xsVar(0), xsID("key"))) {
+							certs->key = (void*)xsToString(xsGet(xsVar(0), xsID("key")));
+							certs->keySize = FskStrLen(certs->key);
+						}
+					}
+					if (certs) {
+						if (!certs->certificates) {
+							certs->certificates = (void*)kKprHTTPServerDefaultCretificates;
+							certs->certificatesSize = FskStrLen(kKprHTTPServerDefaultCretificates);
+						}
+						if (!certs->key) {
+							certs->key = (void*)kKprHTTPServerDefaultKey;
+							certs->keySize = FskStrLen(kKprHTTPServerDefaultKey);
+						}
+					}
+				}
+			}
+ 			xsThrowIfFskErr(KprHTTPServerNew(&self, NULL, "", port, certs));
+			xsSetHostData(xsResult, self);
+		}
+		xsCatch {
+		}
+	}
+	xsLeaveSandbox();
+}
+
+void KPR_HTTP_server(void* it)
+{
+	KprHTTPServer self = it;
+	if (self) {
+		if (self->handler) {
+			KprHTTPServerStop(self, true);
+			KprContextRemoveHandler(gShell, self->handler);
+			self->handler = NULL;
+		}
+		KprHTTPServerDispose(self);
+	}
+}
+
+void KPR_HTTP_server_get_port(xsMachine *the)
+{
+	KprHTTPServer self = xsGetHostData(xsThis);
+	if (self)
+		xsResult = xsInteger(self->port);
+	else
+		xsResult = xsUndefined;
+}
+
+void KPR_HTTP_server_get_running(xsMachine *the)
+{
+	KprHTTPServer self = xsGetHostData(xsThis);
+	xsResult = self->handler ? xsTrue : xsFalse;
+}
+
+void KPR_HTTP_server_start(xsMachine *the)
+{
+	KprHTTPServer self = xsGetHostData(xsThis);
+	if (self && !self->handler) {
+		self->the = the;
+		self->code = the->code;
+		self->slot = xsThis;
+		KprHTTPServerStart(self);
+		xsThrowIfFskErr(KprHandlerNew(&self->handler, NULL));
+		KprContextPutHandler(gShell, self->handler);
+		
+	}
+}
+
+void KPR_HTTP_server_stop(xsMachine *the)
+{
+	KprHTTPServer self = xsGetHostData(xsThis);
+	if (self && self->handler) {
+		KprHTTPServerStop(self, true);
+		self->the = NULL;
+		self->code = NULL;
+		self->slot = xsUndefined;
+		KprContextRemoveHandler(gShell, self->handler);
+		self->handler = NULL;
+	}
+}
+
+void KprHTTPServerCallHandler(KprHTTPServer self, char* function, KprMessage message)
+{
+// 	if (!self->handler) {
+// 		message->status = 503; // Service Unavailable
+// 		return;
+// 	}
+	xsBeginHostSandboxCode(self->the, self->code);
+	{
+		xsVars(3);
+		{
+			xsTry {
+				message->status = 404;
+				xsVar(0) = xsAccess(self->slot);
+				if (xsFindResult(xsVar(0), xsID_behavior)) {
+					if (xsTest(xsResult)) {
+						xsVar(0) = xsResult;
+						if (xsIsInstanceOf(xsVar(0), xsObjectPrototype) && xsFindResult(xsVar(0), xsID(function))) {
+							xsVar(1) = kprContentGetter(self->handler);
+							xsSet(xsVar(1), xsID_behavior, xsVar(0));
+							xsVar(2) = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID_KPR), xsID_message));
+							xsSetHostData(xsVar(2), message);
+							FskInstrumentedItemSendMessageDebug(message, kprInstrumentedMessageConstruct, message);
+							message->status = 0;
+							message->usage++; // host
+							self->handler->message = message;
+							(void)xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsVar(2));
+							if (self->handler) // if the server is stopped in the callback
+								self->handler->message = NULL;
+						}
+					}
+				}
+			}
+			xsCatch {
+				message->status = 500;
+			}
+		}
+	}
+	xsEndHostSandboxCode();
+}
+

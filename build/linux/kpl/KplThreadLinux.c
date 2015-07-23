@@ -56,6 +56,7 @@ static void *kplThreadProc(void *refcon);
 static void LinuxThreadWaitForData(KplThread self, SInt32 msec);
 
 FskListMutex gKplThreads = NULL;
+static int sFifoPort = 5678;
 
 static pthread_key_t gThreadStructKey;
 
@@ -250,7 +251,9 @@ void *kplThreadProc(void *refcon)
 {
     KplThread thread = refcon;
     sigset_t    set;
-    FskEvent 	event;
+    Boolean     wrapped = false;
+    FskErr      err;
+	FskEvent 	event;
 
     sigemptyset(&set);
     sigaddset(&set, SIGUSR1);
@@ -274,7 +277,7 @@ void *kplThreadProc(void *refcon)
     // get it running
     (thread->clientProc)(thread->clientRefCon);
 
-//fail:
+fail:
     // shut it down
     if (thread->eventfd >= 0)
         close(thread->eventfd);

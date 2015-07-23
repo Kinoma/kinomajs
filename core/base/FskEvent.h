@@ -130,6 +130,9 @@ typedef enum {
 	kFskEventParameterMouseLocation = 1024,
 	kFskEventParameterMouseClickNumber,
 	kFskEventParameterMouseWheelDelta,
+	kFskEventParameterMouseWheelDeltaX,
+	kFskEventParameterMouseWheelDeltaY,
+	kFskEventParameterMouseWheelTouched,
 
 	kFskEventParameterKeyUTF8 = 2048,
 	kFskEventParameterFunctionKey,

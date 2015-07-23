@@ -14,6 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+/**
+	\file	FskPath.c
+	\brief	Implementation of paths composed of line, quadratic Bezier, cubic Bezier, and circular arc segments.
+*/
 #define __FSKBITMAP_PRIV__	/* To get access to the FskBitmap data structure */
 
 #include "FskPath.h"
@@ -1345,7 +1349,7 @@ DistanceFromSeparatedBezier2DBase(const FskFixedPoint2D *first, const FskFixedPo
 	p = latter + order - 2;
 	baseVec.x = p->x - first->x;
 	baseVec.y = p->y - first->y;
-	FskFixedVectorNormalize(&baseVec.x, 2);
+	FskFixedVector2DNormalize(&baseVec.x);
 
 	for (i = order - 2, p--, d = 0; i--; p--) {
 		skewVec.x = p->x - first->x;
@@ -1594,7 +1598,10 @@ FskPathTessellate(
 				break;
 			case kFskPathSegmentClose:
 			{													/* BAIL_IF_ERR(err = AppendTransformedPointToGrowableArray(ptArray, M, &pStart)); not needed for polygons */
-																p0 = pStart;
+																if (p0.x == pStart.x && p0.y == pStart.y)
+																	BAIL_IF_ERR(err = FskGrowableArraySetItemCount(ptArray, FskGrowableArrayGetItemCount(ptArray) - 1));	/* Remove duplicate point */
+																else
+																	p0 = pStart;
 																if (pEndCaps) *pEndCaps |= kFskLineEndCapClosed;
 			}	break;
 			case kFskPathSegmentMoveTo:
@@ -1678,6 +1685,13 @@ FskPathFill(
 	FskColorSourceUnion				csu;
 	FskFixedMatrix3x2				G;
 
+	#ifdef DEBUG_PATH
+		FskGrowableStorage str;
+		FskGrowableStorageNew(0, &str);
+		FskPathString(path, 0, str);
+		printf("path=%s\n", FskGrowableStorageGetPointerToCString(str));
+		FskGrowableStorageDispose(str);
+	#endif /* DEBUG_PATH */
 
 	pStart.x  = pStart.y = p0.x = p0.y = 0;
 	numSegs   = GetPathSegmentCount(path);
@@ -1693,7 +1707,10 @@ FskPathFill(
 				break;
 			case kFskPathSegmentClose:
 			{													/* BAIL_IF_ERR(err = AppendTransformedPointToGrowableArray(ptArray, M, &pStart)); not needed for polygons */
-																p0 = pStart;
+																if (p0.x == pStart.x && p0.y == pStart.y && (numPoints - prevNumPoints) > 1)
+																	BAIL_IF_ERR(err = FskGrowableArraySetItemCount(ptArray, FskGrowableArrayGetItemCount(ptArray) - 1));	/* Remove duplicate point */
+																else
+																	p0 = pStart;
 			}	break;
 			case kFskPathSegmentMoveTo:
 			{	const TaggedSegmentMoveTo						*moveTo = (const TaggedSegmentMoveTo*)(segPtr);
@@ -1812,7 +1829,10 @@ FskPathFrame(
 				break;
 			case kFskPathSegmentClose:
 			{													BAIL_IF_ERR(err = AppendTransformedPointToGrowableArray(ptArray, M, &pStart));
-																p0 = pStart;
+																if (p0.x == pStart.x && p0.y == pStart.y)
+																	BAIL_IF_ERR(err = FskGrowableArraySetItemCount(ptArray, FskGrowableArrayGetItemCount(ptArray) - 1));	/* Remove duplicate point */
+																else
+																	p0 = pStart;
 																endCaps |= kFskLineEndCapClosed;
 			}	break;
 			case kFskPathSegmentEndGlyph:
@@ -2198,8 +2218,53 @@ FskFillShapeRect(
 	FskFixedPoint2D					pts[12], *points;
 	UInt32							n;
 
-	if (((rect->radius.x | rect->radius.y) == 0) && ((err = SetRectPoints(rect, pts)) == kFskErrNone)) {														/* Simple rectangle */
-		err = FskFillPolygon(4, pts, fillColor, kFskFillRuleNonZero, M, quality, clipRect, dstBM);
+	if ((rect->radius.x | rect->radius.y) == 0) {													/* Simple rectangle */
+	#define OPTIMIZE_UPRIGHT_RECT_Q0
+	#ifdef OPTIMIZE_UPRIGHT_RECT_Q0
+		if ((quality == 0) && (fillColor->type == kFskColorSourceTypeConstant)) {					/* If low quality flat fill, ... */
+			FskRectangleRecord	r;
+			FskColorSourceUnion	*csu;
+			FskColorRGBARecord	color;
+			FskGraphicsModeParametersRecord params;
+			if (M) {
+				if (M->M[0][1] || M->M[1][0])														/* ... and is not rotated or skewed */
+					goto generalRect;
+				pts[0].x = FskFixMul(M->M[0][0], rect->origin.x) + M->M[2][0];						/* Apply scale and translation to origin */
+				pts[0].y = FskFixMul(M->M[1][1], rect->origin.y) + M->M[2][1];
+				pts[1].x = FskFixMul(M->M[0][0], rect->size.x);										/* Only scale the size */
+				pts[1].y = FskFixMul(M->M[1][1], rect->size.y);
+			}
+			else {																					/* No transformation */
+				pts[0]   = rect->origin;
+				pts[1].x = rect->size.x;
+				pts[1].y = rect->size.y;
+			}
+			if (pts[1].x < 0) {																		/* Negative width */
+				pts[0].x += pts[1].x;
+				pts[1].x = -pts[1].x;																/* Convert to positive */
+			}
+			if (pts[1].y < 0) {																		/* Negative height */
+				pts[0].y += pts[1].y;
+				pts[1].y = -pts[1].y;																/* Convert to positive */
+			}
+			pts[1].x += pts[0].x;																	/* Convert (width,height) to (x,y) */
+			pts[1].y += pts[0].y;
+			r.x = (pts[0].x + 0x8000) >> 16;														/* Convert from fixed point (x0,y0,x1,y1) ... */
+			r.y = (pts[0].y + 0x8000) >> 16;
+			r.width  = ((pts[1].x + 0xFFFF) >> 16) - r.x;											/* ... to integer (x,y,w,h) */
+			r.height = ((pts[1].y + 0xFFFF) >> 16) - r.y;
+			if (clipRect)	(void)FskRectangleIntersect(clipRect, &r, &r);
+			csu = (FskColorSourceUnion*)fillColor;
+			params.dataSize = sizeof(params);
+			params.blendLevel = csu->cn.color.a;
+			color.r = csu->cn.color.r; color.g = csu->cn.color.g; color.b = csu->cn.color.b; color.a = 255;
+			err = FskRectangleFill(dstBM, &r, &color, kFskGraphicsModeCopy, &params);
+		}
+		else
+	generalRect:
+	#endif /* OPTIMIZE_UPRIGHT_RECT_Q0 */
+		if ((err = SetRectPoints(rect, pts)) == kFskErrNone)											/* Non-degenerate */
+			err = FskFillPolygon(4, pts, fillColor, kFskFillRuleNonZero, M, quality, clipRect, dstBM);
 	}
 	else if (((err = SetRoundedRectControlPoints(rect, M, pts)) == kFskErrNone) && ((err = TessellateRoundedRectControlPoints(pts, &ptArray)) == kFskErrNone)) {	/* Rounded rectangle */
 		if ((err = FskGrowableFixedPoint2DArrayGetPointerToItem(ptArray, 0, (void**)(void*)(&points))) == kFskErrNone) {
@@ -3511,7 +3576,7 @@ EvaluatePathSegment(FskConstPath path, const FskArcLengthTableRecord *tab, FskFr
 		}
 	}
 
-	FskFixedVectorNormalize(M->M[0], 2);														/* Compute unit tangent vector by normalizing */
+	FskFixedVector2DNormalize(M->M[0]);															/* Compute unit tangent vector by normalizing */
 	M->M[1][0] = -M->M[0][1];		M->M[1][1] =  M->M[0][0];									/* Normal = tangent rotated by 90 degrees */
 //	M->M[1][0] =  M->M[0][1];		M->M[1][1] = -M->M[0][0];									/* Normal = tangent rotated by 90 degrees (the other 90) */
 

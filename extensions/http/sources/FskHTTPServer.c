@@ -481,10 +481,20 @@ FskErr FskHTTPServerStop(FskHTTPServer http, Boolean flush) {
 		return kFskErrInvalidParameter;
 
 	if (http->stopped == false) {
+		FskHTTPServerRequest request = http->activeRequests;
 		http->stopped = true;
 		FskTimeGetNow(&http->stats.serverStopped);
 		// -- should we kill off live requests here?	no. can restart.
-		// -- should we kill off active sessions here?
+		// -- should we kill off active sessions here?	yes when waiting on a keep alive.
+		while (request) {
+			if (request->state == kHTTPReadRequestHeaders) {
+				request->state = kHTTPClose;
+				FskHTTPServerRequestCycle(request);
+				request = http->activeRequests;
+			}
+			else
+				request = request->next;
+		}
 	}
 	else {
 		FskInstrumentedItemSendMessage(http, kFskHTTPInstrMsgServerStoppedAlready, http);
@@ -1127,7 +1137,7 @@ requestError:
 			request->http->stats.requestsFinished += 1;
 			doCallCondition(request->http->callbacks->requestCondition, request, kFskHTTPConditionRequestResponseFinished, request->refCon);
 			request->state = kHTTPDone;
-			if (request->keepAlive) {
+			if (request->keepAlive && !request->http->stopped) {
 				if ((request->in.max - request->in.pos) > 0) {
 					FskHeaderStructDispose(request->requestHeaders);
 					FskHeaderStructDispose(request->responseHeaders);
@@ -1147,7 +1157,7 @@ requestError:
 
 		case kHTTPDone:
 			FskInstrumentedItemSendMessage(request, kFskHTTPInstrMsgRequestState, request);
-			if (request->keepAlive) {
+			if (request->keepAlive && !request->http->stopped) {
 				FskHeaderStructDispose(request->requestHeaders);
 				FskHeaderStructDispose(request->responseHeaders);
 				FskHeaderStructNew(&request->requestHeaders);

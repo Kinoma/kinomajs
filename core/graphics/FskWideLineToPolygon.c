@@ -71,7 +71,7 @@ InitLineSeg(const FskFixedPoint2D *p0, const FskFixedPoint2D *p1, const FskFixed
 	}
 	seg->par.x = seg->pt[1].x - seg->pt[0].x;
 	seg->par.y = seg->pt[1].y - seg->pt[0].y;
-	if ((seg->length = FskFixedVectorNormalize(&seg->par.x, 2)) == 0) {
+	if ((seg->length = FskFixedVector2DNormalize(&seg->par.x)) == 0) {
 		seg->par.x = FRACT_ONE;
 		seg->par.y = 0;
 		ok = 0;
@@ -287,7 +287,7 @@ BeveledJoin(const LineSeg *seg0, const LineSeg *seg1, FskGrowableFixedPoint2DArr
 		if (sinAng < 0)	sinHaf = -sinHaf;
 		u.x = FskFixedNLinear2D(seg0->par.x, cosHaf,  seg0->par.y, sinHaf, 30);	/* Unit vector to elbow, inside or outside */
 		u.y = FskFixedNLinear2D(seg0->par.y, cosHaf, -seg0->par.x, sinHaf, 30);
-		bevHafWidth = (FskFixed)(((FskInt64)(seg0->strokeWidth) * cosHaf / (FRACT_ONE + snmHaf) + 1) >> 1);
+		bevHafWidth = FskFixedNRatio(seg0->strokeWidth, cosHaf, FRACT_ONE + snmHaf, -1);
 		c.x = FskFixedNMul(seg0->strokeWidth, u.x, 31);				/* Midpoint of bevel */
 		c.y = FskFixedNMul(seg0->strokeWidth, u.y, 31);
 		b.x = FskFracMul(bevHafWidth, -u.y);						/* Half-vector of bevel */

@@ -234,7 +234,7 @@ void KplTimeGetNow(KplTime t)
 	clock_gettime(CLOCK_MONOTONIC, &tp);
 	t->seconds = tp.tv_sec;
 	t->useconds = tp.tv_nsec / kFskTimeNsecPerUsec;
-	FskTimeSub(&sBasetime, (FskTime)t);
+	FskTimeSub(&sBasetime, t);
 #else
 	struct timeval tv;	
 	struct timezone tz;

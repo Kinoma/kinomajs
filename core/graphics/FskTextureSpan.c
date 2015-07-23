@@ -34,6 +34,9 @@ typedef FskFixed						FixedFwdDiff;	/* Fixed, with kTexCoordBits fractional bits
 #define kLerpBits 4
 typedef FskFixed FskFixedLerp;
 
+#undef FskAssert		/* Why is this on for release builds? */
+#define FskAssert(x)
+
 
 /********************************************************************************
  ********************************************************************************

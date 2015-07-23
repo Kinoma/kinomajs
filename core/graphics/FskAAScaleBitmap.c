@@ -14,6 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+/**
+	\file	FskAAScaleBitmap.c
+	\brief	Antialiased bitmap scaling.
+*/
 #define __FSKBITMAP_PRIV__
 
 #include "FskAAScaleBitmap.h"

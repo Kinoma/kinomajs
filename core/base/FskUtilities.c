@@ -156,7 +156,7 @@ SInt32 FskRandom(void)
 	return gAndroidCallbacks->getRandomCB(&thread->randomSeed);
 #elif TARGET_OS_WIN32
 	return rand();
-#elif TARGET_OS_MAC
+#elif TARGET_OS_MAC || TARGET_OS_LINUX
 	return rand_r(&thread->randomSeed);
 #elif TARGET_OS_KPL
 	return KplUtilitiesRandom(&thread->randomSeed);

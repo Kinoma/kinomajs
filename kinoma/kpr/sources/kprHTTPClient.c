@@ -428,16 +428,16 @@ void KprHTTPClientInvoke(KprService service UNUSED, KprMessage message)
 			else {
 				value = FskAssociativeArrayElementGetString(cached->headers, kprHTTPHeaderLastModified);
 				if (value)
-					KprMessageSetRequestHeader(message, kprHTTPHeaderIfModifiedSince, value);
+					(void)KprMessageSetRequestHeader(message, kprHTTPHeaderIfModifiedSince, value);
 				value = FskAssociativeArrayElementGetString(cached->headers, kprHTTPHeaderETag);
 				if (value)
-					KprMessageSetRequestHeader(message, kprHTTPHeaderIfNoneMatch, value);
+					(void)KprMessageSetRequestHeader(message, kprHTTPHeaderIfNoneMatch, value);
 				target->cached = cached;
 			}
 		}
 		KprHTTPClientCookiesGet(message->url, &value);
 		if (value) {
-			KprMessageSetRequestHeader(message, kprHTTPHeaderCookie, value);
+			(void)KprMessageSetRequestHeader(message, kprHTTPHeaderCookie, value);
 			FskMemPtrDispose(value);
 		}
 		KprHTTPClientAddTarget(target);

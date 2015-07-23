@@ -20,6 +20,7 @@
 	<require id="CONTROL" path="mobile/control"/>
    	<require id="BUTTONS" path="controls/buttons"/>
 	<require id="DIALOG" path="mobile/dialog"/>
+    <require id="SCROLLER" path="mobile/scroller"/>
 
     <variable id="dialogFooterHeight" value="45"/>
 	

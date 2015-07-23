@@ -21,20 +21,6 @@
 #define T_ONE	(1 << T_BITS)
 
 
-/*******************************************************************************
- * SafeTDivide
- *******************************************************************************/
-
-static FskFract
-SafeTDivide(FskFixed n, FskFixed d)
-{
-	FskInt64 q = ((FskInt64)n << T_BITS) / d;
-	if (q > kFskSInt32Max)		q = kFskSInt32Max;
-	else if (q < kFskSInt32Min)	q = kFskSInt32Min;
-	return (FskFract)q;
-}
-
-
 /********************************************************************************
  * SClipT
  ********************************************************************************/
@@ -46,12 +32,12 @@ SClipT(FskFixed p, FskFixed q, FskFract t[2])
 	long		accept = 1;
 
 	if (p < 0) {
-		r = SafeTDivide(q, p);
+		r = FskFixedNDiv(q, p, T_BITS);
 		if      (r > t[1])	accept = 0;	/* Set up to reject */
 		else if (r > t[0])	t[0] = r;
 	}
 	else if (p > 0) {
-		r = SafeTDivide(q, p);
+		r = FskFixedNDiv(q, p, T_BITS);
 		if      (r < t[0])	accept = 0;	/* Set up to reject */
 		else if (r < t[1])	t[1] = r;
 	}

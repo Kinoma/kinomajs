@@ -20,17 +20,77 @@
 	
 	<object name="PINS">
 		<object name="behaviors"/>
-		<object name="constructors"/>
-		<object name="prototypes"/>
+		<object name="prototypes">
+			<object name="ground">
+				<number name="pin"/>
+				<function name="init"/>
+				<function name="close"/>
+			</object>
+			<object name="power">
+				<number name="pin"/>
+				<number name="voltage"/>
+				<function name="init"/>
+				<function name="close"/>
+			</object>
+		</object>
+		<null name="config"/>
+		<object name="constructors">
+			<function name="Ground" params="it" prototype="PINS.prototypes.ground">
+                if (!("pin" in it))
+                    it = it.sandbox;
+				this.pin = it.pin;
+			</function>
+			<function name="Power" params="it" prototype="PINS.prototypes.power">
+                if (!("pin" in it))
+                    it = it.sandbox;
+				this.pin = it.pin;
+				this.voltage = ("voltage" in it) ? it.voltage : 3.3;
+			</function>
+		</object>
 		<function name="configure" params="configurations">
+			PINS.config = this.configure_aux(configurations, true);
+		</function>
+		<function name="close">
+			var behaviors = this.behaviors.sandbox;
+			for (var i in behaviors) {
+				var behavior = behaviors[i];
+				if ("close" in behavior.sandbox)
+					behavior.sandbox.close();
+			}
+			this.configurations = null;
+			this.behaviors = null;
+		</function>
+		<function name="create" params="pin">
+			pin = pin.sandbox;
+			return new (this.constructors[pin.type])(pin);
+		</function>
+		<function name="merge" params="defaultPin, configurationPin">
+			for (var i in defaultPin) {
+				if (!(i in configurationPin))
+					configurationPin[i] = defaultPin[i];
+			}
+		</function>
+		<function name="preconfigure" params="configurations">
+			return this.configure_aux(configurations, false);
+		</function>
+		<function name="configure_aux" params="configurationsNS, construct">
 			var constructors = this.constructors;
 			var behaviors = {};
-			configurations = configurations.sandbox;
+			var configurations = configurationsNS.sandbox;
 			for (var i in configurations) {
 				var configuration = configurations[i].sandbox;
-				var defaults;
-                if (!("require" in configuration))
-                    throw new Error("require property missing in configuration " + i + ": " + JSON.stringify(configuration));
+				var defaults = undefined;
+                if (!("require" in configuration)) {
+					if (!("type" in configuration))
+						throw new Error("!!!!require property missing in configuration " + i + ": " + JSON.stringify(configuration));
+					var type = configuration.type.toLowerCase();
+					var config = {};
+					config.sandbox.require = type;
+					config.sandbox.pins = {};
+					config.sandbox.pins.sandbox[type] = configurations[i];
+					configurations[i] = config;
+					configuration = config.sandbox;
+				}
 				var prototype = require(configuration.require);
 				var behavior = Object.create(prototype);
 				behavior.sandbox.id = i;
@@ -46,31 +106,23 @@
                         throw new Error("Pin " + j + " missing type: " + JSON.stringify(pin));
                     if (!(type in constructors))
                         throw new Error("Unsupported pin type on pin " + j + ": " + JSON.stringify(pin));
-					behavior.sandbox[j] = new (constructors[type])(pin);
+					if (construct)
+						behavior.sandbox[j] = new (constructors[type])(pin);
 				}
-				if ("configure" in behavior.sandbox)
-					behavior.sandbox.configure(configuration);
+				if (construct && ("configure" in behavior.sandbox))
+					behavior.sandbox.configure(configuration, i);	// passing i for debugging / simulators
 				behaviors.sandbox[i] = behavior;
 			}
-			this.behaviors = behaviors;
+			if (construct)
+				this.behaviors = behaviors;
+			return configurationsNS;
 		</function>
-		<function name="close">
-			var behaviors = this.behaviors.sandbox;
-			for (var i in behaviors) {
-				var behavior = behaviors[i];
-				if ("close" in behavior.sandbox)
-					behavior.sandbox.close();
-			}
+		<function name="metadata" params="bll">
+			var prototype = require(bll.split("/")[1]);
+			return ("metadata" in prototype.sandbox) ? prototype.sandbox.metadata : undefined;
 		</function>
-		<function name="create" params="pin">
-			pin = pin.sandbox;
-			return new (this.constructors[pin.type])(pin);
-		</function>
-		<function name="merge" params="defaultPin, configurationPin">
-			for (var i in defaultPin) {
-				if (!(i in configurationPin))
-					configurationPin[i] = defaultPin[i];
-			}
+		<function name="configuration">
+			return JSON.parse(JSON.sandbox.stringify(PINS.config));		// hack to get object into form xsMarshall will tolerate
 		</function>
 	</object>
 	
@@ -96,6 +148,5 @@
 <!--
 	<import href="spi.xs"/>
 -->
-	
 	<import href="mockup.xs"/>
 </package>

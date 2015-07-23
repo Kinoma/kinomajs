@@ -20,11 +20,18 @@
 	<property name="project.path" value="${build.tmp}/obj/${app.name}.xcodeproj" />
 
 	<target name="package" depends="load-defaults">
-		<copy tofile="${build.tmp}/Info.plist" file="${config.basedir}/${target.platform}/Info.plist" />
-		<replace file="${build.tmp}/Info.plist">
-			<replacefilter token="#APP_NAME#" value="${manifest.name}" />
-			<replacefilter token="#NAMESPACE#" value="${manifest.namespace}" />
-			<replacefilter token="#VERSION#" value="${manifest.version} (${core.version})" />
-		</replace>
+		<if>
+			<not>
+				<isset property="local.cmakelists" />
+			</not>
+			<then>
+				<copy tofile="${build.tmp}/Info.plist" file="${config.basedir}/${target.platform}/Info.plist" />
+				<replace file="${build.tmp}/Info.plist">
+					<replacefilter token="#APP_NAME#" value="${manifest.name}" />
+					<replacefilter token="#NAMESPACE#" value="${manifest.namespace}" />
+					<replacefilter token="#VERSION#" value="${manifest.version} (${core.version})" />
+				</replace>
+			</then>
+		</if>
 	</target>
 </project>

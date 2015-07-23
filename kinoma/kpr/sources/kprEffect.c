@@ -90,7 +90,7 @@ void KprEffectAdd(KprEffect self, FskEffect step)
 	else {
 		bailIfError(FskMemPtrNewClear(sizeof(FskEffectRecord), &compound));
 		FskMemCopy(compound, step, sizeof(FskEffectRecord));
-	}	
+	}
 	self->compound = compound;
 bail:
 	return; // @@
@@ -110,14 +110,14 @@ FskErr KprEffectApply(KprEffect self, FskBitmap srcBits, FskPort port, FskBitmap
 	else {
 		bailIfError(FskBitmapNew(bounds.width, bounds.height, kFskBitmapFormatDefaultAlpha, &dstBits));
 	}
-	FskBitmapGetHasAlpha(srcBits, &flag);				
+	FskBitmapGetHasAlpha(srcBits, &flag);
 	FskBitmapSetHasAlpha(dstBits, flag);
 	FskBitmapGetAlphaIsPremultiplied(srcBits, &flag);
 	FskBitmapSetAlphaIsPremultiplied(dstBits, flag);
 #if FSKBITMAP_OPENGL
 	if (FskBitmapIsOpenGLDestinationAccelerated(dstBits)) {	// If we are using GL to do the effects, ...
-		FskBitmapCheckGLSourceAccelerated(srcBits); // ... make sure that the source is uploaded as a texture, ... 
-		err = FskGLEffectApply(self->compound, srcBits, &bounds, dstBits, NULL, port->effCache);
+		FskBitmapCheckGLSourceAccelerated(srcBits); // ... make sure that the source is uploaded as a texture, ...
+		err = FskGLEffectApply(self->compound, srcBits, &bounds, dstBits, NULL);
 	}
 	else {
 #endif

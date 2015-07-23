@@ -445,8 +445,12 @@ void KprImageEntryLoaded(KprImageEntry self)
 {
 	KprImageLink link = self->first;
 #if FSKBITMAP_OPENGL
-    if (self->bitmap)
+    if (self->bitmap) {
         FskBitmapSetOpenGLSourceAccelerated(self->bitmap, true);
+#if !TARGET_OS_ANDROID
+        (void)FskBitmapSetSourceDiscardable(self->bitmap);
+#endif
+    }
 #endif
 	while (link) {
         KprImageLink next = link->next;

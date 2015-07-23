@@ -724,7 +724,7 @@ FskInitLinearGradientSpan(
 
 		d[0] = lin->gradientVector[1].x - lin->gradientVector[0].x;																												/* lin->gradientFracBits fractional bits */
 		d[1] = lin->gradientVector[1].y - lin->gradientVector[0].y;																												/* lin->gradientFracBits fractional bits */
-		r = FskFixedVectorNormalize(d, 2);																																		/* r=lin->gradientFracBits, d=2.30 */
+		r = FskFixedVector2DNormalize(d);																																		/* r=lin->gradientFracBits, d=2.30 */
 		gd->gradXform.M[1][1] =  (gd->gradXform.M[0][0] = FskFixedNDiv(d[0], r, OFFSET_FRACBITS-30+lin->gradientFracBits));														/* OFFSET_FRACBITS fractional bits */
 		gd->gradXform.M[0][1] = -(gd->gradXform.M[1][0] = FskFixedNDiv(d[1], r, OFFSET_FRACBITS-30+lin->gradientFracBits));														/* OFFSET_FRACBITS fractional bits */
 		gd->gradXform.M[2][0] = FskFixedNLinear2D(-lin->gradientVector[0].x, gd->gradXform.M[0][0], -lin->gradientVector[0].y, gd->gradXform.M[1][0], lin->gradientFracBits);	/* OFFSET_FRACBITS fractional bits */
@@ -1240,7 +1240,7 @@ FskInitRadialGradientSpan(
 
 	sku.x = rad->center.x - rad->focus.x;												/* Skew vector, with rad->gradientFracBits fractional bits */
 	sku.y = rad->center.y - rad->focus.y;												/* rad->gradientFracBits fractional bits */
-	skum  = FskFixedVectorNormalize(&sku.x, 2);											/* Unit vector in the direction of the skew, skum=rad->gradientFracBits, sku=2.30 */
+	skum  = FskFixedVector2DNormalize(&sku.x);											/* Unit vector in the direction of the skew, skum=rad->gradientFracBits, sku=2.30 */
 	dr    = rad->radius - rad->focalRadius;												/* We assume dr >= 0. TODO: Should we allow dr < 0? */
 	transfoc.x = FskFracMul(rad->focus.x, sku.x) + FskFracMul(rad->focus.y, sku.y);		/* Transformation of the focus point */
 	transfoc.y = FskFracMul(rad->focus.y, sku.x) - FskFracMul(rad->focus.x, sku.y);
@@ -1340,9 +1340,11 @@ FskInitRadialGradientSpan(
 		/* First we place the focus at the origin with the center on the positive x axis.
 		 * Then we have a change of variable:	u = (dx * r1 + dr * (x - x1)) / abs(dr^2 - dx^2), v = y / sqrt((abs(dr^2 - dx^2))
 		 */
-		FskFixed den = FskFixedSqrt64to32((FskInt64)(dr + skum) * (dr - skum));		/* rad->gradientFracBits */
-		FskFixed28 edr, edx, eux, euy, efx, efy, er1;
-		if (den < 0) den = -den;		/* Get the magnitude of the complex number for normalization */
+		FskFixed28 edr, edx, eux, euy, efx, efy, er1, den;
+		{	FskInt64 t = (FskInt64)(dr + skum) * (dr - skum);
+			if (t < 0)	t = -t;
+			den = FskFixedSqrt64to32(t);										/* rad->gradientFracBits */
+		}
 		edr = FskFixedNDiv(dr,               den, OFFSET_FRACBITS);				/* OFFSET_FRACBITS fractional bits */
 		edx = FskFixedNDiv(skum,             den, OFFSET_FRACBITS);				/* OFFSET_FRACBITS fractional bits */
 		efx = FskFixedNDiv(transfoc.x,       den, OFFSET_FRACBITS);				/* OFFSET_FRACBITS fractional bits */

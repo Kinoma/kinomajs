@@ -53,6 +53,7 @@ struct KprPinsPollerStruct {
 	xsSlot parameters;
 	int parametersAlways;
 	char* path;
+	SInt32 id;
 	xsSlot timer;
 	FskTimeCallBack timeCallback;
 	char* url;
@@ -159,6 +160,8 @@ typedef struct serialStruct {  //Serial IO
 
     KprPinsPoller       poller;
 	FskTimeCallBack     pollerCallback;
+
+	char                path[1];
 } FskSerialIORecord, *FskSerialIO;
 
 FskErr FskSerialIOPlatformInit(FskSerialIO sio, int baud);

@@ -110,11 +110,10 @@
 			<string name="platform" pattern="@platform"/>
 		</object>
 
-		<object name="entitlement" pattern="entitlement">
-			<string name="name" pattern="@name"/>
-			<string name="value" pattern="@value"/>
-			<string name="platform" pattern="@platform"/>
+		<object name="xsdebug" pattern="xsdebug">
+			<boolean name="enabled" value="false" pattern="@enabled"/>
 		</object>
+
 		<object name="feature" pattern="feature">
 			<string name="name" pattern="@name"/>
 			<string name="type" pattern="@type"/>
@@ -131,7 +130,6 @@
 			<string name="platform" pattern="@platform"/>
 		</object>
 		<object name="options" pattern="options">
-			<array name="entitlements" contents="kconfig.entitlement" pattern="."/>
 			<array name="features" contents="kconfig.feature" pattern="."/>
 			<array name="permissions" contents="kconfig.permission" pattern="."/>
 			<array name="versions" contents="kconfig.version" pattern="."/>
@@ -200,6 +198,7 @@
 			<array name="cabsetup" contents="kconfig.cabsetup" pattern="."/>
 			<array name="cOptions" contents="kconfig.cOption" pattern="."/>
 			<array name="asmOptions" contents="kconfig.asmOption" pattern="."/>
+			<reference name="xsdebug" contents="kconfig.xsdebug" pattern="."/>
 		</object>
 		
 	</object>
@@ -300,7 +299,7 @@
 			this.both = false;
 			this.cmake = false;
 			this.debug = false;
-			this.home = this.getEnvironmentValue("F_HOME");
+			this.home = this.resolvePath(this.getEnvironmentValue("F_HOME"), true);
 			this.instrument = false;
 			this.jobs = 1;
 			this.leak = false;
@@ -397,11 +396,11 @@
 						throw new Error("-p '" + aName + "': too many -p platform!");
 					if (aName in this.platformNames)
 						aName = this.platformNames[aName];
-					aPath = this.resolvePath(this.home + "/kinoma/kpr/make/" + aName, true);
+					aPath = this.resolvePath(this.home + "/kinoma/kpr/cmake/" + aName, true);
 					if (aPath)
 						this.makePath = aPath;
 					else
-						throw new Error("-p '$(F_HOME)/kinoma/kpr/make/" + aName + "': directory not found!");
+						throw new Error("-p '$(F_HOME)/kinoma/kpr/cmake/" + aName + "': directory not found!");
 					aSplit = aName.split("/");
 					this.platform = aSplit[0];
 					if (aSplit.length > 1)
@@ -462,11 +461,11 @@
 				aName = this.getPlatform();
 				if (aName in this.platformNames)
 					aName = this.platformNames[aName];
-				aPath = this.resolvePath(this.home + "/kinoma/kpr/make/" + aName, true);
+				aPath = this.resolvePath(this.home + "/kinoma/kpr/cmake/" + aName, true);
 				if (aPath)
 					this.makePath = aPath;
 				else
-					throw new Error("-p '$(F_HOME)/kinoma/kpr/make/" + aName + "': directory not found!");
+					throw new Error("-p '$(F_HOME)/kinoma/kpr/cmake/" + aName + "': directory not found!");
 				this.platform = aName;
 			}
 			if (!this.manifestPath) {
@@ -555,7 +554,6 @@
 			};
 			var instrument;
 			var fonts = [];
-			var entitlements = [];
 			var features = [];
 			var permissions = [];
 			var minimumVersion;
@@ -586,7 +584,7 @@
 					if (this.checkPlatform(ui.platform))
 						fonts = fonts.concat(ui.fonts);
 				}
-				// Handle Android/iOS entitlements/permissions/features/version
+				// Handle Android/permissions/features/version
 				var defaultVersionsPath = this.resolvePath(this.home + "/kinoma/kpr/cmake/" + this.platform + "/versions.properties", false);
 				if (defaultVersionsPath) {
 					var defaultVersions = this.readString(defaultVersionsPath).trim();
@@ -608,12 +606,6 @@
 				var d = options.length;
 				for (var j = 0; j < d; j++) {
 					var option = options[j];
-					var e = option.entitlements.length;
-					for (var k = 0; k < e; k++) {
-						var entitlement = option.entitlements[k];
-						if (this.checkPlatform(entitlement.platform))
-							entitlements = entitlements.concat(entitlement);
-					}
 					var e = option.features.length;
 					for (var k = 0; k < e; k++) {
 						var feature = option.features[k];
@@ -640,19 +632,6 @@
 				}
 				if (vm.ssl.CA_list) 
 					certificate = environmentTable.CA_list = vm.ssl.CA_list;
-			}
-
-			if (entitlements.length > 0) {
-				var aPath = this.joinPath(this.tmpPath, "entitlements", "plist");
-				var aFile = new XSFile(aPath);
-				aFile.write('<plist version="1.0">\n<dict>\n');
-				var d =  entitlements.length;
-				for (var j = 0; j < d; j++) {
-					entitlement = entitlements[j];
-					aFile.write("\t<key>" + entitlement.name + "</key>\n");
-					aFile.write("\t<" + entitlement.value + "/>\n");
-				}
-				aFile.write("</dict>\n</plist>\n")
 			}
 
 			var defaultPermissionsPath = this.resolvePath(this.home + "/kinoma/kpr/cmake/" + this.platform + "/permissions.cfg", false);
@@ -709,7 +688,7 @@
 			FskCore.href = "FskCore";
 			FskCore.from = this.resolvePath(this.home + "/kinoma/kpr/patches/FskCore.mk", false);
 			var blocks = [ FskPlatform, FskCore ];
-			
+
 			var vms = config.vm;
 			var c = vms.length;
 			for (var i = 0; i < c; i++) {
@@ -773,6 +752,16 @@
 						}
 						else
 							throw new Error(item.__xs__path + ": line "+ item.__xs__line + " '" + item.sourcePath + "': not found!");
+					}
+					if (path in this.excludes) {
+						var excludeItem;
+						for (var j = 0; j < config.exclude.length; j++) {
+							var exclude = config.exclude[j];
+							var excludePath = this.applyVariables(exclude["path"], variableTable);
+							if (path == excludePath)
+								excludeItem = exclude;
+						}
+						throw new Error(item.__xs__path + ": line "+ item.__xs__line + " '" + item.sourcePath + "': this has been excluded already on line " + excludeItem.__xs__line + "!");
 					}
 
 					// ensure destination directory
@@ -1092,6 +1081,14 @@
 			
 			/* permissions - only for android currently */
 			if (this.platform == "android") {
+				var useGCM = ("remoteNotification" in environmentTable) && (environmentTable["remoteNotification"] != "0");
+				if (useGCM) {
+					/* INTERNET and WAKE_LOCK are defined by default */
+					var tempPermission = xs.newInstanceOf(kconfig.permission);
+					tempPermission.name = "GET_ACCOUNTS";
+					tempPermission.platform = this.platform;
+					permissions = permissions.concat(tempPermission);
+				}
 				var c = permissions.length;
 				if (c > 0) {
 					aPath = this.joinPath(this.tmpPath, "permissions", "txt");
@@ -1102,6 +1099,14 @@
 						aFile.write(permission.name);
 						aFile.write('"/>\n');
 					}
+					if (useGCM) {
+						/* additional permissions */
+						aFile.write('\t<uses-permission android:name="com.google.android.c2dm.permission.RECEIVE" />\n');
+						aFile.write('\t<uses-permission android:name="com.kinoma.kinomaplay.permission.C2D_MESSAGE" />\n');
+						aFile.write('\t<permission\n');
+						aFile.write('\t\tandroid:name="com.kinoma.kinomaplay.permission.C2D_MESSAGE"\n');
+						aFile.write('\t\tandroid:protectionLevel="signature" />\n');
+					}
 					aFile.close();
 					aPath = this.joinPath(this.tmpPath, "permissions", "cfg");
 					aFile = new XSFile(aPath);
@@ -1110,8 +1115,31 @@
 						aFile.write(permission.name);
 						aFile.write('=true\n');
 					}
+					if (useGCM) {
+						aFile.write("C2D_MESSAGE=true\n");
+					}
 					aFile.close();
 				}
+
+				aPath = this.joinPath(this.tmpPath, "modules", "txt");
+				aFile = new XSFile(aPath);
+				if (useGCM) {
+					aFile.write('\t\t<receiver\n');
+					aFile.write('\t\t\tandroid:name=".GcmBroadcastReceiver"\n');
+					aFile.write('\t\t\tandroid:permission="com.google.android.c2dm.permission.SEND" >\n');
+					aFile.write('\t\t\t<intent-filter>\n');
+					aFile.write('\t\t\t\t<action android:name="com.google.android.c2dm.intent.RECEIVE" />\n');
+					aFile.write('\t\t\t\t<category android:name="com.kinoma.kinomaplay" />\n');
+					aFile.write('\t\t\t</intent-filter>\n');
+					aFile.write('\t\t</receiver>\n');
+					aFile.write('\t\t<service android:name=".GcmIntentService" />\n');
+					aFile.write('\t\t<meta-data android:name="com.google.android.gms.version"\n');
+					aFile.write('\t\t\tandroid:value="@integer/google_play_services_version" />\n');
+				} else {
+					// not to be empty
+					aFile.write('\n');
+				}
+				aFile.close();
 			}
 			
 			/* XS */
@@ -1133,7 +1161,7 @@
 			aFile.close();
 
 			if (this.cmake) {
-				this.generateCMake(xscIncludePaths, this.packages, makefiles, config, permissions, entitlements);
+				this.generateCMake(xscIncludePaths, this.packages, makefiles, config, permissions);
 				return;
 			}
 			/* MAKE */
@@ -1185,7 +1213,7 @@
 			
 			aFile.include(this.joinPath(this.makePath, "prefix.make", false));
 
-			aFile.write("\nSUPPORT_XS_DEBUG=" + (this.xsdebug || this.debug ? 1 : 0) + "\n");
+			aFile.write("\nSUPPORT_XS_DEBUG=" + (this.xsdebug || this.debug || config.xsdebug["enabled"] ? 1 : 0) + "\n");
 
 			aFile.write("\nMANIFEST_PATH=" + this.manifestPath + "\n")
 			
@@ -1456,10 +1484,13 @@
 			if (this.make) {
 				if (this.verbose)
 					this.report("Making " + this.application  + "...");
-				if (this.windows)
-					this.execute("nmake.exe", this.action, "/C", "/F", this.tmpPath + "\\makefile");
-				else
+				if (this.windows) {
+					var result = this.execute("nmake.exe", this.action, "/C", "/F", this.tmpPath + "\\makefile");
+					if (result != true)
+						throw new Error("namke failed!");
+				} else {
 					this.execute("make", this.action, "-j", this.jobs, "-f", this.tmpPath + "/makefile");
+				}
 			}
 		]]></function>
 		
@@ -1616,8 +1647,13 @@
 				if (l < 0)
 					break
 				var name = value.substring(k + 1, l)
+				var replacement = this.getVariable(name, table);
+				if (name == "F_HOME") {
+					if (value.charAt(l + 1) != '/')
+						replacement = replacement + "/";
+				}
 				l = value.length - (l + 1);
-				value = value.replace("[" + name + "]", this.getVariable(name, table))
+				value = value.replace("[" + name + "]", replacement);
 				j = value.length - l;
 			}
 			return value
@@ -1661,25 +1697,23 @@
 
 		<function name="toCMakePath" params="path">
 			if (this.platform == "win")
-				return path.replace('\\', '/');
-			else
-				return path;
+				path = path.replace('\\', '/');
+			return path.replace(this.home, "${F_HOME}");
 		</function>
 
 		<function name="toCMakeResource" params="item">
-			if (this.platform == "win") {
-				item.destinationPath = this.toCMakePath(item.destinationPath);
-				item.sourcePath = this.toCMakePath(item.sourcePath);
-				return item;
-			} else {
-				return item;
-			}
+			item.destinationPath = this.toCMakePath(item.destinationPath);
+			item.sourcePath = this.toCMakePath(item.sourcePath);
+			return item;
 		</function>
 		
-		<function name="generateCMake" params="xscIncludePaths, xscPackages, makefiles, config, permissions, entitlements">
-			path = xsTool.joinPath(xsTool.tmpPath, "CMakeLists", "txt");
-			aFile = new XSFile(path);
-			aFile.write('cmake_minimum_required(VERSION 2.8)\n');
+		<function name="generateCMake" params="xscIncludePaths, xscPackages, makefiles, config, permissions ">
+			var path = xsTool.joinPath(xsTool.tmpPath, "CMakeLists", "txt");
+			var parts = this.splitPath(this.manifestPath);
+			var localCMake = this.resolvePath(this.joinPath(parts[0], "CMakeLists.txt", false));
+
+			var aFile = new XSFile(path);
+			aFile.write('cmake_minimum_required(VERSION 2.8.8)\n');
 			aFile.write('# WARNING: This file is automatically generated by kprconfig. Do not edit.\n');
 			aFile.write('# SOURCE: ' + makefiles[0].mkPath + '\n');
 			aFile.write('# SOURCE: ' + this.manifestPath + '\n\n');
@@ -1697,14 +1731,7 @@
 
 			aFile.write('project("'); aFile.write(this.application); aFile.write('")\n\n');
 
-			aFile.write('set(KPR_BINARY_NAME ');
-			if (xsTool.platform == "android")
-				aFile.write('fsk');
-			else
-				aFile.write('${PROJECT_NAME}');
-			aFile.write(')\n\n');
-
-			aFile.write("set(SUPPORT_XS_DEBUG " + (this.xsdebug || this.debug ? 1 : 0) + ")\n\n");
+			aFile.write("set(SUPPORT_XS_DEBUG " + (this.xsdebug || this.debug || config.xsdebug["enabled"] ? 1 : 0) + ")\n\n");
 
 			aFile.write('include(${CONFIG_BASEDIR}/CMakeLists.txt)\n\n');
 			if (xsTool.platform == "android") {
@@ -1712,15 +1739,16 @@
 				aFile.write('set(BASE_CXX_FLAGS ${CMAKE_CXX_FLAGS})\n\n');
 			}
 
-			aFile.write('set(XSC_OPTIONS -t KPR_CONFIG -b ' + this.xscOptions + ')\n');
+			aFile.write('set(XSC_OPTIONS -t KPR_CONFIG -b ' + this.xscOptions);
+			if (this.debug)
+				aFile.write(' -d');
+			aFile.write(')\n');
 			var c = xscIncludePaths.length;
 			for (var i = 0; i < c; i++) {
 				path = this.toCMakePath(xscIncludePaths[i]);
 				aFile.write("list(APPEND XSC_OPTIONS -i " + path + ")\n");
 			}
 			aFile.write('\n');
-
-			var projectDeps = [];
 
 			var c = this.xmlPaths.length;
 			for (i = 0; i < c; i++) {
@@ -1732,7 +1760,8 @@
 				aFile.write(item.destinationPath);
 				aFile.write('.jsb)\n');
 			}
-			aFile.write('\n');
+			if (c > 0)
+				aFile.write('\n');
 
 			var c = this.jsPaths.length;
 			for (i = 0; i < c; i++) {
@@ -1745,7 +1774,8 @@
 				aFile.write(item.destinationPath);
 				aFile.write('.jsb)\n');
 			}
-			aFile.write('\n');
+			if (c > 0)
+				aFile.write('\n');
 
 			var c = this.otherPaths.length;
 			for (i = 0; i < c; i++) {
@@ -1766,9 +1796,11 @@
 				}
 				aFile.write(')\n');
 			}
-			aFile.write('copy_file(SOURCE ${F_HOME}/data/sslcert/ca-bundle.crt DESTINATION ca-bundle.crt)\n');
-			aFile.write('copy_file(SOURCE ${BUILD_TMP}/FskManifest.xsb DESTINATION ' + this.application + '.xsb DEPENDS FskManifest)\n');
-			aFile.write('\n');
+			if (!localCMake) {
+				aFile.write('copy_file(SOURCE ${F_HOME}/data/sslcert/ca-bundle.crt DESTINATION ca-bundle.crt)\n');
+				aFile.write('copy_file(SOURCE ${BUILD_TMP}/FskManifest.xsb DESTINATION ' + this.application + '.xsb DEPENDS FskManifest)\n');
+				aFile.write('\n');
+			}
 					
 			var copts = [];
 			var defs = [];
@@ -1795,7 +1827,16 @@
 				var option = asmOptions[i];
 				aFile.write('set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} ' + option.name + '")\n');
 			}
-			aFile.write("\n");
+			if (c > 0)
+				aFile.write("\n");
+
+			var c = copts.length;
+			for (var i = 0; i < c; i++) {
+				aFile.write('add_cflags("')
+				aFile.write(copts[i]);
+				aFile.write('")\n'); 
+			}
+			aFile.write('\n');
 
 			var c = defs.length;
 			for (var i = 0; i < c; i++) {
@@ -1826,15 +1867,6 @@
 				aFile.write('include_directories('); aFile.write(path); aFile.write(')\n');
 			}
 			aFile.write('\n');
-
-			var c = copts.length;
-			for (var i = 0; i < c; i++) {
-				aFile.write('set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ')
-				aFile.write(copts[i]);
-				aFile.write('")\n'); 
-			}
-			aFile.write('\n');
-			aFile.write('set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS}")\n\n')
 
 			var c = this.libraries.length;
 			var linkIncs = [];
@@ -1875,6 +1907,10 @@
 				}
 			}
 
+			if (xsTool.platform == "android") {
+				aFile.write('link_directories(${NDK_LIBS_PATH})\n');
+				aFile.write('link_directories(${NDK_DIR}/platforms/android-${NDK_PLATFORM_VER}/arch-arm/usr/lib)\n');
+			}
 			var c = linkIncs.length;
 			if (c > 0) {
 				for (i = 0; i < c; i++)
@@ -1903,23 +1939,12 @@
 				aFile.write("\n");
 			}
 
-			var c = makefiles.length;
-			for (var i = 1; i < c; i++) {
-				var makefile = makefiles[i];
-				aFile.write("add_subdirectory(");
-				aFile.write(this.toCMakePath(this.tmpPath));
-				aFile.write("/");
-				aFile.write(makefile.name);
-				aFile.write(")\n");
-			}
-			aFile.write('\n'); 
-
 			aFile.write('file(GLOB sources ${BUILD_TMP}/*.c)\n');
 			var c = makefiles[0].sources.length;
 			for (var i = 0; i < makefiles[0].sources.length; i++) {
-				aFile.write("list(APPEND sources " + makefiles[0].sources[i].path + ")\n");
+				aFile.write("add_source(LIST sources SOURCE " + makefiles[0].sources[i].path + ")\n");
 			}
-			aFile.write('xscc(${BUILD_TMP}/FskManifest.xs "")\n');
+			aFile.write('xscc(SOURCE ${BUILD_TMP}/FskManifest.xs)\n');
 
 			if (xsTool.platform == "iphone")
 				aFile.write('list(APPEND sources ${KPR_PATCH_PATH}/main.m)\n');
@@ -1931,33 +1956,49 @@
 				aFile.write('")\n\n');
 			}
 
-		
-			if (this.platform == "android") {
-				aFile.write('add_library(${KPR_BINARY_NAME}');
-			} else {
-				aFile.write('add_executable(${KPR_BINARY_NAME}');
-				if (this.platform == "iphone" || this.platform == "mac")
-					aFile.write(' MACOSX_BUNDLE')
-				else if (this.platform == "win")
-					aFile.write(' WIN32');
-			}
-			aFile.write('\n\t${PLATFORM_OBJECTS}');
-			aFile.write('\n\t${sources}');
 			var deps = [];
 			var c = makefiles.length;
+			if (localCMake) {
+				aFile.write("list(APPEND PROJECTS");
+			} else {
+				aFile.write("process_subdirectories(");
+				aFile.write("\n\tOBJECTS");
+			}
 			for (var i = 1; i < c; i++) {
 				var makefile = makefiles[i];
 				if (makefile.cmakeOutputType == "object") {
 					if (makefile.sources.length > 0) {
-						aFile.write('\n\t$<TARGET_OBJECTS:');
+						aFile.write('\n\t');
 						aFile.write(makefile.name);
-						aFile.write('>');
 					}
 				} else if (makefile.cmakeOutputType == "shared") {
 					deps.push(makefile.name);
 				}
 			}
-			aFile.write(')\n\n');
+			var c = deps.length;
+			if (c > 0) {
+				aFile.write('\n\tSHARED');
+				for (var i = 0; i < c; i++) {
+					aFile.write('\n\t')
+					aFile.write(deps[i]);
+				}
+			}
+			aFile.write("\n\t)\n\n");
+		
+			if (localCMake) {
+				aFile.write("include(" + this.toCMakePath(localCMake) + ")\n");
+			} else {
+				if (this.platform == "android") {
+					aFile.write('add_library(${KPR_BINARY_NAME}');
+				} else {
+					aFile.write('add_executable(${KPR_BINARY_NAME}');
+					if (this.platform == "iphone" || this.platform == "mac")
+						aFile.write(' MACOSX_BUNDLE')
+					else if (this.platform == "win")
+						aFile.write(' WIN32');
+				}
+				aFile.write(' ${PLATFORM_OBJECTS} ${sources})\n\n');
+			}
 
 			aFile.write('target_link_libraries(${KPR_BINARY_NAME} ${EXTRA_LIBS}');
 			if (this.platform != "win") {
@@ -1965,27 +2006,18 @@
 					aFile.write(' ' + linkFlags.join(' '));
 				if (makefile.cmakeLinks)
 					aFile.write(' ' + makefile.cmakeLinks);
-				if (entitlements.length > 0)
-					aFile.write(' ${ENTITLEMENTS_LINK_FLAGS}');
 			}
 			aFile.write(')\n');
 
-			aFile.write('add_dependencies(${KPR_BINARY_NAME}\n');
-			aFile.write('\t${PROJECT_DEPENDS}\n');
-			var c = projectDeps.length;
-			for (i = 0; i < c; i++) {
-				aFile.write('\t"')
-			       	aFile.write(projectDeps[i])
-				aFile.write('"\n');
-			}
-			aFile.write(')\n\n');
+			aFile.write('add_dependencies(${KPR_BINARY_NAME} ${PROJECT_DEPENDS})\n');
+
+			if (!localCMake)
+				aFile.write('include(${CONFIG_BASEDIR}/${TARGET_PLATFORM}/suffix.cmake OPTIONAL)\n');
 
 			if (deps.length > 0) {
 				if (this.platform == "android")
-					aFile.write('add_dependencies(${DEPENDS_TARGET} ' + deps.join(' ') + ')\n\n');
+					aFile.write('\nadd_dependencies(${DEPENDS_TARGET} ${DEPENDS_TARGET_SHARED})\n');
 			}
-
-			aFile.write('include(${CONFIG_BASEDIR}/${TARGET_PLATFORM}/suffix.cmake OPTIONAL)\n');
 
 			aFile.close();
 			
@@ -1998,9 +2030,9 @@
 		
 		<function name="generateFskPlatform">
 			var srcPath, dstPath, srcText, dstText;
-			srcPath = this.home + "/kinoma/kpr/make/" + this.platform + "/FskPlatform.h";
+			srcPath = this.home + "/kinoma/kpr/cmake/" + this.platform + "/FskPlatform.h";
 			if (this.subplatform) {
-				aPath = this.home + "/kinoma/kpr/make/" + this.platform + "/" + this.subplatform + "/FskPlatform.h";
+				aPath = this.home + "/kinoma/kpr/cmake/" + this.platform + "/" + this.subplatform + "/FskPlatform.h";
 				if (this.fileExists(aPath))
 					srcPath = aPath;
 			}

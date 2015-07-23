@@ -290,7 +290,7 @@ static FskInstrumentedTypeRecord KprMessageInstrumentation = { NULL, sizeof(FskI
 FskErr KprMessageNew(KprMessage *it, char* url)
 {
 	FskErr err = kFskErrNone;
-	KprMessage self;
+	KprMessage self = NULL;
 	bailIfError(FskMemPtrNewClear(sizeof(KprMessageRecord), it));
 	self = *it;
 	FskInstrumentedItemNew(self, NULL, &KprMessageInstrumentation);
@@ -299,6 +299,8 @@ FskErr KprMessageNew(KprMessage *it, char* url)
 	KprURLSplit(self->url, &self->parts);
 	self->priority = 256;
 bail:
+	if (err)
+		FskMemPtrDispose(self);
 	return err;
 }
 
@@ -1091,7 +1093,7 @@ void KPR_message_setRequestHeader(xsMachine* the)
 	KprMessage self = kprGetHostData(xsThis, this, message);
 	xsStringValue name = xsToString(xsArg(0));
 	xsStringValue value = xsToString(xsArg(1));
-	KprMessageSetRequestHeader(self, name, value);
+	(void)KprMessageSetRequestHeader(self, name, value);
 }
 
 void KPR_message_setResponseHeader(xsMachine* the)
@@ -1099,7 +1101,7 @@ void KPR_message_setResponseHeader(xsMachine* the)
 	KprMessage self = kprGetHostData(xsThis, this, message);
 	xsStringValue name = xsToString(xsArg(0));
 	xsStringValue value = xsToString(xsArg(1));
-	KprMessageSetResponseHeader(self, name, value);
+	(void)KprMessageSetResponseHeader(self, name, value);
 }
 
 void KPR_message_get_timeout(xsMachine *the)
@@ -1148,3 +1150,107 @@ void KPR_Message_patch(xsMachine* the)
 	xsNewHostProperty(xsResult, xsID("cancelReferrer"), xsNewHostFunction(KPR_Message_cancelReferrer, 1), xsDefault, xsDontScript);
 	xsNewHostProperty(xsResult, xsID("notify"), xsNewHostFunction(KPR_Message_notify, 1), xsDefault, xsDontScript);
 }
+
+#ifdef XS6
+
+typedef struct {
+	xsMachine* the;
+	xsSlot resolve;
+	xsSlot reject;
+} KprPromiseTargetRecord, *KprPromiseTarget;
+
+FskErr KprPromiseTargetNew(KprPromiseTarget* it, xsMachine* the, xsSlot* resolve, xsSlot* reject)
+{
+	KprPromiseTarget self;
+	FskErr err = kFskErrNone;
+	bailIfError(FskMemPtrNewClear(sizeof(KprPromiseTargetRecord), it));
+	self = *it;
+	self->the = the;
+	self->resolve = *resolve;
+	self->reject = *reject;
+	fxRemember(self->the, &self->resolve);
+	fxRemember(self->the, &self->reject);
+bail:
+	return err;
+}
+
+static void KprPromiseTargetDispose(KprMessage message, void* it)
+{
+	KprPromiseTarget self = it;
+	fxForget(self->the, &self->reject);
+	fxForget(self->the, &self->resolve);
+	FskMemPtrDispose(self);
+}
+
+static void KprPromiseTargetComplete(KprMessage message, void* it)
+{
+	KprPromiseTarget self = it;
+	xsBeginHost(self->the);
+	xsVars(3);
+	xsVar(0) = xsAccess(self->resolve);
+	xsVar(1) = xsAccess(self->reject);
+	if (message->error) {
+		xsVar(2) = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID_KPR), xsID_message));
+		xsSetHostData(xsVar(2), message);
+		FskInstrumentedItemSendMessageDebug(message, kprInstrumentedMessageConstruct, message);
+		message->usage++; // host
+		(void)xsCallFunction1(xsVar(1), xsUndefined, xsVar(2));
+	}
+	else {
+		if (message->stream)
+			KprMessageScriptTargetGet(message, the, &xsVar(2));
+		else {
+			xsVar(2) = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID_KPR), xsID_message));
+			xsSetHostData(xsVar(2), message);
+			FskInstrumentedItemSendMessageDebug(message, kprInstrumentedMessageConstruct, message);
+			message->usage++; // host
+		}
+		(void)xsCallFunction1(xsVar(0), xsUndefined, xsVar(2));
+	}
+	xsEndHost(self->the);
+}
+
+static void KPR_Message_invoke_executor(xsMachine* the)
+{
+	KprMessage message;
+	KprPromiseTarget target;
+	xsResult = xsGet(xsFunction, xsID_message);
+	message = kprGetHostData(xsResult, this, message);
+	xsThrowIfFskErr(KprPromiseTargetNew(&target, the, &xsArg(0), &xsArg(1)));
+	xsThrowIfFskErr(KprMessageInvoke(message, KprPromiseTargetComplete, KprPromiseTargetDispose, target));
+}
+
+void KPR_message_invoke(xsMachine* the)
+{
+	xsIntegerValue c = xsToInteger(xsArgc);
+	KprMessage self = kprGetHostData(xsThis, this, message);
+	xsVars(1);
+	xsVar(0) = xsNewHostFunction(KPR_Message_invoke_executor, 2);
+	xsSet(xsVar(0), xsID_message, xsThis);
+	if (xsToInteger(xsArgc) > 0)
+		KprMessageScriptTargetSet(self, the, &xsArg(0));
+	xsResult = xsNew1(xsGlobal, xsID_Promise, xsVar(0));
+}
+
+#else
+
+void KPR_message_invoke(xsMachine* the)
+{
+	xsDebugger();
+}
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+

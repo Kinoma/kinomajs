@@ -578,11 +578,11 @@ void KPR_canvasLinearGradient_setStyle(xsMachine *the)
 	xsNumberValue x1 = xsToNumber(xsGet(xsThis, xsID("x1")));
 	xsNumberValue y1 = xsToNumber(xsGet(xsThis, xsID("y1")));
 	UInt32 c, i;
-	FskCanvas2dGradientStop stops[4];
+	FskCanvas2dGradientStop stops[kCanvas2DMaxGradientStops];
 	xsVars(2);
 	xsVar(0) = xsGet(xsThis, xsID("stops"));
 	c = xsToInteger(xsGet(xsVar(0), xsID("length")));
-	if (c > 4) c = 4;
+	if (c > kCanvas2DMaxGradientStops) c = kCanvas2DMaxGradientStops;
 	for (i = 0; i < c; i++) {
 		xsVar(1) = xsGetAt(xsVar(0), xsInteger(i));
 		stops[i].offset = xsToNumber(xsGet(xsVar(1), xsID("offset")));
@@ -606,11 +606,11 @@ void KPR_canvasRadialGradient_setStyle(xsMachine *the)
 	xsNumberValue y1 = xsToNumber(xsGet(xsThis, xsID("y1")));
 	xsNumberValue r1 = xsToNumber(xsGet(xsThis, xsID("r1")));
 	UInt32 c, i;
-	FskCanvas2dGradientStop stops[4];
+	FskCanvas2dGradientStop stops[kCanvas2DMaxGradientStops];
 	xsVars(2);
 	xsVar(0) = xsGet(xsThis, xsID("stops"));
 	c = xsToInteger(xsGet(xsVar(0), xsID("length")));
-	if (c > 4) c = 4;
+	if (c > kCanvas2DMaxGradientStops) c = kCanvas2DMaxGradientStops;
 	for (i = 0; i < c; i++) {
 		xsVar(1) = xsGetAt(xsVar(0), xsInteger(i));
 		stops[i].offset = xsToNumber(xsGet(xsVar(1), xsID("offset")));
@@ -992,76 +992,74 @@ void KPR_canvasRenderingContext2D_set_font(xsMachine *the)
 				break;
 			q++;
 		}
-		*q = 0;
 		if (state == 0) {
-			if (!FskStrCompare(p, "normal"))
+			if (!FskStrCompareWithLength(p, "normal", q - p))
 				{}
-			else if (!FskStrCompare(p, "italic"))
+			else if (!FskStrCompareWithLength(p, "italic", q - p))
 				font.style = kFskFontStyleItalic;
-			else if (!FskStrCompare(p, "oblique"))
+			else if (!FskStrCompareWithLength(p, "oblique", q - p))
 				font.style = kFskFontStyleOblique;
-			else if (!FskStrCompare(p, "inherit"))
+			else if (!FskStrCompareWithLength(p, "inherit", q - p))
 				{}
-			else if (!FskStrCompare(p, "bold"))
+			else if (!FskStrCompareWithLength(p, "bold", q - p))
 				font.weight = kFskFontWeightBold;
-			else if (!FskStrCompare(p, "100"))
+			else if (!FskStrCompareWithLength(p, "100", q - p))
 				font.weight = 100;
-			else if (!FskStrCompare(p, "200"))
+			else if (!FskStrCompareWithLength(p, "200", q - p))
 				font.weight = 200;
-			else if (!FskStrCompare(p, "300"))
+			else if (!FskStrCompareWithLength(p, "300", q - p))
 				font.weight = 300;
-			else if (!FskStrCompare(p, "400"))
+			else if (!FskStrCompareWithLength(p, "400", q - p))
 				font.weight = 400;
-			else if (!FskStrCompare(p, "500"))
+			else if (!FskStrCompareWithLength(p, "500", q - p))
 				font.weight = 500;
-			else if (!FskStrCompare(p, "600"))
+			else if (!FskStrCompareWithLength(p, "600", q - p))
 				font.weight = 600;
-			else if (!FskStrCompare(p, "700"))
+			else if (!FskStrCompareWithLength(p, "700", q - p))
 				font.weight = 700;
-			else if (!FskStrCompare(p, "800"))
+			else if (!FskStrCompareWithLength(p, "800", q - p))
 				font.weight = 800;
-			else if (!FskStrCompare(p, "900"))
+			else if (!FskStrCompareWithLength(p, "900", q - p))
 				font.weight = 900;
-			else if (!FskStrCompare(p, "small-caps"))
+			else if (!FskStrCompareWithLength(p, "small-caps", q - p))
 				font.variant = kFskFontVariantSmallCaps;
 			else
 				state = 1;
 		}
 		if (state == 1) {
-			if (!FskStrCompare(p, "xx-small"))
+			if (!FskStrCompareWithLength(p, "xx-small", q - p))
 				font.size = 3 * kFskMediumFontSize / 5;
-			else if (!FskStrCompare(p, "x-small"))
+			else if (!FskStrCompareWithLength(p, "x-small", q - p))
 				font.size = 3 * kFskMediumFontSize / 4;
-			else if (!FskStrCompare(p, "small"))
+			else if (!FskStrCompareWithLength(p, "small", q - p))
 				font.size = 8 * kFskMediumFontSize / 9;
-			else if (!FskStrCompare(p, "medium"))
+			else if (!FskStrCompareWithLength(p, "medium", q - p))
 				font.size = kFskMediumFontSize;
-			else if (!FskStrCompare(p, "large"))
+			else if (!FskStrCompareWithLength(p, "large", q - p))
 				font.size = 6 * kFskMediumFontSize / 5;
-			else if (!FskStrCompare(p, "x-large"))
+			else if (!FskStrCompareWithLength(p, "x-large", q - p))
 				font.size = 3 * kFskMediumFontSize / 2;
-			else if (!FskStrCompare(p, "xx-large"))
+			else if (!FskStrCompareWithLength(p, "xx-large", q - p))
 				font.size = 2 * kFskMediumFontSize;
-			else if (!FskStrCompare(p, "larger"))
+			else if (!FskStrCompareWithLength(p, "larger", q - p))
 				font.size = 6 * kFskMediumFontSize / 5; // @@
-			else if (!FskStrCompare(p, "smaller"))
+			else if (!FskStrCompareWithLength(p, "smaller", q - p))
 				font.size = 8 * kFskMediumFontSize / 9; // @@
 			else {
 				size = 0;
-				while (((d = *p)) && ('0' <= d) && (d <= '9')) {
+				while ((p < q) && ((d = *p)) && ('0' <= d) && (d <= '9')) {
 					size = (10 * size) + (d - '0');
 					p++;
 				}
-				if (!FskStrCompare(p, "%"))
+				if (!FskStrCompareWithLength(p, "%", q - p))
 					font.size = parent->size * size / 100;
-				else if (!FskStrCompare(p, "px"))
+				else if (!FskStrCompareWithLength(p, "px", q - p))
 					font.size = size;
 			}
 			state = 2;
 		}
 		if (!c)
 			break;
-		*q = c;
 		p = q;
 	}
 	if (!font.family || !font.size)

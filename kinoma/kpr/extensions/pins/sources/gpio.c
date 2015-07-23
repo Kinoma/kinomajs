@@ -88,7 +88,7 @@ void xs_gpio_init(xsMachine* the)
 
     xsVars(1);
 
-    if (xsGetHostData(xsThis))
+    if ((gpio = xsGetHostData(xsThis)))
         xsThrowDiagnosticIfFskErr(kFskErrOperationFailed, "Digital pin %d already initialized.", (int)gpio->pinNum);
 
     dir = stringToDirection(the, xsToString(xsGet(xsThis, xsID("_direction"))), gpio);
@@ -100,7 +100,7 @@ void xs_gpio_init(xsMachine* the)
         pin = xsToInteger(xsVar(0));
 
     err = FskGPIONew(&gpio, pin, pinName, dir);
-    xsThrowDiagnosticIfFskErr(err, "Digital pin %d initialization failed with error %s.", (int)gpio->pinNum, FskInstrumentationGetErrorString(err));
+    xsThrowDiagnosticIfFskErr(err, "Digital pin %d initialization failed with error %s.", pin, FskInstrumentationGetErrorString(err));
 
     xsSetHostData(xsThis, gpio);
 }

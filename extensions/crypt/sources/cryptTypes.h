@@ -28,7 +28,7 @@
 #if TARGET_OS_WIN32
 typedef unsigned __int64 FskUInt64;
 typedef FskUInt64 UInt64;
-#ifndef inline
+#if !defined(inline) && !defined(__cplusplus)
 	#define inline __inline
 #endif
 #elif TARGET_OS_MAC

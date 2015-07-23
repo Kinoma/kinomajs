@@ -116,6 +116,21 @@ bail:
 	return err;
 }
 
+FskErr FskAudioKplSetProperty(FskAudioOut audioOut, UInt32 propertyID, FskMediaPropertyValue property)
+{
+	FskErr err = kFskErrUnimplemented;
+	FskAudioKpl audio = (FskAudioKpl)audioOut;
+
+    if (propertyID == kFskAudioOutPropertyRealTime) {
+        KplPropertyRecord kpr;
+        kpr.propertyType = kKplPropertyTypeBoolean;
+        kpr.b = property->value.b;
+        err = KplAudioSetProperty(((FskAudioKpl)audioOut)->kplAudio, kKplPropertyAudioRealTime, &kpr);
+    }
+    
+    return err;
+}
+
 FskErr FskAudioKplGetVolume(FskAudioOut audioOut, UInt16 *left, UInt16 *right)
 {
 	FskErr err = kFskErrNone;
@@ -285,7 +300,7 @@ void FskAudioKplInitialize()
 	gAudioOutVectors.doGetDeviceHandle = NULL;
 	gAudioOutVectors.doHasProperty = NULL;
 	gAudioOutVectors.doGetProperty = NULL;
-	gAudioOutVectors.doSetProperty = NULL;
+	gAudioOutVectors.doSetProperty = FskAudioKplSetProperty;
 	
 	FskAudioOutSetVectors(&gAudioOutVectors);
 }

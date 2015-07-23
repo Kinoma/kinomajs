@@ -284,7 +284,8 @@ void xsc_getModuleCode(txMachine* the)
 	txSize aSize;
 	xsVars(1);
 
-	aStream.arguments = "(require, exports, module)";
+	xsVar(0) = xsGet(xsThis, xsID("arguments"));
+	aStream.arguments = xsTest(xsVar(0)) ? xsToString(xsVar(0)) : "(require, exports, module)";
 	aStream.body = 1;
 	aStream.file = fopen(xsToString(xsArg(0)), "r");
 	xsElseError(aStream.file);
@@ -1002,7 +1003,13 @@ void xsc_parseArguments(txMachine *the, int argc, char *argv[])
 	int argi;
 
 	for (argi = 1; argi < argc; argi++) {
-		if (!strcmp(argv[argi], "-b")) {
+		if  (!strcmp(argv[argi], "-a")) {
+			argi++;
+			if (argi == argc)
+				xsc_throw(the, "-a: no arguments");
+			xsSet(xsThis, xsID("arguments"), xsString(argv[argi]));
+		}
+		else if (!strcmp(argv[argi], "-b")) {
 			xsSet(xsThis, xsID("binary"), xsTrue);
 		}
 		else if  (!strcmp(argv[argi], "-d")) {

@@ -18,6 +18,8 @@ cmake_minimum_required(VERSION 2.8)
 
 set(CMAKE_MODULE_PATH ${CONFIG_BASEDIR}/${TARGET_PLATFORM}/CMake-Modules)
 
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fPIE -pie")
+
 enable_language(CXX)
 enable_language(ASM-wmmx)
 enable_language(ASM-gas7)
@@ -43,50 +45,9 @@ set(CMAKE_ASM-gas7_FLAGS "${CMAKE_C_FLAGS}")
 
 include_directories(${F_HOME}/libraries/freetype/src/freetype-${FREETYPE_VERSION}/include)
 link_directories(${NDK_PROJECT_PATH}/obj/local/armeabi)
+link_directories(${F_HOME}/build/android/marvelllibs)
 
 add_subdirectory(${F_HOME}/libraries/freetype "freetype")
 
 list(APPEND PLATFORM_OBJECTS $<TARGET_OBJECTS:LibraryFreetype>)
 set(INSTALL_PATH ${NDK_PROJECT_PATH}/obj/local/armeabi)
-
-add_custom_command(
-	OUTPUT ${FSK_A_PATH}
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${BUILD_TMP}/libfsk.a ${FSK_A_PATH}
-	DEPENDS fsk
-	)
-
-add_custom_target(CopyFskLibrary DEPENDS ${FSK_A_PATH})
-
-add_custom_target(
-	ndk
-	COMMAND ${CMAKE_COMMAND} -E remove ${FSK_SO_PATH} ${NDK_OBJ_PATH}/libFsk.so
-	COMMAND env NDK_PROJECT_PATH=${NDK_PROJECT_PATH} KPR_TMP_DIR=${BUILD_TMP} SUPPORT_XS_DEBUG=${SUPPORT_XS_DEBUG} ${ANDROID_NDK}/ndk-build V=1
-	DEPENDS CopyFskLibrary
-	)
-
-add_custom_command(
-	OUTPUT ${NDK_PROJECT_PATH}/res/raw/kinoma.jet
-	COMMAND ${CMAKE_COMMAND} -E make_directory ${NDK_PROJECT_PATH}/res/raw
-	COMMAND zip -8qrn .jpg:.png:.m4a ${NDK_PROJECT_PATH}/res/raw/kinoma.jet "*"
-	WORKING_DIRECTORY ${BIN_DIR}
-	DEPENDS fsk
-	)
-
-add_custom_target(jet DEPENDS ${NDK_PROJECT_PATH}/res/raw/kinoma.jet)
-
-add_custom_command(
-	OUTPUT ${NDK_PROJECT_PATH}/bin/${KPR_APPLICATION}-${ANT_BUILD_TYPE}.apk
-	COMMAND ant ${ANT_BUILD_TYPE}
-	WORKING_DIRECTORY ${NDK_PROJECT_PATH}
-	DEPENDS fsk jet ndk
-	)
-
-add_custom_target(apk DEPENDS ${NDK_PROJECT_PATH}/bin/${KPR_APPLICATION}-${ANT_BUILD_TYPE}.apk)
-
-add_custom_command(
-	OUTPUT ${BUILD_BIN}/${MANIFEST_NAME}.apk
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${NDK_PROJECT_PATH}/bin/${KPR_APPLICATION}-${ANT_BUILD_TYPE}.apk ${BUILD_BIN}/${MANIFEST_NAME}.apk
-	DEPENDS fsk apk
-	)
-
-add_custom_target(CopyApks ALL DEPENDS ${BUILD_BIN}/${MANIFEST_NAME}.apk)

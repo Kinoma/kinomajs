@@ -1340,8 +1340,13 @@ FskErr KprLibraryServerGetSongThumbnail(KprLibrarySession session)
 {
 	session->error = kFskErrNotFound;
 	MPMediaQuery* query = [[[MPMediaQuery alloc] init] autorelease];
-	MPMediaPropertyPredicate *predicate = [MPMediaPropertyPredicate 
-		predicateWithValue:[NSNumber numberWithLongLong:FskStrToFskInt64(session->url)]
+	NSString *urlString = [NSString stringWithUTF8String:session->url];
+	NSString *idString = FskCocoaMediaIdFromURLString(urlString, NO);
+	if (idString == nil) {
+		return kFskErrNotFound;
+	}
+	MPMediaPropertyPredicate *predicate = [MPMediaPropertyPredicate
+		predicateWithValue:[NSNumber numberWithLongLong:FskStrToFskInt64([idString UTF8String])]
 		forProperty: MPMediaItemPropertyPersistentID];
 	[query addFilterPredicate:predicate];
 	NSArray *items = [query items];

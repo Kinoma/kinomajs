@@ -73,6 +73,7 @@
 			<function name="onTouchCancelled" params="content, id"/>
 			<function name="onTouchEnded" params="content, id, x, y, ticks"/>
 			<function name="onTouchMoved" params="content, id, x, y, ticks"/>
+			<function name="onTouchScrolled" params="content, dx, dy, ticks"/>
 			<function name="onTransitionBeginning" params="content"/>
 			<function name="onTransitionEnded" params="content"/>
 			<function name="onUndisplayed" params="content"/>
@@ -109,6 +110,7 @@
 		</object>
 		
 		<object name="texture" c="KPR_texture">
+			<function name="get content" c="KPR_texture_get_content"/>
 			<function name="get effect" c="KPR_texture_get_effect"/>
 			<function name="get scale" c="KPR_texture_get_scale"/>
 			<function name="get size" c="KPR_texture_get_size"/>
@@ -318,6 +320,7 @@
 		<object name="label" prototype="KPR.content">
 			<function name="get editable" c="KPR_label_get_editable"/>
 			<function name="get hidden" c="KPR_label_get_hidden"/>
+			<function name="get inputType" c="KPR_label_get_inputType"/>
 			<function name="get length" c="KPR_label_get_length"/>
 			<function name="get selectable" c="KPR_label_get_selectable"/>
 			<function name="get selectionBounds" c="KPR_label_get_selectionBounds"/>
@@ -328,6 +331,7 @@
 			<function name="set active" c="KPR_label_set_active"/>
 			<function name="set editable" c="KPR_label_set_editable"/>
 			<function name="set hidden" c="KPR_label_set_hidden"/>
+			<function name="set inputType" params="it" c="KPR_label_set_inputType"/>
 			<function name="set selectable" c="KPR_label_set_selectable"/>
 			<function name="set string" params="it" c="KPR_label_set_string"/>
 			
@@ -579,6 +583,7 @@
 			<function name="cancel" c="KPR_message_cancel"/>
 			<function name="clearRequestHeader" params="name" c="KPR_message_clearRequestHeader"/>
 			<function name="clearResponseHeader" params="name" c="KPR_message_clearResponseHeader"/>
+			<function name="invoke" c="KPR_message_invoke"/>
 			<function name="getRequestHeader" params="name" c="KPR_message_getRequestHeader"/>
 			<function name="getResponseHeader" params="name" c="KPR_message_getResponseHeader"/>
 			<function name="setRequestCertificate" c="KPR_message_setRequestCertificate"/>
@@ -606,8 +611,6 @@
 		</object>
 	</object>
 	
-	<function name="include" params="it" c="KPR_include"/>
-	<function name="require" params="it" c="KPR_require"/>
 	<program c="KPR_patch"/>
 
 	<function name="Behavior" params="content, data, dictionary" prototype="KPR.behavior">
@@ -630,6 +633,7 @@
 	<program c="KPR_Content_patch"/>
 	
 	<function name="Container" params="coordinates, skin, style" prototype="KPR.container" c="KPR_Container"/>
+	<program c="KPR_Container_patch"/>
 	
 	<function name="Layer" params="coordinates" prototype="KPR.layer" c="KPR_Layer"/>
 	
@@ -756,6 +760,7 @@
 		</object>
 		<function name="Power" params="what" prototype="system.power" c="KPR_system_Power"/>
 		<function name="get platform" c="KPR_system_get_platform"/>
+		<function name="get settings" c="KPR_system_get_settings"/>
 	</object>
 
 	<import href="kprHTTP.xs"/>

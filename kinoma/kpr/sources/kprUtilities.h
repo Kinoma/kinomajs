@@ -231,6 +231,7 @@ struct KprSocketReaderRecord {
 	Boolean inThreadDataHandler;
 	Boolean disposeRequested;
 	Boolean closed;
+	Boolean stateInitialized;
 
 	KprSocketErrorCallback errorCallback;
 

@@ -463,7 +463,7 @@ bail:
  * TODO: Implement a more lightweight version.
  ********************************************************************************/
 
-FskFixed
+double
 FskUnicodeStringGetWidth(const UInt16 *uniChars, UInt32 numUniChars, const FskFontAttributes *attributes)
 {
 	FskTextContext textContext = NULL;
@@ -806,7 +806,7 @@ NewStyleFromFontAttributes(const FskFontAttributes *attr, ATSUStyle *atsuStyle)
 	isStrikeThrough	= (attr->decoration & kFskFontDecorationLineThrough) != 0;
 	atsuFontSize	= attr->size * 65536.0f + 0.5f;
 
-	/* Set up attribute arrray */
+	/* Set up attribute array */
 	theValues[0] = &atsuFontID;
 	theValues[1] = &atsuFontSize;
 	theValues[2] = &isBold;
@@ -1000,7 +1000,7 @@ AppendLayoutPathToTextContext(
 	ATSUDirectGetLayoutDataArrayPtrFromTextLayout(iLayout, 0, kATSUDirectDataLayoutRecordATSLayoutRecordCurrent, (void**)(void*)&layoutRecords, &numRecords);
 	ATSUDirectGetLayoutDataArrayPtrFromTextLayout(iLayout, 0, kATSUDirectDataBaselineDeltaFixedArray, (void**)(void*)&deltaYs, &numDeltaYs);
 
-	/* Append paths for each glyph inthe layout */
+	/* Append paths for each glyph in the layout */
 	for (i = 0; i < numRecords; i++) {
 		xorg = origin->x + layoutRecords[i].realPos;
 		if (deltaYs == NULL)	yorg = origin->y;
@@ -1072,7 +1072,7 @@ bail:
  * TODO: Implement a more lightweight version.
  ********************************************************************************/
 
-FskFixed
+double
 FskUnicodeStringGetWidth(const UInt16 *uniChars, UInt32 numUniChars, const FskFontAttributes *attributes)
 {
 	FskErr			err		= kFskErrNone;
@@ -1085,7 +1085,7 @@ FskUnicodeStringGetWidth(const UInt16 *uniChars, UInt32 numUniChars, const FskFo
 
 bail:
 	FskGrowablePathDispose(path);
-	return origin.x;
+	return FskFixedToFloat(origin.x);
 }
 
 
@@ -1584,7 +1584,7 @@ bail:
  * TODO: Implement a more lightweight version.
  ********************************************************************************/
 
-FskFixed
+double
 FskUnicodeStringGetWidth(const UInt16 *uniChars, UInt32 numUniChars, const FskFontAttributes *attributes)
 {
 	FskErr			err;
@@ -1624,7 +1624,7 @@ bail:
 	if (err)
 		width = err;
 
-	return width;
+	return FskFixedToFloat(width);
 }
 
 
@@ -1714,7 +1714,7 @@ FskGrowablePathFromUnicodeStringNew(
  * TODO: Implement a more lightweight version.
  ********************************************************************************/
 
-FskFixed
+double
 FskUnicodeStringGetWidth(const UInt16 *uniChars, UInt32 numUniChars, const FskFontAttributes *attributes)
 {
 	FskErr			err		= kFskErrNone;
@@ -1727,7 +1727,7 @@ FskUnicodeStringGetWidth(const UInt16 *uniChars, UInt32 numUniChars, const FskFo
 
 bail:
 	FskGrowablePathDispose(path);
-	return origin.x;
+	return FskFixedToFloat(origin.x);
 }
 
 
@@ -1757,6 +1757,15 @@ bail:
 #define FT_FracBits			6
 #define FTToFixedCoord(x)	((x) << (FskFixed_FracBits - FT_FracBits))	/* Convert from FreeType's 26.6 to FskFixed's 16.16 */
 
+typedef enum {
+	SEGNONE		= 0,
+	SEGMOVE,
+	SEGLINE,
+	SEGQUAD,
+	SEGCUBIC,
+	SEGCLOSE,
+	SEGGLYPH
+} SegType;
 
 struct FskTextContextRecord {
 	FskGrowablePath		path;
@@ -1765,9 +1774,30 @@ struct FskTextContextRecord {
 	FT_Outline_Funcs	olFuncs;
 	FskFixedPoint2D		origin;
 	Boolean				hasKerning;
+	SegType				lastSegment;
 };
 
 extern FT_Library				ftLib;
+
+
+/********************************************************************************
+ * ClosePreviousContour
+ ********************************************************************************/
+
+static Boolean
+ClosePreviousContour(FskTextContext textContext) {
+	switch (textContext->lastSegment) {
+		case SEGLINE:
+		case SEGQUAD:
+		case SEGCUBIC:
+			FskGrowablePathAppendSegmentClose(textContext->path);
+			textContext->lastSegment = SEGCLOSE;
+			return true;
+		default:
+			break;
+	}
+	return false;
+}
 
 
 /********************************************************************************
@@ -1779,9 +1809,8 @@ MyMoveTo(const FT_Vector *to, void *userData)
 {
 	FskTextContext	textContext		= (FskTextContext)userData;
 
-	if (FskGrowablePathGetSegmentCount(textContext->path) > 0)	/* If not the first contour... */
-		FskGrowablePathAppendSegmentClose(textContext->path);				/* ... close the previous one */
-
+	(void)ClosePreviousContour(textContext);
+	textContext->lastSegment = SEGMOVE;
 	return	FskGrowablePathAppendSegmentMoveTo(
 				XCOORD(to->x),		YCOORD(to->y),
 				textContext->path
@@ -1798,6 +1827,7 @@ MyLineTo(const FT_Vector *to, void *userData)
 {
 	FskTextContext	textContext		= (FskTextContext)userData;
 
+	textContext->lastSegment = SEGLINE;
 	return	FskGrowablePathAppendSegmentLineTo(
 				XCOORD(to->x),		YCOORD(to->y),
 				textContext->path
@@ -1814,6 +1844,7 @@ MyQuadTo(const FT_Vector *control, const FT_Vector *to, void *userData)
 {
 	FskTextContext	textContext		= (FskTextContext)userData;
 
+	textContext->lastSegment = SEGQUAD;
 	return	FskGrowablePathAppendSegmentQuadraticBezierTo(
 				XCOORD(control->x),	YCOORD(control->y),
 				XCOORD(to->x),		YCOORD(to->y),
@@ -1831,6 +1862,7 @@ MyCubicTo(const FT_Vector *control1, const FT_Vector *control2, const FT_Vector 
 {
 	FskTextContext	textContext		= (FskTextContext)userData;
 
+	textContext->lastSegment = SEGCUBIC;
 	return	FskGrowablePathAppendSegmentCubicBezierTo(
 				XCOORD(control1->x),	YCOORD(control1->y),
 				XCOORD(control2->x),	YCOORD(control2->y),
@@ -1948,7 +1980,10 @@ FskTextContextAppendGlyphPath(FskGlyphID glyphID, FskFixed x0, FskFixed y0, FskT
 	textContext->origin.x = x0;
 	textContext->origin.y = y0;
 	err = FT_Outline_Decompose(&textContext->face->glyph->outline, &textContext->olFuncs, textContext);
-	(void)FskGrowablePathAppendSegmentEndGlyph(textContext->path);
+	if (ClosePreviousContour(textContext)) {									/* Don't punctuate spaces */
+		(void)FskGrowablePathAppendSegmentEndGlyph(textContext->path);
+		textContext->lastSegment = SEGGLYPH;
+	}
 
 bail:
 	return err;
@@ -1957,7 +1992,7 @@ bail:
 
 /********************************************************************************
  * FskGetGlyphStringFromUnicodeString
- * It seems as if FreeType only suppports 1:1 mapping between characters and glyphs,
+ * It seems as if FreeType only supports 1:1 mapping between characters and glyphs,
  * i.e. it doesn't accommodate many-to-one (e.g. ligatures)
  * or one-to-many (e.g. diacriticals).
  ********************************************************************************/
@@ -2002,14 +2037,14 @@ bail:
  * FskUnicodeStringGetWidth
  ********************************************************************************/
 
-FskFixed
+double
 FskUnicodeStringGetWidth(
    const UInt16				*uniChars,
    UInt32					numUniChars,
    const FskFontAttributes	*attributes
 )
 {
-#if 0	/* This might work, but needds to be tested */
+#if 0	/* This might work, but needs to be tested */
 	FskGlyphID			glyph;
 	FskFixed			x		= 0;
 	FskTextContext textContext	= NULL;
@@ -2023,7 +2058,7 @@ FskUnicodeStringGetWidth(
 
 bail:
 
-	return x;
+	return FskFixedToFloat(x);
 #else	/* This will work, but is at overkill */
 	FskErr			err		= kFskErrNone;
 	FskGrowablePath	path	= NULL;
@@ -2035,7 +2070,7 @@ bail:
 
 bail:
 	FskGrowablePathDispose(path);
-	return origin.x;
+	return FskFixedToFloat(origin.x);
 #endif
 }
 
@@ -2163,7 +2198,7 @@ FskTextContextAppendGlyphPath(FskGlyphID glyphID, FskFixed x0, FskFixed y0, FskT
 
 /********************************************************************************
  * FskGetGlyphStringFromUnicodeString
- * It seems as if FreeType only suppports 1:1 mapping between characters and glyphs,
+ * It seems as if FreeType only supports 1:1 mapping between characters and glyphs,
  * i.e. it doesn't accommodate many-to-one (e.g. ligatures)
  * or one-to-many (e.g. diacriticals).
  ********************************************************************************/
@@ -2182,7 +2217,7 @@ FskNewGlyphStringFromUnicodeString(const UInt16 *uniChars, UInt32 numUniChars, F
  * FskUnicodeStringGetWidth
  ********************************************************************************/
 
-FskFixed
+double
 FskUnicodeStringGetWidth(
    const UInt16				*uniChars,
    UInt32					numUniChars,

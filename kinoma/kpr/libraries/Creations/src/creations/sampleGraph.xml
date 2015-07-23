@@ -33,6 +33,9 @@
 		<behavior>
 			<method id="onCreate" params="container, data"><![CDATA[
 				this.data = data;
+				this.min = ("min" in data) ? data.min : 0;
+				this.max = ("max" in data) ? data.max : 1;
+				this.isRanged = (this.min != 0) || (this.max != 0);
 				this.probeOffset = ("probeOffset" in data) ? data.probeOffset : 0;
 				this.lastValue = -1;
 				this.enableAudioFeedback = false;
@@ -128,7 +131,11 @@
 			<method id="setValue" params="container, value"><![CDATA[
 				if (value != this.lastValue) {
 					this.lastValue = value;
-					container.levelPopup.label.string = value;
+					var displayValue = value;
+					if (this.isRanged) {
+						displayValue = this.min + (value * (this.max - this.min));
+					}
+					container.levelPopup.label.string = displayValue.toString();
 					if (this.enableAudioFeedback)
 						this.measureSound.play();
 				}

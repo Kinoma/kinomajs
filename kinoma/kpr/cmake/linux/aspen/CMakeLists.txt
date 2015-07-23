@@ -14,5 +14,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
+enable_language(ASM)
+enable_language(ASM_WMMX)
 set(FSK_SYSROOT_LIB $ENV{FSK_SYSROOT_LIB})
 list(APPEND sources ${F_HOME}/build/linux/kpl/KplAudioLinuxALSA.c)

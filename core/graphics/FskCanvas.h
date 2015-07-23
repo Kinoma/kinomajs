@@ -77,9 +77,9 @@ enum {
 };
 
 
-/** Fill mode.
- *	This is an extension beyond that required in the specification,
- *	which requires only the non-zero or winding-number fill.
+/** Fill rule.
+ *	This is an extension beyond that required in the original specification,
+ *	which required only the non-zero or winding-number fill.
  */
 enum {
 	kFskCanvas2dFillRuleWindingNumber	= 0,	/**< Winding number or non-zero fill (Canvas 2d default). */
@@ -102,11 +102,19 @@ enum {
 };
 
 
+/** Text direction. */
+enum {
+	kFskCanvas2dTextDirectionLeftToRight	= +1,
+	kFskCanvas2dTextDirectionRightToLeft	= -1,
+	kFskCanvas2dTextDirectionInherit		= 0
+};
+
+
 /** Pattern repetition. */
 enum {
-	kFskCanvas2dPatternRepeatNone	= 0,			/**< The pattern is not to be repeated  outside of its primary domain. */
-	kFskCanvas2dPatternRepeatX		= 2<<0,			/**< The pattern is to be repeated in X outside of its primary domain. */
-	kFskCanvas2dPatternRepeatY		= 2<<2,			/**< The pattern is to be repeated in Y outside of its primary domain. */
+	kFskCanvas2dPatternRepeatNone	= 0,		/**< The pattern is not to be repeated  outside of its primary domain. */
+	kFskCanvas2dPatternRepeatX		= 2<<0,		/**< The pattern is to be repeated in X outside of its primary domain. */
+	kFskCanvas2dPatternRepeatY		= 2<<2,		/**< The pattern is to be repeated in Y outside of its primary domain. */
 	kFskCanvas2dPatternRepeat		= kFskCanvas2dPatternRepeatX|kFskCanvas2dPatternRepeatY	/**< The pattern is to be repeated in both X and Y outside of its primary domain. */
 };
 
@@ -114,25 +122,25 @@ enum {
 
 /** An array of pixels, in RGBA order */
 typedef struct FskCanvas2dPixelArrayRecord {
-	unsigned long	length;		/**< The number of bytes in this pixel array record, necessarily divisible by 4. */
-	UInt8			*bytes;		/**< The pixel data. Can be safely cast to FskColorRGBA. */
+	UInt32		length;							/**< The number of bytes in this pixel array record, necessarily divisible by 4. */
+	UInt8		*bytes;							/**< The pixel data. Can be safely cast to FskColorRGBA. */
 } FskCanvas2dPixelArrayRecord,
- *FskCanvas2dPixelArray;		/**< A pixel array object. */
+ *FskCanvas2dPixelArray;						/**< A pixel array object. */
 
 /** A structure to hold image data. */
 typedef struct FskCanvas2dImageDataRecord {
-	unsigned long				width;	/**< The width  of the image data. */
-	unsigned long				height;	/**< The height of the image data. */
-	FskCanvas2dPixelArrayRecord	data;	/**< The pixel data. */
+	UInt32						width;			/**< The width  of the image data. */
+	UInt32						height;			/**< The height of the image data. */
+	FskCanvas2dPixelArrayRecord	data;			/**< The pixel data. */
 } FskCanvas2dImageDataRecord,
- *FskCanvas2dImageData;			/**< An image data object. */
+ *FskCanvas2dImageData;							/**< An image data object. */
 typedef const struct FskCanvas2dImageDataRecord *FskConstCanvas2dImageData;	/**< A read-only image data object. */
 
 
 /** Gradient stop specification. */
 typedef struct FskCanvas2dGradientStop {
-	double				offset;		/**< The offset (in [0, 1]) of the stop, relative to the gradient's coordinate system. */
-	FskColorRGBARecord	color;		/**< The color to be used at the associated offset. */
+	double				offset;					/**< The offset (in [0, 1]) of the stop, relative to the gradient's coordinate system. */
+	FskColorRGBARecord	color;					/**< The color to be used at the associated offset. */
 } FskCanvas2dGradientStop;
 
 
@@ -167,10 +175,18 @@ struct FskCanvasRecord;				typedef struct FskCanvasRecord				FskCanvasRecord,			
 struct FskCanvas2dContextRecord;	typedef struct FskCanvas2dContextRecord		FskCanvas2dContextRecord,	*FskCanvas2dContext;	typedef const struct FskCanvas2dContextRecord	*FskConstCanvas2dContext;
 struct FskVideoRecord;				typedef struct FskVideoRecord				FskVideoRecord,				*FskVideo;
 struct FskColorSource;
+struct FskGrowableStorageRecord;	typedef struct FskGrowableStorageRecord		FskCanvas2dPathRecord,		*FskCanvas2dPath;			typedef const struct FskGrowableStorageRecord	*FskConstCanvas2dPath;
+
+
+/** The encapsulation of a double-precision floating-point 3x2 matrix. */
+typedef struct FskCanvasMatrix3x2d {
+	double M[3][2];										/**< The matrix itself. */
+} FskCanvasMatrix3x2d;									/**< The encapsulation of a double-precision floating-point 3x2 matrix. */
+
 
 
 /********************************************************************************
- * Transforms
+ * API
  ********************************************************************************/
 
 
@@ -188,6 +204,8 @@ FskAPI(FskErr)	FskCanvasNew(UInt32 width, UInt32 height, FskBitmapFormatEnum pix
  *	\param[in]	bm			The bitmap to be used for rendering in the canvas.
  *	\param[out]	cnv			The resultant new Canvas 2d.
  *	\return		kFskErrNone	if the canvas was created successfully.
+ *	\note		If calling FskCanvasNewFromBitmap() with a GL-accelerated bitmap, it is necessary to call
+ *				FskGLPortSetPersistent(bm->glPort, true) explicitly in order to get the same behavior as with FskCanvasNew().
  */
 FskAPI(FskErr)	FskCanvasNewFromBitmap(FskBitmap bm, FskCanvas *cnv);
 
@@ -200,11 +218,14 @@ FskAPI(void)	FskCanvasDispose(FskCanvas cnv);
 
 /** Clear the canvas to the specified color.
  *	This is an enhancement beyond that of the Canvas 2d specification.
+ *	Colors are specified in the straight alpha convention, but the canvas bitmap contains premultiplied colors.
+ *	As a result, the color written to the canvas will be
+ *		{ r*a, g*a, b*a, a }
  *	\param[in]	cnv		The Canvas to be cleared.
  *	\param[in]	r		The  red  component of the clear color.
  *	\param[in]	g		The green component of the clear color.
  *	\param[in]	b		The blue  component of the clear color.
- *	\param[in]	a		The alpha component of the clear color.
+ *	\param[in]	a		The     opacity     of the clear color.
  */
 FskAPI(void)	FskCanvasClear(FskCanvas cnv, UInt8 r, UInt8 g, UInt8 b, UInt8 a);
 
@@ -225,8 +246,17 @@ FskAPI(FskConstBitmap)	FskGetCanvasBitmap(FskCanvas cnv);
  *	\return		kFskErrNone					if the bitmap was set successfully.
  *	\return		kFskErrUnsupportedPixelType	if the pixel type is not supported.
  *	\return		kFskErrUnimplemented		if the pixel type is expected to be supported, but curently unimplemented.
+ *	\note		If calling FskSetCanvasBitmap() with a GL-accelerated bitmap, it is necessary to call
+ *				FskGLPortSetPersistent(bm->glPort, true) explicitly in order to get the same behavior as with FskCanvasNew().
  */
 FskAPI(FskErr)	FskSetCanvasBitmap(FskCanvas cnv, FskBitmap bm);
+
+
+/** Check whether the canvas context is accelerated with OpenGL.
+ *	\param[in]	ctx		The Canvas 2d context.
+ *	\return		true	if the Canvas context is accelerated; false otherwise.
+ */
+FskAPI(Boolean)	FskCanvasIsAccelerated(FskConstCanvas2dContext ctx);
 
 
 /** Returns a data: URL of the form "data:image/png;base64,dataComposedOfUrlCharacters".
@@ -271,6 +301,13 @@ FskAPI(FskErr)	FskCanvas2dSave(FskCanvas2dContext ctx);
  *	\return	kFskErrNone	if the state was restored successfully.
  */
 FskAPI(FskErr)	FskCanvas2dRestore(FskCanvas2dContext ctx);
+
+
+/** Flush the drawing to the bitmap.
+ *	\param[in]	ctx		The Canvas 2d context.
+ *	\return	kFskErrNone	if the operation was executed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dCommit(FskCanvas2dContext ctx);
 
 
 /** Get quality of the rendering.
@@ -593,7 +630,7 @@ FskAPI(FskErr)	FskCanvas2dSetStrokeStyleRadialGradient(FskCanvas2dContext ctx,
  *	\param[in]	pattern		The image to be used as a pattern for filling.
  *	\return		kFskErrNone		If the pattern fill style was successfully set.
  */
-FskAPI(FskErr)	FskCanvas2dSetFillStylePattern(  FskCanvas2dContext ctx, UInt32 repetition, FskConstBitmap pattern);
+FskAPI(FskErr)	FskCanvas2dSetFillStylePattern(  FskCanvas2dContext ctx, UInt32 repetition, FskConstBitmap pattern /*, const FskCanvasMatrix3x2d *M*/);
 
 
 /** Convenience interface to set the stroke style to a pattern.
@@ -603,7 +640,7 @@ FskAPI(FskErr)	FskCanvas2dSetFillStylePattern(  FskCanvas2dContext ctx, UInt32 r
  *	\param[in]	pattern		The image to be used as a pattern for filling.
  *	\return		kFskErrNone		If the pattern stroke style was successfully set.
  */
-FskAPI(FskErr)	FskCanvas2dSetStrokeStylePattern(FskCanvas2dContext ctx, UInt32 repetition, FskConstBitmap pattern);
+FskAPI(FskErr)	FskCanvas2dSetStrokeStylePattern(FskCanvas2dContext ctx, UInt32 repetition, FskConstBitmap pattern /*, const FskCanvasMatrix3x2d *M*/);
 
 
 /********************************************************************************
@@ -823,18 +860,60 @@ FskAPI(FskErr)	FskCanvas2dFillEllipse(FskCanvas2dContext ctx, double x, double y
 FskAPI(FskErr)	FskCanvas2dStrokeEllipse(FskCanvas2dContext ctx, double x, double y, double rx, double ry);
 
 
+/** Allocate a new path.
+ *	\param[out]	pPath		A place to store the newly allocated path.
+ *	\return		kFskErrNone	If the path was successfully allocated.
+ */
+FskAPI(FskErr)	FskCanvas2dPathNew(FskCanvas2dPath *pPath);
+
+
+/** Dispose a path.
+ *	\param[out]	path		The path to dispose.
+ */
+FskAPI(void)	FskCanvas2dPathDispose(FskCanvas2dPath path);
+
+
+/** Reset the path.
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\return		kFskErrNone	If the current path was successfully reset and initialized to the null path.
+ */
+FskAPI(FskErr)	FskCanvas2dPathBegin(FskCanvas2dContext ctx, FskCanvas2dPath path);
+
+
 /** Reset the current path.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\return		kFskErrNone	If the current path was successfully reset and initialized to the null path.
  */
-FskAPI(FskErr)	FskCanvas2dBeginPath(FskCanvas2dContext ctx);
+FskErr	FskCanvas2dBeginPath(FskCanvas2dContext ctx);
+#define FskCanvas2dBeginPath(ctx)	FskCanvas2dPathBegin(ctx, NULL)
 
 
-/** Close the path to the most recent MoveTo or equivalent.
+/** Close the given path to the most recent MoveTo or equivalent.
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\return		kFskErrNone	If the current path was successfully closed.
+ */
+FskAPI(FskErr)	FskCanvas2dPathClose(FskCanvas2dContext ctx, FskCanvas2dPath path);
+
+
+/** Close the current path to the most recent MoveTo or equivalent.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\return		kFskErrNone	If the current path was successfully closed.
  */
-FskAPI(FskErr)	FskCanvas2dClosePath(FskCanvas2dContext ctx);
+FskErr	FskCanvas2dClosePath(FskCanvas2dContext ctx);
+#define FskCanvas2dClosePath(ctx)	FskCanvas2dPathClose(ctx, NULL)
+
+
+/** Set the current point in the given path.
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	x			The desired X-coordinate of the current point.
+ *	\param[in]	y			The desired Y-coordinate of the current point.
+ *	\return		kFskErrNone	If the current point was successfully set.
+ *	\note		The path is not implicitly closed.
+ */
+FskAPI(FskErr)	FskCanvas2dPathMoveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y);
 
 
 /** Set the current point in the current path.
@@ -844,7 +923,20 @@ FskAPI(FskErr)	FskCanvas2dClosePath(FskCanvas2dContext ctx);
  *	\return		kFskErrNone	If the current point was successfully set.
  *	\note		The path is not implicitly closed.
  */
-FskAPI(FskErr)	FskCanvas2dMoveTo(FskCanvas2dContext ctx, double x, double y);
+FskErr	FskCanvas2dMoveTo(FskCanvas2dContext ctx, double x, double y);
+#define FskCanvas2dMoveTo(ctx, x, y)	FskCanvas2dPathMoveTo(ctx, NULL, x, y)
+
+
+/** Append a linear segment to the given path.
+ *	The segment extends from the current point to (x, y).
+ *	Afterward, the current point is updated to (x, y).
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	x			The X-coordinate of the far end of the new linear segment.
+ *	\param[in]	y			The Y-coordinate of the far end of the new linear segment.
+ *	\return		kFskErrNone	If the linear segment was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathLineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y);
 
 
 /** Append a linear segment to the current path.
@@ -855,7 +947,24 @@ FskAPI(FskErr)	FskCanvas2dMoveTo(FskCanvas2dContext ctx, double x, double y);
  *	\param[in]	y			The Y-coordinate of the far end of the new linear segment.
  *	\return		kFskErrNone	If the linear segment was successfully appended.
  */
-FskAPI(FskErr)	FskCanvas2dLineTo(FskCanvas2dContext ctx, double x, double y);
+FskErr	FskCanvas2dLineTo(FskCanvas2dContext ctx, double x, double y);
+#define	FskCanvas2dLineTo(ctx, x, y)	FskCanvas2dPathLineTo(ctx, NULL, x, y)
+
+
+/** Append a quadratic Bezier segment to the given path.
+ *	The segment extends from the current point to (x, y),
+ *	and its shape is controlled by the Bezier control point (cpx, cpy).
+ *	Afterward, the current point is updated to (x, y).
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	cpx			The X-coordinate of the quadratic Bezier control point.
+ *	\param[in]	cpy			The Y-coordinate of the quadratic Bezier control point.
+ *	\param[in]	y			The Y-coordinate of the far end of the new quadratic Bezier segment.
+ *	\param[in]	x			The X-coordinate of the far end of the new quadratic Bezier segment.
+ *	\param[in]	y			The Y-coordinate of the far end of the new quadratic Bezier segment.
+ *	\return		kFskErrNone	If the quadratic segment was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathQuadraticCurveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double cpx, double cpy, double x, double y);
 
 
 /** Append a quadratic Bezier segment to the current path.
@@ -870,7 +979,24 @@ FskAPI(FskErr)	FskCanvas2dLineTo(FskCanvas2dContext ctx, double x, double y);
  *	\param[in]	y			The Y-coordinate of the far end of the new quadratic Bezier segment.
  *	\return		kFskErrNone	If the quadratic segment was successfully appended.
  */
-FskAPI(FskErr)	FskCanvas2dQuadraticCurveTo(FskCanvas2dContext ctx, double cpx, double cpy, double x, double y);
+FskErr	FskCanvas2dQuadraticCurveTo(FskCanvas2dContext ctx, double cpx, double cpy, double x, double y);
+#define	FskCanvas2dQuadraticCurveTo(ctx, cpx, cpy, x, y)	FskCanvas2dPathQuadraticCurveTo(ctx, NULL, cpx, cpy, x, y)
+
+
+/** Append a cubic Bezier segment to the given path.
+ *	The segment extends from the current point to (x, y).
+ *	Afterward, the current point is updated to (x, y).
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	cp1x		The X-coordinate of the first  cubic Bezier control point.
+ *	\param[in]	cp1y		The Y-coordinate of the first  cubic Bezier control point.
+ *	\param[in]	cp2x		The X-coordinate of the second cubic Bezier control point.
+ *	\param[in]	cp2y		The Y-coordinate of the second cubic Bezier control point.
+ *	\param[in]	x			The X-coordinate of the far end of the new cubic Bezier segment.
+ *	\param[in]	y			The Y-coordinate of the far end of the new cubic Bezier segment.
+ *	\return		kFskErrNone	If the cubic segment was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathCubicCurveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double cp1x, double cp1y, double cp2x, double cp2y, double x, double y);
 
 
 /** Append a cubic Bezier segment to the current path.
@@ -885,7 +1011,26 @@ FskAPI(FskErr)	FskCanvas2dQuadraticCurveTo(FskCanvas2dContext ctx, double cpx, d
  *	\param[in]	y			The Y-coordinate of the far end of the new cubic Bezier segment.
  *	\return		kFskErrNone	If the cubic segment was successfully appended.
  */
-FskAPI(FskErr)	FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, double cp1y, double cp2x, double cp2y, double x, double y);
+FskErr	FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, double cp1y, double cp2x, double cp2y, double x, double y);
+#define	FskCanvas2dCubicCurveTo(ctx, cp1x, cp1y, cp2x, cp2y, x, y)	FskCanvas2dPathCubicCurveTo(ctx, NULL, cp1x, cp1y, cp2x, cp2y, x, y)
+
+
+/** Append a cubic Bezier segment to the given path.
+ *	This is an alias for FskCanvas2dPathCubicCurveTo(), because bezierCurveTo is mentioned in the Canvas specification;
+ *	however, it is ambiguous because we have both quadratic and cubic (and linear) Bezier segments.
+ *	The segment extends from the current point to (x, y).
+ *	Afterward, the current point is updated to (x, y).
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	cp1x		The X-coordinate of the first  cubic Bezier control point.
+ *	\param[in]	cp1y		The Y-coordinate of the first  cubic Bezier control point.
+ *	\param[in]	cp2x		The X-coordinate of the second cubic Bezier control point.
+ *	\param[in]	cp2y		The Y-coordinate of the second cubic Bezier control point.
+ *	\param[in]	x			The X-coordinate of the far end of the new cubic Bezier segment.
+ *	\param[in]	y			The Y-coordinate of the far end of the new cubic Bezier segment.
+ *	\return		kFskErrNone	If the cubic segment was successfully appended.
+ */
+#define	FskCanvas2dPathBezierCurveTo(ctx, path, cp1x, cp1y, cp2x, cp2y, x, y) FskCanvas2dPathCubicCurveTo(ctx, path, cp1x, cp1y, cp2x, cp2y, x, y)
 
 
 /** Append a cubic Bezier segment to the current path.
@@ -903,6 +1048,37 @@ FskAPI(FskErr)	FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, doub
  *	\return		kFskErrNone	If the cubic segment was successfully appended.
  */
 #define	FskCanvas2dBezierCurveTo(ctx, cp1x, cp1y, cp2x, cp2y, x, y) FskCanvas2dCubicCurveTo(ctx, cp1x, cp1y, cp2x, cp2y, x, y)
+
+
+/** Append a circular arc segment to the given path.
+ *	Guidelines are constructed from the previous point (call it p0), p1=(x1,y1) and p2=(x2,y2).
+ *	A circle with the specified radius is placed tangent to the two guidelines,
+ *	and the intersections of the circle with the guidelines shall be called the start point and end point.
+ *	First, a linear segment is drawn from p0 to the start point.
+ *	Then, an arc wth the specified radius is drawn from the start point to the end point.
+ *	The current point is then updated to the end point.\n
+ *	Note that the purpose of p2 is only to specify a guideline of tangency,
+ *	and that no segment is drawn between the end point and p2.
+ *	Once can consider this a fillet at (x1, y1).
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	x1			The X-coordinate of the "corner" of the arc.
+ *	\param[in]	y1			The Y-coordinate of the "corner" of the arc.
+ *	\param[in]	x2			Helps to specify the exit tangent X-component.
+ *	\param[in]	y2			Helps to specify the exit tangent Y-component.
+ *	\param[in]	radius		The radius of the arc (fillet).
+ *	\return		kFskErrNone	If the circular arc segment was successfully appended.
+ *	\par	Example: Rounded Rect(x0, y0, x1, y1, r)
+ *	\code
+ *	FskCanvas2dMoveTo(ctx, (x0+x1)*.5, y0);		// mid top edge
+ *	FskCanvas2dArcTo(ctx, x1, y0, x1, y1, r);	// upper right corner
+ *	FskCanvas2dArcTo(ctx, x1, y1, x0, y1, r);	// lower right corner
+ *	FskCanvas2dArcTo(ctx, x0, y1, x0, y0, r);	// lower left corner
+ *	FskCanvas2dArcTo(ctx, x0, y0, x1, y0, r);	// upper left corner
+ *	FskCanvas2dClosePath(ctx);			// stroke back to mid top edge
+ *	\endcode
+ */
+FskAPI(FskErr)	FskCanvas2dPathArcTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x1, double y1, double x2, double y2, double radius);
 
 
 /** Append a circular arc segment to the current path.
@@ -932,7 +1108,25 @@ FskAPI(FskErr)	FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, doub
  *	FskCanvas2dClosePath(ctx);			// stroke back to mid top edge
  *	\endcode
  */
-FskAPI(FskErr)	FskCanvas2dArcTo(FskCanvas2dContext ctx, double x1, double y1, double x2, double y2, double radius);
+FskErr	FskCanvas2dArcTo(FskCanvas2dContext ctx, double x1, double y1, double x2, double y2, double radius);
+#define	FskCanvas2dArcTo(ctx, x1, y1, x2, y2, radius)	FskCanvas2dPathArcTo(ctx, NULL, x1, y1, x2, y2, radius)
+
+
+/** Append a circular arc to the given path.
+ *	If a previous subpath exists, then a straight line is first drawn
+ *	from the current point to the starting point on the arc.
+ *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path	The path. NULL implies the path in the context.
+ *	\param[in]	cx		The X-coordinate of the center of the arc.
+ *	\param[in]	cy		The Y-coordinate of the center of the arc.
+ *	\param[in]	radius	The radius of the arc.
+ *	\param[in]	startAngle	The start angle of the arc.
+ *	\param[in]	endAngle	The end angle of the arc.
+ *	\param[in]	counterClockwise	If true,  draws the arc counterclockwise from the start angle to the end angle;
+ *									if false, draws the arc        clockwise from the start angle to the end angle.
+ *	\return		kFskErrNone	If the circular arc segment was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathArc(FskCanvas2dContext ctx, FskCanvas2dPath path, double cx, double cy, double radius, double startAngle, double endAngle, Boolean counterClockwise);
 
 
 /** Append a circular arc to the current path.
@@ -948,7 +1142,19 @@ FskAPI(FskErr)	FskCanvas2dArcTo(FskCanvas2dContext ctx, double x1, double y1, do
  *									if false, draws the arc        clockwise from the start angle to the end angle.
  *	\return		kFskErrNone	If the circular arc segment was successfully appended.
  */
-FskAPI(FskErr)	FskCanvas2dArc(FskCanvas2dContext ctx, double cx, double cy, double radius, double startAngle, double endAngle, Boolean counterClockwise);
+#define	FskCanvas2dArc(ctx, cx, cy, radius, startAngle, endAngle, counterClockwise)	FskCanvas2dPathArc(ctx, NULL, cx, cy, radius, startAngle, endAngle, counterClockwise)
+
+
+/** Append a rectangle to the given path.
+ *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path	The path. NULL implies the path in the context.
+ *	\param[in]	x		The left edge of the rectangle.
+ *	\param[in]	y		The top edge of the rectangle.
+ *	\param[in]	w		The width of the rectangle.
+ *	\param[in]	h		The height of the rectangle.
+ *	\return		kFskErrNone	If the rectangle was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathRect(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y, double w, double h);
 
 
 /** Append a rectangle to the current path.
@@ -959,7 +1165,17 @@ FskAPI(FskErr)	FskCanvas2dArc(FskCanvas2dContext ctx, double cx, double cy, doub
  *	\param[in]	h		The height of the rectangle.
  *	\return		kFskErrNone	If the rectangle was successfully appended.
  */
-FskAPI(FskErr)	FskCanvas2dRect(FskCanvas2dContext ctx, double x, double y, double w, double h);
+FskErr	FskCanvas2dRect(FskCanvas2dContext ctx, double x, double y, double w, double h);
+#define	FskCanvas2dRect(ctx, x, y, w, h)	FskCanvas2dPathRect(ctx, NULL, x, y, w, h)
+
+
+/** Parse a path string (as described in the SVG specification) and append it to the given path.
+ *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path	The path. NULL implies the path in the context.
+ *	\param[in]	pathStr	The path string.
+ *	\return		kFskErrNone	If the operation was completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dPathAppendPathString(FskCanvas2dContext ctx, FskCanvas2dPath path, const char *pathStr);
 
 
 /** Parse a path string (as described in the SVG specification) and append it to the current path.
@@ -967,28 +1183,97 @@ FskAPI(FskErr)	FskCanvas2dRect(FskCanvas2dContext ctx, double x, double y, doubl
  *	\param[in]	pathStr	The path string.
  *	\return		kFskErrNone	If the operation was completed successfully.
  */
-FskAPI(FskErr)	FskCanvasAppendPathString(FskCanvas2dContext ctx, const char *pathStr);
+FskErr	FskCanvasAppendPathString(FskCanvas2dContext ctx, const char *pathStr);
+#define	FskCanvasAppendPathString(ctx, pathStr)	FskCanvas2dPathAppendPathString(ctx, NULL, pathStr)
+
+
+/** Append a path to the given path.
+ *	\param[in]	ctx		The Canvas 2d context. Can be NULL if dst is not NULL.
+ *	\param[in]	dst		The destination path. NULL implies the path in the context.
+ *	\param[in]	src		The path to be appended to the dst path.
+ *	\param[in]	M		A transformation matrix. NULL implies the identity.
+ *	\param[in]	pathStr	The path string.
+ *	\return		kFskErrNone	If the operation was completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dPathAppendPath(FskCanvas2dContext ctx, FskCanvas2dPath dst, FskConstCanvas2dPath src, const FskCanvasMatrix3x2d *M);
+
+
+/** Append an EndGlyph code to the path.
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if dst is not NULL.
+ *	\param[in]	path		The destination path. NULL implies the path in the context.
+ *	\return		kFskErrNone	If the operation was completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dPathEndGlyph(FskCanvas2dContext ctx, FskCanvas2dPath path);
+
+
+/** Fill the given path with the current fill style.
+ *	\param[in]	ctx			The Canvas 2d context. Cannot be NULL.
+ *	\param[in]	path		The path to be filled. NULL implies the path in the context.
+ *	\param[in]	fillRule	The fill rule: { kFskCanvas2dFillRuleWindingNumber, kFskCanvas2dFillRuleParity, 0 },
+ *							where 0 is the default kFskCanvas2dFillRuleWindingNumber.
+ *	\return		kFskErrNone	If the path was successfully filled.
+ */
+FskAPI(FskErr)	FskCanvas2dPathFill(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fillRule);
 
 
 /** Fill the current path with the current fill style.
  *	\param[in]	ctx		The Canvas 2d context.
  *	\return		kFskErrNone	If the path was successfully filled.
  */
-FskAPI(FskErr)	FskCanvas2dFill(FskCanvas2dContext ctx);
+FskErr	FskCanvas2dFill(FskCanvas2dContext ctx);
+#define	FskCanvas2dFill(ctx)	FskCanvas2dPathFill(ctx, NULL, kFskCanvas2dFillRuleWindingNumber)
+
+
+/** Stroke the given path with the current stroke style.
+ *	\param[in]	ctx		The Canvas 2d context. Cannot be NULL.
+ *	\return		kFskErrNone	If the path was successfully stroked.
+ */
+FskAPI(FskErr)	FskCanvas2dPathStroke(FskCanvas2dContext ctx, FskConstCanvas2dPath path);
 
 
 /** Stroke the current path with the current stroke style.
  *	\param[in]	ctx		The Canvas 2d context.
  *	\return		kFskErrNone	If the path was successfully stroked.
  */
-FskAPI(FskErr)	FskCanvas2dStroke(FskCanvas2dContext ctx);
+FskErr	FskCanvas2dStroke(FskCanvas2dContext ctx);
+#define	FskCanvas2dStroke(ctx)	FskCanvas2dPathStroke(ctx, NULL)
+
+
+/** Intersect the given clip region with the given path, and update the current clip region.
+ *	\param[in]	ctx			The Canvas 2d context.
+ *	\param[in]	path		The clip path. NULL implies the path in the context.
+ *	\param[in]	fillRule	The rule for filling { kFskCanvas2dFillRuleWindingNumber, kFskCanvas2dFillRuleParity, 0 },
+ *							where kFskCanvas2dFillRuleWindingNumber=0 is the default.
+ *	\return		kFskErrNone	If the clip region was successfully set.
+ */
+FskAPI(FskErr)	FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fillRule);
 
 
 /** Intersect the current clip region with the current path, and update the current clip region.
  *	\param[in]	ctx		The Canvas 2d context.
  *	\return		kFskErrNone	If the clip region was successfully set.
  */
-FskAPI(FskErr)	FskCanvas2dClip(FskCanvas2dContext ctx);
+FskErr	FskCanvas2dClip(FskCanvas2dContext ctx);
+#define	FskCanvas2dClip(ctx)	FskCanvas2dPathClip(ctx, NULL, kFskCanvas2dFillRuleWindingNumber)
+
+
+/** Reset the clip region to the largest infinite surface.
+ *	\param[in]	ctx			The Canvas 2d context.
+ */
+FskAPI(void)	FskCanvas2dClipReset(FskCanvas2dContext ctx);
+
+
+/** Query as to whether the specified point is within the current path.
+ *	\param[in]	ctx		The Canvas 2d context.
+ *	\param[in]	path	The
+ *	\param[in]	x		The X-coordinate of the point in question.
+ *	\param[in]	y		The Y-coordinate of the point in question.
+ *	\param[in]	fillRule	The rule for filling { kFskCanvas2dFillRuleWindingNumber, kFskCanvas2dFillRuleParity, 0 },
+ *							where kFskCanvas2dFillRuleWindingNumber=0 is the default.
+ *	\return		True if the point is contained within the path,
+ *				false otherwise.
+ */
+FskAPI(Boolean)	FskCanvas2dIsPointInGivenPath(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y, SInt32 fillRule);
 
 
 /** Query as to whether the specified point is within the current path.
@@ -998,12 +1283,20 @@ FskAPI(FskErr)	FskCanvas2dClip(FskCanvas2dContext ctx);
  *	\return		True if the point is contained within the path,
  *				false otherwise.
  */
-FskAPI(Boolean)	FskCanvas2dIsPointInPath(FskCanvas2dContext ctx, double x, double y);
+Boolean	FskCanvas2dIsPointInPath(FskCanvas2dContext ctx, double x, double y);
+#define	FskCanvas2dIsPointInPath(ctx, x, y)	FskCanvas2dIsPointInGivenPath(ctx, NULL, x, y, kFskCanvas2dFillRuleWindingNumber)
 
-#ifdef PUNT
-		/* Focus management */
-Boolean FskCanvas2dDrawFocusRing(FskCanvas2dContext ctx, Element element, double xCaret, double yCaret, Boolean canDrawCustom);
-#endif /* PUNT */
+
+/** Query as to whether the specified point is within the stroke of the current path.
+ *	\param[in]	ctx		The Canvas 2d context.
+ *	\param[in]	path	The path to be tested.
+ *	\param[in]	x		The X-coordinate of the point in question.
+ *	\param[in]	y		The Y-coordinate of the point in question.
+ *	\return		True if the point is contained within the path,
+ *				false otherwise.
+ */
+FskAPI(Boolean)	FskCanvas2dIsPointInPathStroke(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y);
+
 
 struct FskFontAttributes;	/* Forward declaration: defined in FskGlyphPath.h */
 
@@ -1088,9 +1381,11 @@ FskAPI(FskErr)	FskCanvas2dStrokeText( FskCanvas2dContext ctx, const UInt16 *uniC
 /** Determine the width of the text using the current font attributes.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	uniChars	The text string, in Unicode (UTF-16).
+ *	\todo	In addition to advance width, this should also have
+ *			actualBoundingBoxLeft, actualBoundingBoxRight
+ *			fontBoundingBoxAscent, fontBoundingBoxDescent, actualBoundingBoxAscent, actualBoundingBoxDescent,
+ *			emHeightAscent, emHeightDescent, hangingBaseline, alphabeticBaseline, deographicBaseline.
  *	\return		The width of the text string.
- *	\bug		Unimplemented.
- *	\todo		Implement.
  */
 FskAPI(double)	FskCanvas2dMeasureText(FskCanvas2dContext ctx, const UInt16 *uniChars);
 
@@ -1143,7 +1438,6 @@ FskAPI(FskErr)	FskCanvas2dDrawSubScaledBitmap(FskCanvas2dContext ctx, FskConstBi
  *	\param[in]	dx		The left edge of the Canvas is to be placed here.
  *	\param[in]	dy		The top  edge of the Canvas is to be placed here.
  *	\return		kFskErrNone	if the Canvas was drawn successfully.
- *	\bug		unimplemented.
  */
 FskAPI(FskErr)	FskCanvas2dDrawCanvas2d(         FskCanvas2dContext ctx, FskConstCanvas src, double dx, double dy);
 
@@ -1156,7 +1450,6 @@ FskAPI(FskErr)	FskCanvas2dDrawCanvas2d(         FskCanvas2dContext ctx, FskConst
  *	\param[in]	dw		The Canvas is scaled to this width.
  *	\param[in]	dh		The Canvas is scaled to this height.
  *	\return		kFskErrNone	if the Canvas was drawn successfully.
- *	\bug		unimplemented.
  */
 FskAPI(FskErr)	FskCanvas2dDrawScaledCanvas2d(   FskCanvas2dContext ctx, FskConstCanvas src, double dx, double dy, double dw, double dh);
 
@@ -1173,7 +1466,6 @@ FskAPI(FskErr)	FskCanvas2dDrawScaledCanvas2d(   FskCanvas2dContext ctx, FskConst
  *	\param[in]	dw		The portion of the Canvas is scaled to this width.
  *	\param[in]	dh		The portion of the Canvas is scaled to this height.
  *	\return		kFskErrNone	if the Canvas was drawn successfully.
- *	\bug		unimplemented.
  */
 FskAPI(FskErr)	FskCanvas2dDrawSubScaledCanvas2d(FskCanvas2dContext ctx, FskConstCanvas src, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh);
 
@@ -1229,14 +1521,12 @@ FskAPI(FskErr)	FskCanvas2dDrawSubScaledVideo(FskCanvas2dContext ctx, FskVideo sr
  *	\param[in]	sw		The desired width  of the pixel buffer.
  *	\param[in]	sh		The desired height of the pixel buffer.
  *	\return		The new image data pixel buffer, or NULL if unsuccessful.
- *	\bug		unimplemented.
  */
 FskAPI(FskCanvas2dImageData)	FskCanvas2dCreateImageData(FskConstCanvas2dContext ctx, double sw, double sh);
 
 
 /** Delete an ImageData pixel buffer. Alternatively, call FskMemPtrDispose().
  *	\param[in]	id		The image data.
- *	\bug		unimplemented.
  */
 FskAPI(void) FskCanvas2dDisposeImageData(FskCanvas2dImageData id);
 
@@ -1246,23 +1536,28 @@ FskAPI(void) FskCanvas2dDisposeImageData(FskCanvas2dImageData id);
  *	\param[in]	imagedata	The source image data.
  *	\return		The new image data pixel buffer, or NULL if unsuccessful.
  *				It will have the exact contents of the source image data.
- *	\bug		unimplemented.
  */
-FskAPI(FskCanvas2dImageData)	FskCanvas2dCloneImageData(FskConstCanvas2dContext ctx, FskCanvas2dImageData imagedata);
+FskAPI(FskCanvas2dImageData)	FskCanvas2dCloneImageData(FskConstCanvas2dContext ctx, FskConstCanvas2dImageData imagedata);
 
 
 /** Return a new image data buffer that is a copy of a rectangular region of the buffer in the Canvas.
+ *	The format will be straight alpha RGBA, converted from premultiplied alpha, so that the sequence
+ *	FskCanvas2dPutImageData() followed by FskCanvas2dGetImageData() will not yield the original data,
+ *	but one that is equivalent by projection into a premultiplied representation.
  *	\param[in]	ctx		The Canvas 2d context.
  *	\param[in]	sx		The left edge of the rectangle of interest.
  *	\param[in]	sy		The top  edge of the rectangle of interest.
  *	\param[in]	sw		The width  of the rectangle of interest.
  *	\param[in]	sh		The height of the rectangle of interest.
- *	\bug		unimplemented.
+ *	\return		the contents of the specified rectangle in straight alpha RGBA format as converted from a premultiplied alpha format..
  */
 FskAPI(FskCanvas2dImageData)	FskCanvas2dGetImageData(FskConstCanvas2dContext ctx, double sx, double sy, double sw, double sh);
 
 
 /** Copy the image data to the canvas buffer.
+ *	The src should be in straight alpha RGBA format, but will be converted into premultiplied alpha when written into the canvas bitmap,
+ *	so that a FskCanvas2dPutImageData() followed by FskCanvas2dGetImageData() will not yield the original data,
+ *	but one that is equivalent by projection into a premultiplied representation.
  *	\param[in]	ctx		The Canvas 2d context.
  *	\param[in]	src		The source image data.
  *	\param[in]	dx		The left edge of the destination rectangle.
@@ -1272,7 +1567,6 @@ FskAPI(FskCanvas2dImageData)	FskCanvas2dGetImageData(FskConstCanvas2dContext ctx
  *	\param[in]	sw		The width  of the source rectangle.
  *	\param[in]	sh		The height edge of the source rectangle.
  *	\return		kFskErrNone	if the image data was successfully transferred.
- *	\bug		unimplemented.
  */
 FskAPI(FskErr) FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, double dx, double dy, double sx, double sy, double sw, double sh);
 
@@ -1285,6 +1579,35 @@ FskAPI(FskErr) FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dI
 FskAPI(FskErr)	FskCanvas2dSetOpenGLSourceAccelerated(FskCanvas cnv, Boolean accelerated);
 
 
+#ifdef PUNT
+		/* Focus management */
+Boolean FskCanvas2dDrawFocusRing(FskCanvas2dContext ctx, Element element, double xCaret, double yCaret, Boolean canDrawCustom);
+void FskCanvas2dDrawFocusIfNeeded(FskCanvas2dContext ctx, Element element);
+void FskCanvas2dDrawFocusIfNeeded(FskCanvas2dContext ctx, FskConstCanvas2dPath path, Element element);
+void FskCanvas2dScrollPathIntoView(FskCanvas2dContext ctx);
+void FskCanvas2dScrollPathIntoView(FskCanvas2dContext ctx, FskConstCanvas2dPath path);
+
+struct FskCanvasDrawingStylesRecord;
+FskAPI(FskErr)	FskCanvas2dPathAppendByStrokingPath(FskCanvas2dContext ctx, FskCanvas2dPath dst, FskConstCanvas2dPath src, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M);
+FskAPI(FskErr)	FskCanvas2dPathAppendText(FskCanvas2dContext ctx, FskCanvas2dPath dst, const UInt16 *uniChars, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M, double x, double y, double maxWidth);
+FskAPI(FskErr)	FskCanvas2dPathAppendByStrokingText(FskCanvas2dContext ctx, FskCanvas2dPath dst, const UInt16 *uniChars, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M, double x, double y, double maxWidth);
+FskAPI(FskErr)	FskCanvas2dSetLineDash(FskCanvas2dContext ctx, UInt32 numCycles, const double *dash);
+FskAPI(FskErr)	FskCanvas2dGetLineDash(FskConstCanvas2dContext ctx, UInt32 *pNumCycles, const double **dash);
+FskAPI(void)	FskCanvas2dSetLineDashOffset(FskCanvas2dContext ctx, double offset);
+FskAPI(double)	FskCanvas2dGetLineDashOffset(FskConstCanvas2dContext ctx);
+FskAPI(void)	FskCanvas2dSetTextDirection(FskCanvas2dContext ctx, SInt32 direction);
+FskAPI(SInt32)	FskCanvas2dGetTextDirection(FskConstCanvas2dContext ctx);
+FskAPI(void)	FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, optional HitRegionOptions options);
+FskAPI(void)	FskCanvas2dRemoveHitRegion(FskCanvas2dContext ctx, DOMString id);
+FskAPI(void)	FskCanvas2dClearHitRegions(FskCanvas2dContext ctx);
+FskAPI(FskErr)	FskCanvas2dPathEllipse(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, Boolean anticlockwise);
+FskAPI(Boolean)	FskCanvasProbablySupportsContext(const char *);
+FskAPI(void)	FskCanvasSetContext(FskCanvas2dContext ctx);
+FskAPI(FskErr)	FskCanvasToBlob(FskCanvas cnv, const char *type, float quality, UInt32 *numBytes, char **bytes);
+FskAPI(CanvasProxy)	FskCanvasTransferControlToProxy(FskCanvas cnv);
+
+#endif /* PUNT */
+
 
 
 #ifdef __FSKCANVAS_PRIV__
@@ -1296,11 +1619,6 @@ typedef struct FskCanvas2dColorSource {
 	FskGradientStop		gs[kCanvas2DMaxGradientStops];	/**< The gradient stops associated with the color source. */
 } FskCanvas2dColorSource;								/**< The encapsulation of a color source. */
 
-
-/** The encapsulation of a double-precision floating-point 3x2 matrix. */
-typedef struct FskCanvasMatrix3x2d {
-	double M[3][2];										/**< The matrix itself. */
-} FskCanvasMatrix3x2d;									/**< The encapsulation of a double-precision floating-point 3x2 matrix. */
 
 /** The encapsulation of the Canvas 2D state. */
 typedef struct FskCanvas2dContextState {

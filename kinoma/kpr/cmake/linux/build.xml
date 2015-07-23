@@ -32,12 +32,13 @@ Running a Simple Web Server
 From your device, using either ZTerm or telnet,
 run the following comamnds:
 
+pkill -f kloop.sh
+pkill ${kpr.binary.name}
 cd /tmp
 rm -rf ${manifest.name} ${manifest.name}.tgz
 wget -qO- http://${ADDR4}:${web.port}/${manifest.name}.tgz | tar zxvf -
 cd ${manifest.name}
-pkill ${manifest.name}
-./${manifest.name}
+./${kpr.binary.name}
 
 Hit CTRL-C to exit...
 				</echo>
@@ -47,7 +48,7 @@ Hit CTRL-C to exit...
 			</then>
 			<else>
 				<echo>
-					${web.bin.dir} does not exists.
+					${web.dir} does not exists.
 					Please run the build before running this target.
 				</echo>
 			</else>

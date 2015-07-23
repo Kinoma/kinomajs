@@ -37,30 +37,69 @@ import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.CompletionInfo;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
+import android.view.inputmethod.InputConnectionWrapper;
 import android.widget.EditText;
 import android.widget.TextView;
 
-class FskEditText extends EditText {
+public class FskEditText extends EditText {
 	InputConnection teIC = null;
+	Context myContext;
+
+	public native static void doDismissKeyboard(int dismiss);
 
     public FskEditText(Context context, AttributeSet attrs) {
         super(context, attrs);
-
-		// TODO Auto-generated constructor stub
+		myContext = context;
 	}
 
-	//public boolean onCheckIsTextEditor() { return true; }
+	private class FskInputConnection extends InputConnectionWrapper {
+		public FskInputConnection(InputConnection target, boolean mutable) {
+			super(target, mutable);
+		}
+
+		@Override
+		public boolean sendKeyEvent(KeyEvent event) {
+			if (event.getAction() == KeyEvent.ACTION_DOWN
+				&& event.getKeyCode() == KeyEvent.KEYCODE_DEL) {
+				Log.i("Kinoma", "##### Got a delete");
+			}
+			return super.sendKeyEvent(event);
+		}
+
+		@Override
+		public boolean deleteSurroundingText(int beforeLen, int afterLen) {
+            if (beforeLen == 1 && afterLen == 0) {
+                // backspace
+                return sendKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
+                    && sendKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_DEL));
+            }
+
+            return super.deleteSurroundingText(beforeLen, afterLen);
+        }
+	}
 	
+	@Override
 	public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
 //      	android:imeOptions="actionDone|flagNoExtractUi|flagNoAccessoryAction|flagNoEnterAction"
-       	outAttrs.imeOptions |= EditorInfo.IME_ACTION_DONE;
-		outAttrs.imeOptions |= EditorInfo.IME_FLAG_NO_EXTRACT_UI;
-		outAttrs.imeOptions |= EditorInfo.IME_FLAG_NO_ACCESSORY_ACTION;
-		outAttrs.imeOptions |= EditorInfo.IME_FLAG_NO_ENTER_ACTION;
-		outAttrs.inputType = EditorInfo.TYPE_TEXT_FLAG_AUTO_CORRECT;
+		outAttrs.imeOptions |= EditorInfo.IME_ACTION_DONE;
+			outAttrs.imeOptions |= EditorInfo.IME_FLAG_NO_EXTRACT_UI;
+			outAttrs.imeOptions |= EditorInfo.IME_FLAG_NO_ACCESSORY_ACTION;
+			outAttrs.imeOptions |= EditorInfo.IME_FLAG_NO_ENTER_ACTION;
+			outAttrs.inputType = EditorInfo.TYPE_TEXT_FLAG_AUTO_CORRECT;
 
-		teIC = new BaseInputConnection(this, false);
-		return teIC;
-	} 
+			return new FskInputConnection(super.onCreateInputConnection(outAttrs), true);
+
+//			teIC = new BaseInputConnection(this, false);
+//			return teIC;
+	}
+
+	@Override
+	public boolean onKeyPreIme(int keyCode, KeyEvent event) {
+		if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+			// Log.i("Kinoma", "onKeyPreIme - KEYCODE_BACK");
+			doDismissKeyboard(event.getKeyCode());
+		}
+		return super.onKeyPreIme(keyCode, event);
+	}
 	
 }

@@ -339,7 +339,7 @@ bail:
 FskErr KprStorageEntryNew(KprStorageEntry *it, char* key, void* value)
 {
 	FskErr err = kFskErrNone;
-	KprStorageEntry self;
+	KprStorageEntry self = NULL;
 	bailIfError(KprMemPtrNewClear(sizeof(KprStorageEntryRecord), it));
 	self = *it;
 	FskInstrumentedItemNew(self, NULL, &gKprStorageEntryInstrumentation);
@@ -348,6 +348,8 @@ FskErr KprStorageEntryNew(KprStorageEntry *it, char* key, void* value)
 	self->sum = KprStorageEntrySum(key);
 	self->value = value;
 bail:
+	if (err)
+		KprStorageEntryDispose(self);
 	return err;
 }
 

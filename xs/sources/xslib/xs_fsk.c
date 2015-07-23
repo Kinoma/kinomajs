@@ -17,6 +17,68 @@
 #include "FskEnvironment.h"
 #include "FskTextConvert.h"
 #include "FskPlatformImplementation.h"
+#include "FskEndian.h"
+#include "FskFiles.h"
+
+FskErr loadGrammar(const char *xsbPath, txGrammar *theGrammar)
+{
+	FskErr err;
+	FskFile fref = NULL;
+	UInt32 atom[2];
+
+	err = FskFileOpen(xsbPath, kFskFilePermissionReadOnly, &fref);
+	if (err) goto bail;
+
+	err = FskFileRead(fref, sizeof(atom), atom, NULL);
+	if (err) goto bail;
+
+	atom[0] = FskEndianU32_BtoN(atom[0]);
+	atom[1] = FskEndianU32_BtoN(atom[1]);
+	if (atom[1] == 'XS11') {
+		SInt32 totalSize = (SInt32)atom[0] - sizeof(atom);
+		while (totalSize > 0) {
+			UInt32 blockSize;
+			char *block;
+
+			err = FskFileRead(fref, sizeof(atom), atom, NULL);
+			if (err) break;
+			atom[0] = FskEndianU32_BtoN(atom[0]);
+			atom[1] = FskEndianU32_BtoN(atom[1]);
+
+			totalSize -= atom[0];
+
+			blockSize = atom[0] - sizeof(atom);
+			err = FskMemPtrNew(blockSize, &block);
+			if (err) break;
+
+			err = FskFileRead(fref, blockSize, block, NULL);
+			if (err) break;
+
+			switch (atom[1]) {
+				case 'SYMB':
+					theGrammar->symbols = block;
+					theGrammar->symbolsSize = blockSize;
+					break;
+
+				case 'CODE':
+					theGrammar->code = block;
+					theGrammar->codeSize = blockSize;
+					break;
+
+				default:
+					FskMemPtrDispose(block);
+					err = kFskErrBadData;
+					break;
+			}
+		}
+	}
+	else
+		err = kFskErrBadData;
+
+bail:
+	FskFileClose(fref);
+	return err;
+}
 
 #if mxWindows
 

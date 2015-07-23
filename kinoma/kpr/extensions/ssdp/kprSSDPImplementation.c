@@ -1425,6 +1425,8 @@ FskErr KprSSDPProcessSearch(KprSSDP self, KprSSDPInterface ssdpInterface, UInt32
 		FskTimeRecord when;
 		FskAssociativeArrayIterator iterate;
 		
+		if (!st)
+			BAIL(kFskErrBadData);
 		FskInstrumentedItemPrintfVerbose(ssdpInterface, "%d.%d.%d.%d <- M %d.%d.%d.%d:%d - ssdp:discover %s", (ssdpInterface->ip >> 24) & 255, (ssdpInterface->ip >> 16) & 255, (ssdpInterface->ip >> 8) & 255, ssdpInterface->ip & 255,
 			(ip >> 24) & 255, (ip >> 16) & 255, (ip >> 8) & 255, ip & 255, port,
 			st);

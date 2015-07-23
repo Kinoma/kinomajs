@@ -1137,8 +1137,8 @@ bail:
 
 void KprUPnPServiceDispose(KprUPnPService self)
 {
-	KprUPnPController controller = self->device->controller;
 	if (self) {
+		KprUPnPController controller = self->device->controller;
 		{	// dispose subscriptions
 			KprUPnPSubscription subscription, next;
 			for (subscription = self->subscription; subscription; subscription = next) {
@@ -1291,8 +1291,8 @@ void KprUPnPServiceActionResponse(KprUPnPService self, KprContext UNUSED context
 	char* description = NULL;
 	
 	KprHTTPTargetMessageSetResponseProtocol(message, "HTTP/1.1"); // DLNA CTT 7.2.5.6
-	KprMessageSetResponseHeader(message, kFskStrContentType, kFskStrTextXMLCharset);
-	KprMessageSetResponseHeader(message, kFskStrServer, gUPnP->userAgent);
+	bailIfError(KprMessageSetResponseHeader(message, kFskStrContentType, kFskStrTextXMLCharset));
+	bailIfError(KprMessageSetResponseHeader(message, kFskStrServer, gUPnP->userAgent));
 	bailIfError(FskGrowableStorageNew(1024, &storage));
 	bailIfError(KprUPnPStorageWrite(storage, "<?xml version=\"1.0\"?>\n", 0));
 	bailIfError(KprUPnPStorageWrite(storage, "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"", 0));
@@ -1349,8 +1349,8 @@ void KprUPnPServiceActionResponse(KprUPnPService self, KprContext UNUSED context
 	FskInstrumentedItemPrintfDebug(self, "%.*s", size, data);
 	FskGrowableStorageDispose(storage);
 	FskStrNumToStr(message->response.size, string, sizeof(string));
-	KprMessageSetResponseHeader(message, kFskStrContentLength, string);
-	KprMessageSetResponseHeader(message, "EXT", "");
+	bailIfError(KprMessageSetResponseHeader(message, kFskStrContentLength, string));
+	bailIfError(KprMessageSetResponseHeader(message, "EXT", ""));
 	self->actionError = 0;
 	if (self->actionErrorDescription)
 		FskMemPtrDisposeAt(&self->actionErrorDescription);
@@ -2356,7 +2356,7 @@ FskErr KprUPnPStateVariableSIntFromString(KprUPnPStateVariable self, char* strin
 	FskInt64 value;
 	bailIfError(KprUPnPStateVariableStringToInt64(string, &value));
 	if ((value < data->minimum) || (value > data->maximum)) {
-		bailIfError(kUPnPErrArgumentValueOutOfRange);
+		BAIL(kUPnPErrArgumentValueOutOfRange);
 	}
 	data->value = value;
 	FskMemPtrDisposeAt(&self->value);
@@ -2446,7 +2446,7 @@ FskErr KprUPnPStateVariableUIntFromString(KprUPnPStateVariable self, char* strin
 	FskInt64 value;
 	bailIfError(KprUPnPStateVariableStringToInt64(string, &value));
 	if ((value < data->minimum) || (value > data->maximum)) {
-		bailIfError(kUPnPErrArgumentValueOutOfRange);
+		BAIL(kUPnPErrArgumentValueOutOfRange);
 	}
 	data->value = value;
 	FskMemPtrDisposeAt(&self->value);
@@ -2528,7 +2528,7 @@ FskErr KprUPnPStateVariableStringFromString(KprUPnPStateVariable self, char* str
 			if (!FskStrCompare(data->value, string)) break;
 		}
 		if (!data) {
-			bailIfError(kUPnPErrNoSuchObject);
+			BAIL(kUPnPErrNoSuchObject);
 		}
 	}
 	FskMemPtrDispose(self->value);
@@ -2545,7 +2545,7 @@ FskErr KprUPnPStateVariableUUIDFromString(KprUPnPStateVariable self, char* strin
 {
 	FskErr err = kFskErrNone;
 	if (FskStrLen(string) != 36) { //@@ could check more precisely if it is a UUID
-		bailIfError(kUPnPErrInvalidArgs);
+		BAIL(kUPnPErrInvalidArgs);
 	}
 	FskMemPtrDispose(self->value);
 	self->value = FskStrDoCopy(string);
@@ -2835,18 +2835,20 @@ FskErr KprUPnPHandlerBehaviorDoDescription(KprContext context UNUSED, KprHandler
 		dataSize = behavior->device->descriptionSize;
 	}
 	message->status = 200;
-	if (!FskStrCompareCaseInsensitive(KprMessageGetMethod(message), "GET"))
-		KprMessageSetResponseBody(message, data, dataSize);
+	if (!FskStrCompareCaseInsensitive(KprMessageGetMethod(message), "GET")) {
+		bailIfError(KprMessageSetResponseBody(message, data, dataSize));
+	}
 	else if (FskStrCompareCaseInsensitive(KprMessageGetMethod(message), "HEAD"))
 		message->status = 405;
 	if (message->status == 200) {
 		FskStrNumToStr(dataSize, stringSize, 16);
-		KprMessageSetResponseHeader(message, kFskStrContentLength, stringSize);
-		KprMessageSetResponseHeader(message, kFskStrContentType, kFskStrTextXMLCharset);
+		bailIfError(KprMessageSetResponseHeader(message, kFskStrContentLength, stringSize));
+		bailIfError(KprMessageSetResponseHeader(message, kFskStrContentType, kFskStrTextXMLCharset));
 	}
-	if (KprMessageGetRequestHeader(message, kprHTTPAcceptLanguage))
-		KprMessageSetResponseHeader(message, kprHTTPHeaderContentLanguage, "en");
-//bail:
+	if (KprMessageGetRequestHeader(message, kprHTTPAcceptLanguage)) {
+		bailIfError(KprMessageSetResponseHeader(message, kprHTTPHeaderContentLanguage, "en"));
+	}
+bail:
 	return err;
 }
 
@@ -2907,11 +2909,11 @@ FskErr KprUPnPHandlerBehaviorDoSubscription(KprContext context UNUSED, KprHandle
 		else
 			message->status = 412;
 		if (message->status == 200) {
-			KprMessageSetResponseHeader(message, kFskStrServer, gUPnP->userAgent);
-			KprMessageSetResponseHeader(message, "SID", sid);
-			KprMessageSetResponseHeader(message, kFskStrContentLength, "0");
+			bailIfError(KprMessageSetResponseHeader(message, kFskStrServer, gUPnP->userAgent));
+			bailIfError(KprMessageSetResponseHeader(message, "SID", sid));
+			bailIfError(KprMessageSetResponseHeader(message, kFskStrContentLength, "0"));
 			snprintf(string, 256, "Second-%lu", duration);
-			KprMessageSetResponseHeader(message, "TIMEOUT", string);
+			bailIfError(KprMessageSetResponseHeader(message, "TIMEOUT", string));
 		}
 	}
 	else if (!FskStrCompareCaseInsensitive(KprMessageGetMethod(message), "UNSUBSCRIBE")) {
@@ -2943,8 +2945,8 @@ FskErr KprUPnPHandlerBehaviorDoIcon(KprContext context UNUSED, KprHandler handle
 	bailIfError(FskFileMap(icon->path, &data, &size, 0, &map));
 	FskStrNumToStr(size, stringSize, 16);
 	bailIfError(KprMessageSetResponseBody(message, data, size));
-	KprMessageSetResponseHeader(message, kFskStrContentType, icon->mime);
-	KprMessageSetResponseHeader(message, kFskStrContentLength, stringSize);
+	bailIfError(KprMessageSetResponseHeader(message, kFskStrContentType, icon->mime));
+	bailIfError(KprMessageSetResponseHeader(message, kFskStrContentLength, stringSize));
 bail:
 	FskFileDisposeMap(map);
 	return err;
@@ -3721,24 +3723,21 @@ void UPnP_Device_start(xsMachine *the)
 		xsAssert(self);
 		if (!device) {
 			char* deviceType = xsToString(xsArg(0));
-			char* from;
-			char* to;
-			to = FskStrRChr(deviceType, ':');
-			if (to) {
-				*to = 0;
-				from = FskStrRChr(deviceType, ':');
-				if (from) {
-					*from = 0;
-					xsThrowIfFskErr(FskMemPtrNewClear(5 + FskStrLen(from + 1) + 5, &path));
-					FskStrCopy(path, "upnp/");
-					FskStrCat(path, from + 1);
-					FskStrCat(path, ".xml");
-					*from = ':';
-					xsThrowIfFskErr(KprURLMerge(context->url, path, &url));
-				}
-				*to = ':';
-			}
-			xsAssert(url);
+			char *from, *to;
+            to = deviceType + FskStrLen(deviceType) - 1;
+            while ((to > deviceType) && (*to != ':'))
+                to--;
+            xsAssert(*to == ':');
+            from = to - 1;
+            while ((from > deviceType) && (*from != ':'))
+                from--;
+            xsAssert(*from == ':');
+            from++;
+            xsThrowIfFskErr(FskMemPtrNewClear(5 + (to - from) + 5, &path));
+            FskMemCopy(path, "upnp/", 5);
+            FskMemCopy(path + 5, from, to - from);
+            FskMemCopy(path + 5 + (to - from), ".xml", 5);
+            xsThrowIfFskErr(KprURLMerge(context->url, path, &url));
 			xsThrowIfFskErr(KprUPnPDeviceNew(&device, deviceType));
 			if (c > 1 && xsTest(xsArg(1))) {
 				friendlyName = xsToString(xsArg(1));

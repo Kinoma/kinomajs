@@ -14,6 +14,10 @@
  *    See the License for the specific language governing permissions and
  *    limitations under the License.
  */
+/**
+	\file	FskCanvas.c
+	\brief	Canvas implementation in software.
+*/
 #define __FSKBITMAP_PRIV__	/**< To get access to the FskBitmap data structure */
 #define __FSKCANVAS_PRIV__	/**< To get access to the state stack. */
 
@@ -36,18 +40,24 @@
 #include "FskShadow.h"
 #include "FskTransferAlphaBitmap.h"
 
+#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+    #define __FSKCANVAS_PRIV__
+    #include "FskGLCanvas.h"
+#endif /* FSKBITMAP_OPENGL */
 
 
 /************************************************ Debugging configuration ************************************************/
 #if SUPPORT_INSTRUMENTATION
 	#define LOG_PARAMETERS			/**< Log the parameters of API calls. */
+	//#define LOG_PATH				/**< Log the path details. */
 #endif /* SUPPORT_INSTRUMENTATION */
 
 //#define CANVAS_DEBUG 1
 #ifndef CANVAS_DEBUG
 	#define CANVAS_DEBUG 0				/**< Turn off extra debugging logs. */
 #endif /* CANVAS_DEBUG */
-#if	defined(LOG_PARAMETERS)
+#if	defined(LOG_PARAMETERS)	| \
+	defined(LOG_PATH)
 	#undef  CANVAS_DEBUG
 	#define CANVAS_DEBUG 1
 #endif /* LOG_PARAMETERS et al */
@@ -122,6 +132,7 @@ FskInstrumentedSimpleType(Canvas, canvas);													/**< This declares the ty
  *******************************************************************************/
 
 #if CANVAS_DEBUG
+#include "FskTextConvert.h"
 
 static void LogBitmap(FskConstBitmap bm, const char *name) {
 	if (!bm)
@@ -139,6 +150,202 @@ static void LogRect(FskConstRectangle r, const char *name) {
 	if (!name)
 		name = "RECT";
 	LOGD("\t%s(%d, %d, %d, %d)", name, (int)r->x, (int)r->y, (int)r->width, (int)r->height);
+}
+
+static void LogUnicodeString(const UInt16 *uniChars, const char *name) {
+	char	*utf8Text = NULL;
+	UInt32	unicodeLength, utf8Length;
+
+	if (!uniChars)	return;
+	if (!name)		name="UNICODE";
+	unicodeLength = FskUnicodeStrLen(uniChars);
+	(void)FskTextUnicode16NEToUTF8(uniChars, unicodeLength*2, &utf8Text, &utf8Length);
+	LOGD("\t%s[%u]: \"%.*s\"", name, (unsigned)unicodeLength, (int)utf8Length, utf8Text);
+	FskMemPtrDispose(utf8Text);
+}
+
+static void LogPath(FskConstPath path, const char *name) {
+	const UInt32		kCharsPerSeg		= 64,
+						kMaxCharsPerLine	= 1000;
+	FskGrowableStorage	str					= NULL;
+	FskErr				err;
+	UInt32				pathSize;
+
+	if (!path)
+		return;
+	if (!name)	name = "PATH";
+
+	BAIL_IF_ERR(err = FskGrowableStorageNew(kCharsPerSeg * FskPathGetSegmentCount(path), &str));
+	BAIL_IF_ERR(err = FskPathString(path, 6, str));
+	pathSize = FskGrowableStorageGetSize(str);
+	if (pathSize <= kMaxCharsPerLine) {
+		LOGD("\t%s: \"%s\"", name, FskGrowableStorageGetPointerToCString(str));
+	} else {
+		#ifdef TRUNCATE_PATH_STRING
+			FskGrowableStorageSetSize(str, kMaxCharsPerLine);
+			FskGrowableStorageAppendF(str, "...");
+			LOGD("\t%s: \"%s\"", name, FskGrowableStorageGetPointerToCString(str));
+		#else /* KEEP_PATH_STRING */
+			const UInt32 kMaxCharsPerBreak = 160;
+			UInt32		offset;
+			const char	*s = FskGrowableStorageGetPointerToCString(str);
+			LOGD("\t%s: \"%.*s\"", name, kMaxCharsPerBreak, s);
+			for (offset = kMaxCharsPerBreak; offset < pathSize; offset += kMaxCharsPerBreak)
+				LOGD("\t\t\"%.*s\"", kMaxCharsPerBreak, s + offset);
+		#endif /* TRUNCATE_PATH_STRING */
+	}
+bail:
+	FskGrowableStorageDispose(str);
+}
+
+
+/********************************************************************************
+ * Lookups for debugging.
+ ********************************************************************************/
+
+typedef struct LookupEntry {
+	int			code;	/* Make sure that 0 is the last code */
+	const char	*name;
+} LookupEntry;
+static const char* LookupNameFromCode(const LookupEntry *table, int code) {
+	for (; table->name; ++table)
+		if (table->code == code)
+			break;
+	return table->name ? table->name : "UNKNOWN";
+}
+static const char* CompositionNameFromCode(int code) {
+	static const LookupEntry lookupTab[] = {
+		{	kFskCompositePreSourceOver,			"SrcOver"	},
+		{	kFskCompositePreDestinationOver,	"DstOver"	},
+		{	kFskCompositePreSourceIn,			"SrcIn"		},
+		{	kFskCompositePreDestinationIn,		"DstIn"		},
+		{	kFskCompositePreSourceOut,			"SrcOut"	},
+		{	kFskCompositePreDestinationOut,		"DstOut"	},
+		{	kFskCompositePreSourceAtop,			"SrcAtop"	},
+		{	kFskCompositePreDestinationAtop,	"DstAtop"	},
+		{	kFskCompositePreLighter,			"Lighter"	},
+		{	kFskCompositePreXor,				"Xor"		},
+		{	0,									NULL		}
+	};
+	return LookupNameFromCode(lookupTab, code);
+}
+static const char* LineCapNameFromCode(int code) {
+	static const LookupEntry lookupTab[] = {
+		{	kFskCanvas2dLineCapRound,			"Round"		},
+		{	kFskCanvas2dLineCapSquare,			"Square"	},
+		{	kFskCanvas2dLineCapButt,			"Butt"		},
+		{	0,									NULL		}
+	};
+	return LookupNameFromCode(lookupTab, code);
+}
+static const char* LineJoinNameFromCode(int code) {
+	static const LookupEntry lookupTab[] = {
+		{	kFskCanvas2dLineJoinRound,			"Round"		},
+		{	kFskCanvas2dLineJoinBevel,			"Bevel"		},
+		{	kFskCanvas2dLineJoinMiter,			"Miter"		},
+		{	0,									NULL		}
+	};
+	return LookupNameFromCode(lookupTab, code);
+}
+static const char* TextAlignNameFromCode(int code) {
+	static const LookupEntry lookupTab[] = {
+		{	kFskCanvas2dTextAlignStart,			"Start"		},
+		{	kFskCanvas2dTextAlignCenter,		"Center"	},
+		{	kFskCanvas2dTextAlignEnd,			"End"		},
+		{	kFskCanvas2dTextAlignLeft,			"Left"		},
+		{	kFskCanvas2dTextAlignRight,			"Right"		},
+		{	0,									NULL		}
+	};
+	return LookupNameFromCode(lookupTab, code);
+}
+static const char* TextBaselineNameFromCode(int code) {
+	static const LookupEntry lookupTab[] = {
+		{	kFskCanvas2dTextBaselineAlphabetic,		"Alphabetic"	},
+		{	kFskCanvas2dTextBaselineIdeographic,	"Ideographic"	},
+		{	kFskCanvas2dTextBaselineTop,			"End"			},
+		{	kFskCanvas2dTextBaselineHanging,		"Hanging"		},
+		{	kFskCanvas2dTextBaselineMiddle,			"Middle"		},
+		{	kFskCanvas2dTextBaselineBottom,			"Bottom"		},
+		{	0,										NULL			}
+	};
+	return LookupNameFromCode(lookupTab, code);
+}
+static const char* SpreadMethodNameFromCode(UInt32 spreadMethod) {
+	static const char *spreads[] = {
+		"transparent",
+		"padX|transparentY",
+		"repeatX|transparentY",
+		"reflectX|transparentY",
+		"transparentX|padY",
+		"pad",
+		"repeatX|padY",
+		"reflectX|padY",
+		"transparentX|repeatY",
+		"padX|repeatY",
+		"repeat",
+		"reflectX|repeatY",
+		"transparentX|reflectY",
+		"padX|reflectY",
+		"repeatX|reflectY",
+		"reflect"
+	};
+	return spreads[spreadMethod & 0xF];
+}
+static const char* FillRuleNameFromCode(SInt32 fillRule) {
+	switch (fillRule) {
+		case kFskCanvas2dFillRuleWindingNumber:	return "nonzero";
+		case kFskCanvas2dFillRuleParity:		return "even-odd";
+		default:								return "UNKNOWN";
+	}
+}
+static void LogFixedMatrix3x2(const FskFixedMatrix3x2 *M, const char *name) {
+	if (!M)
+		return;
+	if (!name)	name = "MTX";
+	LOGD("\t%s: [[%g %g],[%g %g],[%g %g]]", name, M->M[0][0] * (1./65536.), M->M[0][1] * (1./65536.),
+		M->M[1][0] * (1./65536.), M->M[1][1] * (1./65536.), M->M[2][0] * (1./65536.), M->M[2][1] * (1./65536.));
+}
+static void LogGradientStops(UInt32 numStops, const FskGradientStop *stops) {
+	UInt32 i;
+	if (!numStops || !stops)
+		return;
+	for (i = 0; i < numStops; ++i, ++stops)
+		LOGD("\tstop[%u]: offset=%6.4f color={%3u %3u %3u %3u}", i, stops->offset * (1./1073741824.),
+			stops->color.r, stops->color.g, stops->color.b, stops->color.a);
+}
+static void LogColorSource(const FskColorSource *cs, const char *name) {
+	const FskColorSourceUnion *csu = (FskColorSourceUnion*)cs;
+	if (!csu)
+		return;
+	if (!name)	name = "COLORSOURCE";
+	switch (csu->so.type) {
+		case kFskColorSourceTypeConstant:
+			LOGD("\t%s: Constant(r=%u g=%u b=%u a=%u)", name, csu->cn.color.r, csu->cn.color.g, csu->cn.color.b, csu->cn.color.a);
+			break;
+		case kFskColorSourceTypeLinearGradient:
+			LOGD("\t%s: LinearGradient(gradientVector={{%g, %g}, {%g, %g}} gradientMatrix=%p spreadMethod=%s numStops=%u stops=%p)", name,
+				csu->lg.gradientVector[0].x * (1./65536.), csu->lg.gradientVector[0].y * (1./65536.),
+				csu->lg.gradientVector[1].x * (1./65536.), csu->lg.gradientVector[1].y * (1./65536.),
+				csu->lg.gradientMatrix, SpreadMethodNameFromCode(csu->lg.spreadMethod), csu->lg.numStops, csu->lg.gradientStops);
+			LogFixedMatrix3x2(csu->lg.gradientMatrix, "gradientMatrix");
+			LogGradientStops(csu->lg.numStops, csu->lg.gradientStops);
+			break;
+		case kFskColorSourceTypeRadialGradient:
+			LOGD("\t%s: RadialGradient(focus(x=%g y=%g r=%g) outer(x=%g y=%g r=%g) gradientMatrix=%p spreadMethod=%s numStops=%u stops=%p)", name,
+				csu->rg.focus.x  * (1./65536.), csu->rg.focus.y  * (1./65536.), csu->rg.focalRadius * (1./65536.),
+				csu->rg.center.x * (1./65536.), csu->rg.center.y * (1./65536.), csu->rg.radius      * (1./65536.),
+				csu->rg.gradientMatrix, SpreadMethodNameFromCode(csu->rg.spreadMethod), csu->rg.numStops, csu->rg.gradientStops);
+			LogFixedMatrix3x2(csu->rg.gradientMatrix, "gradientMatrix");
+			LogGradientStops(csu->rg.numStops, csu->rg.gradientStops);
+			break;
+		case kFskColorSourceTypeTexture:
+			LOGD("\t%s: Texture(bm=%p textureFrame=%p spreadMethod=%s)", name, csu->tx.texture, csu->tx.textureFrame, SpreadMethodNameFromCode(csu->tx.spreadMethod));
+			LogBitmap(csu->tx.texture, "textureBM");
+			LogFixedMatrix3x2(csu->tx.textureFrame, "textureFrame");
+			break;
+		default:
+			break;
+	}
 }
 #endif /* CANVAS_DEBUG */
 
@@ -580,6 +787,11 @@ static FskErr InitCanvasContext(FskCanvas2dContext ctx, FskCanvas canvas, UInt32
 
 	SetMatrix3x2(&ctx->deviceTransform, 1., 0., 0., 1., 0., 0.);
 	BAIL_IF_ERR(err = ResetCanvasContext(ctx));					/* This needs to have ctx->canvas set */
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (canvas->bm && FskBitmapIsOpenGLDestinationAccelerated(canvas->bm))
+			err = FskGLCanvasInitGLCanvas(canvas);
+	#endif /* FSKBITMAP_OPENGL */
 
 bail:
 	return err;
@@ -1447,7 +1659,7 @@ FskErr FskCanvasConvertImageDataFormat(FskCanvas2dImageData id, FskBitmapFormatE
 {
 	FskErr		err		= kFskErrNone;
 	UInt32		*p		= (UInt32*)(id->data.bytes);
-	UInt32		n		= id->data.length / sizeof(UInt32);
+	UInt32		n		= (UInt32)(id->data.length / sizeof(UInt32));
 	UInt32		pix;
 
 	if (srcFmt == dstFmt)
@@ -1616,6 +1828,14 @@ FskSetCanvasBitmap(FskCanvas cnv, FskBitmap bm)
 }
 
 
+/********************************************************************************
+ * FskCanvas2dIsAccelerated
+ ********************************************************************************/
+
+Boolean	FskCanvasIsAccelerated(FskConstCanvas2dContext ctx) {
+	return FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm);
+}
+
 
 /********************************************************************************
  * ACCESSORS
@@ -1712,121 +1932,194 @@ UInt32	FskCanvas2dGetTextBaseline(FskConstCanvas2dContext ctx) {
 
 void	FskCanvas2dSetGlobalCompositeOperation(FskCanvas2dContext ctx, UInt32 op) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetGlobalCompositeOperation(ctx=%p op=%s)", ctx, CompositionNameFromCode(op));
+			#endif /* LOG_PARAMETERS */
 			if (st)
 				st->globalCompositeOperation = (UInt8)op;
 		}
 void	FskCanvas2dSetGlobalAlpha(FskCanvas2dContext ctx, double alpha) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetGlobalAlpha(ctx=%p alpha=%g)", ctx, alpha);
+			#endif /* LOG_PARAMETERS */
 			if (st && alpha >= 0. && alpha <= 1.)
 					st->globalAlpha = (UInt8)(alpha * 255. + .5);
 		}
 void	FskCanvas2dSetQuality(FskCanvas2dContext ctx, UInt32 quality) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetQuality(ctx=%p quality=%u)", ctx, (unsigned)quality);
+			#endif /* LOG_PARAMETERS */
 			if (st)
 				st->quality = (UInt8)quality;
 		}
 void	FskCanvas2dSetLineCap(FskCanvas2dContext ctx, UInt32 lineCap) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetQuality(ctx=%p cap=%s)", ctx, LineCapNameFromCode(lineCap));
+			#endif /* LOG_PARAMETERS */
 			if (st)
 				st->lineCap = (UInt8)lineCap;
 		}
 void	FskCanvas2dSetLineJoin(FskCanvas2dContext ctx, UInt32 lineJoin) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetLineJoin(ctx=%p join=%s)", ctx, LineJoinNameFromCode(lineJoin));
+			#endif /* LOG_PARAMETERS */
 			if (st)
 				st->lineJoin = (UInt8)lineJoin;
 		}
 void	FskCanvas2dSetLineWidth(FskCanvas2dContext ctx, double w) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetLineWidth(ctx=%p w=%g)", ctx, w);
+			#endif /* LOG_PARAMETERS */
 			if (st && IsFiniteNonnegative(w))
 				st->lineWidth = FskRoundFloatToFixed(w);
 		}
 void	FskCanvas2dSetMiterLimit(FskCanvas2dContext ctx, double miterLimit) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetMiterLimit(ctx=%p miterLimit=%g)", ctx, miterLimit);
+			#endif /* LOG_PARAMETERS */
 			if (st && IsFiniteNonnegative(miterLimit))
 				st->miterLimit = FskRoundFloatToFixed(miterLimit);
 		}
 void	FskCanvas2dSetShadowOffsetX(FskCanvas2dContext ctx, double ox) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetShadowOffsetX(ctx=%p ox=%g)", ctx, ox);
+			#endif /* LOG_PARAMETERS */
 			if (st && IsFinite(ox))
 				st->shadowOffset.x = FskRoundFloatToInt(ox);
 		}
 void	FskCanvas2dSetShadowOffsetY(FskCanvas2dContext ctx, double oy) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetShadowOffsetY(ctx=%p ox=%g)", ctx, oy);
+			#endif /* LOG_PARAMETERS */
 			if (st && IsFinite(oy))
 				st->shadowOffset.y = FskRoundFloatToInt(oy);
 		}
 void	FskCanvas2dSetShadowBlur(FskCanvas2dContext ctx, double blur) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetShadowBlur(ctx=%p ox=%g)", ctx, blur);
+			#endif /* LOG_PARAMETERS */
 			if (st && IsFinite(blur) && blur >= 0. && blur < 500.)
 				st->shadowBlur = (float)blur;
 		}
 void	FskCanvas2dSetShadowColor(FskCanvas2dContext ctx, FskConstColorRGBA color) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetShadowColor(ctx=%p color={%u,%u,%u,%u})", ctx, color->r, color->g, color->b, color->a);
+			#endif /* LOG_PARAMETERS */
 			if (st && color)
 				st->shadowColor = *color;
 		}
 void	FskCanvas2dSetTextAlignment(FskCanvas2dContext ctx, UInt32 alignment) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetTextAlignment(ctx=%p align=%s)", ctx, TextAlignNameFromCode(alignment));
+			#endif /* LOG_PARAMETERS */
 			if (st)
 				st->textAlign = (UInt8)alignment;
 		}
 void	FskCanvas2dSetTextBaseline(FskCanvas2dContext ctx, UInt32 baseline) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetTextBaseline(ctx=%p baseline=%s)", ctx, TextBaselineNameFromCode(baseline));
+			#endif /* LOG_PARAMETERS */
 			if (st)
 				st->textBaseline = (UInt8)baseline;
 		}
 
 void	FskCanvas2dSetStrokeStyle(FskCanvas2dContext ctx, const FskColorSource *cs) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetStrokeStyle(ctx=%p cs=%p)", ctx, cs);
+				LogColorSource(cs, "style");
+			#endif /* LOG_PARAMETERS */
 			if (st && cs)
 				SetCanvas2dColorSource(cs, &st->strokeStyle);
 		}
 void	FskCanvas2dSetFillStyle(FskCanvas2dContext ctx, const FskColorSource *cs) {
 			FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetFillStyle(ctx=%p cs=%p)", ctx, cs);
+				LogColorSource(cs, "style");
+			#endif /* LOG_PARAMETERS */
 			if (st && cs)
 				SetCanvas2dColorSource(cs, &st->fillStyle);
 		}
 
 void	FskCanvas2dSetStrokeStyleColor(FskCanvas2dContext ctx, FskConstColorRGBA color) {
 			FskCanvas2dColorSource *so = GetStrokeColorSourcePtr(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetStrokeStyleColor(ctx=%p color={%u,%u,%u,%u})", ctx, color->r, color->g, color->b, color->a);
+			#endif /* LOG_PARAMETERS */
 			if (so && color)
 				SetCanvas2dColorSourceColor(so, color);
 		}
 void	FskCanvas2dSetFillStyleColor(FskCanvas2dContext ctx, FskConstColorRGBA color) {
 			FskCanvas2dColorSource *so = GetFillColorSourcePtr(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetFillStyleColor(ctx=%p color={%u,%u,%u,%u})", ctx, color->r, color->g, color->b, color->a);
+			#endif /* LOG_PARAMETERS */
 			if (so && color)
 				SetCanvas2dColorSourceColor(so, color);
 		}
 
 FskErr FskCanvas2dSetFillStyleLinearGradient(FskCanvas2dContext ctx, double x0, double y0, double x1, double y1, UInt32 numStops, const FskCanvas2dGradientStop *stops) {
 			FskCanvas2dColorSource *so = GetFillColorSourcePtr(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetFillStyleLinearGradient(ctx=%p x0=%g y0=%g x1=%g y1=%g numStops=%u stops=%p)", ctx, x0, y0, x1, y1, numStops, stops);
+			#endif /* LOG_PARAMETERS */
 			return so	? SetCanvas2dColorSourceLinearGradient(so, x0, y0, x1, y1, numStops, stops)
 						: kFskErrInvalidParameter;
 		}
 FskErr FskCanvas2dSetStrokeStyleLinearGradient(FskCanvas2dContext ctx, double x0, double y0, double x1, double y1, UInt32 numStops, const FskCanvas2dGradientStop *stops) {
 			FskCanvas2dColorSource *so = GetStrokeColorSourcePtr(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetStrokeStyleLinearGradient(ctx=%p x0=%g y0=%g x1=%g y1=%g numStops=%u stops=%p)", ctx, x0, y0, x1, y1, numStops, stops);
+			#endif /* LOG_PARAMETERS */
 			return so	? SetCanvas2dColorSourceLinearGradient(so, x0, y0, x1, y1, numStops, stops)
 						: kFskErrInvalidParameter;
 		}
 
 FskErr FskCanvas2dSetFillStyleRadialGradient(FskCanvas2dContext ctx, double x0, double y0, double r0, double x1, double y1, double r1, UInt32 numStops, const FskCanvas2dGradientStop *stops) {
 			FskCanvas2dColorSource *so = GetFillColorSourcePtr(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetFillStyleRadialGradient(ctx=%p x0=%g y0=%g r0=%g x1=%g y1=%g r1=%g numStops=%u stops=%p)", ctx, x0, y0, r0, x1, y1, r1, numStops, stops);
+			#endif /* LOG_PARAMETERS */
 			return so	? SetCanvas2dColorSourceRadialGradient(so, x0, y0, r0, x1, y1, r1, numStops, stops)
 						: kFskErrInvalidParameter;
 		}
 FskErr FskCanvas2dSetStrokeStyleRadialGradient(FskCanvas2dContext ctx, double x0, double y0, double r0, double x1, double y1, double r1, UInt32 numStops, const FskCanvas2dGradientStop *stops) {
 			FskCanvas2dColorSource *so = GetStrokeColorSourcePtr(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetStrokeStyleRadialGradient(ctx=%p x0=%g y0=%g r0=%g x1=%g y1=%g r1=%g numStops=%u stops=%p)", ctx, x0, y0, r0, x1, y1, r1, numStops, stops);
+			#endif /* LOG_PARAMETERS */
 			return so	? SetCanvas2dColorSourceRadialGradient(so, x0, y0, r0, x1, y1, r1, numStops, stops)
 						: kFskErrInvalidParameter;
 		}
 
 FskErr FskCanvas2dSetFillStylePattern(FskCanvas2dContext ctx, UInt32 rep, FskConstBitmap texture) {
 			FskCanvas2dColorSource *so = GetFillColorSourcePtr(ctx);
-			return so	? SetCanvas2dColorSourcePattern(so, rep, texture)
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetFillStylePattern(ctx=%p rep=%s texture=%p)", ctx, SpreadMethodNameFromCode(rep), texture);
+				LogBitmap(texture, "texture");
+			#endif /* LOG_PARAMETERS */
+		return so	? SetCanvas2dColorSourcePattern(so, rep, texture)
 						: kFskErrInvalidParameter;
 		}
 FskErr FskCanvas2dSetStrokeStylePattern(FskCanvas2dContext ctx, UInt32 rep, FskConstBitmap texture) {
 			FskCanvas2dColorSource *so = GetStrokeColorSourcePtr(ctx);
+			#if defined(LOG_PARAMETERS)
+				LOGD("FskCanvas2dSetStrokeStylePattern(ctx=%p rep=%s texture=%p)", ctx, SpreadMethodNameFromCode(rep), texture);
+				LogBitmap(texture, "texture");
+			#endif /* LOG_PARAMETERS */
 			return so	? SetCanvas2dColorSourcePattern(so, rep, texture)
 						: kFskErrInvalidParameter;
 		}
@@ -1846,6 +2139,13 @@ FskErr FskCanvas2dSetFont(FskCanvas2dContext ctx, const struct FskFontAttributes
 {
 	FskErr					err		= kFskErrNone;
 	FskCanvas2dContextState	*st		= FskCanvasGetStateFromContext(ctx);
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dSetFont(ctx=%p font=%p)", ctx, font);
+		if (font) LOGD("\tfont(family=\"%s\" size=%g weight=%u style=%u anchor=%u stretch=%u decoration=%u variant=%u sizeAdjust=%g)",
+			font->family, font->size, font->weight, font->style, font->anchor, font->stretch, font->decoration, font->variant, font->sizeAdjust
+		);
+	#endif /* LOG_PARAMETERS */
 
 	if (!st || !font)
 		return kFskErrInvalidParameter;
@@ -1881,7 +2181,7 @@ FskCanvas2dSave(FskCanvas2dContext ctx)
 	FixUpCanvasContextPointers(ctx);
 
 bail:
-	return err ;
+	return err;
 }
 
 
@@ -1913,16 +2213,53 @@ bail:
 
 
 /********************************************************************************
+ * FskCanvas2dCommit
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dCommit(FskCanvas2dContext ctx)
+{
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dCommit(ctx=%p)", ctx);
+	#endif /* LOG_PARAMETERS */
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dCommit(ctx);
+	#endif /* FSKBITMAP_OPENGL */
+	return kFskErrNone;
+}
+
+
+/********************************************************************************
  * FskCanvasClear
  ********************************************************************************/
 
 void
 FskCanvasClear(FskCanvas cnv, UInt8 r, UInt8 g, UInt8 b, UInt8 a)
 {
-	FskColorRGBARecord color;
-	FskColorRGBASet(&color, r, g, b, a);
-	if (cnv && cnv->bm)
+	if (cnv && cnv->bm) {
+		FskColorRGBARecord color;
+		#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+			if (FskBitmapIsOpenGLDestinationAccelerated(cnv->bm)) {
+				FskGLCanvasClear(cnv, r, g, b, a);
+				return;
+			}
+		#endif /* FSKBITMAP_OPENGL */
+		if (255 == (color.a = a)) {	/* Fully opaque */
+			color.r = r;
+			color.g = g;
+			color.b = b;
+		}
+		else {						/* Convert from straight alpha to premultiplied alpha color */
+			color.r = FskAlphaMul(r, color.a);
+			color.g = FskAlphaMul(g, color.a);
+			color.b = FskAlphaMul(b, color.a);
+		}
 		FskRectangleFill(cnv->bm, &cnv->bm->bounds, &color, 0, NULL);
+	}
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvasClear(cnv=%p r=%u g=%u b=%u a=%u)", cnv, r, g, b, a);
+	#endif /* LOG_PARAMETERS */
 }
 
 
@@ -1971,7 +2308,7 @@ FskBitmapToDataURL(FskConstBitmap bm, const char *type, float quality, char **da
 		FskMemPtrDisposeAt(&cmprImg);
 
 		/* Assemble header and payload into URL */
-		headerSize = strlen(dataStr) + strlen(type) + strlen(baseStr);
+		headerSize = FskStrLen(dataStr) + FskStrLen(type) + FskStrLen(baseStr);
 		urlSize = headerSize + b64Size;										/* b64Size contains a trailing \0 */
 		BAIL_IF_ERR(err = FskMemPtrNew(urlSize, dataURL));
 		url = *dataURL;
@@ -2003,6 +2340,10 @@ bail:
 FskErr
 FskCanvasToDataURL(FskCanvas cnv, const char *type, float quality, char **dataURL)
 {
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(cnv->bm))
+			return FskGLCanvasToDataURL(cnv, type, quality, dataURL);
+	#endif /* FSKBITMAP_OPENGL */
 	#if defined(LOG_PARAMETERS)
 		LOGD("FskCanvasToDataURL(cnv=%p type=\"%s\" quality=%g)", cnv, type, quality);
 	#endif /* LOG_PARAMETERS */
@@ -2062,6 +2403,9 @@ FskCanvas2dSetDeviceTransform(FskCanvas2dContext ctx, double a, double b, double
 void
 FskCanvas2dGetDeviceTransform(FskCanvas2dContext ctx, double transform[6])
 {
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dGetDeviceTransform(ctx=%p transform=%p)", ctx, transform);
+	#endif /* LOG_PARAMETERS */
 	if (ctx && transform)
 		*((FskCanvasMatrix3x2d*)transform) = ctx->deviceTransform;
 }
@@ -2150,73 +2494,97 @@ void FskCanvas2dTranslate(FskCanvas2dContext ctx, double x, double y) {							Fs
 
 
 /********************************************************************************
- * FskCanvas2dBeginPath
+ * FskCanvas2dPathNew
  ********************************************************************************/
 
-FskErr
-FskCanvas2dBeginPath(FskCanvas2dContext ctx)
-{
-	return ctx ? FskGrowablePathClear(ctx->path) : kFskErrInvalidParameter;
+FskErr FskCanvas2dPathNew(FskCanvas2dPath *pPath) {
+	return FskGrowablePathNew(0, pPath);
 }
 
 
 /********************************************************************************
- * FskCanvas2dClosePath
+ * FskCanvas2dPathDispose
  ********************************************************************************/
 
-FskErr
-FskCanvas2dClosePath(FskCanvas2dContext ctx)
-{
-	return ctx ? FskGrowablePathAppendSegmentClose(ctx->path) : kFskErrInvalidParameter;
+void FskCanvas2dPathDispose(FskCanvas2dPath path) {
+	FskGrowablePathDispose(path);
 }
 
 
 /********************************************************************************
- * FskCanvas2dMoveTo
+ * FskCanvas2dPathBegin
  ********************************************************************************/
 
 FskErr
-FskCanvas2dMoveTo(FskCanvas2dContext ctx, double x, double y)
+FskCanvas2dPathBegin(FskCanvas2dContext ctx, FskCanvas2dPath path)
 {
-	return ctx ? FskGrowablePathAppendSegmentFloatMoveTo(x, y, ctx->path) : kFskErrInvalidParameter;
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathClear(path);
 }
 
 
 /********************************************************************************
- * FskCanvas2dLineTo
+ * FskCanvas2dPathClose
  ********************************************************************************/
 
 FskErr
-FskCanvas2dLineTo(FskCanvas2dContext ctx, double x, double y)
+FskCanvas2dPathClose(FskCanvas2dContext ctx, FskCanvas2dPath path)
 {
-	return ctx ? FskGrowablePathAppendSegmentFloatLineTo(x, y, ctx->path) : kFskErrInvalidParameter;
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathAppendSegmentClose(path);
 }
 
 
 /********************************************************************************
- * FskCanvas2dQuadraticCurveTo
+ * FskCanvas2dPathMoveTo
  ********************************************************************************/
 
 FskErr
-FskCanvas2dQuadraticCurveTo(FskCanvas2dContext ctx, double cpx, double cpy, double x, double y)
+FskCanvas2dPathMoveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y)
 {
-	return ctx ? FskGrowablePathAppendSegmentFloatQuadraticBezierTo(cpx, cpy, x, y, ctx->path) : kFskErrInvalidParameter;
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathAppendSegmentFloatMoveTo(x, y, path);
 }
 
 
 /********************************************************************************
- * FskCanvas2dCubicCurveTo
+ * FskCanvas2dPathLineTo
  ********************************************************************************/
 
 FskErr
-FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, double cp1y, double cp2x, double cp2y, double x, double y)
+FskCanvas2dPathLineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y)
 {
-	return ctx ? FskGrowablePathAppendSegmentFloatCubicBezierTo(cp1x, cp1y, cp2x, cp2y, x, y, ctx->path) : kFskErrInvalidParameter;
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathAppendSegmentFloatLineTo(x, y, path);
 }
 
 
 /********************************************************************************
- * FskCanvas2dArc
+ * FskCanvas2dPathQuadraticCurveTo
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathQuadraticCurveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double cpx, double cpy, double x, double y)
+{
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathAppendSegmentFloatQuadraticBezierTo(cpx, cpy, x, y, path);
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathCubicCurveTo
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathCubicCurveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double cp1x, double cp1y, double cp2x, double cp2y, double x, double y)
+{
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathAppendSegmentFloatCubicBezierTo(cp1x, cp1y, cp2x, cp2y, x, y, path);
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathArc
  *
  * The arc(x, y, radius, startAngle, endAngle, anticlockwise) method draws an arc.
  * If the context has any subpaths, then the method must add a straight line
@@ -2241,18 +2609,15 @@ FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, double cp1y, double
  ********************************************************************************/
 
 FskErr
-FskCanvas2dArc(FskCanvas2dContext ctx, double cx, double cy, double radius, double startAngle, double endAngle, Boolean counterClockwise)
+FskCanvas2dPathArc(FskCanvas2dContext ctx, FskCanvas2dPath path, double cx, double cy, double radius, double startAngle, double endAngle, Boolean counterClockwise)
 {
 	FskErr					err		= kFskErrNone;
-	FskGrowablePath			path;
 	FskFixedPoint2D			lastPt;
 	FskDPoint2D				p, cp;
 	double					dAngle, cd, sd, cpW, cpDist, t;
 	int						nBez;
 
-	if (!ctx)
-		return kFskErrInvalidParameter;
-	path = ctx->path;
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
 
 	/* Determine the first point */
 	p.x = cos(startAngle) * radius;
@@ -2266,34 +2631,34 @@ FskCanvas2dArc(FskCanvas2dContext ctx, double cx, double cy, double radius, doub
 
 	/* Determine the last point */
 	dAngle = endAngle - startAngle;
-	if (dAngle > +D_2PI) {	endAngle = startAngle + (dAngle = +D_2PI); }
-	if (dAngle < -D_2PI) {	endAngle = startAngle + (dAngle = -D_2PI); }
-	if (counterClockwise) {
-		if      (dAngle == +D_2PI)	dAngle = -D_2PI;
-		else if (dAngle == -D_2PI)	dAngle = +D_2PI;
-		else if (dAngle < 0)		dAngle += D_2PI;
-		else if (dAngle > 0)		dAngle -= D_2PI;
+	if (counterClockwise) {															/* Counterclockwise angles are negative */
+		if ((dAngle < -D_2PI) || ((dAngle > 0) && ((dAngle -= D_2PI) >= 0)))		/* Try to map angle into [-2pi, 0) */
+			endAngle = startAngle + (dAngle = -D_2PI);								/* Or saturate to -2pi if the magnitude is greater than 2pi */
+	}
+	else /* clockwise */ {															/* Clockwise        angles are positive */
+		if ((dAngle > +D_2PI) || ((dAngle < 0) && ((dAngle += D_2PI) <= 0)))		/* Try to map angle into (0, +2pi] */
+			endAngle = startAngle + (dAngle = +D_2PI);								/* Or saturate to +2pi if the magnitude is greater than 2pi */
 	}
 
 	nBez = (int)(fabs(dAngle) / D_2PI_3) + 1;		/* Number of rational Bezier segments */
-	dAngle /= nBez;							/* Number of radians per segment */
+	dAngle /= nBez;									/* Number of radians per segment */
 	cd      = cos(dAngle);
 	sd      = sin(dAngle);
-	cpW    = cos(dAngle * .5);				/* Weight for control point */
-	cpDist = radius / cpW;					/* Distance from center to control point */
+	cpW    = cos(dAngle * .5);						/* Weight for control point */
+	cpDist = radius / cpW;							/* Distance from center to control point */
 	cp.x = cos(startAngle + dAngle * .5) * cpDist;
 	cp.y = sin(startAngle + dAngle * .5) * cpDist;
 
 	for (--nBez; nBez--; ) {
-		t   = p.x * cd - p.y * sd;			/* Rotate start point to end */
+		t   = p.x * cd - p.y * sd;					/* Rotate start point to end */
 		p.y = p.x * sd + p.y * cd;
 		p.x = t;
 		BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(cp.x + cx, cp.y + cy, cpW, p.x + cx, p.y + cy, path));
-		t    = cp.x * cd - cp.y * sd;		/* Rotate control point */
+		t    = cp.x * cd - cp.y * sd;				/* Rotate control point */
 		cp.y = cp.x * sd + cp.y * cd;
 		cp.x = t;
 	}
-	p.x = cos(endAngle) * radius;	/* Avoid accumulation of eror at the end */
+	p.x = cos(endAngle) * radius;					/* Avoid accumulation of eror at the end */
 	p.y = sin(endAngle) * radius;
 	BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(cp.x + cx, cp.y + cy, cpW, p.x + cx, p.y + cy, path));
 
@@ -2303,7 +2668,7 @@ bail:
 
 
 /********************************************************************************
- * FskCanvas2dArcTo
+ * FskCanvas2dPathArcTo
  *
  * The arcTo(x1, y1, x2, y2, radius) method must first ensure there is a subpath for (x1, y1).
  * Then, the behavior  depends on the arguments and the last point in the subpath, as described below.
@@ -2325,12 +2690,13 @@ bail:
  ********************************************************************************/
 
 FskErr
-FskCanvas2dArcTo(FskCanvas2dContext ctx, double x1, double y1, double x2, double y2, double radius)
+FskCanvas2dPathArcTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x1, double y1, double x2, double y2, double radius)
 {
 	FskErr					err		= kFskErrNone;
-	FskGrowablePath			path	= ctx->path;
 	FskFixedPoint2D			lastPt;
 	double					x0, y0;
+
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
 
 	BAIL_IF_ERR(err = FskGrowablePathGetLastPoint(path, &lastPt));
 	BAIL_IF_NEGATIVE(radius, err, kFskErrInvalidParameter);
@@ -2399,33 +2765,70 @@ bail:
 
 
 /********************************************************************************
- * FskCanvasAppendPathString
+ * FskCanvas2dPathAppendPathString
  ********************************************************************************/
 
 FskErr
-FskCanvasAppendPathString(FskCanvas2dContext ctx, const char *pathStr)
+FskCanvas2dPathAppendPathString(FskCanvas2dContext ctx, FskCanvas2dPath path, const char *pathStr)
 {
-	return FskGrowablePathAppendPathString(pathStr, ctx->path);
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathAppendPathString(pathStr, path);
 }
 
 
 /********************************************************************************
- * FskCanvas2dRect
+ * FskCanvas2dPathAppendPath
  ********************************************************************************/
 
 FskErr
-FskCanvas2dRect(FskCanvas2dContext ctx, double x, double y, double w, double h)
+FskCanvas2dPathAppendPath(FskCanvas2dContext ctx, FskCanvas2dPath dst, FskConstCanvas2dPath src, const FskCanvasMatrix3x2d *M)
+{
+	FskConstPath		fr;
+	FskFixedMatrix3x2	X;
+
+	if (!dst) { if (!ctx) return kFskErrInvalidParameter; dst = ctx->path; }
+	fr = FskGrowablePathGetConstPath(src);
+
+	if (!M)
+		return FskGrowablePathAppendPath(fr, dst);													/* No transform */
+
+	X.M[0][0] = (FskFixed)(M->M[0][0] * 65536);	X.M[0][1] = (FskFixed)(M->M[0][1] * 65536);			/* Convert transform from float to fixed */
+	X.M[1][0] = (FskFixed)(M->M[1][0] * 65536);	X.M[1][1] = (FskFixed)(M->M[1][1] * 65536);
+	X.M[2][0] = (FskFixed)(M->M[2][0] * 65536);	X.M[2][1] = (FskFixed)(M->M[2][1] * 65536);
+	return FskGrowablePathAppendTransformedPath(fr, &X, dst);
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathRect
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathRect(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y, double w, double h)
 {
 	FskErr					err		= kFskErrNone;
-	FskGrowablePath			path	= ctx->path;
+
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
 
 	BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatMoveTo(x,     y,     path));
 	BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatLineTo(x + w, y,     path));
 	BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatLineTo(x + w, y + h, path));
 	BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatLineTo(x,     y + h, path));
-	BAIL_IF_ERR(err = FskGrowablePathAppendSegmentClose(ctx->path));
+	BAIL_IF_ERR(err = FskGrowablePathAppendSegmentClose(path));
 bail:
 	return err;
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathEndGlyph
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathEndGlyph(FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathAppendSegmentEndGlyph(path);
 }
 
 
@@ -2435,14 +2838,24 @@ bail:
  ********************************************************************************/
 
 FskErr
-FskCanvas2dClearRect( FskCanvas2dContext ctx, double x, double y, double w, double h)
+FskCanvas2dClearRect(FskCanvas2dContext ctx, double x, double y, double w, double h)
 {
-	FskErr					err		= kFskErrNone;
-	FskCanvas2dContextState	*st		= FskCanvasGetStateFromContext(ctx);
-	FskRectangleRecord		r;
+	FskCanvas2dContextState	*st;
 	FskColorRGBARecord		color;
+	FskErr					err;
+	FskRectangleRecord		r;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dClearRect(ctx, x, y, w, h);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dClearRect(ctx=%p x=%g y=%g w=%g h=%g)", ctx, x, y, w, h);
+	#endif /* LOG_PARAMETERS */
 
 	FskRectangleSet(&r, FskRoundFloatToInt(x), FskRoundFloatToInt(y), FskRoundFloatToInt(w), FskRoundFloatToInt(h));	/* Quantize to integers */
+	st = FskCanvasGetStateFromContext(ctx);
 	BAIL_IF_FALSE(FskRectangleIntersect(&st->clipRect, &r, &r), err, kFskErrNothingRendered);
 	FskColorRGBASet(&color, 0, 0, 0, 0);
 	if (st->clipBM == NULL) {
@@ -2519,15 +2932,26 @@ static FskErr ComputeBoundingBoxOfStrokedTransformedRect(double x, double y, dou
 FskErr
 FskCanvas2dFillRect(FskCanvas2dContext ctx, double x, double y, double w, double h)
 {
-	FskErr					err	= kFskErrNone;
-	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+	FskCanvas2dContextState *st;
+	FskErr					err;
 	FskShapeRect			r;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dFillRect(ctx, x, y, w, h);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dFillRect(ctx=%p x=%g y=%g w=%g h=%g)", ctx, x, y, w, h);
+	#endif /* LOG_PARAMETERS */
+
 	r.origin.x = FskRoundFloatToFixed(x);
 	r.origin.y = FskRoundFloatToFixed(y);
 	r.size.x   = FskRoundFloatToFixed(w);
 	r.size.y   = FskRoundFloatToFixed(h);
 	r.radius.x = 0;
 	r.radius.y = 0;
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanFillDirectly(st)) {
 		err = FskFillShapeRect(&r, &st->fillStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);		/* Fill the rect with the style */
 	}
@@ -2551,9 +2975,18 @@ bail:
 FskErr
 FskCanvas2dStrokeRect(FskCanvas2dContext ctx, double x, double y, double w, double h)
 {
-	FskErr					err	= kFskErrNone;
-	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+	FskCanvas2dContextState *st;
+	FskErr					err;
 	FskShapeRect			r;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dStrokeRect(ctx, x, y, w, h);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dStrokeRect(ctx=%p x=%g y=%g w=%g h=%g)", ctx, x, y, w, h);
+	#endif /* LOG_PARAMETERS */
 
 	r.origin.x = FskRoundFloatToFixed(x);
 	r.origin.y = FskRoundFloatToFixed(y);
@@ -2561,6 +2994,7 @@ FskCanvas2dStrokeRect(FskCanvas2dContext ctx, double x, double y, double w, doub
 	r.size.y   = FskRoundFloatToFixed(h);
 	r.radius.x = 0;
 	r.radius.y = 0;
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanStrokeDirectly(st)) {
 		err = FskFrameShapeRect(&r, st->lineWidth, &st->strokeStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
@@ -2584,13 +3018,23 @@ bail:
 FskErr
 FskCanvas2dFillCircle(FskCanvas2dContext ctx, double x, double y, double r)
 {
-	FskErr					err	= kFskErrNone;
-	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+	FskCanvas2dContextState *st;
+	FskErr					err;
 	FskShapeCircle			circle;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dFillEllipse(ctx, x, y, r, r);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dFillCircle(ctx=%p x=%g y=%g r=%g)", ctx, x, y, r);
+	#endif /* LOG_PARAMETERS */
 
 	circle.center.x = FskRoundFloatToFixed(x);
 	circle.center.y = FskRoundFloatToFixed(y);
 	circle.radius   = FskRoundFloatToFixed(r);
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanFillDirectly(st)) {
 		err = FskFillShapeCircle(&circle, &st->fillStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
@@ -2614,13 +3058,23 @@ bail:
 FskErr
 FskCanvas2dStrokeCircle(FskCanvas2dContext ctx, double x, double y, double r)
 {
-	FskErr					err	= kFskErrNone;
-	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+	FskCanvas2dContextState *st;
+	FskErr					err;
 	FskShapeCircle			circle;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dStrokeEllipse(ctx, x, y, r, r);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dStrokeCircle(ctx=%p x=%g y=%g r=%g)", ctx, x, y, r);
+	#endif /* LOG_PARAMETERS */
 
 	circle.center.x = FskRoundFloatToFixed(x);
 	circle.center.y = FskRoundFloatToFixed(y);
 	circle.radius   = FskRoundFloatToFixed(r);
+	st = FskCanvasGetStateFromContext(ctx);;
 	if (FskCanvasCanStrokeDirectly(st)) {
 		err = FskFrameShapeCircle(&circle, st->lineWidth, &st->strokeStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
@@ -2644,15 +3098,24 @@ bail:
 FskErr
 FskCanvas2dFillEllipse(FskCanvas2dContext ctx, double x, double y, double rx, double ry)
 {
-	FskErr					err	= kFskErrNone;
-	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+	FskCanvas2dContextState *st;
+	FskErr					err;
 	FskShapeEllipse			ellipse;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dFillEllipse(ctx, x, y, rx, ry);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dFillEllipse(ctx=%p x=%g y=%g rx=%g ry=%g)", ctx, x, y, rx, ry);
+	#endif /* LOG_PARAMETERS */
 
 	ellipse.center.x = FskRoundFloatToFixed(x);
 	ellipse.center.y = FskRoundFloatToFixed(y);
 	ellipse.radius.x = FskRoundFloatToFixed(rx);
 	ellipse.radius.y = FskRoundFloatToFixed(ry);
-
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanFillDirectly(st)) {
 		err = FskFillShapeEllipse(&ellipse, &st->fillStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
@@ -2676,14 +3139,24 @@ bail:
 FskErr
 FskCanvas2dStrokeEllipse(FskCanvas2dContext ctx, double x, double y, double rx, double ry)
 {
-	FskErr					err	= kFskErrNone;
-	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+	FskCanvas2dContextState *st;
+	FskErr					err;
 	FskShapeEllipse			ellipse;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dStrokeEllipse(ctx, x, y, rx, ry);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dStrokeEllipse(ctx=%p x=%g y=%g rx=%g ry=%g)", ctx, x, y, rx, ry);
+	#endif /* LOG_PARAMETERS */
 
 	ellipse.center.x = FskRoundFloatToFixed(x);
 	ellipse.center.y = FskRoundFloatToFixed(y);
 	ellipse.radius.x = FskRoundFloatToFixed(rx);
 	ellipse.radius.y = FskRoundFloatToFixed(ry);
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanStrokeDirectly(st)) {
 		err = FskFrameShapeEllipse(&ellipse, st->lineWidth, &st->strokeStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
@@ -2701,28 +3174,36 @@ bail:
 
 
 /********************************************************************************
- * FskCanvas2dFill
+ * FskCanvas2dPathFill
  ********************************************************************************/
 
-FskErr
-FskCanvas2dFill(FskCanvas2dContext ctx)
-{
-	FskErr					err	= kFskErrNone;
-	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+FskErr FskCanvas2dPathFill(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fillRule) {
+	FskCanvas2dContextState *st;
+	FskErr					err;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dPathFill(ctx, path, fillRule);
+	#endif /* FSKBITMAP_OPENGL */
 
 	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dFill(ctx=%p)", ctx);
+		LOGD("FskCanvas2dPathFill(ctx=%p path=%p fillRule=%d)", ctx, path, FillRuleNameFromCode(fillRule));
 	#endif /* LOG_PARAMETERS */
 
+	if (!path) path = ctx->path;
+	#ifdef LOG_PATH
+		LogPath(FskGrowablePathGetConstPath(path), "path");
+	#endif /* LOG_PATH */
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanFillDirectly(st)) {
-		err = FskGrowablePathFill(ctx->path, &st->fillStyle.csu.so, st->fillRule, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
+		err = FskGrowablePathFill(path, &st->fillStyle.csu.so, fillRule, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
 	else {
 		FskFixedRectangleRecord bbox;
-		FskPathComputeBoundingBox(FskGrowablePathGetConstPath(ctx->path), &st->fixedTransform, 0, &bbox);
+		FskPathComputeBoundingBox(FskGrowablePathGetConstPath(path), &st->fixedTransform, 0, &bbox);
 		EnlargeBoundingBox(&bbox, 0);
 		ClearTempBufferTransparent(ctx);
-		BAIL_IF_ERR(err = FskGrowablePathFill(ctx->path, &st->fillStyle.csu.so, st->fillRule, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->tmp));
+		BAIL_IF_ERR(err = FskGrowablePathFill(path, &st->fillStyle.csu.so, fillRule, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->tmp));
 		err = ShadeMatteRect(ctx, &bbox);
 	}
 
@@ -2732,21 +3213,29 @@ bail:
 
 
 /********************************************************************************
- * FskCanvas2dStroke
+ * FskCanvas2dPathStroke
  ********************************************************************************/
 
-FskErr
-FskCanvas2dStroke(FskCanvas2dContext ctx)
-{
-	FskErr					err	= kFskErrNone;
-	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+FskErr FskCanvas2dPathStroke(FskCanvas2dContext ctx, FskConstCanvas2dPath path) {
+	FskCanvas2dContextState *st;
+	FskErr					err;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dPathStroke(ctx, path);
+	#endif /* FSKBITMAP_OPENGL */
 
 	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dStroke(ctx=%p)", ctx);
+		LOGD("FskCanvas2dPathStroke(ctx=%p path=%p)", ctx, path);
 	#endif /* LOG_PARAMETERS */
 
+	if (!path) path = ctx->path;
+	#ifdef LOG_PATH
+		LogPath(FskGrowablePathGetConstPath(path), "path");
+	#endif /* LOG_PATH */
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanStrokeDirectly(st)) {
-		err = FskGrowablePathFrame(ctx->path, st->lineWidth,  GetJointSharpnessFromState(st), st->lineCap,
+		err = FskGrowablePathFrame(path, st->lineWidth,  GetJointSharpnessFromState(st), st->lineCap,
 							&st->strokeStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
 	else {
@@ -2754,10 +3243,10 @@ FskCanvas2dStroke(FskCanvas2dContext ctx)
 		FskFixed pokeRadius = FskFixMul(FskFixedMatrixNorm2x2(st->fixedTransform.M[0], 2), st->lineWidth);	/* Scaled line width */
 		if (st->miterLimit > 0x10000)																		/* If not always mitered or rounded ... */
 			pokeRadius = FskFixMul(st->miterLimit, pokeRadius);												/* ... scale by the miter limit */
-		FskPathComputeBoundingBox(FskGrowablePathGetConstPath(ctx->path), &st->fixedTransform, 0, &bbox);
+		FskPathComputeBoundingBox(FskGrowablePathGetConstPath(path), &st->fixedTransform, 0, &bbox);
 		EnlargeBoundingBox(&bbox, pokeRadius);
 		ClearTempBufferTransparent(ctx);
-		BAIL_IF_ERR(err = FskGrowablePathFrame(ctx->path, st->lineWidth,  GetJointSharpnessFromState(st), st->lineCap,
+		BAIL_IF_ERR(err = FskGrowablePathFrame(path, st->lineWidth,  GetJointSharpnessFromState(st), st->lineCap,
 										&st->strokeStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->tmp));
 		err = ShadeMatteRect(ctx, &bbox);
 	}
@@ -2775,12 +3264,24 @@ bail:
 FskErr
 FskCanvas2dFillText(FskCanvas2dContext ctx, const UInt16 *uniChars, double x, double y, double maxWidth)
 {
-	FskErr					err		= kFskErrNone;
-	FskCanvas2dContextState	*st		= FskCanvasGetStateFromContext(ctx);
-	FskGrowablePath			path	= NULL;
+	FskCanvas2dContextState	*st;
+	FskErr					err;
+	FskGrowablePath			path;
 
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dFillText(ctx, uniChars, x, y, maxWidth);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dFillText(ctx=%p uniChars=%p, x=%g y=%g maxWidth=%g)", ctx, uniChars, x, y, maxWidth);
+		LogUnicodeString(uniChars, "uniChars");
+	#endif /* LOG_PARAMETERS */
+
+	path = NULL;
 	BAIL_IF_ERR(err = FskCanvasGetTextPathThatFits(ctx, uniChars, x, y, maxWidth, &path));
 
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanFillDirectly(st)) {
 		err = FskGrowablePathFill(path, &st->fillStyle.csu.so, st->fillRule, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
@@ -2807,19 +3308,31 @@ bail:
 FskErr
 FskCanvas2dStrokeText(FskCanvas2dContext ctx, const UInt16 *uniChars, double x, double y, double maxWidth)
 {
-	FskErr					err		= kFskErrNone;
-	FskCanvas2dContextState	*st		= FskCanvasGetStateFromContext(ctx);
-	FskGrowablePath			path	= NULL;
+	FskCanvas2dContextState	*st;
+	FskErr					err;
+	FskGrowablePath			path;
 
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dStrokeText(ctx, uniChars, x, y, maxWidth);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dStrokeText(ctx=%p uniChars=%p, x=%g y=%g maxWidth=%g)", ctx, uniChars, x, y, maxWidth);
+		LogUnicodeString(uniChars, "uniChars");
+	#endif /* LOG_PARAMETERS */
+
+	path = NULL;
 	BAIL_IF_ERR(err = FskCanvasGetTextPathThatFits(ctx, uniChars, x, y, maxWidth, &path));
 
+	st = FskCanvasGetStateFromContext(ctx);
 	if (FskCanvasCanStrokeDirectly(st)) {
 		err = FskGrowablePathFrame(path, st->lineWidth,  GetJointSharpnessFromState(st), st->lineCap,
 								   &st->strokeStyle.csu.so, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->bm);
 	}
 	else {
 		FskFixedRectangleRecord bbox;
-		FskPathComputeBoundingBox(FskGrowablePathGetConstPath(ctx->path), &st->fixedTransform, 0, &bbox);	/* TODO: Look at only the first and last glyphs */
+		FskPathComputeBoundingBox(FskGrowablePathGetConstPath(path), &st->fixedTransform, 0, &bbox);	/* TODO: Look at only the first and last glyphs */
 		EnlargeBoundingBox(&bbox, FskFixMul(FskFixedMatrixNorm2x2(st->fixedTransform.M[0], 2), st->lineWidth));
 		ClearTempBufferTransparent(ctx);
 		BAIL_IF_ERR(err = FskGrowablePathFrame(path, st->lineWidth,  GetJointSharpnessFromState(st), st->lineCap,
@@ -2840,25 +3353,59 @@ bail:
 double
 FskCanvas2dMeasureText(FskCanvas2dContext ctx, const UInt16 *uniChars)
 {
-	FskCanvas2dContextState	*st		= FskCanvasGetStateFromContext(ctx);
-	return FskFixedToFloat(FskUnicodeStringGetWidth(uniChars, FskUnicodeStrLen(uniChars), &st->font));
+	FskCanvas2dContextState	*st = FskCanvasGetStateFromContext(ctx);
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dMeasureText(ctx=%p uniChars=%p)", ctx, uniChars);
+		LogUnicodeString(uniChars, "uniChars");
+	#endif /* LOG_PARAMETERS */
+
+	return FskUnicodeStringGetWidth(uniChars, FskUnicodeStrLen(uniChars), &st->font);
 }
 
 
 /********************************************************************************
- * FskCanvas2dClip
+ * FskCanvas2dClipReset
+ ********************************************************************************/
+
+void
+FskCanvas2dClipReset(FskCanvas2dContext ctx)
+{
+	FskCanvas2dContextState	*st = FskCanvasGetStateFromContext(ctx);
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dClipReset()");
+	#endif /* LOG_PARAMETERS */
+
+	FskBitmapDispose(st->clipBM);
+	st->clipBM = NULL;
+	FskRectangleSet(&st->clipRect, 0, 0, ctx->canvas->bm->bounds.width, ctx->canvas->bm->bounds.height);
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathClip
  ********************************************************************************/
 
 FskErr
-FskCanvas2dClip(FskCanvas2dContext ctx)
+FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fillRule)
 {
-	FskErr						err	= kFskErrNone;
-	FskCanvas2dContextState		*st = FskCanvasGetStateFromContext(ctx);
 	FskConstBitmap				bm = ctx->canvas->bm;
 	FskBitmapRecord				tmpClipBM;
+	FskCanvas2dContextState		*st;
 	FskColorSourceConstant		color;
+	FskErr						err;
 	FskFixedRectangleRecord		pathBounds;
 	FskRectangleRecord			pathRect;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(bm))
+			return FskGLCanvas2dPathClip(ctx, path, fillRule);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dPathClip(ctx=%p path=%p fillRule=%s)", ctx, path, FillRuleNameFromCode(fillRule));
+	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_FALSE(fskUniformChunkyPixelPacking == FskBitmapFormatPixelPacking(bm->pixelFormat), err, kFskErrUnsupportedPixelType);
 
@@ -2867,8 +3414,9 @@ FskCanvas2dClip(FskCanvas2dContext ctx)
 		FskBitmapSetHasAlpha(ctx->canvas->tmp, true);
 		FskBitmapSetAlphaIsPremultiplied(ctx->canvas->tmp, true);
 	}
-	FskBitmapWriteBegin(ctx->canvas->tmp, NULL, NULL, NULL);
+	(void)FskBitmapWriteBegin(ctx->canvas->tmp, NULL, NULL, NULL);
 
+	st = FskCanvasGetStateFromContext(ctx);
 	if (st->clipBM == NULL) {	/* New clip region */
 		BAIL_IF_ERR(err = FskBitmapNew(bm->bounds.width, bm->bounds.height, kFskBitmapFormat8G, &st->clipBM));
 		ClearBufferToValue(st->clipBM, 255U);
@@ -2881,19 +3429,20 @@ FskCanvas2dClip(FskCanvas2dContext ctx)
 	tmpClipBM.rowBytes = (tmpClipBM.rowBytes < 0) ? -tmpClipBM.bounds.width : tmpClipBM.bounds.width;
 
 	/* Draw path */
+	if (!path) path = ctx->path;
 	color.colorSource.type = kFskColorSourceTypeConstant;
 	color.colorSource.dashCycles = 0;
 	color.colorSource.dash = NULL;
 	color.colorSource.dashPhase = 0;
 	FskColorRGBASet(&color.color, 255U, 255U, 255U, 255U);
 	ClearBufferToValue(&tmpClipBM, 0U);
-	BAIL_IF_ERR(err = FskGrowablePathFill(ctx->path, &color.colorSource, kFskFillRuleWindingNumber, &st->fixedTransform, st->quality, &st->clipRect, &tmpClipBM));
+	BAIL_IF_ERR(err = FskGrowablePathFill(path, &color.colorSource, fillRule, &st->fixedTransform, st->quality, &st->clipRect, &tmpClipBM));
 
 	/* Intersect the previous matte with the new one */
 	IntersectMattes(&tmpClipBM, NULL, st->clipBM, &st->clipRect);
 
 	/* Compute the bounds of the new clip path, enlarge it for anti-aliasing, and intersect it with the clip rect */
-	err = FskPathComputeBoundingBox(FskGrowablePathGetConstPath(ctx->path), &st->fixedTransform, 0, &pathBounds);
+	err = FskPathComputeBoundingBox(FskGrowablePathGetConstPath(path), &st->fixedTransform, 0, &pathBounds);
 	EnlargeBoundingBox(&pathBounds, 0);
 	FixedToIntBounds(&pathBounds, &pathRect);
 	FskRectangleIntersect(&st->clipRect, &pathRect, &st->clipRect);
@@ -2905,19 +3454,47 @@ bail:
 
 
 /********************************************************************************
- * FskCanvas2dIsPointInPath
+ * FskCanvas2dIsPointInGivenPath
  ********************************************************************************/
 
 Boolean
-FskCanvas2dIsPointInPath(FskCanvas2dContext ctx, double x, double y)
+FskCanvas2dIsPointInGivenPath(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y, SInt32 fillRule)
 {
 	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
 	FskPointRecord pt;
-	long fillRule = kFskFillRuleWindingNumber;
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dIsPointInGivenPath(ctx=%p path=%p x=%g y=%g fillRule=%s)", ctx, path, x, y, FillRuleNameFromCode(fillRule));
+	#endif /* LOG_PARAMETERS */
+	#if defined(LOG_PATH)
+		LogPath(FskGrowablePathGetConstPath(path), "path");
+	#endif /* LOG_PATH */
+
 	pt.x = FskRoundFloatToInt(x);
 	pt.y = FskRoundFloatToInt(y);
-	return kFskHitTrue == FskPickPathRadius(FskGrowablePathGetConstPath(ctx->path), st->lineWidth, GetJointSharpnessFromState(st),
-											st->lineCap, fillRule, NULL, NULL, &st->fixedTransform, 1, &pt, NULL);
+	return kFskHitTrue == FskPickPathRadius(FskGrowablePathGetConstPath(path), -1, 0, 0, fillRule, NULL, NULL, &st->fixedTransform, 1, &pt, NULL);
+}
+
+
+/********************************************************************************
+ * FskCanvas2dIsPointInPathStroke
+ ********************************************************************************/
+
+Boolean
+FskCanvas2dIsPointInPathStroke(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y) {
+	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
+	FskPointRecord pt;
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dIsPointInPathStroke(ctx=%p path=%p x=%g y=%g)", ctx, path, x, y);
+	#endif /* LOG_PARAMETERS */
+	#if defined(LOG_PATH)
+		LogPath(FskGrowablePathGetConstPath(path), "path");
+	#endif /* LOG_PATH */
+
+	pt.x = FskRoundFloatToInt(x);
+	pt.y = FskRoundFloatToInt(y);
+	return kFskHitTrue == FskPickPathRadius(FskGrowablePathGetConstPath(path), st->lineWidth, GetJointSharpnessFromState(st), st->lineCap, -1, NULL, NULL, &st->fixedTransform, 1, &pt, NULL);
 }
 
 
@@ -2928,17 +3505,23 @@ FskCanvas2dIsPointInPath(FskCanvas2dContext ctx, double x, double y)
 FskErr
 FskCanvas2dDrawBitmap(FskCanvas2dContext ctx, FskConstBitmap src, double dx, double dy)
 {
-	FskCanvas2dContextState *st			= FskCanvasGetStateFromContext(ctx);
-	Boolean					canDirect	= FskCanvasCanRenderDirectly(st);
-	FskErr					err;
+	Boolean					canDirect;
 	FskBitmap				dst;
+	FskCanvas2dContextState *st;
+	FskErr					err;
 	FskRectangleRecord		dstRect;
 
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dDrawBitmap(ctx, src, dx, dy);
+	#endif /* FSKBITMAP_OPENGL */
 	#if defined(LOG_PARAMETERS)
 		LOGD("FskCanvas2dDrawBitmap(ctx=%p src=%p dx=%g dy=%g)", ctx, src, dx, dy);
 		LogBitmap(src, "src");
 	#endif /* LOG_PARAMETERS */
 
+	st			= FskCanvasGetStateFromContext(ctx);
+	canDirect	= FskCanvasCanRenderDirectly(st);
 	if (canDirect) {						dst = ctx->canvas->bm;	}
 	else { ClearTempBufferTransparent(ctx);	dst = ctx->canvas->tmp;  }
 
@@ -2975,17 +3558,23 @@ bail:
 FskErr
 FskCanvas2dDrawScaledBitmap(FskCanvas2dContext ctx, FskConstBitmap src, double dx, double dy, double dw, double dh)
 {
-	FskCanvas2dContextState *st			= FskCanvasGetStateFromContext(ctx);
-	Boolean					canDirect	= FskCanvasCanRenderDirectly(st);
-	FskErr					err;
+	Boolean					canDirect;
 	FskBitmap				dst;
+	FskCanvas2dContextState *st;
+	FskErr					err;
 	FskRectangleRecord		dstRect;
 
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dDrawScaledBitmap(ctx, src, dx, dy, dw, dh);
+	#endif /* FSKBITMAP_OPENGL */
 	#if defined(LOG_PARAMETERS)
 		LOGD("FskCanvas2dDrawScaledBitmap(ctx=%p src=%p dx=%g dy=%g dw=%g dh=%g)", ctx, src, dx, dy, dw, dh);
 		LogBitmap(src, "src");
 	#endif /* LOG_PARAMETERS */
 
+	st			= FskCanvasGetStateFromContext(ctx);
+	canDirect	= FskCanvasCanRenderDirectly(st);
 	if (canDirect) {						dst = ctx->canvas->bm;	}
 	else { ClearTempBufferTransparent(ctx);	dst = ctx->canvas->tmp;	}
 
@@ -3029,6 +3618,10 @@ FskCanvas2dDrawSubScaledBitmap(FskCanvas2dContext ctx, FskConstBitmap src, doubl
 	Boolean					canDirect	= FskCanvasCanRenderDirectly(st) && !hasAlpha;
 	FskBitmap				dst;
 
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dDrawSubScaledBitmap(ctx, src, sx, sy, sw, sh, dx, dy, dw, dh);
+	#endif /* FSKBITMAP_OPENGL */
 	#if defined(LOG_PARAMETERS)
 		LOGD("FskCanvas2dDrawSubScaledBitmap(ctx=%p src=%p dx=%g dy=%g dw=%g dh=%g)", ctx, src, sx, sy, sw, sh, dx, dy, dw, dh);
 		LogBitmap(src, "src");
@@ -3146,12 +3739,15 @@ FskCanvas2dCreateImageData(FskConstCanvas2dContext ctx, double sw, double sh)
 {
 	FskErr					err			= kFskErrNone;
 	FskCanvas2dImageData	id			= NULL;
-	long					w			= (long)sw;
-	long					h			= (long)sh;
+	UInt32					w			= (UInt32)sw;
+	UInt32					h			= (UInt32)sh;
+	UInt32					dataLength	= w * h * sizeof(UInt32);
 
-	size_t					dataLength	= w * h * sizeof(UInt32);
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dCreateImageData(ctx=%p sw=%g sh=%g)", ctx, sw, sh);
+	#endif /* LOG_PARAMETERS */
 
-	BAIL_IF_ERR(err = FskMemPtrNew(sizeof(*id) + dataLength, &id));
+	BAIL_IF_ERR(err = FskMemPtrNew((UInt32)(sizeof(*id) + dataLength), &id));
 	id->width       = w;
 	id->height      = h;
 	id->data.length = dataLength;
@@ -3169,6 +3765,10 @@ bail:
 void
 FskCanvas2dDisposeImageData(FskCanvas2dImageData id)
 {
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dDisposeImageData(id=%p)", id);
+	#endif /* LOG_PARAMETERS */
+
 	FskMemPtrDispose(id);
 }
 
@@ -3178,15 +3778,19 @@ FskCanvas2dDisposeImageData(FskCanvas2dImageData id)
  ********************************************************************************/
 
 FskCanvas2dImageData
-FskCanvas2dCloneImageData(FskConstCanvas2dContext ctx, FskCanvas2dImageData imageData)
+FskCanvas2dCloneImageData(FskConstCanvas2dContext ctx, FskConstCanvas2dImageData imageData)
 {
 	FskErr					err			= kFskErrNone;
 	FskCanvas2dImageData	id			= NULL;
 
-	BAIL_IF_ERR(err = FskMemPtrNew(sizeof(*id) + imageData->data.length, &id));
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dCloneImageData(ctx=%p imageData=%p)", ctx, imageData);
+	#endif /* LOG_PARAMETERS */
+
+	BAIL_IF_ERR(err = FskMemPtrNew((UInt32)(sizeof(*id) + imageData->data.length), &id));
 	*id = *imageData;
 	id->data.bytes = (UInt8*)(id + 1);
-	FskMemCopy(id->data.bytes, imageData->data.bytes, id->data.length);
+	FskMemCopy(id->data.bytes, imageData->data.bytes, (UInt32)(id->data.length));
 
 bail:
 	return id;
@@ -3200,24 +3804,35 @@ bail:
 FskCanvas2dImageData
 FskCanvas2dGetImageData(FskConstCanvas2dContext ctx, double sx, double sy, double sw, double sh)
 {
-	FskCanvas2dImageData	id		= NULL;
-	SInt32					x		= (SInt32)sx;
-	SInt32					y		= (SInt32)sy;
-	SInt32					w		= (SInt32)sw;
-	SInt32					h		= (SInt32)sh;
 	FskBitmapRecord			bmr;
+	FskCanvas2dImageData	id;
 	FskRectangleRecord		srcRect, dstRect;
+	SInt32					x, y, w, h;
 
-	if ((id = FskCanvas2dCreateImageData(ctx, sw, sh)) == NULL)
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dGetImageData(ctx=%p sx=%g sy=%g sw=%g sh=%g)", ctx, sx, sy, sw, sh);
+	#endif /* LOG_PARAMETERS */
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dGetImageData(ctx, sx, sy, sw, sh);
+	#endif /* FSKBITMAP_OPENGL */
+
+	if (NULL == (id = FskCanvas2dCreateImageData(ctx, sw, sh)))
 		goto bail;
 
+	x = (SInt32)sx;
+	y = (SInt32)sy;
+	w = (SInt32)sw;
+	h = (SInt32)sh;
 	FskMemSet(&bmr, 0, sizeof(bmr));
-	bmr.bounds.width  = w;
-	bmr.bounds.height = h;
-	bmr.depth         = 32;
-	bmr.pixelFormat   = kFskBitmapFormat32RGBA;
-	bmr.rowBytes      = w * sizeof(UInt32);
-	bmr.bits          = id->data.bytes;
+	bmr.bounds.width		= w;
+	bmr.bounds.height		= h;
+	bmr.depth				= 32;
+	bmr.pixelFormat			= kFskBitmapFormat32RGBA;
+	bmr.rowBytes			= w * sizeof(UInt32);
+	bmr.bits				= id->data.bytes;
+	bmr.hasAlpha			= true;
+	bmr.alphaIsPremultiplied= true;
 
 	srcRect.x         = x;
 	srcRect.y         = y;
@@ -3240,6 +3855,8 @@ FskCanvas2dGetImageData(FskConstCanvas2dContext ctx, double sx, double sy, doubl
 			id = NULL;
 		}
 	}
+	if (id)
+		(void)FskPremultipliedAlphaToStraightAlpha(&bmr, NULL, NULL);
 
 bail:
 	return id;
@@ -3253,15 +3870,23 @@ bail:
 FskErr
 FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, double dx, double dy, double sx, double sy, double sw, double sh)
 {
-	FskErr				err		= kFskErrNone;
-	SInt32				srcX	= (SInt32)sx;
-	SInt32				srcY	= (SInt32)sy;
-	SInt32				srcW	= (SInt32)sw;
-	SInt32				srcH	= (SInt32)sh;
 	FskBitmapRecord		bmr;
+	FskErr				err;
 	FskRectangleRecord	srcRect, dstRect;
-	SInt32				t;
+	SInt32				srcX, srcY, srcW, srcH, t;
 
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dPutImageData(ctx=%p src=%p dx=%g dy=%g sx=%g sy=%g sw=%g sh=%g)", ctx, src, dx, dy, sx, sy, sw, sh);
+	#endif /* LOG_PARAMETERS */
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dPutImageData(ctx, src, dx, dy, sx, sy, sw, sh);
+	#endif /* FSKBITMAP_OPENGL */
+
+	srcX = (SInt32)sx;
+	srcY = (SInt32)sy;
+	srcW = (SInt32)sw;
+	srcH = (SInt32)sh;
 	if (srcW < 0) {
 		srcX += srcW;
 		srcW = -srcW;
@@ -3270,7 +3895,7 @@ FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, d
 		srcW += srcX;
 		srcX = 0;
 	}
-	if (srcW > (t = src->width - srcX))
+	if (srcW > (t = (SInt32)(src->width) - srcX))
 		srcW = t;
 
 	if (srcH < 0) {
@@ -3281,11 +3906,10 @@ FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, d
 		srcH += srcY;
 		srcY = 0;
 	}
-	if (srcH > (t = src->height - srcY))
+	if (srcH > (t = (SInt32)(src->height) - srcY))
 		srcH = t;
 
-	if (srcW <= 0 || srcH <= 0)
-		goto bail;
+	BAIL_IF_FALSE(srcW > 0 && srcH > 0, err, kFskErrNothingRendered);
 
 	srcRect.x         = srcX;
 	srcRect.y         = srcY;
@@ -3297,8 +3921,8 @@ FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, d
 	dstRect.height    = srcH;
 
 	FskMemSet(&bmr, 0, sizeof(bmr));
-	bmr.bounds.width  = src->width;
-	bmr.bounds.height = src->height;
+	bmr.bounds.width  = (SInt32)(src->width);
+	bmr.bounds.height = (SInt32)(src->height);
 	bmr.depth         = 32;
 	bmr.pixelFormat   = kFskBitmapFormat32RGBA;
 	bmr.rowBytes      = src->width * sizeof(UInt32);
@@ -3311,8 +3935,15 @@ FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, d
 		BAIL_IF_ERR(err = FskCanvasConvertImageDataFormat((FskCanvas2dImageData)src, kFskBitmapFormat32RGBA, kFskBitmapFormatDefaultRGBA));
 		bmr.pixelFormat = kFskBitmapFormatDefaultRGBA;
 		err = FskBitmapDraw(&bmr, &srcRect, ctx->canvas->bm, &dstRect, NULL, NULL, kFskGraphicsModeCopy, NULL);
-		FskCanvasConvertImageDataFormat((FskCanvas2dImageData)src, kFskBitmapFormatDefaultRGBA, kFskBitmapFormat32RGBA);
+		t = (SInt32)FskCanvasConvertImageDataFormat((FskCanvas2dImageData)src, kFskBitmapFormatDefaultRGBA, kFskBitmapFormat32RGBA);
+		if (t)
+			err = (FskErr)t;
 	}
+	if (!err) {
+		ctx->canvas->bm->alphaIsPremultiplied = false;
+		err = FskStraightAlphaToPremultipliedAlpha(ctx->canvas->bm, &dstRect);	/* This sets alphaIsPremultiplied = true */
+	}
+
 
 bail:
 	return err;

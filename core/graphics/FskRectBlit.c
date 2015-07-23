@@ -14,6 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+/**
+	\file	FskRectBlit.c
+	\brief	Implementation of pixel transfers between rectangular regions.
+*/
 #define __FSKBITMAP_PRIV__	/* To get access to the FskBitmap data structure */
 
 #include "FskRectBlit.h"

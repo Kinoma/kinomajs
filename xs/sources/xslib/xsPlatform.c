@@ -18,7 +18,7 @@
 #include "xsAll.h"
 
 #if __FSK_LAYER__
-// @@
+// @@ makefile
 	#include "xs_fsk.c"
 	#if mxKpl
 		#include "xs_fsk_kpl.c"

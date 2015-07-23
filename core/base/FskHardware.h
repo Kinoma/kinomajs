@@ -59,7 +59,8 @@ enum {
     kFskPhonePropertySystemLanguage = 24,
 	kFskPhonePropertyUUID = 25,
 	kFskPhonePropertyMACAddress = 26,
-	kFskPhonePropertySSID = 27
+	kFskPhonePropertySSID = 27,
+	kFskPhonePropertyTimeDisplayMode = 28
 };
 
 typedef void (*FskPhonePropertyCB)(SInt32 property);
@@ -199,6 +200,8 @@ typedef void	(*FskGetModelInfoFn)(char **modelName, char **osVersion, int *hasTo
 
 typedef void	(*FskGetLanguageFn)(char **lang);
 typedef void	(*FskGetBasetimeFn)(int *sec, int *usec);
+typedef void	(*FskGetOS1224Fn)(SInt8 *twelve24);
+typedef void	(*FskGetDisplayTZFn)(char **tzName);
 
 typedef FskErr	(*FskLaunchDocumentCBFn)(int what, char *path);
 typedef void	(*FskJNIControlFn)(int what, int value);
@@ -311,6 +314,13 @@ typedef FskErr	(*FskLibrarySaveImageFn)(char *data, int size);
 typedef void	(*FskSetContinuousDrawingFn)(Boolean continuousDrawing);
 typedef void	(*FskGetContinuousDrawingUpdateIntervalFn)(UInt32 *Interval);
 
+typedef int  	(*FskWifiGetNetIdFn)(void);
+typedef char*	(*FskWifiGetSsidFn)(void);
+typedef int  	(*FskWifiGetIpAddressFn)(void);
+typedef int  	(*FskWifiUpdateNetworkFn)(const char *ssid, const char *key);
+typedef void  	(*FskWifiSelectNetworkByIdFn)(int netId);
+typedef char*	(*FskWifiGetScanResultsFn)(void);
+
 typedef struct {
     FskSetWallpaperCBFn					setWallpaperCB;
     FskGetMemoryInfoCBFn				getMemoryInfoCB;
@@ -319,6 +329,8 @@ typedef struct {
 	FskGetDPIFn							getDPICB;
 	FskGetLanguageFn					getLanguageCB;
 	FskGetBasetimeFn					getBasetimeCB;
+	FskGetOS1224Fn						getOS1224CB;
+	FskGetDisplayTZFn					getDisplayTZ;
 
 	FskLaunchDocumentCBFn				launchDocumentCB;
 	FskJNIControlFn						jniControlCB;
@@ -426,7 +438,13 @@ typedef struct {
 	FskGetRandomFn						getRandomCB;
 	FskSetContinuousDrawingFn			setContinuousDrawingCB;
 	FskGetContinuousDrawingUpdateIntervalFn			getContinuousDrawingUpdateIntervalCB;
-
+	
+	FskWifiGetNetIdFn					androidWifiGetNetId;
+	FskWifiGetSsidFn					androidWifiGetSsid;
+	FskWifiGetIpAddressFn				androidWifiGetIpAddress;
+	FskWifiUpdateNetworkFn				androidWifiUpdateNetwork;
+	FskWifiSelectNetworkByIdFn			androidWifiSelectNetworkById;
+	FskWifiGetScanResultsFn				androidWifiGetScanResults;
 } FskAndroidCallbacksRecord, *FskAndroidCallbacks;
 
 extern FskAndroidCallbacks gAndroidCallbacks;

@@ -633,19 +633,23 @@ bail:
 	UInt32 i; \
 	KprScriptBehaviorTraceCallback(#ID); \
 	xsBeginHostSandboxCode(self->the, self->code); \
-	xsVars(2); \
+	xsVars(4 + c); \
 	xsVar(0) = xsAccess(self->slot); \
 	if (xsFindResult(xsVar(0), ID)) { \
 		xsVar(1) = kprContentGetter(content); \
-		xsOverflow(-6 - c); \
-		*(--the->stack) = xsVar(1); \
-		fxInteger(the, --the->stack, id); \
-		fxNumber(the, --the->stack, ticks); \
+		xsVar(2) = xsInteger(id); \
+		xsVar(3) = xsNumber(ticks); \
 		for (i = 0; i < c; i++) \
-			fxNumber(the, --the->stack, values[i]); \
-		fxInteger(the, --the->stack, 3 + c); \
-		*(--the->stack) = xsVar(0); \
-		*(--the->stack) = xsResult; \
+			xsVar(4 + i) = xsNumber(values[i]); \
+		xsOverflow(-6 - c); \
+		fxPush(xsVar(1)); \
+		fxPush(xsVar(2)); \
+		fxPush(xsVar(3)); \
+		for (i = 0; i < c; i++) \
+			fxPush(xsVar(4 + i)); \
+		fxPushCount(the, 3 + c); \
+		fxPush(xsVar(0)); \
+		fxPush(xsResult); \
 		fxCall(the); \
 		xsResult = fxPop(); \
 		result = xsToBoolean(xsResult); \
@@ -709,10 +713,11 @@ void KprScriptBehaviorActivated(void* it, Boolean activated)
     if (self) {
         xsBeginHostSandboxCode(self->the, self->code);
         {
-            xsVars(1);
-            if (xsFindResult(self->slot, xsID_onActivated)) {
-                xsVar(0) = kprContentGetter(content);
-                (void)xsCallFunction2(xsResult, self->slot, xsVar(0), xsBoolean(activated));
+            xsVars(2);
+ 			xsVar(0) = xsAccess(self->slot);
+           if (xsFindResult(xsVar(0), xsID_onActivated)) {
+                xsVar(1) = kprContentGetter(content);
+                (void)xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsBoolean(activated));
             }
         }
         xsEndHostSandboxCode();

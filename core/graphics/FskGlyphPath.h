@@ -109,7 +109,7 @@ FskAPI(FskErr)	FskGrowablePathFromUnicodeStringNew(
 				);
 
 /* Get the width, in pixels, of a Unicode string. A negative result is an error. */
-FskAPI(FskFixed)	FskUnicodeStringGetWidth(
+FskAPI(double)	FskUnicodeStringGetWidth(
 						const UInt16			*uniChars,
 						UInt32					numUniChars,
 						const FskFontAttributes	*attributes

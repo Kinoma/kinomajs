@@ -111,7 +111,6 @@ static speed_t getBaud(int baud){
 FskErr FskSerialIOPlatformInit(FskSerialIO sio, int baud){
 	FskErr err = kFskErrNone;
 	int test = 0;
-	char buffer[40];
 
 	speed_t baudRate = getBaud(baud);
 	if (baudRate != B9600 && baudRate != B19200 && baudRate != B38400 && baudRate != B57600 && baudRate != B115200 && baudRate != B230400 && baudRate != B460800 && baudRate != B921600){
@@ -123,11 +122,13 @@ FskErr FskSerialIOPlatformInit(FskSerialIO sio, int baud){
 
 	((FskTTYSerialIO)sio->platform)->baud = baudRate;
 
-	char* name = FskSerialIOPlatformGetDeviceFile(sio->ttyNum);
-	snprintf(buffer, 40, "%s", name);
-	FskMemPtrDispose(name);
-
-	((FskTTYSerialIO)sio->platform)->ttyFile = open(buffer, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
+	if (0 == sio->path[0]) {
+		char* name = FskSerialIOPlatformGetDeviceFile(sio->ttyNum);
+		((FskTTYSerialIO)sio->platform)->ttyFile = open(name, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
+		FskMemPtrDispose(name);
+	} else {
+		((FskTTYSerialIO)sio->platform)->ttyFile = open(sio->path, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
+	}
 	err = fcntl(((FskTTYSerialIO)sio->platform)->ttyFile, F_SETFL, O_RDWR);
 	if (err != kFskErrNone) bailIfError(kFskErrUnknown);
 	tcgetattr(((FskTTYSerialIO)sio->platform)->ttyFile, &((FskTTYSerialIO)sio->platform)->config);

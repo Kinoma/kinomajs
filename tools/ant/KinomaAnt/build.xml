@@ -16,19 +16,41 @@
 -->
 <project name="TestManifest" default="main">
 	<path id="classpath">
-		<pathelement path="bin" />
+		<fileset dir="build/jar" />
 	</path>
 
-	<taskdef name="getmanifestvar" classname="com.marvell.kinoma.ant.tasks.GetManifestVar" classpathref="classpath" />
+	<!-- taskdef name="getmanifestvar" classname="com.marvell.kinoma.ant.tasks.GetManifestVar" classpathref="classpath" /-->
+	<taskdef resource="com/marvell/kinoma/ant/tasks/antlib.xml" classpathref="classpath" />
 
-	<property name="fsk.manifest" value="/Users/adam/Developer/Kinoma/fsk/kinoma/kpr/applications/k3guide/manifest.xml" />
+	<property name="fsk.manifest" value="/Users/adam/Developer/Kinoma/fsk/kinoma/kpr/applications/balls/manifest.xml" />
 
-	<target name="main">
+	<target name="clean">
+		<delete dir="build" />
+	</target>
+
+	<target name="compile">
+		<mkdir dir="build/classes" />
+		<javac srcdir="src" destdir="build/classes" source="1.6" target="1.6" />
+		<copy todir="build/classes">
+			<fileset dir="src/main/resources" />
+		</copy>
+	</target>
+
+	<target name="jar" depends="compile">
+		<mkdir dir="build/jar" />
+		<jar destfile="build/jar/kinoma.jar" basedir="build/classes" />
+	</target>
+
+	<target name="main" depends="jar" />
+
+	<target name="test">
 		<getmanifestvar variable="VERSION" name="app.version" />
 		<getmanifestvar variable="NAME" name="app.name" />
 		<getmanifestvar variable="NAMESPACE" name="app.namespace" />
+		<getmanifestoption element="orientation" property="android.orientation" />
 		<echo>Version: ${app.version}</echo>
 		<echo>Name: ${app.name}</echo>
 		<echo>Namespace: ${app.namespace}</echo>
+		<echo>Orientation: ${android.orientation}</echo>
 	</target>
 </project>

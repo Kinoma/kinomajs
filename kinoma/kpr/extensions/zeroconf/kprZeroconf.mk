@@ -26,8 +26,40 @@
 <source name="kprZeroconfCommon.c"/>
 
 <platform name="android">
-	<source name="kprZeroconfAndroid.c"/>
-	<source name="kprZeroconfAndroid.java"/>
+	<input name="mdnsresponder/mDNSPosix/"/>
+	<input name="mdnsresponder/mDNSCore/"/>
+	<input name="mdnsresponder/mDNSShared/"/>
+	
+	<source name="kprZeroconfApple.c"/>
+	
+	<source name="mdnsresponder/mDNSCore/mDNS.c"/>
+	<source name="mdnsresponder/mDNSCore/DNSDigest.c"/>
+	<source name="mdnsresponder/mDNSCore/uDNS.c"/>
+	<source name="mdnsresponder/mDNSCore/DNSCommon.c"/>
+	<source name="mdnsresponder/mDNSPosix/mDNSPosix.c"/>
+	<source name="mdnsresponder/mDNSPosix/mDNSUNP.c"/>
+	<source name="mdnsresponder/mDNSShared/mDNSDebug.c"/>
+	<source name="mdnsresponder/mDNSShared/dnssd_clientlib.c"/>
+	<source name="mdnsresponder/mDNSShared/dnssd_clientshim.c"/>
+	<source name="mdnsresponder/mDNSShared/dnssd_ipc.c"/>
+	<source name="mdnsresponder/mDNSShared/GenLinkedList.c"/>
+	<source name="mdnsresponder/mDNSShared/PlatformCommon.c"/>
+	<library name="libcutils"/>
+	<library name="liblog"/>
+	<common>
+C_OPTIONS += \
+    -D_GNU_SOURCE \
+    -DHAVE_IPV4 \
+    -DHAVE_LINUX \
+    -DNOT_HAVE_SA_LEN \
+    -DPLATFORM_NO_RLIMIT \
+    -DTARGET_OS_LINUX \
+    -DUSES_NETLINK \
+	-DSO_REUSEADDR \
+    -DMDNS_DEBUGMSGS=0 \
+    -DMDNS_UDS_SERVERPATH=\"/dev/socket/mdnsd\" \
+    -DMDNS_USERNAME=\"mdnsr\"
+	</common>
 </platform>
 <platform name="iphone">
 	<source name="kprZeroconfApple.c"/>
@@ -35,7 +67,11 @@
 <platform name="mac">
 	<source name="kprZeroconfApple.c"/>
 </platform>
-<platform name="linux">
+<platform name="linux/bg3cdp,linux/gtk">
+	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
+	<source name="kprZeroconfApple.c"/>
+</platform>
+<platform name="linux/aspen">
 	<library name="-ldns_sd"/>
 	<source name="kprZeroconfApple.c"/>
 </platform>

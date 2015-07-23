@@ -53,7 +53,12 @@
 				out.at(this.__xs__line);
 				if (!this.path)
 					this.path = this.id;
-				out.line("var ", this.id, " = require('", this.path, "');");
+				if (this.id == "THEME")
+					out.line("THEME = require('", this.path, "');");
+				else if (this.id == "KEYBOARD")
+					out.line("KEYBOARD = require('", this.path, "');");
+				else
+					out.line("var ", this.id, " = require('", this.path, "');");
 			</function>
 		</object>
 		
@@ -104,7 +109,12 @@
 			<function name="print" params="out">
 				var c = kprGrammar.countLines(this.cdata);
 				out.at(this.__xs__line + c - 1);
-				out.printVar(this.id);
+				if (this.id == "getBehavior")
+					out.line("getBehavior = ");
+				else if (this.id == "getPreferences")
+					out.line("getPreferences = ");
+				else
+					out.printVar(this.id);
 				out.cat("function(", this.params, ") {");
 				out.tab(1);
 				out.line(this.cdata.trim());
@@ -478,7 +488,10 @@
 			</function>
 			<function name="print" params="out">
 				out.at(this.__xs__line);
-				out.printVar(this.id);
+				if (this.id == "applicationIconSkin")
+					out.line("applicationIconSkin = ");
+				else
+					out.printVar(this.id);
 				this.printConstructor(out);
 				out.cat(";");
 			</function>

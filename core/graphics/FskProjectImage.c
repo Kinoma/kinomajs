@@ -14,6 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+/**
+	\file	FskProjectImage.c
+	\brief	Transformation of an image using a 3x3 matrix.
+*/
 #if defined(__ARMCC_VERSION)
 	#include "ArmTo68kGlue.h"
 #endif

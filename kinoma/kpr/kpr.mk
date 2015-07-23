@@ -107,10 +107,17 @@ XSC_OPTIONS += -xsID
 </common>
 </platform>
 
-<platform name="Linux,threadx">
+<platform name="threadx">
 <common>
 XSC_OPTIONS += -xsID
 C_OPTIONS += -I/usr/include/freetype2 -I$(F_HOME)/libraries/expat
+</common>
+</platform>
+
+<platform name="linux">
+<common>
+XSC_OPTIONS += -xsID
+C_OPTIONS += -I$(F_HOME)/libraries/expat
 </common>
 </platform>
 

@@ -22,6 +22,10 @@ endif()
 
 project(xs)
 
+if (WIN32)
+	set(CMAKE_COLOR_MAKEFILE OFF)
+endif ()
+
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
 
 file(TO_CMAKE_PATH ${F_HOME} F_HOME)

@@ -44,6 +44,7 @@ FskExport(FskErr) kprTemplates_fskUnload(FskLibrary it UNUSED)
 	return kFskErrNone;
 }
 
+static void xsArgsToKprCoordinates(xsMachine *the, xsIntegerValue c, KprCoordinates coordinates);
 static void xsArgsToKprFlags(xsMachine *the, xsIntegerValue c, UInt32* flags);
 static void xsArgsToKprSkinAndStyle(xsMachine *the, xsIntegerValue c, KprSkin* skin, KprStyle* style);
 static void xsArgsToKprString(xsMachine *the, xsIntegerValue c, xsStringValue* text);
@@ -131,6 +132,20 @@ static void KPR_Handler_bind(xsMachine *the);
 static void KPR_Behavior_Template(xsMachine *the);
 static void KPR_Behavior_template(xsMachine *the);
 
+void xsArgsToKprCoordinates(xsMachine *the, xsIntegerValue c, KprCoordinates coordinates)
+{
+	if (c > 0)
+		xsSlotToKprCoordinates(the, &xsArg(0), coordinates);
+	else {
+		coordinates->left = 0;
+		coordinates->width = 0;
+		coordinates->right = 0;
+		coordinates->top = 0;
+		coordinates->height = 0;
+		coordinates->bottom = 0;
+	}
+}
+
 void xsArgsToKprFlags(xsMachine *the, xsIntegerValue c, UInt32* flags)
 {
 	if ((c > 1) && xsTest(xsArg(1)))
@@ -176,13 +191,29 @@ void KPR_AspectDictionary(xsMachine* the, xsSlot* slot, KprContent self)
 
 void KPR_BehaviorDictionary(xsMachine *the, xsSlot* slot, KprContent self, xsSlot* data, xsSlot* context)
 {
+	KprBehavior behavior = NULL;
 	if (xsFindResult(*slot, xsID_anchor)) {
 		if (xsTest(*data)) {
 			xsSetAt(*data, xsResult, xsThis);
 		}
 	}
+#ifdef XS6	
+	if (xsFindResult(*slot, xsID_Behavior)) {
+		if (xsIsInstanceOf(xsResult, xsFunctionPrototype)) {
+			fxPush(xsThis);
+			fxPush(*data);
+			fxPush(*context);
+			fxPushCount(the, 3);
+			fxPush(xsResult);
+			fxNew(the);
+			xsResult = fxPop();
+			xsThrowIfFskErr(KprScriptBehaviorNew(&behavior, self, the, &xsResult));
+			KprContentSetBehavior(self, behavior);
+		}
+	}
+	else 
+#endif	
 	if (xsFindResult(*slot, xsID_behavior)) {
-		KprBehavior behavior = NULL;
 		if (xsIsInstanceOf(xsResult, xsObjectPrototype)) {
 			xsVar(0) = xsResult;
 			if (xsFindResult(xsVar(0), xsID_onCreate)) {
@@ -392,7 +423,7 @@ void KPR_ContentPatch(xsMachine *the)
 		KprStyle style = NULL;
 		KprContent self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprSkinAndStyle(the, c, &skin, &style);
 		KprContentNew(&self, &coordinates, skin, style);
 		kprContentConstructor(KPR_Content);
@@ -443,7 +474,7 @@ void KPR_ContainerPatch(xsMachine *the)
 		KprStyle style = NULL;
 		KprContainer self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprSkinAndStyle(the, c, &skin, &style);
 		KprContainerNew(&self, &coordinates, skin, style);
 		kprContentConstructor(KPR_Container);
@@ -495,7 +526,7 @@ void KPR_LayerPatch(xsMachine *the)
 		UInt32 flags = 0;
 		KprLayer self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprFlags(the, c, &flags);
 		KprLayerNew(&self, &coordinates, flags);
 		kprContentConstructor(KPR_Layer);
@@ -552,7 +583,7 @@ void KPR_LayoutPatch(xsMachine *the)
 		KprStyle style = NULL;
 		KprLayout self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprSkinAndStyle(the, c, &skin, &style);
 		KprLayoutNew(&self, &coordinates, skin, style);
 		kprContentConstructor(KPR_Layout);
@@ -605,7 +636,7 @@ void KPR_ScrollerPatch(xsMachine *the)
 		KprStyle style = NULL;
 		KprScroller self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprSkinAndStyle(the, c, &skin, &style);
 		xsThrowIfFskErr(KprScrollerNew(&self, &coordinates, skin, style));
 		kprContentConstructor(KPR_Scroller);
@@ -660,7 +691,7 @@ void KPR_ColumnPatch(xsMachine *the)
 		KprStyle style = NULL;
 		KprColumn self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprSkinAndStyle(the, c, &skin, &style);
 		xsThrowIfFskErr(KprColumnNew(&self, &coordinates, skin, style));
 		kprContentConstructor(KPR_Column);
@@ -713,7 +744,7 @@ void KPR_LinePatch(xsMachine *the)
 		KprStyle style = NULL;
 		KprLine self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprSkinAndStyle(the, c, &skin, &style);
 		xsThrowIfFskErr(KprLineNew(&self, &coordinates, skin, style));
 		kprContentConstructor(KPR_Line);
@@ -767,7 +798,7 @@ void KPR_LabelPatch(xsMachine *the)
 		xsStringValue string = "";
 		KprLabel self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprSkinAndStyle(the, c, &skin, &style);
 		xsArgsToKprString(the, c, &string);
 		xsThrowIfFskErr(KprLabelNew(&self, &coordinates, skin, style, string));
@@ -822,7 +853,7 @@ void KPR_TextPatch(xsMachine *the)
 		xsStringValue string = NULL;
 		KprText self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsArgsToKprSkinAndStyle(the, c, &skin, &style);
 		xsArgsToKprString(the, c, &string);
 		xsThrowIfFskErr(KprTextNew(&self, &coordinates, skin, style, string));
@@ -874,7 +905,7 @@ void KPR_PicturePatch(xsMachine *the)
 		KprCoordinatesRecord coordinates;
 		KprPicture self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsThrowIfFskErr(KprPictureNew(&self, &coordinates));
 		kprContentConstructor(KPR_Picture);
 		if ((c == 1) && xsTest(xsArg(0))) {
@@ -930,7 +961,7 @@ void KPR_ThumbnailPatch(xsMachine *the)
 		KprCoordinatesRecord coordinates;
 		KprThumbnail self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsThrowIfFskErr(KprThumbnailNew(&self, &coordinates));
 		kprContentConstructor(KPR_Thumbnail);
 		if ((c == 1) && xsTest(xsArg(0))) {
@@ -986,7 +1017,7 @@ void KPR_MediaPatch(xsMachine *the)
 		KprCoordinatesRecord coordinates;
 		KprMedia self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsThrowIfFskErr(KprMediaNew(&self, &coordinates));
 		kprContentConstructor(KPR_Media);
 		if ((c == 1) && xsTest(xsArg(0))) {
@@ -1040,7 +1071,7 @@ void KPR_PortPatch(xsMachine *the)
 		KprCoordinatesRecord coordinates;
 		KprPort self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsThrowIfFskErr(KprPortNew(&self, &coordinates));
 		kprContentConstructor(KPR_Port);
 		if ((c == 1) && xsTest(xsArg(0))) {
@@ -1088,7 +1119,7 @@ void KPR_CanvasPatch(xsMachine *the)
 		KprCoordinatesRecord coordinates;
 		KprCanvas self;
 		xsVars(2);
-		xsSlotToKprCoordinates(the, &xsArg(0), &coordinates);
+		xsArgsToKprCoordinates(the, c, &coordinates);
 		xsThrowIfFskErr(KprCanvasNew(&self, &coordinates));
 		kprContentConstructor(KPR_Canvas);
 		if ((c == 1) && xsTest(xsArg(0))) {
@@ -1445,10 +1476,7 @@ void KPR_Template(xsMachine *the)
 		xsVar(0) = xsArg(0);
 	if (c > 1)
 		xsVar(1) = xsArg(1);
-	fxNewHostClosure(the, false);
-	fxHostScope(the, 1);
-	fxGetID(the, xsID_it);
-	xsVar(2) = *the->stack++;
+	xsVar(2) = xsGet(xsFunction, xsID_it);
 	xsEnterSandbox();
 	xsVar(3) = xsCallFunction1(xsVar(2), xsThis, xsVar(0));
 	if (xsTest(xsVar(1))) {
@@ -1456,8 +1484,8 @@ void KPR_Template(xsMachine *the)
 			xsVar(4) = xsResult;
 		else
 			xsVar(4) = xsUndefined;
-		*(--the->stack) = xsVar(3);
-		*(--the->stack) = xsVar(1);
+		fxPush(xsVar(3));
+		fxPush(xsVar(1));
 		fxCopyObject(the);
 		the->stack++;
 		if (xsTest(xsVar(4))) {
@@ -1468,28 +1496,21 @@ void KPR_Template(xsMachine *the)
 		}
 	}
 	xsLeaveSandbox();
-	fxHostScope(the, 1);
-	fxGetID(the, xsID_constructor);
-	xsVar(2) = *the->stack++;
+	xsVar(2) = xsGet(xsFunction, xsID_constructor);
 	xsResult = xsCallFunction2(xsVar(2), xsThis, xsVar(0), xsVar(3));
 }
 
 void KPR_template(xsMachine *the)
 {
-	xsVars(1);
+	xsVars(2);
 	xsAssert(xsIsInstanceOf(xsArg(0), xsFunctionPrototype));
-	fxNewHostClosure(the, true);
-	*(--the->stack) = xsThis;
-	fxHostScope(the, 0);
-	fxSetID(the, xsID_constructor);
-	the->stack++;
-	*(--the->stack) = xsArg(0);
-	fxHostScope(the, 0);
-	fxSetID(the, xsID_it);
-	the->stack++;
 	xsVar(0) = xsGet(xsThis, xsID_prototype);
+	xsVar(1) = xsGet(xsVar(0), xsID_constructor);
 	xsResult = xsNewHostConstructor(KPR_Template, 2, xsVar(0));
+	xsSet(xsVar(0), xsID_constructor, xsVar(1));
 	xsVar(0) = xsGet(xsGlobal, xsID_template);
+	xsNewHostProperty(xsResult, xsID_constructor, xsThis, xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID_it, xsArg(0), xsDefault, xsDontScript);
 	xsNewHostProperty(xsResult, xsID_template, xsVar(0), xsDefault, xsDontScript);
 }
 
@@ -1499,7 +1520,7 @@ void KPR_container_recurse(xsMachine* the)
 		xsIntegerValue c = xsToInteger(xsGet(xsArg(0), xsID_length)), i;
 		for (i = 0; i < c; i++) {
 			xsResult = xsGetAt(xsArg(0), xsInteger(i));
-			xsCall2(xsThis, xsID_recurse, xsResult, xsArg(1));
+			xsCall1(xsThis, xsID_recurse, xsResult);
 		}
 	}
 	else if (xsIsInstanceOf(xsArg(0), xsObjectPrototype)) {
@@ -1512,21 +1533,36 @@ void KPR_container_recurse(xsMachine* the)
 	}
 }
 
+void KPR_Handler_Bind(xsMachine *the)
+{
+	xsOverflow(-4);
+	fxPush(xsArg(0));
+	fxPushCount(the, 1);
+	fxPush(xsThis);
+	fxNew(the);
+	xsResult = fxPop();
+	fxPush(xsResult);
+	fxPushCount(the, 1);
+	fxPush(xsArg(1));
+	fxNew(the);
+	xsArg(1) = fxPop();
+	xsSet(xsResult, xsID_behavior, xsArg(1));
+	xsCall1(xsThis, xsID_put, xsResult);
+}
+
 void KPR_Handler_bind(xsMachine *the)
 {
-	xsVars(2);
-	
 	xsOverflow(-4);
-	*(--the->stack) = xsArg(0);
-	fxInteger(the, --the->stack, 1);
-	*(--the->stack) = xsGlobal;
-	*(--the->stack) = xsThis;
+	fxPush(xsArg(0));
+	fxPushCount(the, 1);
+#ifndef XS6
+	fxPush(xsGlobal);
+#endif
+	fxPush(xsThis);
 	fxNew(the);
-	xsVar(0) = *(the->stack++);
-	
-	xsSet(xsVar(0), xsID_behavior, xsArg(1));
-	
-	xsCall1(xsThis, xsID_put, xsVar(0));
+	xsResult = fxPop();
+	xsSet(xsResult, xsID_behavior, xsArg(1));
+	xsCall1(xsThis, xsID_put, xsResult);
 }
 
 void KPR_Behavior_Template(xsMachine *the)
@@ -1571,18 +1607,46 @@ void KPR_Behavior_template(xsMachine *the)
 	xsNewHostProperty(xsResult, xsID_template, xsVar(0), xsDefault, xsDontScript);
 }
 
+#ifdef XS6
 #define kprPatchConstructor(_ID) \
 	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_##_ID), xsID_prototype); \
+	xsVar(2) = xsNewHostConstructorObject(KPR_##_ID##Template, 3, xsVar(1), xsID__##_ID); \
+	xsNewHostProperty(xsVar(2), xsID_template, xsVar(0), xsDefault, xsDontScript); \
+	xsNewHostProperty(xsGlobal, xsID__##_ID, xsVar(2), xsDefault, xsDontScript); \
+	xsVar(2) = xsNewHostConstructorObject(KPR_##_ID##Patch, 0, xsVar(1), xsID_##_ID); \
+	xsVar(3) = xsNewHostFunctionObject(KPR_##_ID##_template, 1, xsID_template); \
+	xsNewHostProperty(xsVar(2), xsID_template, xsVar(3), xsDefault, xsDontScript); \
+	xsNewHostProperty(xsGlobal, xsID_##_ID, xsVar(2), xsDefault, xsDontScript)
+#else
+#define kprPatchConstructor(_ID) \
+	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_##_ID), xsID_prototype); \
+	xsVar(2) = xsNewHostConstructor(KPR_##_ID##Template, 3, xsVar(1)); \
+	xsNewHostProperty(xsVar(2), xsID_template, xsVar(0), xsDefault, xsDontScript); \
+	xsNewHostProperty(xsGlobal, xsID__##_ID, xsVar(2), xsDefault, xsDontScript); \
 	xsVar(2) = xsNewHostConstructor(KPR_##_ID##Patch, 0, xsVar(1)); \
 	xsVar(3) = xsNewHostFunction(KPR_##_ID##_template, 1); \
 	xsNewHostProperty(xsVar(2), xsID_template, xsVar(3), xsDefault, xsDontScript); \
-	xsNewHostProperty(xsGlobal, xsID_##_ID, xsVar(2), xsDefault, xsDontScript); \
-	xsVar(2) = xsNewHostConstructor(KPR_##_ID##Template, 3, xsVar(1)); \
-	xsNewHostProperty(xsVar(2), xsID_template, xsVar(0), xsDefault, xsDontScript); \
-	xsNewHostProperty(xsGlobal, xsID__##_ID, xsVar(2), xsDefault, xsDontScript)
+	xsNewHostProperty(xsGlobal, xsID_##_ID, xsVar(2), xsDefault, xsDontScript)
+#endif
 
 void KPR_patchConstructors(xsMachine *the)
 {
+	/*
+	xsID_Content
+	xsID_Container
+	xsID_Layer
+	xsID_Layout
+	xsID_Scroller
+	xsID_Column
+	xsID_Line
+	xsID_Label
+	xsID_Text
+	xsID_Picture
+	xsID_Thumbnail
+	xsID_Media
+	xsID_Canvas
+	xsID_Port
+	*/
 	xsVars(4);
 	xsVar(0) = xsNewHostFunction(KPR_template, 1);
 	xsSet(xsGlobal, xsID_template, xsVar(0));
@@ -1602,23 +1666,47 @@ void KPR_patchConstructors(xsMachine *the)
 	kprPatchConstructor(Port);
 	
 	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_Container), xsID_prototype);
+#ifdef XS6
+	xsVar(2) = xsNewHostFunctionObject(KPR_container_recurse, 1, xsID_recurse);
+#else
 	xsVar(2) = xsNewHostFunction(KPR_container_recurse, 1);
+#endif
 	xsNewHostProperty(xsVar(1), xsID_recurse, xsVar(2), xsDefault, xsDefault);
 
 	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_Skin), xsID_prototype);
+#ifdef XS6
+	xsVar(2) = xsNewHostConstructorObject(KPR_SkinPatch, 1, xsVar(1), xsID_Skin);
+#else
 	xsVar(2) = xsNewHostConstructor(KPR_SkinPatch, 1, xsVar(1));
+#endif
 	xsNewHostProperty(xsGlobal, xsID_Skin, xsVar(2), xsDefault, xsDontScript);
 	
 	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_Style), xsID_prototype);
+#ifdef XS6
+	xsVar(2) = xsNewHostConstructorObject(KPR_StylePatch, 1, xsVar(1), xsID_Style);
+#else
 	xsVar(2) = xsNewHostConstructor(KPR_StylePatch, 1, xsVar(1));
+#endif
 	xsNewHostProperty(xsGlobal, xsID_Style, xsVar(2), xsDefault, xsDontScript);
 
 	xsVar(0) = xsGet(xsGlobal, xsID_Handler);
+#ifdef XS6
+	xsVar(1) = xsNewHostFunctionObject(KPR_Handler_bind, 2, xsID_bind);
+#else
 	xsVar(1) = xsNewHostFunction(KPR_Handler_bind, 2);
+#endif
 	xsNewHostProperty(xsVar(0), xsID_bind, xsVar(1), xsDefault, xsDontScript);
+#ifdef XS6
+	xsVar(1) = xsNewHostFunctionObject(KPR_Handler_Bind, 2, xsID_Bind);
+	xsNewHostProperty(xsVar(0), xsID_Bind, xsVar(1), xsDefault, xsDontScript);
+#endif
 	
 	xsVar(0) = xsGet(xsGet(xsGlobal, xsID_Behavior), xsID_prototype);
+#ifdef XS6
+	xsVar(1) = xsNewHostFunctionObject(KPR_Behavior_template, 1, xsID_template);
+#else
 	xsVar(1) = xsNewHostFunction(KPR_Behavior_template, 1);
+#endif
 	xsVar(2) = xsNewHostConstructor(KPR_Behavior_Template, 1, xsVar(0));
 	xsNewHostProperty(xsVar(2), xsID_template, xsVar(1), xsDefault, xsDontScript);
 	xsNewHostProperty(xsGlobal, xsID_Behavior, xsVar(2), xsDefault, xsDontScript);

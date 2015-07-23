@@ -25,21 +25,6 @@
 
 
 /*******************************************************************************
- * SafeTDivide
- *******************************************************************************/
-
-static FskFract
-SafeTDivide(FskFixed n, FskFixed d)
-{
-	FskInt64 q = ((FskInt64)n << T_BITS) / d;
-	if (q > kFskSInt32Max)		q = kFskSInt32Max;
-	else if (q < (int)kFskSInt32Min)	q = (int)kFskSInt32Min;
-	return (FskFract)q;
-}
-
-
-
-/*******************************************************************************
  * FskClipPolygon2D
  *
  * Barsky-Liang method.
@@ -70,10 +55,10 @@ FskClipPolygon2D(
 	UInt32			nOutCount;
 
 	nOutCount = 0;
-	
+
 	/* We need to assure that the first point is duplicated as the last. */
 	vIn[nIn] = vIn[0];									/* Structure assignment */
-	
+
 	/* Initialize fixed-point clip values */
 	xMin	= (clip->x << 16) - (1 << 15);	/* from 0.5 to N-0.5 */
 	yMin	= (clip->y << 16) - (1 << 15);
@@ -85,8 +70,8 @@ FskClipPolygon2D(
 		if (((deltaX = (vIn + 1)->x - vIn->x) > 0) || ((deltaX == 0) && (vIn->x > xMax)) )
 				{	xIn = xMin;	xOut = xMax;	}		/* l[i] points right */
 		else	{	xIn = xMax;	xOut = xMin;	}		/* l[i] points left */
-		
-		if (deltaX != 0)								tOutX = SafeTDivide(xOut - vIn->x, deltaX);
+
+		if (deltaX != 0)								tOutX = FskFixedNDiv(xOut - vIn->x, deltaX, T_BITS);
 		else if ((vIn->x <= xMax) && (xMin <= vIn->x))	tOutX = POSITIVE_INFINITY;
 		else											tOutX = NEGATIVE_INFINITY;
 
@@ -95,7 +80,7 @@ FskClipPolygon2D(
 				{	yIn = yMin;	yOut = yMax;	}		/* l[i] points up */
 		else	{	yIn = yMax;	yOut = yMin;	}		/* l[i] points down */
 
-		if (deltaY != 0)								tOutY = SafeTDivide(yOut - vIn->y, deltaY);
+		if (deltaY != 0)								tOutY = FskFixedNDiv(yOut - vIn->y, deltaY, T_BITS);
 		else if ((vIn->y <= yMax) && (yMin <= vIn->y))	tOutY = POSITIVE_INFINITY;
 		else											tOutY = NEGATIVE_INFINITY;
 
@@ -103,15 +88,15 @@ FskClipPolygon2D(
 		if (tOutX < tOutY)	{	tOut1 = tOutX;	tOut2 = tOutY;	}	/* First exit at x, then y */
 		else				{	tOut1 = tOutY;	tOut2 = tOutX;	}	/* First exit at y, then x */
 
-		
+
 		if (tOut2 > 0) {								/* There could be output -- compute tIn2 */
-			if (deltaX != 0)	tInX = SafeTDivide(xIn - vIn->x, deltaX);
+			if (deltaX != 0)	tInX = FskFixedNDiv(xIn - vIn->x, deltaX, T_BITS);
 			else				tInX = NEGATIVE_INFINITY;
-			if (deltaY != 0)	tInY = SafeTDivide(yIn - vIn->y, deltaY);
+			if (deltaY != 0)	tInY = FskFixedNDiv(yIn - vIn->y, deltaY, T_BITS);
 			else				tInY = NEGATIVE_INFINITY;
 			if (tInX < tInY)	tIn2 = tInY;
 			else				tIn2 = tInX;
-			
+
 			if (tOut1 < tIn2) {							/* No visible segment */
 				if ((0 < tOut1) && (tOut1 <= T_ONE)) {	/* Line crosses over intermediate corner region */
 					if (tInX < tInY)				AppendVertex(xOut, yIn);

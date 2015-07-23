@@ -337,6 +337,13 @@
 
 	</platform>
 
+	<platform name="iphone/device">
+		OBJECTS += $(TMP_DIR)/FskFixedMath-arm.gas.o
+		$(TMP_DIR)/FskFixedMath-arm.gas.o: $(F_HOME)/core/base/FskFixedMath-arm.gas
+			$(deviceAS) $(F_HOME)/core/base/FskFixedMath-arm.gas -o $(TMP_DIR)/FskFixedMath-arm.gas.o
+		<source name="FskFixedMath-arm.gas"/>
+	</platform>
+
 	<platform name="linux/t7">
 		<source name="FskGLContext.c"/>
 	</platform>

@@ -59,7 +59,7 @@
 		[self setDelegate:(id<NSWindowDelegate>)self];
 		[self setReleasedWhenClosed:NO];
 		[self setIgnoresMouseEvents:NO];
-		
+
 		const char *value = FskEnvironmentGet("hideCursor");
 		_hideCursor = value && (0 == FskStrCompare(value, "true"));
 		[self hideCursor];
@@ -68,7 +68,7 @@
 		[notificationCenter addObserver:self selector:@selector(didBecomeMain:) name:NSWindowDidBecomeMainNotification object:self];
 		[notificationCenter addObserver:self selector:@selector(didResignMain:) name:NSWindowDidResignMainNotification object:self];
 		[notificationCenter addObserver:self selector:@selector(didBecomeKey:) name:NSWindowDidBecomeKeyNotification object:self];
-		
+
 	}
 
 	return self;
@@ -123,7 +123,7 @@
 		FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(tag), &tag);
 		FskWindowEventQueue(_fskWindow, fskEvent);
 	}
-	
+
 	[self hideCursor];
 }
 
@@ -336,10 +336,10 @@ bail:
 	frame = [self frame];
 	standardFrame = [self windowWillUseStandardFrame:self defaultFrame:NSZeroRect];
 
-	if ((abs(frame.origin.x - standardFrame.origin.x) > 20) ||
-		(abs(frame.origin.y - standardFrame.origin.y) > 20) ||
-		(abs(frame.size.width - standardFrame.size.width) > 20) ||
-		(abs(frame.size.height - standardFrame.size.height) > 20))
+	if ((fabsf(frame.origin.x - standardFrame.origin.x) > 20) ||
+		(fabsf(frame.origin.y - standardFrame.origin.y) > 20) ||
+		(fabsf(frame.size.width - standardFrame.size.width) > 20) ||
+		(fabsf(frame.size.height - standardFrame.size.height) > 20))
 	{
 		_defaultFrame = frame;
 	    [self setFrame:standardFrame display:YES];

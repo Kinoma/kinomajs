@@ -99,8 +99,8 @@
 */
 
 #if TARGET_OS_WIN32
-	typedef unsigned long UInt32;
-	typedef long SInt32;
+	typedef unsigned int UInt32;
+	typedef int SInt32;
 	typedef unsigned short UInt16;
 	typedef short SInt16;
 	typedef unsigned char UInt8;
@@ -120,8 +120,8 @@
 #elif TARGET_OS_LINUX || TARGET_OS_MACOSX
 #if defined(KPL)
 #else
-	typedef unsigned long UInt32;
-	typedef long SInt32;
+	typedef unsigned int UInt32;
+	typedef int SInt32;
 	typedef unsigned short UInt16;
 	typedef short SInt16;
 	typedef unsigned char UInt8;
@@ -305,7 +305,7 @@ typedef FskInt64 FskFileOffset;
 #ifndef SUPPORT_XS_DEBUG
 	// if not specified, debugging is on
 	#define SUPPORT_XS_DEBUG 1
-#endif /* SUPPORT_XS_DEBUG */
+#endif
 
 #include "FskPlatform.h"
 #include "FskInstrumentation.h"

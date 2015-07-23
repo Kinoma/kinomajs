@@ -55,6 +55,7 @@ bail:
 void KprZeroconfBrowserDispose(KprZeroconfBrowser self)
 {
 	if (self) {
+		KprZeroconfBrowserStop(self);
 		KprZeroconfPlatformBrowserDispose(self);
 		FskMemPtrDispose(self->serviceType);
 		FskMemPtrDispose(self->domain);
@@ -105,8 +106,9 @@ bail:
 FskErr KprZeroconfBrowserStop(KprZeroconfBrowser self)
 {
 	FskErr err = kFskErrNone;
-	FskListRemove(&gZeroconfBrowsers, self);
-	bailIfError(KprZeroconfPlatformBrowserStop(self));
+	if (FskListRemove(&gZeroconfBrowsers, self)) {
+		bailIfError(KprZeroconfPlatformBrowserStop(self));
+	}
 bail:
 	return err;
 }

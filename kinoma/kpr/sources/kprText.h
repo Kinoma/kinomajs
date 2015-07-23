@@ -39,21 +39,27 @@ enum {
 };
 
 typedef struct {
-	/* 0 */ long offset; /* text */
-	/* 4 */ long length; /* -1 */
-	/* 8 */ KprContent content;
-	/* C */ short adjustment;
-	/* E */ short dummy;
+	/*  0 -  0 */ SInt32 offset; /* text */
+	/*  4 -  4 */ SInt32 length; /* -1 */
+	/*  8 -  8 */ KprContent content;
+	/*  C - 10 */ SInt16 adjustment;
+	/*  E - 12 */ SInt16 dummy;
+	/* 10 - 14 */ SInt16 dummy1;
 #if defined(__LP64__)
-	/* - */ short dummy2[2];
+	/* 12 - 16 */ SInt16 dummy2;
 #endif
+	/* 12 - 18 */
 } KprTextItemRunRecord;
 
 typedef struct {
-	/* 0 */ long offset; /* text */
-	/* 4 */ long length; /* >= 0 */
-	/* 8 */ KprStyle style;
-	/* C */ KprTextLink link;
+	/*  0 -  0 */ SInt32 offset; /* text */
+	/*  4 -  4 */ SInt32 length; /* >= 0 */
+	/*  8 -  8 */ KprStyle style;
+	/*  C - 10 */ KprTextLink link;
+#if !defined(__LP64__)
+	/* 10 - 18 */ SInt16 dummy;
+#endif
+	/* 12 - 18 */
 } KprTextSpanRunRecord;
 
 typedef union {
@@ -62,24 +68,29 @@ typedef union {
 } KprTextRunRecord, *KprTextRun;
 
 typedef struct {
-	/* 0 */ long offset; /* text */
-	/* 4 */ KprStyle style;
-	/* 8 */ long dummy;
-	/* C */ long count;
+	/*  0 -  0 */ SInt32 offset; /* text */
+	/*  4 -  4 */ SInt32 count;
+	/*  8 -  8 */ KprStyle style;
+	/*  C - 10 */ SInt16 dummies[3];
+#if defined(__LP64__)
+	/* 12 - 16 */ SInt16 dummy;
+#endif
+	/* 12 - 18 */
 } KprTextBlockRecord, *KprTextBlock;
 
 typedef struct {
-	/* 0 */ short y;
-	/* 2 */ UInt16 ascent;
-	/* 4 */ UInt16 descent;
-	/* 6 */ short x;
-	/* 8 */ short width;
-	/* A */ short portion;
-	/* C */ short slop;
-	/* E */ short count;
+	/*  0 -  0 */ SInt32 y;
+	/*  4 -  4 */ UInt16 ascent;
+	/* 	6 -  6 */ UInt16 descent;
+	/*  8 -  8 */ SInt16 x;
+	/*  A -  A */ SInt16 width;
+	/*  C -  C */ SInt16 portion;
+	/*  E -  E */ SInt16 slop;
+	/* 10 - 10 */ SInt16 count;
 #if defined(__LP64__)
-	/* - */ long dummy[2];
+	/* 12 - 12 */ SInt16 dummies[3];
 #endif
+	/* 12 - 18 */
 } KprTextLineRecord, *KprTextLine;
 
 typedef struct {
@@ -93,30 +104,30 @@ struct KprTextStruct {
 	KprContainerPart;
 	
 	FskGrowableStorage textBuffer;
-	long textOffset;
-	long length;
+	SInt32 textOffset;
+	SInt32 length;
 
 	FskGrowableArray blockBuffer;
-	long blockOffset;
-	long blockSize;
+	SInt32 blockOffset;
+	SInt32 blockSize;
 	
 	FskGrowableArray lineBuffer;
-	long lineCount;
+	SInt32 lineCount;
 	
 	FskGrowableArray selectionBuffer;
-	long from;
-	long to;
+	SInt32 from;
+	SInt32 to;
 	
 	KprTextStateRecord stateRegister;
 	FskGrowableArray stateBuffer;
-	short stateIndex;
+	SInt16 stateIndex;
 
-	short blockFlag;
-	short styleFlag;
+	SInt16 blockFlag;
+	SInt16 styleFlag;
 
 	FskPort port;
-	long textWidth;
-	long textHeight;
+	SInt32 textWidth;
+	SInt32 textHeight;
 	UInt32 graphicsMode;
 	FskGraphicsModeParameters graphicsModeParameters;
 };

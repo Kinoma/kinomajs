@@ -211,8 +211,7 @@ typedef Boolean (*FskThreadEventHandlerRoutine)(FskEvent event, void *refCon);
             char                        debugScratch[2048];
 #endif
 
-			char						*name;
-			char						nameBuffer[1];		// must be last
+			char						name[1];		// must be last
 		};
 	#endif
 #endif

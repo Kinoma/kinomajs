@@ -21,6 +21,7 @@
 			<object name="serial" c="xs_serial">
 				<number name="rx"/>
 				<number name="tx"/>
+				<string name="path"/>
 				<number name="baud"/>
                 <function name="init" c="xs_serial_init"/>
                 <function name="read" params="format, count" c="xs_serial_read"/>   <!-- count is optional maximum read size -->
@@ -31,10 +32,11 @@
 		</patch>
 		<patch prototype="PINS.constructors">
 			<function name="Serial" params="it" prototype="PINS.prototypes.serial">
-                if (!("rx" in it) && !("tx" in it))
+                if (!("rx" in it) && !("tx" in it) && !("path" in it))
                     it = it.sandbox;
 				this.rx = it.rx;
 				this.tx = it.tx;
+				this.path = it.path;
 				this.baud = it.baud;
 			</function>
 		</patch>

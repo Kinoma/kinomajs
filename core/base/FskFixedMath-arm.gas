@@ -14,614 +14,1091 @@
 @     See the License for the specific language governing permissions and
 @     limitations under the License.
 @
+
 #if (__arm__)
-@ This file was automatically generated from
-@ /home/mkellner/fsk/core/base/FskFixedMath.arm.asm
-@ on Tue, 11 May 2010 01:04:04 GMT
-
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; Tuning
-@; Obviously multiplication is faster without rounding and especially without saturation,
-@; but there are advantages to having more accuracy and robustness.
-@; Saturation is especially important for rational Bezier curves, because it is easy
-@; to produce a number that is out-of-range when dividing.
-@; Rounding generally allows forward differencing to occur accurately on intervals
-@; twice as large as without rounding, but can have the side effect that texture
-@; coordinates may go out of bounds; for such applications, it might be desirable
-@; to have an additional FskFixMulTrunc() that returns the result truncated towards
-@; minus infinity.
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
-@	GBLA	ARMVERSION
-@ARMVERSION:	SETA	4
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@ Tuning																					@
+@ Obviously multiplication is faster without rounding and especially without saturation,	@
+@ but there are advantages to having more accuracy and robustness.							@
+@ Saturation is especially important for rational Bezier curves, because it is easy			@
+@ to produce a number that is out-of-range when dividing.									@
+@ Rounding generally allows forward differencing to occur accurately on intervals			@
+@ twice as large as without rounding, but can have the side effect that texture				@
+@ coordinates may go out of bounds; for such applications, it might be desirable			@
+@ to have an additional FskFixMulTrunc() that returns the result truncated towards			@
+@ minus infinity.																			@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
 	.equ	ARMVERSION,		5
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;							Macro Definitions							;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; Variables used in macros
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-@	GBLS	VBar
-@	.set VBar, "|"
-@	GBLS	AreaName
-@	GBLS	FuncName
-@	GBLS	FuncEndName
-@	GBLS	ExportStr
+#ifdef THUMB_INSTRUCTIONS	/* Is there a better way to do this? */
+.syntax unified 			/* use unified assembler syntax */
+.code 16					/* assemble in Thumb-2  (.thumb" can also be used) */
+#endif
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; Macro to start a function
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#ifdef __MACH__
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@						Macro Definitions for iOS						@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
+@-------------------------------------------------------------------------------
+@ Global declaration
+@-------------------------------------------------------------------------------
+
+#define Glo(s)	_##s
+
+@-------------------------------------------------------------------------------
+@ Macro to start a function on iOS
+@-------------------------------------------------------------------------------
+
+.macro	START_FUNC	@ Name
+	.text
+	.align 2
+	.global Glo($0)
+#ifdef THUMB_INSTRUCTIONS
+	.thumb_func
+#endif /* THUMB_INSTRUCTIONS */
+Glo($0):
+.endm
+
+@-------------------------------------------------------------------------------
+@ Macro to end a function
+@-------------------------------------------------------------------------------
+
+.macro	END_FUNC @ Name
+	@nuttin''?
+.endm
+
+
+#else // !__MACH__
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@				Macro Definitions for Android & Linux					@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+@-------------------------------------------------------------------------------
+@ Global declaration
+@-------------------------------------------------------------------------------
+
+#define Glo(s)	s
+
+@-------------------------------------------------------------------------------
+@ Macro to start a function on Android & Linux
+@-------------------------------------------------------------------------------
 
 .macro	START_FUNC Name
 	.text
 	.align 2
 	.type \Name,%function
 	.global	\Name
-
+#ifdef THUMB_INSTRUCTIONS
+	.thumb_func
+#endif /* THUMB_INSTRUCTIONS */
 \Name:
 .endm
 
-
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; Macro to end a function
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ Macro to end a function
+@-------------------------------------------------------------------------------
 
 .macro	END_FUNC Name
 	@nuttin''?
 .endm
 
-
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; Macro for 64/32 Division	- 3 cycles per answer bit
-@;		unsigned 64/32 = 32 remainder 32
-@;		On entry $nh = numerator high, $nl = numerator low, $d = denominator
-@;		On exit  $q = quotient, $r = remainder
-@;		Assumes that numerator<(denominator<<32)
-@;		Top bit of $d must be 0 (ie denominator < 2^31)
-@;		Flag indicates whether the divisor has already been negated or not
-@;		nl can equal q
-@;		nh can equal r
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#endif // !__MACH__
 
 
-	.macro	UDIV_64d32_32r32 q, r, nl, nh, d, flag
-	LCLA	k
-	.if	"\flag"<>"-"
-	rsb	\d, \d, #0 @ negate divisor
-	.endif
-	adds	\q, \nl, \nl @ next bit of numerator/remainder in C
-	adcs	\r, \d, \nh, lsl #1 @ rem = 2*rem - divisor
-	rsbcc	\r, \d, \r @ if it failed add divisor back on
-	adcs	\q, \q, \q @ insert answer bit and get numerator bit
-k:	SETA	1
-	WHILE	k<32
-	adcs	\r, \d, \r, lsl #1 @ rem = 2*rem - divisor
-	rsbcc	\r, \d, \r @ if it failed add divisor back on
-	adcs	\q, \q, \q @ insert answer bit and get numerator bit
-k:	SETA	k+1
-	WEND
-	.endm
-
-
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;							Directive Generation						;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-@	AREA |.drectve|, ALIGN=0 ; FLAGS=0x100A00, INFO, REMOVE
-@	DCB	-   -
-@	DCB	-/DEFAULTLIB:\-MSVCRTD\- -
-@	DCB	-/DEFAULTLIB:\-OLDNAMES\- -
-
-
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;									Code								;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@@@@								Code									@@@@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
 	.text	@CODE, READONLY, ARM
-@	.code32
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; FskFixed FskFixMul(r0 = FskFixed a, r1 = FskFixed b)
-@;
-@; rounded, saturated result in r0
-@; We trash r2, but that is expected in the ABI
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+@-------------------------------------------------------------------------------
+@ FskFixed FskFixMul(r0 = FskFixed a, r1 = FskFixed b)
+@
+@ rounded, saturated result in r0
+@ We trash r2, but that is expected in the ABI
+@-------------------------------------------------------------------------------
 
 	START_FUNC	FskFixMul
 
-	smull	r0, r2, r1, r0 @ 32 x 32 --> 64: r0 * r1 --> r2:r0
+	smull	r0, r2, r1, r0			@ 32 x 32 --> 64: r0 * r1 --> r2:r0
 
-	adds	r0, r0, #0x8000 @ Round LS word
-	adc	r2, r2, #0 @ Propagate carry round into MS word
+	adds	r0, r0, #0x8000			@ Round LS word
+	adc		r2, r2, #0				@ Propagate carry round into MS word
 
-	mov	r0, r0, lsr #16 @ Gather <47:16> of product into result
-	orr	r0, r0, r2, lsl #16
+	lsr		r0, r0, #16				@ Gather <47:16> of product into result
+	orr		r0, r0, r2, lsl #16
 
-	mov	r2, r2, asr #16 @ Get the MS bits of the full product
-	cmp	r2, r0, asr #31 @ ... and compare with the sign of the result
-	moveq	pc, lr @ Return if there is no overflow
+	asr		r2, r2, #16				@ Get the MS bits of the full product
+	cmp		r2, r0, asr #31			@ ... and compare with the sign of the result
+	it		eq
+	bxeq	lr						@ Return if there is no overflow
 
-	mvn	r0, r2, asr #31 @ 0x00000000 negative, 0xFFFFFFFF positive
-	eor	r0, r0, #0x80000000 @ 0x80000000 negative, 0x7FFFFFFF positive
-	mov	pc, lr @ Return saturated value
+	mvn		r0, r2, asr #31			@ 0x00000000 negative, 0xFFFFFFFF positive
+	eor		r0, r0, #0x80000000		@ 0x80000000 negative, 0x7FFFFFFF positive
+	bx		lr						@ Return saturated value
 
 	END_FUNC	FskFixMul
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; FskFract FskFracMul(r0 = FskFract a, r1 = FskFract b)
-@;
-@; We trash r2, but that is expected in the ABI
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ FskFract FskFracMul(r0 = FskFract a, r1 = FskFract b)
+@
+@ We trash r2, but that is expected in the ABI
+@-------------------------------------------------------------------------------
 
 	START_FUNC	FskFracMul
 
-	smull	r0, r2, r1, r0 @ 32 x 32 --> 64: r0 * r1 --> r2:r0
+	smull	r0, r2, r1, r0			@ 32 x 32 --> 64: r0 * r1 --> r2:r0
 
-	adds	r0, r0, #0x20000000 @ Round LS word
-	adc	r2, r2, #0 @ Propagate carry round into MS word
+	adds	r0, r0, #0x20000000		@ Round LS word
+	adc		r2, r2, #0				@ Propagate carry round into MS word
 
-	mov	r0, r0, lsr #30 @ Gather <61:30> of product into result
-	orr	r0, r0, r2, lsl #2
+	lsr		r0, r0, #30				@ Gather <61:30> of product into result
+	orr		r0, r0, r2, lsl #2
 
-	mov	r2, r2, asr #30 @ Get the MS bits of the full product
-	cmp	r2, r0, asr #31 @ ... and compare with the sign of the result
-	moveq	pc, lr @ Return if there is no overflow
+	asr		r2, r2, #30				@ Get the MS bits of the full product
+	cmp		r2, r0, asr #31			@ ... and compare with the sign of the result
+	it		eq
+	bxeq	lr						@ Return if there is no overflow
 
-	mvn	r0, r2, asr #31 @ 0x00000000 negative, 0xFFFFFFFF positive
-	eor	r0, r0, #0x80000000 @ 0x80000000 negative, 0x7FFFFFFF positive
-	mov	pc, lr @ Return saturated value
+	mvn		r0, r2, asr #31			@ 0x00000000 negative, 0xFFFFFFFF positive
+	eor		r0, r0, #0x80000000		@ 0x80000000 negative, 0x7FFFFFFF positive
+	bx		lr						@ Return saturated value
 
 	END_FUNC	FskFracMul
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; FskFixed FskFixedNMul(r0 = FskFixed a, r1 = FskFixed b, r2 = long n)
-@;
-@; This accommodates large shifts.
-@; The rounded, saturated result is returned in r0
-@; We trash r3, but that is expected in the ABI
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ FskFixed FskFixedNMul(r0 = FskFixed a, r1 = FskFixed b, r2 = long n)
+@
+@ This accommodates large shifts.
+@ The rounded, saturated result is returned in r0
+@ We trash r3, but that is expected in the ABI
+@-------------------------------------------------------------------------------
 
 	START_FUNC	FskFixedNMul
 
-	smull	r0, r3, r1, r0 @ 32 x 32 --> 64: r0 * r1 --> r3:r0
+	smull	r0, r3, r1, r0			@ 32 x 32 --> 64: r0 * r1 --> r3:r0
 
-	cmp	r2, #31 @ Take care of shifts greater than 31
-	subgt	r2, r2, #31 @ Greater than 31: subtract 31 conditionally
-	movgt	r0, r0, lsr #31 @ Shift right by 31 conditionally
+	cmp		r2, #31					@ Take care of shifts greater than 31
+	itttt	gt						@ Thumb conditional
+	subgt	r2, r2, #31				@ Greater than 31: subtract 31 conditionally
+	movgt	r0, r0, lsr #31			@ Shift right by 31 conditionally
 	orrgt	r0, r0, r3, lsl #1
 	movgt	r3, r3, asr #31
 
-	sub	r2, r2, #1 @ n = n - 1, temporarily
-	mov	r1, #1
-	adds	r0, r0, r1, lsl r2 @ Round LS word
-	adc	r3, r3, #0 @ Propagate rounding carry to MS word
-	add	r2, r2, #1 @ restore r2
+	sub		r2, r2, #1				@ n = n - 1, temporarily
+	mov		r1, #1
+#ifndef THUMB_INSTRUCTIONS
+	adds	r0, r0, r1, lsl r2		@ Round LS word
+#else /* THUMB_INSTRUCTIONS */
+	lsl		r1, r1, r2
+	adds	r0, r0, r1				@ Round LS word
+#endif /* THUMB_INSTRUCTIONS */
+	adc		r3, r3, #0				@ Propagate rounding carry to MS word
+	add		r2, r2, #1				@ restore r2
 
-	mov	r1, r3, asr r2 @ Save MS word of product for overflow testing
+	asr		r1, r3, r2				@ Save MS word of product for overflow testing
 
-	mov	r0, r0, lsr r2 @ Select bits <n+31:n> for product
-	rsb	r2, r2, #32
-	orr	r0, r0, r3, lsl r2
+	lsr		r0, r0, r2				@ Select bits <n+31:n> for product
+	rsb		r2, r2, #32
+#ifndef THUMB_INSTRUCTIONS
+	orr		r0, r0, r3, lsl r2
+#else /* THUMB_INSTRUCTIONS */
+	lsl		r3, r3, r2
+	orr		r0, r0, r3
+#endif /* THUMB_INSTRUCTIONS */
 
-	cmp	r1, r0, asr #31 @ Compare upper part of product with sign
-	moveq	pc, lr @ Return if there is no overflow
+	cmp		r1, r0, asr #31			@ Compare upper part of product with sign
+	it		eq
+	bxeq	lr						@ Return if there is no overflow
 
-	mvn	r0, r1, asr #31 @ 0x00000000 negative, 0xFFFFFFFF positive
-	eor	r0, r0, #0x80000000 @ 0x80000000 negative, 0x7FFFFFFF positive
-	mov	pc, lr @ Return saturated value in r0
+	mvn		r0, r1, asr #31			@ 0x00000000 negative, 0xFFFFFFFF positive
+	eor		r0, r0, #0x80000000		@ 0x80000000 negative, 0x7FFFFFFF positive
+	bx		lr						@ Return saturated value in r0
 
 	END_FUNC	FskFixedNMul
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; FskFixDiv(r0 = num, r1 = den)
-@;
-@; We trash r2, r3, and r12 but that is expected in the ABI
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ FskFixDiv(r0 = num, r1 = den)
+@
+@ We trash r2, r3, and r12 but that is expected in the ABI
+@-------------------------------------------------------------------------------
 
 	START_FUNC	FskFixDiv
 
 	mov	r2, #16
-	b	FskFixedNDiv
+	b	Glo(FskFixedNDiv)
 
 	END_FUNC	FskFixDiv
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; FskFracDiv(r0 = num, r1 = den)
-@;
-@; We trash r2, r3, and r12 but that is expected in the ABI
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ FskFracDiv(r0 = num, r1 = den)
+@
+@ We trash r2, r3, and r12 but that is expected in the ABI
+@-------------------------------------------------------------------------------
 
 	START_FUNC	FskFracDiv
 
 	mov	r2, #30
-	b	FskFixedNDiv
+	b	Glo(FskFixedNDiv)
 
 	END_FUNC	FskFracDiv
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; FskFixedNDiv(r0 = NUM, r1 = DEN, r2 = NSH)
-@;
-@; rounded, saturated result in r0
-@; We trash r3 and r12, but that is expected in the ABI
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ FskFixedNDiv(r0 = NUM, r1 = DEN, r2 = NSH)
+@
+@ rounded, saturated result in r0
+@ We trash r3 and r12, but that is expected in the ABI
+@-------------------------------------------------------------------------------
 
 	START_FUNC	FskFixedNDiv
 
-	cmp	r0, #0 @ If the numerator is 0 ...
-	moveq	pc, lr @ ... Return 0
+	cmp		r0, #0					@ If the numerator is 0 ...
+	it		eq
+	bxeq	lr						@ ... Return 0
 
-	eor	r12, r0, r1 @ Compute the sign of the result
-	rsbmi	r0, r0, #0 @ Absolute value of the numerator
-	mov	r3, r2 @ Move n to r3
-	movs	r2, r1 @ Move denominator to r2, freeing r1
-	beq	Lsaturate @ Saturate if denominator is 0
-	rsbmi	r2, r2, #0 @ Absolute value of the denominator
+	eor		r12, r0, r1				@ Compute the sign of the result
+	it		mi
+	rsbmi	r0, r0, #0				@ Absolute value of the numerator
+	mov		r3, r2					@ Move n to r3
+	movs	r2, r1					@ Move denominator to r2, freeing r1
+	beq		Lsaturate				@ Saturate if denominator is 0
+	it		mi
+	rsbmi	r2, r2, #0				@ Absolute value of the denominator
 
-	cmp	r3, #32
-	blt	LsmallNumeratorShift
-	rsb	r3, r3, #63 @ n <-- 63 - n
-	movs	r1, r0, lsr r3 @ r1 <-- num >> (63 - original n)
-	bne	Lsaturate
-	rsb	r3, r3, #63 @ n <-- original value of n
-	sub	r1, r3, #32 @ r1 <-- n - 32
-	blt	LsmallNumeratorShift
-	mov	r1, r0, lsl r1 @ r1 = high bits of shifted numerator
-	mov	r0, #0 @ r0 =  low bits of shifted numerator
-	b	LnumeratorShiftDone
+	cmp		r3, #32
+	blt		LsmallNumeratorShift
+	rsb		r3, r3, #63				@ n <-- 63 - n
+	lsrs	r1, r0, r3				@ r1 <-- num >> (63 - original n)
+	bne		Lsaturate
+	rsb		r3, r3, #63				@ n <-- original value of n
+	sub		r1, r3, #32				@ r1 <-- n - 32
+	blt		LsmallNumeratorShift
+	lsl		r1, r0, r1				@ r1 = high bits of shifted numerator
+	mov		r0, #0					@ r0 =  low bits of shifted numerator
+	b		LnumeratorShiftDone
 LsmallNumeratorShift:
-	rsb	r1, r3, #32 @ r1 = 32 - n
-	mov	r1, r0, lsr r1 @ r1 = high bits of shifted numerator
-	mov	r0, r0, lsl r3 @ r0 =  low bits of shifted numerator
-LnumeratorShiftDone:	@ Done shifting: r3 is now free!
+	rsb		r1, r3, #32				@ r1 = 32 - n
+	lsr		r1, r0, r1				@ r1 = high bits of shifted numerator
+	lsl		r0, r0, r3				@ r0 =  low bits of shifted numerator
+LnumeratorShiftDone:				@ Done shifting: r3 is now free!
 
-	adds	r0, r0, r2, lsr #1 @ lo numerator += denominator / 2, for rounding
-	adc	r1, r1, #0 @ hi numerator - -
+	adds	r0, r0, r2, lsr #1		@ lo numerator += denominator / 2, for rounding
+	adc		r1, r1, #0				@ hi numerator - -
 
-	mov	r3, lr @ Save return address
-	bl	ArmDivU64U32 @ Call saturating, rounding UInt64 / UInt32
-	mov	lr, r3 @ Restore return address
+	mov		r3, lr					@ Save return address
+	bl		Glo(ArmDivU64U32)		@ Call saturating, rounding UInt64 / UInt32
+	mov		lr, r3					@ Restore return address
 
-Ensign:	@ This label is used by KPFixedNRatio, too
-	cmp	r0, #0x80000000 @ Is unsigned quotient < 2147483648?
-	bhs	Lsaturate @ No: saturate
-	cmp	r12, #0 @ Check sign
-	rsblt	r0, r0, #0 @ Negate if sign should be negative
-	mov	pc, lr @ Return
+LEnsign:							@ This label is used by KPFixedNRatio, too
+	cmp		r0, #0x80000000			@ Is unsigned quotient < 2147483648?
+	bhs		Lsaturate				@ No: saturate
+	cmp		r12, #0					@ Check sign
+	it		lt
+	rsblt	r0, r0, #0				@ Negate if sign should be negative
+	bx		lr						@ Return
 
 Lsaturate:
-	mvn	r0, r12, asr #31 @ FFFFFFFF positive, 00000000 negative, if denominator is 0
-	eor	r0, r0, #0x80000000 @ 7FFFFFFF positive, 80000000 negative, if denominator is 0
-	mov	pc, lr @ Return +/- -infinity-, if denominator is 0
+	mvn		r0, r12, asr #31		@ FFFFFFFF positive, 00000000 negative, if denominator is 0
+	eor		r0, r0, #0x80000000		@ 7FFFFFFF positive, 80000000 negative, if denominator is 0
+	bx		lr						@ Return +/- -infinity-, if denominator is 0
 
 	END_FUNC	FskFixedNDiv
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; FskFixedNRatio(r0 = a, r1 = b, r2 = d, r3 = n)
-@;
-@; We trash r12 but that is expected in the ABI
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ FskFixedNRatio(r0 = a, r1 = b, r2 = d, r3 = n)
+@
+@ We trash r12 but that is expected in the ABI
+@-------------------------------------------------------------------------------
 
 	START_FUNC	FskFixedNRatio
 
-	cmp	r0, #0 @ Check for a zero numerator ...
-	moveq	pc, lr
-	cmp	r1, #0
+	cmp		r0, #0					@ Check for a zero numerator ...
+	it		eq
+	bxeq	lr
+	cmp		r1, #0
+	itt		eq
 	moveq	r0, #0
-	moveq	pc, lr @ ... and return zero if the numerator is zero
+	bxeq	lr						@ ... and return zero if the numerator is zero
 
-	eor	r12, r0, r1 @ Compute the sign of the numerator
-	cmp	r2, #0 @ Check for zero denominator ...
-	beq	Lsaturate @ ... and saturate to the same sign of the numerator
+	eor		r12, r0, r1				@ Compute the sign of the numerator
+	cmp		r2, #0					@ Check for zero denominator ...
+	beq		Lsaturate				@ ... and saturate to the same sign of the numerator
 
-	mov	r12, sp @ Save registers on the stack
+	mov		r12, sp					@ Save registers on the stack
+#ifndef THUMB_INSTRUCTIONS
 	stmdb	sp!, {r4, r12, lr}
-	sub	sp, sp, #12
+#else /* THUMB_INSTRUCTIONS */
+	stmdb	sp!, {r4, r5, r12, lr}
+#endif /* THUMB_INSTRUCTIONS */
+	sub		sp, sp, #12
 
-	smull	r0, r12, r1, r0 @ 32 x 32 --> 64: r0 * r1 --> r12:r0
-	mov	r1, r12 @                          --> r1:r0
+	smull	r0, r12, r1, r0			@ 32 x 32 --> 64: r0 * r1 --> r12:r0
+	mov		r1, r12					@                          --> r1:r0
 
-	eor	r12, r1, r2 @ Compute the sign of the ratio
-	cmp	r2, #0
-	rsblt	r2, r2, #0 @ Absolute value of denominator
-	cmp	r1, #0
-	bge	LpositiveNumerator
-	rsbs	r0, r0, #0 @ Absolute value of numerator
-	rsc	r1, r1, #0
+	eor		r12, r1, r2				@ Compute the sign of the ratio
+	cmp		r2, #0
+	it		lt
+	rsblt	r2, r2, #0				@ Absolute value of denominator
+	cmp		r1, #0
+	bge		LpositiveNumerator
+	rsbs	r0, r0, #0				@ Absolute value of numerator
+#ifndef THUMB_INSTRUCTIONS
+	rsc		r1, r1, #0
+#else /* THUMB_INSTRUCTIONS */
+	neg		r1, r1
+	sbc		r1, r1, #0
+#endif /* THUMB_INSTRUCTIONS */
 LpositiveNumerator:
 
-	cmp	r3, #0 @ Positive or negative shift?
-	blt	LrightShift
+	cmp		r3, #0					@ Positive or negative shift?
+	blt		LrightShift
 
 	@ Positive shift
-	mov	r4, r1, lsl r3 @ Try to upshift the numerator the whole amount ...
-	cmp	r1, r4, lsr r3 @ ... and see if we lose any bits
-	bne	LNumUpDenDown
+	lsl		r4, r1, r3				@ Try to upshift the numerator the whole amount ...
+#ifndef THUMB_INSTRUCTIONS
+	cmp		r1, r4, lsr r3			@ ... and see if we lose any bits
+#else /* THUMB_INSTRUCTIONS */
+	lsr		r5, r4, r3				@ ... and see if we lose any bits
+	cmp		r1, r5
+#endif /* THUMB_INSTRUCTIONS */
+	bne		LNumUpDenDown
 
 	@ There is enough room to upshift the numerator without overflowing
-	mov	r1, r1, lsl r3 @ Shift numerator left n bits
-	rsb	r3, r3, #32
-	orr	r1, r1, r0, lsr r3
-	rsb	r3, r3, #32
-	mov	r0, r0, lsl r3
-	b	LRatioShiftDone
+	lsl		r1, r1, r3				@ Shift numerator left n bits
+	rsb		r3, r3, #32
+#ifndef THUMB_INSTRUCTIONS
+	orr		r1, r1, r0, lsr r3
+#else /* THUMB_INSTRUCTIONS */
+	lsr		r5, r0, r3
+	orr		r1, r1, r5
+#endif /* THUMB_INSTRUCTIONS */
+	rsb		r3, r3, #32
+	lsl		r0, r0, r3
+	b		LRatioShiftDone
 
 	@ There is not enough room to upshift the numerator without overflowing,
 	@ so we upshift the numerator as much as we can, and downshift the denominator the rest
 LNumUpDenDown:
 	.if	ARMVERSION > 4
-	clz	r4, r1
+	clz		r4, r1
 	.else
-	bl	CountLeadingZerosInR1ToR4
+	bl		CountLeadingZerosInR1ToR4
 	.endif	@ ARMVERSION
-	sub	r4, r4, #1 @ The exact maximum we can upshift the numerator
-	sub	r3, r3, r4 @ The remainder, we will downshift the denominator
-	mov	r1, r1, lsl r4 @ Shift numerator left r4 bits
-	rsb	r4, r4, #32
-	orr	r1, r1, r0, lsr r4
-	rsb	r4, r4, #32
-	mov	r0, r0, lsl r4
-	mov	r2, r2, lsr r3 @ Downshift the denominator
-	b	LRatioShiftDone
+	sub		r4, r4, #1				@ The exact maximum we can upshift the numerator
+	sub		r3, r3, r4				@ The remainder, we will downshift the denominator
+	lsl		r1, r1, r4				@ Shift numerator left r4 bits
+	rsb		r4, r4, #32
+#ifndef THUMB_INSTRUCTIONS
+	orr		r1, r1, r0, lsr r4
+#else /* THUMB_INSTRUCTIONS */
+	lsr		r5, r0, r4
+	orr		r1, r1, r5
+#endif /* THUMB_INSTRUCTIONS */
+	rsb		r4, r4, #32
+	lsl		r0, r0, r4
+	lsr		r2, r2, r3				@ Downshift the denominator
+	b		LRatioShiftDone
 
 	@ Negative shift
 LrightShift:
-	rsb	r3, r3, #0 @ Convert the negative left shift to a positive right shift
-	add	r3, r3, #1 @ Increment count temporarily to reserve a sign bit for the denominator
-	mov	r4, r2, lsl r3 @ Try to upshift the numerator the whole amount ...
-	cmp	r2, r4, lsr r3 @ ... and see if we lose any bits
-	sub	r3, r3, #1 @ Restore count
-	bne	LDenUpNumDown
+	rsb		r3, r3, #0				@ Convert the negative left shift to a positive right shift
+	add		r3, r3, #1				@ Increment count temporarily to reserve a sign bit for the denominator
+	lsl		r4, r2, r3				@ Try to upshift the numerator the whole amount ...
+#ifndef THUMB_INSTRUCTIONS
+	cmp		r2, r4, lsr r3			@ ... and see if we lose any bits
+#else /* THUMB_INSTRUCTIONS */
+	lsr		r5, r4, r3
+	cmp		r2, r5					@ ... and see if we lose any bits
+#endif /* THUMB_INSTRUCTIONS */
+	sub		r3, r3, #1				@ Restore count
+	bne		LDenUpNumDown
 
 	@ There is enough room to upshift the denominator all the way
-	mov	r2, r2, lsl r3 @ Shift the denominator up
-	b	LRatioShiftDone
+	lsl		r2, r2, r3				@ Shift the denominator up
+	b		LRatioShiftDone
 
 	@ There is not enough room to upshift the denominator all the way
 LDenUpNumDown:
 	.if	ARMVERSION > 4
-	clz	r4, r2
+	clz		r4, r2
 	.else
-	bl	CountLeadingZerosInR2ToR4
-	.endif	@ ARMVERSION
-	cmp	r4, #0 @ Assure that we don-t get a negative shift
-	subgt	r4, r4, #1 @ The exact maximum we can upshift the denominator
-	sub	r3, r3, r4 @ The remainder we downshift the numerator
-	mov	r2, r2, lsl r4 @ Shift the denominator left
-	mov	r0, r0, lsr r3 @ Shift numerator right by r3 bits
-	rsb	r3, r3, #32
-	orr	r0, r0, r1, lsl r3
-	rsb	r3, r3, #32
-	mov	r1, r1, lsr r3
+	bl		CountLeadingZerosInR2ToR4
+	.endif @ ARMVERSION
+	cmp		r4, #0					@ Assure that we don-t get a negative shift
+	it		gt
+	subgt	r4, r4, #1				@ The exact maximum we can upshift the denominator
+	sub		r3, r3, r4				@ The remainder we downshift the numerator
+	lsl		r2, r2, r4				@ Shift the denominator left
+	lsr		r0, r0, r3				@ Shift numerator right by r3 bits
+	rsb		r3, r3, #32
+#ifndef THUMB_INSTRUCTIONS
+	orr		r0, r0, r1, lsl r3
+#else /* THUMB_INSTRUCTIONS */
+	lsl		r5, r1, r3
+	orr		r0, r0, r5
+#endif /* THUMB_INSTRUCTIONS */
+	rsb		r3, r3, #32
+	lsr		r1, r1, r3
 LRatioShiftDone:
 
-	adds	r0, r0, r2, lsr #1 @ Bias numerator by half the divisor to effect rounding
-	adc	r1, r1, #0
-	bl	ArmDivU64U32
+	adds	r0, r0, r2, lsr #1		@ Bias numerator by half the divisor to effect rounding
+	adc		r1, r1, #0
+	bl		Glo(ArmDivU64U32)
 
-	add	sp, sp, #12 @ restore registers
-	ldmia	sp, {r4, sp, lr}
+	add		sp, sp, #12
+#ifndef THUMB_INSTRUCTIONS
+	ldmia	sp, {r4, sp, lr}		@ restore registers
+#else /* THUMB_INSTRUCTIONS */
+	mov		r1, r12					@ save r12, which contains the sign
+	ldmia	sp, {r4, r5, r12, lr}	@ restore registers
+	mov		sp, r12
+	mov		r12, r1					@ restore r12 for LEnsign
+#endif /* THUMB_INSTRUCTIONS */
 
-	b	Ensign
+	b		LEnsign
 
 	END_FUNC	FskFixedNRatio
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; CountLeadingZerosInR1ToR4
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ CountLeadingZerosInR1ToR4
+@-------------------------------------------------------------------------------
 
 	START_FUNC	CountLeadingZerosInR1ToR4
-	mov	r4, sp
+	mov		r4, sp
 	stmdb	sp!, {r2, r3, r4, lr}
-	mov	r3, r1
+	mov		r3, r1
 LCountZeros:
-	mov	r4, #32
+	mov		r4, #32
 
-	movs	r2, r3, lsr #16
+	lsrs	r2, r3, #16
+	itt		ne
 	subne	r4, r4, #16
 	movne	r3, r2
 
-	movs	r2, r3, lsr #8
+	lsrs	r2, r3, #8
+	itt		ne
 	subne	r4, r4, #8
 	movne	r3, r2
 
-	movs	r2, r3, lsr #4
+	lsrs	r2, r3, #4
+	itt		ne
 	subne	r4, r4, #4
 	movne	r3, r2
 
-	movs	r2, r3, lsr #2
+	lsrs	r2, r3, #2
+	itt		ne
 	subne	r4, r4, #2
 	movne	r3, r2
 
-	movs	r2, r3, lsr #1
+	lsrs	r2, r3, #1
+	itt		ne
 	subne	r4, r4, #1
 	movne	r3, r2
 
-	cmp	r3, #0
+	cmp		r3, #0
+	it		ne
 	subne	r4, r4, #1
 
+#ifndef THUMB_INSTRUCTIONS
 	ldmia	sp, {r2, r3, sp, pc}
+#else /* THUMB_INSTRUCTIONS */
+	ldmia	sp, {r2, r3, r12, lr}
+	mov		sp, r12
+	bx		lr
+#endif /* THUMB_INSTRUCTIONS */
 
 	END_FUNC	CountLeadingZerosInR1ToR4
 
 	START_FUNC	CountLeadingZerosInR2ToR4
-	mov	r4, sp
+	mov		r4, sp
 	stmdb	sp!, {r2, r3, r4, lr}
-	mov	r3, r2
-	b	LCountZeros
+	mov		r3, r2
+	b		LCountZeros
 	END_FUNC	CountLeadingZerosInR2ToR4
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; This macro short-circuits extraneous division cycles in ArmDivU64U32.
-@; This seems to be advantageous when the excess leading zeros is 6 or more,
-@; which is equivalent to the quotient being less than 67108864, 0x400000, Fixed(1024), Fixed24(4).
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ This macro short-circuits extraneous division cycles in ArmDivU64U32.
+@ This seems to be advantageous when the excess leading zeros is 6 or more,
+@ which is equivalent to the quotient being less than 67108864, 0x400000, Fixed(1024), Fixed24(4).
+@-------------------------------------------------------------------------------
 
 .macro DIVIDE_CLZ
-	clz     r4, r1				@ Find the number of leading zeros in the numerator MS word
-	clz     r5, r2				@ Find the number of leading zeros in the denominator
-	sub     r5, r4, r5			@ Find the excess of numerator over denominator leading zeros (nonnegative if no overflow)
+	clz     r4, r1					@ Find the number of leading zeros in the numerator MS word
+	clz     r5, r2					@ Find the number of leading zeros in the denominator
+	sub     r5, r4, r5				@ Find the excess of numerator over denominator leading zeros (nonnegative if no overflow)
 
-	lsl     r1, r1, r5			@ Shift the MS word of the numerator to left align numerator and denominator
+	lsl     r1, r1, r5				@ Shift the MS word of the numerator to left align numerator and denominator
 	rsb     r4, r5, #32
-	add     r1, r1, r0, lsr r4	@ Shift the MS bits of the numerator LS word into the MS word
-	lsl     r0, r0, r5			@ Shift the LS bits of the numerator to complete the double-word left shift
-	rsb		r2, r2, #0			@ negate divisor to simplify computations below
-	adds    r1, r2, r1			@ rem = 2*rem - divisor
-	rsbcc   r1, r2, r1			@ if it failed add divisor back on
-	mov     r4, #12				@ The instruction size of each iteration loop
-	mul     r4, r5, r4			@ Compute branch offset
-	add     r4, pc, r4			@ Compute branch address
-	bx      r4					@ Jump to short-circuited address
+#ifndef THUMB_INSTRUCTIONS
+	add     r1, r1, r0, lsr r4		@ Shift the MS bits of the numerator LS word into the MS word
+#else /* THUMB_INSTRUCTIONS */
+	lsr		r4, r0, r4
+	add		r1, r1, r4				@ Shift the MS bits of the numerator LS word into the MS word
+#endif /* THUMB_INSTRUCTIONS */
+	lsl     r0, r0, r5				@ Shift the LS bits of the numerator to complete the double-word left shift
+	rsb		r2, r2, #0				@ negate divisor to simplify computations below
+	adds    r1, r2, r1				@ rem = 2*rem - divisor
+	it		cc
+	rsbcc   r1, r2, r1				@ if it failed add divisor back on
+#ifndef THUMB_INSTRUCTIONS
+	mov     r4, #12					@ The instruction size of each iteration loop
+	mul     r4, r5, r4				@ Compute branch offset
+	add     r4, pc, r4				@ Compute branch address
+#else /* THUMB_INSTRUCTIONS */
+	mov     r4, #12					@ The instruction size of each iteration loop
+	mul     r4, r5, r4				@ Compute branch offset
+	adr		r5, LD0
+	add		r4, r4, r5				@ Compute branch address
+	orr		r4, r4, #1				@ Make sure the address is odd, to indicate that it is in Thumb mode.
+#endif /* THUMB_INSTRUCTIONS */
+	bx      r4						@ Jump to short-circuited address
 .endm
 
 
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-@; UInt32 ArmDivU64U32(r0:r1 = UInt64 num, r2 = UInt32 den)
-@; UInt32 ArmDivU64U32(r0 = UInt32 numLo, r1 = UInt32 numHi, r2 = UInt32 den)
-@; rounded, saturated result in r0
-@; destroys r0, r1, r2
-@;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+@-------------------------------------------------------------------------------
+@ UInt32 ArmDivU64U32(r1:r0 = UInt64 num, r2 = UInt32 den)
+@ UInt32 ArmDivU64U32(r0 = UInt32 numLo, r1 = UInt32 numHi, r2 = UInt32 den)
+@ rounded, saturated result in r0
+@ destroys r0, r1, r2
+@-------------------------------------------------------------------------------
 
 	START_FUNC	ArmDivU64U32
-	cmp		r1, r2				@ See if there will be overflow
-	mvnhs	r0, #0				@ Saturate to 0xFFFFFFFF instead of overflowing
-	movhs	pc, lr				@ Return the saturated quotient instead of overflowing
+	cmp		r1, r2					@ See if there will be overflow
+	itt		hs
+	mvnhs	r0, #0					@ Saturate to 0xFFFFFFFF instead of overflowing
+	bxhs	lr						@ Return the saturated quotient instead of overflowing
 
-	.if	ARMVERSION > 4			@ The machine has the clz instruction
-		STMFD	sp!, {r4-r5}	@ Save temporary registers
-		DIVIDE_CLZ				@ Align numerator and denominator to reduce iterations (incorporates rsb r2, r2, #0)
-	.else						@ The machine does not have the clz instruction
-		rsb	r2, r2, #0			@ negate divisor to simplify computations below
+	.if	ARMVERSION > 4				@ The machine has the clz instruction
+		STMFD	sp!, {r4-r5}		@ Save temporary registers
+		DIVIDE_CLZ					@ Align numerator and denominator to reduce iterations (incorporates rsb r2, r2, #0)
+	.else							@ The machine does not have the clz instruction
+		rsb	r2, r2, #0				@ negate divisor to simplify computations below
 	.endif
-
-	adds	r0, r0, r0			@ next bit of numerator/remainder in C
-	adcs	r1, r2, r1, lsl #1	@ rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ if it failed add divisor back on
-	adcs	r0, r0, r0			@ insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 1: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 1: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 1: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 2: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 2: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 2: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 3: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 3: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 3: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 4: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 4: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 4: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 5: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 5: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 5: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 6: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 6: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 6: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 7: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 7: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 7: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 8: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 8: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 8: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 9: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 9: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 9: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 10: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 10: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 10: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 11: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 11: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 11: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 12: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 12: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 12: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 13: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 13: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 13: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 14: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 14: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 14: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 15: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 15: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 15: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 16: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 16: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 16: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 17: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 17: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 17: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 18: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 18: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 18: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 19: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 19: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 19: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 20: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 20: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 20: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 21: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 21: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 21: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 22: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 22: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 22: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 23: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 23: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 23: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 24: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 24: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 24: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 25: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 25: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 25: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 26: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 26: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 26: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 27: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 27: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 27: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 28: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 28: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 28: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 29: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 29: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 29: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 30: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 30: if it failed add divisor back on
-	adcs	r0, r0, r0			@ 30: insert answer bit and get numerator bit
-	adcs	r1, r2, r1, lsl #1	@ 31: rem = 2*rem - divisor
-	rsbcc	r1, r2, r1			@ 31 if it failed add divisor back on
-	adcs	r0, r0, r0			@ 31: insert answer bit and get numerator bit
+#ifdef THUMB_INSTRUCTIONS
+	.thumb_func
+LD0:
+#endif /* THUMB_INSTRUCTIONS */
+	adds	r0, r0, r0				@ next bit of numerator/remainder in C
+	adcs	r1, r2, r1, lsl #1		@ rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ if it failed add divisor back on
+	adcs	r0, r0, r0				@ insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 1: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 1: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 1: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 2: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 2: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 2: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 3: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 3: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 3: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 4: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 4: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 4: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 5: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 5: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 5: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 6: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 6: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 6: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 7: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 7: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 7: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 8: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 8: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 8: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 9: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 9: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 9: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 10: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 10: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 10: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 11: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 11: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 11: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 12: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 12: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 12: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 13: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 13: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 13: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 14: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 14: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 14: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 15: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 15: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 15: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 16: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 16: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 16: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 17: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 17: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 17: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 18: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 18: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 18: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 19: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 19: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 19: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 20: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 20: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 20: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 21: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 21: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 21: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 22: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 22: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 22: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 23: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 23: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 23: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 24: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 24: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 24: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 25: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 25: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 25: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 26: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 26: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 26: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 27: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 27: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 27: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 28: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 28: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 28: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 29: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 29: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 29: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 30: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 30: if it failed add divisor back on
+	adcs	r0, r0, r0				@ 30: insert answer bit and get numerator bit
+	adcs	r1, r2, r1, lsl #1		@ 31: rem = 2*rem - divisor
+	it		cc
+	rsbcc	r1, r2, r1				@ 31 if it failed add divisor back on
+	adcs	r0, r0, r0				@ 31: insert answer bit and get numerator bit
 
 	@ The result is rounded
 	.if ARMVERSION > 4
-		LDMFD	sp!, {r4-r5}	@ Restore temporary registers
+		LDMFD	sp!, {r4-r5}		@ Restore temporary registers
 	.endif
-	mov	pc, lr					@ Return
+	bx		lr						@ Return
 
 	END_FUNC	ArmDivU64U32
 
+
+@-------------------------------------------------------------------------------
+@ UInt32 FskFixedHypot(UInt32 x, UInt32 y)
+@-------------------------------------------------------------------------------
+
+	START_FUNC	FskFixedHypot
+	smull	r2, r3, r0, r0
+	smlal	r2, r3, r1, r1
+	mov		r0, r2
+	mov		r1, r3
+	b		Glo(FskFixedSqrt64to32)
+	END_FUNC	FskFixedHypot
+
+
+@-------------------------------------------------------------------------------
+@ FskFixed FskFracSqrt(FskFixed a)
+@-------------------------------------------------------------------------------
+
+	START_FUNC	FskFracSqrt
+	mov		r1, #30
+	b		Glo(FskFixedNSqrt)
+	END_FUNC	FskFracSqrt
+
+
+@-------------------------------------------------------------------------------
+@ FskFixed FskFixSqrt(FskFixed a)
+@-------------------------------------------------------------------------------
+
+	START_FUNC	FskFixSqrt
+	mov		r1, #16
+	b		Glo(FskFixedNSqrt)
+	END_FUNC	FskFixSqrt
+
+
+@-------------------------------------------------------------------------------
+@ FskFixed FskFixedNSqrt(FskFixed a, SInt32 n)
+@-------------------------------------------------------------------------------
+
+	START_FUNC	FskFixedNSqrt
+	.if	ARMVERSION > 4						@ The machine has the clz instruction
+		clz		r3, r0						@ Count leading zeros of the radicand
+		bic		r3, #1						@ Truncate down to the next even number
+		subs	r2, r1, r3					@ Determine the excess = n - clz
+		add		r2, r2, #32					@ Compute twice the number of iterations = 32 + n - z
+		blt		LshortSqrt
+		lsr		r2, r2, #1					@ Compute the number of iterations = (32 + n - z) / 2
+		lsl		r1, r0, r3					@ Left justify the radicand
+		mov		r0, #0						@ Clear the least significant part of the radicand
+		b		Glo(ArmFixedNSqrt64to32)	@ Call double precision routine
+	LshortSqrt:
+		lsl		r1, r0, r1					@ Shift radicand into position for the desired number of bits
+#ifndef THUMB_INSTRUCTIONS					// Arm program is 12 bytes per iteration
+		add		r2, r2, r2, lsl #1			@ Compute 6 x the number of iterations
+		adr		r12, LArmSqrtKernel0		@ Get the address of LArmSqrtKernel0
+		sub		r12, r12, r2, lsl #1		@ 12 times the number of iterations
+#else /* THUMB_INSTRUCTIONS */				// Thumb program seems to be 14 bytes periteration
+		sub		r2, r2, r2, lsl #3			@ 2N - 8*2N = -14 times the number of iterations
+		adr		r12, LArmSqrtKernel0		@ Get the address of LArmSqrtKernel0
+		add		r12, r12, r2				@ 14 x the number of iterations
+		orr		r12, r12, #1				@ Set the LB bit to 1 to indicate Thumb mode
+#endif /* THUMB_INSTRUCTIONS */
+		mov		r3, #3 << 30				@ Initialize offset
+		mov		r0, #1 << 30				@ Initialize root
+		stmfd	sp!, {lr}					@ Save link register, because we call another routine
+		blx		r12							@ Compute the desired number of bits in the single-precision kernel
+		bic		r0, r0, #3 << 30			@ Remove offset
+		cmp		r1, r0						@ For rounding
+		it		hi
+		addhi	r0, #1						@ For rounding
+#ifndef THUMB_INSTRUCTIONS
+		ldmfd	sp!, {pc}					@ Return
+#else /* THUMB_INSTRUCTIONS */
+		ldmfd	sp!, {lr}
+		bx		lr							@ Return
+#endif /* THUMB_INSTRUCTIONS */
+	.else									@ The machine does not have the clz instruction
+		mov		r2, r1						@ Move n to r2
+		rsb		r3, r2, #32					@ Upshift ...
+		lsr		r1, r0, r3					@ ... radicand by ...
+		lsl		r0, r0, r2					@ ... n bits
+		b		Glo(FskFixedSqrt64to32)		@ Call double precision routine TODO: call the more efficient ArmFixedNSqrt64to32
+	.endif
+
+	END_FUNC	FskFixedNSqrt
+
+
+@-------------------------------------------------------------------------------
+@ UInt32 FskFixedSqrt64to32(r1:r0 = UInt64 num)
+@ UInt32 FskFixedSqrt64to32(r0 = UInt32 numLo, r1 = UInt32 numHi)
+@ rounded result in r0
+@ destroys r0, r1, r2, r3, r12
+@ Derived from code published by Wilco Dijkstra.
+@ 3.875 cycles per bit
+@-------------------------------------------------------------------------------
+
+	START_FUNC	FskFixedSqrt64to32
+	clz		r2, r1						@ Count leading zeros of the radicand
+	bic		r2, #1						@ Truncate down to the next even number
+	lsl		r1, r1, r2					@ Left justify high word
+	rsb		r3, r2, #32
+#ifndef THUMB_INSTRUCTIONS
+	orr		r1, r0, lsr r3				@ Upshift low word into high word
+#else /* THUMB_INSTRUCTIONS */
+	lsr		r3, r0, r3					@ Upshift low word ...
+	orr		r1, r1, r3					@ ... into high word
+#endif /* THUMB_INSTRUCTIONS */
+	lsl		r0, r0, r2					@ Upshift low word
+	lsr		r2, r2, #1					@ Divide the number of leading zeros by 2
+	rsb		r2, r2, #32					@
+	b		Glo(ArmFixedNSqrt64to32)
+	END_FUNC	FskFixedSqrt64to32
+
+
+@-------------------------------------------------------------------------------
+@ UInt32 ArmFixedNSqrt64to32(r1:r0 = UInt64 num, r2 = numBits)
+@ UInt32 ArmFixedNSqrt64to32(r0 = UInt32 numLo, r1 = UInt32 numHi, r2 = numBits)
+@ rounded result in r0
+@ destroys r0, r1, r2, r3, r12
+@ Derived from code published by Wilco Dijkstra.
+@ 3.875 cycles per bit
+@ 16 + 7 + 3 + 2 + 1 + 1 + 1 + 1
+@ 16, 23, 26, 29, 30, 31, 32
+@-------------------------------------------------------------------------------
+
+	START_FUNC	ArmFixedNSqrt64to32
+	stmfd	sp!, {lr}						@ Save link register, because we call another routine
+
+	mov		r12, r0							@ move numLo to r12
+	mov		r3, #3 << 30					@ initialize offset
+	mov		r0, #1 << 30					@ initialize root
+
+	subs	r2, #16
+	blt		LLT16
+	bl		LArmSqrtKernel16				@ 16 bits
+
+	subs	r2, #7
+	blt		LLT23
+	lsl		r1, r1, #14						@ Shift r1:r12 ...
+	orr		r1, r1, r12, lsr #18			@ ... left by ...
+	lsl		r12, r12, #14					@ 14 bits
+	bl		LArmSqrtKernel7					@ 16 + 7 = 23 bits
+
+	subs	r2, #3
+	blt		LLT26
+	lsl		r1, r1, #6						@ Shift r1:r12...
+	orr		r1, r1, r12, lsr #26			@ ... left by ...
+	lsl		r12, r12, #6					@ 6 bits
+	bl		LArmSqrtKernel3					@ 16 + 7 + 3 = 26 bits
+
+	subs	r2, #2
+	blt		LLT28
+	lsl		r1, r1, #4						@ Shift r1:r12...
+	orr		r1, r1, r12, lsr #28			@ ... left by ...
+	lsl		r12, r12, #4					@ 4 bits
+	bl		LArmSqrtKernel2					@ 16 + 7 + 3 + 2 = 28 bits
+
+	subs	r2, #1
+	blt		LCRet							@ 28 bits done
+
+	bl		LArmShiftSqrt1					@ 29 bits
+	subs	r2, #1
+	blt		LCRet							@ 29 bits done
+
+	bl		LArmShiftSqrt1					@ 30 bits
+	subs	r2, #1
+	blt		LCRet							@ 30 bits done
+
+	lsl		r1, r1, #2						@ Shift r1:r12 ...
+	orr		r1, r1, r12, lsr #30			@ ... left by ...
+	lsl		r12, r12, #2					@ 2 bits
+	cmp		r1,     r0, ror #30				@ 31: xxxxxxxxxxxxxx01
+	it		hs
+	subhs	r1, r1, r0, ror #30
+	adc		r0, r0, r0						@ 1xxxxxxxxxxxxxxx
+	subs	r2, #1
+	bic		r0, #1 << 31					@ remove offset
+	blt		Lret							@ 31 bits done
+
+	lsl		r1, r1, #2						@ Shift r1:r12 ...
+	orr		r1, r1, r12, lsr #30			@ ... left by 2 bits
+	lsl		r12, r0, #2						@ construct ...
+	add		r12, r12, #1					@ ... test divisor in r12
+	cmp		r1, r12							@ 32
+	it		hs
+	subhs	r1, r12
+	adc		r0, r0, r0						@ xxxxxxxxxxxxxxxx
+	b		Lret
+
+LLT28:										@ 26 or 27 (-2, -1)
+	adds	r2, r2, #2
+	it		ne
+	blne	LArmShiftSqrt1					@ 27 bits
+	b		LCRet							@ 26
+
+LLT26:										@ 23, 24, or 25 (-3, -2, -1)
+	adds	r2, r2, #3						@ 0, 1, 2
+	it		ne
+	blne	LArmSqrtTail
+	b		LCRet
+
+LLT23:										@ 16, 17, 18, 19, 20, 21, 22 (-7, -6, -5, -4, -3, -2, -1)
+	adds	r2, r2, #7						@ 0, 1, 2, 3, 4, 5, 6
+	it		ne
+	blne	LArmSqrtTail
+	b		LCRet
+
+LLT16:										@ 0, 1, 2, 3, 4, 5,6 7, 8, 9, 10, 11, 12, 13, 14, 15 (-16, -15, ..., -1)
+	neg		r2, r2							@ 16, 15, ..., 1
+	lsl		r2, r2, #1						@ 32, 30, ... 2
+	lsr		r1, r1, r2						@ shift into position
+#ifndef THUMB_INSTRUCTIONS
+	add		r2, r2, r2, lsl #1				@ 2N + 2*2N = 6 * number of pairs of zeros
+	adr		r12, LArmSqrtKernel16			@ Get the address of LArmSqrtKernel16
+	add		r12, r12, r2, lsl #1			@ computed goto: 12 * N
+#else /* THUMB_INSTRUCTIONS */
+	sub		r2, r2, r2, lsl #3				@ 2N - 8*2N = -14 * number of pairs of zeros
+	adr		r12, LArmSqrtKernel16			@ Get the address of LArmSqrtKernel16
+	sub		r12, r12, r2					@ computed goto: 14 * N
+	orr		r12, r12, #1					@ Set the LSB of the address to indicate Thumb mode
+#endif /* THUMB_INSTRUCTIONS */
+	blx		r12
+
+LCRet:
+	bic		r0, r0, #3 << 30				@ remove offset
+Lret:
+	cmp		r1, r0							@ for rounding
+	it		hi
+	addhi	r0, #1							@ for rounding
+#ifndef THUMB_INSTRUCTIONS
+	ldmfd	sp!, {pc}						@ Return
+#else /* THUMB_INSTRUCTIONS */
+	ldmfd	sp!, {lr}
+	bx		lr								@ Return
+#endif /* THUMB_INSTRUCTIONS */
+	END_FUNC	ArmFixedNSqrt64to32
+
+
+@-------------------------------------------------------------------------------
+@ UInt32 LArmSqrtKernel16(r1 = UInt32 num, r3 = #3 << 30, r0 = #1 << 30)
+@ returns (root | (1 << 30) in r0.
+@ Derived from code published by Wilco Dijkstra.
+@ 3 cycles per bit
+@-------------------------------------------------------------------------------
+
+#ifdef THUMB_INSTRUCTIONS
+	.thumb_func
+#endif /* THUMB_INSTRUCTIONS */
+LArmSqrtKernel16:
+	cmp		r1,     r0, ror #2 * 0			@ 16
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 0
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 1			@ 15
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 1
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 2			@ 14
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 2
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 3			@ 13
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 3
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 4			@ 12
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 4
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 5			@ 11
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 5
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 6			@ 10
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 6
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 7			@ 9
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 7
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 8			@ 8
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 8
+	adc		r0, r3, r0, lsl #1
+LArmSqrtKernel7:
+	cmp		r1,     r0, ror #2 * 9			@ 7
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 9
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 10			@ 6
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 10
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 11			@ 5
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 11
+	adc		r0, r3, r0, lsl #1
+	cmp		r1,     r0, ror #2 * 12			@ 4
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 12
+	adc		r0, r3, r0, lsl #1
+LArmSqrtKernel3:
+	cmp		r1,     r0, ror #2 * 13			@ 3
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 13
+	adc		r0, r3, r0, lsl #1
+LArmSqrtKernel2:
+	cmp		r1,     r0, ror #2 * 14			@ 2
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 14
+	adc		r0, r3, r0, lsl #1
+LArmSqrtKernel1:
+	cmp		r1,     r0, ror #2 * 15			@ 1
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 15
+	adc		r0, r3, r0, lsl #1
+#ifdef THUMB_INSTRUCTIONS
+	.thumb_func
+#endif /* THUMB_INSTRUCTIONS */
+LArmSqrtKernel0:
+	bx		lr								@ Return
+
+
+@-------------------------------------------------------------------------------
+@ LArmShiftSqrt1(r1 = UInt32 num, r12 new bits of the radicand, r3 = #3 << 30, r0 = radical produced thus far)
+@ Adds one more bit to the square root.
+@-------------------------------------------------------------------------------
+
+LArmShiftSqrt1:
+	lsl		r1, r1, #2						@ Shift r1:r12...
+	orr		r1, r1, r12, lsr #30			@ ... left by ...
+	lsl		r12, r12, #2					@ 2 bits
+	cmp		r1,     r0, ror #2 * 15
+	it		hs
+	subhs	r1, r1, r0, ror #2 * 15
+	adc		r0, r3, r0, lsl #1
+	bx		lr								@ Return
+
+
+@-------------------------------------------------------------------------------
+@ LArmSqrtTail(r1 = UInt32 num, r12 new bits of the radicand, r2 = the number of bits to produce in the radical, r3 = #3 << 30, r0 = radical produced thus far)
+@ Adds more bits to the square root.
+@-------------------------------------------------------------------------------
+
+LArmSqrtTail:
+	add		r2, r2, r2						@ index * 2
+	lsl		r1, r1, r2						@ shift up 2 * index
+	rsb		r2, r2, #32						@ shift down is 32 - 2 * index
+#ifndef THUMB_INSTRUCTIONS
+	orr		r1, r1, r12, lsr r2				@ double precision shift up by 2 * index
+#else /* THUMB_INSTRUCTIONS */
+	lsr		r12, r12, r2
+	orr		r1, r1, r12						@ double precision shift up by 2 * index
+#endif /* THUMB_INSTRUCTIONS */
+	rsb		r2, r2, #32						@ get 2 * index again
+	adr		r12, LArmSqrtKernel0			@ Get the address of LArmSqrtKernel0
+#ifndef THUMB_INSTRUCTIONS
+	add		r2, r2, r2, lsl #1				@ 6 * index
+	sub		r12, r12, r2, lsl #1			@ 12 * index
+#else /* THUMB_INSTRUCTIONS */
+	sub		r2, r2, r2, lsl #3				@ 2N - 8*2*N= -14N
+	add		r12, r12, r2					@ -14 * index
+	orr		r12, r12, #1					@ Set LSB of address to indicate Thumb mode
+#endif /* THUMB_INSTRUCTIONS */
+	bx		r12
 
 	.end
 #endif

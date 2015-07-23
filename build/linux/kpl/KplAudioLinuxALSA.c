@@ -71,6 +71,7 @@ struct KplAudioRecord {
 	snd_pcm_uframes_t period;
 	char* data;
 	UInt32 dataSize;
+    Boolean realTime;
 	UInt8 channels;
 	SInt16 format;
 	unsigned int rate;
@@ -225,8 +226,8 @@ FskErr KplAudioGetProperty(KplAudio audio, UInt32 propertyID, KplProperty value)
 					break;
 			}
 			break;
-		case kKplPropertyAudioPreferredBufferSize:
-			value->integer = audio->rate;
+		case kKplPropertyAudioPreferredBufferSize:      // preferred CHUNK SIZE in samples
+			value->integer = 185;
 			break;
 		case kKplPropertyAudioSamplePosition:
 			value->number = (double)audio->played;
@@ -284,6 +285,9 @@ FskErr KplAudioSetProperty(KplAudio audio, UInt32 propertyID, KplProperty value)
 			audio->volL = (UInt16)value->integers.integer[0];
 			audio->volR = (UInt16)value->integers.integer[1];
 			break;
+        case kKplPropertyAudioRealTime:
+            audio->realTime = value->b;
+            break;
 		default:
 			err = kFskErrUnimplemented;
 			break;
@@ -319,7 +323,7 @@ FskErr KplAudioGetSamplesQueued(KplAudio audio, UInt32 *samplesQueuedOut, UInt32
 	}
 
 	if (targetQueueLengthOut)
-		*targetQueueLengthOut = audio->bufferMin / (2 * audio->channels);
+        *targetQueueLengthOut = audio->realTime ? (185 * 4) : (audio->bufferMin / (2 * audio->channels));
 	return err;
 }
 
@@ -491,7 +495,7 @@ static void KplAudioThread(void* refCon)
 	snd_pcm_t *pcm = NULL;
 	snd_pcm_hw_params_t *hw_params = NULL;
 	snd_pcm_sw_params_t *sw_params = NULL;
-	unsigned int bufferTime = 200000;
+	unsigned int bufferTime = audio->realTime ? 20000 : 200000;
 	unsigned int bufferPeriod = bufferTime / 4;
 	unsigned int rate = audio->rate;
     int status;

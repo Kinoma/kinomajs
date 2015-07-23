@@ -49,12 +49,11 @@
 
 			<variable name="ios" value="true" platform="iphone"/>
 
-			<variable name="modulePath" value="[applicationPath]/bin/modules/" />
-			<variable name="shellPath" value="[applicationPath]bin/mockupShell.jsb" platform="linux/gtk,mac,win"/>
+			<variable name="modulePath" value="[applicationPath]modules/" />
+			<variable name="shellPath" value="[applicationPath]program/mockupShell.jsb" platform="linux/gtk,mac,win"/>
 			<variable name="shellPath" value="[applicationPath]program/deviceShell.jsb" platform="iphone" />
 			<variable name="shellPath" value="[applicationPath]res/raw/kinoma.jet/program/deviceShell.jsb" platform="android" />
 			<variable name="shellPath" value="[applicationPath]program/deviceShell.jsb" platform="linux/bg3cdp,linux/bg2dtv,linux/aspen" />
-			<variable name="debugger" value="[F_HOST]" platform="android,iphone"/>
 		</environment>
 		<debug platform="mac">
 			<debugger url="localhost" />
@@ -68,7 +67,6 @@
 			<font face="Droid Sans" size="12" href="/system/fonts/" os="android" />
 			<font face="Roboto" size="12" href="/system/fonts/" os="android.4" />
 		</ui>
-		<extension href="androidakvm2" build:from="[kinomaExtensions]androidakvm/androidakvm2.mk" platform="android" required="false" />
 		<extension href="androidakvm3" build:from="[kinomaExtensions]androidakvm/androidakvm3.mk" platform="android" required="false" />
 		<extension href="Crypt" build:from="[extensions]crypt/Crypt.mk" platform="mac,iphone,linux,win,android" build:embed="true" build:style="nonembed"/>
 		<extension href="FskJPEGDecode" build:from="[extensions]FskJPEGDecode/FskJPEGDecode.mk" build:embed="true" platform="mac,iphone,linux,win,android"/>
@@ -87,17 +85,17 @@
 	<vm name="kpr" platform="none">
 		<extension href="kpr" build:from="[kpr]/kpr.mk" build:embed="true" />
 	</vm>
+	
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/android" platform="android,iphone,linux,mac,win"/>
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/deviceShell.xml" platform="linux/gtk,mac,win"/>
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/ios" platform="android,iphone,linux,mac,win"/>
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/iphone" platform="android,iphone,linux,mac,win"/>
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/manifest.json" platform="android,iphone,linux,mac,win"/>
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/manifest.xml" platform="android,iphone,linux,mac,win"/>
+	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/mockupShell.xml" platform="android,iphone,linux/aspen,linux/bg2dtv,linux/bg3cdp"/>
 
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls" destinationPath="program" platform="android,iphone,linux/bg3cdp,linux/aspen" />
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls/mockupShell.xml" destinationPath="bin" platform="linux/gtk,mac,win"/>
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/modules" destinationPath="bin/modules" platform="linux/gtk,mac,win" />
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls" destinationPath="bin/program" platform="linux/gtk,mac,win" />
-	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/devices" destinationPath="bin/devices" platform="linux/gtk,mac,win" />
-
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/android" platform="android,iphone,linux,mac,win" />
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/deviceShell.xml" platform="linux/gtk,mac,win" />
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/iphone" platform="android,iphone,linux,mac,win" />
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/manifest.xml" platform="android,iphone,linux,win" />
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/mockup" />
-	<build:exclude path="[F_HOME]/kinoma/kpr/applications/balls/mockupShell.xml" platform="android,iphone,linux/aspen,linux/bg2dtv,linux/bg3cdp" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/applications/balls" destinationPath="program" platform="android,iphone,linux,mac,win"/>
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/modules/fingerprint.png" destinationPath="modules/fingerprint.png" platform="linux/gtk,mac,win" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/modules/mockup" destinationPath="modules/mockup" platform="linux/gtk,mac,win" />
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/simulator/devices" destinationPath="program/devices" platform="linux/gtk,mac,win" />
 </fsk>

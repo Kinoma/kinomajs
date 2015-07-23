@@ -832,80 +832,78 @@ void KPR_style_set_font(xsMachine *the)
 					break;
 				q++;
 			}
-			*q = 0;
 			if (state == 0) {
-				if (!FskStrCompare(p, "100"))
+				if (!FskStrCompareWithLength(p, "100", q - p))
 					{}
-				else if (!FskStrCompare(p, "200"))
+				else if (!FskStrCompareWithLength(p, "200", q - p))
 					{}
-				else if (!FskStrCompare(p, "300"))
+				else if (!FskStrCompareWithLength(p, "300", q - p))
 					{}
-				else if (!FskStrCompare(p, "400"))
+				else if (!FskStrCompareWithLength(p, "400", q - p))
 					textStyle |= kFskTextBold;
-				else if (!FskStrCompare(p, "500"))
+				else if (!FskStrCompareWithLength(p, "500", q - p))
 					textStyle |= kFskTextBold;
-				else if (!FskStrCompare(p, "600"))
+				else if (!FskStrCompareWithLength(p, "600", q - p))
 					textStyle |= kFskTextBold;
-				else if (!FskStrCompare(p, "700"))
+				else if (!FskStrCompareWithLength(p, "700", q - p))
 					textStyle |= kFskTextBold;
-				else if (!FskStrCompare(p, "800"))
+				else if (!FskStrCompareWithLength(p, "800", q - p))
 					textStyle |= kFskTextBold;
-				else if (!FskStrCompare(p, "900"))
+				else if (!FskStrCompareWithLength(p, "900", q - p))
 					textStyle |= kFskTextBold;
-				else if (!FskStrCompare(p, "bold"))
+				else if (!FskStrCompareWithLength(p, "bold", q - p))
 					textStyle |= kFskTextBold;
-				else if (!FskStrCompare(p, "inherit"))
+				else if (!FskStrCompareWithLength(p, "inherit", q - p))
 					{}
-				else if (!FskStrCompare(p, "italic"))
+				else if (!FskStrCompareWithLength(p, "italic", q - p))
 					textStyle |= kFskTextItalic;
-				else if (!FskStrCompare(p, "normal"))
+				else if (!FskStrCompareWithLength(p, "normal", q - p))
 					textStyle = kFskTextPlain;
-				else if (!FskStrCompare(p, "oblique"))
+				else if (!FskStrCompareWithLength(p, "oblique", q - p))
 					textStyle |= kFskTextItalic;
-				else if (!FskStrCompare(p, "small-caps"))
+				else if (!FskStrCompareWithLength(p, "small-caps", q - p))
 					{}
-				else if (!FskStrCompare(p, "underline"))
+				else if (!FskStrCompareWithLength(p, "underline", q - p))
 					textStyle |= kFskTextUnderline;
 				else
 					state = 1;
 			}
 			if (state == 1) {
-				if (!FskStrCompare(p, "xx-small"))
+				if (!FskStrCompareWithLength(p, "xx-small", q - p))
 					textSize = 3 * kFskMediumFontSize / 5;
-				else if (!FskStrCompare(p, "x-small"))
+				else if (!FskStrCompareWithLength(p, "x-small", q - p))
 					textSize = 3 * kFskMediumFontSize / 4;
-				else if (!FskStrCompare(p, "small"))
+				else if (!FskStrCompareWithLength(p, "small", q - p))
 					textSize = 8 * kFskMediumFontSize / 9;
-				else if (!FskStrCompare(p, "medium"))
+				else if (!FskStrCompareWithLength(p, "medium", q - p))
 					textSize = kFskMediumFontSize;
-				else if (!FskStrCompare(p, "large"))
+				else if (!FskStrCompareWithLength(p, "large", q - p))
 					textSize = 6 * kFskMediumFontSize / 5;
-				else if (!FskStrCompare(p, "x-large"))
+				else if (!FskStrCompareWithLength(p, "x-large", q - p))
 					textSize = 3 * kFskMediumFontSize / 2;
-				else if (!FskStrCompare(p, "xx-large"))
+				else if (!FskStrCompareWithLength(p, "xx-large", q - p))
 					textSize = 2 * kFskMediumFontSize;
-				else if (!FskStrCompare(p, "larger"))
+				else if (!FskStrCompareWithLength(p, "larger", q - p))
 					textSize = 6 * kFskMediumFontSize / 5; // @@
-				else if (!FskStrCompare(p, "smaller"))
+				else if (!FskStrCompareWithLength(p, "smaller", q - p))
 					textSize = 8 * kFskMediumFontSize / 9; // @@
 				else {
 					xsStringValue r = p;
 					char d;
 					SInt32 size = 0;
-					while (((d = *r)) && ('0' <= d) && (d <= '9')) {
+					while ((r < q) && ((d = *r)) && ('0' <= d) && (d <= '9')) {
 						size = (10 * size) + (d - '0');
 						r++;
 					}
-					if (!FskStrCompare(r, "%"))
+					if (!FskStrCompareWithLength(r, "%", q - r))
 						textSize = -size;
-					else if (!FskStrCompare(r, "px"))
+					else if (!FskStrCompareWithLength(r, "px", q - r))
 						textSize = size;
 				}
 				state = 2;
 			}
 			if (!c)
 				break;
-			*q = c;
 			p = q;
 		}
 		if (textFont)

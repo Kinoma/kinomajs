@@ -45,9 +45,19 @@
 </platform>
 
 <platform name="iphone">
-	<source name="kprLibraryiOS.m"/>
 	<source name="kprLibraryServer.c"/>
 	<source name="kprProxyServer.c"/>
+</platform>
+
+<platform name="iphone/device">
+	<source name="kprLibraryiOS.m"/>
+</platform>
+<platform name="iphone/simulator">
+	<input name="sqlite"/>
+	<header name="sqlite3.h"/>
+	<source name="sqlite3.c"/>
+	<source name="kprSQLite.c"/>
+	<source name="kprLibrarySQLite.c"/>
 </platform>
 
 </makefile>

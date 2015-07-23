@@ -32,15 +32,12 @@
 #include <android/log.h>
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
-#if FSKBITMAP_OPENGL
-	#include "FskGLBlit.h"
-#endif /* FSKBITMAP_OPENGL */
+#include "FskGLBlit.h"
 
 
 extern FskFBGlobals			fbGlobals;
 extern int					gScreenHeight;
 extern int					gScreenWidth;
-extern int					gUsingBackingAsFramebuffer;
 extern FskPhoneHWInfoRecord	myHWInfo;
 
 extern Boolean gQuitting;
@@ -62,14 +59,10 @@ jint JAVANAME(FskView_setFskSurface)(JNIEnv* env, jobject viewObj, jobject surfa
 		return kFskErrNone;
 	}
 	// was above the fbGlobals check - will we lose "surface" if we hit the case above?
-//	fbGlobals->surface = (void*)env->GetIntField(surfaceObject, so.surface);
 	fbGlobals->surface = theNativeWindow;
-    FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "theNativeWindow is %x\n", theNativeWindow);
+    FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "theNativeWindow/fbGlobals->surface is %x\n", theNativeWindow);
 
-    // FskFrameBufferGrabScreenForDrawing();
 	didLock = (0 ==FskMutexTrylock(fbGlobals->screenMutex));
-
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, " gingerbread - fbGlobals->surface is %x\n", fbGlobals->surface);
 
 	FskWindow win = FskWindowGetActive();
 	int invalidate = 0;
@@ -77,31 +70,11 @@ jint JAVANAME(FskView_setFskSurface)(JNIEnv* env, jobject viewObj, jobject surfa
 	if ((fbGlobals->frameBuffer->bounds.height != gScreenHeight)
 		|| (fbGlobals->frameBuffer->bounds.width != gScreenWidth)) {
 
-		FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, " gingerbread setFskSurface - MDK was going to copy from backing store (%d x %d) but the size is different (%d x %d).\n", gScreenWidth, gScreenHeight, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height);
-
-#if 0
-		JAVANAME(FskView_doSizeAboutToChange)(env, viewObj, fbGlobals->backingBuffer->bounds.width, fbGlobals->backingBuffer->bounds.height, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height);
-
-		gScreenWidth = fbGlobals->frameBuffer->bounds.width;
-		gScreenHeight = fbGlobals->frameBuffer->bounds.height;
-
-		fbGlobals->backingBuffer->bounds.width = gScreenWidth;
-		fbGlobals->backingBuffer->bounds.height = gScreenHeight;
-		fbGlobals->backingBuffer->rowBytes = gScreenWidth * 2;
-
-		invalidate = 1;
-
-		FskWindowAndroidSizeChanged((int)win);	// need this to get AfterResize
-#endif
 	}
 	else {
-		FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "gingerbread setFskSurface - about to copy from backing store (%d x %d).\n",  fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height);
+		FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "gingerbread setFskSurface - NOT about to copy from backing store (%d x %d).\n",  fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height);
 
-		dupeBitmap(fbGlobals->backingBuffer, fbGlobals->frameBuffer, 0);
-
-		FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, " gingerbread setFskSurface orientation %d - done copying backing store bits %x to FB bits %x. %d %d %d %d\n",  myHWInfo.orientation, fbGlobals->backingBuffer->bits, fbGlobals->frameBuffer->bits, fbGlobals->frameBuffer->bounds.x, fbGlobals->frameBuffer->bounds.y, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height);
 		invalidate = 1;
-		gUsingBackingAsFramebuffer = 0;
 	}
 
 	if (invalidate && win) {
@@ -122,36 +95,24 @@ jint JAVANAME(FskView_setFskSurface)(JNIEnv* env, jobject viewObj, jobject surfa
 jint
 JAVANAME(FskView_unsetFskSurface)(JNIEnv* env, jobject viewObj) {
 	FskBitmap fb;
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "gingerbread FskView_unsetFskSurface -- fbGlobals->surface is %x - being set to NULL\n", fbGlobals->surface);
+	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "gingerbread FskView_unsetFskSurface -- fbGlobals->surface is %x\n", fbGlobals->surface);
 
 	if (fbGlobals->surface == NULL)
 		return 0;
-
-	FskFrameBufferGrabScreenForDrawing();
-
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "unsetFskSurface - about to LockSurfaceForReading\n");
-	FskFrameBufferLockSurfaceForReading(&fb);
-	dupeBitmap(fbGlobals->frameBuffer, fbGlobals->backingBuffer, 1);	// replace rowbytes in backbuffer
-	FskFrameBufferUnlockSurfaceForReading(fb);
-
-	fbGlobals->surface = NULL;
-	fbGlobals->frameBuffer->bits = fbGlobals->backingBuffer->bits;
-	gUsingBackingAsFramebuffer = 1;
-
-	FskFrameBufferReleaseScreenForDrawing();
 
 	FskECMAScriptHibernate();
 
 	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "unsetFskSurface - about to release theNativeWindow %x\n", theNativeWindow);
 	if (theNativeWindow)
 		ANativeWindow_release(theNativeWindow);
+
+	fbGlobals->surface = NULL;
 	theNativeWindow = NULL;
 
 	return 1;
 }
 
 
-#if FSKBITMAP_OPENGL
 /********************************************************************************
  * InitGLCallback - to be called from the render thread.
  ********************************************************************************/
@@ -190,7 +151,6 @@ static void ShutdownGLCallback(void *v1, void *v2, void *v3, void *v4) {
 
 	FskNotificationPost(kFskNotificationGLContextLost);
 }
-#endif /* FSKBITMAP_OPENGL */
 
 /********************************************************************************
  * PortResizeCallback
@@ -203,12 +163,12 @@ static void PortResizeCallback(void *v1, void *v2, void *v3, void *v4) {
 	FskGLPortResize(glPort, width, height);
 }
 
+
 /********************************************************************************
  * FskViewGL_setFskSurface
  ********************************************************************************/
 
 jint JAVANAME(FskViewGL_setFskSurface)(JNIEnv* env, jobject viewObj, jobject surfaceObj) {
-#if FSKBITMAP_OPENGL
 	FskWindow		fWin 		= FskWindowGetActive();
 	FskErr			err			= kFskErrNone;
 	FskErr			retErr;
@@ -255,25 +215,9 @@ jint JAVANAME(FskViewGL_setFskSurface)(JNIEnv* env, jobject viewObj, jobject sur
 
 
 	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "FskViewGL_setFskSurface: FskThreadPostCallback(InitGLCallback) returns %d", err);
-#if 0
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "[%p] FskViewGL_setFskSurface: calling FskGLSetNativeWindow", (void*)pthread_self(), env, viewObj, surfaceObj);
-	FskGLSetNativeWindow((void*)theNativeWindow);
-#endif
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "[%p] FskViewGL_setFskSurface successful", (void*)pthread_self());
-
-
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation,"[%p] FskViewGL_setFskSurface - About to call doSizeAboutToChange(%d x %d)\n", (void*)pthread_self(), fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height);
-
-//	JAVANAME(FskView_doSizeAboutToChange)(env, viewObj, fbGlobals->backingBuffer->bounds.width, fbGlobals->backingBuffer->bounds.height, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height);
 
 	gScreenWidth = fbGlobals->frameBuffer->bounds.width;
 	gScreenHeight = fbGlobals->frameBuffer->bounds.height;
-
-	fbGlobals->backingBuffer->bounds.width = gScreenWidth;
-   	fbGlobals->backingBuffer->bounds.height = gScreenHeight;
-   	fbGlobals->backingBuffer->rowBytes = gScreenWidth * 2;
-
-//	FskWindowAndroidSizeChanged((int)fWin);  // need this to get AfterResize
 
     if (fWin) {
         FskRectangleRecord b;
@@ -284,9 +228,6 @@ jint JAVANAME(FskViewGL_setFskSurface)(JNIEnv* env, jobject viewObj, jobject sur
 
 bail:
 	return !err;
-#else /* FSKBITMAP_OPENGL */
-	return 0;
-#endif /* FSKBITMAP_OPENGL */
 }
 
 
@@ -295,7 +236,6 @@ bail:
  ********************************************************************************/
 
 jint JAVANAME(FskViewGL_unsetFskSurface)(JNIEnv* env, jobject viewObj) {
-#if FSKBITMAP_OPENGL
 	FskWindow		fWin 		= FskWindowGetActive();
 	FskThread		drawThread	= fWin->thread;
 
@@ -305,9 +245,6 @@ jint JAVANAME(FskViewGL_unsetFskSurface)(JNIEnv* env, jobject viewObj) {
 	FskThreadPostCallback(drawThread, ShutdownGLCallback, NULL, NULL, NULL, NULL);
 
 	return 1;
-#else /* FSKBITMAP_OPENGL */
-	return 0;
-#endif /* FSKBITMAP_OPENGL */
 }
 
 
@@ -316,75 +253,34 @@ jint JAVANAME(FskViewGL_unsetFskSurface)(JNIEnv* env, jobject viewObj) {
  ********************************************************************************/
 
 jint JAVANAME(FskViewGL_doFskSurfaceChanged)(JNIEnv* env, jobject viewObj, jint width, jint height) {
-#if FSKBITMAP_OPENGL
 	int			retVal;
 	FskGLPort	glPort = FskGLPortGetCurrent();
 
 //FskThreadYield();
 	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "[%p] FskViewGL_doFskSurfaceChanged(%p, %p, %d, %d), port=%p", pthread_self(), env, viewObj, width, height, glPort);
-	if (glPort) {
-		#ifndef CALL_PORTRESIZE_DIERCTLY
-			FskWindow	fWin;
-			FskThread	drawThread;
-			if (NULL != (fWin = FskWindowGetActive())) {
-				drawThread	= fWin->thread;
-				FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation,"FskViewGL_doFskSurfaceChanged calling PortResizeCallback()");
-				FskThreadPostCallback(drawThread, PortResizeCallback, (void*)width, (void*)height, NULL, NULL);
-			} else
-		#endif /* CALL_PORTRESIZE_DIERCTLY */
-		FskGLPortResize(glPort, width, height);
-		if (FskGLPortGetSysContext(glPort) != viewObj) {
-			FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "Changing PortSysContext from %p to %p", FskGLPortGetSysContext(glPort), viewObj);
-			FskGLPortSetSysContext(glPort, viewObj);
-		}
-	}
-	else {
+	if (!glPort) {
 		retVal = FskGLPortNew(width, height, viewObj, &glPort);
 		switch (retVal) {
 			case kFskErrNone:
-				FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation,"GL Port successfully created!");
+				FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation,"\tGL Port successfully created!");
 				break;
 			case kFskErrGraphicsContext:
 				if (glPort) {
-					FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "Created a new GL Port, but there is no EGL context; deferring initialization.");
+					FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tCreated a new GL Port, but there is no EGL context; deferring initialization.");
 					break;
 				}
 				/* fall through */
 			default:
-				FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "Cannot create a new GL Port(%d, %d) err = %d; create an EGL context first.", width, height, retVal);
+				FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tCannot create a new GL Port(%d, %d) err = %d; create an EGL context first.", width, height, retVal);
 				break;
 		}
 		if (glPort)
 			FskGLPortSetCurrent(glPort);
 	}
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "[%p] FskViewGL_doFskSurfaceChanged changed GL port dimensions", pthread_self());
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tFskViewGL_doFskSurfaceChanged calling FskView_doFskSurfaceChanged");
 	retVal = JAVANAME(FskView_doFskSurfaceChanged)(env, viewObj, width, height);
-//	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "[%p] FskView_doFskSurfaceChanged returns %d", pthread_self(), retVal); // always returns 0
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "FskViewGL_doFskSurfaceChanged -- returning");
 	return retVal;
-#else /* FSKBITMAP_OPENGL */
-	return 0;
-#endif /* FSKBITMAP_OPENGL */
-}
-
-
-/****************************************************************************//**
- * Prepare for the size about to change.
- * Class:     com_kinoma_kinomaplay_FskViewGL.
- * Method:    doSizeAboutToChange.
- * Signature: ()I.
- *	\param[in]	env				the Java runtime environment.
- *	\param[in]	viewObj			the FskViewGL object.
- *	\return		1				if successful,
- *	\return		0				if unsuccessful.
- ********************************************************************************/
-
-jint JAVANAME(FskViewGL_doSizeAboutToChange)(JNIEnv* env, jobject viewObj, jint width, jint height, jint newWidth, jint newHeight) {
-#if FSKBITMAP_OPENGL
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "[%p] FskViewGL_doSizeAboutToChange(%p, %p, %d, %d, %d, %d)", (void*)pthread_self(), env, viewObj, width, height, newWidth, newHeight);
-	return JAVANAME(FskView_doSizeAboutToChange)(env, viewObj, width, height, newWidth, newHeight);
-#else /* FSKBITMAP_OPENGL */
-	return 0;
-#endif /* FSKBITMAP_OPENGL */
 }
 
 
@@ -393,7 +289,6 @@ jint JAVANAME(FskViewGL_doSizeAboutToChange)(JNIEnv* env, jobject viewObj, jint 
  ********************************************************************************/
 
 jint JAVANAME(KinomaPlay_doPause)(JNIEnv* env, jclass clazz) {
-#if FSKBITMAP_OPENGL
 	FskErr		err			= kFskErrNone;
 	FskWindow	fWin 		= FskWindowGetActive();
 	FskThread	drawThread;
@@ -406,9 +301,6 @@ jint JAVANAME(KinomaPlay_doPause)(JNIEnv* env, jclass clazz) {
 
 bail:
 	return !err;
-#else /* FSKBITMAP_OPENGL */
-	return 0;
-#endif /* FSKBITMAP_OPENGL */
 }
 
 
@@ -417,7 +309,6 @@ bail:
  ********************************************************************************/
 
 jint JAVANAME(KinomaPlay_doResume)(JNIEnv* env, jclass clazz) {
-#if FSKBITMAP_OPENGL
 	FskErr		err			= kFskErrNone;
 	FskWindow	fWin 		= FskWindowGetActive();
 	FskThread	drawThread;
@@ -440,8 +331,5 @@ jint JAVANAME(KinomaPlay_doResume)(JNIEnv* env, jclass clazz) {
 	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "[%p] KinomaPlay_doResume successful", (void*)pthread_self());
 bail:
 	return !err;
-#else /* FSKBITMAP_OPENGL */
-	return 0;
-#endif /* FSKBITMAP_OPENGL */
 }
 

@@ -242,9 +242,24 @@ FskAPI(unsigned)	FskGLPortSourceTexture(FskConstGLPort port);
 /** Query whether the port represents a GL accelerated destination.
  *	\param[in]	port	the port to be queried.
  *	\return		true	if the port can be used as a GL accelerated destination.
- *	\return		false	oherwise.
+ *	\return		false	otherwise.
  **/
 Boolean			FskGLPortIsDestination(FskConstGLPort port);
+
+
+/** Set whether the port is persistent, i.e. retains its value from frame to frame when used as a destination.
+ *	\param[in]	port	the port to be set.
+ *	\return		kfskErrNone	if the operation was completed successfully.
+ **/
+FskErr			FskGLPortSetPersistent(FskGLPort port, Boolean value);
+
+
+/** Query whether the port is persistent, i.e. retains its value from frame to frame when used as a destination.
+ *	\param[in]	port	the port to be queried.
+ *	\return		true	if the port is persistent.
+ *	\return		false	otherwise.
+ **/
+Boolean			FskGLPortIsPersistent(FskConstGLPort port);
 
 
 /*********************************************************************************
@@ -430,6 +445,17 @@ FskAPI(FskErr)		FskGLUpdateSource(FskConstBitmap bm);
  *	\return			kFskErrNotAccelerated	if the bitmap is not accelerated.
  */
 FskAPI(FskErr)		FskGLUnloadTexture(FskBitmap bm);
+
+
+/** Update the texture of one bitmap with the of another bitmap.
+ *	\param[out]		texBM		the bitmap whose texture is to be updated.
+ *								This should be of the format kFskBitmapFormatGLRGBA.
+ *	\param[in]		bm			initialize the texture from this bitmap.
+ *	\return			kFskErrNone	if the operation was successful.
+ *	\note			It is undefined what will happen if texBM is an accelerated bitmap
+ *					of a format other than kFskBitmapFormatGLRGBA.
+ */
+FskAPI(FskErr)		FskGLUpdateTextureFromBitmap(FskBitmap texBM, FskConstBitmap bm);
 
 
 /*********************************************************************************
@@ -927,6 +953,25 @@ FskAPI(void) FskGLSetAllowNearestBitmap(Boolean allow);
 void FskPrintGLState(void);
 
 
+/** Release GL resources.
+ *	\param[in]	which	OR of { kFskGLResourceTypefaces, kFskGLResourceBackedTextures, kFskGLResourceUnbackedTextures, kFskGLResourceAll }.
+ *	\return		the last GL error, converted to an FskError. This may be caused by a GL call in the remote past, since it is a sticky error.
+ **/
+FskAPI(FskErr) FskGLReleaseResources(UInt32 which);
+
+#define kFskGLResourceTypefaces			(1 << 0)		/**< Typeface textures and bitmaps. */
+#define kFskGLResourceBackedTextures	(1 << 1)		/**< Textures that have a backing bitmap. */
+#define kFskGLResourceUnbackedTextures	(1 << 2)		/**< All textures, including those that do not have a backing bitmap. */
+#define kFskGLResourceAll				((UInt32)(-1))	/**< All resources. */
+
+
+/** Estimate the amount of memory used by textures that we track.
+ *	This is a lower bound, since we assume that 1 byte is allocated for each component.
+ *	\return		the estimate.
+ **/
+FskAPI(UInt32) FskGLEstimateTextureMemoryUsage(void);
+
+
 #ifdef __FSKGLBLIT_PRIV__
 	FskAPI(FskErr)			FskGLBindBMTexture(FskConstBitmap bm, int wrap, int filter);
 	FskAPI(FskErr)			FskGLBitmapTextureTargetSet(FskBitmap bm);
@@ -991,11 +1036,13 @@ void FskPrintGLState(void);
 	#define FskGLPortGetSize(port,width,height)														(GL_TRACE_LOG("FskGLPortGetSize"),					FskGLPortGetSize(port,width,height))
 	#define FskGLPortGetSysContext(port)															(GL_TRACE_LOG("FskGLPortGetSysContext"),			FskGLPortGetSysContext(port))
 	#define FskGLPortIsDestination(port)															(GL_TRACE_LOG("FskGLPortIsDestination"),			FskGLPortIsDestination(port))
+	#define FskGLPortIsPersistent(p)																(GL_TRACE_LOG("FskGLPortIsPersistent"),				FskGLPortIsPersistent(p))
 	#define FskGLPortNew(width,height,sysContext,port)												(GL_TRACE_LOG("FskGLPortNew"),						FskGLPortNew(width,height,sysContext,port))
 	#define FskGLPortPixelsRead(glPort,backBuffer,FsrcRect,dstBM)									(GL_TRACE_LOG("FskGLPortPixelsRead"),				FskGLPortPixelsRead(glPort,backBuffer,FsrcRect,dstBM))
 	#define FskGLPortResize(port,width,height)														(GL_TRACE_LOG("FskGLPortResize"),					FskGLPortResize(port,width,height))
 	#define FskGLPortResizeTexture(glPort,glFormat,width,height)									(GL_TRACE_LOG("FskGLPortResizeTexture"),			FskGLPortResizeTexture(glPort,glFormat,width,height))
 	#define FskGLPortSetCurrent(p)																	(GL_TRACE_LOG("FskGLPortSetCurrent"),				FskGLPortSetCurrent(p))
+	#define FskGLPortSetPersistent(p,v)																(GL_TRACE_LOG("FskGLPortSetPersistent"),			FskGLPortSetPersistent(p,v))
 	#define FskGLPortSetSysContext(port,sysContext)													(GL_TRACE_LOG("FskGLPortSetSysContext"),			FskGLPortSetSysContext(port,sysContext))
 	#define FskGLPortSourceTexture(port)															(GL_TRACE_LOG("FskGLPortSourceTexture"),			FskGLPortSourceTexture(port))
 	#define FskGLPortSwapBuffers(port)																(GL_TRACE_LOG("FskGLPortSwapBuffers"),				FskGLPortSwapBuffers(port))

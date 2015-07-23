@@ -75,4 +75,6 @@ FskErr KprWebSocketServerNew(KprWebSocketServer* it, void *refCon);
 void KprWebSocketServerDispose(KprWebSocketServer self);
 FskErr KprWebSocketServerListen(KprWebSocketServer self, int port, char *interfaceName);
 
+UInt16 KprWebSocketServerGetPort(KprWebSocketServer self);
+
 #endif

@@ -58,7 +58,8 @@ void xs_audio_init(xsMachine* the)
     xsAudio a;
     SInt32 sampleRate = xsToInteger(xsGet(xsThis, xsID("sampleRate")));
     SInt32 channels = xsToInteger(xsGet(xsThis, xsID("channels")));
-    char *direction = xsToString(xsGet(xsThis, xsID("direction")));
+    const char *direction = xsToString(xsGet(xsThis, xsID("direction")));
+    Boolean realTime = xsToBoolean(xsGet(xsThis, xsID("realTime")));
 
     if (xsGetHostData(xsThis))
         xsThrowDiagnosticIfFskErr(kFskErrBadState, "Audio pin already initialized.", kFskErrBadState);
@@ -79,11 +80,17 @@ void xs_audio_init(xsMachine* the)
     }
     else
     if (0 == FskStrCompare(direction, "output")) {
+        FskMediaPropertyValueRecord realTimeProperty;
+
         err = FskSndChannelNew(&a->sndChan, 0, kFskAudioFormatPCM16BitLittleEndian, 0);
         if (err) goto bail;
 
         err = FskSndChannelSetFormat(a->sndChan, kFskAudioFormatPCM16BitLittleEndian, NULL, channels, sampleRate, NULL, 0);
         if (err) goto bail;
+
+        realTimeProperty.type = kFskMediaPropertyTypeBoolean;
+        realTimeProperty.value.b = realTime;
+        FskSndChannelSetProperty(a->sndChan, kFskMediaPropertyRealTime, &realTimeProperty);
 
         FskSndChannelSetDoneCallback(a->sndChan, audioOutBlockDone, a);
         FskSndChannelSetMoreCallback(a->sndChan, audioOutMore, a);
@@ -197,7 +204,7 @@ FskErr audioOutMore(FskSndChannel sndChan, void *refCon, SInt32 requestedSamples
     xsAudio a = refCon;
 
 	if (a->poller)
-		KprPinsPollerRun(a->poller);       // untested!
+		KprPinsPollerRun(a->poller);
 
     return kFskErrNone;
 }

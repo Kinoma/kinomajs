@@ -313,14 +313,12 @@ FskAPI(FskFixed)	FskFixedNRatio(FskFixed x, FskFixed num, FskFixed den, SInt32 n
 /** Fixed point 16.16 square root.
  *	\param[in]	a	The argument, in 16.16 fixed point format.
  *	\return			The square root, in 16.16 fixed point format.
- *					If the argument was negative, the result has the sign bit set to indicate imaginary.
  */
 FskAPI(FskFixed)	FskFixSqrt( FskFixed a);
 
 /** Fixed point fractional 2.30 square root.
  *	\param[in]	a	The argument, in 2.30 fixed point format.
  *	\return			The square root, in 2.30 fixed point format.
- *					If the argument was negative, the result has the sign bit set to indicate imaginary.
  */
 FskAPI(FskFract)	FskFracSqrt(FskFract a);
 
@@ -328,24 +326,24 @@ FskAPI(FskFract)	FskFracSqrt(FskFract a);
  *	\param[in]	a	The argument, in (32-n).n fixed point format.
  *	\param[in]	n	The number of fractional bits must be even.
  *	\return			The square root, in (32-n).n fixed point format.
- *					If the argument was negative, the result has the sign bit set to indicate imaginary.
  */
 FskAPI(FskFixed)	FskFixedNSqrt(FskFixed a, SInt32 n);
 
 /** Integer square root.
  * The result is rounded to the nearest integer.
- *	\param[in]	x	The argument, a 64-bit integer.
- *	\return			The square root, a 32-bit integer.
- *					If the argument was negative, the result has the sign bit set to indicate imaginary.
+ * The result is undefined if the most significant 2 bits of the argument are not 0.
+ *	\param[in]	x	The argument, a 62-bit integer.
+ *	\return			The square root, a 31-bit integer.
  */
 FskAPI(FskFixed)	FskFixedSqrt64to32(FskInt64 x);
 
 /** Compute the hypotenuse of a right triangle, or the magnitude of a 2-vector.
  *	\param[in]	x	The x-coordinate.
  *	\param[in]	y	The y-coordinate.
- *	\return			The square root, with the same number of fractional bits that the coordinates have.
+ *	\return			The hypotenuse, with the same number of fractional bits that the coordinates have.
  */
 FskAPI(FskFixed)	FskFixedHypot(FskFixed x, FskFixed y);
+
 
 
 /*
@@ -356,7 +354,7 @@ FskAPI(FskFixed)	FskFixedHypot(FskFixed x, FskFixed y);
 /** Compute the cosine and sine of an angle.
  * The accuracy is approximately 20 bits.
  * \param[in]	theta		The angle, in degrees, with 16 fractional bits.
- * \param[out]	cosineSine	A pointer to a location to successively store the compute cosine and sine.
+ * \param[out]	cosineSine	A pointer to a location to successively store the computed cosine and sine.
  */
 FskAPI(void)	FskFracCosineSine(FskFixedDegrees theta, FskFract *cosineSine);
 
@@ -512,13 +510,20 @@ FskAPI(FskFixed)	FskFixedVectorNorm(const FskFixed *v, SInt32 n);
  * \param[in]		n	The length of the vector.
  * \return				The norm of the original vector.
  */
-FskAPI(FskFract)	FskFixedVectorNormalize( FskFract *v, SInt32 n);
+FskAPI(FskFract)	FskFixedVectorNormalize(FskFract *v, SInt32 n);
+
+/** Normalize a 2D vector.
+ * \param[in,out]	v	On input, the vector, given any number of fractional bits.
+ *						On output, the normalized vector, with 30 fractional bits.
+ * \return				The norm of the original vector.
+ */
+FskAPI(FskFract)	FskFixedVector2DNormalize(FskFract *v);
 
 /** Inline Euclidean norm of a 2-vector.
  * \param[in]	a	Pointer to a 2-vector, such as FskFixedVector2D.
  * \return			The L2, Euclidean norm of the vector.
  */
-#define				FskFixedVectorNorm2D(a)	FskFixedSqrt64to32((FskInt64)((a)->x) * (a)->x + (FskInt64)((a)->y) * (a)->y)
+#define				FskFixedVectorNorm2D(a)	FskFixedHypot((a)->x, (a)->y)
 
 
 /*

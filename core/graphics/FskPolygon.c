@@ -632,7 +632,7 @@ DrawDashSegment(DashBuddy *db, const FskFixedPoint2D *pt)
 	UInt32					nPts;
 	const FskFixedPoint2D	*pts;
 
-	if (pt != NULL)	FskGrowableArrayAppendItem(db->ptArray, pt);									/* Append last point before drawing */
+	if (pt != NULL)	(void)FskGrowableArrayAppendItem(db->ptArray, pt);								/* Append last point before drawing */
 	if ((nPts = FskGrowableArrayGetItemCount(db->ptArray)) > 1) {									/* If there are at least two points, draw the polyline */
 		FskGrowableArrayGetConstPointerToItem(db->ptArray, 0, (const void**)(const void*)(&pts));	/* Get points */
 		FskFramePolyLine(nPts, pts, db->strokeWidth, db->jointSharpness, db->endCaps, &db->frameColor.so, db->M, db->quality, db->clipRect, db->dstBM);
@@ -665,7 +665,7 @@ DashNextSegment(DashBuddy *db, const FskFixedPoint2D *pt)
 		deltaPhase = db->thisPhaseSegment[1] - db->dashPhase;															/* Phase change since the last state change */
 		t = FskFracDiv(deltaPhase, segPhase);		q.x += FskFracMul(t, v.x);		q.y += FskFracMul(t, v.y);			/* Compute location of next transition */
 		if ((i = FskGrowableArrayGetItemCount(db->ptArray)) > 0)	DrawDashSegment(db, &q);							/* ON transitioning to OFF: end and draw this dash segment */
-		else														FskGrowableArrayAppendItem(db->ptArray, &q);		/* OFF transition to ON: add the start point */
+		else														(void)FskGrowableArrayAppendItem(db->ptArray, &q);	/* OFF transition to ON: add the start point */
 		if (++(db->thisPhaseSegment) >= db->resetSegmentPhase) {														/* Advance phase segment... */
 			db->thisPhaseSegment = db->dashSegmentPhases;																/* ... and reset if at the end of the phase period */
 			endPhase -= db->dashPeriod;																					/* The end is getting closer */
@@ -768,7 +768,7 @@ FrameDashedPolyLine(
 		DashNextSegment(&dashBuddy, pts -= nPts);           /* Draw closing segment, if desired */
 		smidge.x = pts[1].x - pts[0].x;
 		smidge.y = pts[1].y - pts[0].y;
-		FskFixedVectorNormalize(&smidge.x, 2);
+		FskFixedVector2DNormalize(&smidge.x);
 		smidge.x = ((smidge.x + (1 << (30 - 15 - 1))) >> (30 - 15)) + pts[0].x;					/* Extend another 1/2 pixel */
 		smidge.y = ((smidge.y + (1 << (30 - 15 - 1))) >> (30 - 15)) + pts[0].y;
 		DashNextSegment(&dashBuddy, &smidge);

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleExecutable</key>
+	<string>fsk</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.kinoma.xsbug</string>
+	<key>CFBundleVersion</key>
+	<string>6.0.0</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleName</key>
+	<string>xsbug</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>xsbg</string>
+	<key>CFBundleIconFile</key>
+	<string>fsk.icns</string>
+	<key>CFBundleShortVersionString</key>
+	<string>xsbug 6.0.0</string>
+	<key>CFBundleGetInfoString</key>
+	<string>xsbug 6.0.0 Copyright © 2015 Marvell Semiconductor, Inc.</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeOSTypes</key>
+			<array>
+				<string>****</string>
+			</array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+		</dict>
+	</array>
+</dict>
+</plist>

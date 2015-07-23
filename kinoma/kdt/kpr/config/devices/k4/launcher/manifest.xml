@@ -16,8 +16,7 @@
 |     limitations under the License.
 -->
 <fsk xmlns="http://www.kinoma.com/Fsk/1" xmlns:build="http://www.kinoma.com/Fsk/manifest/1">
-    <c option="-DmxDebug=1" />
-    <c option="-DmxProfile=1" />
+    <xsdebug enabled="true" />
     <rootvm>
         <environment>
             <variable name="KDT_HOME" value="[F_HOME]/kinoma/kdt/" platform="build" />
@@ -58,8 +57,6 @@
 			
 			<variable name="defaultValidationPreferences" value="defaultsMockup.json" platform="win,mac"/>
 			<variable name="defaultValidationPreferences" value="defaults.json" platform="linux"/>
-            
-            <variable name="hwpModulePath" value="device"/>
             
             <variable name="PICVersion" value="7"/>
             <variable name="PICsNeedUpdate" value="false"/>
@@ -120,6 +117,8 @@
         <extension href="kprPins" build:from="[kinomaExtensions]kpr/extensions/pins/kprPins.mk" />
 		<extension href="kprWiFi" build:from="[kinomaExtensions]kpr/extensions/wifi/kprWiFi.mk" platform="linux,mac"/>
         <extension href="kprWebSocket" build:from="[kinomaExtensions]kpr/extensions/websocket/kprWebSocket.mk"/>
+        <extension href="kprCoAP" build:from="[kinomaExtensions]kpr/extensions/coap/kprCoAP.mk"/>
+        <extension href="kprMQTT" build:from="[kinomaExtensions]kpr/extensions/mqtt/kprMQTT.mk"/>
 		<extension href="kprK4" build:from="[kinomaExtensions]kpr/extensions/k4/kprK4.mk"/>
         <extension href="k4validation" build:from="[kinomaExtensions]kpr/extensions/k4validation/k4validation.mk"/>
 		<extension href="kprBrowser" build:from="[kinomaExtensions]kpr/extensions/browser/kprBrowser.mk" platform="mac,iphone,android"/>

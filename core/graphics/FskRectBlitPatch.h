@@ -14,6 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+/**
+	\file	FskRectBlitPatch.h
+	\brief	API for patching Rectangular Blits.
+*/
 #ifndef __FSKRECTBLITPATCH__
 #define __FSKRECTBLITPATCH__
 

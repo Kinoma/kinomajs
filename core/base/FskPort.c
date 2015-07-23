@@ -110,7 +110,6 @@ struct FskPortVectorsRecord gRenderPort = {
     nopGetBitmap
 };
 
-
 FskErr FskPortNew(FskPort *portOut, FskBitmap bits, const char *textEngine)
 {
 	FskErr err;
@@ -163,7 +162,7 @@ FskErr FskPortDispose(FskPort port)
 			FskTextEngineDispose(port->textEngine);
             FskMemPtrDispose(port->picSave);
 			#if FSKBITMAP_OPENGL
-				FskGLEffectCacheDispose(port->effCache);
+				FskGLEffectCacheDisposeAllBitmaps();
 			#endif
 			FskMemPtrDispose(port);
 		}
@@ -803,7 +802,7 @@ static FskErr EffectPostCompositePrepare(FskPort port, void *params, UInt32 para
 	if (paramsSize) {}	/* Quiet unused parameter messages */
 	FskPortEffectCheckSourcesAreAccelerated(portEffect->src, &portEffect->effect);
 	(void)FskPortEffectGetSrcCompatibleGLCacheBitmap(port, portEffect->src, &portEffect->srcRect, flags, &mid1);	/* Just the rect */
-	err = FskGLEffectApply(&portEffect->effect, portEffect->src, &portEffect->srcRect, mid1, NULL, port->effCache);	/* This takes care of boundary conditions */
+	err = FskGLEffectApply(&portEffect->effect, portEffect->src, &portEffect->srcRect, mid1, NULL);					/* This takes care of boundary conditions */
     FskBitmapDispose(portEffect->src);																				/* This merely decreases the useCount */
 	portEffect->src = mid1;																							/* The src is now just the rect */
 	return err;
@@ -819,7 +818,7 @@ static FskErr EffectTmpCompositeRender(FskPort port, void *params, UInt32 params
 	if (paramsSize) {}	/* Quiet unused parameter messages */
 	FskRectangleSet(&dstRect, portEffect->dstPoint.x, portEffect->dstPoint.y, portEffect->src->bounds.width, portEffect->src->bounds.height);
 	err = FskGLBitmapDraw(portEffect->src, &portEffect->src->bounds, port->bits, &dstRect, &port->aggregateClipScaled, &port->penColor, port->graphicsMode, port->graphicsModeParameters);
-	FskGLEffectCacheReleaseBitmap(port->effCache, portEffect->src);											/* Done with intermediate bitmap */
+	FskGLEffectCacheReleaseBitmap(portEffect->src);																	/* Done with intermediate bitmap */
 	return err;
 }
 
@@ -1321,8 +1320,7 @@ void FskPortPurge(void *refcon)
 
     FskMemPtrDisposeAt(&port->picSave);
 #if FSKBITMAP_OPENGL
-    (void)FskGLEffectCacheDispose(port->effCache);
-    port->effCache = NULL;
+    (void)FskGLEffectCacheDisposeAllBitmaps();
 #endif
 }
 
@@ -2626,10 +2624,7 @@ FskErr renderEndDrawing(FskPort port)
     FskBitmap bits = port->bits;
 #if FSKBITMAP_OPENGL
     if (FskBitmapIsOpenGLDestinationAccelerated(bits)) {
-        if (port->effCache && --port->effCacheExpired <= 0) {		/* If the effects cache has not been used for a while, ... */
-            (void)FskGLEffectCacheDispose(port->effCache);			/* ... dispose of it, to free up resources. */
-            port->effCache = NULL;
-        }
+    	(void)FskGLEffectCacheCountDown();			/* If the effects cache has not been used for a while, dispose of it, to free up resources. */
         if (port->window)
             FskGLPortDefocus(bits->glPort);
     }
@@ -2903,7 +2898,7 @@ void renderEffectApply(FskPort port, FskBitmap src, FskConstRectangle srcRect, F
 		FskPortRectScale(port, &dRect);
 #if FSKBITMAP_OPENGL && GLES_VERSION == 2
         if (FskBitmapIsOpenGLDestinationAccelerated(dst))
-            (void)FskGLEffectApply(&pEffect->effect, pEffect->src, &pEffect->srcRect, dst, &pEffect->dstPoint, port->effCache);
+            (void)FskGLEffectApply(&pEffect->effect, pEffect->src, &pEffect->srcRect, dst, &pEffect->dstPoint);
         else
 #endif
 		{	FskRectangleRecord dstRect;	/* SW case. GL case goes through another path */

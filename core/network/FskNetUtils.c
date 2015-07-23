@@ -523,7 +523,7 @@ FskErr FskNetSocketGetRemoteAddress(FskSocket skt, UInt32 *fromIP, int *fromPort
 // ---------------------------------------------------------------------
 FskErr FskNetSocketGetLocalAddress(FskSocket skt, UInt32 *IP, int *port)
 {
-	if (skt->ipaddrLocal) {
+	if (skt->ipaddrLocal && skt->portLocal) {
 		if (IP)		*IP = skt->ipaddrLocal;
 		if (port)	*port = skt->portLocal;
 		return kFskErrNone;
@@ -1393,8 +1393,8 @@ FskErr FskNetSocketMulticastJoin(FskSocket skt, int multicastAddr, int interface
 }
 
 FskErr FskNetSocketMulticastLoop(FskSocket skt, char val) {
-#if !TARGET_OS_KPL
 	int err;
+#if !TARGET_OS_KPL
 	{
 	err = setsockopt(skt->platSkt, IPPROTO_IP, IP_MULTICAST_LOOP, (char*)&val, sizeof(val));
 	if (err == 0)

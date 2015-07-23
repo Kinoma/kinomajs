@@ -122,12 +122,10 @@ extern int gTESelectionStart;
 extern int gTESelectionEnd;
 extern int gTEIgnoreChanged;
 
-Boolean gLastIME = false;
+int gLastIME = 0;
 
 char *doFetchContacts(int style);
-void androidSetTransitionState(int state);
-extern int gAndroidTransitionState;
-extern int gPendingIMEEnable;
+//void androidSetTransitionState(int state);
 
 FskCondition jniRespCond = NULL;
 FskMutex jniRespMutex = NULL;
@@ -195,6 +193,13 @@ static jmethodID methodID_librarySaveImage;
 
 static jmethodID methodID_setContinuousDrawing;
 
+static jmethodID methodID_doWifiGetNetId;
+static jmethodID methodID_doWifiGetIpAddress;
+static jmethodID methodID_doWifiGetSsid;
+static jmethodID methodID_doWifiUpdateNetwork;
+static jmethodID methodID_doWifiSelectNetworkById;
+static jmethodID methodID_doWifiGetScanResults;
+
 static jobject gPlay2AndroidObject;
 const char *kPlay2AndroidPath = JAVACLASS_PLAY2ANDROID;
 static JavaVM *gJavaVM;
@@ -208,6 +213,10 @@ extern char *staticIMEI;
 extern char *staticUUID;
 extern int baseTimeSeconds;
 extern int baseTimeUseconds;
+
+int android1224 = -1;
+void myGetOS1224(SInt8 *twelve24);
+void myGetDisplayTZ(char **tzName);
 
 extern UInt32 gWindowUpdateInterval;
 
@@ -435,7 +444,7 @@ jint JAVANAME(KinomaPlay_callFskInt)( JNIEnv* env, jobject thiz, jint what, jint
 			result = usingOpenGL;
 			break;
 		case kSetKeyboardState:
-			gLastIME = val ? true : false;
+			gLastIME = val;
 			break;
 	}
 	return result;
@@ -514,11 +523,19 @@ void initJNI() {
 	methodID_webviewCanForward = getMethodID(gKinomaPlayClass, "webviewCanForward", "(I)I");
 
 	methodID_libraryThumbnail = getMethodID(gKinomaPlayClass, "libraryThumbnail", "(Ljava/lang/String;IZ)Landroid/graphics/Bitmap;");
+
 	methodID_libraryFetch = getMethodID(gKinomaPlayClass, "libraryFetch", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;");
 	methodID_libraryGetSongPath = getMethodID(gKinomaPlayClass, "getAlbumSongContentPath", "(II)Ljava/lang/String;");
 	methodID_librarySaveImage = getMethodID(gKinomaPlayClass, "saveImage", "([B)V");
 
 	methodID_setContinuousDrawing = getMethodID(gKinomaPlayClass, "setContinuousDrawing", "(Z)V");
+   
+    methodID_doWifiGetNetId = getMethodID(gKinomaPlayClass, "doWifiGetNetId", "()I");
+    methodID_doWifiGetIpAddress = getMethodID(gKinomaPlayClass, "doWifiGetIpAddress", "()I");
+    methodID_doWifiGetSsid = getMethodID(gKinomaPlayClass, "doWifiGetSsid", "()Ljava/lang/String;");
+    methodID_doWifiUpdateNetwork = getMethodID(gKinomaPlayClass, "doWifiUpdateNetwork", "(Ljava/lang/String;Ljava/lang/String;)I");
+    methodID_doWifiSelectNetworkById = getMethodID(gKinomaPlayClass, "doWifiSelectNetworkById", "(I)V");
+    methodID_doWifiGetScanResults = getMethodID(gKinomaPlayClass, "doWifiGetScanResults", "()Ljava/lang/String;");
 }
 
 
@@ -540,7 +557,7 @@ jint JAVANAME(KinomaPlay_callFsk)( JNIEnv* env, jobject thiz, jint what, jstring
 			return err;
 			break;
 		case kJNIIdleFsk:
-			FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "before androidFskThreadRunloopCycle");
+//			FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "before androidFskThreadRunloopCycle");
 			androidFskThreadRunloopCycle(0, &gMainWaitReturnTime);
 
 			if (gQuitting)
@@ -666,6 +683,9 @@ int PreInit() {
 	myCallbacks.getDPICB = androidGetDPI;
 	myCallbacks.getLanguageCB = myGetLanguage;
 	myCallbacks.getBasetimeCB = myGetBasetime;
+	myCallbacks.getOS1224CB = myGetOS1224;
+	myCallbacks.getDisplayTZ = myGetDisplayTZ;
+
 	myCallbacks.launchDocumentCB = doLaunchDocument;
 	myCallbacks.jniControlCB = androidJNIControl;
 	myCallbacks.jniFetchCB = androidJNIFetch;
@@ -717,7 +737,6 @@ int PreInit() {
 
 	myCallbacks.afterWindowResizeCB = androidAfterWindowResize;
 	myCallbacks.getMidWindowResizeCB = androidMidWindowResize;
-	myCallbacks.setTransitionStateCB = androidSetTransitionState;
 
 	myCallbacks.getStaticDataDirCB = androidGetStaticDataDir;
 	myCallbacks.getStaticExternalDirCB = androidGetStaticExternalDir;
@@ -764,6 +783,13 @@ int PreInit() {
 	myCallbacks.librarySaveImageCB = androidLibrarySaveImage;
 
 	myCallbacks.getRandomCB = androidGetRandomNumber;
+  
+    myCallbacks.androidWifiGetNetId = androidWifiGetNetId;
+    myCallbacks.androidWifiGetSsid = androidWifiGetSsid;
+    myCallbacks.androidWifiGetIpAddress = androidWifiGetIpAddress;
+    myCallbacks.androidWifiUpdateNetwork = androidWifiUpdateNetwork;
+    myCallbacks.androidWifiSelectNetworkById = androidWifiSelectNetworkById;
+    myCallbacks.androidWifiGetScanResults = androidWifiGetScanResults;
 
 	myCallbacks.setContinuousDrawingCB = doSetContinuousDrawing;
 	myCallbacks.getContinuousDrawingUpdateIntervalCB = doGetContinuousDrawingUpdateInterval;
@@ -1122,8 +1148,8 @@ char *doFetchApps(int style) {
 	if ((NULL == lastApps) || (appsCookie != curCookie)) {
 		curCookie = appsCookie;
 
-		FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "doFetchApps - trying to acquire jniRespMutex");
-		FskMutexAcquire(jniRespMutex);
+        FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "doFetchApps - trying to acquire jniRespMutex");
+        FskMutexAcquire(jniRespMutex);
 		FskThreadPostCallback(FskThreadGetMain(), (void*)androidFskContactsCB, (void*)8, (void*)style, (void*)&resp, NULL);
 		FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "doFetchApps - posted callback, waiting for response");
 		if (!gQuitting) {
@@ -1152,6 +1178,173 @@ char *doFetchAppIcon(char *packageName, int iconNo) {
 	}
 	FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "doFetchAppIcon got %x", resp);
 	return resp;
+}
+
+FskErr androidFskWifiCB(void *a, void *b, void *c, void *d) {
+    int what;
+    int * netId;
+    int * ipAddress;
+    
+    FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "androidFskWifiCB - trying to acquire jniRespMutex");
+    FskMutexAcquire(jniRespMutex);
+    FskConditionSignal(jniRespCond);
+    
+    if (NULL == gEnv) {
+        goto bail;
+    }
+    
+    what = (int)a;
+    switch (what) {
+        case 1:
+            netId = (int *)b;
+            *netId = (*gEnv)->CallIntMethod(gEnv, gKinomaPlayObject, methodID_doWifiGetNetId);
+            break;
+        case 2:
+            ipAddress = (int *)b;
+            *ipAddress = (*gEnv)->CallIntMethod(gEnv, gKinomaPlayObject, methodID_doWifiGetIpAddress);
+            break;
+        case 3:
+        {
+            char ** ssid = (char **)b;
+            jstring jresult;
+            jresult = (*gEnv)->CallObjectMethod(gEnv, gKinomaPlayObject, methodID_doWifiGetSsid);
+            if (jresult) {
+                FskMemPtr tmp;
+                int len = (*gEnv)->GetStringLength(gEnv, jresult);
+
+                FskMemPtrNew((len + 1) * 2, &tmp);
+                (*gEnv)->GetStringRegion(gEnv, jresult, 0, len, (jchar *)tmp);
+                tmp[len * 2] = '\0';
+                (void)FskTextUnicode16LEToUTF8(tmp, len * 2, ssid, NULL);
+                FskMemPtrDispose(tmp);
+                //FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "ssid = %s", *ssid);
+                
+                (*gEnv)->DeleteLocalRef(gEnv, jresult);
+            }
+            break;
+        }
+        case 4:
+        {
+            jstring jssid, jkey;
+            
+            netId = (int *)b;
+            jssid = (*gEnv)->NewStringUTF(gEnv, (char *)c);
+            jkey = (*gEnv)->NewStringUTF(gEnv, (char *)d); 
+            *netId = (*gEnv)->CallIntMethod(gEnv, gKinomaPlayObject, methodID_doWifiUpdateNetwork, jssid, jkey);
+            break;
+        }
+        case 5:
+        {
+            netId = (int *)b;
+            (*gEnv)->CallVoidMethod(gEnv, gKinomaPlayObject, methodID_doWifiSelectNetworkById, *netId);
+            break;
+        }
+        case 6:
+        {
+            char ** scanResults = (char **)b;
+            jstring jresult;
+            jresult = (*gEnv)->CallObjectMethod(gEnv, gKinomaPlayObject, methodID_doWifiGetScanResults);
+            if (jresult) {
+                FskMemPtr tmp;
+                int len = (*gEnv)->GetStringLength(gEnv, jresult);
+
+                FskMemPtrNew((len + 1) * 2, &tmp);
+                (*gEnv)->GetStringRegion(gEnv, jresult, 0, len, (jchar *)tmp);
+                tmp[len * 2] = '\0';
+                (void)FskTextUnicode16LEToUTF8(tmp, len * 2, scanResults, NULL);
+                FskMemPtrDispose(tmp);
+                
+                (*gEnv)->DeleteLocalRef(gEnv, jresult);
+            }
+            break;
+        }
+        
+        
+    }
+    
+bail:
+	FskMutexRelease(jniRespMutex);
+	return kFskErrNone;
+}
+
+int androidWifiGetNetId() {
+    int netId = -1;
+
+    FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "androidWifiGetNetId - trying to acquire jniRespMutex");
+    FskMutexAcquire(jniRespMutex);
+    FskThreadPostCallback(FskThreadGetMain(), (void*)androidFskWifiCB, (void*)1, (void*)&netId, NULL, NULL);
+    if (!gQuitting) {
+    	FskConditionWait(jniRespCond, jniRespMutex);
+    	FskMutexRelease(jniRespMutex);
+    }
+
+    return netId;
+}
+
+int androidWifiGetIpAddress() {
+    int ipAddress = 0;
+
+    FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "androidWifiGetIpAddress - trying to acquire jniRespMutex");
+    FskMutexAcquire(jniRespMutex);
+    FskThreadPostCallback(FskThreadGetMain(), (void*)androidFskWifiCB, (void*)2, (void*)&ipAddress, NULL, NULL);
+    if (!gQuitting) {
+    	FskConditionWait(jniRespCond, jniRespMutex);
+    	FskMutexRelease(jniRespMutex);
+    }
+
+    return ipAddress;
+}
+
+char* androidWifiGetSsid() {
+    FskMemPtr ssid = NULL;
+
+    FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "androidWifiGetSsid - trying to acquire jniRespMutex");
+    FskMutexAcquire(jniRespMutex);
+    FskThreadPostCallback(FskThreadGetMain(), (void*)androidFskWifiCB, (void*)3, (void*)&ssid, NULL, NULL);
+    if (!gQuitting) {
+    	FskConditionWait(jniRespCond, jniRespMutex);
+    	FskMutexRelease(jniRespMutex);
+    }
+
+    return ssid;
+}
+
+int androidWifiUpdateNetwork(const char* ssid, const char* key) {
+    int netId = -1;
+
+    FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "androidWifiUpdateNetwork - trying to acquire jniRespMutex");
+    FskMutexAcquire(jniRespMutex);
+    FskThreadPostCallback(FskThreadGetMain(), (void*)androidFskWifiCB, (void*)4, (void*)&netId, (void *)ssid, (void *)key);
+    if (!gQuitting) {
+    	FskConditionWait(jniRespCond, jniRespMutex);
+    	FskMutexRelease(jniRespMutex);
+    }
+
+    return netId;
+}
+
+void androidWifiSelectNetworkById(int netId) {
+    FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "androidWifiSelectNetworkById - trying to acquire jniRespMutex");
+    FskMutexAcquire(jniRespMutex);
+    FskThreadPostCallback(FskThreadGetMain(), (void*)androidFskWifiCB, (void*)5, (void*)&netId, NULL, NULL);
+    if (!gQuitting) {
+    	FskConditionWait(jniRespCond, jniRespMutex);
+    	FskMutexRelease(jniRespMutex);
+    }
+}
+
+char* androidWifiGetScanResults() {
+    FskMemPtr scanResults = NULL;
+
+    FskInstrumentedTypePrintfDebug(&gAndroidMainBlockTypeInstrumentation, "androidWifiGetScanResults - trying to acquire jniRespMutex");
+    FskMutexAcquire(jniRespMutex);
+    FskThreadPostCallback(FskThreadGetMain(), (void*)androidFskWifiCB, (void*)6, (void*)&scanResults, NULL, NULL);
+    if (!gQuitting) {
+    	FskConditionWait(jniRespCond, jniRespMutex);
+    	FskMutexRelease(jniRespMutex);
+    }
+
+    return scanResults;
 }
 
 FskErr androidFskContactsCB(void *a, void *b, void *c, void *d) {
@@ -1361,7 +1554,6 @@ bail:
 	return kFskErrNone;
 }
 
-
 //---------------------------------------------
 
 int gPendingSetKbdSelection = 0;
@@ -1371,11 +1563,12 @@ int gPendingSetKbdSelectionEnd = 0;
 FskErr androidTweakKeyboardSelection(UInt32 selBegin, UInt32 selEnd) {
 	FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "androidTweakKeyboardSelection  %d %d (old: %d %d)",  selBegin, selEnd, gTESelectionStart, gTESelectionEnd);
 
-	if ((gTESelectionStart == selBegin)
-		&& (gTESelectionEnd == selEnd)) {
-			FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "androidTweakKeyboardSelection - same selection - do nothing");
-	}
-	else {
+//	if ((gTESelectionStart == selBegin)
+//		&& (gTESelectionEnd == selEnd)) {
+//			FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "androidTweakKeyboardSelection - same selection - do nothing");
+//	}
+//	else {
+	{
 		if (fbGlobals->midSizeChange) {
 			FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "- is midSizeChange %d - delay set selection: %d %d", fbGlobals->midSizeChange, selBegin, selEnd);
 
@@ -1449,8 +1642,10 @@ FskErr androidIMECallback(void *a, void *b, void *c, void *d) {
 			break;
 		case 2:
 			FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "doIMEEnable %d", (int)b);
-			gTESelectionStart = -1;
-			gTESelectionEnd = -1;
+			if (b < 2) {
+				gTESelectionStart = -1;
+				gTESelectionEnd = -1;
+			}
 			(*gEnv)->CallVoidMethod(gEnv, gKinomaPlayObject, methodID_doIMEEnable, (int)b);
 			break;
 
@@ -1492,6 +1687,9 @@ FskErr androidIMECallback(void *a, void *b, void *c, void *d) {
 			gTESelectionStart = (UInt32)b;
 			gTESelectionEnd = (UInt32)c;
 
+			// force keyboard up. bypass check for whether we think the keyboard is up already. This fixes coolpad Sogou_IME keyboard dismiss problem.
+			(*gEnv)->CallVoidMethod(gEnv, gKinomaPlayObject, methodID_doIMEEnable, (int)2);
+
 			FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "do set selection begin %d, end %d", gTESelectionStart, gTESelectionEnd);
 			(*gEnv)->CallVoidMethod(gEnv, gKinomaPlayObject, methodID_doSetKeyboardSelection, gTESelectionStart, gTESelectionEnd);
 			} break;
@@ -1527,17 +1725,14 @@ FskErr androidIMECallback(void *a, void *b, void *c, void *d) {
 }
 
 void JAVANAME(KinomaPlay_setIMEEnabled)(JNIEnv *env, jclass clazz, jint enabled) {
-	if (enabled)
-		gLastIME = true;
-	else
-		gLastIME = false;
+	gLastIME = enabled;
 }
 
-Boolean doIsIMEEnabled() {
+int doIsIMEEnabled() {
 	return gLastIME;
 }
 
-Boolean realdoIsIMEEnabled() {
+int realdoIsIMEEnabled() {
 	int resp;
 
 	if (gPendingSizeChange || fbGlobals->midSizeChange) {
@@ -1551,18 +1746,18 @@ Boolean realdoIsIMEEnabled() {
 		FskConditionWait(jniRespCond, jniRespMutex);
 		FskMutexRelease(jniRespMutex);
 	}
-	FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "doIsIMEEnabled got %s", resp ? "true" : "false");
-	gLastIME = resp ? true : false;
+	FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "doIsIMEEnabled got %d", resp);
+	gLastIME = resp;
 	return gLastIME;
 }
 
-void doIMEEnable(Boolean enable) {
-	if (gAndroidTransitionState) {
-		gPendingIMEEnable = enable ? 1 : 0;
+void doIMEEnable(int enable) {
+	if (gLastIME == enable) {
+		fprintf(stderr, " ---- same - bail out\n");
 		return;
 	}
 
-	FskThreadPostCallback(FskThreadGetMain(), (void*)androidIMECallback, (void*)2, (void*)(enable ? 1 : 0), NULL, NULL);
+	FskThreadPostCallback(FskThreadGetMain(), (void*)androidIMECallback, (void*)2, (void*)(enable), NULL, NULL);
 }
 
 int androidSystemBarHeight() {
@@ -1792,6 +1987,10 @@ void androidWakeMain() {
 
 	FskThread self = FskThreadGetCurrent();
 	FskInstrumentedTypePrintfDebug(&gAndroidJNITypeInstrumentation, "androidWakeMain");
+	if (self == FskThreadGetMain()) {
+		FskThreadGetMain()->wakePending = 0;
+		return;
+	}
 
     if (!self->jniEnv) {
 		jmethodID	cbMethod;
@@ -1924,6 +2123,31 @@ void myGetBasetime(int *s, int *usec) {
 	*usec = baseTimeUseconds;
 }
 
+
+void JAVANAME(KinomaPlay_setAndroid1224)(JNIEnv* env, jobject thiz, jint twelve24) {
+fprintf(stderr, "setAndroid1224 - %d\n", twelve24);
+    android1224 = twelve24;
+}
+
+void myGetOS1224(SInt8 *twelve24) {
+fprintf(stderr, "myGetOS1224 - %d\n", android1224);
+	*twelve24 = android1224;
+}
+
+static char androidTZ[32];
+void JAVANAME(KinomaPlay_setAndroidTZ)(JNIEnv* env, jobject thiz, jstring tzName) {
+	const char *tz = (*env)->GetStringUTFChars(env, tzName, 0);
+	int len = strlen(tz);
+	len = (len >= 31)? 31: len;
+	strncpy(androidTZ, tz, len);
+	androidTZ[len] = 0;
+	(*env)->ReleaseStringUTFChars(env, tzName, tz);
+}
+
+void myGetDisplayTZ(char **tzName) {
+	if(tzName)
+		*tzName = androidTZ;
+}
 
 int myGetCardStatus() {
 	return androidJNIFetch(JNIFETCH_SD_MOUNTED, 0);

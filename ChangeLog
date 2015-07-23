@@ -1,0 +1,33 @@
+2015-07-23
+
+Source:
+- EcmaScript 6 added
+- coap added
+	kinoma/kpr/extensions/coap
+- mqtt added
+	kinoma/kpr/extensions/mqtt
+- pins library added
+	kinoma/kpr/libraries/Pins
+- kinoma-mp3-ipp added
+- Audio - realtime
+- freetype updated to version 2.6
+- reduce memory footprint of GL textures
+
+- mouse wheel support for MacOS
+
+- android
+	keyboard improvement - reduce some flashes when exposing and hiding the keyboard
+	remove non-GL rendering - improves clarity of android interface code
+- kFskPhonePropertyTimeDisplayMode
+	to determine the phone's 12/24 display preference
+- GetTimeZone
+- GetWiFi information
+- Better handling of fallback fonts
+
+kpr:
+- KprToneGenerator
+- HTTP.Server
+- allow text input field type (to change keyboard type)
+- better text layout
+
+----

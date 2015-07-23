@@ -18,8 +18,15 @@ list(APPEND sources ${F_HOME}/build/linux/kpl/KplAudioLinuxALSA.c)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+pkg_check_modules(GLIB2 REQUIRED glib-2.0)
 
 include_directories(${GTK3_INCLUDE_DIRS})
 link_directories(${GTK3_LIBRARY_DIRS})
 
-set(EXTRA_LIBS ${GTK3_LIBRARIES})
+include_directories(${GLIB2_INCLUDE_DIRS})
+link_directories(${GLIB2_LIBRARY_DIRS})
+
+set(EXTRA_LIBS ${GTK3_LIBRARIES} ${GLIB2_LIBRARIES})
+
+enable_language(ASM)
+enable_language(ASM_WMMX)

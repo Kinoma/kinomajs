@@ -24,8 +24,14 @@
 		<then>
 			<property name="fsk.manifest" value="${f_home}/kinoma/kpr/applications/balls/manifest.xml" />
 
+			<pathconvert targetos="unix" property="fsk.manifest.absolute">
+				<path location="${fsk.manifest}" />
+			</pathconvert>
+
+			<var name="fsk.manifest" value="${fsk.manifest.absolute}" />
+
 			<propertyregex  property="app.name"
-					input="${fsk.manifest}"
+					input="${fsk.manifest.absolute}"
 					regexp=".*/([^/]*)/manifest.xml"
 					select="\1"
 					defaultValue="undefined" />
@@ -39,13 +45,27 @@
 
 	<dirname property="kpr.application.path" file="${fsk.manifest}" />
 
+	<if>
+		<available file="${kpr.application.path}/build.properties" />
+		<then>
+			<var file="${kpr.application.path}/build.properties" />
+		</then>
+	</if>
+
+	<available property="local.cmakelists" file="${kpr.application.path}/CMakeLists.txt" />
+
 	<getmanifestvar name="manifest.version" variable="VERSION" />
 	<getmanifestvar name="manifest.name" variable="NAME" />
+	<getmanifestvar name="kpr.binary.name" variable="KPR_BINARY_NAME" />
 	<getmanifestvar name="manifest.namespace" variable="NAMESPACE" />
+
+	<property name="manifest.remoteNotification" value="0"/>
+	<getmanifestvar name="manifest.remoteNotification" variable="remoteNotification" />
 
 	<!-- Allow for variable defaults -->
 	<property name="manifest.name" value="${app.name}" />
 	<property name="manifest.namespace" value="com.marvell.kinoma.${app.name}" />
+	<property name="kpr.binary.name" value="${manifest.name}" />
 
 	<propertyregex property="manifest.namespace.java"
 			input="${manifest.namespace}"
@@ -105,51 +125,61 @@
 	</target>
 
 	<target name="cmake-build" depends="load-defaults,config,package">
-		<cmake srcdir="${build.tmp}"
-				bindir="${cmake.dir}"
-				cmakeonly="true">
-			<variable name="APP_NAME" value="${app.name}" />
-			<variable name="MANIFEST" value="${fsk.manifest.absolute}" />
-			<variable name="MANIFEST_NAME" value="${manifest.name}" />
-			<variable name="KPR_APPLICATION" value="${manifest.namespace.app.name}" />
-			<variable name="BUILD_BIN" value="${build.bin}" />
-			<variable name="BUILD_TMP" value="${build.tmp}" />
-			<variable name="F_HOME" value="${f_home}" />
-			<variable name="TARGET_PLATFORM" value="${target.platform}" />
-			<variable name="TARGET_SUBPLATFORM" value="${target.subplatform}" />
-			<variable name="CONFIG_BASEDIR" value="${config.basedir}" />
-			<variable name="XS_HOME" value="${xs_home}" />
-			<variable name="XSC" value="${xs.tools.xsc}" />
-			<variable name="KPRCONFIG" value="${xs.tools.config}" />
-			<variable name="KPRCONFIG_OPTIONS" value="${xs.tools.config.options}" />
-			<variable name="XS_DEBUG" value="${xs.tools.config.${build.type}}" />
-			<variable name="KPR2JS" value="${xs.tools.kpr2js}" />
-			<variable name="CMAKE_GENERATOR" value="${cmake.generator}" />
-			<variable name="CMAKE_BUILD_TYPE" value="${build.type}" />
-			<variable name="FREETYPE_VERSION" value="${freetype.version}" />
-			<generator name="${cmake.generator}" buildargs="${build.args}" platform="android">
-				<variable name="CMAKE_TOOLCHAIN_FILE" value="${toolchain.file}" />
-				<variable name="ANDROID_NATIVE_API_LEVEL" value="${android.native.api.level}" />
-				<variable name="ANDROID_NDK" value="${env.ANDROID_NDK}" />
-				<variable name="ANDROID_NDK_HOST_X64" value="${ANDROID_NDK64}" />
-				<variable name="NDK_PROJECT_PATH" value="${ndk.project.path}" />
-				<variable name="ANT_BUILD_TYPE" value="${ant.build.type}" />
-				<variable name="FSK_JAVA_NAMESPACE" value="${manifest.namespace.java}" />
-			</generator>
-			<generator name="${cmake.generator}" buildargs="${build.args}" platform="iphone">
-				<variable name="CMAKE_TOOLCHAIN_FILE" value="${toolchain.file}" />
-				<variable name="IOS_PLATFORM" value="${ios.platform}" />
-				<variable name="KPR_PATCH_PATH" value="${kpr.patch.path}" />
-				<variable name="CODESIGN_ID" value="${codesign.id}" />
-				<variable name="MANIFEST_NAMESPACE" value="${manifest.namespace}" />
-				<variable name="SDK_MIN" value="${version.minimum}" />
-			</generator>
-			<generator name="${cmake.generator}" buildargs="${build.args}" platform="linux">
-				<variable name="CMAKE_TOOLCHAIN_FILE" value="${toolchain.file}" />
-				<variable name="CMAKE_INSTALL_PREFIX" value="${build.bin}" />
-			</generator>
-			<generator name="${cmake.generator}" buildargs="${build.args}" />
-		</cmake>
+		<if>
+			<not>
+				<available file="${build.tmp}/cmake.done" />
+			</not>
+			<then>
+				<cmake srcdir="${build.tmp}"
+					bindir="${cmake.dir}"
+					cmakeonly="true">
+					<variable name="APP_NAME" value="${app.name}" />
+					<variable name="MANIFEST" value="${fsk.manifest.absolute}" />
+					<variable name="MANIFEST_NAME" value="${manifest.name}" />
+					<variable name="KPR_APPLICATION" value="${manifest.namespace.app.name}" />
+					<variable name="BUILD_BIN" value="${build.bin}" />
+					<variable name="BUILD_TMP" value="${build.tmp}" />
+					<variable name="F_HOME" value="${f_home}" />
+					<variable name="TARGET_PLATFORM" value="${target.platform}" />
+					<variable name="TARGET_SUBPLATFORM" value="${target.subplatform}" />
+					<variable name="CONFIG_BASEDIR" value="${config.basedir}" />
+					<variable name="XS_HOME" value="${xs_home}" />
+					<variable name="XSC" value="${xs.tools.xsc}" />
+					<variable name="BUILD_TYPE" value="${build.type}" />
+					<variable name="KPRCONFIG" value="${xs.tools.config}" />
+					<variable name="KPRCONFIG_OPTIONS" value="${xs.tools.config.options}" />
+					<variable name="XS_DEBUG" value="${xs.tools.config.${build.type}}" />
+					<variable name="KPR2JS" value="${xs.tools.kpr2js}" />
+					<variable name="CMAKE_GENERATOR" value="${cmake.generator}" />
+					<variable name="FREETYPE_VERSION" value="${freetype.version}" />
+					<variable name="KPR_BINARY_NAME" value="${kpr.binary.name}" />
+					<generator name="${cmake.generator}" buildargs="${build.args}" platform="android">
+						<variable name="CMAKE_TOOLCHAIN_FILE" value="${toolchain.file}" />
+						<variable name="ANDROID_NATIVE_API_LEVEL" value="${android.native.api.level}" />
+						<variable name="ANDROID_NDK" value="${env.ANDROID_NDK}" />
+						<variable name="ANDROID_NDK_HOST_X64" value="${ANDROID_NDK64}" />
+						<variable name="NDK_PROJECT_PATH" value="${ndk.project.path}" />
+						<variable name="ANT_BUILD_TYPE" value="${ant.build.type}" />
+						<variable name="FSK_JAVA_NAMESPACE" value="${manifest.namespace.java}" />
+						<variable name="ANDROID_STL" value="${android.stl}" />
+					</generator>
+					<generator name="${cmake.generator}" buildargs="${build.args}" platform="iphone">
+						<variable name="CMAKE_TOOLCHAIN_FILE" value="${toolchain.file}" />
+						<variable name="IOS_PLATFORM" value="${ios.platform}" />
+						<variable name="KPR_PATCH_PATH" value="${kpr.patch.path}" />
+						<variable name="CODESIGN_ID" value="${codesign.id}" />
+						<variable name="MANIFEST_NAMESPACE" value="${manifest.namespace}" />
+						<variable name="SDK_MIN" value="${version.minimum}" />
+					</generator>
+					<generator name="${cmake.generator}" buildargs="${build.args}" platform="linux">
+						<variable name="CMAKE_TOOLCHAIN_FILE" value="${toolchain.file}" />
+						<variable name="CMAKE_INSTALL_PREFIX" value="${build.bin}" />
+					</generator>
+					<generator name="${cmake.generator}" buildargs="${build.args}" />
+				</cmake>
+				<touch file="${build.tmp}/cmake.done" />
+			</then>
+		</if>
 		<if>
 			<equals arg1="${cmake.only}" arg2="false" />
 			<then>
@@ -159,12 +189,17 @@
 			</then>
 		</if>
 	</target>
-	
+
 	<target name="app-clean" depends="load-defaults">
 		<delete dir="${build.bin}" />
 		<delete dir="${build.tmp}" />
 	</target>
 
+	<target name="platform-clean" depends="load-defaults">
+		<delete dir="${f_home}/bin/${target.platform}${target.subplatform}" />
+		<delete dir="${f_home}/tmp/${target.platform}${target.subplatform}" />
+	</target>
+	
 	<target name="main" depends="cmake-build">
 	</target>
 </project>

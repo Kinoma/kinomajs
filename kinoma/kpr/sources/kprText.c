@@ -193,7 +193,7 @@ FskErr KprTextNew(KprText* it,  KprCoordinates coordinates, KprSkin skin, KprSty
 	self = *it;
 	FskInstrumentedItemNew(self, NULL, &KprTextInstrumentation);
 	self->dispatch = &KprTextDispatchRecord;
-	self->flags = kprContainer | kprClip | kprVisible;
+	self->flags = kprContainer | kprVisible;
 	KprContentInitialize((KprContent)self, coordinates, skin, style);
 	KprTextBegin(self);
     if (text)
@@ -404,7 +404,7 @@ FskErr KprTextEnd(KprText self)
 		KprTextDumpBlock(self);
 #endif
 	if (self->shell) {
-		self->textWidth = 0;
+		self->textWidth = -1;
 		self->textHeight = 0;
 		KprTextCascadeStyles(self);
 		KprContentReflow((KprContent)self, kprSizeChanged);
@@ -538,7 +538,7 @@ FskErr KprTextInsertStringWithLength(KprText self, char* text, SInt32 size)
 //bail:
 	if (self->shell) {
 		KprContentInvalidate((KprContent)self);
-		self->textWidth = 0;
+		self->textWidth = -1;
 		self->textHeight = 0;
 		KprContentReflow((KprContent)self, kprSizeChanged);
 		KprShellAdjust(self->shell); // do it now to format the selection
@@ -597,7 +597,7 @@ void KprTextCascade(void* it, KprStyle style)
 	KprContentCascade(it, style);
 	if (self->blockBuffer)
 		KprTextCascadeStyles(self);
-	self->textWidth = 0;
+	self->textWidth = -1;
 	self->textHeight = 0;
 	KprContentReflow(it, kprSizeChanged);
 }
@@ -629,7 +629,7 @@ void KprTextDraw(void* it, FskPort port, FskRectangle area)
 	if (self->skin)
 		KprSkinFill(self->skin, port, &bounds, self->variant, self->state, self->coordinates.horizontal, self->coordinates.vertical);
 	FskPortGetPenColor(port, &color);
-	if ((self->flags & kprTextSelectable) && KprContentIsFocus((KprContent)self)) {
+	if ((self->flags & kprTextSelectable) || KprContentIsFocus((KprContent)self)) {
 		if (self->selectionBuffer) {
 			if (self->from == self->to) {
 				FskGrowableArrayGetItem(self->selectionBuffer, 0, (void *)&bounds);
@@ -687,7 +687,47 @@ void KprTextFitHorizontally(void* it)
 	}
 	else {
 		self->port = self->shell->port;
-		KprTextFormat(self, self->bounds.width, &height);
+		if ((self->coordinates.horizontal != kprLeftRight) && !(self->coordinates.horizontal & kprWidth)) {
+			if (self->textWidth < 0) {
+				KprTextFormat(self, 0x7FFF, &height);
+				if (self->lineBuffer) {
+					KprTextLine line;
+					SInt32 width = 0;
+					FskGrowableArrayGetPointerToItem(self->lineBuffer, 0, (void **)&line);
+					while (line->count >= 0) {
+						if (width < line->width)
+							width = line->width;
+						line = line + 1 + line->count;
+					}
+					self->bounds.width = width;
+				}
+				if (self->flags & kprTextEditable) {
+					if (height == 0) {
+						FskRectangleRecord bounds;
+						KprStyleMeasure(self->style, "dp", &bounds);
+						height = bounds.height;
+					}
+					if (self->bounds.width == 0)
+						self->bounds.width = 2;
+				}
+			}
+			else {
+				height = self->textHeight;
+				self->bounds.width = self->textWidth;
+			}
+		}
+		else {	
+			KprTextFormat(self, self->bounds.width, &height);
+			if (self->flags & kprTextEditable) {
+				if (height == 0) {
+					FskRectangleRecord bounds;
+					KprStyleMeasure(self->style, "dp", &bounds);
+					height = bounds.height;
+				}
+				if (self->bounds.width == 0)
+					self->bounds.width = 2;
+			}
+		}
 		self->port = NULL;
 		self->textWidth = self->bounds.width;
 		self->textHeight = height;
@@ -1079,7 +1119,7 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 	char *text;
 	KprTextBlock block;
 	KprStyle style;
-	SInt32 limitOffset, startOffset, stopOffset, firstOffset, offset = 0, lastOffset;
+	SInt32 startOffset, stopOffset, firstOffset, offset = 0, lastOffset;
 	SInt32 blockX, blockWidth, breakWidth, textWidth;
 	FskRectangleRecord lineBounds = {0, 0, 0, 0};
 	UInt32 lineCount;
@@ -1098,129 +1138,35 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 	c = FskGrowableArrayGetItemCount(self->blockBuffer);
 	if (c < kprTextRunCount) c = kprTextRunCount;
 	bailIfError(FskGrowableArrayNew(sizeof(KprTextRunRecord), (c * sizeof(KprTextRunRecord)), &(self->lineBuffer)));
-	
+
 	FskGrowableStorageGetPointerToItem(self->textBuffer, 0, (void **)&text);
 	FskGrowableArrayGetPointerToItem(self->blockBuffer, 0, (void **)&block);
-	limitOffset = self->textOffset - 1;
-	if (limitOffset) {
-		while (block->offset < limitOffset) {
-			style = block->style;
-			lineCount = style->lineCount;
-			blockX = style->margins.left;
-			blockWidth = theWidth - style->margins.left - style->margins.right;
-			lineBounds.x = blockX + style->indentation;
-			lineBounds.width = blockWidth - style->indentation;
-			lineBounds.y += style->margins.top;
-			KprTextAdjustLineBounds(self, &lineBounds);
-			startOffset = stopOffset = block->offset;
-			breakWidth = 0;
-			textWidth = 0;
-			c = block->count;
-			startRun = stopRun = run = (KprTextRun)(block + 1);
-			for (i = 0; i < c; i++) {
-				if (run->span.length >= 0) {
-					KprTextSetStyle(self, run->span.style);
-					firstOffset = offset = run->span.offset;
-					lastOffset = (run + 1)->span.offset;
-					while (offset < lastOffset) {
-						if (KprTextIsSpaceAdvance(text + offset, &advance) || KprTextIsReturn(text + offset, advance) || KprTextIsMultibyteBoundary(text, offset)) {
-							if (firstOffset < offset) {
-								textWidth += KprTextGetTextWidth(self, text + firstOffset, offset - firstOffset);
-								firstOffset = offset;
-							}
-							if (lineBounds.width < breakWidth + textWidth) {
-								lineCount--; 
-								if (lineCount == 0) {
-									block += 1 + c;
-									KprTextFormatLine(self, text, style, true, &startOffset, block->offset, &startRun, run, &lineBounds, blockX, blockWidth);
-									textWidth = 0;
-									goto next;
-								}
-								if (breakWidth) {
-									KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
-									KprTextSetStyle(self, run->span.style);
-									breakWidth = 0;
-								}
-								if (lineBounds.width < textWidth) {
-									KprTextFormatLines(self, text, style, false, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth, &textWidth); // @@ lineCount ?
-									KprTextSetStyle(self, run->span.style);
-									breakWidth = 0;
-								}
-							}
-							if (KprTextIsReturn(text + offset, advance)) {
-								KprTextFormatLine(self, text, style, true, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth);
-								lineBounds.y += style->margins.bottom;
-								lineBounds.x = blockX + style->indentation;
-								lineBounds.width = blockWidth - style->indentation;
-								lineBounds.y += style->margins.top;
-								KprTextAdjustLineBounds(self, &lineBounds);
-								startOffset = stopOffset = firstOffset = offset + advance;
-								breakWidth = 0;
-								textWidth = 0;
-								startRun = run;
-								lineCount--; 
-								if (lineCount == 0)  {
-									block += 1 + c;
-									goto next;
-								}
-								KprTextSetStyle(self, run->span.style);
-							}
-							else {
-								breakWidth += textWidth;
-								textWidth = 0;
-								stopOffset = offset;
-							}
-							stopRun = run;
+
+	while (block->count >= 0) {
+		style = block->style;
+		lineCount = style->lineCount;
+		blockX = style->margins.left;
+		blockWidth = theWidth - style->margins.left - style->margins.right;
+		lineBounds.x = blockX + style->indentation;
+		lineBounds.width = blockWidth - style->indentation;
+		lineBounds.y += style->margins.top;
+		KprTextAdjustLineBounds(self, &lineBounds);
+		startOffset = stopOffset = block->offset;
+		breakWidth = 0;
+		textWidth = 0;
+		c = block->count;
+		startRun = stopRun = run = (KprTextRun)(block + 1);
+		for (i = 0; i < c; i++) {
+			if (run->span.length >= 0) {
+				KprTextSetStyle(self, run->span.style);
+				firstOffset = offset = run->span.offset;
+				lastOffset = (run + 1)->span.offset;
+				while (offset < lastOffset) {
+					if (KprTextIsSpaceAdvance(text + offset, &advance) || KprTextIsReturn(text + offset, advance) || KprTextIsMultibyteBoundary(text, offset)) {
+						if (firstOffset < offset) {
+							textWidth += KprTextGetTextWidth(self, text + firstOffset, offset - firstOffset);
+							firstOffset = offset;
 						}
-						offset += advance;
-					}
-					if (firstOffset < offset)
-						textWidth += KprTextGetTextWidth(self, text + firstOffset, offset - firstOffset);
-				}
-				else {
-					FskRectangle bounds = &(run->item.content->bounds);
-					KprCoordinates coordinates = &(run->item.content->coordinates);
-					bounds->width = coordinates->width;
-					bounds->height = coordinates->height;
-					if (run->item.adjustment >= kprTextFloatLeft) {
-						if (lineBounds.width < breakWidth + textWidth) {
-							 // @@ lineCount ?
-							if (breakWidth) {
-								KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
-								breakWidth = 0;
-							}
-						}
-						breakWidth += textWidth;
-						textWidth = coordinates->width;
-						stopOffset = offset;
-						stopRun = run;
-						if (lineBounds.width < breakWidth + textWidth) {
-							 // @@ lineCount ?
-							if (breakWidth) {
-								KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
-								breakWidth = 0;
-							}
-						}
-						textWidth = 0;
-						stopOffset = offset;
-						stopRun = run;
-						bailIfError(FskGrowableArrayAppendItem(self->stateBuffer, (void *)run));
-						self->stateIndex++;
-						if (run->item.adjustment == kprTextFloatLeft) {
-							bounds->y = lineBounds.y;
-							bounds->x = 0;
-							lineBounds.x += bounds->width;
-							lineBounds.width -= bounds->width;
-						}
-						else {
-							bounds->y = lineBounds.y;
-							bounds->x = theWidth - bounds->width;
-							lineBounds.width -= bounds->width;
-						}
-						run->item.content->flags |= kprVisible;
-					}
-					else {
-						textWidth += bounds->width;
 						if (lineBounds.width < breakWidth + textWidth) {
 							lineCount--; 
 							if (lineCount == 0) {
@@ -1231,76 +1177,159 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 							}
 							if (breakWidth) {
 								KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
-								//KprTextSetStyle(self, run->span.style);
+								KprTextSetStyle(self, run->span.style);
 								breakWidth = 0;
 							}
 							if (lineBounds.width < textWidth) {
 								KprTextFormatLines(self, text, style, false, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth, &textWidth); // @@ lineCount ?
-								//KprTextSetStyle(self, run->span.style);
+								KprTextSetStyle(self, run->span.style);
 								breakWidth = 0;
 							}
+						}
+						if (KprTextIsReturn(text + offset, advance)) {
+							KprTextFormatLine(self, text, style, true, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth);
+							lineBounds.y += style->margins.bottom;
+							lineBounds.x = blockX + style->indentation;
+							lineBounds.width = blockWidth - style->indentation;
+							lineBounds.y += style->margins.top;
+							KprTextAdjustLineBounds(self, &lineBounds);
+							startOffset = stopOffset = firstOffset = offset + advance;
+							breakWidth = 0;
+							textWidth = 0;
+							startRun = run;
+							lineCount--; 
+							if (lineCount == 0)  {
+								block += 1 + c;
+								goto next;
+							}
+							KprTextSetStyle(self, run->span.style);
+						}
+						else {
 							breakWidth += textWidth;
 							textWidth = 0;
 							stopOffset = offset;
-							stopRun = run;
 						}
+						stopRun = run;
+					}
+					offset += advance;
+				}
+				if (firstOffset < offset) {
+					textWidth += KprTextGetTextWidth(self, text + firstOffset, offset - firstOffset);
+					if (lineBounds.width < breakWidth + textWidth) {
+						KprTextFormatLines(self, text, style, false, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth, &textWidth); // @@ lineCount ?
+						KprTextSetStyle(self, run->span.style);
+						breakWidth = 0;
+						breakWidth += textWidth;
+						textWidth = 0;
+						stopOffset = offset;
+						stopRun = run;
 					}
 				}
-				run++;
 			}
-			if (lineBounds.width < breakWidth + textWidth) {
-				lineCount--; 
-				if (lineCount == 0) {
-					block += 1 + c;
-					KprTextFormatLine(self, text, style, true, &startOffset, block->offset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
+			else {
+				FskRectangle bounds = &(run->item.content->bounds);
+				KprCoordinates coordinates = &(run->item.content->coordinates);
+				bounds->width = coordinates->width;
+				bounds->height = coordinates->height;
+				if (run->item.adjustment >= kprTextFloatLeft) {
+					if (lineBounds.width < breakWidth + textWidth) {
+						 // @@ lineCount ?
+						if (breakWidth) {
+							KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
+							breakWidth = 0;
+						}
+					}
+					breakWidth += textWidth;
+					textWidth = coordinates->width;
+					stopOffset = offset;
+					stopRun = run;
+					if (lineBounds.width < breakWidth + textWidth) {
+						 // @@ lineCount ?
+						if (breakWidth) {
+							KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
+							breakWidth = 0;
+						}
+					}
 					textWidth = 0;
-					goto next;
+					stopOffset = offset;
+					stopRun = run;
+					bailIfError(FskGrowableArrayAppendItem(self->stateBuffer, (void *)run));
+					self->stateIndex++;
+					if (run->item.adjustment == kprTextFloatLeft) {
+						bounds->y = lineBounds.y;
+						bounds->x = 0;
+						lineBounds.x += bounds->width;
+						lineBounds.width -= bounds->width;
+					}
+					else {
+						bounds->y = lineBounds.y;
+						bounds->x = theWidth - bounds->width;
+						lineBounds.width -= bounds->width;
+					}
+					run->item.content->flags |= kprVisible;
 				}
-				if (breakWidth) {
-					KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
-					breakWidth = 0;
-				}
-				if (lineBounds.width < textWidth) {
-					KprTextFormatLines(self, text, style, false, &startOffset, offset, &startRun, stopRun, &lineBounds, blockX, blockWidth, &textWidth); // @@ lineCount ?
-					breakWidth = 0;
+				else {
+					if (lineBounds.width >= breakWidth + textWidth) {
+						breakWidth += textWidth;
+						textWidth = 0;
+						stopOffset = offset;
+					}
+					textWidth += bounds->width;
+					if (lineBounds.width < breakWidth + textWidth) {
+						lineCount--; 
+						if (lineCount == 0) {
+							block += 1 + c;
+							KprTextFormatLine(self, text, style, true, &startOffset, block->offset, &startRun, run, &lineBounds, blockX, blockWidth);
+							textWidth = 0;
+							goto next;
+						}
+						if (breakWidth) {
+							KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
+							//KprTextSetStyle(self, run->span.style);
+							breakWidth = 0;
+						}
+						if (lineBounds.width < textWidth) {
+							KprTextFormatLines(self, text, style, false, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth, &textWidth); // @@ lineCount ?
+							//KprTextSetStyle(self, run->span.style);
+							breakWidth = 0;
+						}
+					}
+					breakWidth += textWidth;
+					textWidth = 0;
+					stopOffset = offset;
+					stopRun = run;
 				}
 			}
-			breakWidth += textWidth;
-			textWidth = 0;
-			block += 1 + c;
-			if (breakWidth)
-				KprTextFormatLine(self, text, style, 1, &startOffset, block->offset, &startRun, (KprTextRun)block - 1, &lineBounds, blockX, blockWidth);
-next:
-			lineBounds.y += style->margins.bottom;
+			run++;
 		}
-	}
-	else {
-		KprTextLineRecord aLineRecord;
-		KprTextRunRecord runRecord;
-		FskTextFontInfoRecord fontInfo;
-		style = block->style;
-		KprTextSetStyle(self, style);
-		FskPortGetFontInfo(self->port, &fontInfo);
-		aLineRecord.y = (short)style->margins.top;
-		aLineRecord.ascent = (UInt16)fontInfo.ascent;
-		aLineRecord.descent = (UInt16)fontInfo.descent;
-		aLineRecord.x = (short)(style->margins.left + style->indentation);
-		aLineRecord.width = 0;
-		aLineRecord.portion = 0;
-		aLineRecord.slop = 0;
-		aLineRecord.count = 1;
-		bailIfError(FskGrowableArrayAppendItem(self->lineBuffer, (void *)&aLineRecord));
-		runRecord.span.offset = 0;
-		runRecord.span.length = 0;
-		runRecord.span.style = style;
-		runRecord.span.link = NULL;
-		bailIfError(FskGrowableArrayAppendItem(self->lineBuffer, (void *)&runRecord));
-		lineBounds.y = style->margins.top + aLineRecord.ascent + aLineRecord.descent + fontInfo.leading + style->margins.bottom;
-		self->lineCount = 0;
+		if (lineBounds.width < breakWidth + textWidth) {
+			lineCount--; 
+			if (lineCount == 0) {
+				block += 1 + c;
+				KprTextFormatLine(self, text, style, true, &startOffset, block->offset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
+				textWidth = 0;
+				goto next;
+			}
+			if (breakWidth) {
+				KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
+				breakWidth = 0;
+			}
+			if (lineBounds.width < textWidth) {
+				KprTextFormatLines(self, text, style, false, &startOffset, offset, &startRun, stopRun, &lineBounds, blockX, blockWidth, &textWidth); // @@ lineCount ?
+				breakWidth = 0;
+			}
+		}
+		breakWidth += textWidth;
+		textWidth = 0;
+		block += 1 + c;
+		if (breakWidth)
+			KprTextFormatLine(self, text, style, 1, &startOffset, block->offset, &startRun, (KprTextRun)block - 1, &lineBounds, blockX, blockWidth);
+next:
+		lineBounds.y += style->margins.bottom;
 	}
 	{
 		KprTextLineRecord aLineRecord;
-		aLineRecord.y = (short)lineBounds.y;
+		aLineRecord.y = lineBounds.y;
 		aLineRecord.ascent = 0;
 		aLineRecord.descent = 0;
 		aLineRecord.x = 0;
@@ -1345,9 +1374,9 @@ FskErr KprTextFormatLines(KprText self, char *text, KprStyle style, Boolean flus
 	KprTextRun run = *startRun;
 	SInt32 lineWidth = blockWidth;
 	SInt32 count = 0;
+	FskRectangleRecord bounds;
 	while (offset < stopOffset) {
 		if (run->span.length >= 0) {
-			FskRectangleRecord bounds;
 			SInt32 length = (run + 1)->span.offset - offset;
 			if (length > stopOffset - offset)
 				length = stopOffset - offset;
@@ -1355,7 +1384,7 @@ FskErr KprTextFormatLines(KprText self, char *text, KprStyle style, Boolean flus
 			KprTextGetTextBounds(self, text + offset, length, &bounds);
 			if (lineWidth < bounds.width) {
 				UInt32 fb, fc;
-				FskPortTextFitWidth(self->port, text + offset, length, lineWidth, kFskTextFitFlagMidpoint, &fb, &fc);
+				FskPortTextFitWidth(self->port, text + offset, length, lineWidth, kFskTextFitFlagBreak, &fb, &fc);
 				KprTextFormatLine(self, text, style, true, startOffset, offset + fb, startRun, run, lineBounds, blockX, blockWidth);
 				offset = *startOffset;
 				lineWidth = blockWidth;
@@ -1370,6 +1399,8 @@ FskErr KprTextFormatLines(KprText self, char *text, KprStyle style, Boolean flus
 			
 		}
 		else {
+			bounds = run->item.content->bounds;
+			lineWidth -= bounds.width;
 			run++;
 		}
 	}
@@ -1394,7 +1425,7 @@ FskErr KprTextFormatLine(KprText self, char *text, KprStyle style, Boolean flush
 	UInt16 itemHeight;
 	SInt32 lineHeight;
 	
-	lineRecord.y = (short)lineBounds->y;
+	lineRecord.y = lineBounds->y;
 	lineRecord.ascent = 0;
 	lineRecord.descent = 0;
 	lineRecord.x = (short)lineBounds->x;
@@ -1650,11 +1681,21 @@ FskErr KprTextFormatLine(KprText self, char *text, KprStyle style, Boolean flush
 	
 	// prepare next line
 	if (!flushIt) {
-		while ((stopOffset < self->textOffset) && KprTextIsSpaceAdvance(text + stopOffset, &advance))
-			stopOffset += advance;
-		if (stopOffset == self->textOffset)
-			stopOffset = self->textOffset - 1;
-		while (stopOffset > (stopRun + 1)->span.offset)
+		if (stopRun->span.length >= 0) {
+			SInt32 nextOffset = (stopRun + 1)->span.offset;
+			while (stopOffset < self->textOffset) {
+				if (stopOffset >= nextOffset) {
+					stopRun++;
+					if (stopRun->span.length < 0)
+						break;
+					nextOffset = (stopRun + 1)->span.offset;
+				}
+				if (!KprTextIsSpaceAdvance(text + stopOffset, &advance))
+					break;
+				stopOffset += advance;
+			}
+		}
+		else
 			stopRun++;
 	}
 	*startOffset = stopOffset;
@@ -1793,14 +1834,25 @@ Boolean KprTextIsSpaceAdvance(char *text, SInt32* advance)
 	return FskTextUTF8IsWhitespace((unsigned char*)text, *advance, NULL);
 }
 
-Boolean KprTextIsMultibyteWordwrapped(const unsigned char *text)
+Boolean KprTextIsMultibyteWordwrapped(const unsigned char *text, Boolean *wordwrapped)
 {
+	Boolean multibyte = true;
 	SInt32 advance;
-	Boolean wordwrapped = false;
+
+	*wordwrapped = false;
 
 	advance = FskTextUTF8Advance(text, 0, 1);
 
 	switch (advance) {
+		case 1:	// Ascii
+			multibyte = false;
+			break;
+
+		case 2:
+			// Not Latin-1 (??)
+			multibyte = !((0xc0 <= text[0]) && (text[0] <= 0xc3) && (0x80 <= text[1]) && (text[1] <= 0xbf));
+			break;
+
 		case 3:
 			if (text[0] == 0xe3)
 			{
@@ -1809,7 +1861,7 @@ Boolean KprTextIsMultibyteWordwrapped(const unsigned char *text)
 					if ((text[2] == 0x81) ||	// Tohten
 						(text[2] == 0x82))		// Kuten
 					{
-						wordwrapped = true;
+						*wordwrapped = true;
 					}
 				}
 			}
@@ -1820,14 +1872,14 @@ Boolean KprTextIsMultibyteWordwrapped(const unsigned char *text)
 					if ((text[2] == 0x9f) ||	// ?
 						(text[2] == 0x81))		// !
 					{
-						wordwrapped = true;
+						*wordwrapped = true;
 					}
 				}
 			}
 			break;
 	}
 
-	return wordwrapped;
+	return multibyte;
 }
 
 Boolean KprTextIsMultibyteBoundary(char *text, UInt32 offset)
@@ -1836,12 +1888,15 @@ Boolean KprTextIsMultibyteBoundary(char *text, UInt32 offset)
 	// return true if
 	// text is multibyte, or
 	// text is ascii and previous text is multi byte
+	Boolean multibyte, wordwrapped;
+	SInt32 advance;
 
-	if (*(text + offset) & 0x80)
+	multibyte = KprTextIsMultibyteWordwrapped((unsigned char *)(text + offset), &wordwrapped);
+	if (multibyte)
 	{
 		// text is multibyte
 		// true if text is not wordwrapped.
-		return !KprTextIsMultibyteWordwrapped((unsigned char *)(text + offset));
+		return !wordwrapped;
 	}
 
 	// text is ascii
@@ -1851,7 +1906,9 @@ Boolean KprTextIsMultibyteBoundary(char *text, UInt32 offset)
 		return false;
 	}
 	// true if previous text is multibyte
-	return FskTextUTF8Advance((unsigned char *)text, offset, -1) < -1;
+	advance = FskTextUTF8Advance((unsigned char *)text, offset, -1);
+	multibyte = KprTextIsMultibyteWordwrapped((unsigned char *)(text + offset + advance), &wordwrapped);
+	return multibyte;
 #else
 	return false;
 #endif
@@ -1879,31 +1936,47 @@ FskErr KprTextMeasureSelection(KprText self)
 	from = fxUnicodeToUTF8Offset(text, self->from);
 	to = fxUnicodeToUTF8Offset(text, self->to);
 	if (from == to) {
-		while (line->count >= 0) {
-			start = ((KprTextRun)(line + 1))->span.offset;
-			if (from == start) {
-				bounds.x = line->x - 1;
-				break;
-			}
-			next = line + 1 + line->count;
-			if (next->count < 0) {
-				stop = self->textOffset - 1;
-				if (from == stop) {
-					bounds.x = line->x + line->width - 1;
+		if (line->count < 0) {
+			KprStyleMeasure(self->style, "dp", &bounds);
+			bounds.x = 0;
+			bounds.y = 0;
+			bounds.width = 2;
+		}
+		else {
+			while (line->count >= 0) {
+				start = ((KprTextRun)(line + 1))->span.offset;
+				if (from == start) {
+					bounds.x = line->x - 1;
 					break;
 				}
+				next = line + 1 + line->count;
+				if (next->count < 0) {
+					stop = self->textOffset - 1;
+					if (from == stop) {
+                        bounds.x = line->x + line->width - 1;
+						break;
+					}
+				}
+				else
+					stop = ((KprTextRun)(next + 1))->span.offset;
+				if (from < stop) {
+					bounds.x = KprTextSelectLine(self, text, line, from) - 1;
+					break;
+				}
+				line = next;
 			}
-			else
-				stop = ((KprTextRun)(next + 1))->span.offset;
-			if (from < stop) {
-				bounds.x = KprTextSelectLine(self, text, line, from) - 1;
-				break;
-			}
-			line = next;
+            if ((from == self->textOffset - 1) &&  KprTextIsReturn(text + self->textOffset - 2, 1)) {
+                KprStyleMeasure(self->style, "dp", &bounds);
+                bounds.x = 0;
+                bounds.y = line->y + line->ascent + line->descent;
+                bounds.width = 2;
+            }
+            else {
+                bounds.y = line->y;
+                bounds.width = 2;
+                bounds.height = line->ascent + line->descent;
+            }
 		}
-		bounds.y = line->y;
-		bounds.width = 2;
-		bounds.height = line->ascent + line->descent;
 		bailIfError(FskGrowableArrayAppendItem(self->selectionBuffer, (void *)&bounds));
 	}
 	else {
@@ -2460,13 +2533,13 @@ void KPR_text_format(xsMachine *the)
 													xsVar(3) = xsUndefined;
 												}
 												xsOverflow(-5);
-												*(--the->stack) = xsThis;
-												*(--the->stack) = xsVar(3);
-												fxInteger(the, --the->stack, 2);
-												*(--the->stack) = xsGlobal;
-												*(--the->stack) = xsVar(2);
+												fxPush(xsThis);
+												fxPush(xsVar(3));
+												fxPushCount(the, 2);
+												fxPush(xsGlobal);
+												fxPush(xsVar(2));
 												fxNew(the);
-												xsResult = *(the->stack++);
+												xsResult = fxPop();
 											}
 											if (xsIsInstanceOf(xsResult, xsObjectPrototype)) {
 												xsThrowIfFskErr(KprTextLinkNew(&link));
@@ -2516,7 +2589,7 @@ void KPR_text_format(xsMachine *the)
 void KPR_text_insert(xsMachine *the)
 {
 	KprText self = kprGetHostData(xsThis, this, text);
-	if (xsTest(xsArg(0)))
+	if ((xsToInteger(xsArgc) > 0) && xsTest(xsArg(0)))
 		KprTextInsertString(self, xsToString(xsArg(0)));
 	else
 		KprTextInsertStringWithLength(self, "", 0);

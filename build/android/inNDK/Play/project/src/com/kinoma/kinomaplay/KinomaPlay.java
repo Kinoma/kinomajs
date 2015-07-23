@@ -36,6 +36,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.TimeZone;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -88,6 +89,11 @@ import android.net.wifi.WifiManager;
 //#ifdefined C2D_MESSAGE
 import android.os.AsyncTask;
 //#endif
+import android.net.wifi.WifiConfiguration;
+import android.net.wifi.WifiConfiguration.KeyMgmt;
+import org.json.JSONObject;
+import org.json.JSONException;
+import android.net.wifi.ScanResult;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -107,6 +113,7 @@ import android.telephony.TelephonyManager;
 import android.telephony.gsm.SmsManager;
 import android.telephony.gsm.SmsMessage;
 import android.text.Editable;
+import android.text.format.DateFormat;
 import android.text.InputType;
 import android.text.TextWatcher;
 import android.util.DisplayMetrics;
@@ -158,7 +165,7 @@ public class KinomaPlay extends Activity
 		final int ExpiryDay = 31;
 	final int DO_VERSION_CHECK = 1;
 		final int LatestVersionMaj = 5;
-		final int LatestVersionMin = 0;
+		final int LatestVersionMin = 1;
 
 	final int kJNIStartFsk = 1;
 	final int kJNIIdleFsk = 2;
@@ -269,6 +276,8 @@ public class KinomaPlay extends Activity
 	public native static void setDeviceOrientation(int orientation);
 	public native static void setAndroidLanguage(String language);
 	public native static void setAndroidBasetime(int s, int ms);
+	public native static void setAndroid1224(int twelve24);
+	public native static void setAndroidTZ(String tzName);
 
 	public native static int doPause();
 	public native static int doResume();
@@ -300,7 +309,7 @@ public class KinomaPlay extends Activity
 	Display mDisplay;
 	private IFskView mFskView;
 
-	private EditText mFskEditText[];
+	private FskEditText mFskEditText[];
 	private int mFskEditTextCur = 0;
 	private boolean mFskEditTextIgnoreChanges = false;
 
@@ -595,7 +604,7 @@ public class KinomaPlay extends Activity
 	    	e.printStackTrace();
 	    }
 
-		setContentView(R.layout.splashscreen);
+		setContentView(R.layout.main);
 
 		String[] v = Build.VERSION.RELEASE.split("\\D");
 
@@ -654,14 +663,7 @@ public class KinomaPlay extends Activity
 		}
 		catch (UnsatisfiedLinkError e)
 		{
-			try {
-				System.loadLibrary("KinomaLibF");
-			}
-			catch (UnsatisfiedLinkError e2)
-			{
-				Log.i("Kinoma", "can't load OS version glueLib");
-			}
-
+			Log.i("Kinoma", "can't load OS version glueLib");
 		}
 
 		initializeRemoteControlRegistrationMethods();
@@ -713,13 +715,7 @@ public class KinomaPlay extends Activity
 				}
 				catch (UnsatisfiedLinkError e_g)
 				{
-					try {
-						System.loadLibrary("StagefrightOMXCodec_F");
-					}
-					catch (UnsatisfiedLinkError e_f)
-					{
-						Log.i("Kinoma", "can't load OS version StagefrightOMXCodec for I, H, G or F");
-					}
+					Log.i("Kinoma", "can't load OS version StagefrightOMXCodec for I, H or G");
 				}
 			}
 		}
@@ -807,16 +803,6 @@ public class KinomaPlay extends Activity
 					Log.i("Kinoma", "can't load OS version IOMXCodec for G");
 				}
 				break;
-			case android.os.Build.VERSION_CODES.FROYO:
-				try {
-					System.loadLibrary("IOMXCodec_F");
-					Log.i("Kinoma", "load OS version IOMXCodec for F");
-				}
-				catch (UnsatisfiedLinkError e_h)
-				{
-					Log.i("Kinoma", "can't load OS version IOMXCodec for F");
-				}
-				break;
 		}
 
 		//Choreographer was imported after API 16
@@ -832,9 +818,9 @@ public class KinomaPlay extends Activity
 			}
 		}
 
-		mFskEditText = new EditText[2];
-		mFskEditText[0] = (EditText)mMain.findViewById(R.id.text_view);
-		mFskEditText[1] = (EditText)mMain.findViewById(R.id.text_view2);
+		mFskEditText = new FskEditText[2];
+		mFskEditText[0] = (FskEditText)mMain.findViewById(R.id.text_view);
+		mFskEditText[1] = (FskEditText)mMain.findViewById(R.id.text_view2);
 		for (mFskEditTextCur = 0; mFskEditTextCur < 2; mFskEditTextCur++) {
 			mFskEditText[mFskEditTextCur].setVisibility(View.INVISIBLE);
 			mFskEditText[mFskEditTextCur].setOnEditorActionListener(new OnEditorActionListener() {
@@ -1048,6 +1034,10 @@ public class KinomaPlay extends Activity
 //#endif
 				if (null == android_id)
 					android_id = "unknown";
+
+				setAndroid1224(DateFormat.is24HourFormat(getBaseContext()) == true ? 24 : 12);
+				TimeZone tz = TimeZone.getDefault();
+				setAndroidTZ(tz.getID());
 
 				int s, ms;
 				s = (int)(mStartTime/1000);
@@ -1374,6 +1364,7 @@ Log.i("Kinoma", "8 - 3");
 //	        	Log.i("Kinoma", "ConnectionChangeReceiver - no network active or not available");
 				fskPhoneStateChanged(kFskNetworkEnabled, 0);
 				fskPhoneStateChanged(kFskNetworkWifiAddress, 0);
+				mOldDataConnectionState = 4;
 	        }
 	        else {
 	    		fskPhoneStateChanged(kFskNetworkType, activeNetInfo.getType());
@@ -2008,13 +1999,17 @@ private void createGpsDisabledAlert(){
 //			if (0 != callFskInt(kGetOpenGL, 0))
 //				doResume();
 
+			setAndroid1224(DateFormat.is24HourFormat(getBaseContext()) == true ? 24 : 12);
+			TimeZone tz = TimeZone.getDefault();
+			setAndroidTZ(tz.getID());
+
 			callFsk(kJNIReduceAudioBuffer, "");
 
 			if (mInitPhase > 4) {
 				registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
 			}
 
-			xdoIMEEnable(0);
+			xdoIMEEnable(0, false);
 
 //			Log.i("Kinoma", "onResume - activate window");
 			callFsk(kJNIWindowActivated, "");
@@ -2417,7 +2412,7 @@ private void createGpsDisabledAlert(){
 			setDeviceOrientation(mOrientation);
 			lastOrientation = mOrientation;
 			if (mInputMethodShown)
-				xdoIMEEnable(0);
+				xdoIMEEnable(0, false);
 		}
 		if (kbdType != lastKbdType) {
 			setFskKeyboardType(kbdType);
@@ -2848,7 +2843,8 @@ private void createGpsDisabledAlert(){
 			mFskEditText[alt].setEnabled(true);
 			mFskEditText[alt].setSelection(selBegin);
 		mInputMethodMgr.restartInput(mFskEditText[alt]);
-			mFskEditText[mFskEditTextCur].setEnabled(false);
+//			mFskEditText[mFskEditTextCur].setEnabled(false);
+			mFskEditText[mFskEditTextCur].setEnabled(true);
 			mFskEditTextCur = alt;
 			mFskEditTextIgnoreChanges = false;
 		}
@@ -2938,6 +2934,7 @@ private void createGpsDisabledAlert(){
 	final int kEnableKeyboardRequestClose = 11;
 	final int kEnableKeyboardRestoreFullscreen = 12;
 	final int kEnableKeyboardFullscreenRestored = 13;
+	final int kEnableKeyboardIsClosed = 14;
 
 	int mKeyboardEnableStage = kEnableKeyboardNothing;
 	Boolean mWasFullscreen = false;
@@ -2947,10 +2944,6 @@ private void createGpsDisabledAlert(){
 //		Log.i("Kinoma", "wantsKeyboard - mKeyboardEnableStage: " + mKeyboardEnableStage);
 		switch (mKeyboardEnableStage) {
 		case kEnableKeyboardNothing:
-//	xx		if (!mInputMethodShown && mKeyboardRect.height() != 0) {
-//				Log.i("Kinoma", "dont want Keyboard - but kbd height is: " + mKeyboardRect.height());
-//				xdoIMEEnable(0);
-//			}
 			return mInputMethodShown;
 		case kEnableKeyboardShowStatus:
 //			Log.i("Kinoma", "wantsKeyboard ShowStatus- mIsFullscreen: " + mIsFullscreen + " mWasFullscreen:" + mWasFullscreen);
@@ -2965,7 +2958,6 @@ private void createGpsDisabledAlert(){
 //				Log.i("Kinoma", "wantsKeyboard - already showing status bar");
 			// fall through
 		case kEnableKeyboardWaitForStatus:
-//			if (isHoneycomb()) {
 			if (isHoneycombOrLater()) {
 				// honeycomb doesn't change vertical ofset
 			}
@@ -2981,7 +2973,7 @@ private void createGpsDisabledAlert(){
 			mKeyboardEnableStage = kEnableKeyboardWaitForKeyboard;
 			if (!mInputMethodShown) {
 //   				Log.i("Kinoma", "wantsKeyboard - Keyboard not shown - requesting it");
-				xdoIMEEnable(1);
+				xdoIMEEnable(1, false);
 				return true;
 			}
 			// fall through
@@ -3002,7 +2994,7 @@ private void createGpsDisabledAlert(){
 			if (mInputMethodShown) {
 //  				Log.i("Kinoma", "wantsKeyboard RequestClose - Keyboard shown - shutting it down");
    				mKeyboardEnableStage = kEnableKeyboardRestoreFullscreen;
-				xdoIMEEnable(0);
+				xdoIMEEnable(0, false);
 //	don't			return false;
 			}
 			// fall through
@@ -3017,6 +3009,7 @@ private void createGpsDisabledAlert(){
 			}
 			else {
 				mKeyboardEnableStage = kEnableKeyboardNothing;
+				return mInputMethodShown;
 			}
 			return false;
 		case kEnableKeyboardFullscreenRestored:
@@ -3024,13 +3017,13 @@ private void createGpsDisabledAlert(){
 				if (isHoneycombOrLater()) {
 					// Honeycomb doesn't change vertical offset
 					mKeyboardEnableStage = kEnableKeyboardNothing;
-					return false;
+					return mInputMethodShown;
 				}
 				else {
 					if (mVerticalOffset == 0) {
 //	   					Log.i("Kinoma", "wantsKeyboard RestoreFullscreen - got fullscreen!");
 						mKeyboardEnableStage = kEnableKeyboardNothing;
-						return false;
+						return mInputMethodShown;
 					}
 				}
 //   				Log.i("Kinoma", "wantsKeyboard RestoreFullscreen - still waiting for fullscreen - vert offset is " + mVerticalOffset);
@@ -3041,40 +3034,61 @@ private void createGpsDisabledAlert(){
 				if (isHoneycomb()) {
 					// Honeycomb doesn't change vertical offset
 					mKeyboardEnableStage = kEnableKeyboardNothing;
-					return false;
+					return mInputMethodShown;
 				}
 				else {
 					if (mVerticalOffset != 0) {
 //	   					Log.i("Kinoma", "wantsKeyboard RestoreFullscreen - got status bar: " + mVerticalOffset);
 						mKeyboardEnableStage = kEnableKeyboardNothing;
-						return false;
+						return mInputMethodShown;
 					}
 				}
  //  				Log.i("Kinoma", "wantsKeyboard RestoreFullscreen - still waiting for status bar - vert offset is " + mVerticalOffset);
                 mainRunloop.sendEmptyMessageDelayed(kFullscreenMessage, 1000);
 
 			}
+			return mInputMethodShown;
+
+		case kEnableKeyboardIsClosed:
+			mInputMethodShown = false;
+			mKeyboardEnableStage = kEnableKeyboardNothing;
+			break;
 		}
+
 		return mInputMethodShown;
 	}
 
 
 	void doIMEEnable(int enable) {
 		Log.i("Kinoma", "doIMEEnable(" + enable + ")");
+		if (enable == 2) {
+			Log.i("Kinoma", "doIMEEnable - force enable");
+			xdoIMEEnable(1, true);
+			return;
+		}
+		if (mInputMethodShown && (enable == 1)) {
+			Log.i("Kinoma", " -- Input already shown\n");
+			return;
+		}
 		if (0 == enable)
 			mKeyboardEnableStage = kEnableKeyboardRequestClose;
+		else if (-1 == enable) {
+Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
+			mKeyboardEnableStage = kEnableKeyboardIsClosed;
+			setIMEEnabled(0);
+		}
 		else
 			mKeyboardEnableStage = kEnableKeyboardStart;
 		wantsKeyboard();
 	}
 
-	void xdoIMEEnable(int enable) {
+	void xdoIMEEnable(int enable, Boolean force) {
 //		Log.i("Kinoma", "xdoIMEEnable is " + enable);
 		setIMEEnabled(enable);
 		mThereWasSomeMouseAction = false;
 		callFskInt(kSetKeyboard, enable);
 	    if (0 == enable) {
-	    	if (mInputMethodShown) {
+	    	if (force || mInputMethodShown) {
 	    		CharSequence curText = mFskEditText[mFskEditTextCur].getText();
 	    		int len = curText.length();
 	    		int alt = mFskEditTextCur == 0 ? 1 : 0;
@@ -3091,7 +3105,7 @@ private void createGpsDisabledAlert(){
 	    	}
 	    }
 	   	else {
-	   		if (!mInputMethodShown) {
+	   		if (force || !mInputMethodShown) {
 	   			mFskEditTextCur = 0;
 	   			mFskEditText[0].setVisibility(View.VISIBLE);
 	   			mFskEditText[0].requestFocus();
@@ -3754,6 +3768,287 @@ private void createGpsDisabledAlert(){
 		return 0;
 
 	}
+
+	private static boolean shouldUpdatePriority() {
+		return android.os.Build.VERSION.SDK_INT >= 19;
+	}
+	
+	private static void sortByPriority(final List<WifiConfiguration> configurations) {
+		java.util.Collections.sort(configurations, new Comparator<WifiConfiguration>() {
+
+			@Override
+			public int compare(WifiConfiguration object1,
+					WifiConfiguration object2) {
+				return object1.priority - object2.priority;
+			}
+		});
+	}
+	
+	private static final int MAX_PRIORITY = 99999;
+	
+	private static int shiftPriorityAndSave(final WifiManager wifiMgr) {
+		final List<WifiConfiguration> configurations = wifiMgr.getConfiguredNetworks();
+		sortByPriority(configurations);
+		final int size = configurations.size();
+		for(int i = 0; i < size; i++) {
+			final WifiConfiguration config = configurations.get(i);
+			config.priority = i+1;
+			wifiMgr.updateNetwork(config);
+		}
+		wifiMgr.saveConfiguration();
+		return size;
+	}
+
+	private static int getMaxPriority(final WifiManager wifiManager) {
+		final List<WifiConfiguration> configurations = wifiManager.getConfiguredNetworks();
+		int pri = 0;
+		for(final WifiConfiguration config : configurations) {
+			if(config.priority > pri) {
+				pri = config.priority;
+			}
+		}
+		return pri;
+	}
+	
+	protected int doWifiGetNetId() {
+		int netId = -1;
+		
+		WifiManager wifiManager = (WifiManager)this.getSystemService(WIFI_SERVICE);
+		
+		if (wifiManager.isWifiEnabled()) {
+			WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+			netId = wifiInfo.getNetworkId ();
+			Log.d("kinoma", "doWifiGetNetID SSID: " + wifiInfo.getSSID() + " netId: " + netId);
+		} 
+
+		return netId;
+	}
+	
+	protected String doWifiGetSsid() {
+		int netId = -1;
+		String ssid = "";
+		
+		WifiManager wifiManager = (WifiManager)this.getSystemService(WIFI_SERVICE);
+		
+		if (wifiManager.isWifiEnabled()) {
+			WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+			netId = wifiInfo.getNetworkId ();
+			ssid = wifiInfo.getSSID();
+			Log.d("kinoma", "doWifiGetSSID SSID: " + ssid + " netId: " + netId);
+		} 
+
+		return ssid;
+	}
+	
+	protected int doWifiGetIpAddress() {
+		int ipAddress = 0;
+		
+		WifiManager wifiManager = (WifiManager)this.getSystemService(WIFI_SERVICE);
+		
+		if (wifiManager.isWifiEnabled()) {
+			WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+			ipAddress = wifiInfo.getIpAddress ();
+			Log.d("kinoma", "ipAddress: " + ipAddress);
+		} 
+
+		return ipAddress;
+	}
+	
+	protected int doWifiUpdateNetwork(String ssid, String key) {
+		int netId = -1;
+		int newNetId = 0;
+		boolean existing = false;
+		WifiConfiguration wifiConfig = null;
+		
+		WifiManager wifiManager = (WifiManager)this.getSystemService(WIFI_SERVICE);
+		WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+		netId = wifiInfo.getNetworkId ();
+
+		//search for the same network, bypass addNetwork if existing.
+		List<WifiConfiguration> networkList = wifiManager.getConfiguredNetworks();
+		ssid = "\"" + ssid + "\"";
+		for (int i = 0; i < networkList.size(); i++) {
+			WifiConfiguration c = networkList.get(i);
+			//Log.i("kinoma", "----->SSID: " + c.SSID + "," + ssid + ", netId: " + c.networkId + ", priority:" + c.priority);
+			if (c.SSID.equals(ssid)){
+				existing = true;
+				newNetId = c.networkId;
+				wifiConfig = c;
+				//TODO: Do not need update key(password) here? How about key changed?
+				break;
+			}
+		}
+
+		if (!existing) {
+			wifiConfig = new WifiConfiguration();
+			wifiConfig.SSID = ssid;
+
+			try {
+				JSONObject paraObject = new JSONObject(key);
+				String password = paraObject.getString("password");
+				int security = paraObject.getInt("security");
+
+				Log.i("kinomawifi", "password: " + password + "security: " + security); 
+
+				if (security == 0) {
+					wifiConfig.allowedKeyManagement.set(KeyMgmt.NONE);
+				}
+				else if (security == 1) {
+					wifiConfig.allowedKeyManagement.set(KeyMgmt.NONE);
+					wifiConfig.wepTxKeyIndex = 0;
+					if (password.matches("[0-9A-Fa-f]*")) {
+						wifiConfig.wepKeys[0] = password;
+					} else {
+						wifiConfig.wepKeys[0] = String.format("\"%s\"", password);
+					}
+				}
+				else if ((security == 4) || (security == 5)) {
+					wifiConfig.allowedKeyManagement.set(KeyMgmt.WPA_PSK);
+					wifiConfig.preSharedKey = String.format("\"%s\"", password);
+				}
+				else {
+					Log.i("kinomawifi", "security default");
+				}
+			}
+			catch (JSONException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+
+			if (shouldUpdatePriority()) {
+				// TODO: workaround: Make it the highest priority.
+				//  It will still have issue if other app do same thing in bakground
+				int newPri = getMaxPriority(wifiManager) + 1;
+				if(newPri > MAX_PRIORITY) {
+					newPri = shiftPriorityAndSave(wifiManager);
+				}
+
+				wifiConfig.priority = newPri;
+				Log.i("kinomawifi", "doWifiUpdateNetwork -- about to add new network config: " + wifiConfig);
+			}
+
+			newNetId = wifiManager.addNetwork(wifiConfig);
+		}
+
+		if (newNetId > -1) {
+			Boolean res = false;
+
+			if (existing && shouldUpdatePriority()) {
+				int newPri = getMaxPriority(wifiManager) + 1;
+				if(newPri > MAX_PRIORITY) 
+					newPri = shiftPriorityAndSave(wifiManager);
+
+				wifiConfig.priority = newPri;
+
+				Log.i("kinomawifi", "doWifiUpdateNetwork -- about to update network config: " + wifiConfig);
+
+				newNetId = wifiManager.updateNetwork(wifiConfig);
+				if(newNetId == -1) {
+					Log.i("kinomawifi", "doWifiUpdateNetwork -- updateNetwork failed");
+					return -1;
+				}
+			}
+
+			if(!wifiManager.disconnect()) {
+				Log.i("kinomawifi", "doWifiUpdateNetwork -- disconnect failed");
+				return -1;
+			}
+			// Still disable other networks, but may enabled by other modules
+			if(!wifiManager.enableNetwork(newNetId, true)) {
+				Log.i("kinomawifi", "doWifiUpdateNetwork -- enableNetwork " + newNetId + "failed");
+				return -1;
+			}
+			if(!wifiManager.reconnect()) {
+				Log.i("kinomawifi", "doWifiUpdateNetwork -- reconnect failed");
+				return -1;
+			}
+
+			Log.i("kinomawifi", "reassociate....");
+			wifiManager.reassociate();
+		}
+		
+		Log.i("kinomawifi", "SSID: " + ssid + " key: " + key + " netID: " + netId + ", newNetId: " + newNetId);
+		return netId;
+	}
+	
+	protected void doWifiSelectNetworkById(int netId) {
+		WifiManager wifiManager = (WifiManager)this.getSystemService(WIFI_SERVICE);
+
+		List<WifiConfiguration> networkList = wifiManager.getConfiguredNetworks();
+		for (int i = 0; i < networkList.size(); i++) {
+			WifiConfiguration wifiConfig = networkList.get(i);
+
+			if (wifiConfig.networkId == netId) {
+				if (shouldUpdatePriority()) {
+					// TODO: workaround: Make it the highest priority.
+					//  It will still have issue if other app do same thing in bakground
+					int newPri = getMaxPriority(wifiManager) + 1;
+					if(newPri > MAX_PRIORITY) {
+						newPri = shiftPriorityAndSave(wifiManager);
+					}
+
+					wifiConfig.priority = newPri;
+
+					Log.i("kinomawifi", "doWifiSelectNetworkById -- about to update network config: " + wifiConfig);
+
+					netId = wifiManager.updateNetwork(wifiConfig);
+					if(netId == -1) {
+						Log.i("kinomawifi", "doWifiSelectNetworkById -- updateNetwork failed");
+						return;
+					}
+				}
+
+				if(!wifiManager.disconnect()) {
+					Log.i("kinomawifi", "doWifiSelectNetworkById -- disconnect failed");
+					return;
+				}
+				// Still disable other networks, but may enabled by other modules
+				if(!wifiManager.enableNetwork(netId, true)) {
+					Log.i("kinomawifi", "doWifiSelectNetworkById -- enableNetwork " + netId + "failed");
+					return;
+				}
+				if(!wifiManager.reconnect()) {
+					Log.i("kinomawifi", "doWifiSelectNetworkById -- reconnect failed");
+					return;
+				}
+
+				wifiManager.reassociate();
+			}
+		}
+
+		Log.d("kinomawifi", " netID: " + netId);
+	}
+
+	protected String doWifiGetScanResults() {
+		String results = "[";
+		List<ScanResult> scanResults;
+
+		WifiManager wifiManager = (WifiManager)this.getSystemService(WIFI_SERVICE);
+
+		//We return scan result only when wifi is enabled
+		if (wifiManager.isWifiEnabled()) {
+			wifiManager.startScan();
+			
+			scanResults = wifiManager.getScanResults();
+			for (int i = 0; i < scanResults.size(); i++) {
+				ScanResult item = scanResults.get(i);
+				if (i > 0)
+					results += ", ";
+				results = results + "{" +
+						"\"ssid\" :\"" + item.SSID + "\"," + 
+						"\"capabilities\" : \"" + item.capabilities + "\"," +
+						"\"frequency\" : \"" + item.frequency + "\"," +
+						"}";
+
+				Log.d("kinoma", item.toString());
+			}
+		}
+		results += "]";
+		
+		//Log.d("kinoma", "scanResults: " + results);
+		return results;
+	}
+
 
 //#ifdefined READ_CONTACTS
 

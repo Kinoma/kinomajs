@@ -224,7 +224,8 @@ enum FskAudioOutCategory {
 enum {
 	kFskAudioOutPropertyUndefined = 0,
 	kFskAudioOutPropertyEQ,							// string
-	kFskAudioOutPropertyCategory,						// enum FskAudioOutCategory
+	kFskAudioOutPropertyCategory,					// enum FskAudioOutCategory
+    kFskAudioOutPropertyRealTime                    // boolean
 };
 
 typedef FskErr (*AudioOutNewFunction)(FskAudioOut *audioOut, UInt32 outputID, UInt32 format);

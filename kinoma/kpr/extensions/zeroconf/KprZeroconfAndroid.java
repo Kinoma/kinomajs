@@ -102,7 +102,12 @@ public class KprZeroconfAndroid
 		public void onServiceResolved(NsdServiceInfo service)
 		{
 			String ip = service.getHost().getHostAddress();
-			String name = service.getServiceName().replace("\\032", " ");
+
+			//Some devices have "\\032" as name, replace "\\" with "\" first
+			Log.i(TAG, "service.getServiceName() " + service.getServiceName());
+			String name = service.getServiceName().replace("\\\\", "\\");
+
+			name = name.replace("\\032", " ");
 			Log.i(TAG, "onServiceResolved - " + this.browser.serviceType + " " + name + " " + ip + ":" + service.getPort());
 			KprZeroconfAndroid.serviceUp(this.browser.serviceType, name, service.getHost().getHostName(), ip, service.getPort());
 			resolver.resolved(this);

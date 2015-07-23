@@ -16,9 +16,6 @@
 #
 set(CMAKE_MODULE_PATH ${CONFIG_BASEDIR}/${TARGET_PLATFORM}/CMake-Modules)
 
-enable_language(ASM)
-enable_language(ASM_WMMX)
-
 add_subdirectory(${F_HOME}/libraries/freetype "freetype")
 list(APPEND PLATFORM_OBJECTS $<TARGET_OBJECTS:LibraryFreetype>)
 

@@ -38,10 +38,6 @@
 	#include "FskRectangle.h"
 #endif /* __FSKRECTANGLE__ */
 
-#ifndef __FSKFIXEDMATH__
-#	include "FskFixedMath.h"
-#endif /* __FSKFIXEDMATH__ */
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */

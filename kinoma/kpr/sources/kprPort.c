@@ -115,15 +115,16 @@ void KprPortDraw(void* it, FskPort port, FskRectangle area)
     if (self) {
         xsBeginHostSandboxCode(self->the, self->code);
         {
-            xsVars(1);
+            xsVars(2);
             if (xsFindResult(self->slot, xsID_onDraw)) {
                 FskRectangleRecord clip;
                 FskPortGetClipRectangle(port, &clip);
                 //fprintf(stderr, "KprPortDraw %p %ld %ld\n", content, content->bounds.width, content->bounds.height);
-                xsVar(0) = kprContentGetter(content);
+                xsVar(0) = self->slot;
+                xsVar(1) = kprContentGetter(content);
                 content->port = port;
                 content->area = area;
-                (void)xsCallFunction5(xsResult, self->slot, xsVar(0), xsInteger(0), xsInteger(0),
+                (void)xsCallFunction5(xsResult, xsVar(0), xsVar(1), xsInteger(0), xsInteger(0),
                         xsInteger(content->bounds.width), xsInteger(content->bounds.height));
                 content->port = NULL;
                 FskPortSetClipRectangle(port, &clip);

@@ -16,9 +16,7 @@
 |     limitations under the License.
 -->
 <fsk xmlns="http://www.kinoma.com/Fsk/1" xmlns:build="http://www.kinoma.com/Fsk/manifest/1">
-    <c option="-DmxDebug=1"/>
-    <c option="-DmxProfile=1" />
-	
+   <xsdebug enabled="true" />
    <rootvm>
    
       <environment>
@@ -61,7 +59,10 @@
          <variable name="cleanPathStart" value="/fsk/" />
       </environment>
 
-      <ui platform="linux,win">
+      <ui platform="win">
+         <font face="Arial" size="12" href="[fontsPath]" />
+      </ui>
+      <ui platform="linux">
          <font face="Fira Sans" size="12" href="[applicationPath]fonts/" />
       </ui>
 
@@ -86,31 +87,40 @@
 
 		<extension href="mediareader" build:from="[kinomaExtensions]mediareader/mediareader.mk" build:embed="true"/>
 		<extension href="FskMediaReaderAMR" build:from="[kinomaExtensions]mediareader/readers/amr/FskMediaReaderAMR.mk" build:embed="true"/>
-		<extension href="FskMediaReaderMP3" build:from="[kinomaExtensions]mediareader/readers/mp3/FskMediaReaderMP3.mk" build:embed="true" />
-		<extension href="FskMediaReaderWave" build:from="[kinomaExtensions]mediareader/readers/wave/FskMediaReaderWave.mk" build:embed="true" />
-		<extension href="FskMediaReaderAVI" build:from="[kinomaExtensions]mediareader/readers/avi/FskMediaReaderAVI.mk" build:embed="true" />
+		<extension href="FskMediaReaderMP3" build:from="[kinomaExtensions]mediareader/readers/mp3/FskMediaReaderMP3.mk" build:embed="true"/>
+		<extension href="FskMediaReaderWave" build:from="[kinomaExtensions]mediareader/readers/wave/FskMediaReaderWave.mk" build:embed="true"/>
+		<extension href="FskMediaReaderAVI" build:from="[kinomaExtensions]mediareader/readers/avi/FskMediaReaderAVI.mk" build:embed="true"/>
 		<extension href="FskMediaReaderMP4" build:from="[kinomaExtensions]mediareader/readers/mp4/FskMediaReaderMP4.mk" build:embed="true"/>
-		<extension href="FskMediaReaderFLV" build:from="[kinomaExtensions]mediareader/readers/flv/FskMediaReaderFLV.mk" build:embed="true" />
-		<extension href="FskMediaReaderASF" build:from="[kinomaExtensions]mediareader/readers/asf/FskMediaReaderASF.mk" build:embed="true" />
-		<extension href="FskMediaReaderJPEGWebcam" build:from="[kinomaExtensions]mediareader/readers/jpeg-webcam/FskMediaReaderJPEGWebcam.mk" build:embed="true" />
-		<extension href="FskMediaReaderRTSP" build:from="[kinomaExtensions]mediareader/readers/rtsp/FskMediaReaderRTSP.mk" build:embed="true" />
-		<extension href="FskMediaReaderMPEG" build:from="[kinomaExtensions]mediareader/readers/mpeg/FskMediaReaderMPEG.mk" build:embed="true" />
+		<extension href="FskMediaReaderFLV" build:from="[kinomaExtensions]mediareader/readers/flv/FskMediaReaderFLV.mk" build:embed="true"/>
+		<extension href="FskMediaReaderASF" build:from="[kinomaExtensions]mediareader/readers/asf/FskMediaReaderASF.mk" build:embed="true"/>
+		<extension href="FskMediaReaderJPEGWebcam" build:from="[kinomaExtensions]mediareader/readers/jpeg-webcam/FskMediaReaderJPEGWebcam.mk" build:embed="true"/>
+		<extension href="FskMediaReaderRTSP" build:from="[kinomaExtensions]mediareader/readers/rtsp/FskMediaReaderRTSP.mk" build:embed="true"/>
+		<extension href="FskMediaReaderMPEG" build:from="[kinomaExtensions]mediareader/readers/mpeg/FskMediaReaderMPEG.mk" build:embed="true"/>
 
-		<extension href="FskMediaReaderFLAC" build:from="[kinomaExtensions]mediareader/readers/flac/FskMediaReaderFLAC.mk" build:embed="true" />
-		<extension href="FskDMOCodec" build:from="[kinomaExtensions]DMOCodec/FskDMOCodec.mk" platform="win" build:embed="true" />
+		<!--extension href="kinomawindowsmediavideo" build:from="[kinomaExtensions]kinoma-windowsmedia/kinomawindowsmediavideo.mk" platform="mac"/-->
+		<!--extension href="kinomawindowsmediavideo" build:from="[kinomaExtensions]kinoma-windowsmedia/kinomawindowsmediavideo.mk" platform="android" build:embed="true"/-->
 
-		<extension href="kinomamp3ipp" build:from="[kinomaExtensions]kinoma-mp3-ipp/kinomamp3ipp.mk" platform="win,mac" build:embed="true" />
-		<extension href="kinomaaacipp" build:from="[kinomaExtensions]kinoma-aac-ipp/kinomaaacipp.mk" platform="win,mac,linux" build:embed="true" />
+		<!--extension href="kinomawindowsmediaaudio" build:from="[kinomaExtensions]kinoma-windowsmedia/kinomawindowsmediaaudio.mk" platform="android" build:embed="true"/-->
 
-		<extension href="kinomamp4ipp" build:from="[kinomaExtensions]kinoma-mp4-ipp/kinomamp4ipp.mk" platform="win,mac,linux,iphone" build:embed="true" />
-		<extension href="kinomaavc"    build:from="[kinomaExtensions]kinoma-avc/kinomaavc.mk"        platform="win,mac,linux,iphone" build:embed="true" />
-		<extension href="kinomaqtdec" build:from="[kinomaExtensions]kinoma-qt-dec/kinomaqtdec.mk" platform="mac" build:embed="true" />
+		<extension href="FskMediaReaderFLAC" build:from="[kinomaExtensions]mediareader/readers/flac/FskMediaReaderFLAC.mk" build:embed="true"/>
+		<extension href="FskDMOCodec" build:from="[kinomaExtensions]DMOCodec/FskDMOCodec.mk" platform="win" build:embed="true"/>
 
- 		<extension href="kinomaspeexdec" build:from="[kinomaExtensions]kinoma-speex/kinomaspeexdec.mk" platform="win,android,mac,iphone" build:embed="true" />
- 		<extension href="kinomaspeexenc" build:from="[kinomaExtensions]kinoma-speex/kinomaspeexenc.mk" platform="win,android,mac,iphone" build:embed="true" />
- 		<extension href="flvmuxer" build:from="[kinomaExtensions]flvmuxer/flvmuxer.mk" platform="win,android,mac,iphone" build:embed="true" />
+		<!--<extension href="kinomamp3xa" build:from="[kinomaExtensions]kinoma-mp3-xa/kinomamp3xa.mk" platform="linux" build:embed="true"/>-->
+		<extension href="kinomamp3ipp" build:from="[kinomaExtensions]kinoma-mp3-ipp/kinomamp3ipp.mk" platform="win,mac,linux" build:embed="true"/>
+		<extension href="kinomaaacipp" build:from="[kinomaExtensions]kinoma-aac-ipp/kinomaaacipp.mk" platform="win,mac,linux" build:embed="true"/>
+
+		<extension href="kinomamp4ipp" build:from="[kinomaExtensions]kinoma-mp4-ipp/kinomamp4ipp.mk" platform="win,mac,linux,iphone" build:embed="true"/>
+		<extension href="kinomaavc"    build:from="[kinomaExtensions]kinoma-avc/kinomaavc.mk"        platform="win,mac,linux,iphone" build:embed="true"/>
+		<extension href="kinomaqtdec" build:from="[kinomaExtensions]kinoma-qt-dec/kinomaqtdec.mk" platform="mac" build:embed="true"/>
+		<!--extension href="kinomaamrnb" build:from="[kinomaExtensions]kinoma-amr-nb/kinomaamrnb.mk"    platform="win,mac,linux,android" build:embed="true"/-->
+
+ 		<extension href="kinomaspeexdec" build:from="[kinomaExtensions]kinoma-speex/kinomaspeexdec.mk" platform="win,android,mac,iphone" build:embed="true"/>
+ 		<extension href="kinomaspeexenc" build:from="[kinomaExtensions]kinoma-speex/kinomaspeexenc.mk" platform="win,android,mac,iphone" build:embed="true"/>
+ 		<extension href="flvmuxer" build:from="[kinomaExtensions]flvmuxer/flvmuxer.mk" platform="win,android,mac,iphone" build:embed="true"/>
 
         <extension href="create" build:from="[KDT_HOME]/create/extensions/create/create.mk" build:embed="true"/>
+
+        <extension href="puredata" build:from="[extensions]puredata/puredata.mk" build:embed="true" platform="mac,linux"/>
 
         <extension href="kpr" build:from="[kinomaExtensions]kpr/kpr.mk"/>
         <extension href="kprPins" build:from="[kinomaExtensions]kpr/extensions/pins/kprPins.mk" />
@@ -120,6 +130,8 @@
         <extension href="kprBrowser" build:from="[kinomaExtensions]kpr/extensions/browser/kprBrowser.mk" platform="mac,iphone,android"/>
 		<extension href="kprWiFi" build:from="[kinomaExtensions]kpr/extensions/wifi/kprWiFi.mk" platform="linux,mac"/>
         <extension href="kprWebSocket" build:from="[kinomaExtensions]kpr/extensions/websocket/kprWebSocket.mk"/>
+        <extension href="kprCoAP" build:from="[kinomaExtensions]kpr/extensions/coap/kprCoAP.mk"/>
+        <extension href="kprMQTT" build:from="[kinomaExtensions]kpr/extensions/mqtt/kprMQTT.mk"/>
         <extension href="kprK4" build:from="[kinomaExtensions]kpr/extensions/k4/kprK4.mk"/>
 		<extension href="kprZeroconf" build:from="[kinomaExtensions]kpr/extensions/zeroconf/kprZeroconf.mk" platform="mac,win"/>
 

@@ -263,6 +263,7 @@ enum {
 	kFskMediaPropertyHibernate = 62,				// boolean
 	kFskMediaPropertyLocal = 63,                    // boolean
 	kFskMediaPropertyAudioCategory = 64,			// integer
+    kFskMediaPropertyRealTime = 65,                 // boolean
 	
 
 	kFskMediaPropertyNext = 200,					// string

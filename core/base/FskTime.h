@@ -145,12 +145,23 @@ FskAPI(FskErr)	FskTimeTzset(const char *tzName);
 FskAPI(FskErr)	FskTimeGetZone(FskTime fsktime, SInt32 *tzoff, SInt32 *dst, const char **tzName);
 
 /*! 
+ * \fn FskAPI(FskErr)	FskTimeGetDisplayZone(char *tzName)
+ * \param[out]	tzName		Get display timezone name for default setting (For example, Asia/Shanghai, America/Los_Angeles etc).
+ * \return 	kFskErrNone for correct, others are error
+ */
+FskAPI(FskErr)	FskTimeGetDisplayZone(char **tzName);
+
+
+/*! 
  * \fn FskAPI(void)	FskTimeGetOSTime(FskTime time)
  * \brief Get absolute time of OS (from Epoch)
  * \param[out]	t	point to FskTime
  * \return 	void
  */
 FskAPI(void)	FskTimeGetOSTime(FskTime time);
+
+#define kFskTime1224Default -1
+FskAPI(SInt8) FskTimeGetOS1224();
 
 FskAPI(void) FskTimeGetNow(FskTime time);
 FskAPI(void) FskTimeClear(FskTime time);

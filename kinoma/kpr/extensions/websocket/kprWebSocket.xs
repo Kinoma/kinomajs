@@ -34,6 +34,7 @@
 			<null name="onerror"/>
 		</object>
 		<object name="websocketserver" c="KPR_websocketserver">
+			<function name="get port" c="KPR_websocketserver_get_port"/>
 			<function name="get clientCount" c="KPR_websocketserver_get_clientCount"/>
 			<function name="get pingInterval" c="KPR_websocketserver_get_pingInterval"/>
 			<function name="set pingInterval" c="KPR_websocketserver_set_pingInterval"/>
@@ -46,7 +47,7 @@
 			<null name="onerror"/>
 		</object>
 	</patch>
-	
+
 	<function name="WebSocket" params="url, protocols" prototype="KPR.websocket" c="KPR_WebSocketClient"/>
 	<function name="WebSocketServer" params="port" prototype="KPR.websocketserver" c="KPR_WebSocketServer"/>
 	<!-- WebSocket.CONNECTING = 0 -->

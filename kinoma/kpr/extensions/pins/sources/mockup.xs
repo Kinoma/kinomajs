@@ -18,30 +18,35 @@
 <package script="true">
 	<target name="MOCKUP">
 		<patch prototype="PINS.prototypes">
-			<object name="a2d">
+			<object name="base">
+				<function name="init"/>
+				<function name="close"/>
+			</object>
+			<object name="a2d" prototype="PINS.prototypes.base">
 				<number name="pin"/>
 			</object>
-			<object name="digital">
+			<object name="digital" prototype="PINS.prototypes.base">
 				<number name="pin"/>
 				<string name="direction"/>
                 <function name="repeat" params="poller">
                 	return 50;
                 </function>
 			</object>
-			<object name="i2c">
+			<object name="i2c" prototype="PINS.prototypes.base">
 				<number name="address"/>
 				<number name="clock"/>
 				<number name="sda"/>
+				<number name="bus"/>
 			</object>
-			<object name="pwm">
+			<object name="pwm" prototype="PINS.prototypes.base">
 				<number name="pin"/>
 			</object>
-			<object name="serial">
+			<object name="serial" prototype="PINS.prototypes.base">
 				<number name="rx"/>
 				<number name="tx"/>
 				<number name="baud"/>
 			</object>
-			<object name="spi">
+			<object name="spi" prototype="PINS.prototypes.base">
 				<number name="pin"/>
 				<number name="chipSelect"/>
 				<number name="mode"/>
@@ -54,14 +59,21 @@
 			<function name="A2D" params="it" prototype="PINS.prototypes.a2d">
 				this.pin = it.pin;
 			</function>
+			<function name="Analog" params="it" prototype="PINS.prototypes.a2d">
+				this.pin = it.pin;
+			</function>
 			<function name="Digital" params="it" prototype="PINS.prototypes.digital">
 				this.pin = it.pin;
 				this.direction = it.direction;
 			</function>
 			<function name="I2C" params="it" prototype="PINS.prototypes.i2c">
 				this.address = it.address;
-				this.clock = it.clock;
-				this.sda = it.sda;
+				if ("clock" in it)
+					this.clock = it.clock;
+				if ("sda" in it)
+					this.sda = it.sda;
+				if ("bus" in it)
+					this.bus = it.bus;
 			</function>
 			<function name="PWM" params="it" prototype="PINS.prototypes.pwm">
 				this.pin = it.pin;

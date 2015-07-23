@@ -19,7 +19,6 @@
 	\brief	Software implementations of visual effects.
 */
 #define __FSKBITMAP_PRIV__
-#define __FSKEFFECTS_PRIV__
 
 #include "FskEffects.h"	/* Make sure that the header is self-sufficient by putting it first */
 

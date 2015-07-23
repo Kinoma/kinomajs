@@ -23,7 +23,7 @@
 	<namespace prefix="xs" uri="http://www.w3.org/2001/XMLSchema"/>
 
 	<patch prototype="Crypt">
-		<object name="wsa" pattern=".">
+		<object name="wsa">
 			<object name="proto"/>
 
 			<object name="any" prototype="Crypt.wsa.proto" script="false"/>

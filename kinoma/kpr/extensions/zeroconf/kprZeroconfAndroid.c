@@ -26,6 +26,7 @@
 
 typedef struct KprZeroconfPlatformAdvertisementStruct KprZeroconfPlatformAdvertisementRecord, *KprZeroconfPlatformAdvertisement;
 typedef struct KprZeroconfPlatformBrowserStruct KprZeroconfPlatformBrowserRecord, *KprZeroconfPlatformBrowser;
+typedef struct KprZeroconfDisposableStruct KprZeroconfDisposableRecord, *KprZeroconfDisposable;
 
 struct KprZeroconfPlatformAdvertisementStruct {
 	Boolean running;
@@ -37,14 +38,85 @@ struct KprZeroconfPlatformBrowserStruct {
 	FskInstrumentedItemDeclaration
 };
 
+struct KprZeroconfDisposableStruct {
+	KprZeroconfDisposable next;
+	KprZeroconfServiceInfo serviceInfo;
+	FskTimeCallBack timer;
+	FskInstrumentedItemDeclaration
+};
+
 #if SUPPORT_INSTRUMENTATION
 static FskInstrumentedTypeRecord KprZeroconfPlatformAdvertisementInstrumentation = { NULL, sizeof(FskInstrumentedTypeRecord), "KprZeroconfPlatformAdvertisement", FskInstrumentationOffset(KprZeroconfPlatformAdvertisementRecord), NULL, 0, NULL, NULL, NULL, 0 };
 static FskInstrumentedTypeRecord KprZeroconfPlatformBrowserInstrumentation = { NULL, sizeof(FskInstrumentedTypeRecord), "KprZeroconfPlatformBrowser", FskInstrumentationOffset(KprZeroconfPlatformBrowserRecord), NULL, 0, NULL, NULL, NULL, 0 };
+static FskInstrumentedTypeRecord KprZeroconfDisposableInstrumentation = { NULL, sizeof(KprZeroconfDisposableRecord), "KprZeroconfDisposable", FskInstrumentationOffset(KprZeroconfDisposableRecord), NULL, 0, NULL, NULL, NULL, 0 };
 #endif
 
 #if 0
 #pragma mark - KprZeroconf Java
 #endif
+
+KprZeroconfDisposable gKprZeroconfDisposableList = NULL;
+void KprZeroconfDisposableDispose(KprZeroconfDisposable self);
+
+void KprZeroconfDisposableCallback(FskTimeCallBack timer UNUSED, const FskTime time UNUSED, void *param)
+{
+	KprZeroconfDisposable disposable = param;
+	KprZeroconfServiceInfo serviceInfo = disposable->serviceInfo;
+	disposable->serviceInfo = NULL;
+	KprZeroconfBrowserServiceDown(NULL, serviceInfo);
+	KprZeroconfDisposableDispose(disposable);
+}
+
+void KprZeroconfDisposableDispose(KprZeroconfDisposable self)
+{
+	if (self) {
+		FskListRemove(&gKprZeroconfDisposableList, self);
+		KprZeroconfServiceInfoDispose(self->serviceInfo);
+		FskTimeCallbackDispose(self->timer);
+		FskInstrumentedItemDispose(self);
+		FskMemPtrDispose(self);
+	}
+}
+
+Boolean KprZeroconfAndroidRemoveDisposable(char* type, char* name)
+{
+	KprZeroconfDisposable disposable = gKprZeroconfDisposableList, next;
+	Boolean found = false;
+	for (disposable = gKprZeroconfDisposableList; disposable; disposable = next) {
+		KprZeroconfServiceInfo serviceInfo = disposable->serviceInfo;
+		next = disposable->next;
+		if (!FskStrCompare(serviceInfo->type, type) && (name ? !FskStrCompare(serviceInfo->name, name) : true)) {
+			KprZeroconfDisposableDispose(disposable);
+			found = true;
+		}
+	}
+	return found;
+}
+
+void KprZeroconfAndroidServiceDown(KprZeroconfServiceInfo serviceInfo)
+{
+	FskErr err = kFskErrNone;
+	KprZeroconfDisposable disposable = NULL;
+	
+	bailIfError(FskMemPtrNewClear(sizeof(KprZeroconfDisposableRecord), &disposable));
+	FskTimeCallbackNew(&disposable->timer);
+	FskInstrumentedItemNew(disposable, NULL, &KprZeroconfDisposableInstrumentation);
+	disposable->serviceInfo = serviceInfo;
+	FskListAppend(&gKprZeroconfDisposableList, disposable);
+	FskTimeCallbackScheduleFuture(disposable->timer, 2, 0, KprZeroconfDisposableCallback, disposable);
+bail:
+	if (err)
+		KprZeroconfServiceInfoDispose(serviceInfo);
+	return;
+}
+
+void KprZeroconfAndroidServiceUp(KprZeroconfServiceInfo serviceInfo)
+{
+	if (KprZeroconfAndroidRemoveDisposable(serviceInfo->type, serviceInfo->name))
+		KprZeroconfServiceInfoDispose(serviceInfo);
+	else
+		KprZeroconfBrowserServiceUp(NULL, serviceInfo);
+}
 
 KPR_NATIVE_JAVA(void, KprZeroconfAndroid, serviceRegistered)(JNIEnv* env, jobject thiz, jstring jniType, jstring jniName, int jniPort)
 {
@@ -68,7 +140,7 @@ KPR_NATIVE_JAVA(void, KprZeroconfAndroid, serviceUp)(JNIEnv* env, jobject thiz, 
 	const char *ip = (*env)->GetStringUTFChars(env, jniIP, 0);
 	KprZeroconfServiceInfo serviceInfo = NULL;
 	KprZeroconfServiceInfoNew(&serviceInfo, type, name, hostname, ip, jniPort, NULL);
-	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprZeroconfBrowserServiceUp, NULL, serviceInfo, NULL, NULL);
+	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprZeroconfAndroidServiceUp, serviceInfo, NULL, NULL, NULL);
 bail:
 	(*env)->ReleaseStringUTFChars(env, jniIP, ip);
 	(*env)->ReleaseStringUTFChars(env, jniHostname, hostname);
@@ -83,7 +155,7 @@ KPR_NATIVE_JAVA(void, KprZeroconfAndroid, serviceDown)(JNIEnv* env, jobject thiz
 	const char *name = (*env)->GetStringUTFChars(env, jniName, 0);
 	KprZeroconfServiceInfo serviceInfo = NULL;
 	KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, 0, NULL);
-	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprZeroconfBrowserServiceDown, NULL, serviceInfo, NULL, NULL);
+	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprZeroconfAndroidServiceDown, serviceInfo, NULL, NULL, NULL);
 bail:
 	(*env)->ReleaseStringUTFChars(env, jniName, name);
 	(*env)->ReleaseStringUTFChars(env, jniType, type);
@@ -250,7 +322,7 @@ FskErr KprZeroconfPlatformBrowserStop(KprZeroconfBrowser self)
 		bailIfNULL(env);
 		jniServiceType = (*env)->NewStringUTF(env, self->serviceType);
 		bailIfNULL(jniServiceType);
-
+		KprZeroconfAndroidRemoveDisposable(self->serviceType, NULL);
 		bailIfError(KprJNIGetClass(env, &jniClass, "KprZeroconfAndroid"));
 		bailIfError(KprJNIGetContext(env, &jniContext));
 		bailIfError(KprJNICallStatic(env, NULL, jniClass, "removeService", "(Landroid/content/Context;Ljava/lang/String;)V", jniContext, jniServiceType));

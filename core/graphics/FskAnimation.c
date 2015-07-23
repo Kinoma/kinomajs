@@ -543,14 +543,18 @@ static void
 ConvertFractFractFixedToDoubleMatrices(const FskFixedMatrix3x2 *M, double *Mtrn, double *Mrot)
 {
 	if (Mtrn != NULL) {
-		Mtrn[0*2+0] = 1;							Mtrn[0*2+1] = 0;
-		Mtrn[1*2+0] = 0;							Mtrn[1*2+1] = 1;
 		Mtrn[2*2+0] = FskFixedToFloat(M->M[2][0]);	Mtrn[2*2+1] = FskFixedToFloat(M->M[2][1]);
+		if (Mtrn != Mrot) {
+			Mtrn[0*2+0] = 1;						Mtrn[0*2+1] = 0;
+			Mtrn[1*2+0] = 0;						Mtrn[1*2+1] = 1;
+		}
 	}
 	if (Mrot != NULL) {
 		Mrot[0*2+0] = FskFractToFloat(M->M[0][0]);	Mrot[0*2+1] = FskFractToFloat(M->M[0][1]);
 		Mrot[1*2+0] = FskFractToFloat(M->M[1][0]);	Mrot[1*2+1] = FskFractToFloat(M->M[1][1]);
-		Mrot[2*2+0] = 0;							Mrot[2*2+1] = 0;
+		if (Mtrn != Mrot) {
+			Mrot[2*2+0] = 0;						Mrot[2*2+1] = 0;
+		}
 	}
 }
 

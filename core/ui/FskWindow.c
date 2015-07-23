@@ -197,6 +197,9 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 
 	win->isFullscreenWindow = ((windowStyle & kFskWindowFullscreen) != 0);
 
+	FskInstrumentedItemNew(win, NULL, &gWindowTypeInstrumentation);
+	FskInstrumentedItemSetOwner(win->port, win);
+
 #if (TARGET_OS_IPHONE)
 	// screenScale will be available after cocoa window is created.
 	//{
@@ -298,16 +301,11 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 	FskRectangleRecord r;
 	int densityDpi;
 
-	FskInstrumentedItemPrintfDebug(win, "android - new window: width: %u height %u", (unsigned)width, (unsigned)height);
-	win->isFullscreenWindow = ((windowStyle & kFskWindowFullscreen) != 0);
-	if (win->isFullscreenWindow) {
-		(void)FskFrameBufferGetScreenBounds(&r);
-		width = r.width;
-		height = r.height;
-//		FskInstrumentedItemPrintfDebug(win, "android - new window (FULLSCREEN): width: %d height %d", width, height);
-	}
-
-	win->windowScale = 1;
+	win->isFullscreenWindow = true;
+	(void)FskFrameBufferGetScreenBounds(&r);
+	width = r.width;
+	height = r.height;
+	// FskInstrumentedItemPrintfDebug(win, "android - new window (FULLSCREEN): width: %d height %d", width, height);
 
 	gAndroidCallbacks->getDPICB(NULL, NULL, &densityDpi);
 
@@ -353,9 +351,6 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 	#endif
 #endif /* TARGET_OS_KPL */
 
-	FskInstrumentedItemNew(win, NULL, &gWindowTypeInstrumentation);
-	FskInstrumentedItemSetOwner(win->port, win);
-
 	// post the initialize event
 	err = FskEventNew(&initEvent, kFskEventWindowInitialize, NULL, kFskEventModifierNotSet);
 	BAIL_IF_ERR(err);
@@ -365,9 +360,6 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 	FskListMutexPrepend(gWindowList, win);
 
 	// initialize frame rate
-//#if TARGET_OS_ANDROID
-//	FskTimeCallbackNew(&win->updateTimer);
-//#else
     win->retainsPixelsBetweenUpdates = !win->usingGL;
 
 #if !TARGET_OS_IPHONE	/* iOS uses DisplayLink to update the window */
@@ -395,7 +387,6 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 #endif
 	}
 #endif
-//#endif
 	updateIntervalStr = FskEnvironmentGet("updateIntervalMS");
 	if (NULL != updateIntervalStr)
 		updateInterval = FskStrToNum(updateIntervalStr);
@@ -1213,7 +1204,6 @@ FskErr FskWindowResetInvalidContentRectangle(FskWindow window)
 #elif TARGET_OS_MAC
     FskCocoaWindowSetNeedsDisplay(window, false);
 #elif TARGET_OS_ANDROID
-//	FskInstrumentedItemPrintfDebug(window, " FskWindowResetInvalidContentRectangle - doing nothing");
 	FskRectangleSetEmpty(&window->port->invalidArea);
 #endif /* TARGET_OS */
 	return kFskErrNone;
@@ -1469,7 +1459,6 @@ FskErr FskWindowGetRotation(FskWindow window, SInt32 *rotation, SInt32 *aggregat
 	if (aggregate) {
 #if TARGET_OS_ANDROID
 		*aggregate = (gFskPhoneHWInfo->orientation * 90) % 360;
-//		FskInstrumentedItemPrintfDebug(window, "FskWindowRotationGet - aggregate: %d", *aggregate);
 #else
 		*aggregate = 0;
 #endif
@@ -2447,7 +2436,6 @@ void sendEventWindowUpdate(FskWindow win, Boolean redrawAll, Boolean skipBeforeU
 			// can cause misdrawing
 			FskInstrumentedItemPrintfDebug(win, "***** Mid size change - bail");
 			FskRectangleSetEmpty(&win->port->invalidArea);
-			FskRectangleSetEmpty(&win->previousInvalidArea);
 			return;
 		}
 
@@ -2475,11 +2463,7 @@ void sendEventWindowUpdate(FskWindow win, Boolean redrawAll, Boolean skipBeforeU
         }
 	}
 
-	if (FskRectangleIsEmpty(&win->port->invalidArea)
-#if TARGET_OS_ANDROID
-			&& FskRectangleIsEmpty(&win->previousInvalidArea)
-#endif /* TARGET_OS_ANDROID */
-		)
+	if (FskRectangleIsEmpty(&win->port->invalidArea))
 	{
 		FskInstrumentedItemPrintfDebug(win, " update from back-buffer - win %p, win->bits %p, win->port->bits %p", win, win->bits, win->port->bits);
 		FskWindowUpdateRectangle(win, &win->bits->bounds, true);
@@ -2489,22 +2473,6 @@ void sendEventWindowUpdate(FskWindow win, Boolean redrawAll, Boolean skipBeforeU
 		// let the client draw
 		if (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowUpdate, &updateTime, kFskEventModifierNotSet)) {
 			FskRectangleRecord invalidArea = win->retainsPixelsBetweenUpdates ? win->port->invalidArea : win->bits->bounds;
-
-			#if TARGET_OS_ANDROID
-				FskRectangleRecord previousInvalidArea;
-
-				(void)FskFrameBufferGetScreenBitmap(&gFB);
-
-				if ( (!win->usingGL) || needMoreRedraw ) {
-					needMoreRedraw = 0;
-					previousInvalidArea = win->previousInvalidArea;
-					win->previousInvalidArea = invalidArea;
-					FskRectangleUnion(&previousInvalidArea, &invalidArea, &invalidArea);	// unscaled
-				}
-				else {
-					FskRectangleSetEmpty(&win->previousInvalidArea);
-				}
-			#endif	/* ! TARGET_OS_ANDROID */
 
 			// the YUV to RGB color converter needs to be given even x, width & height values. there is probably a better place to put this knowledge, but....
 			// also 1.5x scaling needs this to avoid leaving behind garbage bits
@@ -3228,7 +3196,6 @@ Boolean FskWindowCheckEvents() {
 #if TARGET_OS_ANDROID
 		if (gAndroidCallbacks->noWindowDontDrawCB()) {
 		    FskPortResetInvalidRectangle(win->port);
-	    	FskRectangleSetEmpty(&win->previousInvalidArea);
 		}
 #endif
 
@@ -3242,11 +3209,7 @@ Boolean FskWindowCheckEvents() {
 			continue;
 		}
 
-		if ((!FskRectangleIsEmpty(&win->port->invalidArea))
-#if TARGET_OS_ANDROID
-			|| (!FskRectangleIsEmpty(&win->previousInvalidArea))
-#endif
-					) {
+		if ((!FskRectangleIsEmpty(&win->port->invalidArea))) {
 #ifdef PETERS_HACK
 			FskInstrumentedItemPrintfDebug(win, "FskWindowCheckEvents: near test for updateTimer");
 #endif /* PETERS_HACK */
@@ -3312,11 +3275,7 @@ void FskWindowCheckUpdate(void)
 		walker = (FskWindow)FskListMutexGetNext(gWindowList, walker);
 		if (NULL == walker)
 			break;
-		if ( (false == FskRectangleIsEmpty(&walker->port->invalidArea))
-#if TARGET_OS_ANDROID
-			|| (false == FskRectangleIsEmpty(&walker->previousInvalidArea))
-#endif
-			)
+		if ( (false == FskRectangleIsEmpty(&walker->port->invalidArea)))
 			FskWindowUpdate(walker, NULL);
 	}
 }
@@ -3339,11 +3298,7 @@ void windowUpdateCallback(struct FskTimeCallBackRecord *callback, const FskTime 
 	if (win->doBeforeUpdate && (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowBeforeUpdate, NULL, kFskEventModifierNotSet)))
 		FskWindowEventSend(win, fskEvent);
 
-	if (FskRectangleIsEmpty(&win->port->invalidArea)
-#if TARGET_OS_ANDROID
-		&& FskRectangleIsEmpty(&win->previousInvalidArea)
-#endif
-		 ) {
+	if (FskRectangleIsEmpty(&win->port->invalidArea)) {
 		if (!win->doBeforeUpdate) {
 			win->updateSuspended = true;
 			goto done;
@@ -3471,6 +3426,12 @@ UInt32 getScreenPixelFormat(void)
 {
 	UInt32 pixelFormat = 0;
 
+	#if FSKBITMAP_OPENGL
+		const char *value = FskEnvironmentGet("useGL");
+		if (value && (0 == FskStrCompare("1", value)) && (kFskErrNone == FskGLInit(NULL)))
+			return kFskBitmapFormatGLRGBA;
+	#endif /* FSKBITMAP_OPENGL */
+
 	EnumDisplayMonitors(NULL, NULL, enumMonitor, (LPARAM)&pixelFormat);
 	switch (pixelFormat) {
 		case 16:
@@ -3497,11 +3458,21 @@ UInt32 getScreenPixelFormat(void)
 
 UInt32 getScreenPixelFormat(void)
 {
+	#if FSKBITMAP_OPENGL
+		const char *value = FskEnvironmentGet("useGL");
+		if (value && (0 == FskStrCompare("1", value)) && (kFskErrNone == FskGLInit(NULL)))
+			return kFskBitmapFormatGLRGBA;
+	#endif /* FSKBITMAP_OPENGL */
 	return kFskBitmapFormatDefault;
 }
 #elif (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
 UInt32 getScreenPixelFormat(void)
 {
+	#if FSKBITMAP_OPENGL
+		const char *value = FskEnvironmentGet("useGL");
+		if (value && (0 == FskStrCompare("1", value)) && (kFskErrNone == FskGLInit(NULL)))
+			return kFskBitmapFormatGLRGBA;
+	#endif /* FSKBITMAP_OPENGL */
 	//return FskGtkWindowGetPixelFormat();
 	return kFskBitmapFormat32RGBA;
 }

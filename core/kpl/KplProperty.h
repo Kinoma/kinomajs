@@ -51,7 +51,8 @@ enum {
 	kKplPropertyAudioPreferredBufferSize,
 	kKplPropertyAudioSamplePosition,
 	kKplPropertyAudioVolume,
-	kKplPropertyAudioSingleThreadedClient
+	kKplPropertyAudioSingleThreadedClient,
+	kKplPropertyAudioRealTime
 };
 
 typedef struct {

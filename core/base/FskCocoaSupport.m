@@ -855,11 +855,18 @@ void CocoaMenuItemAdd(UInt32 menuID, UInt32 menuItemID, char *title, char *key, 
 	NSString	*keyString;
 	int			numberOfItems;
 	BOOL		addItem = YES, addSeparator = NO, deleteLastMenuItem = NO, applicationMenuItem = NO;
+	UInt32 mask = NSCommandKeyMask;
+	char* p;
 
 	if (title == NULL) return;
 
 	menu = [[[NSApp mainMenu] itemWithTag:(menuID + 1)] submenu];
 	numberOfItems = [menu numberOfItems];
+	if (key && (p = FskStrRChr(key, '+'))) {
+		if (FskStrStr(key, "Shift")) mask |= NSShiftKeyMask;
+		if (FskStrStr(key, "Alt")) mask |= NSAlternateKeyMask;
+		key = p + 1;
+	}
 	keyString = ((key && key[0]) ? [[NSString stringWithUTF8String:key] lowercaseString] : @"");
 
 	// handle special commands
@@ -890,7 +897,7 @@ void CocoaMenuItemAdd(UInt32 menuID, UInt32 menuItemID, char *title, char *key, 
 	if (addItem)
 	{
 		menuItem = [[[NSMenuItem alloc] initWithTitle:[NSString stringWithUTF8String:title] action:@selector(handleMenuAction:) keyEquivalent:keyString] autorelease];
-		[menuItem setKeyEquivalentModifierMask:NSCommandKeyMask];
+		[menuItem setKeyEquivalentModifierMask:mask];
 		[menuItem setTag:menuItemID];
 
 		if (applicationMenuItem)

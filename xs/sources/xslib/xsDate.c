@@ -908,10 +908,29 @@ void fx_Date_getUTCFullYear(txMachine* the)
 //TODO: 15.9.5.25: if t is NaN, we should return NaN: ecma/Date/15.9.5.22-1.js
 void fx_Date_getTimezoneOffset(txMachine* the)
 {
+#if __FSK_LAYER__
+	#include "FskTime.h"
+	txSlot* aDate;
+	txSlot* aProperty;
+	FskTimeRecord	fsktime;
+	SInt32	 		tzoff;
+	
+	aDate = fxGetInstance(the, mxThis);
+	mxCheckDate(aDate);
+	aProperty = aDate->next;
+	fsktime.seconds = (SInt32)(aProperty->value.number/1000);
+	fsktime.useconds=0;
+
+	FskTimeGetZone(&fsktime, &tzoff, NULL, NULL);
+	mxResult->kind = XS_NUMBER_KIND;
+	mxResult->value.number = 0 - (tzoff/60);
+	//printf("---- %ld, %ld\n", fsktime.seconds, tzoff/60);
+#else
 	struct timezone tz;
 	c_gettimeofday(C_NULL, &tz);
 	mxResult->value.integer = /*(tz.tz_dsttime * 60) - */tz.tz_minuteswest;
 	mxResult->kind = XS_INTEGER_KIND;
+#endif
 }
 
 void fx_Date_set_aux(txMachine* the, txTimeDescription* td)

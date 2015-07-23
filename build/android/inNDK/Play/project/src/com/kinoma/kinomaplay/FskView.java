@@ -29,8 +29,9 @@ class FskView extends SurfaceView implements IFskView, SurfaceHolder.Callback {
     public native int setFskSurface(Surface jSurface);
     public native int unsetFskSurface();
     public native int doFskSurfaceChanged(int width, int height);
-    public native int doSizeAboutToChange(int oldwidth, int oldheight, int newwidth, int newheight);
- 
+
+	private static String TAG = "kinoma";
+
     int mCanvasWidth = 0;
     int mCanvasHeight = 0;
     SurfaceHolder mHolder;
@@ -38,13 +39,15 @@ class FskView extends SurfaceView implements IFskView, SurfaceHolder.Callback {
     Boolean mInitialized = false;
 	KinomaPlay owner;
 	Boolean mNeedsActivation = false;
-	
-	public void setOwner(KinomaPlay owner) { 
+
+	public void setOwner(KinomaPlay owner) {
 		this.owner = owner;
 	}
-   
+
     public FskView(Context context, AttributeSet attrs) {
         super(context, attrs);
+Log.i("FSKVIEW", "Constructor");
+        setZOrderOnTop(true);
 
         SurfaceHolder holder = getHolder();
         holder.addCallback(this);
@@ -54,85 +57,52 @@ class FskView extends SurfaceView implements IFskView, SurfaceHolder.Callback {
 
     @Override
     public void setInitialized(Boolean inited) {
+Log.i("FSKVIEW", "setInitialized");
     	 mInitialized = inited;
     }
 
-     
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+
+	public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+Log.i("FSKVIEW", "surfaceChanged");
 		if (null == mHolder || mInitialized == false)
-    		return;
-		
-        if (mCanvasWidth != width || mCanvasHeight != height) {
-    		mCanvasWidth = width;
-    		mCanvasHeight = height;
+			return;
 
-    		// notify fsk that size has changed
-    	}
-// 		Log.i("Kinoma", "surfaceChanged - about to tell Fsk 'doFskSurfaceChanged'");
+//		Log.d(TAG, "FskView.surfaceChanged(holder:" + holder + " format:" + format + " w:" + width + " h:" + height + ")");
+		if (mCanvasWidth != width || mCanvasHeight != height) {
+			mCanvasWidth = width;
+			mCanvasHeight = height;
 
-        if (0 == mInSizeChanged) {
-        	doFskSurfaceChanged(width, height);
-        }
-
-    	if (mNeedsActivation) {
-    		mNeedsActivation = false;
-			owner.callFsk(owner.kJNIWindowActivated, "");
-    	}
-    }
-
-    
-    @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-
-    	if (mHolder == null) {
-        	return;					// initialization time
-        }
-    	mInSizeChanged++;
- 
-   		doSizeAboutToChange(oldw, oldh, w, h);			// let Kinoma have a crack at it before the size changes
-//    	Log.i("Kinoma", "onSizeChanged - after telling Fsk 'about' w:" + w + " h:" + h + " oldw:" + oldw + " oldh:" + oldh);
-    	super.onSizeChanged(w, h, oldw, oldh);
-//    	Log.i("Kinoma", "onSizeChanged - after 'super'");
-
-    
-       	Rect keyrect = new Rect();
-       	Rect oldRect = new Rect();
-    	Window win = owner.getWindow();
-    	win.getDecorView().getWindowVisibleDisplayFrame(oldRect);
-    	
-    	owner.mVerticalOffset = oldRect.top;
-
-    	int kx, ky, kw, kh, dh;
-//		Log.i("Kinoma", "Orientation: " + owner.mOrientation + " w:" + owner.mDisplay.getWidth() + " h:" + owner.mDisplay.getHeight());
-		kw = owner.mDisplay.getWidth();
-		dh = owner.mDisplay.getHeight();
-		kh = dh - oldRect.bottom;
-		kx = 0;
-		ky = oldRect.bottom - owner.mVerticalOffset;
-		if (owner.mInputMethodShown) {
-			if (kh == 0) {
-// Log.i("Kinoma", "onSizeChanged - input method shown, but kh is 0, shut down kbd.");
-				owner.doIMEEnable(0);
-			}
-			else if (h >= oldh) {
-				h = oldh;
-			}
+			// notify fsk that size has changed
 		}
-	
-		owner.mKeyboardRect.set(kx, ky, kx + kw, ky + kh);
-//	   	Log.i("Kinoma", "onSizeChanged - keyboard rect [" + kx + "," + ky + "," + kw + "," + kh + "]");
+//		Log.d(TAG, "\tFskView.surfaceChanged - about to tell Fsk 'doFskSurfaceChanged'");
 
-    	doFskSurfaceChanged(w, h);
-		owner.wantsKeyboard();
-    	mInSizeChanged--;
-    }
-   
+		if (0 == mInSizeChanged) {
+			doFskSurfaceChanged(width, height);
+		}
+
+		if (mNeedsActivation) {
+			mNeedsActivation = false;
+			owner.callFsk(owner.kJNIWindowActivated, "");
+		}
+//		Log.d(TAG, "FskView.surfaceChanged - returning");
+	}
+
+
+	@Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+Log.i("FSKVIEW", "onSizeChanged");
+		super.onSizeChanged(w, h, oldw, oldh);
+	}
+
+
     public void surfaceCreated(SurfaceHolder holder) {
+Log.i("FSKVIEW", "surfaceCreated");
      	mHolder = holder;
      	Surface jSurface = holder.getSurface();
         setFskSurface(jSurface);
     }
-    
+
     public void surfaceDestroyed(SurfaceHolder holder) {
+Log.i("FSKVIEW", "surfaceDestroyed");
     	unsetFskSurface();
         mHolder = null;
     }

@@ -147,6 +147,113 @@ void KprModulesBasesCleanup(void)
 
 #ifndef KPR_NO_GRAMMAR
 
+#ifdef XS6
+
+extern xsIndex fxFindModule(xsMachine* the, xsIndex moduleID, xsSlot* slot);
+
+extern xsBooleanValue fxFindArchive(xsMachine* the, xsStringValue path);
+static xsBooleanValue fxFindFile(xsMachine* the, xsStringValue path);
+static xsBooleanValue fxFindURI(xsMachine* the, xsStringValue base, xsStringValue name, xsStringValue dot, xsIndex* id);
+
+static xsStringValue gxExtensions[] = { 
+	".jsb", 
+	".xsb", 
+	".js", 
+	".xml", 
+	NULL,
+};
+
+xsBooleanValue fxFindFile(xsMachine* the, xsStringValue path)
+{
+	FskFileInfo fileInfo;
+	if (kFskErrNone == FskFileGetFileInfo(path, &fileInfo))
+		return 1;
+	return 0;
+}
+
+xsIndex fxFindModule(xsMachine* the, xsIndex moduleID, xsSlot* slot)
+{
+	char name[1024];
+	xsBooleanValue absolute, relative;
+	xsStringValue dot, slash;
+	xsIndex id;
+	
+	xsToStringBuffer(*slot, name, sizeof(name));
+	if ((!FskStrCompareWithLength(name, "./", 2)) || (!FskStrCompareWithLength(name, "../", 3))) {
+		absolute = 0;
+		relative = (moduleID == XS_NO_ID) ? 0 : 1;
+	}
+	else if ((!FskStrCompareWithLength(name, "/", 1))) {
+		FskMemMove(name, name + 1, FskStrLen(name));
+		absolute = 1;
+		relative = 0;
+	}
+	else {
+		absolute = 1;
+		relative = (moduleID == XS_NO_ID) ? 0 : 1;
+	}
+	slash = FskStrRChr(name, '/');
+	if (!slash)
+		slash = name;
+	dot = FskStrRChr(slash, '.');
+	if (!dot)
+		dot = name + FskStrLen(name);
+	if (relative) {
+		if (fxFindURI(the, xsName(moduleID), name, dot, &id))
+			return id;
+	}
+	if (absolute) {
+		xsStringValue* bases = gModulesBases;
+		UInt32 c = gModulesBasesCount;
+		UInt32 i = 1;
+		while (i < c) {
+			if (fxFindURI(the, bases[i], name, dot, &id))
+				return id;
+			i++;
+		}
+	}
+	xsReferenceError("module \"%s\" not found", name);
+	return XS_NO_ID;
+}
+
+xsBooleanValue fxFindURI(xsMachine* the, xsStringValue base, xsStringValue name, xsStringValue dot, xsIndex* id)
+{
+	xsStringValue url = NULL;
+	xsStringValue path = NULL;
+	xsBooleanValue result = 0;
+	*id = XS_NO_ID;
+	if (*dot) {
+		xsThrowIfFskErr(KprURLMerge(base, name, &url));
+		xsThrowIfFskErr(KprURLToPath(url, &path));
+		if (fxFindArchive(the, path) || fxFindFile(the, path)) {
+			*id = xsID(url);
+			result = 1; 
+		}
+		FskMemPtrDisposeAt(&path);
+		FskMemPtrDisposeAt(&url);
+	}
+	else {
+		xsStringValue* extension;
+		for (extension = gxExtensions; *extension; extension++) {
+ 			FskStrCopy(dot, *extension);
+			xsThrowIfFskErr(KprURLMerge(base, name, &url));
+			xsThrowIfFskErr(KprURLToPath(url, &path));
+			if (fxFindArchive(the, path) || fxFindFile(the, path)) {
+				*id = xsID(url);
+				result = 1;
+			}
+			FskMemPtrDisposeAt(&path);
+			FskMemPtrDisposeAt(&url);
+			if (result)
+				break;
+		}
+		*dot = 0;
+	}
+	return result;
+}
+
+#else /* !XS6*/
+
 void KPR_include(xsMachine* the)
 {
 	char name[1024];
@@ -471,6 +578,8 @@ void KPR_require(xsMachine* the)
 		xsThrow(xsException);
 	}
 }
+
+#endif /* !XS6*/
 
 KprImageCache gPictureImageCache = NULL;
 KprImageCache gThumbnailImageCache = NULL;

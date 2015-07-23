@@ -16,7 +16,7 @@
  */
 /**
 	\file	FskRectBlit.h
-	\brief	Pixel Transfers over a Rectangular Domainblits.
+	\brief	Pixel Transfers over a Rectangular Domain.
 */
 
 #ifndef __FSKRECTBLIT__

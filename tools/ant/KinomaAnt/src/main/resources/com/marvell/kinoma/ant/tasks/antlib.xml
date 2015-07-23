@@ -16,5 +16,6 @@
 -->
 <antlib>
 	<taskdef name="getmanifestvar" classname="com.marvell.kinoma.ant.tasks.GetManifestVar" />
+	<taskdef name="getmanifestoption" classname="com.marvell.kinoma.ant.tasks.GetManifestOption" />
 	<taskdef name="downcase" classname="com.marvell.kinoma.ant.tasks.DownCase" />
 </antlib>

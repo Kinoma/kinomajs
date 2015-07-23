@@ -99,7 +99,7 @@ void terminateVolumeList();
 
 
 #if BAD_FTRUNCATE
-	int FTRUNCATE(FILE *theFile, FILEOFFSET length);	
+	int FTRUNCATE(FILE *theFile, FILEOFFSET length);
 #else
 	#define FTRUNCATE(a,b) ftruncate(fileno(a),b)
 #endif
@@ -238,7 +238,7 @@ static FskErr sCheckFullPath(const char *fullPath, UInt32 pathType) {
 			return kFskErrInvalidParameter;
 		}
 	}
-	
+
 	return kFskErrNone;
 }
 
@@ -299,7 +299,7 @@ FskErr KplFileGetSize(KplFile fref, KplInt64 *size)
 	FskErr err = kFskErrNone;
 	int ret;
 
-	ret = FTELL(fref->theFile);	
+	ret = FTELL(fref->theFile);
 	if (ret < 0) goto bail;
 	pos = ret;
 	ret = FSEEK(fref->theFile, 0, SEEK_END);
@@ -313,7 +313,7 @@ FskErr KplFileGetSize(KplFile fref, KplInt64 *size)
 	fref->flushBeforeRead = false;
 	fref->flushBeforeWrite = false;
 
-	if (size)		
+	if (size)
 		*size = end;
 
 bail:
@@ -333,7 +333,7 @@ int FTRUNCATE(FILE *theFile, FILEOFFSET length)
 	int			ret, fd;
 	char c = '\0';
 
-	fd = fileno(theFile);	
+	fd = fileno(theFile);
 	if (-1 == FSTAT(fd, &statbuf))
 		return -1;
 	if (length == statbuf.st_size)
@@ -369,11 +369,11 @@ FskErr KplFileSetSize(KplFile fref, const KplInt64 *size) {
 	fref->flushBeforeRead = false;
 	fref->flushBeforeWrite = false;
 
-	pos = *size;	
-	oldpos = FTELL(fref->theFile);	
+	pos = *size;
+	oldpos = FTELL(fref->theFile);
 	if (oldpos > pos)
 		ret = FSEEK(fref->theFile, pos, SEEK_SET);
-		
+
 	ret = FTRUNCATE(fref->theFile, pos);
 	if (-1 == ret)
 		return errnoToFskErr(errno);
@@ -396,7 +396,7 @@ FskErr KplFileSetPosition(KplFile fref, const KplInt64 *position)
 	err = FSEEK(fref->theFile, pos, SEEK_SET);
 	if (err == -1)
 		return errnoToFskErr(errno);
-	
+
 	return kFskErrNone;
 }
 
@@ -406,13 +406,13 @@ FskErr KplFileGetPosition(KplFile fref, KplInt64 *position)
 
 	if (!fref) return kFskErrInvalidParameter;
 
-	pos = FTELL(fref->theFile);	
+	pos = FTELL(fref->theFile);
 	if (pos == -1) return errnoToFskErr(errno);
 
 	*position = pos;
 
 	if (*position != pos) return kFskErrOutOfRange;
-	
+
 	return kFskErrNone;
 }
 
@@ -445,7 +445,7 @@ FskErr KplFileRead(KplFile fref, UInt32 bytesToRead, void *buffer, UInt32 *bytes
 	else
 		amt = 0;
 
-	if (bytesRead)	
+	if (bytesRead)
 		*bytesRead = amt;
 	else {
 		// can't return amount read, so we've got to report failure if
@@ -788,10 +788,10 @@ char *copyNiceName(char *name) {
 void terminateVolumeList() {
 	volInfo vol;
 	while ( NULL != (vol = FskListRemoveFirst((void **)&volumeList)) ) {
-		FskMemPtrDispose(vol->name);	
-		FskMemPtrDispose(vol->mountPoint);	
-		FskMemPtrDispose(vol->typeStr);	
-		FskMemPtrDispose(vol);	
+		FskMemPtrDispose(vol->name);
+		FskMemPtrDispose(vol->mountPoint);
+		FskMemPtrDispose(vol->typeStr);
+		FskMemPtrDispose(vol);
 	}
 }
 
@@ -876,7 +876,7 @@ void scanVolumes() {
 				if (0 == FskStrCompareWithLength(cur->mnt_type, walker->name, FskStrLen(walker->name)))
 					break;
 			}
-			
+
 			if (!walker->name) {
 				continue;
 			}
@@ -886,13 +886,13 @@ void scanVolumes() {
 			vi->removable = walker->removable;
 			vi->mounted = true;
 			vi->typeStr = FskStrDoCopy(cur->mnt_type);
-			
+
 			if (kFskErrNone == FskMemPtrNew(FskStrLen(cur->mnt_dir) + 2, &vi->mountPoint)) {
 				FskStrCopy(vi->mountPoint, cur->mnt_dir);
 				if (vi->mountPoint[FskStrLen(vi->mountPoint)-1] != '/')
 					FskStrCat(vi->mountPoint, "/");
 			}
-			
+
 			vi->name = copyNiceName(cur->mnt_fsname);
 			vi->capacity = fsinfo.f_blocks * fsinfo.f_bsize;
 			vi->remaining = fsinfo.f_bavail * fsinfo.f_bsize;
@@ -1008,7 +1008,7 @@ FskErr KplVolumeGetInfoFromPath(const char *pathIn, char **pathOut, char **nameO
 }
 
 FskErr KplVolumeGetDeviceInfo(UInt32 volumeID, char **vendor, char **product, char **revision, char **vendorSpecific) {
-	
+
 	if (vendor)
 		*vendor = FskStrDoCopy("vendor");
 	if (product)
@@ -1335,7 +1335,7 @@ static void doChangesCallback(void *a1, void *a2, void *a3, void *a4) {
 			flags |= kKplDirectoryChangeFileDeleted;
 		if (mask & INOTIFY_CREATE_FILE_MASK)
 			flags |= kKplDirectoryChangeFileCreated;
-	
+
 		(dirNot->callback)(flags, path, dirNot->refCon);
 		FskMemPtrDispose(path);
 	}
@@ -1366,7 +1366,7 @@ static void dirChangeHandler(FskThreadDataHandler handler, FskThreadDataSource s
 			}
 			buffer = FskStrDoCopy(ev->name);
 			walker->count += 1;
-			FskThreadPostCallback(walker->thread, doChangesCallback, walker, buffer, (void*)ev->mask, NULL);
+			FskThreadPostCallback(walker->thread, doChangesCallback, walker, buffer, ev->mask, NULL);
 		}
 	}
 	FskMutexRelease(gDirChangeNotifiersMutex);
@@ -1444,7 +1444,7 @@ bail:
 		KplDirectoryChangeNotifierDispose((KplDirectoryChangeNotifier)dirNot);
 		dirNot = NULL;
 	}
-	*dirChangeNtf = (KplDirectoryChangeNotifier)dirNot;
+	*dirChangeNtf = (FskDirectoryChangeNotifier)dirNot;
 
 	return err;
 }
@@ -1475,7 +1475,7 @@ FskErr KplDirectoryChangeNotifierDispose(KplDirectoryChangeNotifier dirChangeNtf
 	FskMemPtrDispose(dirNot);
 
 	return kFskErrNone;
-}	
+}
 #else 	// ! USE_INOTIFY
 
 FskErr KplDirectoryChangeNotifierNew(const char *path, UInt32 flags, KplDirectoryChangeNotifierCallbackProc callback, void *refCon, KplDirectoryChangeNotifier *dirChangeNtf)
@@ -1538,7 +1538,7 @@ FskErr KplVolumeNotifierDispose(KplVolumeNotifier volNtf)
 KplDirectoryChangeNotifier sd1, sd2;
 
 FskErr sdMountNotifierCallback(UInt32 whatChanged, const char *path, void *refCon) {
-	fprintf(stderr, "sdMountNotifierCallback - what: %d, path: %s, ref: %p\n", (int)whatChanged, path, refCon);
+	fprintf(stderr, "sdMountNotifierCallback - what: %u, path: %s, ref: %d\n", (unsigned)whatChanged, path, (int)refCon);
 	return kFskErrNone;
 }
 
@@ -1552,8 +1552,12 @@ void watchSDMounts() {
 
 FskErr KplFileInitialize()
 {
-#if TEST_VOLUME_ITERATOR
 	FskErr err;
+//	err = KplVolumeEject("/mnt/SD1", 0);
+//	fprintf(stderr, "error %d trying to eject /mnt/SD1\n", err);
+//	watchSDMounts();
+
+#if TEST_VOLUME_ITERATOR
 	KplVolumeIterator vit;
 	char *path, *name;
 	UInt32 id;

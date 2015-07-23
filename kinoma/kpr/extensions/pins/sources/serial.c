@@ -46,45 +46,52 @@ void xs_serial_init(xsMachine* the)
     SInt32 rxPin = 0, txPin = 0;
     SInt32 baud = xsToInteger(xsGet(xsThis, xsID("baud")));
     int ttyNumrx = -1, ttyNumtx = -1;
+    const char *path = NULL;
 
     sio = xsGetHostData(xsThis);
     if (sio)
         xsThrowDiagnosticIfFskErr(kFskErrBadState, "Serial already initialized (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
 
-    if (xsHas(xsThis, xsID("rx")))
-        rxPin = xsToInteger(xsGet(xsThis, xsID("rx")));
-    if (xsHas(xsThis, xsID("tx")))
-        txPin = xsToInteger(xsGet(xsThis, xsID("tx")));
-    
-    if ((0 == rxPin) && (0 == txPin))
-        xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "No pin specified for rx or tx (rx pin %d, tx pin %d).", (int)rxPin, (int)txPin);
+    if (xsTest(xsGet(xsThis, xsID("path"))))
+        path = xsToString(xsGet(xsThis, xsID("path")));
+    else {
+        if (xsHas(xsThis, xsID("rx")))
+            rxPin = xsToInteger(xsGet(xsThis, xsID("rx")));
+        if (xsHas(xsThis, xsID("tx")))
+            txPin = xsToInteger(xsGet(xsThis, xsID("tx")));
 
-    if (rxPin) {
-        ttyNumrx = FskHardwarePinsMux(rxPin, kFskHardwarePinUARTRX);
-        if (ttyNumrx < 0)
-            ttyNumrx = FskHardwarePinsMux(rxPin, kFskHardwarePinUARTTX);
+        if ((0 == rxPin) && (0 == txPin))
+            xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "No pin specified for rx or tx (rx pin %d, tx pin %d).", (int)rxPin, (int)txPin);
+
+        if (rxPin) {
+            ttyNumrx = FskHardwarePinsMux(rxPin, kFskHardwarePinUARTRX);
+            if (ttyNumrx < 0)
+                ttyNumrx = FskHardwarePinsMux(rxPin, kFskHardwarePinUARTTX);
+        }
+        if (txPin) {
+            ttyNumtx = FskHardwarePinsMux(txPin, kFskHardwarePinUARTTX);
+            if (ttyNumtx < 0) {
+                ttyNumtx = FskHardwarePinsMux(txPin, kFskHardwarePinUARTRX);
+            }
+        }
+
+        if (((rxPin && txPin) && (ttyNumrx != ttyNumtx)) || (rxPin && (ttyNumrx < 0)) || (txPin && (ttyNumtx < 0)))
+            xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "Invalid serial pins (rx pin %d, tx pin %d).", (int)rxPin, (int)txPin);
     }
-    if (txPin) {
-        ttyNumtx = FskHardwarePinsMux(txPin, kFskHardwarePinUARTTX);
-        if (ttyNumtx < 0) {
-            ttyNumtx = FskHardwarePinsMux(txPin, kFskHardwarePinUARTRX);
-		}
-    }
 
-    if (((rxPin && txPin) && (ttyNumrx != ttyNumtx)) || (rxPin && (ttyNumrx < 0)) || (txPin && (ttyNumtx < 0)))
-        xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "Invalid serial pins (rx pin %d, tx pin %d).", (int)rxPin, (int)txPin);
+    xsThrowIfFskErr(FskMemPtrNewClear(sizeof(FskSerialIORecord) + (path ? FskStrLen(path) : 0), (FskMemPtr *)&sio));
+    sio->rxNum = rxPin;
+    sio->txNum = txPin;
+    if (path)
+        FskStrCopy(sio->path, path);
+    else if (-1 != ttyNumrx)
+        sio->ttyNum = ttyNumrx;
+    else if (-1 != ttyNumtx)
+        sio->ttyNum = ttyNumtx;
+    else
+        xsThrowDiagnosticIfFskErr(kFskErrBadState, "Serial ttyNumtx and ttyNumrx are both uninitialized", 0);
 
-	xsThrowIfFskErr(FskMemPtrNewClear(sizeof(FskSerialIORecord), (FskMemPtr *)&sio));
-	sio->rxNum = rxPin;
-	sio->txNum = txPin;
-	if (-1 != ttyNumrx)
-		sio->ttyNum = ttyNumrx;
-	else if (-1 != ttyNumtx)
-		sio->ttyNum = ttyNumtx;
-	else
-		xsThrowDiagnosticIfFskErr(kFskErrBadState, "Serial ttyNumtx and ttyNumrx are both uninitialized", 0);
-
-	err = FskSerialIOPlatformInit(sio, baud);
+    err = FskSerialIOPlatformInit(sio, baud);
     if (err) {
         FskMemPtrDispose(sio);
         xsThrowDiagnosticIfFskErr(err, "Serial initialization failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
@@ -106,7 +113,7 @@ void xs_serial_read(xsMachine* the)
 	if (!sio)
 		xsError(kFskErrBadState);
 
-    if (0 == sio->rxNum)
+    if (!sio->path && (0 == sio->rxNum))
         xsThrowDiagnosticIfFskErr(kFskErrBadState, "Cannot read from transmit only serial connection (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
 
     formatString = xsToString(xsArg(0));
@@ -256,7 +263,7 @@ void xs_serial_write(xsMachine* the)
 	if (!sio)
 		xsError(kFskErrBadState);
 
-    if (0 == sio->txNum)
+    if (!sio->path && (0 == sio->txNum))
         xsThrowDiagnosticIfFskErr(kFskErrBadState, "Cannot write to receive only serial connection (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
 
     for (i = 0; i < argc; i++)
@@ -276,7 +283,7 @@ void xs_serial_repeat(xsMachine *the)
 	if (!sio)
 		xsError(kFskErrBadState);
 
-    if (0 == sio->rxNum)
+    if (!sio->path && (0 == sio->rxNum))
         xsThrowDiagnosticIfFskErr(kFskErrBadState, "Cannot poll from transmit only serial connection (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
 
     if (sio->pollerCallback) {

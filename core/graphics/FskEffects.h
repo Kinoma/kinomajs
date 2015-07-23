@@ -575,49 +575,44 @@ void FskEffectStraightAlphaScalarSet(FskEffect p, UInt8 r, UInt8 g, UInt8 b, UIn
 	do { (p)->effectID = kFskEffectStraightAlpha; FskColorRGBSet(&(p)->params.straightAlpha.color, (r), (g), (b)); } while(0)
 
 
-struct FskEffectCacheRecord;								/**< Opaque record for the effect cache. */
-typedef struct FskEffectCacheRecord FskEffectCacheRecord;	/**< Opaque  type  for the effect cache. */
-typedef struct FskEffectCacheRecord *FskEffectCache;		/**< Pointer to an effect cache. */
 #define kFskGLEffectCacheBitmapWithAlpha	0x1				/** Indicates to FskGLEffectCacheGetBitmap() that alpha is needed in the bitmap. */
 #define kFskGLEffectCacheBitmapInit			0x2				/** After allocation, FskGLEffectCacheGetBitmap() initialize the bitmap with glClear(). */
 
-/** Create a new GL Effect cache.
- **	\param[in]	pCache		pointer to a place to store an effect cache.
- **	\return		kFskErrNone	if the cache was created successfully.
+/** Count down to expiration.
+ ** Call this once a frame, to expired cached bitmaps when the count reaches zero.
+ ** You can empty the cache immediately by calling FskGLEffectCacheDisposeAllBitmaps().
+ **	\return		the number left.
  **/
-FskAPI(FskErr) FskGLEffectCacheNew(FskEffectCache *pCache);
+FskAPI(SInt32) FskGLEffectCacheCountDown(void);
 
-/** Dispose a GL Effect cache.
- ** All of the bitmaps contained in tha cache are also disposed.
- **	\param[in]	cache		the cache to be disposed.
- **	\return		kFskErrNone	if the cache was disposed successfully.
+/** Dispose all bitmaps contained in the cache.
+ ** This does not dispose of the cache itself.
  **/
-FskAPI(FskErr) FskGLEffectCacheDispose(FskEffectCache cache);
+FskAPI(void) FskGLEffectCacheDisposeAllBitmaps(void);
 
 /** Get a bitmap from the GL Effect cache.
  ** If there are no acceptable bitmaps in the cache, FskBitmapNew() is called.
  ** To the caller of this proc, the bitmaps returned by FskGLEffectCacheGetBitmap() and FskBitmapNew() are identical.
  ** When done, call FskGLEffectCacheReleaseBitmap() to put the bitmap into the cache, or FskBitmpDispose() to dispose of it immediately.
- **	\param[in]	cache	the effect cache.
  **	\param[in]	width	the desired width  of the bitmap.
  **	\param[in]	height	the desired height of the bitmap.
  **	\param[in]	flags	flags: a bitwise OR of { kFskGLEffectCacheBitmapWithAlpha, kFskGLEffectCacheBitmapInit }.
  **	\param[out]	bmp		the effect cache.
  **	\return		kFskErrNone	if the bitmap was returned successfully.
  **/
-FskAPI(FskErr) FskGLEffectCacheGetBitmap(FskEffectCache cache, unsigned width, unsigned height, int flags, FskBitmap *bmp);
+FskAPI(FskErr) FskGLEffectCacheGetBitmap(unsigned width, unsigned height, int flags, FskBitmap *bmp);
 
 /** Release a bitmap back to the cache.
  ** The bitmap must have a useCount of 0 in order to be returned to the cache.
  ** If the useCount is not zero, FskBitmapDispose() is called instead and an error is returned.
  **	If the pixelFormat is not of the type collected in the cache, FskBitmapDispose() is called instead and an error is returned.
  **	It is not an error to release a GLRGBA bitmap allocated with FskBitmapNew().
- **	\param[in]	cache			the effect cache.
+ **	\param[in]	bm							the bitmap to be released.
  **	\return		kFskErrNone					if the bitmap was cached successfully.
  **	\return		kFskErrIsBusy				if the bitmap has a nonzero use count.
  **	\return		kFskErrUnsupportedPixelType	if the bitmap is not of the type collected in the cache.
  **/
-FskAPI(FskErr) FskGLEffectCacheReleaseBitmap(FskEffectCache cache, FskBitmap bm);
+FskAPI(FskErr) FskGLEffectCacheReleaseBitmap(FskBitmap bm);
 
 
 
@@ -638,10 +633,9 @@ FskAPI(FskErr) FskEffectApply(FskConstEffect effect, FskConstBitmap src, FskCons
  **	\param[in]	srcRect		A rectangle specifying a sunset of the src texture. NULL implies the whole texture.
  **	\param[in]	dst			The destination texture.
  **	\param[in]	dstPoint	The location where the result is to be placed.
- **	\param[in]	cache		A cache of reusable textures. NULL causes a temporary cache to be created when needed.
  **	\return		kFskErrNone	If the operation was comopleted successfully.
  **/
-FskAPI(FskErr) FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache);
+FskAPI(FskErr) FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint);
 
 
 /** OpenGL implementation of Effects -- with mode.
@@ -658,7 +652,6 @@ FskAPI(FskErr) FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskCo
  **	\param[in]	srcRect		A rectangle specifying a sunset of the src texture. NULL implies the whole texture.
  **	\param[in]	dst			The destination texture.
  **	\param[in]	dstPoint	The location where the result is to be placed.
- **	\param[in]	cache		A cache of reusable textures. NULL causes a temporary cache to be created when needed.
  **	\param[in]	clipRect	The clip rectangle, or NULL if no clipping.
  **	\param[in]	mode		The desired blending mode. Only kFskGraphicsModeCopy and kFskGraphicsModeAlpha are accommodated.
  **	\param[in]	modeParams	mode parameters. If modeParams->blendLevel < 255, returns kfskErrUnimplemented.
@@ -666,7 +659,7 @@ FskAPI(FskErr) FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskCo
  **	\return		kfskErrUnimplemented	if the specified mode is not implemented, or if modeParams->blendLevel < 255.
  ** \note		This does not have an equivalent software API.
  **/
-FskAPI(FskErr) FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache,
+FskAPI(FskErr) FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint,
 									FskConstRectangle clipRect, UInt32 mode, FskConstGraphicsModeParameters modeParams);
 
 
@@ -712,14 +705,6 @@ int FskEffectBoxRadiusFromGaussianSigma(float sigma);
  **/
 int FskEffectBoxThriceRadiusFromGaussianSigma(float sigma);
 	#define FskEffectBoxThriceRadiusFromGaussianSigma(s)	(int)((sigma) * 0.9523800f)
-
-
-#ifdef __FSKEFFECTS_PRIV__
-struct FskEffectCacheRecord {
-	UInt32		numBitmaps;
-	FskBitmap	*bitmaps;
-};
-#endif /* __FSKEFFECTS_PRIV__ */
 
 
 #ifdef __cplusplus

@@ -20,7 +20,6 @@
 */
 #define __FSKBITMAP_PRIV__
 #define __FSKGLBLIT_PRIV__
-#define __FSKEFFECTS_PRIV__
 
 #include <math.h>
 #include <stdarg.h>
@@ -123,7 +122,7 @@ FskInstrumentedSimpleType(GLEffects, gleffects);												/**< This declares t
 
 typedef struct GLTexVertex  { float x, y, u, v; }       GLTexVertex;	/* dstCoord(x,y), texCoord(u,v) */
 typedef struct GLMttVertex  { float x, y, u, v, s, t; } GLMttVertex;	/* dstCoord(x,y), texCoord(u,v), mtCoord(s,t) */
-static FskErr FskGLEffectCopyApply(FskConstEffectCopy params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache);
+static FskErr FskGLEffectCopyApply(FskConstEffectCopy params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint);
 
 
 
@@ -134,6 +133,15 @@ static FskErr FskGLEffectCopyApply(FskConstEffectCopy params, FskConstBitmap src
  ********************************************************************************
  ********************************************************************************
  ********************************************************************************/
+
+struct FskEffectCacheRecord {
+	SInt32		countDown;
+	UInt32		numBitmaps;
+	UInt32		maxBitmaps;
+	FskBitmap	*bitmaps;
+};
+typedef struct FskEffectCacheRecord FskEffectCacheRecord;	/**< Opaque  type  for the effect cache. */
+
 
 /** Effects state variables.
  ** We encapsulate these together into one data structure for ease of management and resetting.
@@ -160,6 +168,12 @@ typedef struct EffectsGlobals {
 	GLint	gidBoxBlurSrcDelta;						/**< GL ID for the source delta. */
 	float	BoxBlurMtx[2];							/**< Current state of the shader matrix; only diagonals are pertinent. */
 	int		BoxBlurRadius;							/**< Current state of the box blur radius. */
+
+	GLuint	gidGaussianVaryBlurProgram;				/**< GL ID for the program. */
+	GLint	gidGaussianVaryBlurMatrix;				/**< GL ID for the matrix. */
+	GLint	gidGaussianVaryBlurDirDel;				/**< GL ID for the source direction and delta. */
+	GLint	gidGaussianVaryBlurSrcBM;				/**< GL ID for the source bitmap. */
+	float	GaussianVaryBlurMtx[2];					/**< Current state of the shader matrix; only diagonals are pertinent. */
 
 	GLuint	gidDilateProgram;						/**< GL ID for the program. */
 	GLint	gidDilateMatrix;						/**< GL ID for the matrix. */
@@ -244,25 +258,28 @@ typedef struct EffectsGlobals {
 	GLint	gidGelColor;							/**< GL ID for the color. */
 	float	GelMtx[2];								/**< Current state of the shader matrix; only diagonals are pertinent. */
 
-	GLuint gidStraightToPremultipliedProgram;		/**< GL ID for the program. */
-	GLint  gidStraightToPremultipliedMatrix;		/**< GL ID for the matrix. */
-	GLint  gidStraightToPremultipliedSrcBM;			/**< GL ID for the source bitmap. */
-	float  StraightToPremultipliedMtx[2];			/**< Current state of the shader matrix; only diagonals are pertinent. */
+	GLuint	gidStraightToPremultipliedProgram;		/**< GL ID for the program. */
+	GLint	gidStraightToPremultipliedMatrix;		/**< GL ID for the matrix. */
+	GLint	gidStraightToPremultipliedSrcBM;			/**< GL ID for the source bitmap. */
+	float	StraightToPremultipliedMtx[2];			/**< Current state of the shader matrix; only diagonals are pertinent. */
 
-	GLuint gidPremultipliedToStraightProgram;		/**< GL ID for the program. */
-	GLint  gidPremultipliedToStraightMatrix;		/**< GL ID for the matrix. */
-	GLint  gidPremultipliedToStraightSrcBM;			/**< GL ID for the source bitmap. */
-	GLint  gidPremultipliedToStraightBgColor;		/**< GL ID for the background color. */
-	float  PremultipliedToStraightMtx[2];			/**< Current state of the shader matrix; only diagonals are pertinent. */
+	GLuint	gidPremultipliedToStraightProgram;		/**< GL ID for the program. */
+	GLint	gidPremultipliedToStraightMatrix;		/**< GL ID for the matrix. */
+	GLint	gidPremultipliedToStraightSrcBM;			/**< GL ID for the source bitmap. */
+	GLint	gidPremultipliedToStraightBgColor;		/**< GL ID for the background color. */
+	float	PremultipliedToStraightMtx[2];			/**< Current state of the shader matrix; only diagonals are pertinent. */
 
 	Boolean	canWrapNPOT;							/**< Indicates whether wrapping is available for non-power-of-two textures. */
 	Boolean	rendererIsTiled;						/**< Indicates whether the renderer is tiled. */
 	Boolean	hasHighPrecision;						/**< Indicates whether the fragment shader has high precision. */
 	UInt8	mediumPrecisionBits;					/**< The number of significant bits in medium precision */
-	SInt8	mediumPrecisionRange[2];				/* The exponent range of medium precision. */
+	SInt8	mediumPrecisionRange[2];				/**< The exponent range of medium precision. */
+
+	FskEffectCacheRecord	cache;					/**< The effects cache. */
 } EffectsGlobals;
 
 static EffectsGlobals gEffectsGlobals = { 0 };
+
 
 
 
@@ -471,9 +488,8 @@ static void LogDstBitmap(FskBitmap dstBM, const char *name) {
 	}
 }
 
-static void LogEffectsParameters(const char *func, const void *params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
-	LOGD("%s(params=%p src=%p srcRect=%p dst=%p dstPoint=%p cache=%p (%u))",
-		func, params, src, srcRect, dst, dstPoint, cache, (cache ? cache->numBitmaps : 0));
+static void LogEffectsParameters(const char *func, const void *params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
+	LOGD("%s(params=%p src=%p srcRect=%p dst=%p dstPoint=%p)", func, params, src, srcRect, dst, dstPoint);
 	LogSrcBitmap(src, "src");
 	LogRect(srcRect, "srcRect");
 	LogDstBitmap(dst, "dst");
@@ -853,8 +869,8 @@ static FskErr SetReflectBorderVertices(int border, FskConstRectangle srcRect, Fs
 	samp[1].u = (float)(srcRect->x - texRect->x);	samp[2].u = samp[1].u + srcRect->width;		samp[0].u = samp[1].u + border;		samp[3].u = samp[2].u - border;
 	samp[1].v = (float)(srcRect->y - texRect->y);	samp[2].v = samp[1].v + srcRect->height;	samp[0].v = samp[1].v + border;		samp[3].v = samp[2].v - border;
 	for (i = 4, p = samp; i--; ++p) {
-		p->u *= iw;																		/* Normalize ... */
-		p->v *= ih;																		/* ... texture coordinates */
+		p->u *= iw;																					/* Normalize ... */
+		p->v *= ih;																					/* ... texture coordinates */
 	}
 
 	BAIL_IF_ERR(err = FskGLGetCoordinatePointer((float**)(void*)(&vertices), NULL));
@@ -892,23 +908,23 @@ static FskErr MakeSrcDstRects(FskConstBitmap src, FskConstRectangle srcRect, Fsk
 #if 0
 	FskPointRecord	delta;
 
-	if (!dstPoint)																							/* If the destination point is not specified ... */
-		dstPoint = (FskConstPoint)dstBounds;																/* ... it is the upper left of the destination */
-	delta.x = dstPoint->x;																					/* Compute motion vector */
+	if (!dstPoint)																					/* If the destination point is not specified ... */
+		dstPoint = (FskConstPoint)dstBounds;														/* ... it is the upper left of the destination */
+	delta.x = dstPoint->x;																			/* Compute motion vector */
 	delta.y = dstPoint->y;
 	if (srcRect) {
-		delta.x -= srcRect->x;																				/* Compute motion vector from src rect to dst */
+		delta.x -= srcRect->x;																		/* Compute motion vector from src rect to dst */
 		delta.y -= srcRect->y;
 		BAIL_IF_FALSE(FskRectangleIntersect(srcRect, &src->bounds, sRect), err, kFskErrNothingRendered);	/* Intersect src rect with bounds */
 	}
 	else {
-		delta.x -= src->bounds.x;																			/* Compute motion vector from src bounds to dst */
+		delta.x -= src->bounds.x;																	/* Compute motion vector from src bounds to dst */
 		delta.y -= src->bounds.y;
-		*sRect = src->bounds;																				/* Src rect is the bounds */
+		*sRect = src->bounds;																		/* Src rect is the bounds */
 	}
-	FskRectangleSet(dRect, sRect->x + delta.x, sRect->y + delta.y, sRect->width, sRect->height);			/* Offset src rect to dst space */
-	BAIL_IF_FALSE(FskRectangleIntersect(dRect, dstBounds, dRect), err, kFskErrNothingRendered);				/* Intersect dst rect with bounds */
-	FskRectangleSet(sRect, dRect->x - delta.x, dRect->y - delta.y, dRect->width, dRect->height);			/* Translate dst rect back to src space */
+	FskRectangleSet(dRect, sRect->x + delta.x, sRect->y + delta.y, sRect->width, sRect->height);	/* Offset src rect to dst space */
+	BAIL_IF_FALSE(FskRectangleIntersect(dRect, dstBounds, dRect), err, kFskErrNothingRendered);		/* Intersect dst rect with bounds */
+	FskRectangleSet(sRect, dRect->x - delta.x, dRect->y - delta.y, dRect->width, dRect->height);	/* Translate dst rect back to src space */
 bail:
 #else
 	*sRect = srcRect ? *srcRect : src->bounds;
@@ -1042,18 +1058,6 @@ static void SetPremultipliedUniformColor(GLint location, FskConstColorRGBA color
 	glUniform4fv(location, 1, f);
 }
 
-
-/********************************************************************************
- * BothBitmapsHaveAlpha
- ********************************************************************************/
-
-static int BothBitmapsHaveAlpha(FskConstBitmap bm1, FskConstBitmap bm2) {
-	Boolean hasAlpha;
-	FskBitmapGetHasAlpha(bm1, &hasAlpha);
-	if (hasAlpha)
-		FskBitmapGetHasAlpha(bm2, &hasAlpha);
-	return hasAlpha ? kFskGLEffectCacheBitmapWithAlpha : 0;
-}
 
 
 /*******************************************************************************
@@ -1587,6 +1591,65 @@ static const char gPremultipliedToStraightFragmentShader[] = {
 	"}\n"
 };
 
+/* This implements a Gaussian blur, of sigma 6.0.
+ *	{	0.00443932,	0.00645917,	0.00914057,	0.0125807,	0.0168413,	0.0219271,	0.0277666,	0.034198,	0.0409652,	0.0477271,	0.0540819,	0.059604,	0.0638903,	0.0666086,
+ *		0.0675402,
+ *		0.0666086,	0.0638903,	0.059604,	0.0540819,	0.0477271,	0.0409652,	0.034198,	0.0277666,	0.0219271,	0.0168413,	0.0125807,	0.00914057,	0.00645917,	0.00443932
+ *	}
+ */
+#if 0
+#pragma mark gGaussianVaryBlurVertexShader
+#endif
+static const char gGaussianVaryBlurVertexShader[] = {
+	"uniform mat3	matrix;\n"
+	"uniform vec4	dirDel;\n"									/* Delta between successive samples. {dirX, dirY, delX, delY} */
+	"attribute vec2	vPosition;\n"
+	"attribute vec2	vTexCoord;\n"
+	"varying  vec4	srcCoord[8];\n"
+	"void main() {\n"
+	"	vec4 biDir, biDel;\n"
+	"	biDir.xy =  dirDel.xy;\n"
+	"	biDir.zw = -dirDel.xy;\n"
+	"	biDel.xy =  dirDel.zw;\n"
+	"	biDel.zw = -dirDel.zw;\n"
+	"	gl_Position.xyw = matrix * vec3(vPosition, 1.);\n"
+	"	gl_Position.z = 0.;\n"
+	"	srcCoord[0] = vTexCoord.xyxy;\n"
+	"	srcCoord[1] = vTexCoord.xyxy + biDir * 1.48958 + biDel * 1.;\n"
+	"	srcCoord[2] = vTexCoord.xyxy + biDir * 3.47571 + biDel * 2.;\n"
+	"	srcCoord[3] = vTexCoord.xyxy + biDir * 5.46188 + biDel * 3.;\n"
+	"	srcCoord[4] = vTexCoord.xyxy + biDir * 7.44810 + biDel * 4.;\n"
+	"	srcCoord[5] = vTexCoord.xyxy + biDir * 9.43441 + biDel * 5.;\n"
+	"	srcCoord[6] = vTexCoord.xyxy + biDir * 11.4208 + biDel * 6.;\n"
+	"	srcCoord[7] = vTexCoord.xyxy + biDir * 13.4073 + biDel * 7.;\n"
+	"}\n"
+};
+
+/* TODO: Is 'a += (Tex(b) + Tex(c)) * d' faster than 'a += Tex(b) * d; a += Tex(c) * d' ?
+ * In favor of the latter (current implementation):
+ * (1) Most GPUs have fused multiply-accumulate instructions, yielding 4 rather than 5 instructions.
+ * (2) There is one less temporary variable, potentially allowing more threads to run.
+ * (3) There is less interdependency between instructions.
+ */
+#if 0
+#pragma mark gGaussianVaryBlurFragmentShader
+#endif
+static const char gGaussianVaryBlurFragmentShader[] = {
+	"uniform	"LOWP"		sampler2D	srcBM;\n"				/* Source texture */
+	"varying	"HIGHP"		vec4		srcCoord[8];\n"			/* Source coordinates. {x, y} for positive and {z, w} for negative */
+	"void main() {\n"
+	"	"MEDIUMP" vec4 acc;\n"
+	"	acc  = texture2D(srcBM, srcCoord[7].xy) * 0.0108985;	acc += texture2D(srcBM, srcCoord[7].zw) * 0.0108985;\n"
+	"	acc += texture2D(srcBM, srcCoord[6].xy) * 0.0217213;	acc += texture2D(srcBM, srcCoord[6].zw) * 0.0217213;\n"
+	"	acc += texture2D(srcBM, srcCoord[5].xy) * 0.0387684;	acc += texture2D(srcBM, srcCoord[5].zw) * 0.0387684;\n"
+	"	acc += texture2D(srcBM, srcCoord[4].xy) * 0.0619646;	acc += texture2D(srcBM, srcCoord[4].zw) * 0.0619646;\n"
+	"	acc += texture2D(srcBM, srcCoord[3].xy) * 0.0886923;	acc += texture2D(srcBM, srcCoord[3].zw) * 0.0886923;\n"
+	"	acc += texture2D(srcBM, srcCoord[2].xy) * 0.1136860;	acc += texture2D(srcBM, srcCoord[2].zw) * 0.1136860;\n"
+	"	acc += texture2D(srcBM, srcCoord[1].xy) * 0.1304990;	acc += texture2D(srcBM, srcCoord[1].zw) * 0.1304990;\n"
+	"	acc += texture2D(srcBM, srcCoord[0].xy) * 0.0675402;\n"
+	"	gl_FragColor = acc;\n"
+	"}\n"
+};
 
 #if 0
 #pragma mark -
@@ -1599,51 +1662,84 @@ static const char gPremultipliedToStraightFragmentShader[] = {
  ********************************************************************************
  ********************************************************************************/
 
+#define CACHE_BITMAP_QUANTUM		8		/**< Increase the size of the cache bitmap container by this amount. */
+#define kEffCacheTimeout			200		/**< Keep an effect cache around for this many frames. */
 
-/********************************************************************************
- * FskGLEffectCacheDispose
+/****************************************************************************//**
+ * Dispose all bitmaps saved in the cache.
  ********************************************************************************/
 
-FskErr FskGLEffectCacheDispose(FskEffectCache cache) {
-	FskErr		err			= kFskErrNone;
-	unsigned	i;
+void FskGLEffectCacheDisposeAllBitmaps(void) {
+	FskBitmap	*bmp, *bme;
 
-	if (cache) {
-		#ifdef LOG_PARAMETERS
-			LOGD("FskGLEffectCacheDispose(%p): disposing %u bitmaps", cache, (unsigned)cache->numBitmaps);
-		#endif /* LOG_PARAMETERS */
+	#if defined(LOG_PARAMETERS) || defined(LOG_CACHE)
+		LOGD("FskGLEffectCacheDisposeAllBitmaps()");
+	#endif /* LOG_PARAMETERS || LOG_CACHE */
 
-		for (i = cache->numBitmaps; i--;) {
-			#ifdef LOG_CACHE
-				LOGD("\t%u: BitmapDispose(%p)", i, cache->bitmaps[i]);
-			#endif /* LOG_CACHE */
-			FskBitmapDispose(cache->bitmaps[i]);
-		}
-		FskMemPtrDispose(cache);
+	if (!gEffectsGlobals.cache.bitmaps)
+		return;
+
+	for (bmp = gEffectsGlobals.cache.bitmaps, bme = gEffectsGlobals.cache.bitmaps + gEffectsGlobals.cache.numBitmaps; bmp != bme; ++bmp) {
+		#ifdef LOG_CACHE
+			LOGD("\tBitmapDispose(%p (#%u))", *bmp, FskGLPortSourceTexture((**bmp).glPort));
+		#endif /* LOG_CACHE */
+		FskBitmapDispose(*bmp);
 	}
-	#ifdef LOG_PARAMETERS
-		else LOGD("FskGLEffectCacheDispose(%p)", cache);
-	#endif /* LOG_PARAMETERS */
-	return err;
+	gEffectsGlobals.cache.numBitmaps = 0;
+	gEffectsGlobals.cache.countDown  = 0;
+}
+
+
+/****************************************************************************//**
+ * Dispose a GL Effect cache.
+ *	All of the bitmaps contained in tha cache are also disposed.
+ ********************************************************************************/
+
+static void FskGLEffectCacheDispose(void) {
+	#if defined(LOG_PARAMETERS) || defined(LOG_CACHE)
+		LOGD("FskGLEffectCacheDispose)");
+	#endif /* LOG_PARAMETERS || LOG_CACHE */
+
+	FskGLEffectCacheDisposeAllBitmaps();										/* Every time a caller is done with the cache, dispose all bitmaps */
+	FskMemPtrDispose(gEffectsGlobals.cache.bitmaps);							/* ... dispose of the bitmap bag, ... */
+	FskMemSet(&gEffectsGlobals.cache, 0, sizeof(gEffectsGlobals.cache));		/* Sets numBitmaps = 0, maxBitmaps = 0 */
 }
 
 
 /********************************************************************************
- * FskGLEffectCacheNew
+ * FskGLEffectCacheCountDown
  ********************************************************************************/
 
-FskErr FskGLEffectCacheNew(FskEffectCache *pCache) {
-	FskErr		err			= kFskErrNone;
+SInt32 FskGLEffectCacheCountDown(void) {
+	#if defined(LOG_PARAMETERS) || defined(LOG_CACHE)
+		LOGD("FskGLEffectCacheCountDown()");
+	#endif /* LOG_PARAMETERS || LOG_CACHE */
+
+	if (--gEffectsGlobals.cache.countDown <= 0)
+		FskGLEffectCacheDisposeAllBitmaps();
+
+	return gEffectsGlobals.cache.countDown;
+}
+
+
+/****************************************************************************//**
+ * Create a new GL Effect cache.
+ *	\return		kFskErrNone	if the cache was created successfully.
+ ********************************************************************************/
+
+static FskErr FskGLEffectCacheNew(void) {
+	FskErr err = kFskErrNone;
 
 	#ifdef LOG_PARAMETERS
 		LOGD("FskGLEffectCacheNew()");
 	#endif /* LOG_PARAMETERS */
 
-	BAIL_IF_ERR(err = FskGLInit(NULL));	/* Make sure that GL is initialized */
-
-	*pCache = NULL;
-	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(FskEffectCacheRecord), pCache));			/* Sets numBitmaps = 0 */
-	BAIL_IF_ERR(err = FskMemPtrNewClear(4*sizeof(FskBitmap), &(**pCache).bitmaps));		/* Allocate 4 up front */
+	if (gEffectsGlobals.cache.bitmaps == NULL) {																	/* Allocate a global cache */
+		BAIL_IF_ERR(err = FskGLInit(NULL));																			/* Make sure that GL is initialized */
+		FskMemSet(&gEffectsGlobals.cache, 0, sizeof(gEffectsGlobals.cache));										/* Sets numBitmaps = 0, maxBitmaps = 0 */
+		BAIL_IF_ERR(err = FskMemPtrNew(CACHE_BITMAP_QUANTUM*sizeof(FskBitmap), &gEffectsGlobals.cache.bitmaps));	/* Allocate several slots up front */
+		gEffectsGlobals.cache.maxBitmaps = CACHE_BITMAP_QUANTUM;
+	}
 
 bail:
 	return err;
@@ -1654,12 +1750,12 @@ bail:
  * FskGLEffectCacheGetBitmap
  ********************************************************************************/
 
-FskErr FskGLEffectCacheGetBitmap(FskEffectCache cache, unsigned width, unsigned height, int flags, FskBitmap *bmp) {
+FskErr FskGLEffectCacheGetBitmap(unsigned width, unsigned height, int flags, FskBitmap *bmp) {
 	FskErr				err			= kFskErrNone;
 	FskBitmap			bm;
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_CACHE)
-		LOGD("FskGLEffectCacheGetBitmap(%p, %u, %u, with%sAlpha%s)", cache, (unsigned)width, (unsigned)height,
+		LOGD("FskGLEffectCacheGetBitmap(%u, %u, with%sAlpha%s)", (unsigned)width, (unsigned)height,
 			 ((flags & kFskGLEffectCacheBitmapWithAlpha) ? "" : "out"),
 			 ((flags & kFskGLEffectCacheBitmapInit) ? " | init" : "")
 		);
@@ -1667,28 +1763,28 @@ FskErr FskGLEffectCacheGetBitmap(FskEffectCache cache, unsigned width, unsigned 
 
 	*bmp = NULL;
 
-	if (cache && cache->numBitmaps) {														/* We have at least one bitmap in the cache */
-		bm = cache->bitmaps[--(cache->numBitmaps)];											/* TODO: If there is one that is already the desired size, use it. */
+	if (gEffectsGlobals.cache.numBitmaps) {														/* We have at least one bitmap in the cache */
+		bm = gEffectsGlobals.cache.bitmaps[--(gEffectsGlobals.cache.numBitmaps)];				/* TODO: If there is one that is already the desired size, use it. */
 		#ifdef LOG_CACHE
 		{	FskRectangleRecord texRect;
 			FskGLPortTexRectGet(bm->glPort, &texRect);
 			LOGD("\tFskGLEffectCacheGetBitmap grabs bitmap %p (#%u) from cache, leaving %d, resizing from %dx%d --> %ux%u",
-				bm, FskGLPortSourceTexture(bm->glPort), cache->numBitmaps, texRect.width, texRect.height, width, height);
+				bm, FskGLPortSourceTexture(bm->glPort), gEffectsGlobals.cache.numBitmaps, texRect.width, texRect.height, width, height);
 		}
 		#endif /* LOG_CACHE */
 		if ((unsigned)bm->bounds.width != width || (unsigned)bm->bounds.height != height) {
 			bm->bounds.width	= width;
 			bm->bounds.height	= height;
 			bm->pixelFormat		= kFskBitmapFormatGLRGBA;
-			BAIL_IF_ERR(err = FskGLPortResizeTexture(bm->glPort, GL_RGBA, width, height));	/* We hard-wire GL_RGBA because GL_RGB doesn't work cross platform */
+			BAIL_IF_ERR(err = FskGLPortResizeTexture(bm->glPort, GL_RGBA, width, height));		/* We hard-wire GL_RGBA because GL_RGB doesn't work cross platform */
 			#if SUPPORT_INSTRUMENTATION
 				if (FskGLFBOIsInited(bm->glPort))
 					LOGE("\tERROR: FskGLPortResizeTexture returns an FBO-inited texture");
 			#endif /* SUPPORT_INSTRUMENTATION */
 		}
 	}
-	else {																					/* No bitmaps or no cache */
-		BAIL_IF_ERR(err = FskBitmapNew(width, height, kFskBitmapFormatGLRGBA, &bm));		/* Allocate and store at that address */
+	else {																						/* No bitmaps or no cache */
+		BAIL_IF_ERR(err = FskBitmapNew(width, height, kFskBitmapFormatGLRGBA, &bm));			/* Allocate and store at that address */
 		#ifdef LOG_CACHE
 			LOGD("\tFskGLEffectCacheGetBitmap allocates new %ux%u RGBA bitmap %p (#%u)", (unsigned)width, (unsigned)height, bm, FskGLPortSourceTexture(bm->glPort));
 		#endif /* LOG_CACHE */
@@ -1702,6 +1798,8 @@ FskErr FskGLEffectCacheGetBitmap(FskEffectCache cache, unsigned width, unsigned 
 		FskGLFBOInit(bm->glPort);
 	*bmp = bm;
 
+	gEffectsGlobals.cache.countDown = kEffCacheTimeout;
+
 bail:
 	#ifdef LOG_CACHE
 		if (err)	LOGD("\tFskGLEffectCacheGetBitmap() returns err=%d", (int)err);
@@ -1714,9 +1812,9 @@ bail:
  * GLEffectCacheGetSrcCompatibleBitmap
  ********************************************************************************/
 
-static FskErr GLEffectCacheGetSrcCompatibleBitmap(FskEffectCache cache, FskConstBitmap src, unsigned width, unsigned height, FskBitmap *bmp) {
+static FskErr GLEffectCacheGetSrcCompatibleBitmap(FskConstBitmap src, unsigned width, unsigned height, FskBitmap *bmp) {
 	FskErr err;
-	BAIL_IF_ERR(err = FskGLEffectCacheGetBitmap(cache, width, height, (src->hasAlpha ? kFskGLEffectCacheBitmapWithAlpha : 0), bmp));
+	BAIL_IF_ERR(err = FskGLEffectCacheGetBitmap(width, height, (src->hasAlpha ? kFskGLEffectCacheBitmapWithAlpha : 0), bmp));
 	(**bmp).alphaIsPremultiplied = src->alphaIsPremultiplied;
 bail:
 	return err;
@@ -1727,36 +1825,40 @@ bail:
  * FskGLEffectCacheReleaseBitmap
  ********************************************************************************/
 
-FskErr FskGLEffectCacheReleaseBitmap(FskEffectCache cache, FskBitmap bm) {
+FskErr FskGLEffectCacheReleaseBitmap(FskBitmap bm) {
 	FskErr err = kFskErrNone;
 
 	if (!bm)
 		goto bail;
 
-	if (cache) {																							/* There is a cache */
-		#if GLEFFECTS_DEBUG
-			for (err = cache->numBitmaps; err--;) if (cache->bitmaps[err] == bm) {
-				LOGE("FskGLEffectCacheReleaseBitmap: bitmap %p has already been released to the cache", bm);
+	if (gEffectsGlobals.cache.bitmaps) {																	/* There is a cache */
+		#if defined(GLEFFECTS_DEBUG)
+			UInt32 i;
+			for (i = gEffectsGlobals.cache.numBitmaps; i--;) if (gEffectsGlobals.cache.bitmaps[i] == bm) {
+				LOGE("FskGLEffectCacheReleaseBitmap: bitmap %p (#%u) has already been released to the cache", bm, FskGLPortSourceTexture(bm->glPort));
 				LogSrcBitmap(bm, NULL);
 				bm = NULL;	/* Don't dispose bm in bail */
 				BAIL(kFskErrDuplicateElement);
 			}
 			if (bm->useCount)
-				LOGE("FskGLEffectCacheReleaseBitmap: bitmap %p has useCount=%d", bm, (int)(bm->useCount));
+				LOGE("FskGLEffectCacheReleaseBitmap: bitmap %p (#%u) has useCount=%d", bm, FskGLPortSourceTexture(bm->glPort), (int)(bm->useCount));
 		#endif /* GLEFFECTS_DEBUG */
 		BAIL_IF_NONZERO(bm->useCount, err, kFskErrIsBusy);													/* Someone else is using it, so we cannot put it into the cache */
 		BAIL_IF_FALSE(FskBitmapIsOpenGLDestinationAccelerated(bm), err, kFskErrUnsupportedPixelType);		/* We only cache GL bitmaps */
-		BAIL_IF_ERR(err = FskMemPtrRealloc(++(cache->numBitmaps) * sizeof(FskBitmap), &cache->bitmaps));
-		cache->bitmaps[cache->numBitmaps - 1] = bm;
+		if (gEffectsGlobals.cache.numBitmaps >= gEffectsGlobals.cache.maxBitmaps) {
+			gEffectsGlobals.cache.maxBitmaps = gEffectsGlobals.cache.numBitmaps + CACHE_BITMAP_QUANTUM;
+			BAIL_IF_ERR(err = FskMemPtrRealloc(gEffectsGlobals.cache.maxBitmaps * sizeof(FskBitmap), &gEffectsGlobals.cache.bitmaps));
+		}
+		gEffectsGlobals.cache.bitmaps[gEffectsGlobals.cache.numBitmaps++] = bm;
 		FskGLUnbindBMTexture(bm);
 		#if defined(LOG_PARAMETERS) || defined(LOG_CACHE)
-			LOGD("FskGLEffectCacheReleaseBitmap(%p, %p), %u cached", cache, bm, cache->numBitmaps);
-			LogSrcBitmap(bm, "cache");
+			LOGD("FskGLEffectCacheReleaseBitmap(%p (#%u)), %u cached", bm, FskGLPortSourceTexture(bm->glPort), gEffectsGlobals.cache.numBitmaps);
+			LogSrcBitmap(bm, "");
 		#endif /* LOG_PARAMETERS || LOG_CACHE */
 	}
 	else {																									/* There is no cache ... */
 		#if defined(LOG_PARAMETERS) || defined(LOG_CACHE)
-			LOGD("FskGLEffectCacheReleaseBitmap(%p, %p)", cache, bm);
+			LOGD("FskGLEffectCacheReleaseBitmap(%p (#%u))", bm, FskGLPortSourceTexture(bm->glPort));
 			LogSrcBitmap(bm, "dispose");
 		#endif /* LOG_PARAMETERS || LOG_CACHE */
 		(void)FskBitmapDispose(bm);																			/* ... so we just dispose it */
@@ -1779,21 +1881,15 @@ bail:
  *	\param[out]		tmpCache	place to store a temporary cache, if one is needed. Can be NULL if cache is non-NULL.
  ********************************************************************************/
 
-static FskErr AssureIsolatedPixels(FskConstBitmap *src, FskConstRectangle *srcRect, FskConstBitmap dst, FskEffectCache *cache, FskRectangle texRect, FskBitmap *tmpBM, FskEffectCache *tmpCache) {
+static FskErr AssureIsolatedPixels(FskConstBitmap *src, FskConstRectangle *srcRect, FskConstBitmap dst, FskRectangle texRect, FskBitmap *tmpBM) {
 	FskErr				err			= kFskErrNone;
 
 	*tmpBM    = NULL;											/* This signals whether or not we needed to use a temporary bitmap */
-	if (tmpCache)	*tmpCache = NULL;							/* This might be NULL, if the caller supplies a non-NULL cache */
 	if (!*srcRect)	*srcRect = &(**src).bounds;					/* If a srcRect was not given, assume the whole src BM bounds */
 	FskGLPortTexRectGet((**src).glPort, texRect);				/* Get the texRect of the src BM */
 	if (!FskRectangleIsEqual(texRect, *srcRect)) {				/* If the texture isn't tight enough, copy to a tight one */
-		if (NULL == *cache) {									/* If there is no cache, ... */
-			BAIL_IF_NULL(tmpCache, err, kFskErrInvalidParameter);
-			BAIL_IF_ERR(err = FskGLEffectCacheNew(tmpCache));	/* ... allocate one */
-			*cache = *tmpCache;
-		}
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(*cache, *src, (**srcRect).width, (**srcRect).height, tmpBM));	/* Allocate a tight texture */
-		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, *src, *srcRect, *tmpBM, NULL, *cache));								/* Copy  to a tight texture */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(*src, (**srcRect).width, (**srcRect).height, tmpBM));	/* Allocate a tight texture */
+		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, *src, *srcRect, *tmpBM, NULL));								/* Copy  to a tight texture */
 		*src = *tmpBM;											/* Replace the src with the tmp BM */
 		*srcRect = &(**tmpBM).bounds;							/* Update the src bounds with the tmp bounds */
 		FskGLPortTexRectGet((**src).glPort, texRect);			/* Update the texRect with the tmp texRect */
@@ -1834,11 +1930,11 @@ static void SetEffectMatrix(GLint id, float *state) {
  * FskGLEffectCopyApply
  ********************************************************************************/
 
-static FskErr FskGLEffectCopyApply(FskConstEffectCopy params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectCopyApply(FskConstEffectCopy params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr	err		= kFskErrNone;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidCopyProgram));
@@ -1859,7 +1955,7 @@ bail:
  * EffectStretchApply -- internally used for Mask and Shade only.
  ********************************************************************************/
 
-static FskErr EffectStretchApply(FskConstEffectCopy params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstRectangle dstRect, FskEffectCache cache) {
+static FskErr EffectStretchApply(FskConstEffectCopy params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstRectangle dstRect) {
 	FskErr				err		= kFskErrNone;
 	FskRectangleRecord	texRect;
 
@@ -1886,7 +1982,7 @@ bail:
  * EffectStretchGelApply -- internally used for Shade only.
  ********************************************************************************/
 
-static FskErr EffectStretchGelApply(FskConstEffectGel params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstRectangle dstRect, FskEffectCache cache) {
+static FskErr EffectStretchGelApply(FskConstEffectGel params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstRectangle dstRect) {
 	FskErr				err		= kFskErrNone;
 	FskRectangleRecord	texRect;
 
@@ -1914,11 +2010,11 @@ bail:
  * FskGLEffectCopyMirrorBordersApply
  ********************************************************************************/
 
-static FskErr FskGLEffectCopyMirrorBordersApply(FskConstEffectCopyMirrorBorders params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectCopyMirrorBordersApply(FskConstEffectCopyMirrorBorders params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr	err		= kFskErrNone;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidCopyProgram));
@@ -1939,11 +2035,11 @@ bail:
  * FskGLEffectColorizeAlphaApply
  ********************************************************************************/
 
-static FskErr FskGLEffectColorizeAlphaApply(FskConstEffectColorizeAlpha params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectColorizeAlphaApply(FskConstEffectColorizeAlpha params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr	err	= kFskErrNone;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LogColor(&params->color0, "color0");
 		LogColor(&params->color1, "color1");
 	#endif /* LOG_PARAMETERS */
@@ -1968,11 +2064,11 @@ bail:
  * FskGLEffectColorizeInnerApply
  ********************************************************************************/
 
-static FskErr FskGLEffectColorizeInnerApply(FskConstEffectColorizeInner params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectColorizeInnerApply(FskConstEffectColorizeInner params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr	err	= kFskErrNone;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LogSrcBitmap(params->matte, "mat");
 		LogColor(&params->color, "color");
 	#endif /* LOG_PARAMETERS */
@@ -2005,11 +2101,11 @@ bail:
  * FskGLEffectColorizeOuterApply
  ********************************************************************************/
 
-static FskErr FskGLEffectColorizeOuterApply(FskConstEffectColorizeOuter params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectColorizeOuterApply(FskConstEffectColorizeOuter params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr	err	= kFskErrNone;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LogSrcBitmap(params->matte, "mat");
 		LogColor(&params->color, "color");
 	#endif /* LOG_PARAMETERS */
@@ -2054,10 +2150,10 @@ bail:
  * FskGLEffectColorizeApply
  ********************************************************************************/
 
-static FskErr FskGLEffectColorizeApply(FskConstEffectColorize params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectColorizeApply(FskConstEffectColorize params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr		err			= kFskErrNone;
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LogColor(&params->color, "color");
 	#endif /* LOG_PARAMETERS */
 
@@ -2088,11 +2184,11 @@ bail:
  * FskGLEffectMonochromeApply
  ********************************************************************************/
 
-static FskErr FskGLEffectMonochromeApply(FskConstEffectMonochrome params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectMonochromeApply(FskConstEffectMonochrome params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LogColor(&params->color0, "color0");
 		LogColor(&params->color1, "color1");
 	#endif /* LOG_PARAMETERS */
@@ -2127,14 +2223,13 @@ bail:
  * FskGLEffectMaskApply
  ********************************************************************************/
 
-static FskErr FskGLEffectMaskApply(FskConstEffectMask params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectMaskApply(FskConstEffectMask params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			tmp			= NULL;
 	FskRectangleRecord	dstRect;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: mask=%p", params->mask);
 		LogSrcBitmap(params->mask, "mask");
 		LogRect(&params->maskRect, "maskRect");
@@ -2144,20 +2239,15 @@ static FskErr FskGLEffectMaskApply(FskConstEffectMask params, FskConstBitmap src
 	//FskBitmapSetOpenGLSourceAccelerated(params->mask, true);
 	BAIL_IF_ERR(err = FskBitmapCheckGLSourceAccelerated((FskBitmap)params->mask));
 
-	/* We may need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 	if (!srcRect)	srcRect  = &src->bounds;
 
 	/* Copy src to dst */
 	if (src != dst) {
-		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, src, srcRect, dst, dstPoint, cache));					/* src --> dst */
+		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, src, srcRect, dst, dstPoint));							/* src --> dst */
 	} else /*if (srcRect || dstPoint)*/ {																	/* src and dst are the same, and a region is being specified */
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, srcRect->width, srcRect->height, &tmp));
-		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, src,  srcRect, tmp, NULL,    cache));					/* src  --> tmp */
-		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, tmp, NULL,    dst,  dstPoint, cache));					/* tmp --> dst  */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &tmp));
+		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, src,  srcRect, tmp, NULL));							/* src  --> tmp */
+		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, tmp, NULL,    dst,  dstPoint));						/* tmp --> dst  */
 	}
 	/* else: src and dst are identical */
 
@@ -2168,11 +2258,10 @@ static FskErr FskGLEffectMaskApply(FskConstEffectMask params, FskConstBitmap src
 	else			{ dstRect.width = src->bounds.width;	dstRect.height = src->bounds.height;	}
 	if (dstPoint)	{ dstRect.x     = dstPoint->x;			dstRect.y      = dstPoint->y;			}
 	else			{ dstRect.x     = dst->bounds.x;		dstRect.y      = dst->bounds.y;			}
-	BAIL_IF_ERR(err = EffectStretchApply(NULL, params->mask, &params->maskRect, dst, &dstRect, cache));		/* Stretch mask and replace alpha in the dst */
+	BAIL_IF_ERR(err = EffectStretchApply(NULL, params->mask, &params->maskRect, dst, &dstRect));			/* Stretch mask and replace alpha in the dst */
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, tmp);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(tmp);
 	return err;
 }
 
@@ -2181,15 +2270,14 @@ bail:
  * FskGLEffectShadeApply
  ********************************************************************************/
 
-static FskErr FskGLEffectShadeApply(FskConstEffectShade params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectShadeApply(FskConstEffectShade params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			tmp			= NULL;
 	FskRectangleRecord	dstRect;
 	FskEffectGelRecord	gel;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: shadow=%p", params->shadow);
 		LogSrcBitmap(params->shadow, "shadow");
 		LogRect(&params->shadowRect, "shadowRect");
@@ -2199,20 +2287,15 @@ static FskErr FskGLEffectShadeApply(FskConstEffectShade params, FskConstBitmap s
 	//FskBitmapSetOpenGLSourceAccelerated(params->shadow, true);
 	BAIL_IF_ERR(err = FskBitmapCheckGLSourceAccelerated((FskBitmap)params->shadow));
 
-	/* We may need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 	if (!srcRect)	srcRect  = &src->bounds;
 
 	/* Copy src to dst */
 	if (src != dst) {
-		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, src, srcRect, dst, dstPoint, cache));							/* src --> dst */
-	} else /*if (srcRect || dstPoint)*/ {																			/* src and dst are the same, and a region is being specified */
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, srcRect->width, srcRect->height, &tmp));
-		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, src,  srcRect, tmp, NULL,    cache));							/* src  --> tmp */
-		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, tmp, NULL,    dst,  dstPoint, cache));							/* tmp --> dst  */
+		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, src, srcRect, dst, dstPoint));								/* src --> dst */
+	} else /*if (srcRect || dstPoint)*/ {																		/* src and dst are the same, and a region is being specified */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &tmp));
+		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, src,  srcRect, tmp, NULL));								/* src  --> tmp */
+		BAIL_IF_ERR(err = FskGLEffectCopyApply(NULL, tmp, NULL,    dst,  dstPoint));							/* tmp --> dst  */
 	}
 	/* else: src and dst are identical */
 
@@ -2229,11 +2312,10 @@ static FskErr FskGLEffectShadeApply(FskConstEffectShade params, FskConstBitmap s
 	else			{ dstRect.width = src->bounds.width;	dstRect.height = src->bounds.height;	}
 	if (dstPoint)	{ dstRect.x     = dstPoint->x;			dstRect.y      = dstPoint->y;			}
 	else			{ dstRect.x     = dst->bounds.x;		dstRect.y      = dst->bounds.y;			}
-	BAIL_IF_ERR(err = EffectStretchGelApply(&gel, params->shadow, &params->shadowRect, dst, &dstRect, cache));		/* Stretch mask and composite alpha in the dst */
+	BAIL_IF_ERR(err = EffectStretchGelApply(&gel, params->shadow, &params->shadowRect, dst, &dstRect));			/* Stretch mask and composite alpha in the dst */
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, tmp);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(tmp);
 	return err;
 }
 
@@ -2255,7 +2337,7 @@ bail:
  * We set the srcDelta every time, because it typically alternates between horizontal and vertical.
  ********************************************************************************/
 
-static FskErr FskGLEffectDirectionalGaussianBlurApply(FskConstEffectDirectionalGaussianBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectDirectionalGaussianBlurApply(FskConstEffectDirectionalGaussianBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
 	GLint				wrapMode	= gEffectsGlobals.canWrapNPOT ? GL_MIRRORED_REPEAT : GL_CLAMP_TO_EDGE;
 	FskRectangleRecord	texRect;
@@ -2263,13 +2345,12 @@ static FskErr FskGLEffectDirectionalGaussianBlurApply(FskConstEffectDirectionalG
 	int					radius;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, NULL);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: sigma=%.3g, direction=(%+3.1f, %+3.1f), wrapMode=%s", params->sigma, params->direction[0], params->direction[1], GLWrapModeNameFromCode(wrapMode));
 	#endif /* LOG_PARAMETERS */
 
-	if (cache) {}	/* unused */
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidGaussianBlurProgram));
-	BAIL_IF_ERR(err = SetEffectSrcDst(src, srcRect, wrapMode, GL_NEAREST, dst, dstPoint));			/* Compute rects, setup dst, bind src to texture#0 */
+	BAIL_IF_ERR(err = SetEffectSrcDst(src, srcRect, wrapMode, GL_NEAREST, dst, dstPoint));												/* Compute rects, setup dst, bind src to texture#0 */
 	FskGLPortTexRectGet(src->glPort, &texRect);
 
 	SetEffectMatrix(gEffectsGlobals.gidGaussianBlurMatrix, gEffectsGlobals.GaussianBlurMtx);											/* Set matrix, only if changed */
@@ -2299,17 +2380,16 @@ bail:
  * We set the srcDelta every time, because it typically alternates between horizontal and vertical.
  ********************************************************************************/
 
-static FskErr FskGLEffectDirectionalBoxBlurApply(FskConstEffectDirectionalBoxBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectDirectionalBoxBlurApply(FskConstEffectDirectionalBoxBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
 	GLint				wrapMode	= gEffectsGlobals.canWrapNPOT ? GL_MIRRORED_REPEAT : GL_CLAMP_TO_EDGE;
 	FskRectangleRecord	texRect;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, NULL);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: radius=%d, direction=(%+3.1f, %+3.1f), wrapMode=%s", params->radius, params->direction[0], params->direction[1], GLWrapModeNameFromCode(wrapMode));
 	#endif /* LOG_PARAMETERS */
 
-	if (cache) {}	/* unused */
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidBoxBlurProgram));
 	BAIL_IF_ERR(err = SetEffectSrcDst(src, srcRect, wrapMode, GL_NEAREST, dst, dstPoint));			/* Compute rects, setup dst, bind src to texture#0 */
 	FskGLPortTexRectGet(src->glPort, &texRect);
@@ -2341,16 +2421,15 @@ bail:
  * We set the srcDelta every time, because it typically alternates between horizontal and vertical.
  ********************************************************************************/
 
-static FskErr FskGLEffectDirectionalDilateApply(FskConstEffectDirectionalDilate params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectDirectionalDilateApply(FskConstEffectDirectionalDilate params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
 	FskRectangleRecord	texRect;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: radius=%d, direction=(%+3.1f, %+3.1f)", params->radius, params->direction[0], params->direction[1]);
 	#endif /* LOG_PARAMETERS */
 
-	if (cache) {}	/* unused */
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidDilateProgram));
 	BAIL_IF_ERR(err = SetEffectSrcDst(src, srcRect, GL_CLAMP_TO_EDGE, GL_NEAREST, dst, dstPoint));									/* Compute rects, setup dst, bind src to texture#0 */
 	FskGLPortTexRectGet(src->glPort, &texRect);
@@ -2380,16 +2459,15 @@ bail:
  * We set the srcDelta every time, because it typically alternates between horizontal and vertical.
  ********************************************************************************/
 
-static FskErr FskGLEffectDirectionalErodeApply(FskConstEffectDirectionalErode params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectDirectionalErodeApply(FskConstEffectDirectionalErode params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
 	FskRectangleRecord	texRect;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: radius=%d, direction=(%+3.1f, %+3.1f)", params->radius, params->direction[0], params->direction[1]);
 	#endif /* LOG_PARAMETERS */
 
-	if (cache) {}	/* unused */
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidErodeProgram));
 	BAIL_IF_ERR(err = SetEffectSrcDst(src, srcRect, GL_CLAMP_TO_EDGE, GL_NEAREST, dst, dstPoint));								/* Compute rects, setup dst, bind src to texture#0 */
 	FskGLPortTexRectGet(src->glPort, &texRect);
@@ -2418,15 +2496,14 @@ bail:
  * FskGLEffectPremultiplyAlphaApply
  ********************************************************************************/
 
-static FskErr FskGLEffectPremultiplyAlphaApply(FskConstEffectPremultiplyAlpha params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectPremultiplyAlphaApply(FskConstEffectPremultiplyAlpha params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
 	FskRectangleRecord	texRect;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 	#endif /* LOG_PARAMETERS */
 
-	if (cache) {}	/* unused */
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidStraightToPremultipliedProgram));
 	BAIL_IF_ERR(err = SetEffectSrcDst(src, srcRect, GL_CLAMP_TO_EDGE, GL_NEAREST, dst, dstPoint));					/* Compute rects, setup dst, bind src to texture#0 */
 	FskGLPortTexRectGet(src->glPort, &texRect);
@@ -2453,16 +2530,15 @@ bail:
  * FskGLEffectStraightAlphaApply
  ********************************************************************************/
 
-static FskErr FskGLEffectStraightAlphaApply(FskConstEffectStraightAlpha params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectStraightAlphaApply(FskConstEffectStraightAlpha params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
 	FskRectangleRecord	texRect;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tbgColor(%3u %3u %3u)", params->color.r, params->color.g, params->color.b);
 	#endif /* LOG_PARAMETERS */
 
-	if (cache) {}	/* unused */
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidPremultipliedToStraightProgram));
 	BAIL_IF_ERR(err = SetEffectSrcDst(src, srcRect, GL_CLAMP_TO_EDGE, GL_NEAREST, dst, dstPoint));					/* Compute rects, setup dst, bind src to texture#0 */
 	FskGLPortTexRectGet(src->glPort, &texRect);
@@ -2503,45 +2579,38 @@ bail:
  * FskGLEffectDilateApply
  ********************************************************************************/
 
-static FskErr FskGLEffectDilateApply(FskConstEffectDilate params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectDilateApply(FskConstEffectDilate params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			mid1		= NULL;
 	FskBitmap			mid2		= NULL;
 	FskRectangleRecord	texRect;
 	FskEffectParametersRecord	p;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: radius=%d", params->radius);
 	#endif /* LOG_PARAMETERS */
 
-	/* We need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 	if (!srcRect)	srcRect  = &src->bounds;
 
 	/* Allocate a mid buffer */
-	BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &cache, &texRect, &mid2, NULL));					/* This might allocate mid2 */
-	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, srcRect->width, srcRect->height, &mid1));
+	BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &texRect, &mid2));							/* This might allocate mid2 */
+	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &mid1));
 
 	/* H dilate */
 	p.directionalDilate.radius       = params->radius;
 	p.directionalDilate.direction[0] = 1.f;
 	p.directionalDilate.direction[1] = 0.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalDilateApply(&p.directionalDilate, src, srcRect, mid1, NULL, cache));	/* H dilate src --> mid1 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalDilateApply(&p.directionalDilate, src, srcRect, mid1, NULL));	/* H dilate src --> mid1 */
 
 	/* V dilate */
 	p.directionalDilate.direction[0] = 0.f;
 	p.directionalDilate.direction[1] = 1.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalDilateApply(&p.directionalDilate, mid1, NULL, dst, NULL, cache));		/* V dilate mid1 --> dst */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalDilateApply(&p.directionalDilate, mid1, NULL, dst, NULL));		/* V dilate mid1 --> dst */
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid2);
+	FskGLEffectCacheReleaseBitmap(mid1);
 	return err;
 }
 
@@ -2550,46 +2619,431 @@ bail:
  * FskGLEffectErodeApply
  ********************************************************************************/
 
-static FskErr FskGLEffectErodeApply(FskConstEffectErode params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectErodeApply(FskConstEffectErode params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			mid1		= NULL;
 	FskBitmap			mid2		= NULL;
 	FskRectangleRecord	texRect;
 	FskEffectParametersRecord	p;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: radius=%d", params->radius);
 	#endif /* LOG_PARAMETERS */
 
-	/* We need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 	if (!srcRect)	srcRect  = &src->bounds;
 
 	/* Allocate a mid buffer */
-	BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &cache, &texRect, &mid2, NULL));					/* This might allocate mid2 */
-	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, srcRect->width, srcRect->height, &mid1));
+	BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &texRect, &mid2));							/* This might allocate mid2 */
+	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &mid1));
 
 	/* H erode */
 	p.directionalErode.radius       = params->radius;
 	p.directionalErode.direction[0] = 1.f;
 	p.directionalErode.direction[1] = 0.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalErodeApply(&p.directionalErode, src, srcRect, mid1, NULL, cache));		/* H erode src --> mid1 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalErodeApply(&p.directionalErode, src, srcRect, mid1, NULL));		/* H erode src --> mid1 */
 
 	/* V erode */
 	p.directionalErode.direction[0] = 0.f;
 	p.directionalErode.direction[1] = 1.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalErodeApply(&p.directionalErode, mid1, NULL, dst, NULL, cache));			/* V erode mid1 --> dst */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalErodeApply(&p.directionalErode, mid1, NULL, dst, NULL));		/* V erode mid1 --> dst */
 
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid2);
+	FskGLEffectCacheReleaseBitmap(mid1);
+	return err;
+}
+
+
+/* Multipass blurring with the gaussian60 filter to achieve the desired sigma */
+static const SInt8 hiSigInc[256][4] = {
+	/*						index	sigma	delSig		minAtten	avgAtten	*/
+	{	-1,	-1,	-1,	-1	},	/* 0:	X		X			X			X			*/
+	{	-1,	-1,	-1,	-1	},	/* 1:	X		X			X			X			*/
+	{	-1,	-1,	-1,	-1	},	/* 2:	X		X			X			X			*/
+	{	-1,	-1,	-1,	-1	},	/* 3:	X		X			X			X			*/
+	{	-1,	-1,	-1,	-1	},	/* 4:	X		X			X			X			*/
+	{	-1,	-1,	-1,	-1	},	/* 5:	X		X			X			X			*/
+	{	0,	-1,	-1,	-1	},	/* 6.:	6.		0.			-88.1429	-88.1429	*/
+	{	-1,	-1,	-1,	-1	},	/* 7:	X		X			X			X			*/
+	{	0,	0,	-1,	-1	},	/* 8:	8.23705	0.237048	-83.2841	-104.565	*/
+	{	0,	0,	-1,	-1	},	/* 9:	8.23705	0.762952	-83.2841	-104.565	*/
+	{	0,	0,	0,	-1	},	/* 10:	10.0023	0.00227478	-126.208	-156.727	*/
+	{	0,	1,	-1,	-1	},	/* 11:	10.8083	0.191651	-58.5939	-74.6278	*/
+	{	0,	0,	1,	-1	},	/* 12:	12.1508	0.150804	-105.611	-126.74		*/
+	{	0,	2,	-1,	-1	},	/* 13:	13.7806	0.780627	-50.0385	-74.541		*/
+	{	0,	1,	1,	-1	},	/* 14:	13.8957	0.104344	-66.3745	-96.5518	*/
+	{	0,	0,	2,	-1	},	/* 15:	14.7984	0.201583	-97.4639	-125.651	*/
+	{	0,	1,	2,	-1	},	/* 16:	16.1833	0.183331	-70.9559	-97.0434	*/
+	{	0,	3,	-1,	-1	},	/* 17:	16.939	0.0609851	-51.0836	-75.4095	*/
+	{	0,	2,	2,	-1	},	/* 18:	18.0934	0.0934367	-54.1945	-95.6542	*/
+	{	0,	1,	3,	-1	},	/* 19:	18.8392	0.160834	-78.7853	-96.9841	*/
+	{	1,	1,	3,	-1	},	/* 20:	19.9133	0.0866709	-46.1217	-71.948		*/
+	{	0,	2,	3,	-1	},	/* 21:	20.4193	0.580714	-68.6336	-96.9166	*/
+	{	0,	1,	4,	-1	},	/* 22:	21.729	0.271021	-69.5138	-97.662		*/
+	{	0,	2,	4,	-1	},	/* 23:	23.0454	0.0453531	-66.7982	-96.0407	*/
+	{	0,	0,	5,	-1	},	/* 24:	24.0066	0.00663113	-93.7366	-128.136	*/
+	{	2,	2,	4,	-1	},	/* 25:	25.1575	0.157473	-47.1531	-71.5954	*/
+	{	0,	2,	5,	-1	},	/* 26:	25.8788	0.121172	-65.6489	-96.2216	*/
+	{	0,	4,	4,	-1	},	/* 27:	26.8022	0.197847	-50.5046	-96.2206	*/
+	{	1,	3,	5,	-1	},	/* 28:	28.0762	0.0761545	-50.9158	-71.6061	*/
+	{	0,	4,	5,	-1	},	/* 29:	29.1368	0.136778	-57.9092	-95.4034	*/
+	{	0,	3,	6,	-1	},	/* 30:	30.1218	0.121844	-59.7165	-95.034		*/
+	{	0,	1,	7,	-1	},	/* 31:	31.0975	0.097488	-69.1098	-97.4964	*/
+	{	0,	4,	6,	-1	},	/* 32:	31.6954	0.304562	-57.4192	-94.7057	*/
+	{	0,	3,	7,	-1	},	/* 33:	33.0379	0.0378618	-42.4702	-95.0359	*/
+	{	0,	0,	8,	-1	},	/* 34:	33.849	0.151015	-83.1351	-127.426	*/
+	{	0,	2,	8,	-1	},	/* 35:	35.0729	0.0729312	-65.0904	-95.2184	*/
+	{	0,	5,	7,	-1	},	/* 36:	36.0842	0.0842254	-54.9028	-95.188		*/
+	{	0,	0,	9,	-1	},	/* 37:	37.1836	0.183611	-76.2475	-127.432	*/
+	{	0,	6,	7,	-1	},	/* 38:	37.9915	0.00853753	-52.7316	-95.7975	*/
+	{	0,	3,	9,	-1	},	/* 39:	39.1445	0.144542	-59.385		-95.2659	*/
+	{	0,	7,	7,	-1	},	/* 40:	40.1211	0.1211		-50.2346	-95.0855	*/
+	{	1,	6,	8,	-1	},	/* 41:	40.9913	0.00869901	-47.9389	-70.3301	*/
+	{	0,	3,	10,	-1	},	/* 42:	42.2912	0.291207	-58.4825	-95.9873	*/
+	{	0,	6,	9,	-1	},	/* 43:	43.1509	0.150905	-53.0509	-94.5291	*/
+	{	0,	1,	11,	-1	},	/* 44:	44.2389	0.238907	-67.1697	-96.6597	*/
+	{	0,	7,	9,	-1	},	/* 45:	44.9289	0.071064	-51.513		-94.5305	*/
+	{	0,	6,	10,	-1	},	/* 46:	45.9232	0.0767612	-49.4032	-94.1136	*/
+	{	0,	8,	9,	-1	},	/* 47:	46.9054	0.0945836	-47.961		-93.6169	*/
+	{	0,	2,	12,	-1	},	/* 48:	48.0532	0.0532373	-62.8375	-96.2964	*/
+	{	0,	3,	12,	-1	},	/* 49:	48.7053	0.294744	-58.0539	-95.8456	*/
+	{	0,	7,	11,	-1	},	/* 50:	50.2866	0.286561	-51.3603	-94.355		*/
+	{	0,	2,	13,	-1	},	/* 51:	51.3598	0.359819	-57.8691	-95.9621	*/
+	{	0,	8,	11,	-1	},	/* 52:	51.9684	0.0315571	-51.0189	-93.6969	*/
+	{	0,	7,	12,	-1	},	/* 53:	53.1158	0.115823	-48.4919	-93.6136	*/
+	{	0,	9,	11,	-1	},	/* 54:	53.8273	0.172667	-49.4977	-94.0195	*/
+	{	0,	3,	14,	-1	},	/* 55:	55.2306	0.230622	-54.4423	-95.6693	*/
+	{	0,	7,	13,	-1	},	/* 56:	56.0227	0.0227433	-50.5545	-94.4008	*/
+	{	0,	5,	14,	-1	},	/* 57:	56.7939	0.20608		-52.1299	-94.6866	*/
+	{	0,	2,	15,	-1	},	/* 58:	58.0187	0.0186886	-49.5834	-96.0189	*/
+	{	0,	7,	14,	-1	},	/* 59:	58.9942	0.00582217	-50.6903	-95.0457	*/
+	{	0,	5,	15,	-1	},	/* 60:	59.9725	0.0274597	-47.884		-95.0018	*/
+	{	0,	6,	15,	-1	},	/* 61:	60.9203	0.0796663	-47.4664	-95.0407	*/
+	{	0,	7,	15,	-1	},	/* 62:	62.0195	0.0194718	-45.9837	-94.956		*/
+	{	0,	9,	9,	11	},	/* 63:	63.0138	0.013814	-72.5161	-117.579	*/
+	{	2,	8,	10,	11	},	/* 64:	63.9941	0.0058503	-55.0562	-94.4068	*/
+	{	1,	6,	11,	12	},	/* 65:	64.9887	0.0113389	-58.7256	-94.1165	*/
+	{	0,	6,	7,	15	},	/* 66:	65.9813	0.0187234	-58.6348	-118.759	*/
+	{	4,	5,	9,	14	},	/* 67:	66.9928	0.0072123	-53.3734	-95.0692	*/
+	{	1,	3,	10,	15	},	/* 68:	67.9855	0.0144883	-57.4351	-93.8104	*/
+	{	2,	4,	8,	16	},	/* 69:	68.9983	0.0016753	-49.493		-94.0552	*/
+	{	0,	6,	8,	16	},	/* 70:	69.9868	0.0131751	-69.591		-117.707	*/
+	{	0,	7,	8,	16	},	/* 71:	71.0104	0.0104374	-67.0276	-118.279	*/
+	{	0,	10,	12,	12	},	/* 72:	71.9976	0.00238043	-52.6344	-117.235	*/
+	{	2,	8,	10,	15	},	/* 73:	72.9933	0.0066601	-57.9442	-94.4863	*/
+	{	1,	4,	13,	15	},	/* 74:	74.0047	0.00466535	-49.9205	-93.7461	*/
+	{	3,	11,	11,	13	},	/* 75:	75.0041	0.00411179	-51.9019	-94.8344	*/
+	{	2,	6,	13,	15	},	/* 76:	76.0049	0.00486554	-52.6643	-94.3773	*/
+	{	2,	8,	11,	16	},	/* 77:	76.9894	0.0106437	-54.0612	-93.7887	*/
+	{	3,	5,	13,	16	},	/* 78:	78.0008	0.0007642	-60.3252	-94.5395	*/
+	{	0,	1,	8,	20	},	/* 79:	78.9974	0.00259285	-54.6272	-116.824	*/
+	{	2,	8,	14,	15	},	/* 80:	79.9964	0.00360019	-52.6807	-94.8298	*/
+	{	6,	7,	11,	17	},	/* 81:	80.9968	0.00316515	-50.0567	-95.5676	*/
+	{	3,	6,	10,	19	},	/* 82:	81.992	0.00803844	-52.0861	-95.2078	*/
+	{	0,	5,	12,	19	},	/* 83:	82.9919	0.00811792	-58.954		-117.471	*/
+	{	9,	11,	12,	14	},	/* 84:	84.0001	0.000083944	-55.4157	-95.1548	*/
+	{	1,	12,	14,	15	},	/* 85:	85.0026	0.00261479	-59.5162	-94.3587	*/
+	{	1,	8,	15,	17	},	/* 86:	86.0049	0.00485037	-56.6288	-93.6492	*/
+	{	0,	1,	6,	23	},	/* 87:	86.9964	0.0035978	-57.4302	-117.255	*/
+	{	0,	5,	15,	19	},	/* 88:	88.0047	0.00470678	-57.2832	-118.005	*/
+	{	5,	12,	14,	16	},	/* 89:	89.0007	0.000733888	-57.3928	-95.0759	*/
+	{	8,	10,	12,	18	},	/* 90:	90.0025	0.00253381	-57.189		-94.6889	*/
+	{	6,	11,	13,	18	},	/* 91:	91.0035	0.00352725	-48.4838	-94.8739	*/
+	{	2,	7,	13,	21	},	/* 92:	91.9944	0.00557281	-51.4328	-94.7099	*/
+	{	0,	10,	12,	21	},	/* 93:	93.0006	0.000574551	-56.9722	-117.418	*/
+	{	1,	6,	11,	23	},	/* 94:	93.9923	0.00765944	-53.0168	-94.1041	*/
+	{	8,	11,	13,	19	},	/* 95:	95.0002	0.000233883	-56.2955	-94.7261	*/
+	{	6,	9,	11,	22	},	/* 96:	95.9998	0.00020472	-52.1027	-94.6747	*/
+	{	2,	4,	14,	23	},	/* 97:	96.9991	0.000890465	-55.7532	-94.3243	*/
+	{	0,	14,	15,	19	},	/* 98:	97.9931	0.00687965	-54.8256	-117.584	*/
+	{	2,	8,	18,	20	},	/* 99:	99.0003	0.000302052	-60.6061	-94.053		*/
+	{	5,	9,	16,	21	},	/* 100:	99.9983	0.00169703	-49.9715	-94.9933	*/
+	{	1,	11,	13,	23	},	/* 101:	100.997	0.0026236	-58.8799	-93.7795	*/
+	{	7,	12,	17,	19	},	/* 102:	102.003	0.00333395	-56.2512	-95.0735	*/
+	{	3,	11,	14,	23	},	/* 103:	103.001	0.000698639	-53.0272	-95.0119	*/
+	{	2,	13,	15,	22	},	/* 104:	104.002	0.00164404	-54.4748	-94.0546	*/
+	{	5,	12,	17,	21	},	/* 105:	104.995	0.00533379	-53.3859	-94.7465	*/
+	{	12,	14,	16,	18	},	/* 106:	106.001	0.000580622	-49.3818	-94.8025	*/
+	{	4,	9,	16,	24	},	/* 107:	106.996	0.0042775	-54.0109	-94.242		*/
+	{	4,	6,	18,	24	},	/* 108:	108.003	0.00324215	-58.6359	-94.2732	*/
+	{	1,	10,	11,	27	},	/* 109:	109.	0.0004012	-57.3749	-93.8372	*/
+	{	0,	13,	16,	24	},	/* 110:	109.989	0.0108569	-55.6353	-116.895	*/
+	{	0,	14,	14,	25	},	/* 111:	111.014	0.0143834	-49.0179	-117.601	*/
+	{	2,	5,	22,	23	},	/* 112:	111.994	0.00626686	-50.6374	-94.1847	*/
+	{	3,	3,	9,	30	},	/* 113:	113.002	0.00208991	-49.0532	-94.7141	*/
+	{	3,	12,	20,	23	},	/* 114:	114.	0.000103126	-60.3069	-94.6007	*/
+	{	10,	12,	18,	23	},	/* 115:	114.996	0.00375318	-49.2726	-94.5476	*/
+	{	0,	11,	18,	26	},	/* 116:	115.99	0.00976248	-53.503		-117.151	*/
+	{	0,	12,	18,	26	},	/* 117:	117.003	0.00259547	-52.7891	-116.895	*/
+	{	1,	4,	23,	25	},	/* 118:	118.003	0.00343074	-51.2299	-93.1241	*/
+	{	1,	6,	23,	25	},	/* 119:	119.	0.000128643	-54.0117	-93.4144	*/
+	{	1,	3,	23,	26	},	/* 120:	120.004	0.00449705	-49.819		-93.3698	*/
+	{	1,	19,	20,	22	},	/* 121:	121.004	0.00417758	-48.8374	-93.5594	*/
+	{	2,	2,	24,	26	},	/* 122:	122.001	0.000788145	-49.1963	-93.6852	*/
+	{	0,	8,	17,	30	},	/* 123:	122.999	0.000649126	-54.4772	-116.847	*/
+	{	0,	7,	20,	29	},	/* 124:	123.999	0.000794094	-54.5165	-117.448	*/
+	{	0,	16,	20,	26	},	/* 125:	125.002	0.00171374	-49.9118	-116.742	*/
+	{	13,	15,	18,	25	},	/* 126:	126.001	0.00111603	-58.1648	-94.9492	*/
+	{	7,	13,	17,	29	},	/* 127:	126.999	0.0014678	-52.8191	-95.0649	*/
+	{	0,	9,	23,	28	},	/* 128:	128.	0.000397832	-50.8238	-116.731	*/
+	{	0,	12,	19,	30	},	/* 129:	128.998	0.00215329	-52.6567	-117.122	*/
+	{	5,	15,	20,	28	},	/* 130:	130.005	0.0046829	-53.9936	-94.926		*/
+	{	5,	9,	25,	27	},	/* 131:	130.999	0.000810728	-51.1159	-94.4835	*/
+	{	13,	15,	19,	27	},	/* 132:	131.999	0.000794756	-49.059		-94.5925	*/
+	{	12,	15,	17,	29	},	/* 133:	133.001	0.000588192	-51.1838	-94.7755	*/
+	{	0,	18,	21,	28	},	/* 134:	133.998	0.00203325	-49.416		-117.005	*/
+	{	7,	16,	23,	27	},	/* 135:	135.	0.000032698	-52.1121	-94.791		*/
+	{	0,	15,	23,	29	},	/* 136:	136.002	0.00208653	-51.2448	-117.084	*/
+	{	3,	18,	21,	29	},	/* 137:	136.992	0.00754431	-49.4628	-95.0877	*/
+	{	4,	7,	27,	29	},	/* 138:	138.002	0.00213887	-54.842		-94.7019	*/
+	{	6,	16,	23,	29	},	/* 139:	138.988	0.0115029	-52.3918	-94.5649	*/
+	{	6,	11,	25,	30	},	/* 140:	139.991	0.00894265	-48.0582	-94.509		*/
+	{	1,	22,	24,	26	},	/* 141:	141.	0.000253932	-48.5448	-93.4356	*/
+	{	2,	17,	26,	28	},	/* 142:	141.995	0.00534044	-51.9419	-94.0323	*/
+	{	2,	16,	26,	29	},	/* 143:	143.	0.000025150	-49.83		-93.8758	*/
+	{	15,	17,	21,	29	},	/* 144:	143.995	0.00512665	-48.1799	-94.7484	*/
+	{	16,	18,	24,	26	},	/* 145:	145.007	0.00706345	-48.0337	-94.5347	*/
+	{	17,	20,	21,	27	},	/* 146:	145.985	0.0151087	-48.353		-94.52		*/
+	{	10,	12,	27,	30	},	/* 147:	147.025	0.0250536	-49.1463	-94.2435	*/
+	{	4,	22,	24,	29	},	/* 148:	147.978	0.02212		-48.0501	-94.3415	*/
+	{	10,	16,	26,	30	},	/* 149:	148.999	0.00143023	-51.3598	-94.1976	*/
+	{	6,	23,	25,	28	},	/* 150:	150.	0.000039062	-56.6747	-94.6205	*/
+	{	4,	23,	26,	28	},	/* 151:	150.976	0.0242192	-48.9296	-94.267		*/
+	{	2,	24,	26,	28	},	/* 152:	152.018	0.0182932	-52.9909	-94.3796	*/
+	{	11,	19,	27,	29	},	/* 153:	152.996	0.00352176	-51.6482	-94.7391	*/
+	{	2,	24,	26,	29	},	/* 154:	154.014	0.0143393	-55.1262	-94.1927	*/
+	{	10,	18,	28,	30	},	/* 155:	155.015	0.0148269	-49.2951	-94.6205	*/
+	{	19,	22,	24,	27	},	/* 156:	156.01	0.00967787	-52.0773	-94.4248	*/
+	{	9,	24,	26,	29	},	/* 157:	156.95	0.0496063	-51.0268	-94.757		*/
+	{	15,	17,	28,	30	},	/* 158:	158.007	0.00722638	-48.1742	-94.7847	*/
+	{	15,	22,	25,	30	},	/* 159:	159.029	0.0292679	-49.3267	-94.4508	*/
+	{	19,	21,	25,	29	},	/* 160:	160.02	0.0199334	-48.8941	-94.9084	*/
+	{	20,	22,	24,	29	},	/* 161:	161.057	0.0568988	-52.6205	-94.8972	*/
+	{	19,	21,	25,	30	},	/* 162:	161.991	0.00913649	-48.5637	-94.7497	*/
+	{	20,	22,	24,	30	},	/* 163:	163.014	0.0136924	-52.4554	-94.4581	*/
+	{	18,	21,	27,	30	},	/* 164:	164.16	0.160392	-50.5419	-94.5334	*/
+	{	18,	24,	26,	29	},	/* 165:	164.78	0.219888	-50.7601	-94.6759	*/
+	{	12,	25,	28,	30	},	/* 166:	166.032	0.0323488	-49.3786	-94.3708	*/
+	{	20,	24,	26,	29	},	/* 167:	167.124	0.124286	-51.0112	-94.4889	*/
+	{	16,	25,	27,	30	},	/* 168:	167.764	0.23556		-50.9707	-94.4852	*/
+	{	20,	24,	26,	30	},	/* 169:	168.992	0.00804338	-50.103		-94.3706	*/
+	{	18,	25,	27,	30	},	/* 170:	169.822	0.177984	-51.9906	-94.5834	*/
+	{	21,	23,	27,	30	},	/* 171:	170.428	0.571837	-50.5096	-94.5605	*/
+	{	20,	25,	27,	30	},	/* 172:	172.09	0.0898758	-49.5621	-94.3883	*/
+	{	22,	24,	27,	30	},	/* 173:	173.114	0.113973	-48.4593	-94.128		*/
+	{	23,	24,	27,	30	},	/* 174:	174.44	0.439849	-48.2827	-94.6407	*/
+	{	22,	25,	27,	30	},	/* 175:	174.565	0.435168	-50.3909	-94.7202	*/
+	{	23,	25,	27,	30	},	/* 176:	175.879	0.121177	-49.1511	-94.3807	*/
+	{	23,	25,	27,	30	},	/* 177:	175.879	1.12118		-49.1511	-94.3807	*/
+	{	14,	21,	32,	35	},	/* 178:	179.508	1.50776		-51.1785	-94.9401	*/
+	{	14,	21,	32,	35	},	/* 179:	179.508	0.507761	-51.1785	-94.9401	*/
+	{	15,	19,	33,	35	},	/* 180:	179.993	0.0070525	-49.4768	-94.8998	*/
+	{	21,	23,	26,	36	},	/* 181:	180.996	0.00393673	-49.6691	-94.6106	*/
+	{	4,	21,	30,	40	},	/* 182:	182.006	0.00554315	-52.5497	-94.0992	*/
+	{	7,	28,	31,	35	},	/* 183:	182.998	0.00221579	-48.1203	-94.7878	*/
+	{	14,	26,	32,	34	},	/* 184:	184.	0.000224626	-48.3475	-94.7566	*/
+	{	13,	18,	31,	40	},	/* 185:	184.98	0.0197554	-48.2253	-94.6643	*/
+	{	14,	25,	26,	40	},	/* 186:	186.012	0.0124221	-48.1498	-94.6949	*/
+	{	4,	8,	38,	40	},	/* 187:	187.002	0.00181659	-48.8346	-94.0382	*/
+	{	20,	23,	27,	39	},	/* 188:	187.993	0.00667997	-48.01		-94.4452	*/
+	{	20,	26,	28,	37	},	/* 189:	189.003	0.00329536	-48.1462	-94.4327	*/
+	{	11,	15,	37,	39	},	/* 190:	190.003	0.00325976	-50.3464	-94.56		*/
+	{	11,	27,	34,	36	},	/* 191:	191.008	0.00802117	-46.9809	-94.3237	*/
+	{	15,	28,	31,	37	},	/* 192:	192.002	0.00177411	-45.7523	-94.5746	*/
+	{	7,	22,	35,	40	},	/* 193:	192.997	0.00299808	-48.478		-94.9783	*/
+	{	8,	21,	37,	39	},	/* 194:	194.003	0.00344248	-49.4618	-94.3041	*/
+	{	1,	25,	35,	40	},	/* 195:	195.004	0.00414588	-46.9756	-93.6133	*/
+	{	4,	24,	37,	39	},	/* 196:	196.009	0.00923638	-51.0143	-94.3098	*/
+	{	14,	16,	38,	40	},	/* 197:	196.976	0.0241309	-49.0773	-94.6526	*/
+	{	2,	31,	33,	39	},	/* 198:	197.996	0.00443252	-49.9662	-93.8559	*/
+	{	5,	29,	36,	38	},	/* 199:	198.976	0.023649	-47.7241	-94.688		*/
+	{	6,	24,	31,	45	},	/* 200:	200.001	0.00144944	-48.4168	-94.2075	*/
+	{	0,	10,	33,	49	},	/* 201:	201.002	0.00180399	-48.5621	-116.541	*/
+	{	0,	6,	39,	46	},	/* 202:	201.999	0.000886943	-48.2877	-116.138	*/
+	{	26,	29,	31,	36	},	/* 203:	202.999	0.00141171	-48.9552	-94.5633	*/
+	{	0,	5,	36,	49	},	/* 204:	203.995	0.00451002	-48.7452	-116.657	*/
+	{	18,	24,	34,	42	},	/* 205:	205.002	0.00206782	-49.8784	-94.6216	*/
+	{	6,	25,	39,	41	},	/* 206:	205.994	0.0062323	-50.6246	-94.3277	*/
+	{	4,	12,	34,	50	},	/* 207:	206.998	0.0015836	-50.3394	-94.1109	*/
+	{	12,	19,	31,	49	},	/* 208:	208.001	0.000530513	-49.6853	-94.476		*/
+	{	16,	28,	30,	45	},	/* 209:	208.998	0.00150416	-50.3263	-94.3371	*/
+	{	1,	11,	38,	49	},	/* 210:	209.996	0.00408117	-49.6813	-93.4116	*/
+	{	16,	26,	37,	42	},	/* 211:	211.002	0.00217222	-46.7997	-94.1622	*/
+	{	0,	20,	37,	48	},	/* 212:	211.993	0.00699471	-48.2662	-116.572	*/
+	{	10,	24,	39,	44	},	/* 213:	212.998	0.00222956	-50.7204	-94.3533	*/
+	{	10,	17,	38,	48	},	/* 214:	214.	0.000186997	-50.1152	-94.2123	*/
+	{	4,	11,	44,	46	},	/* 215:	214.999	0.000642585	-48.564		-94.0531	*/
+	{	0,	12,	41,	49	},	/* 216:	215.997	0.00281585	-48.3713	-116.531	*/
+	{	0,	26,	39,	46	},	/* 217:	216.999	0.000960756	-47.8953	-116.595	*/
+	{	11,	32,	37,	43	},	/* 218:	218.001	0.000943973	-46.6496	-94.4369	*/
+	{	1,	21,	39,	49	},	/* 219:	219.001	0.00112323	-49.3025	-93.649	*/
+	{	13,	23,	36,	49	},	/* 220:	220.001	0.00102402	-47.1059	-94.3292	*/
+	{	0,	27,	35,	50	},	/* 221:	221.002	0.00222148	-48.5178	-116.639	*/
+	{	12,	24,	42,	45	},	/* 222:	222.004	0.00351489	-49.944		-94.4074	*/
+	{	22,	29,	32,	47	},	/* 223:	223.001	0.00108712	-46.9459	-94.5482	*/
+	{	12,	32,	35,	47	},	/* 224:	223.993	0.00695129	-49.4035	-94.3834	*/
+	{	5,	7,	45,	50	},	/* 225:	225.007	0.0069338	-49.4275	-94.7357	*/
+	{	28,	32,	34,	42	},	/* 226:	225.994	0.00593003	-48.02		-94.5664	*/
+	{	9,	36,	38,	44	},	/* 227:	226.996	0.00415393	-50.1747	-94.3061	*/
+	{	16,	18,	42,	49	},	/* 228:	228.001	0.000569199	-50.5347	-94.3282	*/
+	{	9,	23,	41,	50	},	/* 229:	229.008	0.00763185	-47.155		-94.2562	*/
+	{	23,	27,	33,	50	},	/* 230:	229.997	0.00279788	-46.703		-94.3656	*/
+	{	5,	35,	37,	48	},	/* 231:	231.	0.000063759	-49.1881	-94.3533	*/
+	{	11,	34,	42,	44	},	/* 232:	232.008	0.00810345	-48.3771	-94.4114	*/
+	{	25,	29,	32,	50	},	/* 233:	232.992	0.0080979	-46.5879	-94.4759	*/
+	{	0,	28,	42,	50	},	/* 234:	233.997	0.00280543	-47.932		-116.657	*/
+	{	5,	36,	41,	46	},	/* 235:	234.996	0.00391296	-47.6709	-94.2861	*/
+	{	19,	27,	44,	46	},	/* 236:	235.994	0.0063532	-48.086		-94.5021	*/
+	{	12,	17,	47,	50	},	/* 237:	237.01	0.0104377	-50.0815	-94.0503	*/
+	{	11,	26,	46,	48	},	/* 238:	237.995	0.00525224	-48.3306	-94.2942	*/
+	{	18,	20,	45,	50	},	/* 239:	239.011	0.0113753	-47.777		-94.3713	*/
+	{	19,	27,	45,	47	},	/* 240:	239.997	0.00285408	-45.0066	-94.5778	*/
+	{	22,	29,	43,	47	},	/* 241:	241.003	0.00325593	-46.4309	-94.6442	*/
+	{	6,	34,	44,	48	},	/* 242:	241.997	0.0027904	-48.4287	-94.3781	*/
+	{	9,	38,	43,	46	},	/* 243:	243.007	0.0071572	-48.8248	-94.372		*/
+	{	29,	35,	37,	46	},	/* 244:	243.997	0.00275685	-48.0178	-94.7368	*/
+	{	10,	39,	43,	46	},	/* 245:	245.005	0.0054962	-45.8965	-94.3071	*/
+	{	17,	28,	45,	50	},	/* 246:	245.985	0.0146898	-47.8358	-94.332		*/
+	{	32,	35,	39,	44	},	/* 247:	246.995	0.00529246	-49.8605	-94.531		*/
+	{	4,	33,	47,	49	},	/* 248:	248.001	0.000818035	-48.3947	-93.9899	*/
+	{	10,	39,	43,	48	},	/* 249:	248.991	0.00929566	-47.0456	-94.4412	*/
+	{	12,	29,	48,	50	},	/* 250:	249.997	0.0027062	-47.3036	-94.4451	*/
+	{	23,	34,	41,	50	},	/* 251:	251.007	0.00673002	-48.5659	-94.3324	*/
+	{	23,	37,	39,	50	},	/* 252:	252.006	0.00599116	-48.3423	-94.3904	*/
+	{	20,	29,	48,	49	},	/* 253:	252.97	0.0295343	-47.1412	-94.5139	*/
+	{	26,	30,	44,	50	},	/* 254:	253.999	0.000776128	-47.1776	-94.3588	*/
+	{	29,	34,	41,	49	},	/* 255:	254.978	0.0216332	-46.7545	-94.476		*/
+};
+
+
+/********************************************************************************
+ * FskGLEffectDirectionalGaussianVaryBlurApply
+ * We set the srcDelta every time, because it typically alternates between horizontal and vertical.
+ ********************************************************************************/
+
+static FskErr FskGLEffectDirectionalGaussianVaryBlurApply(float xDir, float skip, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
+	FskErr				err			= kFskErrNone;
+	GLint				wrapMode	= gEffectsGlobals.canWrapNPOT ? GL_MIRRORED_REPEAT : GL_CLAMP_TO_EDGE;
+	FskRectangleRecord	texRect;
+	GLfloat				delDir[4];
+
+	#if defined(LOG_PARAMETERS)
+		LogEffectsParameters(__FUNCTION__, NULL, src, srcRect, dst, dstPoint);
+		LOGD("\tparams: xDir=%.3g, skip=%.3g", xDir, skip);
+	#endif /* LOG_PARAMETERS */
+
+	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidGaussianVaryBlurProgram));
+	BAIL_IF_ERR(err = SetEffectSrcDst(src, srcRect, wrapMode, GL_LINEAR, dst, dstPoint));												/* Compute rects, setup dst, bind src to texture#0 */
+	FskGLPortTexRectGet(src->glPort, &texRect);
+
+	SetEffectMatrix(gEffectsGlobals.gidGaussianVaryBlurMatrix, gEffectsGlobals.GaussianVaryBlurMtx);									/* Set matrix, only if changed */
+	delDir[2] = (delDir[0] =        xDir  / texRect.width ) * skip;
+	delDir[3] = (delDir[1] = (1.f - xDir) / texRect.height) * skip;
+	glUniform4fv(gEffectsGlobals.gidGaussianVaryBlurDirDel, 1, delDir);
+	#if CHECK_GL_ERROR
+		BAIL_IF_ERR(err = GetFskGLError());
+	#endif /* CHECK_GL_ERROR */
+
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	#if CHECK_GL_ERROR
+		err = GetFskGLError();
+	#endif /* CHECK_GL_ERROR */
+
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGLEffectHiSigmaGaussianBlurApply
+ ********************************************************************************/
+
+FskAPI(FskErr) FskGLEffectHiSigmaGaussianBlurApply(FskConstEffectGaussianBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint);
+FskErr FskGLEffectHiSigmaGaussianBlurApply(FskConstEffectGaussianBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
+	FskErr				err			= kFskErrNone;
+	FskBitmap			mid[2]		= { NULL, NULL };
+	unsigned			i, j;
+	const SInt8			*hSeq, *vSeq;
+	FskRectangleRecord	texRect;
+	#if !ALWAYS_CLEAR_DST_TEXTURE
+		Boolean			doClear;
+	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
+	SInt8				stage[8][2];
+	unsigned			numStages, midStages;
+
+	/* Collect stages */
+	i = (int)(params->sigmaX + .5f);
+	if (i > (sizeof(hiSigInc) / sizeof(hiSigInc[0])) - 1)
+		i = (sizeof(hiSigInc) / sizeof(hiSigInc[0])) - 1;
+	hSeq = hiSigInc[i];
+	i = (int)(params->sigmaY + .5f);
+	if (i > (sizeof(hiSigInc) / sizeof(hiSigInc[0])) - 1)
+		i = (sizeof(hiSigInc) / sizeof(hiSigInc[0])) - 1;
+	vSeq = hiSigInc[i];
+	for (i = numStages = 0; i < 4; ++i) {
+		if ((stage[numStages][1] = hSeq[i]) >= 0)
+			stage[numStages++][0] = 1;
+		if ((stage[numStages][1] = vSeq[i]) >= 0)
+			stage[numStages++][0] = 0;
+	}
+
+	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidGaussianVaryBlurProgram));
+
+	if (!srcRect)	srcRect  = &src->bounds;
+	#if !ALWAYS_CLEAR_DST_TEXTURE
+		doClear = (dstPoint && (dstPoint->x || dstPoint->y)) || (srcRect->width != dst->bounds.width || srcRect->height != dst->bounds.height);
+	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
+
+	if (gEffectsGlobals.canWrapNPOT) {
+		BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &texRect, &mid[0]));							/* Copy src to mid[0] if necessary to get the proper border */
+		if (!mid[0])																								/* If no buffer was allocated by AssureIsolatedPixels, ... */
+			BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &mid[0]));	/* ... allocate mid[0] buffer now */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &mid[1]));		/* Allocate mid[1] buffer */
+
+		if (numStages == 1) {																						/* Probability = 0 */
+			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[0][0], stage[0][1], src, srcRect, dst, dstPoint));
+		}
+		else {
+			i = 1;																									/* Start rendering to buffer 1 */
+			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[0][0], stage[0][1], src, srcRect, mid[i], NULL));			/* Fist stage */
+			for (i = 1 - i, j = 1, midStages = numStages - 1; j < midStages; i = 1 - i, ++j)						/* i ping-pongs, j = { 1, ... numStages - 2 } */
+				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[1 - i], NULL, mid[i], NULL));	/* Mid stages */
+			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[1 - i], NULL, dst, dstPoint));		/* Last stage */
+		}
+	}
+	else {
+		FskRectangleRecord sRect;
+		FskEffectCopyMirrorBordersRecord mir;
+
+		mir.border = (UInt32)(((params->sigmaX > params->sigmaY) ? params->sigmaX : params->sigmaY) * kSigmaCutoff);	/* Allocate intermediate buffers */
+		sRect.width  = srcRect->width  + 2 * mir.border;														/* ... with a border all around */
+		sRect.height = srcRect->height + 2 * mir.border;
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, sRect.width, sRect.height, &mid[0]));
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, sRect.width, sRect.height, &mid[1]));
+
+		BAIL_IF_ERR(err = FskGLEffectCopyMirrorBordersApply(&mir, src, srcRect, mid[0], NULL));					/* Surround with mirrored borders src --> mid[0] */
+
+		#if !ALWAYS_CLEAR_DST_TEXTURE
+			if (doClear)
+				FskGLRenderToBitmapTexture(mid[1], &blank);														/* Clear mid[1] texture, especially outside of offset region */
+		#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
+
+		FskRectangleSet(&sRect, mir.border, mir.border, srcRect->width, srcRect->height);
+		if (numStages == 1) {																					/* Probability = 0 */
+			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[0][0], stage[0][1], mid[0], &sRect, dst, dstPoint));
+		}
+		else {
+			for (i = 1, j = 0, midStages = numStages - 1; i < midStages; i = 1 - i, ++j)
+				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[1 - i], NULL, mid[i], NULL));
+			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[1 - i], &sRect, dst, dstPoint));
+		}
+	}
+
+bail:
+	FskGLEffectCacheReleaseBitmap(mid[0]);
+	FskGLEffectCacheReleaseBitmap(mid[1]);
 	return err;
 }
 
@@ -2598,9 +3052,8 @@ bail:
  * FskGLEffectGaussianBlurApply
  ********************************************************************************/
 
-static FskErr FskGLEffectGaussianBlurApply(FskConstEffectGaussianBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectGaussianBlurApply(FskConstEffectGaussianBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			mid1		= NULL,
 						mid2		= NULL;
 	FskRectangleRecord	texRect;
@@ -2610,15 +3063,12 @@ static FskErr FskGLEffectGaussianBlurApply(FskConstEffectGaussianBlur params, Fs
 	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: sigma=(%.3g, %.3g)", params->sigmaX, params->sigmaY);
 	#endif /* LOG_PARAMETERS */
 
-	/* We need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
+	if (params->sigmaX >= 13.f || params->sigmaY >= 13.f)
+		return FskGLEffectHiSigmaGaussianBlurApply(params, src, srcRect, dst, dstPoint);
 
 	if (!srcRect)	srcRect  = &src->bounds;
 	#if !ALWAYS_CLEAR_DST_TEXTURE
@@ -2626,49 +3076,48 @@ static FskErr FskGLEffectGaussianBlurApply(FskConstEffectGaussianBlur params, Fs
 	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
 
 	if (gEffectsGlobals.canWrapNPOT) {
-		BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &cache, &texRect, &mid1, NULL));				/* Copy src to mid1 if necessary to get the proper border */
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, srcRect->width, srcRect->height, &mid2));	/* Allocate mid2 buffer */
+		BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &texRect, &mid1));							/* Copy src to mid1 if necessary to get the proper border */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &mid2));	/* Allocate mid2 buffer */
 
 		#if !ALWAYS_CLEAR_DST_TEXTURE
 			if (doClear)
-				FskGLRenderToBitmapTexture(mid2, &blank);															/* Clear mid2 texture, especially outside of offset region */
-		#endif	/* !ALWAYS_CLEAR_DST_TEXTURE */
-		dirams.sigma = params->sigmaX;	dirams.direction[0] = 1.f;	dirams.direction[1] = 0.f;						/* H blur src --> mid2 */
-		err = FskGLEffectDirectionalGaussianBlurApply(&dirams, src, srcRect, mid2, NULL, cache);
+				FskGLRenderToBitmapTexture(mid2, &blank);														/* Clear mid2 texture, especially outside of offset region */
+		#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
+		dirams.sigma = params->sigmaX;	dirams.direction[0] = 1.f;	dirams.direction[1] = 0.f;					/* H blur src --> mid2 */
+		err = FskGLEffectDirectionalGaussianBlurApply(&dirams, src, srcRect, mid2, NULL);
 
-		dirams.sigma = params->sigmaY;	dirams.direction[0] = 0.f;	dirams.direction[1] = 1.f;						/* V blur mid2 --> dst */
-		err = FskGLEffectDirectionalGaussianBlurApply(&dirams, mid2, NULL, dst, dstPoint, cache);
+		dirams.sigma = params->sigmaY;	dirams.direction[0] = 0.f;	dirams.direction[1] = 1.f;					/* V blur mid2 --> dst */
+		err = FskGLEffectDirectionalGaussianBlurApply(&dirams, mid2, NULL, dst, dstPoint);
 	}
 	else {
 		FskRectangleRecord sRect;
 		FskEffectCopyMirrorBordersRecord mir;
 
 		mir.border = (UInt32)(((params->sigmaX > params->sigmaY) ? params->sigmaX : params->sigmaY) * kSigmaCutoff);	/* Allocate intermediate buffers */
-		sRect.width  = srcRect->width  + 2 * mir.border;																/* ... with a border all around */
+		sRect.width  = srcRect->width  + 2 * mir.border;														/* ... with a border all around */
 		sRect.height = srcRect->height + 2 * mir.border;
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, sRect.width, sRect.height, &mid1));
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, sRect.width, sRect.height, &mid2));
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, sRect.width, sRect.height, &mid1));
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, sRect.width, sRect.height, &mid2));
 
-		BAIL_IF_ERR(err = FskGLEffectCopyMirrorBordersApply(&mir, src, srcRect, mid1, NULL, cache));					/* Surround with mirrored borders src --> mid1 */
+		BAIL_IF_ERR(err = FskGLEffectCopyMirrorBordersApply(&mir, src, srcRect, mid1, NULL));					/* Surround with mirrored borders src --> mid1 */
 
 		#if !ALWAYS_CLEAR_DST_TEXTURE
 			if (doClear)
-				FskGLRenderToBitmapTexture(mid2, &blank);																/* Clear mid2 texture, especially outside of offset region */
+				FskGLRenderToBitmapTexture(mid2, &blank);														/* Clear mid2 texture, especially outside of offset region */
 		#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
 
-		FskRectangleSet(&sRect, mir.border, 0, srcRect->width, srcRect->height + 2 * mir.border);						/* Horizontal blur mid1 --> mid2 */
+		FskRectangleSet(&sRect, mir.border, 0, srcRect->width, srcRect->height + 2 * mir.border);				/* Horizontal blur mid1 --> mid2 */
 		dirams.sigma = params->sigmaX;	dirams.direction[0] = 1.f;	dirams.direction[1] = 0.f;
-		BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&dirams, mid1, &sRect, mid2, NULL, cache));
+		BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&dirams, mid1, &sRect, mid2, NULL));
 
-		FskRectangleSet(&sRect, 0, mir.border, srcRect->width, srcRect->height);										/* Vertical blur mid2 --> dst */
+		FskRectangleSet(&sRect, 0, mir.border, srcRect->width, srcRect->height);								/* Vertical blur mid2 --> dst */
 		dirams.sigma = params->sigmaY;	dirams.direction[0] = 0.f;	dirams.direction[1] = 1.f;
-		BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&dirams, mid2, &sRect, dst, dstPoint, cache));
+		BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&dirams, mid2, &sRect, dst, dstPoint));
 	}
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid1);
+	FskGLEffectCacheReleaseBitmap(mid2);
 	return err;
 }
 
@@ -2677,9 +3126,8 @@ bail:
  * FskGLEffectBoxBlurApply
  ********************************************************************************/
 
-static FskErr FskGLEffectBoxBlurApply(FskConstEffectBoxBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectBoxBlurApply(FskConstEffectBoxBlur params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			mid1		= NULL,
 						mid2		= NULL;
 	FskRectangleRecord	texRect;
@@ -2689,15 +3137,9 @@ static FskErr FskGLEffectBoxBlurApply(FskConstEffectBoxBlur params, FskConstBitm
 	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: radius=(%.3g, %.3g)", params->radiusX, params->radiusY);
 	#endif /* LOG_PARAMETERS */
-
-	/* We need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 
 	if (!srcRect)	srcRect  = &src->bounds;
 	#if !ALWAYS_CLEAR_DST_TEXTURE
@@ -2705,49 +3147,48 @@ static FskErr FskGLEffectBoxBlurApply(FskConstEffectBoxBlur params, FskConstBitm
 	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
 
 	if (gEffectsGlobals.canWrapNPOT) {
-		BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &cache, &texRect, &mid1, NULL));				/* Copy src to mid1 if necessary to get the proper border */
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, srcRect->width, srcRect->height, &mid2));	/* Allocate mid2 buffer */
+		BAIL_IF_ERR(err = AssureIsolatedPixels(&src, &srcRect, dst, &texRect, &mid1));							/* Copy src to mid1 if necessary to get the proper border */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &mid2));	/* Allocate mid2 buffer */
 
 		#if !ALWAYS_CLEAR_DST_TEXTURE
 			if (doClear)
-				FskGLRenderToBitmapTexture(mid2, &blank);															/* Clear mid2 texture, especially outside of offset region */
-		#endif	/* !ALWAYS_CLEAR_DST_TEXTURE */
-		dirams.radius = params->radiusX;	dirams.direction[0] = 1.f;	dirams.direction[1] = 0.f;					/* H blur src --> mid2 */
-		err = FskGLEffectDirectionalBoxBlurApply(&dirams, src, srcRect, mid2, NULL, cache);
+				FskGLRenderToBitmapTexture(mid2, &blank);														/* Clear mid2 texture, especially outside of offset region */
+		#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
+		dirams.radius = params->radiusX;	dirams.direction[0] = 1.f;	dirams.direction[1] = 0.f;				/* H blur src --> mid2 */
+		err = FskGLEffectDirectionalBoxBlurApply(&dirams, src, srcRect, mid2, NULL);
 
-		dirams.radius = params->radiusY;	dirams.direction[0] = 0.f;	dirams.direction[1] = 1.f;					/* V blur mid2 --> dst */
-		err = FskGLEffectDirectionalBoxBlurApply(&dirams, mid2, NULL, dst, dstPoint, cache);
+		dirams.radius = params->radiusY;	dirams.direction[0] = 0.f;	dirams.direction[1] = 1.f;				/* V blur mid2 --> dst */
+		err = FskGLEffectDirectionalBoxBlurApply(&dirams, mid2, NULL, dst, dstPoint);
 	}
 	else {
 		FskRectangleRecord sRect;
 		FskEffectCopyMirrorBordersRecord mir;
 
-		mir.border = (params->radiusX > params->radiusY) ? params->radiusX : params->radiusY;						/* Allocate intermediate buffers */
-		sRect.width  = srcRect->width  + 2 * mir.border;															/* ... with a border all around */
+		mir.border = (params->radiusX > params->radiusY) ? params->radiusX : params->radiusY;					/* Allocate intermediate buffers */
+		sRect.width  = srcRect->width  + 2 * mir.border;														/* ... with a border all around */
 		sRect.height = srcRect->height + 2 * mir.border;
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, sRect.width, sRect.height, &mid1));
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, sRect.width, sRect.height, &mid2));
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, sRect.width, sRect.height, &mid1));
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, sRect.width, sRect.height, &mid2));
 
-		BAIL_IF_ERR(err = FskGLEffectCopyMirrorBordersApply(&mir, src, srcRect, mid1, NULL, cache));				/* Surround with mirrored borders src --> mid1 */
+		BAIL_IF_ERR(err = FskGLEffectCopyMirrorBordersApply(&mir, src, srcRect, mid1, NULL));					/* Surround with mirrored borders src --> mid1 */
 
 		#if !ALWAYS_CLEAR_DST_TEXTURE
 			if (doClear)
-				FskGLRenderToBitmapTexture(mid2, &blank);															/* Clear mid2 texture, especially outside of offset region */
-		#endif	/* !ALWAYS_CLEAR_DST_TEXTURE */
+				FskGLRenderToBitmapTexture(mid2, &blank);														/* Clear mid2 texture, especially outside of offset region */
+		#endif/* !ALWAYS_CLEAR_DST_TEXTURE */
 
-		FskRectangleSet(&sRect, mir.border, 0, srcRect->width, srcRect->height + 2 * mir.border);					/* Horizontal blur mid1 --> mid2 */
+		FskRectangleSet(&sRect, mir.border, 0, srcRect->width, srcRect->height + 2 * mir.border);				/* Horizontal blur mid1 --> mid2 */
 		dirams.radius = params->radiusX;	dirams.direction[0] = 1.f;	dirams.direction[1] = 0.f;
-		BAIL_IF_ERR(err = FskGLEffectDirectionalBoxBlurApply(&dirams, mid1, &sRect, mid2, NULL, cache));
+		BAIL_IF_ERR(err = FskGLEffectDirectionalBoxBlurApply(&dirams, mid1, &sRect, mid2, NULL));
 
-		FskRectangleSet(&sRect, 0, mir.border, srcRect->width, srcRect->height);									/* Vertical blur mid2 --> dst */
+		FskRectangleSet(&sRect, 0, mir.border, srcRect->width, srcRect->height);								/* Vertical blur mid2 --> dst */
 		dirams.radius = params->radiusY;	dirams.direction[0] = 0.f;	dirams.direction[1] = 1.f;
-		BAIL_IF_ERR(err = FskGLEffectDirectionalBoxBlurApply(&dirams, mid2, &sRect, dst, dstPoint, cache));
+		BAIL_IF_ERR(err = FskGLEffectDirectionalBoxBlurApply(&dirams, mid2, &sRect, dst, dstPoint));
 	}
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid1);
+	FskGLEffectCacheReleaseBitmap(mid2);
 	return err;
 }
 
@@ -2756,9 +3197,8 @@ bail:
  * FskGLEffectInnerGlowApply
  ********************************************************************************/
 
-static FskErr FskGLEffectInnerGlowApply(FskConstEffectInnerGlow params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectInnerGlowApply(FskConstEffectInnerGlow params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			mid1		= NULL;
 	FskBitmap			mid2		= NULL;
 	FskRectangleRecord	texRect;
@@ -2767,57 +3207,51 @@ static FskErr FskGLEffectInnerGlowApply(FskConstEffectInnerGlow params, FskConst
 	FskEffectParametersRecord	p;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: radius=%d, blurSigma=%.3g", params->radius, params->blurSigma);
 		LogColor(&params->color, "color");
 	#endif /* LOG_PARAMETERS */
 
-	/* We need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 	if (!srcRect)	srcRect  = &src->bounds;
 
 	/* Allocate two mid buffers */
-	mat     = src;		/* The src might be copied to a tmp if the pixels are not appropriately isolated */
+	mat     = src;																									/* The src might be copied to a tmp if the pixels are not appropriately isolated */
 	matRect = srcRect;
-	BAIL_IF_ERR(err = AssureIsolatedPixels(&mat, &matRect, dst, &cache, &texRect, &mid2, NULL));							/* This might allocate mid2 */
-	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, matRect->width, matRect->height, &mid1));
-	if (!mid2)																												/* If mid2 wasn't allocated by AssureIsolatedPixels, ... */
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, matRect->width, matRect->height, &mid2));			/* ... allocate one here */
+	BAIL_IF_ERR(err = AssureIsolatedPixels(&mat, &matRect, dst, &texRect, &mid2));									/* This might allocate mid2 */
+	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, matRect->width, matRect->height, &mid1));
+	if (!mid2)																										/* If mid2 wasn't allocated by AssureIsolatedPixels, ... */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, matRect->width, matRect->height, &mid2));		/* ... allocate one here */
 
 	/* H erode */
 	p.directionalErode.radius       = params->radius;
 	p.directionalErode.direction[0] = 1.f;
 	p.directionalErode.direction[1] = 0.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalErodeApply(&p.directionalErode, mat, matRect, mid1, NULL, cache));				/* H erode src --> mid1 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalErodeApply(&p.directionalErode, mat, matRect, mid1, NULL));				/* H erode src --> mid1 */
 
 	/* V erode */
 	p.directionalErode.direction[0] = 0.f;
 	p.directionalErode.direction[1] = 1.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalErodeApply(&p.directionalErode, mid1, NULL, mid2, NULL, cache));				/* V erode mid1 --> mid2 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalErodeApply(&p.directionalErode, mid1, NULL, mid2, NULL));				/* V erode mid1 --> mid2 */
 
 	/* H blur */
 	p.directionalGaussianBlur.sigma        = params->blurSigma;
 	p.directionalGaussianBlur.direction[0] = 1.f;
 	p.directionalGaussianBlur.direction[1] = 0.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid2, NULL, mid1, NULL, cache));	/* H blur mid2 --> mid1 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid2, NULL, mid1, NULL));	/* H blur mid2 --> mid1 */
 
 	/* V blur */
 	p.directionalGaussianBlur.direction[0] = 0.f;
 	p.directionalGaussianBlur.direction[1] = 1.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid1, NULL, mid2, NULL, cache));	/* V blur mid1 --> mid2 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid1, NULL, mid2, NULL));	/* V blur mid1 --> mid2 */
 
 	/* Colorize alpha and blend */
 	p.colorizeInner.color     = params->color;
 	p.colorizeInner.matte     = mid2;
-	BAIL_IF_ERR(err = FskGLEffectColorizeInnerApply(&p.colorizeInner, src, srcRect, dst, dstPoint, cache));					/* colorize mid2 blended with dst */
+	BAIL_IF_ERR(err = FskGLEffectColorizeInnerApply(&p.colorizeInner, src, srcRect, dst, dstPoint));				/* colorize mid2 blended with dst */
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid2);
+	FskGLEffectCacheReleaseBitmap(mid1);
 	return err;
 }
 
@@ -2826,9 +3260,8 @@ bail:
  * FskGLEffectInnerShadowApply
  ********************************************************************************/
 
-static FskErr FskGLEffectInnerShadowApply(FskConstEffectInnerShadow params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectInnerShadowApply(FskConstEffectInnerShadow params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			mid1		= NULL;
 	FskBitmap			mid2		= NULL;
 	FskRectangleRecord	texRect;
@@ -2838,57 +3271,51 @@ static FskErr FskGLEffectInnerShadowApply(FskConstEffectInnerShadow params, FskC
 	FskEffectParametersRecord	p;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: offset=(%d, %d), blurSigma=%.3g", params->offset.x, params->offset.y, params->blurSigma);
 		LogColor(&params->color, "color");
 	#endif /* LOG_PARAMETERS */
 
-	/* We need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 	if (!srcRect)	srcRect  = &src->bounds;
 
 
 	/* Allocate two mid buffers */
-	mat     = src;		/* The src might be copied to a tmp if the pixels are not appropriately isolated */
+	mat     = src;																										/* The src might be copied to a tmp if the pixels are not appropriately isolated */
 	matRect = srcRect;
-	BAIL_IF_ERR(err = AssureIsolatedPixels(&mat, &matRect, dst, &cache, &texRect, &mid2, NULL));								/* This might allocate mid2 */
-	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, matRect->width, matRect->height, &mid1));
-	if (!mid2)																													/* If mid2 wasn't allocated by AssureIsolatedPixels, ... */
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, matRect->width, matRect->height, &mid2));				/* ... allocate one here */
+	BAIL_IF_ERR(err = AssureIsolatedPixels(&mat, &matRect, dst, &texRect, &mid2));										/* This might allocate mid2 */
+	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, matRect->width, matRect->height, &mid1));
+	if (!mid2)																											/* If mid2 wasn't allocated by AssureIsolatedPixels, ... */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, matRect->width, matRect->height, &mid2));			/* ... allocate one here */
 
 	/* H blur */
 	p.directionalGaussianBlur.sigma        = params->blurSigma;
 	p.directionalGaussianBlur.direction[0] = 1.f;
 	p.directionalGaussianBlur.direction[1] = 0.f;
-	mpt.x = params->offset.x;																									/* Offset in X while blurring horizontally */
+	mpt.x = params->offset.x;																							/* Offset in X while blurring horizontally */
 	mpt.y = 0;
 	#if !ALWAYS_CLEAR_DST_TEXTURE
-		FskGLRenderToBitmapTexture(mid1, &blank);																				/* Clear mid1 texture, especially outside of offset region */
+		FskGLRenderToBitmapTexture(mid1, &blank);																		/* Clear mid1 texture, especially outside of offset region */
 	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
-	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mat, matRect, mid1, &mpt, cache));	/* H blur src --> mid1 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mat, matRect, mid1, &mpt));	/* H blur src --> mid1 */
 
 	/* V blur */
 	p.directionalGaussianBlur.direction[0] = 0.f;
 	p.directionalGaussianBlur.direction[1] = 1.f;
 	mpt.x = 0;
-	mpt.y = params->offset.y;																									/* Offset in Y while blurring vertically. */
+	mpt.y = params->offset.y;																							/* Offset in Y while blurring vertically. */
 	#if !ALWAYS_CLEAR_DST_TEXTURE
-		FskGLRenderToBitmapTexture(mid2, &blank);																				/* Clear mid2 texture, especially outside of offset region */
+		FskGLRenderToBitmapTexture(mid2, &blank);																		/* Clear mid2 texture, especially outside of offset region */
 	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
-	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid1, NULL, mid2, &mpt, cache));		/* V blur mid1 --> mid2 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid1, NULL, mid2, &mpt));		/* V blur mid1 --> mid2 */
 
 	/* Colorize alpha and blend */
 	p.colorizeInner.color     = params->color;
 	p.colorizeInner.matte     = mid2;
-	BAIL_IF_ERR(err = FskGLEffectColorizeInnerApply(&p.colorizeInner, src, srcRect, dst, dstPoint, cache));						/* colorize mid2 blended with dst */
+	BAIL_IF_ERR(err = FskGLEffectColorizeInnerApply(&p.colorizeInner, src, srcRect, dst, dstPoint));					/* colorize mid2 blended with dst */
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid2);
+	FskGLEffectCacheReleaseBitmap(mid1);
 	return err;
 }
 
@@ -2897,9 +3324,8 @@ bail:
  * FskGLEffectOuterGlowApply
  ********************************************************************************/
 
-static FskErr FskGLEffectOuterGlowApply(FskConstEffectOuterGlow params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectOuterGlowApply(FskConstEffectOuterGlow params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			mid1		= NULL;
 	FskBitmap			mid2		= NULL;
 	FskRectangleRecord	texRect;
@@ -2908,56 +3334,50 @@ static FskErr FskGLEffectOuterGlowApply(FskConstEffectOuterGlow params, FskConst
 	FskEffectParametersRecord	p;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: radius=%d, blurSigma=%.3g", params->radius, params->blurSigma);
 		LogColor(&params->color, "color");
 	#endif /* LOG_PARAMETERS */
 
-	/* We need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 	if (!srcRect)	srcRect  = &src->bounds;
 
 	/* Allocate two mid buffers */
-	mat     = src;		/* The src might be copied to a tmp if the pixels are not appropriately isolated */
+	mat     = src;																									/* The src might be copied to a tmp if the pixels are not appropriately isolated */
 	matRect = srcRect;
-	BAIL_IF_ERR(err = AssureIsolatedPixels(&mat, &matRect, dst, &cache, &texRect, &mid2, NULL));							/* This might allocate mid2 */
-	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, matRect->width, matRect->height, &mid1));
-	if (!mid2)																												/* If mid2 wasn't allocated by AssureIsolatedPixels, ... */
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, matRect->width, matRect->height, &mid2));			/* ... allocate one here */
+	BAIL_IF_ERR(err = AssureIsolatedPixels(&mat, &matRect, dst, &texRect, &mid2));									/* This might allocate mid2 */
+	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, matRect->width, matRect->height, &mid1));
+	if (!mid2)																										/* If mid2 wasn't allocated by AssureIsolatedPixels, ... */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, matRect->width, matRect->height, &mid2));		/* ... allocate one here */
 
 	/* H dilate */
 	p.directionalDilate.radius       = params->radius;
 	p.directionalDilate.direction[0] = 1.f;
 	p.directionalDilate.direction[1] = 0.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalDilateApply(&p.directionalDilate, mat, matRect, mid1, NULL, cache));			/* H dilate src --> mid1 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalDilateApply(&p.directionalDilate, mat, matRect, mid1, NULL));			/* H dilate src --> mid1 */
 
 	/* V dilate */
 	p.directionalDilate.direction[0] = 0.f;
 	p.directionalDilate.direction[1] = 1.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalDilateApply(&p.directionalDilate, mid1, NULL, mid2, NULL, cache));				/* V dilate mid1 --> mid2 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalDilateApply(&p.directionalDilate, mid1, NULL, mid2, NULL));				/* V dilate mid1 --> mid2 */
 
 	/* H blur */
 	p.directionalGaussianBlur.sigma        = params->blurSigma;
 	p.directionalGaussianBlur.direction[0] = 1.f;
 	p.directionalGaussianBlur.direction[1] = 0.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid2, NULL, mid1, NULL, cache));	/* H blur mid2 --> mid1 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid2, NULL, mid1, NULL));	/* H blur mid2 --> mid1 */
 
 	/* V blur */
 	p.directionalGaussianBlur.direction[0] = 0.f;
 	p.directionalGaussianBlur.direction[1] = 1.f;
-	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid1, NULL, mid2, NULL, cache));	/* V blur mid1 --> mid2 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid1, NULL, mid2, NULL));	/* V blur mid1 --> mid2 */
 
 	p.colorizeOuter.color     = params->color;
 	p.colorizeOuter.matte     = mid2;
-	BAIL_IF_ERR(err = FskGLEffectColorizeOuterApply(&p.colorizeOuter, src, srcRect, dst, dstPoint, cache));					/* colorize mid2 blended with dst */
+	BAIL_IF_ERR(err = FskGLEffectColorizeOuterApply(&p.colorizeOuter, src, srcRect, dst, dstPoint));				/* colorize mid2 blended with dst */
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid2);
+	FskGLEffectCacheReleaseBitmap(mid1);
 	return err;
 }
 
@@ -2966,9 +3386,8 @@ bail:
  * FskGLEffectOuterShadowApply
  ********************************************************************************/
 
-static FskErr FskGLEffectOuterShadowApply(FskConstEffectOuterShadow params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectOuterShadowApply(FskConstEffectOuterShadow params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err			= kFskErrNone;
-	FskEffectCache		myCache		= NULL;
 	FskBitmap			mid1		= NULL;
 	FskBitmap			mid2		= NULL;
 	FskRectangleRecord	texRect;
@@ -2978,56 +3397,50 @@ static FskErr FskGLEffectOuterShadowApply(FskConstEffectOuterShadow params, FskC
 	FskEffectParametersRecord	p;
 
 	#if defined(LOG_PARAMETERS)
-		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint, cache);
+		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LOGD("\tparams: offset=(%d, %d), blurSigma=%.3g", params->offset.x, params->offset.y, params->blurSigma);
 		LogColor(&params->color, "color");
 	#endif /* LOG_PARAMETERS */
 
-	/* We need a cache */
-	if (!cache) {
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
 	if (!srcRect)	srcRect  = &src->bounds;
 
 	/* Allocate two mid buffers */
-	mat     = src;		/* The src might be copied to a tmp if the pixels are not appropriately isolated */
+	mat     = src;																									/* The src might be copied to a tmp if the pixels are not appropriately isolated */
 	matRect = srcRect;
-	BAIL_IF_ERR(err = AssureIsolatedPixels(&mat, &matRect, dst, &cache, &texRect, &mid2, NULL));							/* This might allocate mid2 */
-	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, matRect->width, matRect->height, &mid1));
-	if (!mid2)																												/* If mid2 wasn't allocated by AssureIsolatedPixels, ... */
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, matRect->width, matRect->height, &mid2));			/* ... allocate one here */
+	BAIL_IF_ERR(err = AssureIsolatedPixels(&mat, &matRect, dst, &texRect, &mid2));									/* This might allocate mid2 */
+	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, matRect->width, matRect->height, &mid1));
+	if (!mid2)																										/* If mid2 wasn't allocated by AssureIsolatedPixels, ... */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, matRect->width, matRect->height, &mid2));		/* ... allocate one here */
 
 	/* H blur */
 	p.directionalGaussianBlur.sigma        = params->blurSigma;
 	p.directionalGaussianBlur.direction[0] = 1.f;
 	p.directionalGaussianBlur.direction[1] = 0.f;
-	mpt.x = params->offset.x;																								/* Offset in X while blurring horizontally */
+	mpt.x = params->offset.x;																						/* Offset in X while blurring horizontally */
 	mpt.y = 0;
 	#if !ALWAYS_CLEAR_DST_TEXTURE
-		FskGLRenderToBitmapTexture(mid1, &blank);																			/* Clear mid1 texture, especially outside of offset region */
+		FskGLRenderToBitmapTexture(mid1, &blank);																	/* Clear mid1 texture, especially outside of offset region */
 	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
-	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mat, NULL, mid1, &mpt, cache));	/* H blur src --> mid1 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mat, NULL, mid1, &mpt));	/* H blur src --> mid1 */
 
 	/* V blur */
 	p.directionalGaussianBlur.direction[0] = 0.f;
 	p.directionalGaussianBlur.direction[1] = 1.f;
 	mpt.x = 0;
-	mpt.y = params->offset.y;																								/* Offset in Y while blurring vertically. */
+	mpt.y = params->offset.y;																						/* Offset in Y while blurring vertically. */
 	#if !ALWAYS_CLEAR_DST_TEXTURE
-		FskGLRenderToBitmapTexture(mid2, &blank);																			/* Clear mid2 texture, especially outside of offset region */
+		FskGLRenderToBitmapTexture(mid2, &blank);																	/* Clear mid2 texture, especially outside of offset region */
 	#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
-	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid1, NULL, mid2, &mpt, cache));	/* V blur mid1 --> mid2 */
+	BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianBlurApply(&p.directionalGaussianBlur, mid1, NULL, mid2, &mpt));	/* V blur mid1 --> mid2 */
 
 	/* Colorize alpha and blend. */
 	p.colorizeOuter.color     = params->color;
 	p.colorizeOuter.matte     = mid2;
-	BAIL_IF_ERR(err = FskGLEffectColorizeOuterApply(&p.colorizeOuter, src, srcRect, dst, dstPoint, cache));					/* colorize mid2 blended with dst */
+	BAIL_IF_ERR(err = FskGLEffectColorizeOuterApply(&p.colorizeOuter, src, srcRect, dst, dstPoint));				/* colorize mid2 blended with dst */
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid2);
+	FskGLEffectCacheReleaseBitmap(mid1);
 	return err;
 }
 
@@ -3036,9 +3449,8 @@ bail:
  * FskGLEffectCompoundApply
  ********************************************************************************/
 
-static FskErr FskGLEffectCompoundApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
+static FskErr FskGLEffectCompoundApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr			err		= kFskErrNone;
-	FskEffectCache	myCache	= NULL;
 	FskBitmap		mid1	= NULL,
 					mid2	= NULL;
 	FskBitmap		dbm;
@@ -3056,24 +3468,20 @@ static FskErr FskGLEffectCompoundApply(FskConstEffect effect, FskConstBitmap src
 
 	BAIL_IF_NONPOSITIVE(numStages = effect->params.compound.numStages, err, kFskErrEmpty);
 
-	if (1 == numStages)	return FskGLEffectApply(effect + 1, src, srcRect, dst, dstPoint, cache);					/* No intermediate buffers needed for a single stage */
+	if (1 == numStages)	return FskGLEffectApply(effect + 1, src, srcRect, dst, dstPoint);						/* No intermediate buffers needed for a single stage */
 
-	if (srcRect == NULL)	srcRect = &src->bounds;																	/* Make sure that we know the bounds */
-	if (!cache) {																									/* We need a cache */
-		BAIL_IF_ERR(err = FskGLEffectCacheNew(&myCache));
-		cache = myCache;
-	}
-	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, srcRect->width, srcRect->height, &mid1));		/* Allocate mid1 buffer */
+	if (srcRect == NULL)	srcRect = &src->bounds;																/* Make sure that we know the bounds */
+	BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &mid1));		/* Allocate mid1 buffer */
 	if (numStages > 2)
-		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(cache, src, srcRect->width, srcRect->height, &mid2));	/* Allocate mid2 buffer */
-	dbm = mid1;																										/* mid1 is the first destination bitmap */
+		BAIL_IF_ERR(err = GLEffectCacheGetSrcCompatibleBitmap(src, srcRect->width, srcRect->height, &mid2));	/* Allocate mid2 buffer */
+	dbm = mid1;																									/* mid1 is the first destination bitmap */
 
 	switch (effect->params.compound.topology) {
 
 		case kFskEffectCompoundTopologyPipeline:
 			for (++effect; numStages-- > 1; ++effect, src = dbm, dbm = ((dbm == mid1) ? mid2 : mid1), srcRect = NULL)
-				BAIL_IF_ERR(err = FskGLEffectApply(effect, src, srcRect, dbm, NULL, cache));
-			BAIL_IF_ERR(err = FskGLEffectApply(effect, src, NULL, dst, dstPoint, cache));
+				BAIL_IF_ERR(err = FskGLEffectApply(effect, src, srcRect, dbm, NULL));
+			BAIL_IF_ERR(err = FskGLEffectApply(effect, src, NULL, dst, dstPoint));
 			break;
 
 		default:
@@ -3081,9 +3489,8 @@ static FskErr FskGLEffectCompoundApply(FskConstEffect effect, FskConstBitmap src
 	}
 
 bail:
-	FskGLEffectCacheReleaseBitmap(cache, mid2);
-	FskGLEffectCacheReleaseBitmap(cache, mid1);
-	FskGLEffectCacheDispose(myCache);
+	FskGLEffectCacheReleaseBitmap(mid2);
+	FskGLEffectCacheReleaseBitmap(mid1);
 	return err;
 }
 
@@ -3104,13 +3511,13 @@ bail:
  * FskGLEffectApplyMode
  ********************************************************************************/
 
-FskErr FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache,
+FskErr FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint,
 							FskConstRectangle clipRect, UInt32 mode, FskConstGraphicsModeParameters modeParams) {
 	FskErr err;
 
 	#if defined(LOG_PARAMETERS)
 		LOGD("%s(effect=%p, src=%p, srcRect=%p, dst=%p, dstPoint=%p, cache=%p, clipRect=%p, mode=%s, modeParams=%p)",
-			__FUNCTION__, effect, src, srcRect, dst, dstPoint, cache, clipRect, ModeNameFromCode(mode), modeParams);
+			__FUNCTION__, effect, src, srcRect, dst, dstPoint, clipRect, ModeNameFromCode(mode), modeParams);
 		LogSrcBitmap(src, "src");
 		LogRect(srcRect, "srcRect");
 		LogDstBitmap(dst, "dst");
@@ -3151,30 +3558,30 @@ FskErr FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstR
 	FskGLPortSetClip(dst->glPort, clipRect);
 
 	switch (effect->effectID) {
-		case kFskEffectBoxBlur:					err = FskGLEffectBoxBlurApply(					&effect->params.boxBlur,					src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectColorize:				err = FskGLEffectColorizeApply(					&effect->params.colorize,					src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectColorizeAlpha:			err = FskGLEffectColorizeAlphaApply(			&effect->params.colorizeAlpha,				src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectColorizeInner:			err = FskGLEffectColorizeInnerApply(			&effect->params.colorizeInner,				src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectColorizeOuter:			err = FskGLEffectColorizeOuterApply(			&effect->params.colorizeOuter,				src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectCompound:				err = FskGLEffectCompoundApply(					effect,										src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectCopy:					err = FskGLEffectCopyApply(						&effect->params.copy,						src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectCopyMirrorBorders:		err = FskGLEffectCopyMirrorBordersApply(		&effect->params.copyMirrorBorders,			src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectDilate:					err = FskGLEffectDilateApply(					&effect->params.dilate,						src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectDirectionalBoxBlur:		err = FskGLEffectDirectionalBoxBlurApply(		&effect->params.directionalBoxBlur,			src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectDirectionalDilate:		err = FskGLEffectDirectionalDilateApply(		&effect->params.directionalDilate,			src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectDirectionalErode:		err = FskGLEffectDirectionalErodeApply(			&effect->params.directionalErode,			src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectDirectionalGaussianBlur:	err = FskGLEffectDirectionalGaussianBlurApply(	&effect->params.directionalGaussianBlur,	src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectErode:					err = FskGLEffectErodeApply(					&effect->params.erode,						src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectGaussianBlur:			err = FskGLEffectGaussianBlurApply(				&effect->params.gaussianBlur,				src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectInnerGlow:				err = FskGLEffectInnerGlowApply(				&effect->params.innerGlow,					src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectInnerShadow:				err = FskGLEffectInnerShadowApply(				&effect->params.innerShadow,				src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectMask:					err = FskGLEffectMaskApply(						&effect->params.mask,						src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectMonochrome:				err = FskGLEffectMonochromeApply(				&effect->params.monochrome,					src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectOuterGlow:				err = FskGLEffectOuterGlowApply(				&effect->params.outerGlow,					src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectOuterShadow:				err = FskGLEffectOuterShadowApply(				&effect->params.outerShadow,				src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectShade:					err = FskGLEffectShadeApply(					&effect->params.shade,						src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectPremultiplyAlpha:		err = FskGLEffectPremultiplyAlphaApply(			&effect->params.premultiplyAlpha,			src, srcRect, dst, dstPoint, cache); break;
-		case kFskEffectStraightAlpha:			err = FskGLEffectStraightAlphaApply(			&effect->params.straightAlpha,				src, srcRect, dst, dstPoint, cache); break;
+		case kFskEffectBoxBlur:					err = FskGLEffectBoxBlurApply(					&effect->params.boxBlur,					src, srcRect, dst, dstPoint); break;
+		case kFskEffectColorize:				err = FskGLEffectColorizeApply(					&effect->params.colorize,					src, srcRect, dst, dstPoint); break;
+		case kFskEffectColorizeAlpha:			err = FskGLEffectColorizeAlphaApply(			&effect->params.colorizeAlpha,				src, srcRect, dst, dstPoint); break;
+		case kFskEffectColorizeInner:			err = FskGLEffectColorizeInnerApply(			&effect->params.colorizeInner,				src, srcRect, dst, dstPoint); break;
+		case kFskEffectColorizeOuter:			err = FskGLEffectColorizeOuterApply(			&effect->params.colorizeOuter,				src, srcRect, dst, dstPoint); break;
+		case kFskEffectCompound:				err = FskGLEffectCompoundApply(					effect,										src, srcRect, dst, dstPoint); break;
+		case kFskEffectCopy:					err = FskGLEffectCopyApply(						&effect->params.copy,						src, srcRect, dst, dstPoint); break;
+		case kFskEffectCopyMirrorBorders:		err = FskGLEffectCopyMirrorBordersApply(		&effect->params.copyMirrorBorders,			src, srcRect, dst, dstPoint); break;
+		case kFskEffectDilate:					err = FskGLEffectDilateApply(					&effect->params.dilate,						src, srcRect, dst, dstPoint); break;
+		case kFskEffectDirectionalBoxBlur:		err = FskGLEffectDirectionalBoxBlurApply(		&effect->params.directionalBoxBlur,			src, srcRect, dst, dstPoint); break;
+		case kFskEffectDirectionalDilate:		err = FskGLEffectDirectionalDilateApply(		&effect->params.directionalDilate,			src, srcRect, dst, dstPoint); break;
+		case kFskEffectDirectionalErode:		err = FskGLEffectDirectionalErodeApply(			&effect->params.directionalErode,			src, srcRect, dst, dstPoint); break;
+		case kFskEffectDirectionalGaussianBlur:	err = FskGLEffectDirectionalGaussianBlurApply(	&effect->params.directionalGaussianBlur,	src, srcRect, dst, dstPoint); break;
+		case kFskEffectErode:					err = FskGLEffectErodeApply(					&effect->params.erode,						src, srcRect, dst, dstPoint); break;
+		case kFskEffectGaussianBlur:			err = FskGLEffectGaussianBlurApply(				&effect->params.gaussianBlur,				src, srcRect, dst, dstPoint); break;
+		case kFskEffectInnerGlow:				err = FskGLEffectInnerGlowApply(				&effect->params.innerGlow,					src, srcRect, dst, dstPoint); break;
+		case kFskEffectInnerShadow:				err = FskGLEffectInnerShadowApply(				&effect->params.innerShadow,				src, srcRect, dst, dstPoint); break;
+		case kFskEffectMask:					err = FskGLEffectMaskApply(						&effect->params.mask,						src, srcRect, dst, dstPoint); break;
+		case kFskEffectMonochrome:				err = FskGLEffectMonochromeApply(				&effect->params.monochrome,					src, srcRect, dst, dstPoint); break;
+		case kFskEffectOuterGlow:				err = FskGLEffectOuterGlowApply(				&effect->params.outerGlow,					src, srcRect, dst, dstPoint); break;
+		case kFskEffectOuterShadow:				err = FskGLEffectOuterShadowApply(				&effect->params.outerShadow,				src, srcRect, dst, dstPoint); break;
+		case kFskEffectShade:					err = FskGLEffectShadeApply(					&effect->params.shade,						src, srcRect, dst, dstPoint); break;
+		case kFskEffectPremultiplyAlpha:		err = FskGLEffectPremultiplyAlphaApply(			&effect->params.premultiplyAlpha,			src, srcRect, dst, dstPoint); break;
+		case kFskEffectStraightAlpha:			err = FskGLEffectStraightAlphaApply(			&effect->params.straightAlpha,				src, srcRect, dst, dstPoint); break;
 
 		default:								err = kFskErrUnimplemented; break;
 	}
@@ -3187,8 +3594,8 @@ FskErr FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstR
  * FskGLEffectApply
  ********************************************************************************/
 
-FskErr FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache) {
-	return FskGLEffectApplyMode(effect, src, srcRect, dst, dstPoint, cache, NULL, kFskGraphicsModeCopy, NULL);
+FskErr FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
+	return FskGLEffectApplyMode(effect, src, srcRect, dst, dstPoint, NULL, kFskGraphicsModeCopy, NULL);
 }
 
 
@@ -3254,15 +3661,16 @@ static FskErr InitFragmentShaderProgram(GLuint vertexShader, GLuint fragmentShad
 
 FskErr FskGLEffectsInit(void) {
 	FskErr				err				= kFskErrNone;
-	static const char	matrix_str[]	= "matrix",
-						coeff_str[]		= "coeff",
+	static const char	coeff_str[]		= "coeff",
+						color0_str[]	= "color0",
+						color1_str[]	= "color1",
+						color_str[]		= "color",
+						dirDel_str[]	= "dirDel",
+						matrix_str[]	= "matrix",
+						mttBM_str[]		= "mttBM",
 						rad_str[]		= "rad",
 						srcBM_str[]		= "srcBM",
-						mttBM_str[]		= "mttBM",
-						srcDelta_str[]	= "srcDelta",
-						color_str[]		= "color",
-						color0_str[]	= "color0",
-						color1_str[]	= "color1";
+						srcDelta_str[]	= "srcDelta";
 	const char			*extensions		= (const char*)glGetString(GL_EXTENSIONS);
 	const GLfloat		grayColor[4]	= { .5f, .5f, .5f, 1.f };
 	const GLfloat		identity[3*3]	= { 1.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 1.f };
@@ -3284,16 +3692,16 @@ FskErr FskGLEffectsInit(void) {
 	gEffectsGlobals.canWrapNPOT =	FskStrStr(extensions, "GL_OES_texture_npot")
 								||	FskStrStr(extensions, "GL_ARB_texture_non_power_of_two");
 	gEffectsGlobals.rendererIsTiled = FskStrStr(extensions, "GL_QCOM_tiled_rendering") != NULL;
-	#if defined(GL_VERSION_2_0)																		/* GL always has high precision */
+	#if defined(GL_VERSION_2_0)																				/* GL always has high precision */
 		gEffectsGlobals.hasHighPrecision = true;
-	#else																							/* GL ES */
+	#else																									/* GL ES */
 		gEffectsGlobals.hasHighPrecision = (FskStrStr(extensions, "GL_OES_fragment_precision_high") != NULL);
 	#endif /* GL_VERSION */
 
-	gEffectsGlobals.mediumPrecisionBits		=  24;													/* GL always has high precision */
+	gEffectsGlobals.mediumPrecisionBits		=  24;															/* GL always has high precision */
 	gEffectsGlobals.mediumPrecisionRange[0]	= 128;
 	gEffectsGlobals.mediumPrecisionRange[1]	= 128;
-	#if !defined(GL_VERSION_2_0)																	/* GL ES might only have medium precision */
+	#if !defined(GL_VERSION_2_0)																			/* GL ES might only have medium precision */
 	{	GLint floatRange[2]  = { 0, 0 };
 		GLint floatPrecision = 0;
 		#ifdef GL_MEDIUM_FLOAT
@@ -3569,9 +3977,9 @@ FskErr FskGLEffectsInit(void) {
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGelSrcBM  = glGetUniformLocation(gEffectsGlobals.gidGelProgram, srcBM_str),  err, kFskErrGLShader);
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGelColor  = glGetUniformLocation(gEffectsGlobals.gidGelProgram, color_str),  err, kFskErrGLShader);
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidGelProgram));
-	glUniform1i(gEffectsGlobals.gidGelSrcBM, 0);									/* srcBM is in texture #0 */
-	glUniformMatrix3fv(gEffectsGlobals.gidGelMatrix, 1, GL_FALSE, identity);		/* matrix */
-	glUniform4fv(gEffectsGlobals.gidGelColor, 1, grayColor);						/* color */
+	glUniform1i(gEffectsGlobals.gidGelSrcBM, 0);													/* srcBM is in texture #0 */
+	glUniformMatrix3fv(gEffectsGlobals.gidGelMatrix, 1, GL_FALSE, identity);						/* matrix */
+	glUniform4fv(gEffectsGlobals.gidGelColor, 1, grayColor);										/* color */
 	#if CHECK_GL_ERROR
 		glValidateProgram(gEffectsGlobals.gidGelProgram);
 		glGetProgramiv(gEffectsGlobals.gidGelProgram, GL_VALIDATE_STATUS, &result);
@@ -3588,8 +3996,8 @@ FskErr FskGLEffectsInit(void) {
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidStraightToPremultipliedMatrix = glGetUniformLocation(gEffectsGlobals.gidStraightToPremultipliedProgram, matrix_str), err, kFskErrGLShader);
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidStraightToPremultipliedSrcBM  = glGetUniformLocation(gEffectsGlobals.gidStraightToPremultipliedProgram, srcBM_str),  err, kFskErrGLShader);
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidStraightToPremultipliedProgram));
-	glUniform1i(gEffectsGlobals.gidStraightToPremultipliedSrcBM, 0);									/* srcBM is in texture #0 */
-	glUniformMatrix3fv(gEffectsGlobals.gidStraightToPremultipliedMatrix, 1, GL_FALSE, identity);		/* matrix */
+	glUniform1i(gEffectsGlobals.gidStraightToPremultipliedSrcBM, 0);								/* srcBM is in texture #0 */
+	glUniformMatrix3fv(gEffectsGlobals.gidStraightToPremultipliedMatrix, 1, GL_FALSE, identity);	/* matrix */
 	#if CHECK_GL_ERROR
 		glValidateProgram(gEffectsGlobals.gidStraightToPremultipliedProgram);
 		glGetProgramiv(gEffectsGlobals.gidStraightToPremultipliedProgram, GL_VALIDATE_STATUS, &result);
@@ -3607,9 +4015,9 @@ FskErr FskGLEffectsInit(void) {
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidPremultipliedToStraightSrcBM  = glGetUniformLocation(gEffectsGlobals.gidPremultipliedToStraightProgram, srcBM_str),  err, kFskErrGLShader);
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidPremultipliedToStraightBgColor= glGetUniformLocation(gEffectsGlobals.gidPremultipliedToStraightProgram, color_str),  err, kFskErrGLShader);
 	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidPremultipliedToStraightProgram));
-	glUniform1i(gEffectsGlobals.gidPremultipliedToStraightSrcBM, 0);									/* srcBM is in texture #0 */
-	glUniformMatrix3fv(gEffectsGlobals.gidPremultipliedToStraightMatrix, 1, GL_FALSE, identity);		/* matrix */
-	glUniform3fv(gEffectsGlobals.gidPremultipliedToStraightBgColor, 1, grayColor);						/* color */
+	glUniform1i(gEffectsGlobals.gidPremultipliedToStraightSrcBM, 0);								/* srcBM is in texture #0 */
+	glUniformMatrix3fv(gEffectsGlobals.gidPremultipliedToStraightMatrix, 1, GL_FALSE, identity);	/* matrix */
+	glUniform3fv(gEffectsGlobals.gidPremultipliedToStraightBgColor, 1, grayColor);					/* color */
 	#if CHECK_GL_ERROR
 		glValidateProgram(gEffectsGlobals.gidPremultipliedToStraightProgram);
 		glGetProgramiv(gEffectsGlobals.gidPremultipliedToStraightProgram, GL_VALIDATE_STATUS, &result);
@@ -3716,9 +4124,40 @@ FskErr FskGLEffectsInit(void) {
 
 	glDeleteShader(vertexShader);
 
+
+
+	/*
+	 * Initialize Gaussian Vary Blur Program
+	 */
+
+	BAIL_IF_ERR(err = FskGLNewShader(gGaussianVaryBlurVertexShader,   GL_VERTEX_SHADER, &vertexShader));
+	BAIL_IF_ERR(err = FskGLNewShader(gGaussianVaryBlurFragmentShader, GL_FRAGMENT_SHADER, &fragmentShader));
+	BAIL_IF_ERR(err = FskGLNewProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidGaussianVaryBlurProgram,
+					 VERTEX_POSITION_INDEX, vPosition_str,
+					 VERTEX_TEXCOORD_INDEX, vTexCoord_str,
+					 VERTEX_END_INDEX));
+	glDeleteShader(fragmentShader);
+	glDeleteShader(vertexShader);
+	BAIL_IF_ZERO(gEffectsGlobals.gidGaussianVaryBlurProgram, err, kFskErrGLShader);
+	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianVaryBlurMatrix = glGetUniformLocation(gEffectsGlobals.gidGaussianVaryBlurProgram, matrix_str), err, kFskErrGLShader);
+	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianVaryBlurSrcBM  = glGetUniformLocation(gEffectsGlobals.gidGaussianVaryBlurProgram, srcBM_str),  err, kFskErrGLShader);
+	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianVaryBlurDirDel = glGetUniformLocation(gEffectsGlobals.gidGaussianVaryBlurProgram, dirDel_str),  err, kFskErrGLShader);
+	BAIL_IF_ERR(err = FskGLUseProgram(gEffectsGlobals.gidGaussianVaryBlurProgram));
+	glUniform1i(gEffectsGlobals.gidGaussianVaryBlurSrcBM, 0);									/* srcBM is in texture #0 */
+	glUniformMatrix3fv(gEffectsGlobals.gidGaussianVaryBlurMatrix, 1, GL_FALSE, identity);		/* matrix */
+	glUniform4f(gEffectsGlobals.gidGaussianVaryBlurDirDel, 1.f, 0.f, 0.f, 0.f);					/* horizontal nonskip */
+	#if CHECK_GL_ERROR
+		glValidateProgram(gEffectsGlobals.gidGaussianVaryBlurProgram);
+		glGetProgramiv(gEffectsGlobals.gidGaussianVaryBlurProgram, GL_VALIDATE_STATUS, &result);
+		BAIL_IF_ZERO(result, err, kFskErrGLShader);
+	#endif /* CHECK_GL_ERROR */
+
+
 	(void)FskGLBindBMTexture(0, 0, 0);
 	(void)FskGLUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
+
+	FskGLEffectCacheNew();
 
 bail:
 
@@ -3740,6 +4179,8 @@ void FskGLEffectsShutdown(void) {
 		LOGD("FskGLEffectsShutdown");
 	#endif /* LOG_PARAMETERS */
 
+	if (gEffectsGlobals.gidGaussianVaryBlurProgram)				glDeleteProgram(gEffectsGlobals.gidGaussianVaryBlurProgram);
+
 	if (gEffectsGlobals.gidGelProgram)							glDeleteProgram(gEffectsGlobals.gidGelProgram);
 	if (gEffectsGlobals.gidColorizePremulProgram)				glDeleteProgram(gEffectsGlobals.gidColorizePremulProgram);
 	if (gEffectsGlobals.gidColorizeStraightProgram)				glDeleteProgram(gEffectsGlobals.gidColorizeStraightProgram);
@@ -3756,6 +4197,8 @@ void FskGLEffectsShutdown(void) {
 	if (gEffectsGlobals.gidGaussianBlurProgram)					glDeleteProgram(gEffectsGlobals.gidGaussianBlurProgram);
 	if (gEffectsGlobals.gidBoxBlurProgram)						glDeleteProgram(gEffectsGlobals.gidBoxBlurProgram);
 	if (gEffectsGlobals.gidCopyProgram)							glDeleteProgram(gEffectsGlobals.gidCopyProgram);
+
+	FskGLEffectCacheDispose();
 
 	FskMemSet(&gEffectsGlobals, 0, sizeof(gEffectsGlobals));
 }

@@ -124,6 +124,7 @@ typedef const struct FskGLPortRecord *FskConstGLPort;	///< Pointer to a read-onl
 		FskGLPort			glPort;					///< Pointer to a data structure to support OpenGL accelerated graphics.
 		SInt16				accelerateSeed;
 		Boolean				accelerate;
+		Boolean				disposeUploadedPixels;	///< After pixels are transferred to a texture, dispose of the pixels stored in "bits". */
 	#endif /* FSKBITMAP_OPENGL */
 
 	#if TARGET_OS_WIN32
@@ -437,6 +438,24 @@ FskAPI(FskErr)	FskBitmapUpdateGLSource(FskConstBitmap bm);
  *	\return		true if the bitmap is accelerated for use as a destination in OpenGL operations; false otherwise.
  */
 FskAPI(Boolean)	FskBitmapIsOpenGLDestinationAccelerated(FskConstBitmap bm);
+
+
+/** Dispose of the pixels stored in the "bits" field after uploading to a texture.
+ *	This sets a property of the bitmap so that its local source pixels would be disposed after FskBitmapCheckGLSourceAccelerated() is called.
+ *	\param[in]	bm	the bitmap whose pixels are to be disposed after FskBitmapCheckGLSourceAccelerated() is next called.
+ *	\return		kFskErrNone					if the request for deferred disposal was registered successfully.
+ *	\return		kFskErrUnimplemented		if the pixels are not disposable (#define FSKBITMAP_DOUBLE_ALLOC 1 to fix).
+ *	\return		kFskErrNotAccelerated		if FskBitmapSetOpenGLSourceAccelerated() was not called before FskBitmapDisposeGLSourcePixels().
+ *	\return		kFskErrUnsupportedPixelType	if there are no pixels associated with the bitmap.
+ */
+FskAPI(FskErr)	FskBitmapSetSourceDiscardable(FskBitmap bm);
+
+
+/** Query whether there are any pixels that are accessible by the CPU in this bitmap.
+ *	\param[in]	bm	the bitmap to be queried.
+ *	\return		true, if there are CPU-accessible pixels associated with this bitmap; false otherwise.
+ */
+FskAPI(Boolean)	FskBitmapHasLocalPixels(FskConstBitmap bm);
 
 
 /*****************************************************************

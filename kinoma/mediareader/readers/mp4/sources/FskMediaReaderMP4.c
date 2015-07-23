@@ -1731,8 +1731,7 @@ doneTracks:
 		err = buildTimeToOffsetTable(state);
 		BAIL_IF_ERR(err);
 
-#define skewLimit 8	
-		if (state->timeToOffset->hasMediaSamplesOutOfOrder || (state->timeToOffset->maxGap > (skewLimit * (state->bitRate / 8)))) {		// 5 second skew limit
+		if (state->timeToOffset->hasMediaSamplesOutOfOrder || (state->timeToOffset->maxGap > (5 * (state->bitRate / 8)))) {		// 5 second skew limit
 			state->forceDownload = true;
 
 			if (!(kFskMediaSpoolerDownloading & state->spooler->flags)) {

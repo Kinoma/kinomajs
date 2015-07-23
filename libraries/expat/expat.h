@@ -15,7 +15,9 @@
 #endif
 
 #include <stdlib.h>
+#if __FSK_LAYER__
 #include "fskconfig.h"
+#endif
 #include "expat_external.h"
 
 #ifdef __cplusplus

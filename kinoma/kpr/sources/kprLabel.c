@@ -478,6 +478,23 @@ void KPR_label_get_hidden(xsMachine *the)
 	xsResult = (self->flags & kprTextHidden) ? xsTrue : xsFalse;
 }
 
+void KPR_label_get_inputType(xsMachine *the)
+{
+	KprLabel self = xsGetHostData(xsThis);
+	if (self->flags & kprTextEmail)
+		xsResult = xsString("email");
+	else if (self->flags & kprTextNumeric)
+		xsResult = xsString("numeric");
+	else if (self->flags & kprTextPassword)
+		xsResult = xsString("password");
+	else if (self->flags & kprTextPhone)
+		xsResult = xsString("phone");
+	else if (self->flags & kprTextURL)
+		xsResult = xsString("URL");
+	else
+		xsResult = xsString("default");
+}
+
 void KPR_label_get_length(xsMachine *the)
 {
 	KprLabel self = xsGetHostData(xsThis);
@@ -550,6 +567,24 @@ void KPR_label_set_hidden(xsMachine *the)
 	KprLabelFlagged(self);
 }
 
+void KPR_label_set_inputType(xsMachine *the)
+{
+	KprLabel self = xsGetHostData(xsThis);
+	xsStringValue type = xsToString(xsArg(0));
+	self->flags &= ~(kprTextEmail | kprTextNumeric | kprTextPassword | kprTextPhone | kprTextURL);
+	if (!FskStrCompare(type, "email"))
+		self->flags |= kprTextEmail;
+	else if (!FskStrCompare(type, "numeric"))
+		self->flags |= kprTextNumeric;
+	else if (!FskStrCompare(type, "password"))
+		self->flags |= kprTextPassword;
+	else if (!FskStrCompare(type, "phone"))
+		self->flags |= kprTextPhone;
+	else if (!FskStrCompare(type, "URL"))
+		self->flags |= kprTextURL;
+	KprLabelFlagged(self);
+}
+
 void KPR_label_set_selectable(xsMachine *the)
 {
 	KprLabel self = xsGetHostData(xsThis);
@@ -572,7 +607,7 @@ void KPR_label_set_string(xsMachine *the)
 void KPR_label_insert(xsMachine *the)
 {
 	KprLabel self = xsGetHostData(xsThis);
-	if (xsTest(xsArg(0)))
+	if ((xsToInteger(xsArgc) > 0) && xsTest(xsArg(0)))
 		KprLabelInsertString(self, xsToString(xsArg(0)));
 	else
 		KprLabelInsertStringWithLength(self, "", 0);

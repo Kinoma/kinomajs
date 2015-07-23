@@ -411,7 +411,7 @@ FskErr FskGtkWindowCreate(FskWindow fskWindow, UInt32 style, SInt32 width, SInt3
 
 
 	//Create gtk thread: initialization and main loop for GTK
-	FskThreadCreate(&fskWindow->gtkThread, FskGtkWindowLoop, kFskThreadFlagsJoinable, fskWindow, "gtk_thread");
+	FskThreadCreate(&fskWindow->gtkThread, FskGtkWindowLoop, kFskThreadFlagsJoinable | kFskThreadFlagsWaitForInit, fskWindow, "gtk_thread");
 
 bail:
 	return err;
@@ -647,7 +647,6 @@ void FskGtkWindowSetMenuItemStatus(FskGtkWindow win, int id, Boolean enabled, Bo
 	if(entryBar) { 
 		for(items = (menuItems)entryBar->menulist; items != NULL; items = items->next) {
 			if(items->id == id) {
-				gtk_widget_set_sensitive(items->item, enabled);
 				gtk_check_menu_item_set_active((GtkCheckMenuItem*)items->item, checked);
 				break;
 			}

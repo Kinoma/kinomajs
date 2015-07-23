@@ -36,20 +36,22 @@
 
 /************************************************ Debugging configuration ************************************************/
 #if SUPPORT_INSTRUMENTATION
-	//#define LOG_INIT				/**< Log calls related to initialization and shutdown. */
-	#define LOG_PARAMETERS			/**< Log the parameters of API calls. */
-	//#define LOG_READPIXELS		/**< Log any call to read from the screen. */
-	//#define LOG_SET_TEXTURE		/**< Log texture uploads. */
-	//#define LOG_SWAPBUFFERS		/**< Log swapbuffer calls, along with timestamp. */
-	//#define LOG_TEXT				/**< Log any text-related activity. */
-	#define LOG_TEXTURE_LIFE		/**< Log the creation and deletion of textures. */
-	//#define LOG_VIEW				/**< Log calls that change view. */
-	//#define LOG_YUV				/**< Log calls related to YUV. */
-	#define LOG_RENDER_TO_TEXTURE	/**< Log when changing render target. */
 	//#define LOG_COLOR				/**< Log when changing color. */
 	//#define LOG_CONTEXT			/**< Log context calls. */
+	//#define LOG_EPHEMERAL			/**< Log ephemeral texture usage. */
 	//#define LOG_GL_API			/**< Log the OpenGL API calls. */
-
+	#define LOG_INIT				/**< Log calls related to initialization and shutdown. */
+	#define LOG_PARAMETERS			/**< Log the parameters of API calls. */
+	//#define LOG_MEMORY			/**< Log the amount of memory that we use. */
+	//#define LOG_READPIXELS		/**< Log any call to read from the screen. */
+	//#define LOG_RENDER_TO_TEXTURE	/**< Log when changing render target. */
+	//#define LOG_SET_TEXTURE		/**< Log texture uploads. */
+	#define LOG_SHUTDOWN			/**< Log the results of shutting down. */
+	//#define LOG_SWAPBUFFERS		/**< Log swapbuffer calls, along with timestamp. */
+	//#define LOG_TEXT				/**< Log any text-related activity. */
+	//#define LOG_TEXTURE_LIFE		/**< Log the creation and deletion of textures. */
+	//#define LOG_VIEW				/**< Log calls that change view. */
+	//#define LOG_YUV				/**< Log calls related to YUV. */
 #endif /* SUPPORT_INSTRUMENTATION */
 //#define DUMP_TYPEFACE				/**< Dump typefaces when disposing of them. */
 
@@ -58,18 +60,22 @@
 #ifndef GL_DEBUG
 	#define GL_DEBUG 0				/**< Turn off extra debugging logs. */
 #endif /* GL_DEBUG */
-#if	defined(LOG_INIT)				|| \
+#if									\
+	defined(LOG_COLOR)				|| \
+	defined(LOG_EPHEMERAL)			|| \
+	defined(LOG_GL_API)				|| \
+	defined(LOG_INIT)				|| \
+	defined(LOG_MEMORY)				|| \
 	defined(LOG_PARAMETERS)			|| \
 	defined(LOG_READPIXELS)			|| \
+	defined(LOG_RENDER_TO_TEXTURE)	|| \
 	defined(LOG_SET_TEXTURE)		|| \
+	defined(LOG_SHUTDOWN)			|| \
 	defined(LOG_SWAPBUFFERS)		|| \
 	defined(LOG_TEXT)				|| \
 	defined(LOG_TEXTURE_LIFE)		|| \
 	defined(LOG_VIEW)				|| \
-	defined(LOG_YUV)				|| \
-	defined(LOG_RENDER_TO_TEXTURE)	|| \
-	defined(LOG_COLOR)				|| \
-	defined(LOG_GL_API)
+	defined(LOG_YUV)
 	#undef  GL_DEBUG
 	#define GL_DEBUG 1
 #endif /* LOG_PARAMETERS et al */
@@ -89,6 +95,8 @@
 	#endif /* *_DEBUG */
 #endif /* CHECK_GL_ERROR */
 #if CHECK_GL_ERROR
+	#undef GL_DEBUG
+	#define GL_DEBUG 1
 	static const char* GLErrorStringFromCode(int err);
 #endif /* CHECK_GL_ERROR */
 
@@ -190,6 +198,10 @@ FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the ty
 	#undef GL_UNPACK_SKIP_PIXELS	/* but some GLES header files define them anyway */
 	#undef GL_UNPACK_ROW_LENGTH
 #endif /* (FSK_OPENGLES_ANGLE == 1) */
+
+#ifdef TRACK_TEXTURES
+	#include "FskGrowableStorage.h"
+#endif /* TRACK_TEXTURES */
 
 #include <errno.h>
 #include <math.h>
@@ -326,12 +338,10 @@ FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the ty
 																SET_GLOBAL_BLEND_ENABLE(true); } while(0)														/**< Set blend function. */
 #else /* GLES_VERSION == 2 */
 	#define SET_GLOBAL_BLEND_SEPARATE_FUNC(sc,dc,sa,da)		do { glBlendFuncSeparate(sc,dc,sa,da);											\
-																gGLGlobalAssets.blitContext->blendHash = BLEND_SEPARATE_HASH(sc,dc,sa,da);	\
-																SET_GLOBAL_BLEND_ENABLE(true); } while(0)														/**< Set blend function. */
+																gGLGlobalAssets.blitContext->blendHash = BLEND_SEPARATE_HASH(sc,dc,sa,da);} while(0)			/**< Set blend function. */
 #endif /* GLES_VERSION == 2 */
 #define SET_GLOBAL_BLEND_FUNC(s,d)							do { glBlendFunc(s,d);															\
-																gGLGlobalAssets.blitContext->blendHash = BLEND_HASH(s,d);					\
-																SET_GLOBAL_BLEND_ENABLE(true); } while(0)														/**< Set blend function. */
+																gGLGlobalAssets.blitContext->blendHash = BLEND_HASH(s,d);  } while(0)							/**< Set blend function. */
 #define SET_GLOBAL_BLEND_ENABLE(doBlend)					do { if (doBlend)	{  glEnable(GL_BLEND); gGLGlobalAssets.blitContext->glBlend = 1; }	\
 																else			{ glDisable(GL_BLEND); gGLGlobalAssets.blitContext->glBlend = 0; }} while(0)	/**< Set blend enable. */
 #define SET_GLOBAL_SCISSOR_ENABLE(doScissor)				do { if (doScissor)	{  glEnable(GL_SCISSOR_TEST); gGLGlobalAssets.blitContext->glScissorTest = 1;	} \
@@ -344,8 +354,8 @@ FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the ty
 #define SET_TEXTURE(texName)								do { glBindTexture(GL_TEXTURE_2D, (texName)); gGLGlobalAssets.blitContext->lastTexture = (texName); } while(0)	/**< Set texture. */
 #define FORGET_TEXTURE(texName)                             do { if(gGLGlobalAssets.blitContext->lastTexture == (texName)) gGLGlobalAssets.blitContext->lastTexture = 0; } while (0)
 
-#define CHANGE_BLEND_FUNC_SEPARATE(sc,dc,sa,da)				do { if (BLEND_FUNC_SEPARATE_WILL_CHANGE(sc,dc,sa,da))	SET_GLOBAL_BLEND_SEPARATE_FUNC(sc,dc,sa,da); else CHANGE_BLEND_ENABLE(true); } while(0)	/**< Set blend function if it would change. */
-#define CHANGE_BLEND_FUNC(s,d)								do { if          (BLEND_FUNC_WILL_CHANGE(s,d))			SET_GLOBAL_BLEND_FUNC         (s,d);         else CHANGE_BLEND_ENABLE(true); } while(0)	/**< Set blend function if it would change. */
+#define CHANGE_BLEND_FUNC_SEPARATE(sc,dc,sa,da)				do { if (BLEND_FUNC_SEPARATE_WILL_CHANGE(sc,dc,sa,da))	SET_GLOBAL_BLEND_SEPARATE_FUNC(sc,dc,sa,da);	CHANGE_BLEND_ENABLE(true); } while(0)	/**< Set blend function if it would change. */
+#define CHANGE_BLEND_FUNC(s,d)								do { if          (BLEND_FUNC_WILL_CHANGE(s,d))			SET_GLOBAL_BLEND_FUNC         (s,d);			CHANGE_BLEND_ENABLE(true); } while(0)	/**< Set blend function if it would change. */
 #define CHANGE_BLEND_ENABLE(doBlend)						do { if        (BLEND_ENABLE_WILL_CHANGE(doBlend))		SET_GLOBAL_BLEND_ENABLE       (doBlend);	} while(0)	/**< Set blend enable if it would change. */
 #define CHANGE_SCISSOR_ENABLE(doScissor)					do { if      (SCISSOR_ENABLE_WILL_CHANGE(doScissor))	SET_GLOBAL_SCISSOR_ENABLE     (doScissor);	} while(0)	/**< Set scissor enable if it would change. */
 #define CHANGE_SHADER_MATRIX(shader)						do { if       (SHADER_MATRIX_WILL_CHANGE(shader))		SET_SHADER_MATRIX             (shader);		} while(0)	/**< Set shader matrix if it would change. */
@@ -393,7 +403,8 @@ typedef struct GLTextureRecord {
 	FskConstBitmap			srcBM;								/**< The bitmap source of the texture. */
 	Boolean					flipY;								/**< Indicates that the image in the texture is flipped vertically from the usual. */
 	Boolean					fboInited;							/**< Indicates that the texture has been cleared at least once for use as a frame buffer texture. */
-	Boolean					unused[2];							/**< Pad to a multiple of 4. */
+	Boolean					persistent;							/**< Save the value when switching textures in FBO. */
+	Boolean					unused;								/**< Pad to a multiple of 4. */
 } GLTextureRecord,
  *GLTexture;											/**< Object that contains auxiliary data to be stored with each GL texture. */
 typedef const struct GLTextureRecord *ConstGLTexture;	/**< Read-only object that contains auxiliary data to be stored with each GL texture. */
@@ -707,7 +718,7 @@ typedef struct FskGLGlobalAssetsRecord {			/* Members set once, at initializatio
 		GLuint		nextTextureObjectIndex;			/**< The index of the next available texture object */
 	#endif /* EPHEMERAL_TEXTURE_CACHE_SIZE */
 	#ifdef TRACK_TEXTURES
-		unsigned	textureCount;
+		FskGrowableArray	glTextures;
 	#endif /* TRACK_TEXTURES */
 
 	#if GLES_VERSION == 2
@@ -742,6 +753,71 @@ static FskGLGlobalAssetsRecord gGLGlobalAssets = {
 };
 
 static void purgeGL(void *refcon);
+
+
+#ifdef TRACK_TEXTURES
+#define TRACK_PERIOD 1
+static int gTrackCount = 0;
+static int CompareTextures(const void *v1, const void *v2) {
+	const GLuint *t1 = (const GLuint*)v1;
+	const GLuint *t2 = (const GLuint*)v2;
+	if (*t1 < *t2)	return -1;
+	if (*t1 > *t2)	return +1;
+	return 0;
+}
+static void PrintTrackedTextures(const char *msg) {
+	FskGrowableStorage	str		= NULL;
+	FskErr				err;
+	UInt32				n;
+	const GLuint		*txp;
+
+	BAIL_IF_ERR(err = FskGrowableArraySortItems(gGLGlobalAssets.glTextures, CompareTextures));
+	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(gGLGlobalAssets.glTextures, 0, (const void**)(&txp)));
+	n = FskGrowableArrayGetItemCount(gGLGlobalAssets.glTextures);
+	(void)FskGrowableStorageNew(32 + n * 4, &str);
+	if (!msg) msg = "";
+	(void)FskGrowableStorageAppendF(str, "%s TrackedTextures[%u]:", msg, (unsigned)n);
+	for (; n--; ++txp)
+		(void)FskGrowableStorageAppendF(str, " %u", (unsigned)(*txp));
+	LOGD("%s", FskGrowableStorageGetPointerToCString(str));
+
+bail:
+	FskGrowableStorageDispose(str);
+	return;
+}
+static void TrackTextures(unsigned n, const GLuint *tx) {
+	FskErr err;
+	BAIL_IF_ERR(err = FskGrowableArrayAppendItems(gGLGlobalAssets.glTextures, tx, n));
+	if (((gTrackCount += n) % TRACK_PERIOD) < n) PrintTrackedTextures(NULL);
+bail:
+	return;
+}
+static void TrackTexture(GLuint tx) {
+	return TrackTextures(1, &tx);
+}
+static void UntrackTexture(GLuint tx) {
+	FskErr			err;
+	UInt32			i, n;
+	const GLuint	*txp;
+
+	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(gGLGlobalAssets.glTextures, 0, (const void**)(&txp)));
+	n = FskGrowableArrayGetItemCount(gGLGlobalAssets.glTextures);
+	for (i = 0; i < n; ++i) {
+		if (txp[i] == tx) {
+			FskGrowableArrayRemoveItem(gGLGlobalAssets.glTextures, i);
+			if ((++gTrackCount % TRACK_PERIOD) == 0) PrintTrackedTextures(NULL);
+			return;
+		}
+	}
+	LOGD("UntrackTexture(%u) fails", tx);
+bail:
+	return;
+}
+static void UntrackTextures(unsigned n, const GLuint *txp) {
+	for (; n--; ++txp)
+		UntrackTexture(*txp);
+}
+#endif /* TRACK_TEXTURES */
 
 
 /****************************************************************************//**
@@ -1879,9 +1955,7 @@ static const char* GLInternalFormatNameFromCode(GLInternalFormat format) {
 	};
 	return LookupCodeToName(lookupTab, format);
 }
-#if defined(LOG_PARAMETERS) || defined(LOG_TEXT)
 static double FloatTextSize(UInt32 textSize) { return (textSize < 65536U) ? (double)textSize : textSize * (1./65536.); }
-#endif /*  defined(LOG_PARAMETERS) || defined(LOG_TEXT) */
 #if GLES_VERSION == 2
 static const char* GLQualityNameFromCode(int quality) {
 	static const LookupEntry lookupTab[] = {
@@ -1999,7 +2073,7 @@ static const char* ModeNameFromCode(UInt32 mode) {
 		{	kFskGraphicsModeCopy,								"Copy"				},
 		{	kFskGraphicsModeAlpha,								"Alpha"				},
 		{	kFskGraphicsModeColorize,							"Colorize"			},
-
+		{	0,													"UNKNOWN"			}
 	};
 	return LookupCodeToName(lookupTab, mode);
 }
@@ -2344,7 +2418,7 @@ static unsigned CountAllocatedTextures(void) {
 	unsigned count = 0;
 	FskGLPort p;
 	for (p = gGLGlobalAssets.activePorts; p != NULL; p = p->next) {
-		if (p->texture.name && GL_TEXTURE_UNLOADED  != p->texture.name)		++count;
+		if (p->texture.name  && GL_TEXTURE_UNLOADED != p->texture.name)		++count;
 		if (p->texture.nameU && GL_TEXTURE_UNLOADED != p->texture.nameU)	++count;
 		if (p->texture.nameV && GL_TEXTURE_UNLOADED != p->texture.nameV)	++count;
 	}
@@ -2357,6 +2431,125 @@ static unsigned CountAllocatedTextures(void) {
 #define PRINT_IF_ERROR(err, line, ...)	do {} while(0)	/**< Macro to do nothing if GL_DEBUG is false. */
 
 #endif /* GL_DEBUG */
+
+
+#ifdef LOG_MEMORY
+	#if defined(_WIN32)
+		#include <Windows.h>
+		#include <psapi.h>
+	#elif defined(__unix__) || defined(__unix) || defined(unix) || (defined(__APPLE__) && defined(__MACH__))
+		#include <unistd.h>
+		#include <sys/param.h>
+		#include <sys/resource.h>
+		#include <sys/types.h>
+		#if defined(BSD)
+			#include <sys/sysctl.h>
+		#endif /* BSD */
+		#if defined(__APPLE__) && defined(__MACH__)
+			#include <mach/mach.h>
+		#elif (defined(_AIX) || defined(__TOS__AIX__)) || (defined(__sun__) || defined(__sun) || defined(sun) && (defined(__SVR4) || defined(__svr4__)))
+			#include <fcntl.h>
+			#include <procfs.h>
+		#elif defined(__linux__) || defined(__linux) || defined(linux) || defined(__gnu_linux__)
+			#include <stdio.h>
+		#endif
+	#else /* Unknown OS */
+		#error "Unable to define getMemorySize(), getPeakRSS() or getCurrentRSS() for an unknown OS."
+	#endif /* OS */
+
+
+/****************************************************************************//**
+ * Print a 64-bit number, with commas, to a string.
+ *	\param[in]	x	the number to be printed.
+ *	\param[out]	buf	a buffer to hold the string result.
+ *	\return		the buffer, buf.
+ ********************************************************************************/
+
+static const char* CommaPrintS64(FskInt64 x, char buf[32]) {
+	char *s0, *s1;
+	int i;
+
+	s0 = buf + (i = sprintf(buf, "%lld", x));	/* i is the string length > 0; s1 is set to the null terminator. */
+	s1 = s0 + (i = (i - 1) / 3);				/* i is the number of commas that need to be inserted; s1 is set to the new null terminator. */
+	*s1-- = *s0--;								/* Copy the terminating null character */
+	while (i--) {								/* Copy from the end, until all commas are inserted */
+		*s1-- = *s0--;
+		*s1-- = *s0--;
+		*s1-- = *s0--;
+		*s1-- = ',';							/* Insert a comma every 3 digits */
+	}
+	return buf;
+}
+
+
+/****************************************************************************//**
+ * Get the peak resident set size (i.e. peak memory usage).
+ *	\return		the maximum number of bytes used by this process.
+ ********************************************************************************/
+
+static FskInt64 GetPeakRSS(void) {
+	#if defined(_WIN32)																							/* Windows -------------------------------------------------- */
+		PROCESS_MEMORY_COUNTERS info;
+		GetProcessMemoryInfo(GetCurrentProcess(), &info, sizeof(info));
+		return (FskInt64)info.PeakWorkingSetSize;
+	#elif (defined(_AIX) || defined(__TOS__AIX__)) || (defined(__sun__) || defined(__sun) || defined(sun) && (defined(__SVR4) || defined(__svr4__)))	/* AIX and Solaris ------------------------------------------ */
+		struct psinfo psinfo;
+		int fd = -1;
+		if ((fd = open("/proc/self/psinfo", O_RDONLY)) == -1)
+			return 0LL;														/* Can't open? */
+		if (read(fd, &psinfo, sizeof(psinfo)) != sizeof(psinfo)) {
+			close(fd);
+			return 0LL;														/* Can't read? */
+		}
+		close(fd);
+		return psinfo.pr_rssize * 1024LL;
+	#elif defined(__unix__) || defined(__unix) || defined(unix) || (defined(__APPLE__) && defined(__MACH__))	/* BSD, Linux, and OSX -------------------------------------- */
+		struct rusage rusage;
+		getrusage(RUSAGE_SELF, &rusage);
+		#if defined(__APPLE__) && defined(__MACH__)
+			return (FskInt64)rusage.ru_maxrss;
+		#else
+			return rusage.ru_maxrss * 1024LL;
+		#endif
+	#else																										/* Unknown OS ----------------------------------------------- */
+		return 0LL;															/* Unsupported. */
+	#endif
+}
+
+
+/****************************************************************************//**
+ * Get the current resident set size (i.e. current memory usage).
+ *	\return		the current number of bytes used by this process.
+ ********************************************************************************/
+
+static FskInt64 GetCurrentRSS(void) {
+	#if defined(_WIN32)																				/* Windows -------------------------------------------------- */
+		PROCESS_MEMORY_COUNTERS info;
+		GetProcessMemoryInfo(GetCurrentProcess(), &info, sizeof(info));
+		return (FskInt64)info.WorkingSetSize;
+	#elif defined(__APPLE__) && defined(__MACH__)													/* OSX ------------------------------------------------------ */
+		struct mach_task_basic_info info;
+		mach_msg_type_number_t infoCount = MACH_TASK_BASIC_INFO_COUNT;
+		if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &infoCount) != KERN_SUCCESS)
+			return 0LL;													/* Can't access? */
+		return (FskInt64)info.resident_size;
+	#elif defined(__linux__) || defined(__linux) || defined(linux) || defined(__gnu_linux__)		/* Linux ---------------------------------------------------- */
+		long rss = 0L;
+		FILE* fp = NULL;
+		if ((fp = fopen("/proc/self/statm", "r")) == NULL)
+			return (FskInt64)0L;										/* Can't open? */
+		if (fscanf(fp, "%*s%ld", &rss) != 1) {
+			fclose(fp);
+			return 0LL;													/* Can't read? */
+		}
+		fclose(fp);
+		return (FskInt64)rss * (FskInt64)sysconf(_SC_PAGESIZE);
+	#else																							/* AIX, BSD, Solaris, and Unknown OS ------------------------ */
+		return 0LL;														/* Unsupported. */
+	#endif
+}
+
+#endif /* LOG_MEMORY */
 
 
 /****************************************************************************//**
@@ -2372,6 +2565,21 @@ static FskErr InitializeTextures(GLsizei n, GLuint *textures) {
 
 	#ifdef LOG_TEXTURE_LIFE
 		LOGD("InitializeTextures(%d): %u textures allocated", n, CountAllocatedTextures());
+		#if 0
+		if (LOGD_ENABLED()) {										/* Print out all textures allocated */
+			FskGLPort p;
+			for (p = gGLGlobalAssets.activePorts; p != NULL; p = p->next) {
+				if (p->texture.name && GL_TEXTURE_UNLOADED  != p->texture.name) {
+					GLuint nameU = (p->texture.nameU && GL_TEXTURE_UNLOADED != p->texture.nameU) ? p->texture.nameU : 0;
+					GLuint nameV = (p->texture.nameV && GL_TEXTURE_UNLOADED != p->texture.nameV) ? p->texture.nameV : 0;
+					FskBitmapFormatEnum bmf = p->texture.srcBM ? p->texture.srcBM->pixelFormat : kFskBitmapFormatUnknown;
+					LOGD("\t{#%u #%u #%u} %d x %d %s (<--%s)", p->texture.name, nameU, nameV, (int)(p->texture.bounds.width),
+						(int)(p->texture.bounds.height), GLInternalFormatNameFromCode(p->texture.glIntFormat), FskBitmapFormatName(bmf)
+					);
+				}
+			}
+		}
+		#endif
 	#endif /* LOG_TEXTURE_LIFE */
 
 	for (; n--; ++textures) {
@@ -2430,7 +2638,7 @@ static FskErr FskGenGLTexturesAndInit(GLsizei numTextures, GLuint *textures) {
 	if (i > 0) {																/* If we need more, but have exhausted the pool ... */
 		glGenTextures(i, textures);												/* ... allocate a few more from GL */
 		#ifdef TRACK_TEXTURES
-			gGLGlobalAssets.textureCount += i;
+			TrackTextures(i, textures);
 		#endif /* TRACK_TEXTURES */
 
 	#if CHECK_GL_ERROR
@@ -2477,11 +2685,11 @@ static void FskDeleteGLTextures(GLsizei numTextures, GLuint *textures) {
 			for (ctx = &gGLGlobalAssets.defaultContext; ctx != NULL; ctx = ctx->next)	/* ... look through each context, ... */
 				if (ctx->lastTexture == *textures)										/* ... and if its last texture is this texture ... */
 					ctx->lastTexture = 0;												/* ... obliterate it from the context's memory. */
+			#ifdef TRACK_TEXTURES
+				UntrackTexture(*textures);
+			#endif /* TRACK_TEXTURES */
 			glDeleteTextures(1, textures);												/* Also actually delete the texture, ... */
 			*textures = 0;																/* ... and nullify its reference. */
-			#ifdef TRACK_TEXTURES
-				--gGLGlobalAssets.textureCount;
-			#endif /* TRACK_TEXTURES */
 		}
 	}
 }
@@ -2563,9 +2771,9 @@ static void ForgetGivenTextureObjectInAllContexts(GLuint texID) {
 }
 
 
-
 /****************************************************************************//**
- * Remove all of the texture objects in the given texture from all contexts' lastTexture state.
+ * Remove all of the texture objects in the given texture from all contexts' states.
+ *	\param[in]	tx the texture to be forgotten.
  ********************************************************************************/
 
 static void ForgetGivenTexturesInAllContexts(GLTexture tx) {
@@ -2576,6 +2784,15 @@ static void ForgetGivenTexturesInAllContexts(GLTexture tx) {
 								ctx->lastTexture == tx->nameU	||
 								ctx->lastTexture == tx->nameV)
 		)	ctx->lastTexture = 0;
+	}
+
+	if	(gGLGlobalAssets.blitContext) {																/* There is no blit context at shutdown */
+		for (ctx = &gGLGlobalAssets.defaultContext; ctx; ctx = ctx->next) {
+			if (ctx->fboTexture && (ctx->fboTexture == tx->name		||
+									ctx->fboTexture == tx->nameU	||
+									ctx->fboTexture == tx->nameV)
+			)	ctx->fboTexture = GL_TEXTURE_UNLOADED;
+		}
 	}
 }
 
@@ -2588,30 +2805,33 @@ static void ForgetGivenTexturesInAllContexts(GLTexture tx) {
 
 static FskErr GLPortReallyDeletePortTextures(FskGLPort port) {
 	if (port == NULL)
-		return kFskErrInvalidParameter;
+		return kFskErrNone;
+
 	#ifdef LOG_TEXTURE_LIFE
 		LOGD("GLPortReallyDeletePortTextures: disposing %ux%u %s texture {#%u,#%u,#%u}", (unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height,
 			GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name, port->texture.nameU, port->texture.nameV);
 	#endif /* LOG_TEXTURE_LIFE */
+
+	ForgetGivenTexturesInAllContexts(&port->texture);
+
 	if (port->texture.name  && GL_TEXTURE_UNLOADED != port->texture.name) {
-		glDeleteTextures(1, &port->texture.name);
 		#ifdef TRACK_TEXTURES
-			--gGLGlobalAssets.textureCount;
+			UntrackTexture(port->texture.name);
 		#endif /* TRACK_TEXTURES */
+		glDeleteTextures(1, &port->texture.name);
 	}
 	if (port->texture.nameU && GL_TEXTURE_UNLOADED != port->texture.nameU) {
-		glDeleteTextures(1, &port->texture.nameU);
 		#ifdef TRACK_TEXTURES
-			--gGLGlobalAssets.textureCount;
+			UntrackTexture(port->texture.nameU);
 		#endif /* TRACK_TEXTURES */
+		glDeleteTextures(1, &port->texture.nameU);
 	}
 	if (port->texture.nameV && GL_TEXTURE_UNLOADED != port->texture.nameV) {
-		glDeleteTextures(1, &port->texture.nameV);
 		#ifdef TRACK_TEXTURES
-			--gGLGlobalAssets.textureCount;
+			UntrackTexture(port->texture.nameV);
 		#endif /* TRACK_TEXTURES */
+		glDeleteTextures(1, &port->texture.nameV);
 	}
-	ForgetGivenTexturesInAllContexts(&port->texture);
 	port->texture.name  = 0;
 	port->texture.nameU = 0;
 	port->texture.nameV = 0;
@@ -2628,9 +2848,9 @@ static FskErr GLPortReallyDeletePortTextures(FskGLPort port) {
 
 static FskErr GLPortReallyDispose(FskGLPort port) {
 	if (port == NULL)
-		return kFskErrInvalidParameter;
-	GLPortReallyDeletePortTextures(port);
-	GLPortListDeletePort(&(gGLGlobalAssets.activePorts), port);
+		return kFskErrNone;
+	(void)GLPortReallyDeletePortTextures(port);
+	(void)GLPortListDeletePort(&(gGLGlobalAssets.activePorts), port);
 	if (port == gCurrentGLPort)
 		gCurrentGLPort = NULL;
 	return FskMemPtrDispose(port);
@@ -2668,6 +2888,9 @@ static void DisposeGLObjects() {
 	#if GLES_VERSION == 2
 
 		/* Dispose of programs */
+		#ifdef LOG_SHUTDOWN
+			LOGD("Disposing Programs");
+		#endif /* LOG_SHUTDOWN */
 		DisposeProgram(&gGLGlobalAssets.yuv422.program);
 		DisposeProgram(&gGLGlobalAssets.yuv420sp.program);
 		DisposeProgram(&gGLGlobalAssets.yuv420.program);
@@ -2689,8 +2912,10 @@ static void DisposeGLObjects() {
 	/* Dispose typefaces */
 	if (gGLGlobalAssets.typeFaces) {
 		FskGLTypeFace typeFace;
-		LOGD("Disposing typefaces");
 		while (NULL != (typeFace = gGLGlobalAssets.typeFaces)) {
+			#ifdef LOG_SHUTDOWN
+				LOGD("Disposing typeface(\"%s\" size=%g style=$%03X)", typeFace->fontName, FloatTextSize(typeFace->textSize), typeFace->textStyle);
+			#endif /* LOG_SHUTDOWN */
 			gGLGlobalAssets.typeFaces = gGLGlobalAssets.typeFaces->next;
 			FskGLTypeFaceDispose(typeFace);
 		}
@@ -2703,13 +2928,15 @@ static void DisposeGLObjects() {
 			if ((0 != gGLGlobalAssets.textureObjectCache[i]) && (GL_TEXTURE_UNLOADED != gGLGlobalAssets.textureObjectCache[i]))
 				mustDelete = 1;
 		if (mustDelete) {
-			LOGD("Deleting %u ephemeral textures #%u - #%u", EPHEMERAL_TEXTURE_CACHE_SIZE,
-				gGLGlobalAssets.textureObjectCache[0], gGLGlobalAssets.textureObjectCache[EPHEMERAL_TEXTURE_CACHE_SIZE-1]);
+			#ifdef LOG_SHUTDOWN
+				LOGD("Deleting %u ephemeral textures #%u - #%u", EPHEMERAL_TEXTURE_CACHE_SIZE,
+					gGLGlobalAssets.textureObjectCache[0], gGLGlobalAssets.textureObjectCache[EPHEMERAL_TEXTURE_CACHE_SIZE-1]);
+			#endif /* LOG_SHUTDOWN */
+			#ifdef TRACK_TEXTURES
+				UntrackTextures(EPHEMERAL_TEXTURE_CACHE_SIZE, gGLGlobalAssets.textureObjectCache);
+			#endif /* TRACK_TEXTURES */
 			glDeleteTextures(EPHEMERAL_TEXTURE_CACHE_SIZE, gGLGlobalAssets.textureObjectCache);
 			FskMemSet(gGLGlobalAssets.textureObjectCache, 0, sizeof(gGLGlobalAssets.textureObjectCache));
-			#ifdef TRACK_TEXTURES
-				gGLGlobalAssets.textureCount -= EPHEMERAL_TEXTURE_CACHE_SIZE;
-			#endif /* TRACK_TEXTURES */
 		}
 		gGLGlobalAssets.isInited = 0;
 	}
@@ -2718,6 +2945,11 @@ static void DisposeGLObjects() {
 	/* Dispose of all of the free ports and their textures */
 	#if USE_PORT_POOL
 		while (NULL != (p = gGLGlobalAssets.freePorts)) {
+			#ifdef LOG_SHUTDOWN
+				LOGD("Disposing freePort({#%u #%u #%u} %ux%u %s)",
+					(unsigned)p->texture.name, (unsigned)p->texture.nameU, (unsigned)p->texture.nameV,
+					(unsigned)p->texture.bounds.width, (unsigned)p->texture.bounds.height, GLInternalFormatNameFromCode(p->texture.glIntFormat));
+			#endif /* LOG_SHUTDOWN */
 			gGLGlobalAssets.freePorts = gGLGlobalAssets.freePorts->next;
 			GLPortReallyDispose(p);
 		}
@@ -2730,7 +2962,10 @@ static void DisposeGLObjects() {
 	for (p = gGLGlobalAssets.activePorts; p != NULL; p = p->next) {
 		if (p->texture.name && GL_TEXTURE_UNLOADED != p->texture.name) {
 			FskBitmap srcBM = (FskBitmap)(p->texture.srcBM);				/* Cast away const-ness */
-			LOGD("Unloaded bitmap %p (useCount=%d) delete texture {#%u, #%u, #%u}", srcBM, srcBM->useCount, p->texture.name, p->texture.nameU, p->texture.nameV);
+			#ifdef LOG_SHUTDOWN
+				LOGD("Unloaded bitmap %p (useCount=%d) delete texture {#%u, #%u, #%u}",
+					srcBM, srcBM->useCount, (unsigned)p->texture.name, (unsigned)p->texture.nameU, (unsigned)p->texture.nameV);
+			#endif /* LOG_SHUTDOWN */
 			GLPortReallyDeletePortTextures(p);								/* Unload all textures */
 			if (srcBM)														/* This should always be true */
 				srcBM->accelerateSeed = 0;									/* Indicate that it has not yet been accelerated */
@@ -2776,14 +3011,26 @@ static FskErr FskEGLWindowContextShutdown(void);
 static void DisposeGlobalGLAssets(void) {
 	FskGLPort p;
 
-	LOGD("DisposeGlobalGLAssets: disposing GL objects");
+	#ifdef TRACK_TEXTURES
+		PrintTrackedTextures("DisposeGlobalGLAssets0:");
+	#endif /* TRACK_TEXTURES */
+
+	#ifdef LOG_SHUTDOWN
+		LOGD("DisposeGlobalGLAssets: calling DisposeGLObjects");
+	#endif /* LOG_SHUTDOWN */
 	DisposeGLObjects();
+
+	#ifdef TRACK_TEXTURES
+		PrintTrackedTextures("DisposeGlobalGLAssets1:");
+	#endif /* TRACK_TEXTURES */
 
 	if (gGLGlobalAssets.registeredLowMemoryWarning)
 		FskNotificationUnregister(kFskNotificationLowMemory, purgeGL, NULL);
 
 	#ifdef EGL_VERSION
-		LOGD("DisposeGlobalGLAssets: shutting down EGL window context");
+		#ifdef LOG_SHUTDOWN
+			LOGD("DisposeGlobalGLAssets: calling FskEGLWindowContextShutdown");
+		#endif /* LOG_SHUTDOWN */
 		FskEGLWindowContextShutdown();
 	#endif /* EGL_VERSION */
 
@@ -3035,6 +3282,11 @@ static FskErr FskEGLWindowContextInitialize(UInt32 colorQuant, void *aWin)
 		LOGD("[%s, thread=%p] FskEGLWindowContextInitialize", threadName, thread);
 	#endif /* GL_DEBUG */
 
+//	if (!gGLGlobalAssets.blitContext && aWin)
+//{
+//fprintf(stderr, "no GLGlobalAssets.blitContext %x && aWin: %x setNativeWindow\n", gGLGlobalAssets.blitContext, aWin);
+//		FskGLSetNativeWindow(aWin);
+//}
 	if (gGLGlobalAssets.blitContext->eglContext) {
 		LOGD("GLWindowContextInitialize has already been successfully completed");
 //		if (gGLGlobalAssets.blitContext->eglContext == eglGetCurrentContext())		/* All is OK: our notion of the context is the same as GL's */
@@ -3198,6 +3450,11 @@ FskErr FskGLSetNativeWindow(void *nativeWindow)
 {
 	if (!gGLGlobalAssets.blitContext)
 		gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext;
+
+//	if (NULL == nativeWindow) {
+//		return kFskErrInvalidParameter;
+//	}
+
 	#if GL_DEBUG
 		LOGD("[%s] FskGLSetNativeWindow(%p (was %p))", FskThreadName(FskThreadGetCurrent()), nativeWindow, gGLGlobalAssets.blitContext->nativeWindow);
 	#endif /* GL_DEBUG */
@@ -3751,15 +4008,15 @@ static FskErr InitGlobalGLAssets() {
 	FskGLCapabilities	caps	= NULL;
 
 	if (GL_GLOBAL_ASSETS_ARE_INITIALIZED()) {
-		#if GL_DEBUG
+		#ifdef LOG_INIT
 			LOGD("[%s] InitGlobalGLAssets  -- already initialized", FskThreadName(FskThreadGetCurrent()));
-		#endif /* GL_DEBUG */
+		#endif /* LOG_INIT */
 		return kFskErrNone;
 	}
 
-	#if GL_DEBUG
+	#ifdef LOG_INIT
 		LOGD("[%s] InitGlobalGLAssets  -- trying to initialize", FskThreadName(FskThreadGetCurrent()));
-	#endif /* GL_DEBUG */
+	#endif /* LOG_INIT */
 
 
 	gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext;						/* Initialize to the default context */
@@ -3772,9 +4029,13 @@ static FskErr InitGlobalGLAssets() {
 	#if TARGET_OS_MAC
 		FskGLSetFocusDefocusProcs((FskGLFocusProc)(&FskCocoaWindowBeginDraw), (FskGLDefocusProc)(&FskCocoaWindowEndDraw));
 	#elif TARGET_OS_ANDROID
-		LOGD("InitGlobalGLAssets: Calling FskEGLWindowContextInitialize");
+		#ifdef LOG_INIT
+			LOGD("InitGlobalGLAssets: Calling FskEGLWindowContextInitialize");
+		#endif /* LOG_INIT */
 		BAIL_IF_ERR(err = FskEGLWindowContextInitialize(565, NULL));	/* We do this in case initialization is deferred */
-		LOGD("InitGlobalGLAssets: FskEGLWindowContextInitialize succeeded; checking FskGLCapabilitiesGet");
+		#ifdef LOG_INIT
+			LOGD("InitGlobalGLAssets: FskEGLWindowContextInitialize succeeded; checking FskGLCapabilitiesGet");
+		#endif /* LOG_INIT */
 	#elif TARGET_OS_WIN32 && (FSK_OPENGLES_ANGLE == 1)
 		BAIL_IF_ERR(err = FskEGLWindowContextInitialize(565, NULL));
 	#elif TARGET_OS_KPL
@@ -3792,7 +4053,9 @@ static FskErr InitGlobalGLAssets() {
 	err = FskGLCapabilitiesGet(&caps);										/* Will fail if GL has not yet been initialized; but we trudge on, regardless */
 	PRINT_IF_ERROR(err, __LINE__, "FskGLCapabilitiesGet");
 	BAIL_IF_ERR(err);
-	LOGD("InitGlobalGLAssets: FskGLCapabilitiesGet succeeded: VEND=\"%s\", VERS=\"%s\", REND=\"%s\", GLSL=\"%s\"", caps->vendorStr, caps->versionStr, caps->rendererStr, caps->glslVersion);
+	#ifdef LOG_INIT
+		LOGD("InitGlobalGLAssets: FskGLCapabilitiesGet succeeded: VEND=\"%s\", VERS=\"%s\", REND=\"%s\", GLSL=\"%s\"", caps->vendorStr, caps->versionStr, caps->rendererStr, caps->glslVersion);
+	#endif /* LOG_INIT */
 
 	/* Set "blend separate" proc */
 	#if		defined(GL_VERSION_1_1) || defined(GL_VERSION_2_0) || defined(GL_ES_VERSION_2_0)
@@ -3997,13 +4260,13 @@ static FskErr InitGlobalGLAssets() {
 	#endif /* GLES_VERSION == 2 */
 
 
-	#if GL_DEBUG
+	#ifdef LOG_INIT
 	{	UInt32 i;
 		for (i = kFskBitmapFormat24BGR; i <= kFskBitmapFormat32A16RGB565LE; ++i)
 			if (FskGLHardwareSupportsPixelFormat(i))
 				LOGD("InitGlobalGLAssets: has hardware %s", FskBitmapFormatName(i));
 	}
-	#endif /* GL_DEBUG */
+	#endif /* LOG_INIT */
 
 	/*
 	 * Determine other capabilities
@@ -4024,8 +4287,10 @@ static FskErr InitGlobalGLAssets() {
 								| FskGLCapabilitiesHas(caps, "GL_APPLE_texture_2D_limited_npot")	/* NPOT with clamp */
 								;
 	#endif /* GLES_VERSION == 1 */
-	LOGD("InitGlobalGLAssets: %s NPOT", gGLGlobalAssets.hasNPOT ? "has" : "doesn't have");
-	LOGD("InitGlobalGLAssets: %s Repeat NPOT", gGLGlobalAssets.hasRepeatNPOT ? "has" : "doesn't have");
+	#ifdef LOG_INIT
+		LOGD("InitGlobalGLAssets: %s NPOT", gGLGlobalAssets.hasNPOT ? "has" : "doesn't have");
+		LOGD("InitGlobalGLAssets: %s Repeat NPOT", gGLGlobalAssets.hasRepeatNPOT ? "has" : "doesn't have");
+	#endif /* LOG_INIT */
 
 	/* Determine alternate pixel read format */
 	gGLGlobalAssets.readFormats = (1 << (UInt32)kFskBitmapFormat32RGBA);							/* Everyone is required to do RGBA */
@@ -4102,7 +4367,9 @@ static FskErr InitGlobalGLAssets() {
 				gGLGlobalAssets.hasFBO = false;													/* ... void FBOs because they are not supported	*/
 			}
 		}
-		LOGD("InitGlobalGLAssets: %s FBO", gGLGlobalAssets.hasFBO ? "has" : "doesn't have");
+		#ifdef LOG_INIT
+			LOGD("InitGlobalGLAssets: %s FBO", gGLGlobalAssets.hasFBO ? "has" : "doesn't have");
+		#endif /* LOG_INIT */
 	#endif /* GLES_VERSION == 2 */
 
 
@@ -4110,29 +4377,36 @@ static FskErr InitGlobalGLAssets() {
 	gGLGlobalAssets.rendererIsTiled = FskGLCapabilitiesHas(caps, "GL_QCOM_tiled_rendering");
 
 
+	#ifdef TRACK_TEXTURES
+		if (kFskErrNone != FskGrowableArrayNew(sizeof(GLuint), 100, &gGLGlobalAssets.glTextures))
+			gGLGlobalAssets.glTextures = NULL;
+	#endif /* TRACK_TEXTURES */
+
 	/*
 	 * Initialize texture object cache.
 	 */
 
 
 	#if EPHEMERAL_TEXTURE_CACHE_SIZE > 0
-		LOGD("InitGlobalGLAssets: generating textures for texture object cache");
+		#ifdef LOG_INIT
+			LOGD("InitGlobalGLAssets: generating textures for texture object cache");
+		#endif /* LOG_INIT */
 
 		err = GetFskGLError();
 		PRINT_IF_ERROR(err, __LINE__, "Just before glGenTextures");
 		glGenTextures(EPHEMERAL_TEXTURE_CACHE_SIZE, gGLGlobalAssets.textureObjectCache);
 		#ifdef TRACK_TEXTURES
-			gGLGlobalAssets.textureCount += EPHEMERAL_TEXTURE_CACHE_SIZE;
+			TrackTextures(EPHEMERAL_TEXTURE_CACHE_SIZE, gGLGlobalAssets.glTextures);
 		#endif /* TRACK_TEXTURES */
 
 		err = GetFskGLError();
-		#if GL_DEBUG
+		#ifdef LOG_INIT
 			PRINT_IF_ERROR(err, __LINE__, "glGenTextures");
 			{	int i;
 				for (i = 0; i < EPHEMERAL_TEXTURE_CACHE_SIZE; ++i)
 					LOGD("Initializing ephemeral texture object cache #%u", gGLGlobalAssets.textureObjectCache[i]);
 			}
-		#endif /* GL_DEBUG */
+		#endif /* LOG_INIT */
 		if (err)
 			LOGE("glGenTextures failed (%d)", (int)err);
 		BAIL_IF_ERR(err);
@@ -4149,7 +4423,9 @@ static FskErr InitGlobalGLAssets() {
 	 */
 
 
-	LOGD("InitGlobalGLAssets: Starting to initialize shaders");
+	#ifdef LOG_INIT
+		LOGD("InitGlobalGLAssets: Starting to initialize shaders");
+	#endif /* LOG_INIT */
 
 	#if GLES_VERSION == 2
 	{	static const char	strOpColor[]	= "opColor";
@@ -4167,7 +4443,9 @@ static FskErr InitGlobalGLAssets() {
 		static const char	strTileSpace[]	= "tileSpace";
 		GLuint				vertexShader, fragmentShader;
 
-		LOGD("InitGlobalGLAssets: Compiling shaders, linking programs, getting uniform location, and initializing uniform variables");
+		#ifdef LOG_INIT
+			LOGD("InitGlobalGLAssets: Compiling shaders, linking programs, getting uniform location, and initializing uniform variables");
+		#endif /* LOG_INIT */
 
 		/* Fill shader */
 		BAIL_IF_ERR(err = FskGLNewShader(gFillVertexShader,	GL_VERTEX_SHADER,   &vertexShader));
@@ -4286,7 +4564,9 @@ static FskErr InitGlobalGLAssets() {
 
 		FskMemSet(gGLGlobalAssets.matrix, 0, sizeof(gGLGlobalAssets.matrix));
 
-		LOGD("InitGlobalGLAssets: GPU Program initialization complete");
+		#ifdef LOG_INIT
+			LOGD("InitGlobalGLAssets: GPU Program initialization complete");
+		#endif /* LOG_INIT */
 	}
 	#endif /* GLES_VERSION == 2 */
 
@@ -4305,7 +4585,9 @@ static FskErr InitGlobalGLAssets() {
 
 
 	inited = true;
-	LOGD("InitGlobalGLAssets  -- initialization successful");
+	#ifdef LOG_INIT
+		LOGD("InitGlobalGLAssets  -- initialization successful");
+	#endif /* LOG_INIT */
 
 	#if GL_DEBUG
 		if (gGLGlobalAssets.activePorts != NULL) {
@@ -4341,15 +4623,19 @@ bail:
 	FskMemPtrDispose(caps);
 	if (inited) {
 		gGLGlobalAssets.isInited = 1;			/* Indicate that the it has been initialized */
+#if 0
 		if (0 != atexit(DisposeGlobalGLAssets))	/* Register cleanup proc, to be called at exit. */
 			err = errno;
+#endif
 	}
 	else {										/* If anything failed ... */
 		DisposeGLObjects();						/* ... go back to square one */
 	}
 
-	if (err)
-		LOGD("[%s] InitGlobalGLAssets  -- initialization FAILED (%d)", FskThreadName(FskThreadGetCurrent()), (int)err);
+	#ifdef LOG_INIT
+		if (err)
+			LOGD("[%s] InitGlobalGLAssets  -- initialization FAILED (%d)", FskThreadName(FskThreadGetCurrent()), (int)err);
+	#endif /* LOG_INIT */
 
 	return err;
 }
@@ -4843,6 +5129,9 @@ static FskErr ReshapeYUV420Textures(GLsizei width, GLsizei height, GLTexture tx,
 				GLInternalFormatNameFromCode(tx->glIntFormat), (unsigned)tx->bounds.width, (unsigned)tx->bounds.height, glQuality==GL_LINEAR, inWidth, inHeight, width, height);
 	#endif /* LOG_TEXTURE_LIFE */
 
+	if (!gGLGlobalAssets.allowNearestBitmap)																	/* If low quality is disallowed, */
+		glQuality = GL_LINEAR;																					/* always bilinearly interpolate */
+
 	tx->bounds.x		= 0;
 	tx->bounds.y		= 0;
 	tx->bounds.width	= width;
@@ -4862,9 +5151,6 @@ static FskErr ReshapeYUV420Textures(GLsizei width, GLsizei height, GLTexture tx,
 					0 != tx->nameU && GL_TEXTURE_UNLOADED != tx->nameU &&
 					0 != tx->nameV && GL_TEXTURE_UNLOADED != tx->nameV
 				), err, kFskErrGraphicsContext);
-
-	if (!gGLGlobalAssets.allowNearestBitmap)																	/* If low quality is disallowed, */
-		glQuality = GL_LINEAR;																					/* always bilinearly interpolate */
 
 	glActiveTexture(GL_TEXTURE2);																				/* Texture unit 2 ... */
 	SET_TEXTURE(tx->nameV);																						/* ... has the V texture */
@@ -4957,6 +5243,9 @@ static FskErr ReshapeYUV420spTextures(GLsizei width, GLsizei height, GLTexture t
 				GLInternalFormatNameFromCode(tx->glIntFormat), (unsigned)tx->bounds.width, (unsigned)tx->bounds.height, glQuality==GL_LINEAR, inWidth, inHeight, width, height);
 	#endif /* LOG_TEXTURE_LIFE */
 
+	if (!gGLGlobalAssets.allowNearestBitmap)																	/* If low quality is disallowed, */
+		glQuality = GL_LINEAR;																					/* always bilinearly interpolate */
+
 	tx->bounds.x		= 0;
 	tx->bounds.y		= 0;
 	tx->bounds.width	= width;
@@ -4975,9 +5264,6 @@ static FskErr ReshapeYUV420spTextures(GLsizei width, GLsizei height, GLTexture t
 	BAIL_IF_FALSE((	0 != tx->name  && GL_TEXTURE_UNLOADED != tx->name  &&
 					0 != tx->nameU && GL_TEXTURE_UNLOADED != tx->nameU
 				), err, kFskErrGraphicsContext);
-
-	if (!gGLGlobalAssets.allowNearestBitmap)																	/* If low quality is disallowed, */
-		glQuality = GL_LINEAR;																					/* always bilinearly interpolate */
 
 	glActiveTexture(GL_TEXTURE1);																				/* Texture unit 1 ... */
 	SET_TEXTURE(tx->nameU);																						/* ... has the UV texture */
@@ -5082,7 +5368,7 @@ static FskErr ReshapeUYVYTexture(GLsizei width, GLsizei height, GLTexture tx, GL
 		#ifdef GL_RGB_422_APPLE
 			if (!gGLGlobalAssets.hasAppleRGB422)																/* Apple RGB 422 shader accommodates quality */
 		#endif		/* GL_RGB_422_APPLE */
-			glQuality = GL_NEAREST;																				/* We do interpolation in the shader */
+		glQuality = GL_NEAREST;																					/* We do interpolation in the shader */
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
 	}
@@ -5188,6 +5474,17 @@ static FskErr ReshapeOffscreenTexture(GLInternalFormat internalGLFormat, GLsizei
 		tx->fboInited		= false;
 		err = sizeErr;											/* ... report a too large texture error if it occurred */
 	}
+	#ifdef LOG_MEMORY
+		if (LOGD_ENABLED()) {
+			char currStr[32], peakStr[32], temsStr[32];
+			FskInt64 tems;
+			FskGLPort p;
+			for (p = gGLGlobalAssets.activePorts, tems=0; p != NULL; p = p->next)
+				tems += p->texture.bounds.height * p->texture.bounds.width * ((p->texture.glIntFormat == GL_ALPHA) ? 1 : 4);
+			LOGD("     currRSS:%11s     peakRSS:%11s     texMem:%11s", CommaPrintS64(GetCurrentRSS(), currStr),
+					CommaPrintS64(GetPeakRSS(), peakStr), CommaPrintS64(tems, temsStr));
+		}
+	#endif /* LOG_MEMORY */
 
 
 bail:
@@ -5885,7 +6182,7 @@ static FskErr SetGLTexture(FskConstBitmap srcBM, FskConstRectangle texRect, GLTe
 	FskBitmapFormatEnum	cnvFormat	= (FskBitmapFormatEnum)(0xFFFFFFFFU);
 	const UInt8			*srcTopLeft;				/* The top left of the rect that we are uploading */
 	FskBitmapFormatEnum	srcPixelFormat;				/* The Fsk pixel format */
-	SInt32				srcRowPix, srcRowBytes;		/* The number of pixels and byter per row, respectively */
+	SInt32				srcRowPix, srcRowBytes;		/* The number of pixels and bytes per row, respectively */
 	GLenum				srcGLFormat, srcGLType;		/* The GL external format an type of the texture to be uploaded */
 	GLint				internalGLFormat;			/* The internal GL format of the texture */
 	FskRectangleRecord	srcRect;					/* The rectangle to be uploaded */
@@ -6994,13 +7291,11 @@ static FskErr SetTexturedDrawState(
 
 
 	/* Quality */
-	if (gGLGlobalAssets.allowNearestBitmap) {
-		iParam = (!(mode & kFskGraphicsModeBilinear)) ? GL_NEAREST : GL_LINEAR;
-		if (txSrc->filter != iParam) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iParam);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iParam);
-			txSrc->filter = iParam;
-		}
+	iParam = (gGLGlobalAssets.allowNearestBitmap && !(mode & kFskGraphicsModeBilinear)) ? GL_NEAREST : GL_LINEAR;
+	if (txSrc->filter != iParam) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iParam);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iParam);
+		txSrc->filter = iParam;
 	}
 
 	/* Transfer mode */
@@ -7095,12 +7390,14 @@ static void FreeEphemeralTextureObject(GLuint texID) {
 	if (texID) {
 		ForgetGivenTextureObjectInAllContexts(texID);
 		#if EPHEMERAL_TEXTURE_CACHE_SIZE <= 0
-			LOGE("WARNING: PERFORMANCE REDUCED while flushing before freeing ephemeral texture #%u", texID);
+			#if defined(LOG_EPHEMERAL) || defined(LOG_TEXTURE_LIFE)
+				LOGE("WARNING: PERFORMANCE REDUCED while flushing before freeing ephemeral texture #%u", texID);
+			#endif /* defined(LOG_EPHEMERAL) || defined(LOG_TEXTURE_LIFE) */
 			glFlush();																	/* This is slow, but we need to wait until all the rendering is done ... */
-			glDeleteTextures(1, &texID);												/* ... before disposing of an ephemeral texture. */
 			#ifdef TRACK_TEXTURES
-				--gGLGlobalAssets.textureCount;
+				UntrackTexture(texID);
 			#endif /* TRACK_TEXTURES */
+			glDeleteTextures(1, &texID);												/* ... before disposing of an ephemeral texture. */
 		#elif defined(LOG_TEXTURE_LIFE) /* && EPHEMERAL_TEXTURE_CACHE_SIZE > 0 */
 			LOGD("Returning texture #%u to the ephemeral pool", texID);
 		#else /* !LOG_TEXTURE_LIFE && EPHEMERAL_TEXTURE_CACHE_SIZE > 0 */
@@ -7119,18 +7416,20 @@ static void FreeEphemeralTextureObjects(GLTexture tx) {
 	if (tx->name)	{
 		ForgetGivenTexturesInAllContexts(tx);
 		#if EPHEMERAL_TEXTURE_CACHE_SIZE <= 0
-			LOGE("WARNING: PERFORMANCE REDUCED while flushing before freeing ephemeral textures {#%u, #%u, #%u}", tx->name, tx->nameU, tx->nameV);
+			#if defined(LOG_EPHEMERAL) || defined(LOG_TEXTURE_LIFE)
+				LOGE("WARNING: PERFORMANCE REDUCED while flushing before freeing ephemeral textures {#%u, #%u, #%u}", tx->name, tx->nameU, tx->nameV);
+			#endif /* defined(LOG_EPHEMERAL) || defined(LOG_TEXTURE_LIFE) */
 			glFlush();																	/* This is slow, but we need to wait until all the rendering is done ... */
+			#ifdef TRACK_TEXTURES
+				UntrackTexture(tx->name);
+				if (tx->nameU)	UntrackTexture(tx->nameU);
+				if (tx->nameV)	UntrackTexture(tx->nameV);
+			#endif /* TRACK_TEXTURES */
 			glDeleteTextures(1, &tx->name);												/* ... before disposing of the ephemeral textures. */
 			if (tx->nameU)
 				glDeleteTextures(1, &tx->nameU);
 			if (tx->nameV)
 				glDeleteTextures(1, &tx->nameV);
-			#ifdef TRACK_TEXTURES
-				--gGLGlobalAssets.textureCount;
-				if (tx->nameU)	--gGLGlobalAssets.textureCount;
-				if (tx->nameV)	--gGLGlobalAssets.textureCount;
-			#endif /* TRACK_TEXTURES */
 		#else /* EPHEMERAL_TEXTURE_CACHE_SIZE > 0 */
 			#ifdef LOG_TEXTURE_LIFE
 				LOGD("Returning textures {#%u, #%u, #%u} of size %ux%u to the ephemeral pool", tx->name, tx->nameU, tx->nameV, tx->bounds.width, tx->bounds.height);
@@ -7156,7 +7455,9 @@ static GLTextureRecord* GetBitmapTexture(FskConstBitmap bm) {
 				LOGE("GetBitmapTexture: bitmap %p FAILED TO LOAD, err = %d", bm, (int)err);
 				return NULL;
 			}
-			LOGD("GetBitmapTexture: bitmap %p accelerated to #%u, err = %d", bm, port->texture.name, (int)err);
+			#ifdef LOG_TEXTURE_LIFE
+				LOGD("GetBitmapTexture: bitmap %p accelerated to #%u, err = %d", bm, port->texture.name, (int)err);
+			#endif /* LOG_TEXTURE_LIFE */
 		}
 		return &port->texture;
 	}
@@ -7208,14 +7509,11 @@ static FskErr SetupRGBBlit(
 	}
 	else {
 		tx = pTexRec;
+		FskMemSet(tx, 0, sizeof(*tx));														/* This forces a texture resize */
 		AllocateEphemeralTextureObject(&tx->name);
 		#ifdef LOG_TEXTURE_LIFE
 			LOGD("Allocated ephemeral texture RGB #%u", tx->name);
 		#endif /* LOG_TEXTURE_LIFE */
-		tx->bounds.width	= 0;															/* This forces a texture resize */
-		tx->bounds.height	= 0;															/* This forces a texture resize */
-		tx->glIntFormat		= 0;															/* This forces a texture resize */
-		tx->srcBM			= NULL;
 		SET_TEXTURE(tx->name);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -7238,13 +7536,11 @@ static FskErr SetupRGBBlit(
 	}
 
 	/* Quality */
-	if (gGLGlobalAssets.allowNearestBitmap) {
-		iParam = (!(mode & kFskGraphicsModeBilinear)) ? GL_NEAREST : GL_LINEAR;
-		if (tx->filter != iParam) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iParam);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iParam);
-			tx->filter = iParam;
-		}
+	iParam = (gGLGlobalAssets.allowNearestBitmap && !(mode & kFskGraphicsModeBilinear)) ? GL_NEAREST : GL_LINEAR;
+	if (tx->filter != iParam) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, iParam);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, iParam);
+		tx->filter = iParam;
 	}
 
 	/* Transfer mode */
@@ -7322,7 +7618,7 @@ static FskErr SetupRGBBlit(
 	#endif /* CHECK_GL_ERROR */
 
 bail:
-	PRINT_IF_ERROR(err, __LINE__, "FAILED SetTexturedDrawState");
+	PRINT_IF_ERROR(err, __LINE__, "FAILED SetupRGBBlit");
 	return err;
 }
 
@@ -7512,30 +7808,24 @@ static FskErr SetupYUV420Blit(
 
 	glActiveTexture(GL_TEXTURE2);
 	SET_TEXTURE(tx->nameV);																/* Set texture to be used for V */
-	if (gGLGlobalAssets.allowNearestBitmap) {
-		if (tx->filter != glQuality) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);			/* Set quality for V */
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
-		}
+	if (tx->filter != glQuality) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);				/* Set quality for V */
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
 	}
 
 	glActiveTexture(GL_TEXTURE1);
 	SET_TEXTURE(tx->nameU);																/* Set texture to be used to U */
-	if (gGLGlobalAssets.allowNearestBitmap) {
-		if (tx->filter != glQuality) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);			/* Set quality for U */
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
-		}
+	if (tx->filter != glQuality) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);				/* Set quality for U */
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
 	}
 
 	glActiveTexture(GL_TEXTURE0);														/* We always leave GL_TEXTURE0 as the active texture */
 	SET_TEXTURE(tx->name);																/* Set texture to be used for Y */
-	if (gGLGlobalAssets.allowNearestBitmap) {
-		if (tx->filter != glQuality) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);			/* Set quality for Y */
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
-			tx->filter = glQuality;
-		}
+	if (tx->filter != glQuality) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);				/* Set quality for Y */
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
+		tx->filter = glQuality;
 	}
 
 	CHANGE_SHADER_MATRIX(yuv420);
@@ -7607,21 +7897,17 @@ static FskErr SetupYUV420spBlit(
 
 	glActiveTexture(GL_TEXTURE1);
 	SET_TEXTURE(tx->nameU);																/* Set texture to be used to U */
-	if (gGLGlobalAssets.allowNearestBitmap) {
-		if (tx->filter != glQuality) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);			/* Set quality for U */
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
-		}
+	if (tx->filter != glQuality) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);				/* Set quality for U */
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
 	}
 
 	glActiveTexture(GL_TEXTURE0);														/* We always leave GL_TEXTURE0 as the active texture */
 	SET_TEXTURE(tx->name);																/* Set texture to be used for Y */
-	if (gGLGlobalAssets.allowNearestBitmap) {
-		if (tx->filter != glQuality) {
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);			/* Set quality for Y */
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
-			tx->filter = glQuality;
-		}
+	if (tx->filter != glQuality) {
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, glQuality);				/* Set quality for Y */
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, glQuality);
+		tx->filter = glQuality;
 	}
 
 	CHANGE_SHADER_MATRIX(yuv420sp);
@@ -10032,9 +10318,9 @@ const float* FskGLGetViewMatrix(void) {
 FskErr FskGLInit(void *v) {
 	FskErr	err	= kFskErrNone;
 
-	#if GL_DEBUG
+	#ifdef LOG_INIT
 		LOGD("[%s] FskGLInit", FskThreadName(FskThreadGetCurrent()));
-	#endif /* GL_DEBUG */
+	#endif /* LOG_INIT */
 
 	#if TARGET_OS_ANDROID
 		/* This needs to be done:
@@ -10281,111 +10567,76 @@ bail:
 
 #undef FskGLPortDispose
 FskErr FskGLPortDispose(FskGLPort port) {
-	FskErr err = kFskErrNone;
+#if !USE_PORT_POOL
+	return GLPortReallyDispose(port);
+#else /* USE_PORT_POOL */
+	FskErr	err;
+	int		freePortCount;
+
 	if (port == NULL)
-		return kFskErrInvalidParameter;
+		return kFskErrNone;																			/* We always allow NULL as a valid argument to Dispose procs */
+
+	if (0 == port->texture.name || GL_TEXTURE_UNLOADED != port->texture.name ||						/* If there is no texture attached, ... */
+		port->texture.bounds.width > SAVE_TEX_DIM || port->texture.bounds.height > SAVE_TEX_DIM		/* ... or the port is too big to save, ... */
+	) {
+		#ifdef LOG_TEXTURE_LIFE
+			if (port->texture.bounds.width > SAVE_TEX_DIM || port->texture.bounds.height > SAVE_TEX_DIM)
+				LOGD("FskGLPortDispose: %ux%u %s textures {#%u,#%u,#%u} too big to save -- disposing",
+					(unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height,
+					GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name, port->texture.nameU, port->texture.nameV);
+		#endif /* LOG_TEXTURE_LIFE */
+		return GLPortReallyDispose(port);															/* ... get rid of the port immediately */
+	}
+
+	err = GLPortListDeletePort(&(gGLGlobalAssets.activePorts), port);								/* Delete the port from the active port list */
+	if (err) {																						/* If it wasn't found -- get rid of the cursed port immediately */
+		#if !GL_DEBUG
+			LOGE("FskGLPortDispose: %ux%u %d texture #%u NOT FOUND IN ACTIVE PORT LIST -- yikes!",
+				(unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height, port->texture.glIntFormat, port->texture.name);
+		#else /* GL_DEBUG */
+			LOGE("FskGLPortDispose: %ux%u %s texture #%u NOT FOUND IN ACTIVE PORT LIST -- yikes!",
+				(unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height, GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name);
+		#endif /* GL_DEBUG */
+
+		#ifdef LOG_TEXTURE_LIFE
+		{	FskGLPort p;
+			for (p = port; p != NULL; p = p->next) {
+				LOGE("\tportChain %ux%u %s texture {#%u,#%u,#%u} ",
+					(unsigned)p->texture.bounds.width, (unsigned)p->texture.bounds.height, GLInternalFormatNameFromCode(p->texture.glIntFormat),
+					p->texture.name, p->texture.nameU, p->texture.nameV);
+			}
+		}
+		#endif /* LOG_TEXTURE_LIFE */
+		(void)GLPortReallyDispose(port);
+		return err;
+	}
 
 	ForgetGivenTexturesInAllContexts(&port->texture);												/* Obliterate memory of this texture */
-	#if GLES_VERSION == 2
-		if	(gGLGlobalAssets.blitContext && (																	/* There is no blit context at shutdown */
-				(port->texture.name                          == gGLGlobalAssets.blitContext->fboTexture)	||	/* If the texture is tied to a FBO, ... */
-				(port->texture.nameU && (port->texture.nameU == gGLGlobalAssets.blitContext->fboTexture))	||	/* ... disconnect it. */
-				(port->texture.nameV && (port->texture.nameV == gGLGlobalAssets.blitContext->fboTexture))		/* TODO: Should we check in all contexts? */
-			)
-		)
-			FskGLBitmapTextureTargetSet(NULL);														/* Render to the screen */
-	#endif /* GLES_VERSION == 2 */
-
-#if !USE_PORT_POOL
-
-	// TODO: Do we need to focus???
-	FskGLPortFocus(port);																			/* This only does something if the port is a GL destination. */
-
-	#ifdef LOG_TEXTURE_LIFE
-		if (0 != port->texture.name && GL_TEXTURE_UNLOADED != port->texture.name)
-			LOGD("GLPortDispose disposing %ux%u %s textures {#%u,#%u,#%u}", (unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height,
-				GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name, port->texture.nameU, port->texture.nameV);
-	#endif /* LOG_TEXTURE_LIFE */
-	FskDeleteGLTextures(1, &port->texture.name);
-	FskDeleteGLTextures(1, &port->texture.nameU);
-	FskDeleteGLTextures(1, &port->texture.nameV);
-
-	// TODO: Do we need to defocus???
-	FskGLPortDefocus(port);																			/* This only does something if the port is a GL destination. */
-
-	GLPortListDeletePort(&(gGLGlobalAssets.activePorts), port);
-	if (port == gCurrentGLPort)
-		gCurrentGLPort = NULL;
-
-#else /* USE_PORT_POOL */
 	if (port == gCurrentGLPort)																		/* If this port was the current port ... */
 		gCurrentGLPort = NULL;																		/* ... nullify the current port. */
-	if (gGLGlobalAssets.blitContext && gGLGlobalAssets.blitContext->fboTexture &&
-		gGLGlobalAssets.blitContext->fboTexture == port->texture.name
-	) {																								/* If this port's texture was the current FBO texture ... */
-		gGLGlobalAssets.blitContext->fboTexture = GL_TEXTURE_UNLOADED;								/* ... render to the screen instead. */
-		CHANGE_TEXTURE(0);                                                                          /* Make sure that a new texture is chosen */
-		#if GLES_VERSION == 2
-			PerturbFloat(&gGLGlobalAssets.matrix[0][0]);											/* Force the view to be recomputed, and cause FskGLSetGLView() to clear to opaque black */
-		#endif /* GLES_VERSION == 2 */
-	}
 	port->portWidth  = 0;																			/* Just in case this port was used to render to a texture, ... */
 	port->portHeight = 0;																			/* ... reset it. */
-	err = GLPortListDeletePort(&(gGLGlobalAssets.activePorts), port);								/* Delete the port from the active port list */
-	if (0 != port->texture.name && GL_TEXTURE_UNLOADED != port->texture.name) {						/* If it is a GL source, save the name in the port */
-		if (!err) {																					/* The port was deleted successfully from the active ports list */
-			if (port->texture.bounds.width < SAVE_TEX_DIM && port->texture.bounds.height < SAVE_TEX_DIM) {		/* If the port isn't a hog */
-				#ifdef LOG_TEXTURE_LIFE
-					LOGD("GLPortDispose saving %ux%u %s textures {#%u,#%u,#%u}", (unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height,
-						GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name, port->texture.nameU, port->texture.nameV);
-				#endif /* LOG_TEXTURE_LIFE */
-				port->texture.srcBM = NULL;															/* Disassociate it from its bitmap */
-				GLPortListInsertPort(&gGLGlobalAssets.freePorts, port);								/* Link it into the freePort linked list */
 
-				/* Count free ports and dispose the lot if it gets too big */
-				for (port = gGLGlobalAssets.freePorts, err = 0; port != NULL; port = port->next) {
-					if (++err > MAX_PORT_POOL_SIZE) {
-						while (NULL != (port = gGLGlobalAssets.freePorts)) {
-							gGLGlobalAssets.freePorts = gGLGlobalAssets.freePorts->next;
-							GLPortReallyDispose(port);
-						}
-						break;
-					}
-				}
+	#ifdef LOG_TEXTURE_LIFE
+		LOGD("GLPortDispose saving %ux%u %s textures {#%u,#%u,#%u}", (unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height,
+			GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name, port->texture.nameU, port->texture.nameV);
+	#endif /* LOG_TEXTURE_LIFE */
+	port->texture.srcBM = NULL;															/* Disassociate it from its bitmap */
+	GLPortListInsertPort(&gGLGlobalAssets.freePorts, port);								/* Link it into the freePort linked list */
 
-				return kFskErrNone;
+	/* Count free ports and dispose the lot if it gets too big */
+	for (port = gGLGlobalAssets.freePorts, freePortCount = 0; port != NULL; port = port->next) {
+		if (++freePortCount > MAX_PORT_POOL_SIZE) {
+			while (NULL != (port = gGLGlobalAssets.freePorts)) {
+				gGLGlobalAssets.freePorts = gGLGlobalAssets.freePorts->next;
+				GLPortReallyDispose(port);
 			}
-			#ifdef LOG_TEXTURE_LIFE
-				else {																				/* The port is hogging a lot of texture memory */
-					LOGD("FskGLPortDispose: %ux%u %s textures {#%u,#%u,#%u} too big to save -- disposing", (unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height,
-						GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name, port->texture.nameU, port->texture.nameV);
-				}
-			#endif /* LOG_TEXTURE_LIFE */
-			GLPortReallyDeletePortTextures(port);													/* Get rid of the troublesome texture */
-		}
-		else {																						/* The port was not found in the active list??? */
-			#if !GL_DEBUG
-				LOGE("FskGLPortDispose: %ux%u %d texture #%u NOT FOUND IN ACTIVE PORT LIST -- yikes!",
-					(unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height, port->texture.glIntFormat, port->texture.name);
-			#else /* GL_DEBUG */
-				LOGE("FskGLPortDispose: %ux%u %s texture #%u NOT FOUND IN ACTIVE PORT LIST -- yikes!",
-					(unsigned)port->texture.bounds.width, (unsigned)port->texture.bounds.height, GLInternalFormatNameFromCode(port->texture.glIntFormat), port->texture.name);
-			#endif /* GL_DEBUG */
-
-			#ifdef LOG_TEXTURE_LIFE
-			{	FskGLPort p;
-				for (p = port; p != NULL; p = p->next) {
-					LOGE("\tportChain %ux%u %s texture {#%u,#%u,#%u} ",
-						(unsigned)p->texture.bounds.width, (unsigned)p->texture.bounds.height, GLInternalFormatNameFromCode(p->texture.glIntFormat),
-						p->texture.name, p->texture.nameU, p->texture.nameV);
-				}
-			}
-			#endif /* LOG_TEXTURE_LIFE */
+			break;
 		}
 	}
+
+	return kFskErrNone;
 #endif /* USE_PORT_POOL */
-	err = FskMemPtrDispose(port);																	/* Dispose of the port, since it contains no useful textures */
-	return err;
 }
 
 
@@ -10845,6 +11096,44 @@ Boolean FskGLPortIsDestination(FskConstGLPort port) {
 
 
 /********************************************************************************
+ * FskGLPortSetPersistent
+ ********************************************************************************/
+
+#undef  FskGLPortSetPersistent
+FskErr FskGLPortSetPersistent(FskGLPort port, Boolean value) {
+	FskErr err = kFskErrNone;
+
+	if (!port) goto bail;
+	port->texture.persistent = value;
+	if (port->texture.persistent) {													/* If persistent, check to see that we have a second texture */
+		if (!port->texture.nameU) {
+			BAIL_IF_ERR(err = FskGenGLTexturesAndInit(1, &port->texture.nameU));	/* Allocate a new texture */
+			CHANGE_TEXTURE(port->texture.nameU);									/* Make it current */
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, port->portWidth, port->portHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);	/* Reshape it accordingly */
+		}
+	}
+	else {																			/* If not persistent, we only need one texture */
+		if (!port->texture.nameU) {
+			FskDeleteGLTextures(1, &port->texture.nameU);
+			port->texture.nameU = 0;
+		}
+	}
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGLPortIsPersistent
+ ********************************************************************************/
+
+#undef  FskGLPortIsPersistent
+Boolean FskGLPortIsPersistent(FskConstGLPort port) {
+	return port ? port->texture.persistent : true;
+}
+
+
+/********************************************************************************
  * FskGLSetGLView
  ********************************************************************************/
 
@@ -11156,10 +11445,10 @@ FskErr FskGLGetFormatAndTypeFromPixelFormat(FskBitmapFormatEnum format, unsigned
 	if (pglFormat)	*pglType	= glType;
 	if (pglIntFmt)	*pglIntFmt	= glIntFmt;
 
-	#if GL_DEBUG
+	#ifdef LOG_SET_TEXTURE
 		if (err)
 			LOGD("GLGetFormatAndTypeFromPixelFormat: Unsupported pixel type = %s", FskBitmapFormatName(format));
-	#endif /* GL_DEBUG */
+	#endif /* LOG_SET_TEXTURE */
 
 	return err;
 }
@@ -11637,9 +11926,9 @@ FskErr FskGLUnloadTexture(FskBitmap bm) {
 	BAIL_IF_FALSE((NULL != bm->glPort) && (0 != (tx = &bm->glPort->texture)->name), err, kFskErrNotAccelerated);
 
 	if (GL_TEXTURE_UNLOADED != tx->name) {
-		#if GL_DEBUG
+		#ifdef LOG_TEXTURE_LIFE
 			LOGD("Unloaded bitmap %p texture {#%u,#%u,#%u}", bm, tx->name, tx->nameU, tx->nameU);
-		#endif /* GL_DEBUG */
+		#endif /* LOG_TEXTURE_LIFE */
 		FskDeleteGLTextures(1, &tx->name);				/* Unload texture */
 		tx->name = GL_TEXTURE_UNLOADED;
 		if (tx->nameU) { FskDeleteGLTextures(1, &tx->nameU); tx->nameU = GL_TEXTURE_UNLOADED; }
@@ -11648,6 +11937,23 @@ FskErr FskGLUnloadTexture(FskBitmap bm) {
 		tx->bounds.height = 0;
 	}
 
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGLUpdateTextureFromBitmap
+ ********************************************************************************/
+
+FskErr FskGLUpdateTextureFromBitmap(FskBitmap texBM, FskConstBitmap bm) {
+	FskGLPort	glPort;
+	FskErr		err;
+
+	BAIL_IF_NULL(bm, err, kFskErrInvalidParameter);
+	BAIL_IF_NULL((glPort = texBM->glPort), err, kFskErrNotAccelerated);
+	BAIL_IF_ERR(err = SetGLTexture(bm, NULL, &glPort->texture));
+	texBM->bounds = bm->bounds;
 bail:
 	return err;
 }
@@ -12088,6 +12394,68 @@ bail:
 #endif /* GLES_VERSION == 2 */
 
 
+/****************************************************************************//**
+ * Copy between two textures.
+ * The textures must be the same size.
+ *	\param[in]		src		the source texture.
+ *	\param[in,out]	dst		the destination texture.
+ *	\param[in]		glPort	the glPort, associated with either the src or dst, to specify bounds.
+ *	\return			kFskErrNone	if the operation was completed successfully.
+ ********************************************************************************/
+
+static void CopyTexture(GLuint src, GLuint dst, FskGLPort glPort) {
+#if GLES_VERSION == 2
+	if (gGLGlobalAssets.blitContext->fboTexture != dst) {
+		CHANGE_TEXTURE(0);																		/* Disengage any source texture */
+		if (gGLGlobalAssets.blitContext->fboTexture)
+			FskGLPortSwapBuffers(NULL);															/* This causes tiled renderers to complete before swapping */
+		if (!gGLGlobalAssets.blitContext->frameBufferObject)									/* If we don't already have a frame buffer object, ... */
+			glGenFramebuffers(1, &gGLGlobalAssets.blitContext->frameBufferObject);				/* ... allocate one */
+		glBindFramebuffer(GL_FRAMEBUFFER, gGLGlobalAssets.blitContext->frameBufferObject);		/* Render to this frame buffer object */
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst, 0);	/* With this texture */
+		gGLGlobalAssets.blitContext->fboTexture = dst;											/* Remember the texture used for an FBO */
+		CHANGE_SCISSOR_ENABLE(false);															/* No scissoring */
+		glClearColor(0., 0., 0., 1.);
+		glClear(GL_COLOR_BUFFER_BIT);															/* Initialize frame buffer */
+		#if CHECK_GL_ERROR
+		{	FskErr err;
+			if ((int)(err = glGetError()) != 0) LOGE("GL error (%d): %s, %s:%d", (int)err, GLErrorStringFromCode(err), __FILE__, __LINE__);
+		}
+		#endif /* CHECK_GL_ERROR */
+	}
+
+	FskGLSetGLView(glPort);
+	(void)SetBitmapProgramOpColor(NULL, false, kFskGraphicsModeCopy, NULL);					/* Sets program, matrix, opColor */
+	CHANGE_TEXTURE(src);																	/* Set the source texture */
+	CHANGE_BLEND_ENABLE(false);																/* No blending */
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);					/* Set texture parameters */
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	MakeTexRectVertices(&glPort->texture.bounds);											/* Set (x,y) */
+	MakeRectTexCoords(&glPort->texture.bounds, &glPort->texture.bounds, &glPort->texture);	/* Set (u,v) */
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 4);													/* Draw quad */
+	CHANGE_TEXTURE(0);
+#endif /* GLES_VERSION == 2 */
+}
+
+
+/****************************************************************************//**
+ * Restore the contents of a GL Port Texture.
+ *	\param[in,out]	glPort	the GL port, whose texture contents are to be restored, from nameU to name.
+ *	\return			kFskErrNone	if the operation was completed successfully.
+ ********************************************************************************/
+
+static void RestoreGLPortTexture(FskGLPort glPort, Boolean doBlend) {
+#if GLES_VERSION == 2
+	CopyTexture(glPort->texture.nameU, glPort->texture.name, glPort);						/* Sets to GL_CLAMP_TO_EDGE, GL_NEAREST */
+	CHANGE_BLEND_ENABLE(doBlend);
+	glPort->texture.wrapMode = GL_CLAMP_TO_EDGE;											/* Remember ... */
+	glPort->texture.filter   = GL_NEAREST;													/* ... those changes */
+#endif /* GLES_VERSION == 2 */
+}
+
+
 /********************************************************************************
  * FskGLRenderToBitmapTexture
  ********************************************************************************/
@@ -12096,13 +12464,29 @@ bail:
 FskErr FskGLRenderToBitmapTexture(FskBitmap bm, FskConstColorRGBA clear) {
 #if GLES_VERSION == 2
 
-	FskErr err = kFskErrNone;
+	FskErr		err				= kFskErrNone;
+	Boolean		doBlend			= gGLGlobalAssets.blitContext->glBlend,
+				doPersistent	= false;
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_RENDER_TO_TEXTURE)
 		LOGD("GLRenderToBitmapTexture(bm=%p, clear=%p)", bm, clear);
 		LogSrcBitmap(bm, "bm");
 		LogColor(clear, "clear");
 	#endif /* LOG_PARAMETERS */
+
+	if (bm && bm->glPort) {	/* If the texture is persistent, swap textures to save the previous frame */
+		GLTexture tx = &bm->glPort->texture;
+		if (tx->persistent && tx->fboInited && tx->name && tx->name != gGLGlobalAssets.blitContext->fboTexture) {
+			GLuint swapTex;
+			swapTex   = tx->name;
+			tx->name  = tx->nameU;
+			tx->nameU = swapTex;
+			doPersistent = true;
+			#if defined(LOG_RENDER_TO_TEXTURE)
+				LOGD("GLRenderToBitmapTexture swaps textures #%u and #%u", tx->nameU, tx->name);
+			#endif /* LOG_RENDER_TO_TEXTURE */
+		}
+	}
 
 	err = FskGLBitmapTextureTargetSet(bm);
 	#if CHECK_GL_ERROR
@@ -12126,6 +12510,14 @@ FskErr FskGLRenderToBitmapTexture(FskBitmap bm, FskConstColorRGBA clear) {
 	#endif /* LOG_RENDER_TO_TEXTURE */
 	if (bm && bm->glPort)
 		bm->glPort->texture.fboInited = true;														/* True means it has been cleared at least once */
+
+	if (doPersistent) {
+		RestoreGLPortTexture(bm->glPort, doBlend);
+		#if defined(LOG_RENDER_TO_TEXTURE)
+			LOGD("GLRenderToBitmapTexture restores #%u to persistent texture #%u %c= #%u", bm->glPort->texture.nameU, gGLGlobalAssets.blitContext->fboTexture,
+				((gGLGlobalAssets.blitContext->fboTexture == bm->glPort->texture.name) ? '=' : '!'), bm->glPort->texture.name);
+		#endif /* LOG_RENDER_TO_TEXTURE */
+	}
 
 	#if CHECK_GL_ERROR
 		err = GetFskGLError();
@@ -12300,6 +12692,7 @@ FskErr FskGLBitmapDraw(
 		}
 	#endif /* SUPPORT_YUV420i */
 
+	FskMemSet(&jitTexRec, 0, sizeof(jitTexRec));
 	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 	if (!srcRect)
 		srcRect = &srcBM->bounds;
@@ -12358,6 +12751,7 @@ FskErr FskGLScaleOffsetBitmap(
 		LogGLScaleOffsetBitmap(srcBM, srcRect, dstBM, dstClip, scaleOffset, opColor, mode, modeParams);
 	#endif /* LOG_PARAMETERS */
 
+	FskMemSet(&jitTexRec, 0, sizeof(jitTexRec));
 	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 	if (!srcRect)
 		srcRect = &srcBM->bounds;
@@ -12416,6 +12810,7 @@ FskErr FskGLTileBitmap(
 	FskRectangleRecord	sRect, dRect, texRect, srcBounds;
 	Boolean				srcIsPremultiplied;
 
+	FskMemSet(&jitTexRec, 0, sizeof(jitTexRec));
 	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 
 	#ifdef LOG_PARAMETERS
@@ -12428,7 +12823,6 @@ FskErr FskGLTileBitmap(
 	if (!srcBM->hasAlpha && (kFskGraphicsModeAlpha == (mode & kFskGraphicsModeMask)))
 		mode = kFskGraphicsModeCopy | (mode & ~kFskGraphicsModeMask);
 
-	FskMemSet(&jitTexRec, 0, sizeof(jitTexRec));
 	srcIsPremultiplied = IsBitmapPremultiplied(srcBM);
 	srcBounds = srcBM->bounds;
 	if (NULL != (tx = GetBitmapTexture(srcBM))) {					/* Use the cached texture if available, ... */
@@ -12510,6 +12904,8 @@ FskErr FskGLTransferAlphaBitmap(
 		LogGLTransferAlphaBitmap(srcBM, srcRect, dstBM, dstLocation, dstClip, fgColor, modeParams);
 	#endif /* LOG_PARAMETERS */
 
+	FskMemSet(&jitTexRec, 0, sizeof(jitTexRec));											/* Assure that jitTexRec.name is set, in case we bail */
+
 	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 
 	if (dstLocation)	{	dRect.x =  dstLocation->x;	dRect.y =  dstLocation->y;	}
@@ -12532,7 +12928,6 @@ FskErr FskGLTransferAlphaBitmap(
 	else
 		CHANGE_SCISSOR_ENABLE(false);
 
-	FskMemSet(&jitTexRec, 0, sizeof(jitTexRec));
 	if (NULL != (tx = GetBitmapTexture(srcBM))) {											/* Use the cached texture if available */
 		srcBM = NULL;
 	}
@@ -12737,7 +13132,9 @@ FskErr FskGLTextBox(
 	#endif /* LOG_TEXT */
 	if (NULL == tx) {
 		//@@ we get here sometimes, and we never should...
-		LOGD("FskGLTextBox: glPort=%p, glPort->texture.name=%d", dstBM->glPort, dstBM->glPort ? dstBM->glPort->texture.name : 0);
+		#ifdef LOG_TEXT
+			LOGD("FskGLTextBox: glPort=%p, glPort->texture.name=%d", dstBM->glPort, dstBM->glPort ? dstBM->glPort->texture.name : 0);
+		#endif /* LOG_TEXT */
 		BAIL_IF_ERR(err = FskGLAccelerateBitmapSource(typeFace->bm));
 		tx = GetBitmapTexture(typeFace->bm);
 		#ifdef LOG_TEXT
@@ -12900,8 +13297,8 @@ FskErr FskGLPerspectiveTransformBitmap(
 		FskMemCopy(viewMtx[0], gGLGlobalAssets.matrix[0], sizeof(viewMtx));							/* Save the current matrix, so we can restore it afterward */
 	#endif /* GLES_VERSION == 2 */
 
-	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 	FskMemSet(&jitTexRec, 0, sizeof(jitTexRec));
+	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 
 	/* Set model matrix */
 	P[0][0] =  1.f;		P[2][2] = 1.f;
@@ -13186,8 +13583,9 @@ void FskGLUnbindBMTexture(FskConstBitmap bm) {
 
 #undef FskGLSetBlend
 void FskGLSetBlend(Boolean doBlend, unsigned int srcRGB, unsigned int dstRGB, unsigned int srcAlpha, unsigned int dstAlpha) {
-	if (doBlend && BLEND_FUNC_SEPARATE_WILL_CHANGE(srcRGB, dstRGB, srcAlpha, dstAlpha))
-		SET_GLOBAL_BLEND_SEPARATE_FUNC(srcRGB, dstRGB, srcAlpha, dstAlpha);
+
+	if (doBlend)
+		CHANGE_BLEND_FUNC_SEPARATE(srcRGB, dstRGB, srcAlpha, dstAlpha);	/* This also calls CHANGE_BLEND_ENABLE() */
 	else
 		CHANGE_BLEND_ENABLE(doBlend);
 }
@@ -13274,45 +13672,92 @@ void FskGLFBOInit(FskGLPort glPort) {
 }
 
 
+/********************************************************************************
+ * FskGLEstimateTextureMemoryUsage
+ ********************************************************************************/
+
+UInt32 FskGLEstimateTextureMemoryUsage(void) {
+	UInt32 mems = 0;
+	FskGLPort p;
+	for (p = gGLGlobalAssets.activePorts; p != NULL; p = p->next)
+		mems += (UInt32)(p->texture.bounds.height) * (UInt32)(p->texture.bounds.width) * ((p->texture.glIntFormat == GL_ALPHA) ? 1U : 4U);
+	return mems;
+}
+
+
+/********************************************************************************
+ * FskGLReleaseResources
+ ********************************************************************************/
+
+FskErr FskGLReleaseResources(UInt32 which) {
+	if (which & kFskGLResourceTypefaces) {															/* Dispose typefaces */
+		FskGLTypeFace typeFace;
+		LOGD("Disposing typefaces");
+		while (NULL != (typeFace = gGLGlobalAssets.typeFaces))
+			FskGLTypeFaceDispose(typeFace);
+	}
+
+	if (which & (kFskGLResourceBackedTextures | kFskGLResourceUnbackedTextures)) {					/* Unload textures */
+		FskGLPort p;
+		LOGD("Unloading textures with%s backing bitmap", (which & kFskGLResourceUnbackedTextures) ? " or without" : "");
+		for (p = gGLGlobalAssets.activePorts; p != NULL; p = p->next) {
+			if (p->texture.name && (GL_TEXTURE_UNLOADED != p->texture.name) && (p->texture.srcBM || (which & kFskGLResourceUnbackedTextures))) {
+				GLPortReallyDeletePortTextures(p);													/* Toss it */
+				p->texture.name = GL_TEXTURE_UNLOADED;
+				if (p->texture.nameU) p->texture.nameU = GL_TEXTURE_UNLOADED;
+				if (p->texture.nameV) p->texture.nameV = GL_TEXTURE_UNLOADED;
+			}
+		}
+	}
+
+	return FskErrorFromGLError(glGetError());
+}
+
+
 /****************************************************************************//**
  * purgeGL - operating system reports memory is low, empty caches
  *	\param[in,out]	refcon	reserved for future use; currently ignored.
  ********************************************************************************/
 void purgeGL(void *refcon)
 {
-	FskGLTypeFace typeFace;
 	LOGD("Disposing typefaces");
 	if (refcon) {}
-	while (NULL != (typeFace = gGLGlobalAssets.typeFaces)) {
-		FskGLTypeFaceDispose(typeFace);
-	}
+	(void)FskGLReleaseResources(kFskGLResourceTypefaces);
 }
+
 
 #if GLES_VERSION == 1	/* We need to define some functions when compiling for GL1, so things will link */
 #ifndef __FSKEFFECTS__
 	typedef struct FskEffectCacheRecord *FskEffectCache;
 	typedef const struct FskEffectRecord *FskConstEffect;
 #endif /* __FSKEFFECTS__ */
-FskErr FskGLEffectCacheNew(FskEffectCache *pCache);
-FskErr FskGLEffectCacheNew(FskEffectCache *pCache)
-		{ if (pCache){};																			return kFskErrUnimplemented; }
-FskErr FskGLEffectCacheDispose(FskEffectCache cache);
-FskErr FskGLEffectCacheDispose(FskEffectCache cache)
-		{ if (cache){};																				return kFskErrUnimplemented; }
-FskErr FskGLEffectCacheGetBitmap(FskEffectCache cache, unsigned width, unsigned height, int flags, FskBitmap *bmp);
-FskErr FskGLEffectCacheGetBitmap(FskEffectCache cache, unsigned width, unsigned height, int flags, FskBitmap *bmp)
-		{ if (cache || width || height || flags || bmp){};											return kFskErrUnimplemented; }
-FskErr FskGLEffectCacheReleaseBitmap(FskEffectCache cache, FskBitmap bm);
-FskErr FskGLEffectCacheReleaseBitmap(FskEffectCache cache, FskBitmap bm)
-		{ if (cache || bm) {};																		return kFskErrUnimplemented; }
-FskErr FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache);
-FskErr FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache)
-		{ if (effect || src || srcRect || dst || dstPoint || cache) {};								return kFskErrUnimplemented; }
-FskErr FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache, FskConstRectangle clipRect, UInt32 mode, FskConstGraphicsModeParameters modeParams);
-FskErr FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskEffectCache cache, FskConstRectangle clipRect, UInt32 mode, FskConstGraphicsModeParameters modeParams)
-		{ if (effect || src || srcRect || dst || dstPoint || cache || clipRect || mode || modeParams) {};	return kFskErrUnimplemented; }
+FskErr FskGLEffectCacheNew(void);
+FskErr FskGLEffectCacheNew(void)
+																								{ return kFskErrUnimplemented; }
+void FskGLEffectCacheDispose(void);
+void FskGLEffectCacheDispose(void)
+																								{}
+SInt32 FskGLEffectCacheCountDown(void);
+SInt32 FskGLEffectCacheCountDown(void)
+																								{ return 0; }
+void FskGLEffectCacheDisposeAllBitmaps(void);
+void FskGLEffectCacheDisposeAllBitmaps(void)
+																								{}
+FskErr FskGLEffectCacheGetBitmap(unsigned width, unsigned height, int flags, FskBitmap *bmp);
+FskErr FskGLEffectCacheGetBitmap(unsigned width, unsigned height, int flags, FskBitmap *bmp)
+																								{ if(width||height||flags||bmp){} return kFskErrUnimplemented; }
+FskErr FskGLEffectCacheReleaseBitmap(FskBitmap bm);
+FskErr FskGLEffectCacheReleaseBitmap(FskBitmap bm)
+																								{ if(bm){} return kFskErrUnimplemented; }
+FskErr FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint);
+FskErr FskGLEffectApply(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint)
+																								{ if(effect||src||srcRect||dst||dstPoint){} return kFskErrUnimplemented; }
+FskErr FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskConstRectangle clipRect, UInt32 mode, FskConstGraphicsModeParameters modeParams);
+FskErr FskGLEffectApplyMode(FskConstEffect effect, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint, FskConstRectangle clipRect, UInt32 mode, FskConstGraphicsModeParameters modeParams)
+																								{ if(effect||src||srcRect||dst||dstPoint||clipRect||mode||modeParams){}	return kFskErrUnimplemented; }
 void FskGLEffectsShutdown(void);
-void FskGLEffectsShutdown(void) {}
+void FskGLEffectsShutdown(void)
+																								{}
 #endif /* GLES_VERSION == 1 */
 
 #endif /* FSKBITMAP_OPENGL */

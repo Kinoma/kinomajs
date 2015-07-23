@@ -31,7 +31,11 @@ void KprSystemNowPlayingInfoSetIdling(Boolean idling);
 Boolean KprSystemNowPlayingInfoGetIdling(void);
 void KprSystemNowPlayingInfoSetMetadata(KprMedia media, FskMediaPropertyValue artwork);
 void KprSystemNowPlayingInfoSetUPnPMetadata(KprUPnPMetadata metadata);
+void KprSystemNowPlayingInfoSetNativeMetadata(void *metadataIn, Boolean append);
 void KprSystemNowPlayingInfoSetTime(double duration, double position);
+
+void KprToneGeneratorPlay();
+void KprToneGeneratorStop();
 
 #ifdef __cplusplus
 }

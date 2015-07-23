@@ -88,7 +88,7 @@ char *KplUtilitiesGetApplicationPath(void)
 
 FskErr KplBrowserOpenURI(const char *uri)
 {
-#if TARGET_OS_KPL && SUPPORT_LINUX_GTK
+#if defined(TARGET_OS_KPL) && SUPPORT_LINUX_GTK
 	char *command = FskStrDoCat("xdg-open ", uri);
 	system(command);
 	FskMemPtrDispose(command);

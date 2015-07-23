@@ -71,7 +71,7 @@ void FskBlitInitialize(void)
 #if defined(SUPPORT_NEON) || defined(SUPPORT_WMMX)
 	int implementation = FskHardwareGetARMCPU_All();
 #endif
-    
+
 #ifdef SUPPORT_NEON
 	if (FSK_ARCH_ARM_V7 == implementation) {
 		gFillColor16Proc = fillColor16_arm_v7;
@@ -654,15 +654,15 @@ void colorize8G(UInt32 height, SInt32 dstRowBump, const unsigned char *src, unsi
 
 YUV420Blit makeYUV420BlitInfo(FskBitmap bits)
 {
-	YUV420Blit yuv;
+	YUV420Blit yuv = NULL;
 
-	FskMemPtrNewClear(sizeof(YUV420BlitRecord), &yuv);
-	yuv->width = bits->bounds.width;
+	if (kFskErrNone == FskMemPtrNewClear(sizeof(YUV420BlitRecord), &yuv)) {
+		yuv->width = bits->bounds.width;
 
-	yuv->y = (unsigned char*)bits->bits;
-	yuv->u = yuv->y + (bits->bounds.width * bits->bounds.height);
-	yuv->v = yuv->u + ((bits->bounds.width * bits->bounds.height) >> 2);
-
+		yuv->y = (unsigned char*)bits->bits;
+		yuv->u = yuv->y + (bits->bounds.width * bits->bounds.height);
+		yuv->v = yuv->u + ((bits->bounds.width * bits->bounds.height) >> 2);
+	}
 	return yuv;
 }
 

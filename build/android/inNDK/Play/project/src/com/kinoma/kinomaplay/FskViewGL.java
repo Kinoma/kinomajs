@@ -37,53 +37,30 @@ import javax.microedition.khronos.opengles.GL10;
 
 
 class FskViewGL extends FskView implements IFskView, SurfaceHolder.Callback {
-    public native int setFskSurface(Surface jSurface);
-    public native int unsetFskSurface();
-    public native int doFskSurfaceChanged(int width, int height);
-    public native int doSizeAboutToChange(int oldwidth, int oldheight, int newwidth, int newheight);
+	public native int setFskSurface(Surface jSurface);
+	public native int unsetFskSurface();
 
-	private static String TAG = "Kinoma GL";
+	private static String TAG = "kinoma";
 	private static final boolean DEBUG = false;
 
-    public FskViewGL(Context context, AttributeSet attrs) {
-        super(context, attrs);
- 		// Log.i("Kinoma GL", "FskViewGL constructor completed super FskView constructor");
-   }
+	public FskViewGL(Context context, AttributeSet attrs) {
+		super(context, attrs);
+//		Log.d(TAG, "FskViewGL constructor completed super FskView constructor");
+	}
 
 	@Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-    	super.surfaceChanged(holder, format, width, height);
-		// Log.i("Kinoma GL", "surfaceChanged isCreating:" + holder.isCreating() + " w:" + width + " h:" + height);
-		// Log.i("Kinoma GL", "surfaceChanged - about to tell Fsk 'doFskSurfaceChanged'");
-		doFskSurfaceChanged(width, height);
-    }
+	public void surfaceCreated(SurfaceHolder holder) {
+		super.surfaceCreated(holder);
+		Surface jSurface = holder.getSurface();
+		int i = setFskSurface(jSurface);
+		Log.d(TAG, "FskViewGL.surfaceCreated - returned " + i + " from setFskSurface");
+	}
 
-    @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-		//super.onSizeChanged(w, h, oldw, oldh); -- We don't want to do this because it causes something to be called twice.
-		// Log.i("Kinoma GL", "onSizeChanged - about to tell Fsk 'doFskSurfaceChanged'");
-		doFskSurfaceChanged(w, h);
-    }
-
-    @Override
-    public void surfaceCreated(SurfaceHolder holder) {
-    	super.surfaceCreated(holder);
-     	Surface jSurface = holder.getSurface();
-        int i = setFskSurface(jSurface);
-        // Log.i(TAG, "FskViewGL.surfaceCreated - returned " + i + " from setFskSurface");
-    }
-
-    @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
-		// Log.i("Kinoma GL", "surfaceDestroyed - call native unsetFskSurface");
+	@Override
+	public void surfaceDestroyed(SurfaceHolder holder) {
+//		Log.d(TAG, "surfaceDestroyed - call native unsetFskSurface");
 		unsetFskSurface();
-    	super.surfaceDestroyed(holder);
-    }
+		super.surfaceDestroyed(holder);
+	}
 
-
-//    @Override
-//	public void onDrawFrame(GL10 gl) {
-//    	doDrawFrame();
-//    	gl.eglSwapBuffers(mEglDisplay, mEglSurface);
-//	}
 }

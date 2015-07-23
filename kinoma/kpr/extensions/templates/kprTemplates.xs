@@ -17,6 +17,7 @@
 -->
 <package>
 	<program>
+		var Bind;
 		var acceleration;
 		var alpha;
 		var constructor;

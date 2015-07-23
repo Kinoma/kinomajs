@@ -35,7 +35,7 @@ void KprDataServerGenerateResponseHeaders(KprLibrarySession session, FskHeaders 
 {
 	char buffer[128];
 	responseHeaders->responseCode = 200;
-	sprintf(buffer, "%ld", session->data.size);
+	sprintf(buffer, "%ld", (long)session->data.size);
 	FskHeaderAddString(kFskStrContentLength, buffer, responseHeaders);
 	FskHeaderAddString(kFskStrContentType, session->mime, responseHeaders);
 	FskHeaderAddString("ContentFeatures.dlna.org", session->info, responseHeaders);

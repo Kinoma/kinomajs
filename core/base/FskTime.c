@@ -74,9 +74,7 @@ FskTimeRecord sBasetime;
 	static void syncUiTimers(void);
 #endif /* TARGET_OS_WIN32 && SUPPORT_TIMER_THREAD */
 
-#if !TARGET_OS_KPL
 static Boolean gUiTimersActive = true;
-#endif
 
 // ---------------------------------------------------------------------
 SInt32 FskTimeInSecs(FskTime time)
@@ -391,6 +389,30 @@ FskErr FskTimeGetZone(FskTime fsktime, SInt32 *tzoff, SInt32 *dst, const char **
 	return err;	
 }
 
+FskErr FskTimeGetDisplayZone(char **tzName){
+	if(tzName) {
+#if TARGET_OS_ANDROID
+	gAndroidCallbacks->getDisplayTZ(tzName);
+#else
+	*tzName = "Default";
+#endif
+	}
+	return kFskErrNone;
+}
+
+#define kFskTime1224Default -1
+SInt8 FskTimeGetOS1224()
+{
+#if TARGET_OS_ANDROID
+	SInt8 twelve24;
+fprintf(stderr, "FskTimeGetOS1224\n");
+	gAndroidCallbacks->getOS1224CB(&twelve24);
+	return twelve24;
+#else
+	return kFskTime1224Default;
+#endif
+}
+
 void FskTimeGetOSTime(FskTime time)
 {
 #if TARGET_OS_KPL
@@ -568,7 +590,6 @@ SInt32 FskTimeCompare(const FskTime time1, const FskTime time2)
 	#define rescheduleTimer(a)
 #endif /* !TARGET_OS_WIN32 && !TARGET_OS_MAC */
 
-#if !TARGET_OS_KPL
 static void sInsertInTime(FskTimeCallBack el)
 {
 	FskTimeCallBack cur, last = NULL;
@@ -616,7 +637,6 @@ done:
 	if (reschedule)
 		rescheduleTimer(thread);
 }
-#endif
 
 // ---------------------------------------------------------------------
 void FskTimeCallbackRemove(FskTimeCallBack ref)

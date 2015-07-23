@@ -16,7 +16,7 @@
  */
 #include "FskMain.h"
 
-#if !TARGET_OS_MAC && !TARGET_OS_KPL
+#if !TARGET_OS_MAC
     static FskErr doMain(UInt32 flags, int argc, char **argv);
 #endif
 
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if !TARGET_OS_MAC && !TARGET_OS_KPL
+#if !TARGET_OS_MAC
 /* ----------------------------------------------------------------------------------------------- */
 FskErr doMain(UInt32 flags, int argc, char **argv)
 {

@@ -126,8 +126,12 @@
 				value: function(behavior, scroller, id, x, y, ticks) {
 				}
 			},
-			onTouchMoved: { 
+			onTouchMoved: {
 				value: function(behavior, scroller, id, x, y, ticks) {
+				}
+			},
+			onTouchScrolled: {
+				value: function(behavior, scroller, touched, dx, dy, ticks) {
 				}
 			},
 		});
@@ -138,6 +142,7 @@
 					behavior.boost = 0.5;
 					behavior.direction = 0;
 					behavior.mode = this;
+					behavior.bouncing = false;
 					if (scroller.tracking) {
 						scroller.tracking = false;
 						scroller.distribute("onScrolled");
@@ -146,6 +151,10 @@
 			},
 			onTouchBegan: { 
 				value: function(behavior, scroller, id, x, y, ticks) {
+					if (scroller.running) {
+						scroller.stop();
+						behavior.scrollTo(scroller, behavior.stop);
+					}
 					behavior.anchor = behavior.selectParameter(x, y);
 					behavior.antiAnchor = behavior.selectParameter(y, x);
 					behavior.boost *= 2;
@@ -165,6 +174,49 @@
 							scrollerScrollMode.bind(behavior, scroller);
 							scrollerScrollMode.onTouchMoved(behavior, scroller, id, x, y, ticks);
 						}
+					}
+				}
+			},
+			onTouchScrolled: {
+				value: function(behavior, scroller, touched, dx, dy, ticks) {
+					var start = behavior.selectParameter(scroller.scroll.x, + scroller.scroll.y);
+					var stop = behavior.selectParameter(scroller.constraint.x, + scroller.constraint.y);
+					if (touched || ((dx || dy) && (start == stop) && !behavior.bouncing)) {
+						if (scroller.running)
+							scroller.stop();
+						scroller.tracking = true;
+						if (touched)
+							behavior.bouncing = false;
+						
+						var delta = behavior.selectParameter(dx, dy);
+						if (delta) {
+							if (start != stop)
+								delta = easeOut(delta, 0, Math.abs(stop - start) / scroller.height);
+							behavior.scrollBy(scroller, delta);
+						}
+					}
+					else if (!scroller.running && !behavior.bouncing) {
+						behavior.bouncing = start != stop;
+						behavior.start = start;
+						behavior.stop = stop;
+						scroller.time = 0;
+						scroller.duration = 500;
+						scroller.start();
+					}
+				}
+			},
+			onTimeChanged: { 
+				value: function(behavior, scroller) {
+					var fraction = scroller.fraction;
+					behavior.scrollTo(scroller, easeOut(behavior.start, behavior.stop, fraction));
+				}
+			},
+			onFinished: {
+				value: function(behavior, scroller) {
+					if (scroller.tracking) {
+						scroller.tracking = false;
+						scroller.distribute("onScrolled");
+						behavior.scrollTo(scroller, behavior.stop);
 					}
 				}
 			},
@@ -440,6 +492,11 @@
 					this.mode.onTouchMoved(this, scroller, id, x, y, ticks);
 				}
 			},
+			onTouchScrolled: {
+				value: function(scroller, touched, dx, dy, ticks) {
+					this.mode.onTouchScrolled(this, scroller, touched, - Math.round(dx), - Math.round(dy), ticks);
+				}
+			},
 			onUndisplayed: {
 				value: function(scroller) {
 					if ("scroll" in this.data)
@@ -462,6 +519,9 @@
 	<behavior id="HorizontalScrollerBehavior" like="ScrollerBehavior"><![CDATA[
 		function predictTo(scroller, coordinate) {
 			scroller.predictTo(coordinate, 0);
+		}
+		function scrollBy(scroller, coordinate) {
+			scroller.scrollBy(coordinate, 0);
 		}
 		function scrollTo(scroller, coordinate) {
 			scroller.scrollTo(coordinate, 0);
@@ -553,6 +613,9 @@
 	<behavior id="VerticalScrollerBehavior" like="ScrollerBehavior"><![CDATA[
 		function predictTo(scroller, coordinate) {
 			scroller.predictTo(0, coordinate);
+		}
+		function scrollBy(scroller, coordinate) {
+			scroller.scrollBy(0, coordinate);
 		}
 		function scrollTo(scroller, coordinate) {
 			scroller.scrollTo(0, coordinate);

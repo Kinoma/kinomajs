@@ -18,8 +18,8 @@ set(CMAKE_COLOR_MAKEFILE OFF)
 
 add_custom_command(
 	OUTPUT ${BUILD_TMP}/resource.res
-	COMMAND ${CMAKE_RC_COMPILER} /fo${BUILD_TMP}/resource.res ${F_HOME}/kinoma/kpr/make/win/resource.rc
-	DEPENDS ${F_HOME}/kinoma/kpr/make/win/resource.rc
+	COMMAND ${CMAKE_RC_COMPILER} /fo${BUILD_TMP}/resource.res ${F_HOME}/kinoma/kpr/cmake/win/resource.rc
+	DEPENDS ${F_HOME}/kinoma/kpr/cmake/win/resource.rc
 )
 add_custom_target(resource_res DEPENDS ${BUILD_TMP}/resource.res)
 list(APPEND PROJECT_DEPENDS resource_res)

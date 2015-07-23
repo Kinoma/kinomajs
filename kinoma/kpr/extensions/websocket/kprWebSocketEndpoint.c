@@ -710,9 +710,12 @@ static FskErr KprWebSocketEndpointSendRawFrame(KprWebSocketEndpoint self, UInt8 
 	FskErr err = kFskErrNone;
 	void *frame = NULL;
 	UInt32 frameLength;
-	
-	if (self->closeWasSent) return kFskErrBadState;
-	if (self->writer == NULL) return kFskErrBadState;
+
+	if (self->state == kKprWebSocketStateConnecting) return kFskErrBadState;
+	if (self->closeWasSent || self->writer == NULL) {
+		CALLBACK(errorCallback)(self, kFskErrConnectionClosed, "endpoint closed", self->refcon);
+		return kFskErrNone;
+	}
 
 	bailIfError(KprWebSocketEndpointCreateFrame(true, opcode, self->doMask, payload, length, &frame, &frameLength));
 	KprSocketWriterSendBytes(self->writer, frame, frameLength);

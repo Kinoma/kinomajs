@@ -547,10 +547,11 @@ txID fxRunLoopAccelerator_arm_v7(txMachine* the, txSlot** theRoute, txJump* theJ
 				__InitSlot(--the_stack, XS_INTEGER_KIND);
 				the->stack = the_stack;
 #ifdef mxProfile
-				fxDoCallback(the, aFunction->next->value.callback.address);
-#else
-				(*(aFunction->next->value.callback.address))(the);
+                if (the->profileFile)
+                    fxDoCallback(the, aFunction->next->value.callback.address);
+                else
 #endif
+                    (*(aFunction->next->value.callback.address))(the);
 				the_stack = mxArgv(-1);
 				the->scope = the->frame->value.frame.scope;
 				the_code = the->frame->value.frame.code;
@@ -1404,10 +1405,11 @@ txID fxRunLoopAccelerator_arm_v7(txMachine* the, txSlot** theRoute, txJump* theJ
 				__InitSlot(--the_stack, XS_INTEGER_KIND);
 				the->stack = the_stack;
 #ifdef mxProfile
-				fxDoCallback(the, aFunction->next->value.callback.address);
-#else
-				(*(aFunction->next->value.callback.address))(the);
+                if (the->profileFile)
+                    fxDoCallback(the, aFunction->next->value.callback.address);
+                else
 #endif
+                    (*(aFunction->next->value.callback.address))(the);
 				the_stack = mxArgv(-1);
 				the->scope = the->frame->value.frame.scope;
 				the_code = the->frame->value.frame.code;
@@ -2839,10 +2841,11 @@ txID fxRunLoopAccelerator(txMachine* the, txSlot** theRoute, txJump* theJump,txS
 				mxInitSlot(--the_stack, XS_INTEGER_KIND);
 				the->stack = the_stack;
 #ifdef mxProfile
-				fxDoCallback(the, aFunction->next->value.callback.address);
-#else
-				(*(aFunction->next->value.callback.address))(the);
+                if (the->profileFile)
+                    fxDoCallback(the, aFunction->next->value.callback.address);
+                else
 #endif
+                    (*(aFunction->next->value.callback.address))(the);
 				the_stack = mxArgv(-1);
 				the->scope = the->frame->value.frame.scope;
 				the_code = the->frame->value.frame.code;
@@ -3221,7 +3224,8 @@ txID fxRunLoopAccelerator(txMachine* the, txSlot** theRoute, txJump* theJump,txS
 				goto exit_accelerator;
 			the_code += 4;
 #ifdef mxProfile
-			fxBeginFunction(the);
+            if (the->profileFile)
+                fxBeginFunction(the);
 #endif
 			aProperty = the_stack + 2;	
 			aProperty->ID = anIndex;
@@ -3403,7 +3407,8 @@ txID fxRunLoopAccelerator(txMachine* the, txSlot** theRoute, txJump* theJump,txS
 			}
 
 #ifdef mxProfile
-			fxEndFunction(the);
+            if (the->profileFile)
+                fxEndFunction(the);
 #endif
 			if (the->frame->flag & XS_THROW_FLAG) {
 				the->scope = the->frame->value.frame.scope;
@@ -3714,10 +3719,11 @@ txID fxRunLoopAccelerator(txMachine* the, txSlot** theRoute, txJump* theJump,txS
 				mxInitSlot(--the_stack, XS_INTEGER_KIND);
 				the->stack = the_stack;
 #ifdef mxProfile
-				fxDoCallback(the, aFunction->next->value.callback.address);
-#else
-				(*(aFunction->next->value.callback.address))(the);
+                if (the->profileFile)
+                    fxDoCallback(the, aFunction->next->value.callback.address);
+                else
 #endif
+                    (*(aFunction->next->value.callback.address))(the);
 				the_stack = mxArgv(-1);
 				the->scope = the->frame->value.frame.scope;
 				the_code = the->frame->value.frame.code;

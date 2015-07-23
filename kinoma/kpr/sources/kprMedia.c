@@ -566,7 +566,7 @@ void KprMediaOnCallback(void* it)
 	double seekableTo = 0;
 	
 	if (mpState <= kFskMediaPlayerStateFailed) {
-        kprTraceDiagnostic(self->the, "Failed to instantiate media %s", self->message->url);
+		kprTraceDiagnostic(self->the, "Failed to instantiate media %s", self->message ? self->message->url : self->url);
 		err = kFskErrUnknown;
 		if (kFskErrNone == FskMediaPlayerGetProperty(mp, kFskMediaPropertyError, &property)) {
 			if (property.type == kFskMediaPropertyTypeInteger)

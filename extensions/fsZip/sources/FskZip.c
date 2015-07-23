@@ -454,20 +454,31 @@ void FskZipClose(FskZip zip)
 	FskMemPtrDispose(zip);
 }
 
-//@@ what is this supposed to do if passed a directory? it won't work as implemented.
 FskErr FskZipGetFileInfo(FskZip zip, const char *path, FskFileInfo *itemInfo)
 {
 	FskErr err = kFskErrNone;
 	unsigned char *entry = findFileInZip(zip, path);
+	UInt32 pathLen = FskStrLen(path);
 
-    BAIL_IF_NULL(entry, err, kFskErrFileNotFound);
-
-	itemInfo->filesize = FskMisaligned32_GetN(entry + 24);
-	itemInfo->filesize = FskEndianU32_LtoN(itemInfo->filesize);
-	itemInfo->filetype = kFskDirectoryItemIsFile;
 	itemInfo->fileCreationDate = 0;
 	itemInfo->fileModificationDate = 0;
 	itemInfo->flags = 0;
+	itemInfo->fileNode = 0;
+#if TARGET_OS_ANDROID
+	itemInfo->fileDevice = 0;
+#endif
+
+    BAIL_IF_NULL(entry, err, kFskErrFileNotFound);
+
+	if ('/' == path[pathLen - 1]) {
+		itemInfo->filetype = kFskDirectoryItemIsDirectory;
+		itemInfo->filesize = 0;
+	}
+	else {
+		itemInfo->filetype = kFskDirectoryItemIsFile;
+		itemInfo->filesize = FskMisaligned32_GetN(entry + 24);
+		itemInfo->filesize = FskEndianU32_LtoN(itemInfo->filesize);
+	}
 
 bail:
 	return err;

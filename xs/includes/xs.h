@@ -146,9 +146,11 @@
 #if __FSK_LAYER__
 	#define fxPop() (the->scratch = *(the->stack++), the->scratch)
 	#define fxPush(_SLOT) (the->scratch = (_SLOT), --the->stack, *(the->stack) = the->scratch)
+	#define fxPushCount(_THE,_COUNT) (fxInteger(the, &the->scratch, _COUNT), --the->stack, *(the->stack) = the->scratch)
 #else
 	#define fxPop() (*(the->stack++))
 	#define fxPush(_SLOT) (*(--the->stack) = (_SLOT))
+	#define fxPushCount(_THE,_COUNT) (fxInteger(the, &the->scratch, _COUNT), --the->stack, *(the->stack) = the->scratch)
 #endif
 
 #ifdef mxDebug
@@ -772,6 +774,7 @@ struct xsJumpRecord {
 	else for (; (__JUMP__.stack); __JUMP__.stack = NULL)
 
 /* Errors */
+#define xsAssert(it) if (!(it)) xsThrow(xsString(#it))
 
 #ifdef mxDebug
 #define xsError(_CODE) \
@@ -901,6 +904,28 @@ typedef struct {
 #define xsEndHost(_THE) \
 			fxEndHost(__HOST_THE__); \
 			the = NULL; \
+			(__HOST_THE__)->firstJump = __HOST_JUMP__.nextJump; \
+		} \
+		break; \
+	} while(1)
+	
+#define xsBeginHostSandboxCode(_THE,_CODE) \
+	do { \
+		xsMachine* __HOST_THE__ = _THE; \
+		xsJump __HOST_JUMP__; \
+		__HOST_JUMP__.nextJump = (__HOST_THE__)->firstJump; \
+		__HOST_JUMP__.stack = (__HOST_THE__)->stack; \
+		__HOST_JUMP__.scope = (__HOST_THE__)->scope; \
+		__HOST_JUMP__.frame = (__HOST_THE__)->frame; \
+		__HOST_JUMP__.code = (__HOST_THE__)->code; \
+		(__HOST_THE__)->firstJump = &__HOST_JUMP__; \
+		if (_setjmp(__HOST_JUMP__.buffer) == 0) { \
+			xsMachine* the = fxBeginHost(__HOST_THE__); \
+			the->code = _CODE; \
+			fxEnterSandbox(__HOST_THE__)
+			
+#define xsEndHostSandboxCode() \
+			fxEndHost(__HOST_THE__); \
 			(__HOST_THE__)->firstJump = __HOST_JUMP__.nextJump; \
 		} \
 		break; \
@@ -1454,6 +1479,10 @@ mxImport void fxCopyObject(xsMachine*);
 #endif
 
 #endif /* __XSALL__ */
+
+
+
+
 
 #endif /* __XS__ */
 

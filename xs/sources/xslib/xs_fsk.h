@@ -72,6 +72,9 @@
 	#elif TARGET_OS_KPL
 		#undef mxKpl
 		#define mxKpl 1
+		#ifdef mxDebug
+			#define mxProfile 1
+		#endif
 	#endif
 
     #define mxCleanPath(path) FskInstrumentationCleanPath(path)

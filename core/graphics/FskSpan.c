@@ -33,16 +33,16 @@
 static void
 FlatFillSpan8(FskSpan *span)
 {
-	register UInt32	dx;
-	register UInt8	*p;
+	register UInt8	*p		= (UInt8*)(span->p),
+					*pEnd	= p + span->dx;
 
 	if (span->setPixel == NULL) {											/* We can write directly into the frame buffer */
 		register UInt8	color	= span->fillColor.p8;
-		for (dx = span->dx, p = (UInt8*)(span->p); dx--; )
+		while (p != pEnd)
 			*p++ = color;
 	}
 	else {																	/* We need to call setPixel() */
-		for (dx = span->dx, p = (UInt8*)(span->p); dx--; span->p = ++p)
+		for (; p != pEnd; span->p = ++p)
 			span->setPixel(span);
 	}
 }
@@ -55,16 +55,16 @@ FlatFillSpan8(FskSpan *span)
 static void
 FlatFillSpan16(FskSpan *span)
 {
-	register UInt32	dx;
-	register UInt16	*p;
+	register UInt16	*p		= (UInt16*)(span->p),
+					*pEnd	= p + span->dx;
 
 	if (span->setPixel == NULL) {											/* We can write directly into the frame buffer */
 		register UInt16	color	= span->fillColor.p16;
-		for (dx = span->dx, p = (UInt16*)(span->p); dx--; )
+		while (p != pEnd)
 			*p++ = color;
 	}
 	else {																	/* We need to call setPixel() */
-		for (dx = span->dx, p = (UInt16*)(span->p); dx--; span->p = ++p)
+		for (; p != pEnd; span->p = ++p)
 			span->setPixel(span);
 	}
 }
@@ -77,18 +77,18 @@ FlatFillSpan16(FskSpan *span)
 static void
 FlatFillSpan24(FskSpan *span)
 {
-	register UInt32	dx;
-	register UInt8	*p;
+	register UInt8	*p		= (UInt8*)(span->p),
+					*pEnd	= p + 3 * span->dx;
 
 	if (span->setPixel == NULL) {											/* We can write directly into the frame buffer */
-		for (dx = span->dx, p = (UInt8*)(span->p); dx--; ) {
+		while (p != pEnd) {
 			*p++ = span->fillColor.p24.c[0];
 			*p++ = span->fillColor.p24.c[1];
 			*p++ = span->fillColor.p24.c[2];
 		}
 	}
 	else {																	/* We need to call setPixel() */
-		for (dx = span->dx, p = (UInt8*)(span->p); dx--; span->p = p += 3)
+		for (; p != pEnd; span->p = p += 3)
 			span->setPixel(span);
 	}
 }
@@ -101,16 +101,16 @@ FlatFillSpan24(FskSpan *span)
 static void
 FlatFillSpan32(FskSpan *span)
 {
-	register UInt32	dx;
-	register UInt32	*p;
+	register UInt32	*p		= (UInt32*)(span->p),
+					*pEnd	= p + span->dx;
 
 	if (span->setPixel == NULL) {											/* We can write directly into the frame buffer */
 		register UInt32	color	= span->fillColor.p32;
-		for (dx = span->dx, p = (UInt32*)(span->p); dx--; )
+		while (p != pEnd)
 			*p++ = color;
 	}
 	else {																	/* We need to call setPixel() */
-		for (dx = span->dx, p = (UInt32*)(span->p); dx--; span->p = ++p)
+		for (; p != pEnd; span->p = ++p)
 			span->setPixel(span);
 	}
 }
@@ -125,10 +125,9 @@ FlatAlphaBlendFillSpan16(FskSpan *span)
 {
 	FskPixelType	fillColor	= span->fillColor;							/* Save the fill color */
 	UInt8			alpha		= span->fillColor.b4[2];					/* We store alpha after the 16 bit color (third byte) by convention */
-	UInt32			dx;
-	UInt16			*p;
+	UInt16			*p, *pEnd;
 
-	for (dx = span->dx, p = (UInt16*)(span->p); dx--; span->p = ++p) {
+	for (pEnd = (p = (UInt16*)(span->p)) + span->dx; p != pEnd; span->p = ++p) {
 		span->blendPixel(span, alpha);
 		span->fillColor = fillColor;										/* Fill color is trashed by blendPixel(): restore it */
 	}
@@ -145,10 +144,9 @@ FlatAlphaFillSpan16RGB565SE(FskSpan *span)
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
 		UInt16	color	= span->fillColor.p16;
 		UInt8	alpha	= span->fillColor.b4[2];							/* We store alpha after the 16 bit color (third byte) by convention */
-		UInt32	dx;
-		UInt16	*p;
+		UInt16	*p, *pEnd;
 
-		for (dx = span->dx, p = (UInt16*)(span->p); dx--; p++)
+		for (pEnd = (p = (UInt16*)(span->p)) + span->dx; p != pEnd; p++)
 			FskBlend565SE(p, color, alpha);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
@@ -168,10 +166,9 @@ FlatAlphaFillSpan16RGB565DE(FskSpan *span)
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
 		UInt16	color	= span->fillColor.p16;
 		UInt8	alpha	= span->fillColor.b4[2];							/* We store alpha after the 16 bit color (third byte) by convention */
-		UInt32	dx;
-		UInt16	*p;
+		UInt16	*p, *pEnd;
 
-		for (dx = span->dx, p = (UInt16*)(span->p); dx--; p++)
+		for (pEnd = (p = (UInt16*)(span->p)) + span->dx; p != pEnd; p++)
 			FskBlend565DE(p, color, alpha);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
@@ -192,10 +189,9 @@ FlatAlphaFillSpan16RGB5515SE(FskSpan *span)
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
 		UInt16	color	= span->fillColor.p16;
 		UInt8	alpha	= span->fillColor.b4[2];							/* We store alpha after the 16 bit color (third byte) by convention */
-		UInt32	dx;
-		UInt16	*p;
+		UInt16	*p, *pEnd;
 
-		for (dx = span->dx, p = (UInt16*)(span->p); dx--; p++)
+		for (pEnd = (p = (UInt16*)(span->p)) + span->dx; p != pEnd; p++)
 			FskBlend5515SE(p, color, alpha);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
@@ -216,10 +212,9 @@ FlatAlphaFillSpan16RGBA4444SE(FskSpan *span)
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
 		UInt16	color	= span->fillColor.p16;
 		UInt8	alpha	= span->fillColor.b4[2];							/* We store alpha after the 16 bit color (third byte) by convention */
-		UInt32	dx;
-		UInt16	*p;
+		UInt16	*p, *pEnd;
 
-		for (dx = span->dx, p = (UInt16*)(span->p); dx--; p++)
+		for (pEnd = (p = (UInt16*)(span->p)) + span-; p != pEnd; p++)
 			FskBlend4444(p, color, alpha);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
@@ -238,10 +233,9 @@ FlatAlphaBlendFillSpan8(FskSpan *span)
 {
 	FskPixelType	fillColor	= span->fillColor;							/* Save the fill color */
 	UInt8			alpha		= span->fillColor.b4[2];					/* We store alpha after the 16 bit color (third byte) by convention */
-	UInt32			dx;
-	UInt8			*p;
+	UInt8			*p, *pEnd;
 
-	for (dx = span->dx, p = (UInt8*)(span->p); dx--; span->p = ++p) {
+	for (pEnd = (p = (UInt8*)(span->p)) + span->dx; p != pEnd; span->p = ++p) {
 		span->blendPixel(span, alpha);
 		span->fillColor = fillColor;										/* Fill color is trashed by blendPixel(): restore it */
 	}
@@ -259,10 +253,9 @@ FlatAlphaFillSpan8G(FskSpan *span)
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
 		UInt8	color	= span->fillColor.b4[0];
 		UInt8	alpha	= span->fillColor.b4[1];							/* We store alpha after the 8 bit color (second byte) by convention */
-		UInt32	dx;
-		UInt8	*p;
+		UInt8	*p, *pEnd;
 
-		for (dx = span->dx, p = (UInt8*)(span->p); dx--; p++)
+		for (pEnd = (p = (UInt8*)(span->p)) + span->dx; p != pEnd; p++)
 			FskBlend8(p, color, alpha);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
@@ -282,9 +275,8 @@ FlatAlphaFillSpan16RGB5515DE(FskSpan *span)
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
 		UInt16	color	= span->fillColor.p16;
 		UInt8	alpha	= span->fillColor.b4[2];							/* We store alpha after the 16 bit color by convention */
-		UInt32	dx;
-		UInt16	*p;
-		for (dx = span->dx, p = (UInt16*)(span->p); dx--; p++)
+		UInt16	*p, *pEnd;
+		for (pEnd = (p = (UInt16*)(span->p)) + span->dx; p != pEnd; p++)
 			FskBlend5515DE(p, color, alpha);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
@@ -302,19 +294,17 @@ static void
 FlatAlphaFillSpan24(FskSpan *span)
 {
 	UInt8	alpha	= span->fillColor.b4[3];								/* We store alpha after the 24 bit color by convention */
-	UInt32	dx;
-	UInt8	*p;
+	UInt8	*p = (UInt8*)(span->p),
+			*pEnd	= p + 3 * span->dx;
 
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
-		UInt32			dx;
-		UInt8			*p;
 		Fsk24BitType	color	= span->fillColor.p24;
-		for (dx = span->dx, p = (UInt8*)(span->p); dx--; p += 3)
+		for (; p != pEnd; p += 3)
 			FskBlend24((Fsk24BitType*)p, color, alpha);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
 		FskPixelType fillColor = span->fillColor;							/* Save the fill color */
-		for (dx = span->dx, p = (UInt8*)(span->p); dx--; span->p = p += 3) {
+		for (; p != pEnd; span->p = p += 3) {
 			span->blendPixel(span, alpha);
 			span->fillColor = fillColor;									/* Fill color is trashed in the blend process: restore it */
 		}
@@ -331,10 +321,9 @@ FlatAlphaFillSpan24(FskSpan *span)
 static void
 FlatAlphaBlendFillSpan32(FskSpan *span, UInt8 alpha)
 {
-	FskPixelType	fillColor = span->fillColor;							/* Save the fill color */
-	UInt32			dx;
-	UInt32			*p;
-	for (dx = span->dx, p = (UInt32*)(span->p); dx--; span->p = ++p) {
+	FskPixelType	fillColor	= span->fillColor;							/* Save the fill color */
+	UInt32			*p, *pEnd;
+	for (pEnd = (p = (UInt32*)(span->p)) + span->dx; p != pEnd; span->p = ++p) {
 		span->blendPixel(span, alpha);
 		span->fillColor = fillColor;										/* Fill color is trashed in the blend process: restore it */
 	}
@@ -348,15 +337,13 @@ FlatAlphaBlendFillSpan32(FskSpan *span, UInt8 alpha)
 static void
 FlatAlphaFillSpanA32(FskSpan *span)
 {
-	UInt32	color	= span->fillColor.p32;
-	UInt8	alpha	= (UInt8)(color >> 24);									/* Alpha is in the MS byte for this pixel format */
-
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
-		UInt32	dx, *p;
-		for (dx = span->dx, p = (UInt32*)(span->p); dx--; p++)
+		UInt32	color, *p, *pEnd;
+		for (pEnd = (p = (UInt32*)(span->p)) + span->dx, color = span->fillColor.p32; p != pEnd; p++)
 			FskAlphaA32(p, color);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
+		UInt8	alpha	= (UInt8)(span->fillColor.p32 >> 24);				/* Alpha is in the MS byte for this pixel format */
 		FlatAlphaBlendFillSpan32(span, alpha);
 	}
 }
@@ -371,15 +358,13 @@ FlatAlphaFillSpanA32(FskSpan *span)
 static void
 FlatAlphaFillSpan32A(FskSpan *span)
 {
-	UInt32	color	= span->fillColor.p32;
-	UInt8	alpha	= (UInt8)(color >> 0);									/* Alpha is in the LS byte for this pixel format */
-
 	if (span->blendPixel == NULL) {											/* We can write directly into the frame buffer */
-		UInt32	dx, *p;
-		for (dx = span->dx, p = (UInt32*)(span->p)	; dx--; p++)
+		UInt32	color, *p, *pEnd;
+		for (pEnd = (p = (UInt32*)(span->p)) + span->dx, color = span->fillColor.p32; p != pEnd; p++)
 			FskAlpha32A(p, color);
 	}
 	else {																	/* We need to call a blendPixel() function to write into the frame buffer */
+		UInt8	alpha	= (UInt8)(span->fillColor.p32 >> 0);				/* Alpha is in the LS byte for this pixel format */
 		FlatAlphaBlendFillSpan32(span, alpha);
 	}
 }

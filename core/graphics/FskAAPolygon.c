@@ -105,7 +105,6 @@
 #define AADISTANCE_TO_INDEX(d)	(((d) + (1 << (AACOORD_FRACBITS-AATABLE_FRACBITS-1))) >> (AACOORD_FRACBITS-AATABLE_FRACBITS))
 
 
-
 /*******************************************************************************
  *******************************************************************************
  *******************************************************************************
@@ -160,6 +159,8 @@ struct AAActiveEdge {
 struct AASpan {
 	FskSpan						span;				/* We subclass the generic span */
 	AAFixed						aaRadius;			/* Radius of anti-aliasing */
+	AAFixed						aaAuraRad;			/* aaRadius, truncated to AATABLE_FRACBITS bits */
+	AAFixed						aaAuraRadSquared;	/* Square of aaAuraRad */
 	AABlendPix					blendPix;			/* Function to blend the fillColor into the frame buffer */
 	FskSetPixelProc				setInsidePixel;		/* Proc used to write the pixel inside the boundary */
 	FskSetPixelProc				setOutsidePixel;	/* Proc used to write the pixel outside the boundary */
@@ -180,6 +181,8 @@ struct AASpan {
  *******************************************************************************
  *******************************************************************************
  *******************************************************************************/
+
+static AAFixed MinDistanceToAASpanActiveEdgeListAndIncrement(AASpan *aaSpan);
 
 
 /********************************************************************************
@@ -293,9 +296,6 @@ bail:
  *******************************************************************************
  *******************************************************************************/
 
-static AAFixed MinDistanceToAAActiveEdgeListAndIncrement(register AAActiveEdge	*edge);
-
-
 
 /*******************************************************************************
  * SetPixelOutsideAuraFill
@@ -307,8 +307,10 @@ SetPixelOutsideAuraFill(FskSpan *span)
 	AASpan	*aaSpan		= (AASpan*)(span);
 	AAFixed minDistance;
 
-	if ((minDistance = MinDistanceToAAActiveEdgeListAndIncrement(aaSpan->edges)) <= aaSpan->aaRadius)															/* [ Boilerplate ] */
-		aaSpan->blendPix(span, aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)]);		/* Yes! Close to the edge: blend a dip */
+	minDistance = MinDistanceToAASpanActiveEdgeListAndIncrement(aaSpan);
+	if (minDistance <= aaSpan->aaAuraRad) {
+		aaSpan->blendPix(span, aaSpan->aaTable[minDistance]);		/* Yes! Close to the edge: blend a dip */
+	}
 }
 
 
@@ -323,10 +325,11 @@ SetPixelInsideAuraFill(FskSpan *span)
 	AAFixed	minDistance;
 	UInt8	alpha;
 
-	minDistance = MinDistanceToAAActiveEdgeListAndIncrement(aaSpan->edges);
+	minDistance = MinDistanceToAASpanActiveEdgeListAndIncrement(aaSpan);
 	alpha = 255;
-	if (minDistance <= aaSpan->aaRadius)
-		alpha -= aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)];
+	if (minDistance <= aaSpan->aaAuraRad) {
+		alpha -= aaSpan->aaTable[minDistance];
+	}
 	aaSpan->blendPix(span, alpha);
 }
 
@@ -341,10 +344,11 @@ SetPixelAuraFrame(FskSpan *span)
 	AASpan	*aaSpan		= (AASpan*)(span);
 	AAFixed	minDistance;
 
-	if ((minDistance = MinDistanceToAAActiveEdgeListAndIncrement(aaSpan->edges)) <= aaSpan->aaRadius) {
+	minDistance = MinDistanceToAASpanActiveEdgeListAndIncrement(aaSpan);
+	if (minDistance <= aaSpan->aaAuraRad) {
 		FskPixelType fillColor	= aaSpan->span.fillColor;
 		aaSpan->span.fillColor	= aaSpan->span.altColor;
-		aaSpan->blendPix(span, aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)]);
+		aaSpan->blendPix(span, aaSpan->aaTable[minDistance]);
 		aaSpan->span.fillColor = fillColor;
 	}
 }
@@ -361,17 +365,15 @@ static void
 SetPixelInsideAuraFillFrame(FskSpan *span)
 {
 	AASpan			*aaSpan		= (AASpan*)(span);
-	FskPixelType	fillColor	= aaSpan->span.fillColor;
 	AAFixed	minDistance;
 
-	aaSpan->blendPix(span, 255);
-	if ((minDistance = MinDistanceToAAActiveEdgeListAndIncrement(aaSpan->edges)) <= aaSpan->aaRadius) {
-		aaSpan->blendPix(span, aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)]);
-		if (minDistance <= aaSpan->aaRadius) {
-			aaSpan->span.fillColor = aaSpan->span.altColor;
-			aaSpan->blendPix(span, aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)]);
-			aaSpan->span.fillColor = fillColor;
-		}
+	aaSpan->blendPix(span, 255);												/* Inside fill */
+	minDistance = MinDistanceToAASpanActiveEdgeListAndIncrement(aaSpan);
+	if (minDistance <= aaSpan->aaAuraRad) {										/* If drawing frame */
+		FskPixelType	fillColor	= aaSpan->span.fillColor;					/* Save the fill color */
+		aaSpan->span.fillColor = aaSpan->span.altColor;							/* Use the alt color for the frame color */
+		aaSpan->blendPix(span, aaSpan->aaTable[minDistance]);					/* Draw the frame */
+		aaSpan->span.fillColor = fillColor;										/* Restore the fill color */
 	}
 }
 
@@ -386,8 +388,9 @@ BlendPixelOutsideAuraFill(FskSpan *span, UInt8 opacity)
 	AASpan	*aaSpan			= (AASpan*)(span);
 	AAFixed minDistance;
 
-	if ((minDistance = MinDistanceToAAActiveEdgeListAndIncrement(aaSpan->edges)) <= aaSpan->aaRadius) {															/* [ Boilerplate ] */
-		aaSpan->blendPix(span, FskAlphaMul(aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)], opacity));		/* Yes! Close to the edge: blend a dip */
+	minDistance = MinDistanceToAASpanActiveEdgeListAndIncrement(aaSpan);
+	if (minDistance <= aaSpan->aaAuraRad) {
+		aaSpan->blendPix(span, FskAlphaMul(aaSpan->aaTable[minDistance], opacity));		/* Yes! Close to the edge: blend a dip */
 	}
 }
 
@@ -403,10 +406,11 @@ BlendPixelInsideAuraFill(FskSpan *span, UInt8 opacity)
 	AAFixed		minDistance;
 	UInt8		alpha;
 
-	minDistance = MinDistanceToAAActiveEdgeListAndIncrement(aaSpan->edges);
+	minDistance = MinDistanceToAASpanActiveEdgeListAndIncrement(aaSpan);
 	alpha = 255;
-	if (minDistance <= aaSpan->aaRadius)
-		alpha -= aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)];
+	if (minDistance <= aaSpan->aaAuraRad) {
+		alpha -= aaSpan->aaTable[minDistance];
+	}
 	aaSpan->blendPix(span, FskAlphaMul(alpha, opacity));
 }
 
@@ -421,11 +425,12 @@ BlendPixelAuraFrame(FskSpan *span, UInt8 opacity)
 	AASpan		*aaSpan		= (AASpan*)(span);
 	AAFixed		minDistance;
 
-	if ((minDistance = MinDistanceToAAActiveEdgeListAndIncrement(aaSpan->edges)) <= aaSpan->aaRadius) {
-		FskPixelType fillColor	= aaSpan->span.fillColor;
-		aaSpan->span.fillColor	= aaSpan->span.altColor;
-		aaSpan->blendPix(span, FskAlphaMul(aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)], opacity));
-		aaSpan->span.fillColor = fillColor;
+	minDistance = MinDistanceToAASpanActiveEdgeListAndIncrement(aaSpan);
+	if (minDistance <= aaSpan->aaAuraRad) {
+		FskPixelType fillColor	= aaSpan->span.fillColor;							/* Save the fill color. TODO: why? */
+		aaSpan->span.fillColor	= aaSpan->span.altColor;							/* Use the alt color for the frame color */
+		aaSpan->blendPix(span, FskAlphaMul(aaSpan->aaTable[minDistance], opacity));	/* Draw the frame */
+		aaSpan->span.fillColor = fillColor;											/* Restore the fill color */
 	}
 }
 #define BlendPixelOutsideAuraFrame		BlendPixelAuraFrame		/* Computations are identical for inside and outside the edge of a frame */
@@ -441,17 +446,15 @@ static void
 BlendPixelInsideAuraFillFrame(FskSpan *span, UInt8 opacity)
 {
 	AASpan			*aaSpan		= (AASpan*)(span);
-	FskPixelType	fillColor	= aaSpan->span.fillColor;
 	AAFixed			minDistance;
 
-	aaSpan->blendPix(span, 255);
-	if ((minDistance = MinDistanceToAAActiveEdgeListAndIncrement(aaSpan->edges)) <= aaSpan->aaRadius) {
-		aaSpan->blendPix(span, aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)]);
-		if (minDistance <= aaSpan->aaRadius) {
-			aaSpan->span.fillColor = aaSpan->span.altColor;
-			aaSpan->blendPix(span, FskAlphaMul(aaSpan->aaTable[AADISTANCE_TO_INDEX(minDistance)], opacity));
-			aaSpan->span.fillColor = fillColor;
-		}
+	aaSpan->blendPix(span, 255);														/* Always fill inside with the fill color */
+	minDistance = MinDistanceToAASpanActiveEdgeListAndIncrement(aaSpan);
+	if (minDistance <= aaSpan->aaAuraRad) {												/* If part of the frame */
+		FskPixelType fillColor = aaSpan->span.fillColor;								/* Save the fill color */
+		aaSpan->span.fillColor = aaSpan->span.altColor;									/* Use the alt color for framing */
+		aaSpan->blendPix(span, FskAlphaMul(aaSpan->aaTable[minDistance], opacity));		/* Draw frame */
+		aaSpan->span.fillColor = fillColor;												/* Restore fill color */
 	}
 }
 
@@ -468,71 +471,45 @@ BlendPixelInsideAuraFillFrame(FskSpan *span, UInt8 opacity)
  ********************************************************************************/
 
 
-#ifdef _WIN32
-#define D2MAX	9223372036854775807i64
-#else
-#define D2MAX	9223372036854775807LL
-#endif
-
-
 /*******************************************************************************
-* MinDistanceToAAActiveEdgeListAndIncrement
-*******************************************************************************/
+ * MinDistanceToAAActiveEdgeListAndIncrement
+ *******************************************************************************/
 
-static AAFixed
-MinDistanceToAAActiveEdgeListAndIncrement(register AAActiveEdge	*edge)
+static AAFixed MinDistanceToAASpanActiveEdgeListAndIncrement(AASpan *aaSpan)
 {
-	register AAFixed	d, x, minDistance;
-	FskInt64			d2, minSquaredDistance;
+	/* Variable declaration */
+	AAFixed			d, x, minDistance, d2, minSquaredDistance;
+	AAActiveEdge	*edge = aaSpan->edges;
 
-	for (minDistance = kFskSInt32Max, minSquaredDistance = D2MAX; edge != NULL; edge = edge->next) {
-		d = edge->spanPt.y;								/* Signed transverse distance */
-		if (	((x  = edge->spanPt.x     ) < 0)		/* If left  of endpoint 0 */
-			||	((x -= edge->aaEdge.length) > 0)		/* or right of endpoint 1 */
+	/* Initialize distance and square distance to an appropriate maximum */
+	minDistance = 46340;
+	minSquaredDistance = 2147483647;
+
+	/* Find the minimum distances to the edge and minimum squared distances to the endpoints */
+	for (; edge != NULL; edge->spanPt.x += edge->inc[0].x, edge->spanPt.y += edge->inc[0].y, edge = edge->next) {
+		d = edge->spanPt.y;														/* Signed transverse distance */
+		d = (d + (1 << (AACOORD_FRACBITS - AATABLE_FRACBITS - 1))) >> (AACOORD_FRACBITS - AATABLE_FRACBITS);		/* Round */
+		if (	((x  = edge->spanPt.x     ) < 0)								/* If left  of endpoint 0 */
+			||	((x -= edge->aaEdge.length) > 0)								/* or right of endpoint 1 */
 		) {
-			d2 = (FskInt64)x * x + (FskInt64)d * d;		/* Squared distance from the closest endpoint */
+			x = (x + (1 << (AACOORD_FRACBITS - AATABLE_FRACBITS - 1))) >> (AACOORD_FRACBITS - AATABLE_FRACBITS);	/* Round */
+			d2 = x * x + d * d;													/* Squared distance from the closest endpoint */
 			if (minSquaredDistance > d2)
 				minSquaredDistance = d2;
 		}
 		else {
-			if (d < 0)									/* Convert signed transverse distance ... */
-				d = -d;									/* ... to unsigned */
+			if (d < 0)															/* Convert signed transverse distance ... */
+				d = -d;															/* ... to unsigned */
 			if (minDistance > d)
 				minDistance = d;
 		}
-		edge->spanPt.x += edge->inc[0].x;
-		edge->spanPt.y += edge->inc[0].y;
 	}
 
-	if ((minSquaredDistance < D2MAX) && (minDistance > (d = FskFixedSqrt64to32(minSquaredDistance))))
-		minDistance = d;								/* Find minimum of transverse and endpoint distances */
+	if ((minSquaredDistance <= aaSpan->aaAuraRadSquared) && (minDistance * minDistance > minSquaredDistance))
+		minDistance = FskFixedNSqrt(minSquaredDistance, 0);						/* Find minimum of transverse and endpoint distances */
 
 	return minDistance;
 }
-
-
-
-#ifdef UNUSED
-/*******************************************************************************
- * DistanceToAAActiveEdge
- *		Closest distance to the edge or its endpoints,
- *		making use of the edge coordinate system.
- *******************************************************************************/
-
-static AAFixed
-DistanceToAAActiveEdge(AAActiveEdge *edge)
-{
-	register AAFixed d, x;
-
-	d = edge->spanPt.y;															/* Signed transverse distance */
-	if (	((x  = edge->spanPt.x     ) < 0)									/* If left  of endpoint 0 */
-		||	((x -= edge->aaEdge.length) > 0)									/* or right of endpoint 1 */
-	)										{	d = FskFixedHypot(x, d);	}	/* Return Euclidean distance from the closest endpoint */
-	else									{	if (d < 0) d = -d;			}	/* Else return unsigned transverse distance */
-
-	return d;
-}
-#endif /* UNUSED */
 
 
 /*******************************************************************************
@@ -823,7 +800,7 @@ InitAAEdge(const FskFixedPoint2D *pt0, const FskFixedPoint2D *pt1, const FskSpan
 	e->edge.bottom	= (SInt16)AAFIXEDCEIL(e->endPoint[1].y + aaSpan->aaRadius);					/* And stays active until unaffected by aura */
 	e->U.x			= (e->endPoint[1].x - e->endPoint[0].x);
 	e->U.y			= (e->endPoint[1].y - e->endPoint[0].y);
-	e->length		= FskFixedVectorNormalize(&e->U.x, 2);										/* Length and unit vector in the direction of the line */
+	e->length		= FskFixedVector2DNormalize(&e->U.x);										/* Length and unit vector in the direction of the line */
 
 	if (e->length) {
 		if (e->edge.top >= (clipRect->y + clipRect->height))
@@ -935,8 +912,9 @@ YCompareAAEdges(const void *v0, const void *v1)
 {
 	const AAEdge	*e0 = (const AAEdge*)v0;
 	const AAEdge	*e1 = (const AAEdge*)v1;
-	int				result;
 
+#if TARGET_CPU_ARM
+	int				result;
 	if		(e0->edge.top		< e1->edge.top)			result = -1;
 	else if	(e0->edge.top		> e1->edge.top)			result =  1;
 	else if (e0->endPoint[0].x	< e1->endPoint[0].x)	result = -1;
@@ -944,8 +922,14 @@ YCompareAAEdges(const void *v0, const void *v1)
 	else if (e0->U.x			< e1->U.x)				result = -1;
 	else if (e0->U.x			> e1->U.x)				result =  1;
 	else												result =  0;
-
 	return result;
+
+#else /* !TARGET_CPU_ARM */
+	if (e0->edge.top      != e1->edge.top)		return (e0->edge.top          <         e1->edge.top) ? -1 : +1;
+	if (e0->endPoint[0].x != e1->endPoint[0].x)	return (e0->endPoint[0].x     <    e1->endPoint[0].x) ? -1 : +1;
+	return                                             (e0->U.x == e1->U.x) ? 0 : (e0->U.x < e1->U.x) ? -1 : +1;
+
+#endif /* !TARGET_CPU_ARM */
 }
 
 
@@ -1336,7 +1320,9 @@ FskAAPolygonContours(
 
 	/* Compute the anti-aliasing aura radius */
 	nc--;
-	span.aaRadius = nc << (AACOORD_FRACBITS - AATABLE_FRACBITS);
+	span.aaRadius  = nc << (AACOORD_FRACBITS - AATABLE_FRACBITS);		/* Aura radius in coordinate precision */
+	span.aaAuraRad = nc;												/* Aura radius in aatable precision */
+	span.aaAuraRadSquared = span.aaAuraRad * span.aaAuraRad;			/* Aura radius squared */
 
 	/* Allocate edges */
 	for (nc = nContours, np = 0; nc--; )								/* Accumulate total number of points */

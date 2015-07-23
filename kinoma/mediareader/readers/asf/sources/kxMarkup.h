@@ -18,6 +18,7 @@
 #define __KXMARKUP__
 
 #include "Fsk.h"
+#include "xs.h"
 
 typedef struct {
 	char	*name;
@@ -46,10 +47,12 @@ enum {
 
 typedef UInt32 txSize;
 typedef char *txString;
+typedef UInt32 txInteger;
+#ifndef XS6
 typedef UInt32 txU4;
 typedef SInt32 txS4;
-typedef txS4 txInteger;
 typedef unsigned char txU1;
+#endif
 typedef int txIndex;
 typedef struct sxMarkupCallbacks txMarkupCallbacks; 
 

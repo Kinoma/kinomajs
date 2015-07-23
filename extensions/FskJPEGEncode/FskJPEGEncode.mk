@@ -214,7 +214,7 @@ C_OPTIONS += \
 <wrap name="jquant2.c"/>
 <wrap name="jutils.c"/>
 <wrap name="jmemmgr.c"/>
-<wrap name="jmemnobs.c"/>
+<wrap name="fskjmemnobs.c"/>
 </platform>
 
 <platform name="Linux">

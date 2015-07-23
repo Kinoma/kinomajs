@@ -35,6 +35,16 @@
 			<function name="remove" params="host, realm" c="KPR_HTTP_Keychain_remove"/>
 			<function name="set" params="host, realm, user, password" c="KPR_HTTP_Keychain_set"/>
 		</object>
+		<object name="server" c="KPR_HTTP_server">
+			<function name="get port" c="KPR_HTTP_server_get_port"/>
+			<function name="get running" c="KPR_HTTP_server_get_running"/>
+			<function name="start" c="KPR_HTTP_server_start"/>
+			<function name="stop" c="KPR_HTTP_server_stop"/>
+			<!-- callbacks to the server handler behavior -->
+			<!-- function name="onAccept" params="handler, message" /-->
+			<!-- function name="onInvoke" params="handler, message" /-->
+		</object>
+		<function name="Server" params="dictionary" prototype="HTTP.server" c="KPR_HTTP_Server"/>
 	</object>
 	
 	<patch prototype="KPR.message">

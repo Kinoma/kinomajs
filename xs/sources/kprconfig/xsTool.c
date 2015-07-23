@@ -106,14 +106,21 @@ void xsToolExecute(xsMachine* the)
 {
 	xsIntegerValue c = xsToInteger(xsArgc), i;
 	char** parameters= NULL;
+	int result;
 	parameters = malloc(sizeof(char *)*(c + 1));
 	for (i = 0; i < c; i++)
 		parameters[i] = xsToString(xsArg(i));
 	parameters[c] = NULL;
 	fflush(NULL);
 #if mxWindows
-	if (_spawnvp(P_WAIT, xsToString(xsArg(0)), parameters) < 0)
-		fprintf(stderr, "### Cannot execute nmake!\n");
+	result = _spawnvp(P_WAIT, xsToString(xsArg(0)), parameters);
+	if (result == 0)
+		xsResult = xsTrue;
+	else {
+		if (result < 0)
+			fprintf(stderr, "### Cannot execute nmake!\n");
+		xsResult = xsFalse;
+	}
 #else
 	execvp(xsToString(xsArg(0)), parameters);
 #endif

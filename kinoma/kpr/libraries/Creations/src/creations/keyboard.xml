@@ -20,6 +20,7 @@
  	<require id="CREATIONS" path="creations/creations"/>
  	<require id="BUTTONS" path="controls/buttons"/>
 	<require id="CONTROL" path="mobile/control"/>
+	<require id="MIXED" path="creations/mixedInput"/>
 
 	<!-- HEADER -->
 	<style id="headerButtonsStyle" font="bold 24px" align="right,middle" lines="1">
@@ -39,7 +40,7 @@
 	<container id="BackButton" left="0" top="0" like="BUTTONS.Button" skin="backButtonSkin">
 		<behavior like="BUTTONS.ButtonBehavior">        
 			<method id="onTap" params="container"><![CDATA[
-			    var input = textDisplay.label.string;
+			    var input = textDisplay.delegate("getText");
 				container.bubble("onKeyboardBackButtonTap", input);
 			]]></method>
         </behavior>
@@ -64,7 +65,7 @@
 		<behavior like="HeaderButtonBehavior">
 			<method id="onTap" params="label">
 				<![CDATA[
-					var input = textDisplay.label.string;
+					var input = textDisplay.delegate("getText");
 					label.bubble("onKeyboardOK", input);
 				]]>
 			</method>
@@ -75,7 +76,7 @@
 		<behavior like="HeaderButtonBehavior">
 			<method id="onTap" params="label">
 				<![CDATA[
-					var input = textDisplay.label.string;
+					var input = textDisplay.delegate("getText");
 					label.bubble("onKeyboardCancel", input);
 				]]>
 			</method>
@@ -127,7 +128,6 @@
 
 	<texture id="textDisplaySeparatorTexture" small="../assets/keyboard/separator.png"/>
 	
-	<skin id="blueSkin" color="blue"/>
 	<skin id="textDisplaySkin" texture="textDisplaySeparatorTexture" x="0" y="0" width="10" height="1">
 		<tiles left="2" right="2"/>
 	</skin>
@@ -176,6 +176,21 @@
                 	scroller.hintTextLabel.visible = true;
                 ]]>
             </method>
+            <method id="getTextDisplayState" params="scroller">
+                <![CDATA[
+                	return scroller.label.string;
+                ]]>
+            </method>
+            <method id="restoreTextDisplayState" params="scroller, text">
+                <![CDATA[
+                	scroller.label.string = text;
+                ]]>
+            </method>
+            <method id="getText" params="scroller">
+                <![CDATA[
+                	return scroller.label.string;
+                ]]>
+            </method>
         </behavior>
 		<label name="label" editable="true" left="0" style="textDisplayStyle" string="'12345678901234567890123456'">
 			<behavior>
@@ -199,7 +214,7 @@
              </behavior>			
 		</label>
 	</scroller>
-	
+
 	<!-- KEYBOARD -->
 	
 	<style id="keyboardButtonStyle" font="bold 30px" color="white" align="middle,center" lines="1"/>
@@ -398,6 +413,7 @@
 		<method id="onRebuildKeyboard" params="column, keyboardLayout">
 			<![CDATA[
 				var data = this.data;
+				data.inputMode = "ascii";
 				switch (keyboardLayout) {
 					case "StandardLowercase":
 						data.keyboard = standardLowerCaseKeys;
@@ -410,6 +426,23 @@
 					break
 					case "StandardSymbol":
 						data.keyboard = standardSymbolKeys;
+					break
+
+					case "MixedLowercase":
+						data.keyboard = mixedLowerCaseKeys;
+					break
+					case "MixedUppercase":
+						data.keyboard = mixedUpperCaseKeys;
+					break
+					case "MixedNumeric":
+						data.keyboard = mixedNumericKeys;
+					break
+					case "MixedSymbol":
+						data.keyboard = mixedSymbolKeys;
+					break
+					case "MixedHex":
+						data.keyboard = mixedHexKeys;
+						data.inputMode = "hex";
 					break
 
 					case "EmailLowercase":
@@ -485,7 +518,19 @@
 
 	<column id="Keyboard" left="0" right="0" bottom="0" active="true">
 		<behavior like="KeyboardBehavior">
-           <method id="setOKButtonLabel" params="column, label">
+			<method id="onCreate" params="column, data">
+                <![CDATA[
+                	KeyboardBehavior.prototype.onCreate.call(this, column, data);
+                	var needsMixedDisplay = "needsMixedDisplay" in this.data.keyboard && this.data.keyboard.needsMixedDisplay == true;
+                	if (needsMixedDisplay)
+                		display = MIXED.MixedTextDisplay(this.data, { name : "textDisplay" } );
+                	else
+                		display = TextDisplay(this.data, { name : "textDisplay" } );
+                 	column.replace(column.textDisplay, display);
+               		textDisplay = display;
+                ]]>
+            </method>
+			<method id="setOKButtonLabel" params="column, label">
                 <![CDATA[
                     label.string = this.data.okLabel;
                 ]]>
@@ -509,20 +554,20 @@
 			</method>
             <method id="onEnter" params="column">
                 <![CDATA[
-                    var input = textDisplay.label.string;
-                    column.bubble("onKeyboardEnter", input);
+                    var input = textDisplay.delegate("getText");
+                     column.bubble("onKeyboardEnter", input);
                 ]]>
             </method>
             <method id="onRebuildKeyboard" params="column, keyboardLayout">
                 <![CDATA[
-                	var saveString = textDisplay.label.string;
+                	var saveState = textDisplay.delegate("getTextDisplayState");
  					var container = column.container;
 					container.remove(column);
                		KeyboardBehavior.prototype.onRebuildKeyboard.call(this, column, keyboardLayout);
 					keyboard = new Keyboard(this.data);
 					container.add(keyboard);
 					keyboard.delegate("updateReferences");
-					textDisplay.label.string = saveString;
+					textDisplay.delegate("restoreTextDisplayState", saveState);
 					textDisplay.delegate("hideHintText");
                ]]>
             </method>
@@ -534,7 +579,7 @@
             </method>
         </behavior>
        
-        <container name="textDisplay" like="TextDisplay"/>
+        <container name="textDisplay"/>		<!-- dynamically replaced with either TextDisplay or HexByteDisplay based on data.displayType if it's not undefined -->
       
 		<scope with="$.keyboard">
 			<container left="3" right="0" height="$.rowHeight">
@@ -590,7 +635,7 @@
         </method>
         <method id="getInput" params="container">
             <![CDATA[
-            	return textDisplay.label.string;
+            	return textDisplay.delegate("getText");
             ]]>
         </method>
     </behavior>
@@ -859,6 +904,301 @@
        				]           		
         		}
         	};
+
+        	// MIXED KEYBOARD - mixes standard with Hex 
+        	
+        	var mixedLowerCaseKeys = {
+        		needsMixedDisplay: true,
+        		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "q", width : 32 },
+        				{ label : "w", width : 32 },
+        				{ label : "e", width : 32 },
+        				{ label : "r", width : 32 },
+        				{ label : "t", width : 32 },
+        				{ label : "y", width : 32 },
+        				{ label : "u", width : 32 },
+        				{ label : "i", width : 32 },
+        				{ label : "o", width : 32 },
+        				{ label : "p", width : 32 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+         				{ label : "a", width : 32 },
+        				{ label : "s", width : 32 },
+        				{ label : "d", width : 32 },
+        				{ label : "f", width : 32 },
+        				{ label : "g", width : 32 },
+        				{ label : "h", width : 32 },
+        				{ label : "j", width : 32 },
+        				{ label : "k", width : 32 },
+        				{ label : "l", width : 32 },     
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ type : "glyphButton", skin : shiftKeySkin, actionOnTouchBegan : true, state : 1, width : 40, action : function(button) { button.bubble("onRebuildKeyboard", "MixedUppercase") }  },
+          				{ type : "spacer", width : 8 },
+         				{ label : "z", width : 32 },
+        				{ label : "x", width : 32 },
+        				{ label : "c", width : 32 },
+        				{ label : "v", width : 32 },
+        				{ label : "b", width : 32 },
+        				{ label : "n", width : 32 },
+        				{ label : "m", width : 32 },
+          				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : ".?123", width : 66, action : function(button) { button.bubble("onRebuildKeyboard", "MixedNumeric") }  },
+          				{ type : "spacer", width : 4 },
+         				{ actionOnTouchBegan : true, state : 1, label : "HEX", width : 50, action : function(button) { button.bubble("onRebuildKeyboard", "MixedHex") }  },
+          				{ type : "spacer", width : 4 },
+        				{ label : "Space", string : " ", width : 112 },
+          				{ type : "spacer", width : 4 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
+        	var mixedUpperCaseKeys = {
+        		needsMixedDisplay: true,
+        		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "Q", width : 32 },
+        				{ label : "W", width : 32 },
+        				{ label : "E", width : 32 },
+        				{ label : "R", width : 32 },
+        				{ label : "T", width : 32 },
+        				{ label : "Y", width : 32 },
+        				{ label : "U", width : 32 },
+        				{ label : "I", width : 32 },
+        				{ label : "O", width : 32 },
+        				{ label : "P", width : 32 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+         				{ label : "A", width : 32 },
+        				{ label : "S", width : 32 },
+        				{ label : "D", width : 32 },
+        				{ label : "F", width : 32 },
+        				{ label : "G", width : 32 },
+        				{ label : "H", width : 32 },
+        				{ label : "J", width : 32 },
+        				{ label : "K", width : 32 },
+        				{ label : "L", width : 32 },     
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ type : "glyphButton", skin : shiftKeySkin, actionOnTouchBegan : true, state : 2, width : 40, action : function(button) { button.bubble("onRebuildKeyboard", "MixedLowercase") }  },
+          				{ type : "spacer", width : 8 },
+         				{ label : "Z", width : 32 },
+        				{ label : "X", width : 32 },
+        				{ label : "C", width : 32 },
+        				{ label : "V", width : 32 },
+        				{ label : "B", width : 32 },
+        				{ label : "N", width : 32 },
+        				{ label : "M", width : 32 },
+          				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "#", width : 66, action : function(button) { button.bubble("onRebuildKeyboard", "MixedNumeric") }  },
+          				{ type : "spacer", width : 4 },
+         				{ actionOnTouchBegan : true, state : 1, label : "HEX", width : 50, action : function(button) { button.bubble("onRebuildKeyboard", "MixedHex") }  },
+          				{ type : "spacer", width : 4 },
+        				{ label : "Space", string : " ", width : 112 },
+          				{ type : "spacer", width : 4 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
+        	var mixedNumericKeys = {
+         		needsMixedDisplay: true,
+	       		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "1", width : 32 },
+        				{ label : "2", width : 32 },
+        				{ label : "3", width : 32 },
+        				{ label : "4", width : 32 },
+        				{ label : "5", width : 32 },
+        				{ label : "6", width : 32 },
+        				{ label : "7", width : 32 },
+        				{ label : "8", width : 32 },
+        				{ label : "9", width : 32 },
+        				{ label : "0", width : 32 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+        				{ label : "-", width : 32 },
+        				{ label : "/", width : 32 },
+        				{ label : ":", width : 32 },
+        				{ label : ";", width : 32 },
+        				{ label : "(", width : 32 },
+        				{ label : ")", width : 32 },
+        				{ label : "$", width : 32 },
+        				{ label : "&", width : 32 },
+        				{ label : "@", width : 32 },
+        				{ label : '"', width : 32 },   
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ actionOnTouchBegan : true, state : 1, label : "#+=", width : 42, action : function(button) { button.bubble("onRebuildKeyboard", "MixedSymbol") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : ".", width : 44 },
+        				{ label : ",", width : 44 },
+        				{ label : "?", width : 44 },
+        				{ label : "!", width : 44 },
+        				{ label : "'", width : 44 },
+           				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "ABC", width : 66, action : function(button) { button.bubble("onRebuildKeyboard", "MixedLowercase") } },
+         				{ type : "spacer", width : 4 },
+         				{ actionOnTouchBegan : true, state : 1, label : "HEX", width : 50, action : function(button) { button.bubble("onRebuildKeyboard", "MixedHex") }  },
+          				{ type : "spacer", width : 4 },
+        				{ label : "Space", string : " ", width : 112 },
+          				{ type : "spacer", width : 4 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
+        	var mixedSymbolKeys = {
+        		needsMixedDisplay: true,
+        		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "[", width : 32 },
+        				{ label : "]", width : 32 },
+        				{ label : "{", width : 32 },
+        				{ label : "}", width : 32 },
+        				{ label : "#", width : 32 },
+        				{ label : "%", width : 32 },
+        				{ label : "^", width : 32 },
+        				{ label : "*", width : 32 },
+        				{ label : "+", width : 32 },
+        				{ label : "=", width : 32 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+        				{ label : "_", width : 32 },
+        				{ label : "\\", width : 32 },
+        				{ label : "|", width : 32 },
+        				{ label : "-", width : 32 },
+        				{ label : "<", width : 32 },
+        				{ label : ">", width : 32 },
+        				{ label : "∑", width : 32 },
+        				{ label : "£", width : 32 },
+        				{ label : "¥", width : 32 },
+        				{ label : "•", width : 32 },   
+        			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+          				{ actionOnTouchBegan : true, state : 1, label : "123", width : 42, action : function(button) { button.bubble("onRebuildKeyboard", "MixedNumeric") }  },
+          				{ type : "spacer", width : 8 },
+        				{ label : ".", width : 44 },
+        				{ label : ",", width : 44 },
+        				{ label : "?", width : 44 },
+        				{ label : "!", width : 44 },
+        				{ label : "'", width : 44 },
+           				{ type : "spacer", width : 8 },
+         				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+       				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "ABC", width : 66, action : function(button) { button.bubble("onRebuildKeyboard", "MixedLowercase") } },
+         				{ type : "spacer", width : 4 },
+         				{ actionOnTouchBegan : true, state : 1, label : "HEX", width : 50, action : function(button) { button.bubble("onRebuildKeyboard", "MixedHex") }  },
+          				{ type : "spacer", width : 4 },
+        				{ label : "Space", string : " ", width : 112 },
+          				{ type : "spacer", width : 4 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
+        	var mixedHexKeys = {
+         		needsMixedDisplay: true,
+	       		rowHeight : 40,
+        		
+        		firstRow : {
+        			keys : [ 
+        				{ label : "1", width : 32 },
+           				{ type : "spacer", width : 30 },
+	       				{ label : "2", width : 32 },
+           				{ type : "spacer", width : 30 },
+        				{ label : "3", width : 32 },
+           				{ type : "spacer", width : 30 },
+        				{ label : "4", width : 32 },
+           				{ type : "spacer", width : 30 },
+        				{ label : "5", width : 32 },
+           				{ type : "spacer", width : 30 },
+        			]
+        		},
+        		secondRow : {
+          			keys : [ 
+           				{ type : "spacer", width : 30 },
+        				{ label : "6", width : 32 },
+           				{ type : "spacer", width : 30 },
+        				{ label : "7", width : 32 },
+           				{ type : "spacer", width : 30 },
+        				{ label : "8", width : 32 },
+           				{ type : "spacer", width : 30 },
+        				{ label : "9", width : 32 },
+           				{ type : "spacer", width : 30 },
+        				{ label : "0", width : 32 },
+         			]     		
+        		},
+        		thirdRow : {
+          			keys : [ 
+        				{ label : "A", width : 32 },
+           				{ type : "spacer", width : 14 },
+        				{ label : "B", width : 32 },
+           				{ type : "spacer", width : 14 },
+        				{ label : "C", width : 32 },
+           				{ type : "spacer", width : 14 },
+        				{ label : "D", width : 32 },
+           				{ type : "spacer", width : 14 },
+        				{ label : "E", width : 32 },
+           				{ type : "spacer", width : 14 },
+        				{ label : "F", width : 32 },
+           				{ type : "spacer", width : 14 },
+           				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
+      				]
+        		},
+        		fourthRow : {
+         			keys : [ 
+         				{ actionOnTouchBegan : true, state : 1, label : "ABC", width : 76, action : function(button) { button.bubble("onRebuildKeyboard", "MixedLowercase") } },
+          				{ type : "spacer", width : 140 },
+        				{ type : "enterButton", label : "Enter", width : 76, action : function(button) { button.bubble("onEnter") }  },
+       				]           		
+        		}
+        	};
+
                	
            // EMAIL KEYBOARD
            
@@ -1143,6 +1483,7 @@
 			exports.emailKeyboard = emailLowerCaseKeys;
 	        exports.urlKeyboard = urlLowerCaseKeys;
 	        exports.standardKeyboard = standardLowerCaseKeys;
+			exports.mixedKeyboard = mixedLowerCaseKeys;
         ]]>
     </script>
 </module>

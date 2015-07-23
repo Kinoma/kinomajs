@@ -30,8 +30,8 @@
 		#define NUM_IGNORE_NET	2
 		char *ignoreInterfaces[NUM_IGNORE_NET] = { "usb0", "p2p0" };
 	#elif TARGET_OS_LINUX || TARGET_OS_MAC
-		#define NUM_IGNORE_NET	3
-		char *ignoreInterfaces[NUM_IGNORE_NET] = { "usb0", "vnic0", "vnic1" };
+		#define NUM_IGNORE_NET	5
+		char *ignoreInterfaces[NUM_IGNORE_NET] = { "usb0", "vnic0", "vnic1", "vboxnet0", "p2p0" };
 	#endif
 #endif
 

@@ -16,6 +16,11 @@
 #
 include(CMakeParseArguments)
 
+# Ensure that archives quickly append to ensure no missing symbols
+set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> cq <TARGET> <LINK_FLAGS> <OBJECTS>")
+set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> q  <TARGET> <LINK_FLAGS> <OBJECTS>")
+set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> <TARGET>")
+
 set(BIN_DIR ${BUILD_BIN})
 
 macro(local_find_library libname)
@@ -42,9 +47,11 @@ macro(local_find_library libname)
 
 endmacro()
 
-macro(xscc sourcename parent)
-	get_filename_component(NAME ${sourcename} NAME_WE)
-	set(OUTDIR ${BUILD_TMP}/${parent})
+macro(xscc)
+	set(oneValueArgs SOURCE PARENT)
+	cmake_parse_arguments(LOCAL_VAR "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	get_filename_component(NAME ${LOCAL_VAR_SOURCE} NAME_WE)
+	set(OUTDIR ${BUILD_TMP}/${LOCAL_VAR_PARENT})
 	set(OUTDIR_TMP ${OUTDIR}/tmp)
 	set(OUTPUT ${OUTDIR}/${NAME}.xsb ${OUTDIR}/${NAME}.xs.c ${OUTDIR}/${NAME}.xs.h)
 	set_source_files_properties(${OUTPUT} PROPERTIES GENERATED TRUE)
@@ -52,14 +59,20 @@ macro(xscc sourcename parent)
 	add_custom_target(
 		${NAME}
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTDIR_TMP}
-		COMMAND ${XSC} ${sourcename} ${XSC_OPTIONS} -o ${OUTDIR_TMP}
+		COMMAND ${XSC} ${LOCAL_VAR_SOURCE} ${XSC_OPTIONS} -o ${OUTDIR_TMP}
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${OUTDIR_TMP}/${NAME}.xsb ${OUTDIR}
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${OUTDIR_TMP}/${NAME}.xs.c ${OUTDIR}
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${OUTDIR_TMP}/${NAME}.xs.h ${OUTDIR}
 		COMMAND ${CMAKE_COMMAND} -E remove_directory ${OUTDIR_TMP}
-		DEPENDS ${sourcename}
+		DEPENDS ${LOCAL_VAR_SOURCE}
 		)
 	list(APPEND sources ${OUTDIR}/${NAME}.xs.c)
+endmacro()
+
+macro(add_cflags)
+	cmake_parse_arguments(LOCAL_VAR "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ARGN}")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ARGN}")
 endmacro()
 
 macro(copy_file)
@@ -73,6 +86,7 @@ macro(copy_file)
 		OUTPUT ${BIN_DIR}/${LOCAL_VAR_DESTINATION}
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${LOCAL_DIRECTORY}
 		COMMAND ${CMAKE_COMMAND} -E copy ${LOCAL_VAR_SOURCE} ${LOCAL_DIRECTORY}/${LOCAL_NAME}
+		DEPENDS ${LOCAL_VAR_SOURCE}
 		)
 	add_custom_target("${TARGET}" DEPENDS ${BIN_DIR}/${LOCAL_VAR_DESTINATION} ${LOCAL_VAR_DEPENDS})
 	list(APPEND PROJECT_DEPENDS ${TARGET})
@@ -109,6 +123,46 @@ macro(xml2jsb)
 	js2jsb(SOURCE ${LOCAL_TEMP_NAME} DESTINATION ${LOCAL_VAR_DESTINATION})
 endmacro()
 
+macro(process_subdirectories)
+	set(multiValueArgs OBJECTS SHARED)
+	cmake_parse_arguments(LOCAL_VAR "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	foreach(PROJECT ${LOCAL_VAR_OBJECTS})
+		add_subdirectory(${PROJECT})
+		list(APPEND PLATFORM_OBJECTS $<TARGET_OBJECTS:${PROJECT}>)
+	endforeach()
+	foreach(PROJECT ${LOCAL_VAR_SHARED})
+		add_subdirectory(${PROJECT})
+		list(APPEND DEPENDS_TARGET_SHARED ${PROJECT})
+	endforeach()
+endmacro()
+
+macro(add_source)
+	set(oneValueArgs LIST)
+	set(multiValueArgs SOURCE)
+	cmake_parse_arguments(LOCAL_VAR "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	foreach(SOURCE ${LOCAL_VAR_SOURCE})
+		list(APPEND ${LOCAL_VAR_LIST} ${SOURCE})
+		if (${CMAKE_GENERATOR} STREQUAL "Xcode")
+			get_filename_component(EXTLIST ${SOURCE} EXT)
+			if (${EXTLIST} STREQUAL ".gas7" OR ${EXTLIST} STREQUAL ".gas")
+				set_source_files_properties(${SOURCE} PROPERTIES LANGUAGE ASM)
+			endif ()
+		endif ()
+	endforeach()
+endmacro()
+
+macro(add_header_source)
+	set(oneValueArgs LIST)
+	set(multiValueArgs PATH)
+	cmake_parse_arguments(LOCAL_VAR "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	foreach(PATH ${LOCAL_VAR_PATH})
+		file(GLOB HEADERS "${PATH}/*.h")
+		if (HEADERS)
+			list(APPEND ${LOCAL_VAR_LIST} ${HEADERS})
+		endif ()
+	endforeach()
+endmacro()
+
 separate_arguments(KPRCONFIG_OPTIONS)
 # remove quotes around kprconfig options as they're not needed for cmake
 foreach(OPTION ${KPRCONFIG_OPTIONS})
@@ -125,6 +179,7 @@ add_custom_command(
 	VERBATIM
 	)
 add_custom_target(kprconfig DEPENDS ${BUILD_TMP}/FskManifest.xs)
+list(APPEND PROJECT_DEPENDS kprconfig)
 
 include_directories(${F_HOME}/kinoma/kpr/patches)
 include_directories(${XS_HOME}/includes)

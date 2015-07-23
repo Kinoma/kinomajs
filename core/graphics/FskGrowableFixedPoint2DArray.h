@@ -38,16 +38,16 @@ extern "C" {
 
 /* This trivial subclass of FskGrowableArray is mostly for convenience and self-documentation. :-) */
 typedef struct	FskGrowableArrayRecord *FskGrowableFixedPoint2DArray;
-#define			FskGrowableFixedPoint2DArrayNew(maxPoints, array)							FskGrowableArrayNew(sizeof(FskFixedPoint2D), maxPoints, array)
-#define			FskGrowableFixedPoint2DArrayDispose(array)									FskGrowableArrayDispose(array)
+#define			FskGrowableFixedPoint2DArrayNew(maxPoints, array)						FskGrowableArrayNew(sizeof(FskFixedPoint2D), maxPoints, array)
+#define			FskGrowableFixedPoint2DArrayDispose(array)								FskGrowableArrayDispose(array)
 #define			FskGrowableFixedPoint2DArrayAppendItem(array, item)						FskGrowableArrayAppendItem(array, item)
 #define			FskGrowableFixedPoint2DArrayAppendItems(array, item, numItems)			FskGrowableArrayAppendItems(array, item, numItems)
 #define			FskGrowableFixedPoint2DArrayAppendReversedItems(array, item, numItems)	FskGrowableArrayAppendReversedItems(array, item, numItems)
 #define			FskGrowableFixedPoint2DArrayGetPointerToItem(array, index, ptr)			FskGrowableArrayGetPointerToItem(array, index, (void**)ptr)
-#define			FskGrowableFixedPoint2DArrayGetConstPointerToItem(array, index, ptr)		FskGrowableArrayGetConstPointerToItem(array, index, (const void**)ptr)
+#define			FskGrowableFixedPoint2DArrayGetConstPointerToItem(array, index, ptr)	FskGrowableArrayGetConstPointerToItem(array, index, (const void**)ptr)
 #define			FskGrowableFixedPoint2DArrayGetItem(array, index, item)					FskGrowableArrayGetItem(array, index, item)
 #define			FskGrowableFixedPoint2DArrayGetItemCount(array)							FskGrowableArrayGetItemCount(array)
-#define			FskGrowableFixedPoint2DArraySetItemCount(array, numItems)					FskGrowableArraySetItemCount(array, numItems)
+#define			FskGrowableFixedPoint2DArraySetItemCount(array, numItems)				FskGrowableArraySetItemCount(array, numItems)
 
 
 #ifdef __cplusplus

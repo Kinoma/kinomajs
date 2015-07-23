@@ -1,0 +1,727 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	<require id="SCROLLER" path="mobile/scroller"/>
+
+	<!-- Console Styles -->
+
+	<style id="outputHexByteDisplayStyle" font="22px Fira Mono" color="#0022FF" align="left,middle" lines="all">
+		<margins left="2" right="2"/>
+	</style>
+	
+	<style id="inputHexByteDisplayStyle" font="22px Fira Mono" color="green" align="left,middle" lines="all">
+		<margins left="2" right="2"/>
+	</style>
+
+	<style id="outputEndingDisplayStyle" font="22px Fira Mono" color="#0022FF" align="left,middle" lines="all">
+		<margins left="2" right="2"/>
+	</style>
+	
+	<style id="inputEndingDisplayStyle" font="22px Fira Mono" color="green" align="left,middle" lines="all">
+		<margins left="2" right="2"/>
+	</style>
+
+	<style id="outputHexTextStyle" font="22px Fira Mono" color="#0022FF" align="left,middle" lines="all">
+		<margins left="2" right="2"/>
+	</style>
+	
+	<style id="inputHexTextStyle" font="22px Fira Mono" color="green" align="left,middle" lines="all">
+		<margins left="2" right="2"/>
+	</style>
+
+	<style id="outputAsciiTextStyle" font="22px Fira Mono" color="#0022FF" align="left,middle" lines="all">
+		<margins left="2" right="2"/>
+	</style>
+	
+	<style id="inputAsciiTextStyle" font="22px Fira Mono" color="green" align="left,middle" lines="1">
+		<margins left="2" right="2"/>
+	</style>
+
+	<behavior id="MixedInputFieldBehavior">
+		<method id="onCreate" params="text, data"><![CDATA[
+			this.displayHexAsContent = ("displayHexAsContent" in data) ? data.displayHexAsContent : false;
+			this.currentMode = ("currentMode" in data) ? data.currentMode : "ascii";
+			this.inputHandlerStack = [];
+		]]></method>
+		<method id="onDisplaying" params="text"><![CDATA[
+			text.focus();
+			text.selectable = true;
+		]]></method>
+	
+		<method id="setInputMode" params="text, inputMode"><![CDATA[
+			if (this.currentMode != inputMode)
+				this.currentMode = inputMode;
+		]]></method>
+		<method id="getStackTopHandler" params="text"><![CDATA[
+			var stack = this.inputHandlerStack;
+			if (stack.length == 0)
+				return undefined;
+			return stack[stack.length-1];
+		]]></method>
+		<method id="getStackTopHandlerType" params="text"><![CDATA[
+			var topHandler = this.getStackTopHandler(text);
+			if (topHandler == undefined)
+				return undefined;
+			if (AsciiInputHandler.prototype.isPrototypeOf(topHandler))
+				return "ascii";
+			if (HexInputHandler.prototype.isPrototypeOf(topHandler))
+				return "hex";
+			if (EndingInputHandler.prototype.isPrototypeOf(topHandler))
+				return "ending";
+			return undefined;
+		]]></method>
+		<method id="pushEmptyHandlerOfType" params="text, handlerType"><![CDATA[
+			var handler = null;
+			switch (handlerType) {
+				case "ascii":
+					handler = new AsciiInputHandler();
+				break;
+				case "hex":
+					handler = new HexInputHandler(this.displayHexAsContent);
+				break;
+				case "ending":
+					handler = new EndingInputHandler();
+				break;
+			}
+			if (null != handler) {
+				this.inputHandlerStack.push(handler);
+				trace("\n pushing empty handler of type: " + handlerType);	
+			}
+		]]></method>
+		<method id="prepareStackForPush" params="text"><![CDATA[
+			if (this.getStackTopHandlerType(text) != this.currentMode)
+				this.pushEmptyHandlerOfType(text, this.currentMode);
+		]]></method>
+		<method id="pushCharacter" params="text, char"><![CDATA[
+			this.prepareStackForPush(text);
+			var topHandler = this.getStackTopHandler(text);
+			topHandler.pushCharacter(char);
+		]]></method>
+		<method id="popCharacter" params="text, char"><![CDATA[
+			var topHandler = this.getStackTopHandler(text);
+			if (undefined == topHandler)
+				return;
+			var handlerIsNowEmpty = topHandler.popCharacter();
+			if (handlerIsNowEmpty)
+				this.inputHandlerStack.pop();
+		]]></method>
+		<method id="rebuildTextFromStack" params="text, isOutput"><![CDATA[
+			text.begin();
+			text.beginBlock();
+			var stack = this.inputHandlerStack;
+			for (var i=0, c=stack.length; i < c; i++) {
+				var aHandler = stack[i];
+				aHandler.appendTextSpan(text, isOutput);
+			}
+			text.endBlock();
+			text.end();
+
+/*			var length = text.length;
+			text.select(0, length);
+			var selectionBounds = text.selectionBounds;		// ? bounds is empty ?
+			trace("\n selecting zero to length: " + length);
+			trace("\n selectionBounds width: " + selectionBounds.width);
+*/
+		]]></method>
+		<method id="extractDescription"><![CDATA[
+			var descriptions = [];
+			var stack = this.inputHandlerStack;
+			for (var i=0, c=stack.length; i < c; i++) {
+				var aHandler = stack[i];
+				aHandler.appendDescription(descriptions);
+			}
+			return descriptions;
+		]]></method>
+	</behavior>
+
+	<!-- The keyboard displays mixed text in a line content instead of a text content 
+			so it's width can be measured and it can auto scroll when needed -->
+	
+	<behavior id="MixedLineInputFieldBehavior" like="MixedInputFieldBehavior">
+		<method id="onDisplaying" params="text"><![CDATA[
+		]]></method>
+		<method id="rebuildTextFromStack" params="line"><![CDATA[
+			line.empty();
+			var stack = this.inputHandlerStack;
+			for (var i=0, c=stack.length; i < c; i++) {
+				var aHandler = stack[i];
+				aHandler.appendSpanToLine(line);
+			}
+			
+			var scroller = line.container;
+			if (line.width > scroller.width)
+				scroller.scrollTo(line.width - scroller.width, 0);
+		]]></method>
+	</behavior>
+	
+	<label id="MixedLineLabel" style="outputAsciiTextStyle"/>
+	
+	<text id="MixedInputField" behavior="MixedInputFieldBehavior" active="true"/>
+
+	<line id="MixedLineInputField" behavior="MixedLineInputFieldBehavior"/>
+	
+	<class id="KeyInputHandler">
+		<method id="pushCharacter" params="char"/>
+		<method id="popCharacter"/>										<!-- returns true if all chars have been removed -->
+		<method id="appendTextSpan" params="textObject, isOutput"/>
+		<method id="appendTextSpanAsHex" params="textObject, isOutput"/>
+		<method id="appendDescription" params="descriptions"/>
+		<method id="pushCharacters" params="characters"><![CDATA[
+			if (undefined != characters) {
+				for (var i=0, c=characters.length; i < c; i++) {
+					this.pushCharacter(characters.charAt(i));
+				}
+			}
+		]]></method>
+	</class>
+	
+	<class id="AsciiInputHandler" like="KeyInputHandler">
+		<constructor params="initialChars"><![CDATA[
+			this.chars = "";
+			this.pushCharacters(initialChars);
+		]]></constructor>
+		<method id="pushCharacter" params="char"><![CDATA[
+			this.chars += char;
+		]]></method>
+		<method id="popCharacter"><![CDATA[
+			if (this.chars.length > 0)
+				this.chars = this.chars.slice(0, -1);
+			return this.chars.length == 0;
+		]]></method>
+		<method id="appendTextSpan" params="textObject, isOutput"><![CDATA[
+			var style = isOutput ? outputAsciiTextStyle : inputAsciiTextStyle;
+			textObject.beginSpan(style);
+			textObject.concat(this.chars);
+			textObject.endSpan();
+		]]></method>
+		<method id="appendTextSpanAsHex" params="textObject, isOutput"><![CDATA[
+			var style = isOutput ? outputHexTextStyle : inputHexTextStyle;
+			textObject.beginSpan(style);
+			var hexChars = toSimpleHex(this.chars);
+			textObject.concat(hexChars);
+			textObject.endSpan();
+		]]></method>
+		<method id="appendSpanToLine" params="line"><![CDATA[
+			var label = new MixedLineLabel( {}, { string: this.chars } );
+			line.add(label);
+		]]></method>
+		<method id="appendDescription" params="descriptions"><![CDATA[
+			descriptions.push( { type: "ascii", chars: this.chars } );
+		]]></method>
+	</class>
+	
+	<class id="HexInputHandler" like="KeyInputHandler">
+		<constructor params="initialChars, displayAsContent"><![CDATA[
+			this.displayAsContent = (undefined != displayAsContent) ? displayAsContent : true;
+			this.chars = "";
+			this.displayChars = "";
+			this.pushCharacters(initialChars);
+		]]></constructor>
+		<method id="pushCharacter" params="nibbleChar"><![CDATA[
+			var newLength = this.chars.length + 1;
+			var newLengthOdd = ((newLength % 2) == 1);
+			if (newLengthOdd)
+				this.displayChars = this.chars + "0" + nibbleChar;
+			else {
+				var first = "";
+				if (this.chars.length > 2)
+					first = this.chars.substring(0, this.chars.length - 1);
+				var shifted = this.displayChars.substring(this.displayChars.length - 1, this.displayChars.length);
+				this.displayChars = first + shifted + nibbleChar;
+			}
+			this.chars = this.chars + nibbleChar;
+		]]></method>
+		<method id="popCharacter"><![CDATA[
+			var length = this.chars.length;
+			if (length > 0) {
+				var lengthOdd = ((length % 2) == 1);
+				if (lengthOdd)
+					this.displayChars = this.displayChars.substring(0, this.displayChars.length - 2);
+				else {
+					var lastChar = this.displayChars.charAt(this.displayChars.length - 2);
+					this.displayChars = (this.displayChars.substring(0, this.displayChars.length - 2) + "0" + lastChar);
+				}
+				this.chars = this.chars.substring(0, this.chars.length - 1);
+			}
+			return this.chars.length == 0;
+		]]></method>
+		<method id="appendTextSpan" params="textObject, isOutput"><![CDATA[
+			var displayChars = this.displayChars;
+			var style = isOutput ? outputHexByteDisplayStyle : inputHexByteDisplayStyle;
+			textObject.beginSpan(style);
+			if (this.displayAsContent) {
+				for (var i=0, c = displayChars.length; i < c; i += 2) {
+					var hexByteDisplay = HexByteDisplay( { firstNibble : displayChars.charAt(i), secondNibble : displayChars.charAt(i+1) } );
+					hexByteDisplay.style = style;
+					textObject.concat( hexByteDisplay );
+				}
+			}
+			else
+				textObject.concat(displayChars);
+			textObject.endSpan();
+		]]></method>
+		<method id="appendTextSpanAsHex" params="textObject, isOutput"><![CDATA[
+			var style = isOutput ? outputHexTextStyle : inputHexTextStyle;
+			textObject.beginSpan(style);
+			var hexChars = this.displayChars, output = "";
+			for (var i=0, c=hexChars.length; i < c; i += 2) {
+				output += hexChars.charAt(i);
+				output += hexChars.charAt(i+1);
+				output += " ";
+			}
+			textObject.concat(output);
+			textObject.endSpan();
+		]]></method>
+		<method id="appendSpanToLine" params="line"><![CDATA[
+			var displayChars = this.displayChars;
+			for (var i=0, c = displayChars.length; i < c; i += 2) {
+				var hexByteDisplay = HexByteDisplay( { firstNibble : displayChars.charAt(i), secondNibble : displayChars.charAt(i+1) } );
+				hexByteDisplay.style = outputHexByteDisplayStyle;
+				line.add(hexByteDisplay);
+			}
+		]]></method>
+		<method id="appendDescription" params="descriptions"><![CDATA[
+			descriptions.push( { type: "hex", chars: this.displayChars } );
+		]]></method>
+	</class>
+
+	<class id="EndingInputHandler" like="KeyInputHandler">
+		<constructor params="initialChars"><![CDATA[
+			this.chars = "";
+			this.pushCharacters(initialChars);
+		]]></constructor>
+		<method id="pushCharacter" params="char"><![CDATA[
+			this.chars += char;
+		]]></method>
+		<method id="popCharacter"><![CDATA[
+			if (this.chars.length > 0)
+				this.chars = this.chars.slice(0, -1);
+			return this.chars.length == 0;
+		]]></method>
+		<method id="appendTextSpan" params="textObject, isOutput"><![CDATA[
+			var style = isOutput ? outputEndingDisplayStyle : inputEndingDisplayStyle;
+			var chars = this.chars;
+			textObject.beginSpan(style);
+			for (var i=0, c = chars.length; i < c; i++) {
+				var char = chars.charAt(i), str;
+				switch (char) {
+					case '\n':
+						str = "nl";
+					break
+					case '\r':
+						str = "cr";
+					break
+				}
+				var endingDisplay = EndingDisplay( str );
+				endingDisplay.style = style;
+				textObject.concat( endingDisplay );
+			}
+			textObject.endSpan();
+		]]></method>
+		<method id="appendTextSpanAsHex" params="textObject, isOutput"><![CDATA[
+			var style = isOutput ? outputHexTextStyle : inputHexTextStyle;
+			textObject.beginSpan(style);
+			var hexChars = toSimpleHex(this.chars);
+			textObject.concat(hexChars);
+			textObject.endSpan();
+		]]></method>
+		<method id="appendSpanToLine" params="line"><![CDATA[
+			var chars = this.chars;
+			for (var i=0, c = chars.length; i < c; i++) {
+				var char = chars.charAt(i), str;
+				switch (char) {
+					case '\n':
+						str = "nl";
+					break
+					case '\r':
+						str = "cr";
+					break
+				}
+				var endingDisplay = EndingDisplay( str );
+				endingDisplay.style = outputEndingDisplayStyle;
+				line.add(endingDisplay);
+			}
+		]]></method>
+		<method id="appendDescription" params="descriptions"><![CDATA[
+			descriptions.push( { type: "ending", chars: this.chars } );
+		]]></method>
+	</class>
+	
+
+	<!-- HexByteDisplay Content -->
+          		
+	<texture id="blackBorderTexture" small="../assets/keyboard/black-border.png"/>   
+    <skin id="blackBorderSkin" texture="blackBorderTexture" x="0" y="0" width="30" height="30">
+        <tiles left="10" right="10" top="10" bottom="10"/>
+		<margins left="2" right="2" top="4" bottom="4"/>
+    </skin>
+
+    <skin id="paddedBlackBorderSkin" texture="blackBorderTexture" x="0" y="0" width="30" height="30">
+        <tiles left="10" right="10" top="10" bottom="10"/>
+		<margins left="-2" right="-2"/>
+    </skin>
+          		          		
+	<texture id="blueBoxTexture" small="../assets/blue-box.png"/>   
+    <skin id="blueBoxSkin" texture="blueBoxTexture" x="0" y="0" width="30" height="30">
+        <tiles left="10" right="10" top="10" bottom="10"/>
+		<margins left="-2" right="-2"/>
+    </skin>
+          		
+	<style id="hexByteDisplayLabelStyle" font="22px Fira Mono" color="white" align="left,middle"/>
+	<label id="HexByteDisplayLabel" style="hexByteDisplayLabelStyle"/>
+	
+	<line id="HexByteDisplay" left="0" height="22" skin="blueBoxSkin">
+		<behavior>
+			<method id="onCreate" params="container, data">
+				container.firstLabel.string = data.firstNibble;
+				container.secondLabel.string = data.secondNibble;
+			</method>
+		</behavior>
+		<label name="firstLabel" left="4" like="HexByteDisplayLabel"/>
+		<label name="secondLabel" left="-4" like="HexByteDisplayLabel"/>	
+		<content left="0" width="4"/>	
+	</line>
+
+	<!-- Line Ending Character Content -->
+	
+<!--
+	<style id="endingDisplayStyle" font="12px Bold" color="blue" align="left,middle" lines="1">
+		<margins left="2" right="2"/>
+	</style>
+-->	
+	<label id="EndingDisplayLabel" />
+
+	<line id="EndingDisplay" left="0" height="22" skin="paddedBlackBorderSkin">
+		<label left="4" like="EndingDisplayLabel" string="$"/>
+		<content left="0" width="4"/>	
+	</line>
+	
+	
+	<!-- Console -->
+
+	<behavior id="BaseDisplayLineBehavior">
+		<method id="newSpanHandlerOfType" params="text, type, chars"><![CDATA[
+			switch (type) {
+				case "ascii":
+					return  new AsciiInputHandler(chars);
+				break
+				case "hex":
+					return  new HexInputHandler(chars);
+				break
+				case "ending":
+					return  new EndingInputHandler(chars);
+				break
+			}
+		]]></method>
+	</behavior>
+
+	<behavior id="MixedDisplayLineBehavior" like="BaseDisplayLineBehavior">
+		<method id="rebuildText" params="text, description, isOutput"><![CDATA[
+			text.begin();
+			text.beginBlock();
+			for (var i=0, c=description.length; i < c; i++) {
+				var spanDesc = description[i];
+				var spanHandler = this.newSpanHandlerOfType(text, spanDesc.type, spanDesc.chars);
+				spanHandler.appendTextSpan(text, isOutput);
+			}
+			text.endBlock();
+			text.end();
+		]]></method>
+	</behavior>
+
+<!--	<text id="MixedDisplayLine" behavior="MixedDisplayLineBehavior" left="0" right="0" top="0" height="26"/>	-->
+	<text id="MixedDisplayLine" behavior="MixedDisplayLineBehavior" left="0" right="0" top="0"/>	
+	
+	<behavior id="HexDisplayLineBehavior" like="BaseDisplayLineBehavior">
+		<method id="rebuildText" params="text, description, isOutput"><![CDATA[
+			text.begin();
+			text.beginBlock();
+			for (var i=0, c=description.length; i < c; i++) {
+				var spanDesc = description[i];
+				var spanHandler = this.newSpanHandlerOfType(text, spanDesc.type, spanDesc.chars);
+				spanHandler.appendTextSpanAsHex(text, isOutput);
+			}
+			text.endBlock();
+			text.end();
+		]]></method>
+	</behavior>
+
+	<text id="HexDisplayLine" behavior="HexDisplayLineBehavior" left="0" right="0" top="0"/>
+	
+	<behavior id="MixedConsoleBehavior" like="SCROLLER.VerticalScrollerBehavior">
+		<method id="onCreate" params="scroller, data"><![CDATA[
+			SCROLLER.VerticalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			this.data = data;			
+			this.displayType = ("displayType" in data) ? data.displayType : "mixed";
+		]]></method>
+		<method id="onDisplaying" params="scroller"><![CDATA[
+			SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+			scroller.delegate("setDisplayType", this.displayType);
+		]]></method>
+		<method id="getDisplayType" params="scroller, type"><![CDATA[		
+			return this.displayType;
+		]]></method>
+		<method id="setDisplayType" params="scroller, type"><![CDATA[		
+			switch (type) {
+				case "mixed":
+					scroller.hexColumn.visible = false;
+					scroller.mixedColumn.visible = true;
+					this.displayType = type;
+					if (scroller.first.name == "hexColumn")
+						scroller.swap(scroller.first, scroller.first.next);
+				break
+				case "hex":
+					scroller.mixedColumn.visible = false;
+					scroller.hexColumn.visible = true;
+					this.displayType = type;
+					if (scroller.first.name == "mixedColumn")
+						scroller.swap(scroller.first, scroller.first.next);
+				break
+			}
+		]]></method>
+
+		<!-- returns new line and also modifies description -->
+		<method id="takeOneLine" params="scroller, description"><![CDATA[
+			var line = [];
+			var maxCharsPerLine = 16;
+			var charCount = 0;
+			for (var i=0; i < description.length; i++) {
+				var spanDesc = description[i];
+				var newRenderCharCount = spanDesc.chars.length;
+				if (spanDesc.type == "ending")
+					newRenderCharCount *= 2;
+				var newCharCount = charCount + newRenderCharCount;
+				if (newCharCount > maxCharsPerLine) {
+					var take = maxCharsPerLine - charCount;
+					if (spanDesc.type == "ending")							// ending renders 2 chars per char
+						take = Math.ceil(take / 2);
+					else if (spanDesc.type == "hex") {						// can't split hex at odd numbers
+						if ((take % 2) != 0)
+							take -= 1;
+					}	
+					var firstPart = { type: spanDesc.type, chars: spanDesc.chars.substring(0, take) }
+					line.push(firstPart);
+					var secondPart = { type: spanDesc.type, chars: spanDesc.chars.substring(take, spanDesc.chars.length) };
+					description[i] = secondPart;
+					return line;
+				}
+				else {
+					line.push(description.shift());
+					i -= 1;
+				}
+				charCount = newCharCount;
+			}
+			return line;
+		]]></method>
+		<method id="addOutputLine" params="scroller, description"><![CDATA[
+/*		
+			// workaround
+			var clone = this.cloneDescription(scroller, description);
+			while (clone.length > 0) {
+				var lineDesc = this.takeOneLine(scroller, clone);
+				this.addOneOutputLine(scroller, lineDesc);
+			}
+			scroller.scrollTo(0, 1000000);
+*/
+			this.addOneOutputLine(scroller, description);
+			scroller.scrollTo(0, 1000000);
+		]]></method>
+		<method id="cloneDescription" params="scroller, description"><![CDATA[
+			var clone = [];
+			for (var i=0, c=description.length; i < c; i++) {
+				var spanDesc = description[i];
+				clone.push( { type: spanDesc.type, chars: spanDesc.chars } );
+			}
+			return clone;
+		]]></method>
+		<method id="addOneOutputLine" params="scroller, description"><![CDATA[
+			var mixedDisplayLine = new MixedDisplayLine();
+			mixedDisplayLine.delegate("rebuildText", description, true);
+			scroller.mixedColumn.add( mixedDisplayLine );
+
+			var hexDisplayLine = new HexDisplayLine();
+			hexDisplayLine.delegate("rebuildText", description, true);
+			scroller.hexColumn.add( hexDisplayLine );
+		]]></method>
+		<method id="addInputLine" params="scroller, description"><![CDATA[
+/*
+			while (description.length > 0) {
+				var lineDesc = this.takeOneLine(scroller, description);
+				this.addOneInputLine(scroller, lineDesc);
+			}
+			scroller.scrollTo(0, 1000000);
+*/
+			this.addOneInputLine(scroller, description);
+			scroller.scrollTo(0, 1000000);
+		]]></method>
+		<method id="addOneInputLine" params="scroller, description"><![CDATA[
+			var mixedDisplayLine = new MixedDisplayLine();
+			mixedDisplayLine.delegate("rebuildText", description, false);
+			scroller.mixedColumn.add( mixedDisplayLine );
+
+			var hexDisplayLine = new HexDisplayLine();
+			hexDisplayLine.delegate("rebuildText", description, false);
+			scroller.hexColumn.add( hexDisplayLine );
+		]]></method>
+	</behavior>
+
+	<scroller id="MixedConsole" active="true" clip="true" skin="blackBorderSkin" behavior="MixedConsoleBehavior">
+		<column name="mixedColumn" left="0" right="0" top="0" visible="false">
+		</column>
+		<column name="hexColumn" left="0" right="0" top="0" visible="false">
+		</column>
+
+		<content like="SCROLLER.VerticalScrollbar"/>
+		<content like="SCROLLER.TopScrollerShadow"/>
+		<content like="SCROLLER.BottomScrollerShadow"/>
+	</scroller>
+	
+	<!-- MIXED TEXT DISPLAY -->
+	
+	<!-- A replacement for TextDiplay when the mixed keyboard is in use -->
+
+	<style id="hintTextStyle" font="26px" color="#666666" align="left,middle" lines="1">
+		<margins left="14" right="14"/>
+	</style>
+
+	<texture id="textDisplaySeparatorTexture" small="../assets/keyboard/separator.png"/>
+	
+	<skin id="textDisplaySkin" texture="textDisplaySeparatorTexture" x="0" y="0" width="10" height="1">
+		<tiles left="2" right="2"/>
+	</skin>
+
+	<scroller id="MixedTextDisplay" left="0" top="0" right="0" height="50">
+		<behavior>
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				this.data = data;
+				
+				if (! ("inputMode" in data))
+					data.inputMode = "ascii";
+				scroller.mixedInputField.delegate("setInputMode", data.inputMode);
+/*
+				if (! ("inputHandlerStack" in data))
+					data.inputHandlerStack = [];
+				scroller.mixedInputField.behavior.inputHandlerStack = data.inputHandlerStack;
+*/
+            ]]></method>
+			<method id="displayIsEmpty" params="scroller"><![CDATA[
+				return (undefined == scroller.mixedInputField.delegate("getStackTopHandler"))
+            ]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				if (this.displayIsEmpty(scroller))
+					this.showHintText(scroller);
+            ]]></method>
+            <method id="onAddCharacter" params="scroller, character"> <![CDATA[
+            	var mixedInputField = scroller.mixedInputField;
+				mixedInputField.delegate("pushCharacter", character);
+				mixedInputField.delegate("rebuildTextFromStack");
+//				this.data.inputHandlerStack = mixedInputField.behavior.inputHandlerStack;
+            ]]></method>
+            <method id="onDeleteCharacter" params="scroller"> <![CDATA[
+            	var mixedInputField = scroller.mixedInputField;
+				mixedInputField.delegate("popCharacter")
+				mixedInputField.delegate("rebuildTextFromStack");
+				if (this.displayIsEmpty(scroller))
+					this.showHintText(scroller);
+///  				this.data.inputHandlerStack = mixedInputField.behavior.inputHandlerStack;
+          ]]></method>
+            <method id="hideHintText" params="scroller"><![CDATA[
+                scroller.hintTextLabel.visible = false;
+            ]]></method>
+            <method id="showHintText" params="scroller"> <![CDATA[
+                scroller.hintTextLabel.visible = true;
+            ]]></method>
+             <method id="getTextDisplayState" params="scroller"><![CDATA[
+  				return scroller.mixedInputField.behavior.inputHandlerStack;
+            ]]></method>
+            <method id="restoreTextDisplayState" params="scroller, inputHandlerStack"><![CDATA[
+				scroller.mixedInputField.behavior.inputHandlerStack = inputHandlerStack;
+				scroller.mixedInputField.delegate("rebuildTextFromStack");
+             ]]></method>
+           <method id="getText" params="scroller"><![CDATA[
+           		return scroller.mixedInputField.delegate("extractDescription");
+            ]]></method>
+       </behavior>
+
+<!--		<text name="mixedInputField" like="MixedInputField" left="0" top="10" height="40" width="1000"/> -->
+		<line name="mixedInputField" like="MixedLineInputField" top="6" left="0" height="30"/>
+		
+		<content left="0" right="0" bottom="4" skin="textDisplaySkin"/>
+		<label name="hintTextLabel" left="0" right="0" top="0" bottom="0" visible="false" style="hintTextStyle">
+			<behavior>
+                 <method id="onCreate" params="label, data"><![CDATA[
+					if ("hintText" in data)
+						label.string = data.hintText;
+                 ]]></method>
+             </behavior>			
+		</label>
+	</scroller>
+
+	<script><![CDATA[
+		function toHexAndAsciiCollumns(chars) {
+			var output = "0000:  ";
+			var ascii = "";
+			var hexBytesPerLine = 8;
+			var hexBytesInLine = 0;
+			var lines = 0;
+			var length = (chars.length < 65536 ? chars.length : 65536);
+			var lineCount = Math.round((length + hexBytesPerLine - 1) / hexBytesPerLine);
+			var temp = new Array(lineCount);
+			for (var i = 0; i < length; i++) {
+				var byte = chars.charAt(i);
+				var hex = byte.toString(16);
+				if (byte < 16)
+					hex = '0' + hex;
+				++hexBytesInLine;
+				output += hex + " ";
+				ascii += (byte > 31 && byte < 127 ? String.fromCharCode(byte) : '.');
+				if (hexBytesInLine == hexBytesPerLine) {
+					temp[lines] = output + "  " + ascii;
+					++lines;
+					hexBytesInLine = 0;
+					output = ("0000" + (hexBytesPerLine * lines).toString(16)).slice(-4) + ":  ";
+					ascii = "";
+				}
+			}
+			if (0 != hexBytesInLine) {
+				for (var i = 0, length = hexBytesPerLine - ascii.length + 1; i < length; ++i)
+					ascii += " ";
+				var leftover = hexBytesPerLine - hexBytesInLine;
+				for (var i = 0, length = (leftover * 2) + (leftover - 1) + 1; i < length; ++i)
+					output += " ";
+				temp[lines] = output + "  " + ascii;
+			}
+
+			return temp.join("\n");
+		}
+		
+		function toSimpleHex(chars) {
+			var output = "";
+			var length = (chars.length < 65536 ? chars.length : 65536);
+			for (var i = 0; i < length; i++) {
+				var byte = chars.charAt(i).charCodeAt(0);
+				var hex = byte.toString(16);
+				if (byte < 16)
+					hex = '0' + hex;
+				output += hex + " ";
+			}
+			return output;
+		}
+	]]></script>
+	
+</module>

@@ -225,7 +225,7 @@ typedef struct {
 
 static FskErr FskFTMappingNew(FskFTMapping *it);
 static void FskFTMappingDispose(FskFTMapping mapping);
-static FskErr FskFTMappingAddFace(FskFTMapping mapping, const char* name, FskFTFace face);
+static FskErr FskFTMappingAddFace(FskFTMapping mapping, const char* name, const char* style, FskFTFace face);
 static FskErr FskFTMappingFromFile(FskFTMapping mapping, const char* path);
 static FskErr FskFTMappingLookup(FskFTMapping mapping, FskFTGlyph glyph, FskFTFace face, UInt32 unicode);
 static void FskFTMappingPrint(FskFTMapping mapping);
@@ -535,7 +535,7 @@ FskErr freeTypeAddFontFile(FskTextEngineState state, const char *fontFullPath)
 				}
 			}
 
-			FskFTMappingAddFace(gFskFTMapping, ftFace->family_name, fFace);
+			FskFTMappingAddFace(gFskFTMapping, ftFace->family_name, ftFace->style_name, fFace);
 
 			faceIter++;
 			if (faceIter >= ftFace->num_faces)
@@ -1864,22 +1864,28 @@ void FskFTMappingDispose(FskFTMapping mapping)
 	FskMemPtrDispose(mapping);
 }
 
-FskErr FskFTMappingAddFace(FskFTMapping mapping, const char* name, FskFTFace face)
+FskErr FskFTMappingAddFace(FskFTMapping mapping, const char* name, const char* style, FskFTFace face)
 {
 	FskErr err = kFskErrNone;
 	FskFTFamily family = NULL;
 	FskFTFace* facePtr = NULL;
 	char* filename = FskStrRChr(face->path, '/');
-
-	if (mapping && filename++) {
+	char* family_name = FskStrDoCopy(name);
+	if (family_name && mapping && filename++) {
+		// patch for Samsung
+		char* p = FskStrRChr(family_name, '-');
+		if (p) {
+			if (!FskStrCompareCaseInsensitive(p + 1, style))
+				*p = 0;
+		}
 		// add face to the families
 		for (family = mapping->family; family; family = family->next) {
-			if (!FskStrCompareCaseInsensitive(name, family->name))
+			if (!FskStrCompareCaseInsensitive(family_name, family->name))
 				break;
 		}
 		if (!family) {
 			BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(FskFTFamilyRecord), &family));
-			BAIL_IF_NULL(family->name = FskStrDoCopy(name), err, kFskErrMemFull);
+			BAIL_IF_NULL(family->name = FskStrDoCopy(family_name), err, kFskErrMemFull);
 			FskListAppend(&mapping->family, family);
 		}
 		for (facePtr = &family->face; *facePtr; facePtr = &(*facePtr)->next) {
@@ -1899,6 +1905,7 @@ bail:
 			FskMemPtrDispose(family);
 		}
 	}
+	FskMemPtrDispose(family_name);
 	return err;
 }
 

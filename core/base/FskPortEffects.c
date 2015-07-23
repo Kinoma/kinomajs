@@ -15,7 +15,7 @@
  *     limitations under the License.
  */
 /**
-	\file	FskPortEfects.c
+	\file	FskPortEffects.c
 	\brief	Implementation of effects for the port.
 */
 
@@ -41,8 +41,6 @@
  ********************************************************************************
  ********************************************************************************
  ********************************************************************************/
-
-#define kEffCacheTimeout		200		/**< Keep an effect cache around for this many frames */
 
 #if SUPPORT_INSTRUMENTATION
 	extern FskInstrumentedTypeRecord gPortTypeInstrumentation;
@@ -214,7 +212,7 @@ static FskRectangle GetPortEffectClip(FskPort port, FskRectangle cr) {
 
 
 /****************************************************************************//**
- * Get a GL bitmap from the port cache.
+ * Get a GL bitmap from the GLEffects cache, to encourage reuse of intermediate textures.
  *	\param[in]	port	the port, keeper of the cache.
  *	\param[in]	width	the desired width of the bitmap.
  *	\param[in]	height	the desired height of the bitmap.
@@ -224,11 +222,7 @@ static FskRectangle GetPortEffectClip(FskPort port, FskRectangle cr) {
  ********************************************************************************/
 
 static FskErr GLPortEffectGetCacheBitmap(FskPort port, SInt32 width, SInt32 height, int flags, FskBitmap *bmp) {
-	if (port->effCache == NULL)
-		(void)FskGLEffectCacheNew(&port->effCache);				/* Encourage reuse of intermediate textures */
-    port->effCacheExpired = kEffCacheTimeout;
-	/* The following still works even though port->effCache == NULL */
-	return FskGLEffectCacheGetBitmap(port->effCache, width, height, flags/* | kFskGLEffectCacheBitmapInit*/, bmp);
+	return FskGLEffectCacheGetBitmap(width, height, flags/* | kFskGLEffectCacheBitmapInit*/, bmp);
 }
 
 
@@ -249,7 +243,7 @@ static FskErr EffectPostCopyPrepare(FskPort port, void *params, UInt32 paramsSiz
 	if (paramsSize) {}	/* Quiet unused parameter messages */
 	FskPortEffectCheckSourcesAreAccelerated(portEffect->src, &portEffect->effect);
 	(void)FskPortEffectGetSrcCompatibleGLCacheBitmap(port, portEffect->src, &portEffect->srcRect, flags, &mid1);	/* Just the rect */
-	err = FskGLEffectApply(&portEffect->effect, portEffect->src, &portEffect->srcRect, mid1, NULL, port->effCache);	/* This takes care of boundary conditions */
+	err = FskGLEffectApply(&portEffect->effect, portEffect->src, &portEffect->srcRect, mid1, NULL);					/* This takes care of boundary conditions */
     FskBitmapDispose(portEffect->src);																				/* This merely decreases the useCount */
 
 	FskEffectCopySet(&portEffect->effect);																			/* Set parameters for render phase */
@@ -274,8 +268,8 @@ static FskErr EffectTmpCopyRender(FskPort port, void *params, UInt32 paramsSize)
 	if (paramsSize) {}	/* Quiet unused parameter messages */
 	portEffect = (struct FskPortPicEffectParametersRecord*)params;
 
-	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, NULL, port->bits, &portEffect->dstPoint, port->effCache, GetPortEffectClip(port, &cr), kFskGraphicsModeCopy, NULL);	/* Rect already incorporated into src at this phase */
-	FskGLEffectCacheReleaseBitmap(port->effCache, portEffect->src);											/* Done with intermediate bitmap */
+	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, NULL, port->bits, &portEffect->dstPoint, GetPortEffectClip(port, &cr), kFskGraphicsModeCopy, NULL);	/* Rect already incorporated into src at this phase */
+	FskGLEffectCacheReleaseBitmap(portEffect->src);													/* Done with intermediate bitmap */
 	return err;
 }
 
@@ -298,14 +292,14 @@ static FskErr EffectInnerGlowPrepare(FskPort port, void *params, UInt32 paramsSi
     (void)FskBitmapCheckGLSourceAccelerated(portEffect->src);
 	(void)FskPortEffectGetSrcCompatibleGLCacheBitmap(port, portEffect->src, &portEffect->srcRect, kFskGLEffectCacheBitmapWithAlpha, &mid1);	/* Always alpha */
 	FskEffectErodeSet(&subEffect, portEffect->effect.params.innerGlow.radius);																/* 2D Erode */
-	(void)FskGLEffectApply(&subEffect, portEffect->src, &portEffect->srcRect, mid1, NULL, port->effCache);									/* This takes care of boundary conditions */
+	(void)FskGLEffectApply(&subEffect, portEffect->src, &portEffect->srcRect, mid1, NULL);													/* This takes care of boundary conditions */
 	(void)FskPortEffectGetSrcCompatibleGLCacheBitmap(port, portEffect->src, &portEffect->srcRect, kFskGLEffectCacheBitmapWithAlpha, &mid2);	/* This might resuse a cache buffer from the preceding Erode */
 	mid2->alphaIsPremultiplied = portEffect->src->alphaIsPremultiplied;
 	FskEffectGaussianBlurSet(&subEffect, portEffect->effect.params.innerGlow.blurSigma, portEffect->effect.params.innerGlow.blurSigma);		/* 2D Blur, incorporating boundary conditions */
-	err = FskGLEffectApply(&subEffect, mid1, NULL, mid2, NULL, port->effCache);
-	subEffect = portEffect->effect;																			/* Copy incoming parameters to set up render */
-	FskEffectColorizeInnerSet(&portEffect->effect, mid2, &subEffect.params.innerGlow.color);				/* Set parameters for render phase */
-	FskGLEffectCacheReleaseBitmap(port->effCache, mid1);													/* Done with mid1 temporary bitmap */
+	err = FskGLEffectApply(&subEffect, mid1, NULL, mid2, NULL);
+	subEffect = portEffect->effect;																	/* Copy incoming parameters to set up render */
+	FskEffectColorizeInnerSet(&portEffect->effect, mid2, &subEffect.params.innerGlow.color);		/* Set parameters for render phase */
+	FskGLEffectCacheReleaseBitmap(mid1);															/* Done with mid1 temporary bitmap */
 	return err;
 }
 
@@ -328,9 +322,9 @@ static FskErr EffectInnerShadowPrepare(FskPort port, void *params, UInt32 params
     (void)FskBitmapCheckGLSourceAccelerated(portEffect->src);
 	(void)FskPortEffectGetSrcCompatibleGLCacheBitmap(port, portEffect->src, &portEffect->srcRect, kFskGLEffectCacheBitmapWithAlpha|kFskGLEffectCacheBitmapInit, &mid1);	/* Always alpha */
 	FskEffectGaussianBlurSet(&subEffect, portEffect->effect.params.innerShadow.blurSigma, portEffect->effect.params.innerShadow.blurSigma);	/* 2D Blur, incorporating boundary conditions */
-	err = FskGLEffectApply(&subEffect, portEffect->src, &portEffect->srcRect, mid1, &portEffect->effect.params.innerShadow.offset, port->effCache);
-	subEffect = portEffect->effect;																			/* Copy incoming parameters to set up render */
-	FskEffectColorizeInnerSet(&portEffect->effect, mid1, &subEffect.params.innerShadow.color);				/* Set parameters for render phase */
+	err = FskGLEffectApply(&subEffect, portEffect->src, &portEffect->srcRect, mid1, &portEffect->effect.params.innerShadow.offset);
+	subEffect = portEffect->effect;																	/* Copy incoming parameters to set up render */
+	FskEffectColorizeInnerSet(&portEffect->effect, mid1, &subEffect.params.innerShadow.color);		/* Set parameters for render phase */
 	return err;
 }
 
@@ -347,9 +341,9 @@ static FskErr EffectInnerRender(FskPort port, void *params, UInt32 paramsSize) {
 		FskPortLogEffect(port, params, "EffectInnerRender");
 	#endif /* SUPPORT_INSTRUMENTATION */
 	if (paramsSize) {}	/* Quiet unused parameter messages */
-	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, port->effCache, GetPortEffectClip(port, &cr), kFskGraphicsModeCopy, NULL);
-	FskGLEffectCacheReleaseBitmap(port->effCache, (FskBitmap)portEffect->effect.params.colorizeInner.matte);	/* Done with intermediate bitmap */
-	FskBitmapDispose(portEffect->src);																			/* This only decreases the useCount */
+	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, GetPortEffectClip(port, &cr), kFskGraphicsModeCopy, NULL);
+	FskGLEffectCacheReleaseBitmap((FskBitmap)portEffect->effect.params.colorizeInner.matte);		/* Done with intermediate bitmap */
+	FskBitmapDispose(portEffect->src);																/* This only decreases the useCount */
 	return err;
 }
 
@@ -372,13 +366,13 @@ static FskErr EffectOuterGlowPrepare(FskPort port, void *params, UInt32 paramsSi
     (void)FskBitmapCheckGLSourceAccelerated(portEffect->src);
 	(void)FskPortEffectGetSrcCompatibleGLCacheBitmap(port, portEffect->src, &portEffect->srcRect, kFskGLEffectCacheBitmapWithAlpha, &mid1);	/* Always alpha */
 	FskEffectDilateSet(&subEffect, portEffect->effect.params.outerGlow.radius);																/* 2D Dilate */
-	(void)FskGLEffectApply(&subEffect, portEffect->src, &portEffect->srcRect, mid1, NULL, port->effCache);									/* This takes care of boundary conditions */
+	(void)FskGLEffectApply(&subEffect, portEffect->src, &portEffect->srcRect, mid1, NULL);													/* This takes care of boundary conditions */
 	(void)FskPortEffectGetSrcCompatibleGLCacheBitmap(port, portEffect->src, &portEffect->srcRect, kFskGLEffectCacheBitmapWithAlpha, &mid2);	/* This might resuse a cache buffer from the preceding Dilate */
 	FskEffectGaussianBlurSet(&subEffect, portEffect->effect.params.outerGlow.blurSigma, portEffect->effect.params.outerGlow.blurSigma);		/* 2D Blur, incorporating boundary conditions */
-	err = FskGLEffectApply(&subEffect, mid1, NULL, mid2, NULL, port->effCache);
-	subEffect = portEffect->effect;																			/* Copy incoming parameters to set up render */
-	FskEffectColorizeOuterSet(&portEffect->effect, mid2, &subEffect.params.outerGlow.color);				/* Set parameters for render phase */
-	FskGLEffectCacheReleaseBitmap(port->effCache, mid1);													/* Done with mid1 temporary bitmap */
+	err = FskGLEffectApply(&subEffect, mid1, NULL, mid2, NULL);
+	subEffect = portEffect->effect;																	/* Copy incoming parameters to set up render */
+	FskEffectColorizeOuterSet(&portEffect->effect, mid2, &subEffect.params.outerGlow.color);		/* Set parameters for render phase */
+	FskGLEffectCacheReleaseBitmap(mid1);															/* Done with mid1 temporary bitmap */
 	return err;
 }
 
@@ -401,9 +395,9 @@ static FskErr EffectOuterShadowPrepare(FskPort port, void *params, UInt32 params
     (void)FskBitmapCheckGLSourceAccelerated(portEffect->src);
 	(void)FskPortEffectGetSrcCompatibleGLCacheBitmap(port, portEffect->src, &portEffect->srcRect, kFskGLEffectCacheBitmapWithAlpha|kFskGLEffectCacheBitmapInit, &mid1);	/* Always alpha */
 	FskEffectGaussianBlurSet(&subEffect, portEffect->effect.params.outerShadow.blurSigma, portEffect->effect.params.outerShadow.blurSigma);	/* 2D Blur, incorporating boundary conditions */
-	err = FskGLEffectApply(&subEffect, portEffect->src, &portEffect->srcRect, mid1, &portEffect->effect.params.outerShadow.offset, port->effCache);
-	subEffect = portEffect->effect;																			/* Copy incoming parameters to set up render */
-	FskEffectColorizeOuterSet(&portEffect->effect, mid1, &subEffect.params.outerShadow.color);				/* Set parameters for render phase */
+	err = FskGLEffectApply(&subEffect, portEffect->src, &portEffect->srcRect, mid1, &portEffect->effect.params.outerShadow.offset);
+	subEffect = portEffect->effect;																	/* Copy incoming parameters to set up render */
+	FskEffectColorizeOuterSet(&portEffect->effect, mid1, &subEffect.params.outerShadow.color);		/* Set parameters for render phase */
 	return err;
 }
 
@@ -420,9 +414,9 @@ static FskErr EffectOuterRender(FskPort port, void *params, UInt32 paramsSize) {
 		FskPortLogEffect(port, params, "EffectOuterRender");
 	#endif /* SUPPORT_INSTRUMENTATION */
 	if (paramsSize) {}	/* Quiet unused parameter messages */
-	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, port->effCache, GetPortEffectClip(port, &cr), kFskGraphicsModeCopy, NULL);
-	FskGLEffectCacheReleaseBitmap(port->effCache, (FskBitmap)portEffect->effect.params.colorizeOuter.matte);	/* Done with intermediate bitmap */
-	FskBitmapDispose(portEffect->src);																			/* This only decreases the useCount */
+	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, GetPortEffectClip(port, &cr), kFskGraphicsModeCopy, NULL);
+	FskGLEffectCacheReleaseBitmap((FskBitmap)portEffect->effect.params.colorizeOuter.matte);		/* Done with intermediate bitmap */
+	FskBitmapDispose(portEffect->src);																/* This only decreases the useCount */
 	return err;
 }
 
@@ -454,8 +448,8 @@ static FskErr EffectAlphaRender(FskPort port, void *params, UInt32 paramsSize) {
 		FskPortLogEffect(port, params, "EffectAlphaRender");
 	#endif /* SUPPORT_INSTRUMENTATION */
 	if (paramsSize) {}	/* Quiet unused parameter messages */
-	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, port->effCache, GetPortEffectClip(port, &cr), kFskGraphicsModeAlpha, NULL);
-	FskBitmapDispose(portEffect->src);																			/* This only decreases the useCount */
+	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, GetPortEffectClip(port, &cr), kFskGraphicsModeAlpha, NULL);
+	FskBitmapDispose(portEffect->src);																/* This only decreases the useCount */
 	return err;
 }
 
@@ -472,9 +466,9 @@ static FskErr EffectInnerAlphaRender(FskPort port, void *params, UInt32 paramsSi
 		FskPortLogEffect(port, params, "EffectInnerAlphaRender");
 	#endif /* SUPPORT_INSTRUMENTATION */
 	if (paramsSize) {}	/* Quiet unused parameter messages */
-	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, port->effCache, GetPortEffectClip(port, &cr), kFskGraphicsModeAlpha, NULL);
-	FskGLEffectCacheReleaseBitmap(port->effCache, (FskBitmap)portEffect->effect.params.colorizeInner.matte);	/* Done with intermediate bitmap */
-	FskBitmapDispose(portEffect->src);																			/* This only decreases the useCount */
+	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, GetPortEffectClip(port, &cr), kFskGraphicsModeAlpha, NULL);
+	FskGLEffectCacheReleaseBitmap((FskBitmap)portEffect->effect.params.colorizeInner.matte);		/* Done with intermediate bitmap */
+	FskBitmapDispose(portEffect->src);																/* This only decreases the useCount */
 	return err;
 }
 
@@ -491,9 +485,9 @@ static FskErr EffectOuterAlphaRender(FskPort port, void *params, UInt32 paramsSi
 		FskPortLogEffect(port, params, "EffectOuterAlphaRender");
 	#endif /* SUPPORT_INSTRUMENTATION */
 	if (paramsSize) {}	/* Quiet unused parameter messages */
-	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, port->effCache, GetPortEffectClip(port, &cr), kFskGraphicsModeAlpha, NULL);
-	FskGLEffectCacheReleaseBitmap(port->effCache, (FskBitmap)portEffect->effect.params.colorizeOuter.matte);	/* Done with intermediate bitmap */
-	FskBitmapDispose(portEffect->src);																			/* This only decreases the useCount */
+	err = FskGLEffectApplyMode(&portEffect->effect, portEffect->src, &portEffect->srcRect, port->bits, &portEffect->dstPoint, GetPortEffectClip(port, &cr), kFskGraphicsModeAlpha, NULL);
+	FskGLEffectCacheReleaseBitmap((FskBitmap)portEffect->effect.params.colorizeOuter.matte);		/* Done with intermediate bitmap */
+	FskBitmapDispose(portEffect->src);																/* This only decreases the useCount */
 	return err;
 }
 
@@ -601,6 +595,7 @@ static const struct EffectTabEntry* GetEffectEntryFromID(FskEffectID id, const s
 
 FskErr FskPortEffectQueue(FskPort port, FskBitmap src, FskConstRectangle srcRect, FskConstPoint dstPoint, FskConstEffect effect) {
 	#if FSKBITMAP_OPENGL && GLES_VERSION == 2
+		struct FskPortPicEffectParametersRecord portEffect;
 		if (!FskBitmapIsOpenGLDestinationAccelerated(port->bits))
 	#else /* !FSKBITMAP_OPENGL */
 			return kFskErrNotAccelerated;
@@ -613,8 +608,7 @@ FskErr FskPortEffectQueue(FskPort port, FskBitmap src, FskConstRectangle srcRect
 				case kFskGraphicsModeAlpha:
 					if (src->hasAlpha) {
 						te = GetEffectEntryFromID(effect->effectID, effectAlphaTable);
-						if (te != NULL) {														/* ... and we have a special prepare/render split, ... */
-							struct FskPortPicEffectParametersRecord portEffect;					/* We can use this because we know that this is not a compound effect */
+						if (te != NULL) {															/* ... and we have a special prepare/render split, ... */
 							portEffect.src		= src;
 							portEffect.srcRect	= *srcRect;
 							portEffect.dstPoint	= *dstPoint;
@@ -628,8 +622,7 @@ FskErr FskPortEffectQueue(FskPort port, FskBitmap src, FskConstRectangle srcRect
 					} /* If no alpha, fall through to copy */
 				case kFskGraphicsModeCopy:
 					te = GetEffectEntryFromID(effect->effectID, effectCopyTable);
-					if (te != NULL) {															/* ... and we have a special prepare/render split, ... */
-						struct FskPortPicEffectParametersRecord portEffect;						/* We can use this because we know that this is not a compound effect */
+					if (te != NULL) {																/* ... and we have a special prepare/render split, ... */
 						portEffect.src		= src;
 						portEffect.srcRect	= *srcRect;
 						portEffect.dstPoint	= *dstPoint;
@@ -661,10 +654,7 @@ FskErr FskPortEffectQueue(FskPort port, FskBitmap src, FskConstRectangle srcRect
 
 void FskPortReleaseGLResources(FskPort port) {
 	#if FSKBITMAP_OPENGL && GLES_VERSION == 2
-		if (port)  {
-			FskGLEffectCacheDispose(port->effCache);
-			port->effCache = NULL;
-		}
+		FskGLEffectCacheDisposeAllBitmaps();
 		FskGLEffectsShutdown();
 	#endif /* FSKBITMAP_OPENGL */
 }
@@ -732,7 +722,7 @@ void FskPortReleaseTempEffectBitmap(FskPort port, FskBitmap bm) {
 	#endif /* SUPPORT_INSTRUMENTATION */
 	#if FSKBITMAP_OPENGL && GLES_VERSION == 2
 		if (port && bm && bm->pixelFormat == kFskBitmapFormatGLRGBA)
-			FskGLEffectCacheReleaseBitmap(port->effCache, bm);
+			FskGLEffectCacheReleaseBitmap(bm);
 		else
 	#endif /* FSKBITMAP_OPENGL && GLES_VERSION == 2 */
 	FskBitmapDispose(bm);
@@ -771,9 +761,9 @@ FskErr FskPortEffectGetSrcCompatibleGLCacheBitmap(FskPort port, FskConstBitmap s
 	if (src)							(void)FskBitmapCheckGLSourceAccelerated(src);
 	switch (e->effectID) {
 		case kFskEffectMask:			(void)FskBitmapCheckGLSourceAccelerated((FskBitmap)e->params.mask.mask);							break;
-		case kFskEffectShade:			(void)FskBitmapCheckGLSourceAccelerated((FskBitmap)e->params.shade.shadow);						break;
-		case kFskEffectColorizeInner:	(void)FskBitmapCheckGLSourceAccelerated((FskBitmap)e->params.colorizeInner.matte);				break;
-		case kFskEffectColorizeOuter:	(void)FskBitmapCheckGLSourceAccelerated((FskBitmap)e->params.colorizeOuter.matte);				break;
+		case kFskEffectShade:			(void)FskBitmapCheckGLSourceAccelerated((FskBitmap)e->params.shade.shadow);							break;
+		case kFskEffectColorizeInner:	(void)FskBitmapCheckGLSourceAccelerated((FskBitmap)e->params.colorizeInner.matte);					break;
+		case kFskEffectColorizeOuter:	(void)FskBitmapCheckGLSourceAccelerated((FskBitmap)e->params.colorizeOuter.matte);					break;
 		case kFskEffectCompound:		for (i = e->params.compound.numStages; i--;) FskPortEffectCheckSourcesAreAccelerated(NULL, ++e);	break;
 		default:																															break;
 	}

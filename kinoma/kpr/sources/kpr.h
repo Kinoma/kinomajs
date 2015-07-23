@@ -25,135 +25,114 @@ extern "C" {
 
 #include "xs.h"
 /* XS MACROS */
-#define xsAssert(it) if (!(it)) xsThrow(xsString(#it))
-#define xsBeginHostSandboxCode(_THE,_CODE) \
-	do { \
-		xsMachine* __HOST_THE__ = _THE; \
-		xsJump __HOST_JUMP__; \
-		__HOST_JUMP__.nextJump = (__HOST_THE__)->firstJump; \
-		__HOST_JUMP__.stack = (__HOST_THE__)->stack; \
-		__HOST_JUMP__.scope = (__HOST_THE__)->scope; \
-		__HOST_JUMP__.frame = (__HOST_THE__)->frame; \
-		__HOST_JUMP__.code = (__HOST_THE__)->code; \
-		(__HOST_THE__)->firstJump = &__HOST_JUMP__; \
-		if (_setjmp(__HOST_JUMP__.buffer) == 0) { \
-			xsMachine* the = fxBeginHost(__HOST_THE__); \
-			the->code = _CODE; \
-			fxEnterSandbox(__HOST_THE__)
-#define xsEndHostSandboxCode() \
-			fxEndHost(__HOST_THE__); \
-			(__HOST_THE__)->firstJump = __HOST_JUMP__.nextJump; \
-		} \
-		break; \
-	} while(1)
 #define xsFindBoolean(_THIS,_ID,_RESULT) \
-	(*(--the->stack) = _THIS, ((fxHasOwnID(the, _ID) && (fxTypeOf(the, &(the->scratch)) != xsUndefinedType)) ? ((*(_RESULT) = fxToBoolean(the, &(the->scratch))), true) : false))
+	(fxPush(_THIS), ((fxHasOwnID(the, _ID) && (fxTypeOf(the, &(the->scratch)) != xsUndefinedType)) ? ((*(_RESULT) = fxToBoolean(the, &(the->scratch))), true) : false))
 #define xsFindInteger(_THIS,_ID,_RESULT) \
-	(*(--the->stack) = _THIS, ((fxHasOwnID(the, _ID) && (fxTypeOf(the, &(the->scratch)) != xsUndefinedType)) ? ((*(_RESULT) = fxToInteger(the, &(the->scratch))), true) : false))
+	(fxPush(_THIS), ((fxHasOwnID(the, _ID) && (fxTypeOf(the, &(the->scratch)) != xsUndefinedType)) ? ((*(_RESULT) = fxToInteger(the, &(the->scratch))), true) : false))
 #define xsFindNumber(_THIS,_ID,_RESULT) \
-	(*(--the->stack) = _THIS, ((fxHasOwnID(the, _ID) && (fxTypeOf(the, &(the->scratch)) != xsUndefinedType)) ? ((*(_RESULT) = fxToNumber(the, &(the->scratch))), true) : false))
+	(fxPush(_THIS), ((fxHasOwnID(the, _ID) && (fxTypeOf(the, &(the->scratch)) != xsUndefinedType)) ? ((*(_RESULT) = fxToNumber(the, &(the->scratch))), true) : false))
 #define xsFindResult(_THIS,_ID) \
-	(*(--the->stack) = _THIS, \
+	(fxPush(_THIS), \
 	(fxHasID(the, _ID) ? (xsResult = the->scratch, true) : false))
 #define xsFindString(_THIS,_ID,_RESULT) \
-	(*(--the->stack) = _THIS, (fxHasOwnID(the, _ID) ? ((*(_RESULT) = fxToString(the, &(the->scratch))), true) : false))
+	(fxPush(_THIS), (fxHasOwnID(the, _ID) ? ((*(_RESULT) = fxToString(the, &(the->scratch))), true) : false))
 #define xsCallFunction0(_FUNCTION,_THIS) \
 	(xsOverflow(-3), \
-	fxInteger(the, --the->stack, 0), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPushCount(the, 0), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsCallFunction1(_FUNCTION,_THIS,_SLOT0) \
 	(xsOverflow(-4), \
-	*(--the->stack) = (_SLOT0), \
-	fxInteger(the, --the->stack, 1), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPush(_SLOT0), \
+	fxPushCount(the, 1), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsCallFunction2(_FUNCTION,_THIS,_SLOT0,_SLOT1) \
 	(xsOverflow(-5), \
-	*(--the->stack) = (_SLOT0), \
-	*(--the->stack) = (_SLOT1), \
-	fxInteger(the, --the->stack, 2), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPush(_SLOT0), \
+	fxPush(_SLOT1), \
+	fxPushCount(the, 2), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsCallFunction3(_FUNCTION,_THIS,_SLOT0,_SLOT1,_SLOT2) \
 	(xsOverflow(-6), \
-	*(--the->stack) = (_SLOT0), \
-	*(--the->stack) = (_SLOT1), \
-	*(--the->stack) = (_SLOT2), \
-	fxInteger(the, --the->stack, 3), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPush(_SLOT0), \
+	fxPush(_SLOT1), \
+	fxPush(_SLOT2), \
+	fxPushCount(the, 3), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsCallFunction4(_FUNCTION,_THIS,_SLOT0,_SLOT1,_SLOT2,_SLOT3) \
 	(xsOverflow(-7), \
-	*(--the->stack) = (_SLOT0), \
-	*(--the->stack) = (_SLOT1), \
-	*(--the->stack) = (_SLOT2), \
-	*(--the->stack) = (_SLOT3), \
-	fxInteger(the, --the->stack, 4), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPush(_SLOT0), \
+	fxPush(_SLOT1), \
+	fxPush(_SLOT2), \
+	fxPush(_SLOT3), \
+	fxPushCount(the, 4), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsCallFunction5(_FUNCTION,_THIS,_SLOT0,_SLOT1,_SLOT2,_SLOT3,_SLOT4) \
 	(xsOverflow(-8), \
-	*(--the->stack) = (_SLOT0), \
-	*(--the->stack) = (_SLOT1), \
-	*(--the->stack) = (_SLOT2), \
-	*(--the->stack) = (_SLOT3), \
-	*(--the->stack) = (_SLOT4), \
-	fxInteger(the, --the->stack, 5), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPush(_SLOT0), \
+	fxPush(_SLOT1), \
+	fxPush(_SLOT2), \
+	fxPush(_SLOT3), \
+	fxPush(_SLOT4), \
+	fxPushCount(the, 5), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsCallFunction6(_FUNCTION,_THIS,_SLOT0,_SLOT1,_SLOT2,_SLOT3,_SLOT4,_SLOT5) \
 	(xsOverflow(-9), \
-	*(--the->stack) = (_SLOT0), \
-	*(--the->stack) = (_SLOT1), \
-	*(--the->stack) = (_SLOT2), \
-	*(--the->stack) = (_SLOT3), \
-	*(--the->stack) = (_SLOT4), \
-	*(--the->stack) = (_SLOT5), \
-	fxInteger(the, --the->stack, 6), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPush(_SLOT0), \
+	fxPush(_SLOT1), \
+	fxPush(_SLOT2), \
+	fxPush(_SLOT3), \
+	fxPush(_SLOT4), \
+	fxPush(_SLOT5), \
+	fxPushCount(the, 6), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsCallFunction7(_FUNCTION,_THIS,_SLOT0,_SLOT1,_SLOT2,_SLOT3,_SLOT4,_SLOT5,_SLOT6) \
 	(xsOverflow(-10), \
-	*(--the->stack) = (_SLOT0), \
-	*(--the->stack) = (_SLOT1), \
-	*(--the->stack) = (_SLOT2), \
-	*(--the->stack) = (_SLOT3), \
-	*(--the->stack) = (_SLOT4), \
-	*(--the->stack) = (_SLOT5), \
-	*(--the->stack) = (_SLOT6), \
-	fxInteger(the, --the->stack, 7), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPush(_SLOT0), \
+	fxPush(_SLOT1), \
+	fxPush(_SLOT2), \
+	fxPush(_SLOT3), \
+	fxPush(_SLOT4), \
+	fxPush(_SLOT5), \
+	fxPush(_SLOT6), \
+	fxPushCount(the, 7), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsCallFunction8(_FUNCTION,_THIS,_SLOT0,_SLOT1,_SLOT2,_SLOT3,_SLOT4,_SLOT5,_SLOT6,_SLOT7) \
 	(xsOverflow(-11), \
-	*(--the->stack) = (_SLOT0), \
-	*(--the->stack) = (_SLOT1), \
-	*(--the->stack) = (_SLOT2), \
-	*(--the->stack) = (_SLOT3), \
-	*(--the->stack) = (_SLOT4), \
-	*(--the->stack) = (_SLOT5), \
-	*(--the->stack) = (_SLOT6), \
-	*(--the->stack) = (_SLOT7), \
-	fxInteger(the, --the->stack, 8), \
-	*(--the->stack) = (_THIS), \
-	*(--the->stack) = (_FUNCTION), \
+	fxPush(_SLOT0), \
+	fxPush(_SLOT1), \
+	fxPush(_SLOT2), \
+	fxPush(_SLOT3), \
+	fxPush(_SLOT4), \
+	fxPush(_SLOT5), \
+	fxPush(_SLOT6), \
+	fxPush(_SLOT7), \
+	fxPushCount(the, 8), \
+	fxPush(_THIS), \
+	fxPush(_FUNCTION), \
 	fxCall(the), \
 	fxPop())
 #define xsZeroSlot(_SLOT) \
@@ -307,6 +286,11 @@ enum {
 	kprTextHidden = 1 << 25,
 	kprTextSelectable = 1 << 26,
 	kprTextShowLast = 1 << 27,
+	kprTextEmail = 1 << 28,
+	kprTextNumeric = 1 << 29,
+	kprTextPassword = kprTextHidden,
+	kprTextPhone = 1 << 30,
+	kprTextURL = 1 << 31,
 
 	/* Layer */
 	kprMatrixChanged = 1 << 24,
@@ -735,6 +719,9 @@ extern void* KprGetHostData2(xsMachine* the, xsSlot* slot, xsIndex index, xsInde
 extern UInt32 KprEnvironmentGetUInt32(char* key, UInt32 it);
 extern FskErr KprModulesBasesSetup(char* url, char* path);
 extern void KprModulesBasesCleanup(void);
+
+extern void KPR_include(xsMachine*);
+extern void KPR_require(xsMachine*);
 
 #ifdef __cplusplus
 }

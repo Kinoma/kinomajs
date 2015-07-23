@@ -50,6 +50,7 @@ struct KPR_WebSocketClientStruct {
 	KPR_WebSocketServerRecord *server;
 };
 
+static void KPR_WebSocketServerClientWillDispose(KPR_WebSocketServerRecord *self, KPR_WebSocketClientRecord *client);
 static void KPR_websocketserver_setCallback(KPR_WebSocketServerRecord *self);
 static void KPR_websocketserver_timeToPing(FskTimeCallBack callback, const FskTime time, void *it);
 static void KPR_WebSocketServer_onLaunch(KprWebSocketServer server, void *refcon);
@@ -84,6 +85,15 @@ void KPR_websocketclient(void *it)
 {
 	KPR_WebSocketClientRecord *self = it;
 	if (self) {
+		if (self->server) {
+			KPR_WebSocketServerClientWillDispose(self->server, self);
+		}
+
+		self->endpoint->openCallback = NULL;
+		self->endpoint->closeCallback = NULL;
+		self->endpoint->textCallback = NULL;
+		self->endpoint->binaryCallback = NULL;
+		self->endpoint->errorCallback = NULL;
 		INVOKE_AFTER1(KprWebSocketEndpointDispose, self->endpoint);
 		FskMemPtrDispose(self);
 	}
@@ -340,8 +350,7 @@ void KPR_WebSocketServer(xsMachine* the)
 	xsIntegerValue c = xsToInteger(xsArgc);
 	KPR_WebSocketServerRecord *self = NULL;
 	KprWebSocketServer server = NULL;
-
-	if (c < 1) xsThrowIfFskErr(kFskErrInvalidParameter);
+	int port = (c < 1) ? 0 : xsToInteger(xsArg(0));
 
 	bailIfError(FskMemPtrNewClear(sizeof(KPR_WebSocketServerRecord), &self));
 
@@ -360,7 +369,7 @@ void KPR_WebSocketServer(xsMachine* the)
 	xsSetHostData(xsThis, self);
 	// xsCall1(xsGet(xsGlobal, xsID_Object), xsID_seal, xsThis);
 
-	xsThrowIfFskErr(KprWebSocketServerListen(server, xsToInteger(xsArg(0)), NULL));
+	xsThrowIfFskErr(KprWebSocketServerListen(server, port, NULL));
 	return;
 
 bail:
@@ -383,6 +392,18 @@ static FskErr KPR_WebSocketServerClientNew(KPR_WebSocketServerRecord *self, KPR_
 
 bail:
 	return err;
+}
+
+static void KPR_WebSocketServerClientWillDispose(KPR_WebSocketServerRecord *self, KPR_WebSocketClientRecord *client)
+{
+	FskListRemove((FskList *)&self->clients, client);
+}
+
+void KPR_websocketserver_get_port(xsMachine* the)
+{
+	KPR_WebSocketServerRecord *self = xsGetHostData(xsThis);
+	UInt16 port = KprWebSocketServerGetPort(self->server);
+	xsResult = xsInteger(port);
 }
 
 void KPR_websocketserver_get_clientCount(xsMachine* the)

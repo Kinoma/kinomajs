@@ -35,6 +35,7 @@
             this.sampleRate = it.sampleRate;
             this.channels = it.channels;
             this.direction = it.direction;
+            this.realTime = ("realTime" in it) ? it.realTime : false;
         </function>
     </patch>
 </package>

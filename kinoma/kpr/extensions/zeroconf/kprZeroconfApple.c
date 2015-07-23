@@ -30,6 +30,93 @@
 
 #include "dns_sd.h"
 
+#if TARGET_OS_ANDROID
+	#define KPR_ZEROCONF_EMBEDDED 1
+#else
+	#define KPR_ZEROCONF_EMBEDDED 0
+#endif
+
+#if KPR_ZEROCONF_EMBEDDED
+
+#include "FskNetInterface.h"
+#include "mDNSEmbeddedAPI.h"// Defines the interface to the mDNS core code
+#include "mDNSPosix.h"    // Defines the specific types needed to run mDNS on this platform
+
+// Globals
+mDNS mDNSStorage;       // mDNS core uses this to store its globals
+static mDNS_PlatformSupport PlatformStorage;  // Stores this platform's globals
+#define RR_CACHE_SIZE 500
+static CacheEntity gRRCache[RR_CACHE_SIZE];
+static FskNetInterfaceNotifier gInterfaceNotifier = NULL;
+
+mDNSexport const char ProgramName[] = "mDNSClientPosix";
+
+static const char *gProgramName = ProgramName;
+
+static FskTimeCallBack gEmbeddedServiceTimer = NULL;
+static UInt32 gEmbeddedServiceCount = 0;
+
+mDNSlocal void mDNS_StatusCallback(mDNS *const m, mStatus result)
+{
+	(void)m; // Unused
+	if (result == mStatus_NoError) {
+	}
+	else if (result == mStatus_ConfigChanged) {
+// 		udsserver_handle_configchange(m);
+	}
+	else if (result == mStatus_GrowCache) {
+		// Allocate another chunk of cache storage
+		CacheEntity *storage = malloc(sizeof(CacheEntity) * RR_CACHE_SIZE);
+		if (storage) mDNS_GrowCache(m, storage, RR_CACHE_SIZE);
+	}
+}
+
+void KprZeroconfEmbeddedCallback(FskTimeCallBack timer UNUSED, const FskTime time UNUSED, void *param)
+{
+	struct timeval timeout = { 0, 0 };
+	sigset_t pSignalsReceived;
+	mDNSBool pDataDispatched;
+	mStatus status = mDNSPosixRunEventLoopOnce(&mDNSStorage, &timeout, &pSignalsReceived, &pDataDispatched);
+	if (gEmbeddedServiceTimer)
+		FskTimeCallbackScheduleFuture(gEmbeddedServiceTimer, 1, 0, KprZeroconfEmbeddedCallback, NULL);
+}
+
+int KprZeroconfNetworkInterfaceNotifier(struct FskNetInterfaceRecord* iface, UInt32 status, void* param)
+{
+	FskErr err = kFskErrNone;
+	if (mDNSPlatformPosixRefreshInterfaceList(&mDNSStorage) != kDNSServiceErr_NoError)
+		err = kFskErrNetworkInterfaceError;
+	return err;
+}
+
+
+#endif
+
+void KprZeroconfPlatformStart()
+{
+#if KPR_ZEROCONF_EMBEDDED
+    mStatus     status;
+	status = mDNS_Init(&mDNSStorage, &PlatformStorage,
+    	gRRCache, RR_CACHE_SIZE,
+    	mDNS_Init_DontAdvertiseLocalAddresses,
+    	mDNS_StatusCallback, mDNS_Init_NoInitCallbackContext);
+	
+	gInterfaceNotifier = FskNetInterfaceAddNotifier(KprZeroconfNetworkInterfaceNotifier, NULL, "KprZeroconfNetworkInterfaceNotifier");
+#endif
+}
+
+void KprZeroconfPlatformStop()
+{
+#if KPR_ZEROCONF_EMBEDDED
+	if (gInterfaceNotifier) {
+		FskNetInterfaceRemoveNotifier(gInterfaceNotifier);
+		gInterfaceNotifier = NULL;
+	}
+	FskTimeCallbackDispose(gEmbeddedServiceTimer);
+	gEmbeddedServiceTimer = NULL;
+#endif
+}
+
 typedef struct KprZeroconfPlatformAdvertisementStruct KprZeroconfPlatformAdvertisementRecord, *KprZeroconfPlatformAdvertisement;
 typedef struct KprZeroconfPlatformBrowserStruct KprZeroconfPlatformBrowserRecord, *KprZeroconfPlatformBrowser;
 typedef struct KprZeroconfPlatformServiceStruct KprZeroconfPlatformServiceRecord, *KprZeroconfPlatformService;
@@ -51,7 +138,8 @@ struct KprZeroconfPlatformServiceStruct {
 	KprZeroconfPlatformService owner;
 	char* name;
 	char* txt;
-#if TARGET_OS_MAC
+#if KPR_ZEROCONF_EMBEDDED
+#elif TARGET_OS_MAC
 	CFSocketRef socket;
 	CFRunLoopSourceRef source;
 #else
@@ -104,7 +192,13 @@ FskErr KprZeroconfPlatformServiceNew(KprZeroconfPlatformService* it, KprZeroconf
 		bailIfNULL(self->name);
 	}
 	self->port = port;
-#if TARGET_OS_MAC
+#if KPR_ZEROCONF_EMBEDDED
+	if (!gEmbeddedServiceCount) {
+		FskTimeCallbackNew(&gEmbeddedServiceTimer);
+		FskTimeCallbackScheduleFuture(gEmbeddedServiceTimer, 0, 0, KprZeroconfEmbeddedCallback, NULL);
+	}
+	gEmbeddedServiceCount++;
+#elif TARGET_OS_MAC
 	CFSocketContext context;
 	FskMemSet(&context, 0, sizeof(context));
 	context.info = (void*)serviceRef;
@@ -128,8 +222,13 @@ bail:
 void KprZeroconfPlatformServiceDispose(KprZeroconfPlatformService self)
 {
 	if (self) {
-			FskSocketActivate(self->source, false);
-#if TARGET_OS_MAC
+#if KPR_ZEROCONF_EMBEDDED
+		gEmbeddedServiceCount--;
+		if (!gEmbeddedServiceCount) {
+			FskTimeCallbackDispose(gEmbeddedServiceTimer);
+			gEmbeddedServiceTimer = NULL;
+		}
+#elif TARGET_OS_MAC
 		if (self->source) {
 			CFRunLoopRemoveSource(CFRunLoopGetCurrent(), self->source, kCFRunLoopCommonModes);
 			CFRelease(self->source);
@@ -141,6 +240,7 @@ void KprZeroconfPlatformServiceDispose(KprZeroconfPlatformService self)
 			self->socket = NULL;
 		}
 #else
+		FskSocketActivate(self->source, false);
 		if (self->handler) {
 			FskThreadRemoveDataHandler(&self->handler);
 			self->handler = NULL;
@@ -234,9 +334,9 @@ FskErr KprZeroconfPlatformAdvertisementStart(KprZeroconfAdvertisement self)
 	if (!advertisement->service) {
 		DNSServiceErrorType error;
 		DNSServiceRef serviceRef;
-		FskInstrumentedItemPrintfDebug(advertisement, "DNSServiceRegister %s %s %d\n", self->serviceName, self->serviceType, self->port);
-
 		FskAssociativeArrayIterator iterator = FskAssociativeArrayIteratorNew(self->txt);
+
+		FskInstrumentedItemPrintfDebug(advertisement, "DNSServiceRegister %s %s %d\n", self->serviceName, self->serviceType, self->port);
 		while (iterator) {
 			UInt32 nameLength = FskStrLen(iterator->name);
 			UInt32 valueLength = FskStrLen(iterator->value);

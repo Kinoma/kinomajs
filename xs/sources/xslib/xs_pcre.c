@@ -1,6 +1,6 @@
 #if FSK_PCRE
 
-#else	
+#else
 
 #include "xsAll.h"
 #define SUPPORT_UTF8 1
@@ -3893,7 +3893,7 @@ for (;;)
       int stacksave[15];
 
       c = md->offset_max;
-      
+
       if (c < 16) save = stacksave; else
         {
         save = (int *)(pcre_malloc)((c+1) * sizeof(int));
@@ -5312,7 +5312,7 @@ do
     {
     if (offsetcount >= 4)
       {
-      memcpy(offsets + 2, match_block.offset_vector + 2,
+      c_memcpy(offsets + 2, match_block.offset_vector + 2,
         (offsetcount - 2) * sizeof(int));
       DPRINTF(("Copied offsets from temporary memory\n"));
       }

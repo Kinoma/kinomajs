@@ -21,7 +21,7 @@
 			applications: [
 				{
 					id: "balls.kinoma.com",
-					program: "./program/src/balls.jsb",
+					program: "./src/balls",
 					title: "balls",
 				},
 			],
@@ -30,5 +30,6 @@
 			],
 			preferences: "balls.json",
 		});
+		shell.updateMenus();
 	]]></script>
 </program>

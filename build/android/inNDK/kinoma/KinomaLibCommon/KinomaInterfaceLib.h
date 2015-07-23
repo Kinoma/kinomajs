@@ -74,12 +74,6 @@ jint			JAVANAME(FskView_unsetFskSurface)(JNIEnv* env, jobject viewObj);
  */
 jint			JAVANAME(FskView_doFskSurfaceChanged)(JNIEnv* env, jobject viewObj, jint width, jint height);
 
-/* Class:		com_kinoma_kinomaplay_FskView
- * Method:		doSizeAboutToChange
- * Signature:	(IIII)I
- */
-jint			JAVANAME(FskView_doSizeAboutToChange)(JNIEnv* env, jobject viewObj, jint width, jint height, jint newWidth, jint newHeight);
-
 void		doFskSurfaceChanged(void *a, void *b, void *c, void *d);
 
 void		FskWindowAndroidSizeChanged(int win);
@@ -224,8 +218,8 @@ FskErr		androidIntent_main(void *a, void *b, void *c, void *d);
 int			androidIntent(int what, char *action, char *uri, char *packageName, char *className);
 
 FskErr		androidIMECallback(void *a, void *b, void *c, void *d);
-Boolean		doIsIMEEnabled();
-void		doIMEEnable(Boolean enable);
+int			doIsIMEEnabled();
+void		doIMEEnable(int enable);
 
 char*		doFetchApps(int style);
 void		doLaunchApp(char *pkgName, char *actName);
@@ -256,6 +250,13 @@ void		androidLetWifiDie();
 void		androidResetHomeScreen();
 
 int			androidGetRandomNumber(UInt32 *seed);
+
+int 		androidWifiGetNetId(void);
+char* 		androidWifiGetSsid(void);
+int 		androidWifiGetIpAddress(void);
+int 		androidWifiUpdateNetwork(const char* ssid, const char* key);
+void 		androidWifiSelectNetworkById(int netId);
+char* 		androidWifiGetScanResults(void);
 
 char*		androidLibraryFetch(const char *kind, const char *option, const char *optionValue);
 FskErr		androidLibraryThumbnail(const char *kind, long id, Boolean micro, FskBitmap *outBitmap);
@@ -414,6 +415,8 @@ void JAVANAME(KinomaPlay_webviewHandleLoading)(JNIEnv* env, jobject thiz, jint w
 void JAVANAME(KinomaPlay_webviewHandleLoaded)(JNIEnv* env, jobject thiz, jint webviewId);
 jboolean JAVANAME(KinomaPlay_webviewShouldHandleUrl)(JNIEnv* env, jobject thiz, jint webviewId, jstring url);
 void JAVANAME(KinomaPlay_webviewHandleEvaluationResult)(JNIEnv* env, jobject thiz, jstring j_result);
+
+void JAVANAME(FskEditText_doDismissKeyboard)(JNIEnv *env, jclass clazz, jint dismiss);
 
 #ifdef __cplusplus
 }

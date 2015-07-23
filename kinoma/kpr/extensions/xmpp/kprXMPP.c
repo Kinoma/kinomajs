@@ -637,13 +637,15 @@ static void KprXMPPParserStopTag(void *data, const char *name UNUSED)
 	if (!self->element->name) {
 		self->element = self->element->owner;
 	}
-	if (self->element && self->stream) {
-		if (self->element->owner == self->stream) {
-			FskListAppend(&self->queue, self->element);
-			self->stream->element = NULL;
+	if (self->element) {
+		if (self->stream) {
+			if (self->element->owner == self->stream) {
+				FskListAppend(&self->queue, self->element);
+				self->stream->element = NULL;
+			}
 		}
+		self->element = self->element->owner;
 	}
-	self->element = self->element->owner;
 	return;
 }
 

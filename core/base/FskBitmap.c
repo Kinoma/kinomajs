@@ -37,6 +37,14 @@
 	#include "FskGLBlit.h"
 #endif /* FSKBITMAP_OPENGL */
 
+#ifndef FSKBITMAP_DOUBLE_ALLOC
+	#if !FSKBITMAP_OPENGL
+		#define FSKBITMAP_DOUBLE_ALLOC 0	/* Allocate bitmaps with one alloc. */
+	#else /* FSKBITMAP_OPENGL */
+		#define FSKBITMAP_DOUBLE_ALLOC 1	/* Allocate bitmaps with two allocs. */
+	#endif /* FSKBITMAP_OPENGL*/
+#endif /* FSKBITMAP_DOUBLE_ALLOC */
+
 #if SUPPORT_INSTRUMENTATION
 	#include <stddef.h>
 	#include <stdio.h>
@@ -300,8 +308,10 @@ FskErr FskBitmapNew(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat
 			rowBytes = BLOCKIFY(rowBytes, ALIGN_ROW_BYTES);
 		}
 
-		if (0 == pixelsSize)
-			pixelsSize = height * rowBytes;
+		if ((0 == pixelsSize) && (0 != height)) {
+			pixelsSize = (UInt32)height * (UInt32)rowBytes;
+			BAIL_IF_FALSE((pixelsSize / (UInt32)height) == (UInt32)rowBytes, err, kFskErrMemFull);			/* Check for overflow */
+		}
 
 		if (0 != pixelsSize && wantsNativeBitmap) {
 			if (kFskErrNone != FskFrameBufferBitmapNew(pixelFormat, pixelsSize, width, height, &bits))
@@ -309,15 +319,20 @@ FskErr FskBitmapNew(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat
 		}
 
 		if (NULL == bits) {
-			UInt32 alignedBitmapSize = sizeof(FskBitmapRecord) + ALIGN_PIXEL_BYTES;	/* Add enough pad to align the pixels */
-
-			err = FskMemPtrNew(pixelsSize + alignedBitmapSize, &bits);
-			BAIL_IF_ERR(err);
-
-			FskMemSet(bits, 0, sizeof(FskBitmapRecord));
-
+			#if !FSKBITMAP_DOUBLE_ALLOC 																	/* Allocate bitmap with one alloc */
+				UInt32 alignedBitmapSize = sizeof(FskBitmapRecord) + ALIGN_PIXEL_BYTES;						/* Add enough pad to align the pixels */
+				BAIL_IF_ERR(err = FskMemPtrNew(pixelsSize + alignedBitmapSize, &bits));						/* Allocate bitmap and pixels in one alloc */
+				FskMemSet(bits, 0, sizeof(FskBitmapRecord));												/* Init structure */
+				if (pixelsSize)
+					bits->bits = (char*)ALIGNED_POINTER((char*)bits + sizeof(FskBitmapRecord), ALIGN_PIXEL_BYTES);
+			#else /* FSKBITMAP_DOUBLE_ALLOC */																/* Allocate bitmap with 2 allocs */
+				BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(FskBitmapRecord), &bits));						/* The first alloc for the bitmap */
+				if (pixelsSize) {
+					BAIL_IF_ERR(err = FskMemPtrNew(pixelsSize + ALIGN_PIXEL_BYTES, &bits->bitsToDispose));	/* The second alloc for the pixels */
+					bits->bits =(char*)ALIGNED_POINTER((char*)(bits->bitsToDispose), ALIGN_PIXEL_BYTES);
+				}
+			#endif /* FSKBITMAP_DOUBLE_ALLOC */
 			FskInstrumentedItemNew(bits, NULL, &gBitmapTypeInstrumentation);
-			bits->bits = pixelsSize ? (char*)ALIGNED_POINTER((char*)bits + sizeof(FskBitmapRecord), ALIGN_PIXEL_BYTES) : NULL;
 		}
 
 		if (!bits->rowBytes)
@@ -501,6 +516,33 @@ FskErr	FskBitmapSetOpenGLSourceAccelerated(FskBitmap bm, Boolean accelerated) {
 	#endif /* OPENGL */
 }
 
+
+/****************************************************************************//**
+ * Dispose local pixels and adjust the parameters of a bitmap after successfully
+ * uploading the source pixels to a GL texture.
+ *	\param[in,out]	bm	the bitmap whose pixels are to be disposed.
+ ********************************************************************************/
+
+static void DoGLSourceDispose(FskBitmap bm) {
+	#if FSKBITMAP_DOUBLE_ALLOC
+		#if TARGET_OS_MAC
+			FskCocoaBitmapDispose(bm);
+		#endif /* TARGET_OS_MAC */
+		FskMemPtrDispose(bm->bitsToDispose);
+		bm->bitsToDispose			= NULL;
+		bm->bits					= NULL;
+		bm->depth					= 0;
+		bm->rowBytes				= 0;
+		bm->disposeUploadedPixels	= 0;
+		bm->pixelFormat				= kFskBitmapFormatGLRGBA;
+	#endif /* FSKBITMAP_DOUBLE_ALLOC */
+}
+
+
+/********************************************************************************
+ * FskBitmapCheckGLSourceAccelerated
+ ********************************************************************************/
+
 FskErr	FskBitmapCheckGLSourceAccelerated(FskBitmap bits) {
 	#if FSKBITMAP_OPENGL
 		FskErr err;
@@ -513,12 +555,21 @@ FskErr	FskBitmapCheckGLSourceAccelerated(FskBitmap bits) {
 				return kFskErrNone;							/* Already up-to-date as a texture */
 			if (kFskErrNone == FskGLUpdateSource(bits)) {	/* Already have a texture, just need to update */
 				bits->accelerateSeed = bits->writeSeed;
+				#if FSKBITMAP_DOUBLE_ALLOC
+					if (bits->disposeUploadedPixels)
+						DoGLSourceDispose(bits);
+				#endif /* FSKBITMAP_DOUBLE_ALLOC */
 				return kFskErrNone;
 			}
 		}
 		err = FskGLAccelerateBitmapSource(bits);			/* Either the bitmap has never been accelerated or FskGLUpdateSource failed */
-		if (kFskErrNone == err)
+		if (kFskErrNone == err) {
 			bits->accelerateSeed = bits->writeSeed;
+			#if FSKBITMAP_DOUBLE_ALLOC
+				if (bits->disposeUploadedPixels)
+					DoGLSourceDispose(bits);
+			#endif /* FSKBITMAP_DOUBLE_ALLOC */
+		}
 		#if SUPPORT_INSTRUMENTATION
 			else
 				FskInstrumentedItemPrintfMinimal(bits, "ERROR: CheckGLSourceAccelerated %d", (int)err);
@@ -566,6 +617,35 @@ Boolean FskBitmapIsOpenGLDestinationAccelerated(FskConstBitmap bm) {
 	#else /* OPENGL */
 		return false;
 	#endif /* OPENGL */
+}
+
+
+/********************************************************************************
+ * FskBitmapSetSourceDiscardable
+ ********************************************************************************/
+
+FskErr	FskBitmapSetSourceDiscardable(FskBitmap bm) {
+	#if !FSKBITMAP_DOUBLE_ALLOC
+		return kFskErrUnimplemented;
+	#elif !FSKBITMAP_OPENGL
+		return kFskErrNotAccelerated;
+	#else /* FSKBITMAP_DOUBLE_ALLOC && FSKBITMAP_OPENGL */
+		if (!bm->accelerate)
+			return kFskErrNotAccelerated;
+		if (!bm->bits)
+			return kFskErrUnsupportedPixelType;
+		bm->disposeUploadedPixels = 1;
+		return kFskErrNone;
+	#endif /* FSKBITMAP_DOUBLE_ALLOC */
+}
+
+
+/********************************************************************************
+ * FskBitmapHasLocalPixels
+ ********************************************************************************/
+
+Boolean	FskBitmapHasLocalPixels(FskConstBitmap bm) {
+	return bm->bits != 0;
 }
 
 

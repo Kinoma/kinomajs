@@ -154,6 +154,7 @@
                 var uploadPath = this.getUploadPath( temporary == false ? false : true );
 
                 info.root = uploadPath.substring( "file://".length );
+                info.hwpdir = this.getHardwarePinsModulePath();             
                                 
                 return info;
             ]]>
@@ -316,7 +317,7 @@
                 //    
                 // add default module path for application hardwarepins blls
                 //
-                var hwpModulePath = getEnvironmentVariable( "hwpModulePath" );
+                var hwpModulePath = this.getHardwarePinsModulePath();
                 
                 if( hwpModulePath != null )
                 {
@@ -333,6 +334,12 @@
                 }
                 
                 setEnvironmentVariable( "modulePath", modulePath );
+            ]]>
+        </method>
+        
+        <method id="getHardwarePinsModulePath">
+            <![CDATA[
+                return getEnvironmentVariable( "hwpModulePath" );
             ]]>
         </method>
         

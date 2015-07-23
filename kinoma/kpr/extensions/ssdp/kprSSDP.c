@@ -281,7 +281,7 @@ void SSDP_client_removeServerCallback(KprSSDPClient self, KprSSDPDiscoveryDescri
 void SSDP_Client(xsMachine *the)
 {
 	KprSSDPClient self = NULL;
-	if (xsTest(xsArg(0)))
+	if ((xsToInteger(xsArgc) > 0) && xsTest(xsArg(0)))
 		xsThrowIfFskErr(KprSSDPClientNew(&self, xsToString(xsArg(0))));
 	else
 		xsThrowIfFskErr(KprSSDPClientNew(&self, NULL));

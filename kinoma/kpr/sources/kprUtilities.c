@@ -2086,8 +2086,6 @@ FskErr KprSocketReaderNew(KprSocketReader *it, FskSocket skt, KprSocketReaderSta
 	self->socket = skt;
 	self->refcon = refcon;
 
-	FskThreadAddDataHandler(&self->handler, (FskThreadDataSource)self->socket, KprSocketReaderDataReader, true, false, self);
-
 	*it = self;
 bail:
 	if (err) KprSocketReaderDispose(self);
@@ -2172,6 +2170,12 @@ void KprSocketReaderSetState(KprSocketReader self, int state)
 
 	self->state = state;
 	KprSocketReaderResetRead(self);
+
+	if (!self->stateInitialized) {
+		self->stateInitialized = true;
+		FskThreadAddDataHandler(&self->handler, (FskThreadDataSource)self->socket, KprSocketReaderDataReader, true, false, self);
+	}
+
 }
 
 void KprSocketReaderResetRead(KprSocketReader self)
@@ -2485,8 +2489,6 @@ FskErr KprSocketServerListen(KprSocketServer self, UInt16 port, const char *inte
 {
 	FskErr err = kFskErrNone;
 
-	self->port = port;
-
 	if (interfaceName) {
 		bailIfError(KprPortListenerNew(self, port, interfaceName, NULL));
 	} else {
@@ -2496,14 +2498,24 @@ FskErr KprSocketServerListen(KprSocketServer self, UInt16 port, const char *inte
 		self->all = true;
 		numI = FskNetInterfaceEnumerate();
 		for (i = 0; i < numI; i++) {
-			FskErr notErr = FskNetInterfaceDescribe(i, &ifc);
-			if (notErr) continue;
+			FskErr err = FskNetInterfaceDescribe(i, &ifc);
+			if (err) continue;
 			if (ifc->status) {
-				bailIfError(KprPortListenerNew(self, port, ifc->name, NULL));
+				KprPortListener listener = NULL;
+				err = KprPortListenerNew(self, port, ifc->name, &listener);
+				if (err == kFskErrNone && port == 0) {
+					UInt32 localIP;
+					int localPort;
+					FskNetSocketGetLocalAddress(listener->socket, &localIP, &localPort);
+					port = localPort;
+				}
 			}
 			FskNetInterfaceDescriptionDispose(ifc);
+			bailIfError(err);
 		}
 	}
+
+	self->port = port;
 
 bail:
 	return err;
@@ -2533,7 +2545,7 @@ FskErr KprPortListenerNew(KprSocketServer server, UInt16 port, const char *inter
 	FskNetSocketReuseAddress(skt);
 	ifc = FskNetInterfaceFindByName(self->interfaceName);
 	if ((NULL == ifc) ||
-		(kFskErrNone != (err = FskNetSocketBind(skt, ifc->ip, server->port)))) {
+		(kFskErrNone != (err = FskNetSocketBind(skt, ifc->ip, port)))) {
 		FskNetSocketClose(skt);
 		FskDebugStr("KprPortListenerNew - bind failed: %ld port: %d", err, port);
 		goto bail;

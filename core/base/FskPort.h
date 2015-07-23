@@ -209,9 +209,6 @@ typedef struct FskPortVectorsRecord *FskPortVectors;
 		UInt8						graphicsModeCache[16];		/**< Copy of the variable-sized graphics mode. THIS MUST BE ON A 4-BYTE BOUNDARY. */
 		char						fontNameCache[64];			/**< Cache for the font name. */
 
-		struct FskEffectCacheRecord	*effCache;					/**< Cache for effects. */
-		SInt32						effCacheExpired;			/**< Toss cache if it hasn't been used before the expiration time. */
-
 		FskInstrumentedItemDeclaration
 	};
 

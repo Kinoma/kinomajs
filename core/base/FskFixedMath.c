@@ -76,18 +76,21 @@
     #define USE_ASSEMBLER_MULTIPLICATION    0
     #define USE_ASSEMBLER_DIVISION          0
     #define USE_ASSEMBLER_RATIO             0
+    #define USE_ASSEMBLER_SQRT				0
     #define USE_MULTIPLICATION_SATURATION   0
     #define USE_DIVISION_SATURATION         0
     #define USE_SHIFT_SATURATE              0
 #elif   TARGET_CPU_X86
 	#if defined(__APPLE_CC__) && defined(__llvm__) && __llvm__	/* New LLVM compiler cannot grok our code */
 		#define USE_ASSEMBLER_MULTIPLICATION	0
-		#define USE_ASSEMBLER_DIVISION		0
-		#define USE_ASSEMBLER_RATIO			0
+		#define USE_ASSEMBLER_DIVISION			0
+		#define USE_ASSEMBLER_RATIO				0
+    	#define USE_ASSEMBLER_SQRT				0
 	#else /* Not new Apple compiler */
 		#define USE_ASSEMBLER_MULTIPLICATION	1
-		#define USE_ASSEMBLER_DIVISION		1
-		#define USE_ASSEMBLER_RATIO			1
+		#define USE_ASSEMBLER_DIVISION			1
+		#define USE_ASSEMBLER_RATIO				1
+    	#define USE_ASSEMBLER_SQRT				0
 	#endif /* Not new Apple compiler */
 	#define USE_MULTIPLICATION_SATURATION	1
 	#define USE_DIVISION_SATURATION			1
@@ -96,6 +99,7 @@
 	#define USE_ASSEMBLER_MULTIPLICATION	1
 	#define USE_ASSEMBLER_DIVISION			1
 	#define USE_ASSEMBLER_RATIO				1
+    #define USE_ASSEMBLER_SQRT				0
 	#define USE_MULTIPLICATION_SATURATION	1
 	#define USE_DIVISION_SATURATION			1
 	#define USE_SHIFT_SATURATE				0
@@ -104,6 +108,7 @@
 	#define USE_ASSEMBLER_MULTIPLICATION	0
 	#define USE_ASSEMBLER_DIVISION			0
 	#define USE_ASSEMBLER_RATIO				0
+    #define USE_ASSEMBLER_SQRT				0
 	#define USE_MULTIPLICATION_SATURATION	1
 	#define USE_DIVISION_SATURATION			1
 	#define USE_SHIFT_SATURATE				1
@@ -111,13 +116,24 @@
 	#define USE_ASSEMBLER_MULTIPLICATION	1
 	#define USE_ASSEMBLER_DIVISION			1
 	#define USE_ASSEMBLER_RATIO				1
+    #define USE_ASSEMBLER_SQRT				1
 	#define USE_MULTIPLICATION_SATURATION	1
 	#define USE_DIVISION_SATURATION			1
 	#define USE_SHIFT_SATURATE				1
-#elif TARGET_CPU_ARM && (TARGET_OS_IPHONE)
+#elif TARGET_CPU_ARM64 && (TARGET_OS_IPHONE)
+	/* Currently there is no assembler for arm64 */
 	#define USE_ASSEMBLER_MULTIPLICATION	0
 	#define USE_ASSEMBLER_DIVISION			0
 	#define USE_ASSEMBLER_RATIO				0
+    #define USE_ASSEMBLER_SQRT				0
+	#define USE_MULTIPLICATION_SATURATION	1
+	#define USE_DIVISION_SATURATION			1
+	#define USE_SHIFT_SATURATE				0
+#elif TARGET_CPU_ARM && (TARGET_OS_IPHONE)
+	#define USE_ASSEMBLER_MULTIPLICATION	1
+	#define USE_ASSEMBLER_DIVISION			1
+	#define USE_ASSEMBLER_RATIO				1
+    #define USE_ASSEMBLER_SQRT				1
 	#define USE_MULTIPLICATION_SATURATION	1
 	#define USE_DIVISION_SATURATION			1
 	#define USE_SHIFT_SATURATE				0
@@ -126,6 +142,7 @@
 	#define USE_ASSEMBLER_MULTIPLICATION	0
 	#define USE_ASSEMBLER_DIVISION			0
 	#define USE_ASSEMBLER_RATIO				0
+    #define USE_ASSEMBLER_SQRT				0
 	#define USE_MULTIPLICATION_SATURATION	1
 	#define USE_DIVISION_SATURATION			1
 	#define USE_SHIFT_SATURATE				0
@@ -1228,6 +1245,8 @@ FskFixed FskFixedNRatio(FskFixed a, FskFixed b, FskFixed d, SInt32 n)
  ********************************************************************************/
 
 
+#if !USE_ASSEMBLER_SQRT
+
 /********************************************************************************
  * FskFixedNSqrt
  ********************************************************************************/
@@ -1242,7 +1261,6 @@ FskFixedNSqrt(FskFixed a, SInt32 n)
 
 	remHi = 0;										/* Clear high part of partial remainder */
 	remLo = a;										/* Get argument into low part of partial remainder */
-	if (a < 0)	remLo = (UInt32)(-((SInt32)remLo));	/* If negative, compute imaginary root */
 	count = 15+n/2;									/* Load loop counter */
 
 	do {
@@ -1256,7 +1274,6 @@ FskFixedNSqrt(FskFixed a, SInt32 n)
 	} while (count-- != 0);
 
 	if (remHi > (UInt32)root) root++;				/* If the next bit would have been a 1, round up */
-	if (a < 0)	root = -root;						/* Set imaginary bit of the root if the argument was negative */
 
 	return root;
 }
@@ -1293,12 +1310,7 @@ FskFixedSqrt64to32(FskInt64 x)
 {
 	register UInt32		remHi, remLo, testDiv, count;
 	register FskFixed	root;
-	UInt32				imag	= 0;
 
-	if (x < 0) {							/* If argument is negative, compute the imaginary root */
-		x = -x;
-		imag = 1;
-	}
 	root  = 0;								/* Clear root */
 	remHi = 0;								/* Clear high part of partial remainder */
 	remLo = (UInt32)(x >> 32);				/* Get MSBs of argument into low part of partial remainder */
@@ -1327,8 +1339,6 @@ FskFixedSqrt64to32(FskInt64 x)
 
 	if (remHi > (UInt32)root) root++;	/* If the next bit would have been a 1, round up */
 
-	if (imag)	root = -root;			/* Set the imaginary bit if the argument was negative */
-
 	return root;
 }
 
@@ -1342,6 +1352,10 @@ FskFixedHypot(FskFixed x, FskFixed y)
 {
 	return FskFixedSqrt64to32((FskInt64)x * x + (FskInt64)y * y);
 }
+
+
+#endif /* !USE_ASSEMBLER_SQRT */
+
 
 
 #if PRAGMA_MARK_SUPPORTED
@@ -1694,7 +1708,7 @@ FskFixedDeCasteljau(
 	/* Repeated linear interpolation */
 	for (i = order - 1, d = b0 - 1, b = d + order; i--; b--)
 		for (j = i+1; j--;  b--)
-			*d-- = b[-1] + FskFixedNMulInline(t, (b[0] - b[-1]), 30);
+			*d-- = b[-1] + FskFixedNMul(t, (b[0] - b[-1]), 30);
 }
 
 
@@ -1715,7 +1729,7 @@ FskFixedDeCasteljauKernel(
 	/* Repeated linear interpolation */
 	for (i = order - 1, d = tri + ((order * (order-1)) >> 1) - 1, b = d + order; i--; b--)
 		for (j = i+1; j--;  b--)
-			*d-- = b[-1] + FskFixedNMulInline(t, (b[0] - b[-1]), 30);
+			*d-- = b[-1] + FskFixedNMul(t, (b[0] - b[-1]), 30);
 }
 
 
@@ -1831,7 +1845,7 @@ FskFixedDeviationOfBezierControlPoints2D(const FskFixedPoint2D *points, SInt32 o
 	p = points + order - 1;
 	baseVec.x = p->x - points->x;
 	baseVec.y = p->y - points->y;
-	FskFixedVectorNormalize(&baseVec.x, 2);
+	FskFixedVector2DNormalize(&baseVec.x);
 
 	/* Find maximum distance of control points from the base */
 	for (i = order - 2, p--, d = 0; i--; p--) {
@@ -1934,13 +1948,26 @@ FskFixedVectorNormalize(register FskFract *v, register SInt32 n)
 
 	if ((norm = FskFixedVectorNorm(v, n)) != 0) {
 		for ( ; n--; v++)
-			*v = FskFixedNDivInline(*v, norm, 30);
-	}
-	else {
-		for ( ; n--; v++)
-			*v = 0;
+			*v = FskFixedNDiv(*v, norm, 30);
 	}
 	return(norm);
+}
+
+
+/********************************************************************************
+ * FskFixedVector2DNormalize
+ ********************************************************************************/
+
+FskFract
+FskFixedVector2DNormalize(FskFract *v)
+{
+	FskFract norm;
+
+	if ((norm = FskFixedHypot(v[0], v[1])) != 0) {
+		v[0] = FskFracDiv(v[0], norm);
+		v[1] = FskFracDiv(v[1], norm);
+	}
+	return norm;
 }
 
 
@@ -2094,7 +2121,7 @@ FskFixedPointLineDistance2D(const FskFixedPoint2D *point, const FskFixedPoint2D 
 	lin.y = line[1].y - line[0].y;
 	stt.x = point->x  - line[0].x;
 	stt.y = point->y  - line[0].y;
-	FskFixedVectorNormalize(&lin.x, 2);
+	FskFixedVector2DNormalize(&lin.x);
 	return FskFixedCrossProduct2D(&lin, &stt);
 }
 

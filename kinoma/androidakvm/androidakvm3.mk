@@ -35,15 +35,6 @@ C_OPTIONS += \
     -I$(F_HOME)tmp/include \
     -I$(F_HOME)tmp/android
 
-#    -I$(OSS2)frameworks/base/include \
-#    -I$(OSS2)system/core/include/ \
-#    -I$(OSS2)external/skia/include/ 	\
-#    -I$(OSS)frameworks/base/include/ \
-#    -I$(OSS)frameworks/base/include/utils/ \
-#    -I$(OSS)frameworks/base/include/ui/ \
-#	-I$(OSS)hardware/libhardware/include/ \
-#    -I$(OSS)system/core/include/
-
 LINKER = $(deviceLINK)
 LIBRARIES += -landroid -lOpenSLES
 </common>

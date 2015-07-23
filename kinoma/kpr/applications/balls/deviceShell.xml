@@ -15,10 +15,11 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-<shell xmlns="http://www.kinoma.com/kpr/1" modules="../../simulator/modules/"><![CDATA[
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<script><![CDATA[
 	var url = mergeURI(shell.url, "./src/balls");
-    var host = new Host({left:0, top:0, right:0, bottom:0}, url, "balls.kinoma.com", true);
-    shell.add(host);
+	var host = new Host({left:0, top:0, right:0, bottom:0}, url, "balls.kinoma.com", true);
+	shell.add(host);
 	shell.behavior = {
 		onInvoke: function(shell, message) {
 			if (message.name == "quit")
@@ -28,6 +29,7 @@
 			host.quit();
 		},
 	};
-    host.adapt();
-    host.launch();
-]]></shell>
+	host.adapt();
+	host.launch();
+	]]></script>
+</program>

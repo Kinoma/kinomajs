@@ -27,7 +27,7 @@
 
 	<if>
 		<not>
-			<available file="${env.ANDROID_SDK}/README" />
+			<available file="${env.ANDROID_SDK}/tools/android" />
 		</not>
 		<then>
 			<echo>Your Android SDK is not available for building this product.</echo>
@@ -57,11 +57,21 @@
 		<property name="ndk.project.libraries" value="${ndk.project.path}/libs/armeabi" />
 		<property name="ndk.project.objects" value="${ndk.project.path}/obj/local/armeabi" />
 		<property name="ndk.play.path" value="${f_home}/build/android/inNDK" />
-		<property name="ndk.kpr.path" value="${f_home}/kinoma/kpr/make/android/ndk" />
+		<property name="ndk.kpr.path" value="${f_home}/kinoma/kpr/cmake/android/ndk" />
 
 		<mkdir dir="${ndk.project.path.tmp}" />
 		<property name="ant.build.type" value="debug" />
 		<copy todir="${ndk.path}" file="${ndk.play.path}/Play/Application.mk" />
+		<if>
+			<not>
+				<equals arg1="${manifest.remoteNotification}" arg2="0" />
+			</not>
+			<then>
+				<copy todir="${ndk.path}/google-play-services_lib">
+					<fileset dir="${ndk.play.path}/extras/google/google_play_services/libproject/google-play-services_lib" />
+				</copy>
+			</then>
+		</if>
 		<copy todir="${ndk.project.path.tmp}" file="${ndk.kpr.path}/project/AndroidManifest.xml" />
 		<copy todir="${ndk.project.path.tmp}" file="${ndk.kpr.path}/project/build.xml" />
 		<copy todir="${ndk.project.path.tmp}" file="${ndk.play.path}/Play/project/proguard.cfg" />
@@ -87,6 +97,14 @@
 		<copy todir="${ndk.project.path.tmp}/res">
 			<fileset dir="${ndk.play.path}/Play/project/res" />
 		</copy>
+		<if>
+			<not>
+				<equals arg1="${manifest.remoteNotification}" arg2="0" />
+			</not>
+			<then>
+				<copy todir="${ndk.project.path.tmp}/libs" file="${ndk.play.path}/extras/android/support/v4/android-support-v4.jar" />
+			</then>
+		</if>
 	</target>
 
 	<target name="fix-name" depends="copy-files">
@@ -101,10 +119,40 @@
 		<switch value="${build.type}" caseinsensitive="true">
 			<case value="debug">
 				<property name="android.debuggable" value="true" />
+				<!-- Turn instrumentation on for debug builds because of issues with r9+ -->
+				<replace file="${build.tmp}/FskPlatform.h">
+					<replacefilter
+						token="SUPPORT_INSTRUMENTATION 0"
+						value="SUPPORT_INSTRUMENTATION 1" />
+				</replace>
 			</case>
 			<case value="release">
 				<property name="android.debuggable" value="false" />
 			</case>
+		</switch>
+
+		<getmanifestoption element="orientation" property="android.orientation" />
+		<switch value="${android.orientation}" caseinsensitive="true">
+			<case value="portrait">
+				<property name="orientation.option" value="" />
+				<property name="orientation.type" value="portrait" />
+			</case>
+			<case value="landscape">
+				<property name="orientation.option" value="" />
+				<property name="orientation.type" value="landscape" />
+			</case>
+			<case value="sensorPortrait">
+				<property name="orientation.option" value="|orientation" />
+				<property name="orientation.type" value="sensorPortrait" />
+			</case>
+			<case value="sensorLandscape">
+				<property name="orientation.option" value="|orientation" />
+				<property name="orientation.type" value="sensorLandscape" />
+			</case>
+			<default>
+				<property name="orientation.option" value="|orientation" />
+				<property name="orientation.type" value="sensor" />
+			</default>
 		</switch>
 
 		<replace dir="${ndk.project.path.tmp}">
@@ -122,6 +170,8 @@
 			<replacefilter token="#VERSION_MINIMUM#" value="${version.minimum}" />
 			<replacefilter token="#VERSION_TARGET#" value="${version.target}" />
 			<replacefilter token="#ANDROID_DEBUGGABLE#" value="${android.debuggable}" />
+			<replacefilter token="#ORIENTATION_OPTION#" value="${orientation.option}" />
+			<replacefilter token="#ORIENTATION_TYPE#" value="${orientation.type}" />
 		</replace>
 	</target>
 
@@ -141,8 +191,28 @@
 		<delete dir="${ndk.project.path.tmp}" />
 		<mkdir dir="${ndk.project.path}/src/com/marvell/kinoma" />
 		<symlink link="${ndk.project.path}/src/com/marvell/kinoma/${manifest.namespace.app.name}" resource="${ndk.project.path}/java" overwrite="true" />
+		<if >
+			<equals arg1="${manifest.remoteNotification}" arg2="0" />
+			<then>
+				<delete file="${ndk.project.path}/src/com/marvell/kinoma/${manifest.namespace.app.name}/GcmBroadcastReceiver.java"/>
+				<delete file="${ndk.project.path}/src/com/marvell/kinoma/${manifest.namespace.app.name}/GcmIntentService.java"/>
+			</then>
+		</if>
 		<exec executable="android" failonerror="true">
 			<arg line="update project -p ${ndk.project.path}" />
 		</exec>
+		<if>
+			<not>
+				<equals arg1="${manifest.remoteNotification}" arg2="0" />
+			</not>
+			<then>
+				<exec executable="android" failonerror="true" dir="${ndk.project.path}">
+					<arg line="update project -p . -l ../google-play-services_lib" />
+				</exec>
+				<exec executable="android" failonerror="true">
+					<arg line="update project -p ${ndk.path}/google-play-services_lib -t android-17" />
+				</exec>
+			</then>
+		</if>
 	</target>
 </project>

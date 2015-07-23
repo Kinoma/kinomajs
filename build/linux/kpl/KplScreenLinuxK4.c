@@ -482,7 +482,7 @@ FskErr KplScreenGetDisplayCopy(void *state, void *obj, UInt32 propertyID, FskMed
 
         err = FskMemPtrNewFromData(gKplScreen->width * gKplScreen->height * 2, gKplScreen->baseAddr[ONSCREEN_PAGE(gKplScreen)], &bits);
         if (kFskErrNone == err) {
-            FskBitmapNewWrapper(gKplScreen->width, gKplScreen->height, kFskBitmapFormat16RGB565LE, 16, bits, gKplScreen->width * 2, (FskBitmapRecord**)&property->value.bitmap);
+            FskBitmapNewWrapper(gKplScreen->width, gKplScreen->height, kFskBitmapFormat16RGB565LE, 16, bits, gKplScreen->width * 2, &property->value.bitmap);
             property->type = kFskMediaPropertyTypeBitmap;
         }
     }
@@ -822,7 +822,7 @@ UInt16 mapKeyCode(struct input_event *event, int mod) {
 
 
 
-inputDevice devInputAddDevice(const char *dev) {
+inputDevice devInputAddDevice(char *dev) {
 	inputDevice newInput = NULL;
 	FskErr err;
 
@@ -853,7 +853,7 @@ newFailed:
 	return NULL;
 }
 
-void devInputRemoveDevice(const char *dev) {
+void devInputRemoveDevice(char *dev) {
 	inputDevice scan = inputDevices;
 
 	MLOG("remove InputDevice - %s\n", dev);
@@ -870,7 +870,7 @@ void devInputRemoveDevice(const char *dev) {
 
 
 FskErr devInputNotifierCallback(UInt32 whatChanged, const char *path, void *refCon) {
-	char *str;
+	FskMemPtr str;
 
 	str = FskStrDoCat(kInputDevicePath, path);
 
@@ -984,7 +984,7 @@ FskFixed touchScale = 0;
 
 FskPointRecord touchPoints[TOUCHPOINTS_MAXNUM];
 static int sentMouseDown[TOUCHPOINTS_MAXNUM] = {-1,-1,-1,-1,-1};
-static int currentPointer = -1, lastPointer = -1;
+static int currentPointer = 0, lastPointer = 0;
 
 void trackMouseDown(int pointer) {
 	glastDown[pointer]++;
@@ -1199,8 +1199,9 @@ static void inputHandler(struct input_event *event, inputDevice dev)
 			break;
         case EV_ABS :
         switch (event->code) {
-                //use ABS_MT_TOUCH_MAJOR replace ABS_MT_SLOT since ABS_MT_SLOT is not supported in kervel 2.6
+                //use ABS_MT_TOUCH_MAJOR replace ABS_MT_SLOT since ABS_MT_SLOT(0x2f) is not supported in kervel 2.6
                 case ABS_MT_TOUCH_MAJOR:
+				case 0x2f:
                     currentPointer = val;
                     cod = kFskEventNone;
                     break;
@@ -1214,6 +1215,7 @@ static void inputHandler(struct input_event *event, inputDevice dev)
 					}
 					else {
                         lastPointer = currentPointer;
+						currentPointer = 0;
 						FskKplScreenPrintfDebug("   val = -1 send MouseUp for last pointer %d", lastPointer);
                         
 						cod = kFskEventMouseUp;
