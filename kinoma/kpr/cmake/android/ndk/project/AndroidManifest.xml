@@ -17,7 +17,7 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="#NAMESPACE#"
-      android:versionCode="9" android:versionName="#VERSION#">
+      android:versionCode="#ANDROID_VERSION_CODE#" android:versionName="#VERSION#">
       <!--       android:installLocation="internalOnly"
        -->
 
