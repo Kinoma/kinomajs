@@ -1667,7 +1667,7 @@ var model = shell.behavior = Behavior({
 			}
 		});
 		var preferences = this.preferences = this.readPreferences(shell, "preferences", {
-			port: 5003,
+			port: 5002,
 			currentTab: 0,
 			width: 800,
 			height: 600,
