@@ -403,9 +403,9 @@ FskErr KprTextEnd(KprText self)
 	if (FskInstrumentedItemHasListenersForLevel(self, kFskInstrumentationLevelDebug))
 		KprTextDumpBlock(self);
 #endif
+	self->textWidth = -1;
+	self->textHeight = 0;
 	if (self->shell) {
-		self->textWidth = -1;
-		self->textHeight = 0;
 		KprTextCascadeStyles(self);
 		KprContentReflow((KprContent)self, kprSizeChanged);
 	}
