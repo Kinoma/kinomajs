@@ -84,7 +84,8 @@ class Manifest extends MAKE.Manifest {
 		
 			APP_DIR: bin,
 			TMP_DIR: tmp,
-			
+
+			APP: this.tree.application,
 			APP_EXE: bin + "\\" + this.tree.application + ".exe",
 			RESOURCE: FS.existsSync(resource) ? resource : "$(F_HOME)\\kinoma\\kpr\\cmake\\win\\resource.rc",
 			// FskPlatform.mk

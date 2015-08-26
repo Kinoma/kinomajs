@@ -74,7 +74,7 @@
 		<c option="/ZI"/>
 	
 		<library name="/debug"/>
-		<library name="/pdb:$(BIN_DIR)\$(APP).pdb"/>
+		<library name="/pdb:$(TMP_DIR)\$(APP).pdb"/>
 		<library name="/nodefaultlib:msvcrtd"/>
 	</version>
 
