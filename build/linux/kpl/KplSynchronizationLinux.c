@@ -199,6 +199,7 @@ FskErr KplConditionTimedWait(KplCondition condition, KplMutex mutex, KplTime tim
 	if (ETIMEDOUT == pthread_cond_timedwait(&condition->cond, &mutex->mutex, &sleep)) {
 //		fprintf(stderr, "condition awoken - timed out\n");
 	}
+	return kFskErrNone;
 }
 
 

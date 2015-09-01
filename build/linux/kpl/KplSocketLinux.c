@@ -315,21 +315,65 @@ FskErr KplSocketBind(KplSocket kplSocket, int addr, int port)
 	return kFskErrNone;
 }
 
-FskErr KplSocketMulticastJoin(KplSocket kplSocket, int multicastAddr, int interfaceAddr, int ttl)
+FskErr KplSocketSetTTL(KplSocket kplSocket, int ttl)
 {
 	int ret, skt = (int)kplSocket;
-	struct ip_mreq maddr;
-	
-	maddr.imr_multiaddr.s_addr = htonl(multicastAddr);
-	maddr.imr_interface.s_addr = htonl(interfaceAddr);
-	
-	ret = setsockopt(skt, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&maddr, sizeof(struct ip_mreq));
-	if (ret != -1)
-		ret = setsockopt(skt, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
+
+	ret = setsockopt(skt, IPPROTO_IP, IP_TTL, (char*)&ttl, sizeof(ttl));
 	if (ret == 0)
 		return kFskErrNone;
 		
 	return sConvertErrorToFskErr(errno);
+}
+
+FskErr KplSocketMulticastAddMembership(KplSocket kplSocket, int multicastAddr, int interfaceAddr)
+{
+	int ret, skt = (int)kplSocket;
+	struct ip_mreq maddr;
+
+	maddr.imr_multiaddr.s_addr = htonl(multicastAddr);
+	maddr.imr_interface.s_addr = htonl(interfaceAddr);
+	
+	ret = setsockopt(skt, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&maddr, sizeof(struct ip_mreq));
+	if (ret == 0)
+		return kFskErrNone;
+		
+	return sConvertErrorToFskErr(errno);
+}
+
+FskErr KplSocketMulticastDropMembership(KplSocket kplSocket, int multicastAddr, int interfaceAddr)
+{
+	int ret, skt = (int)kplSocket;
+	struct ip_mreq maddr;
+
+	maddr.imr_multiaddr.s_addr = htonl(multicastAddr);
+	maddr.imr_interface.s_addr = htonl(interfaceAddr);
+	
+	ret = setsockopt(skt, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char*)&maddr, sizeof(struct ip_mreq));
+	if (ret == 0)
+		return kFskErrNone;
+		
+	return sConvertErrorToFskErr(errno);
+}
+
+FskErr KplSocketMulticastSetTTL(KplSocket kplSocket, int ttl)
+{
+	int ret, skt = (int)kplSocket;
+
+	ret = setsockopt(skt, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
+	if (ret == 0)
+		return kFskErrNone;
+		
+	return sConvertErrorToFskErr(errno);
+}
+
+FskErr KplSocketMulticastJoin(KplSocket kplSocket, int multicastAddr, int interfaceAddr, int ttl)
+{
+	FskErr err;
+	err = KplSocketMulticastAddMembership(kplSocket, multicastAddr, interfaceAddr);
+	if (kFskErrNone == err)
+		err = KplSocketMulticastSetTTL(kplSocket, ttl);
+	return err;
 }
 
 FskErr KplSocketMulticastLoop(KplSocket kplSocket, char val)

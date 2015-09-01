@@ -23,10 +23,14 @@ FskErr KplEnvironmentInitialize(FskAssociativeArray environment)
 	struct utsname name;
 	uname(&name);
 
-	FskEnvironmentSet("application", "PLAY");
-
 	FskEnvironmentSet("OS", name.sysname);
 	FskEnvironmentSet("OSVersion", name.release);
+
+#if LINUX_PLATFORM || SUPPORT_LINUX_GTK || LINUX
+    FskEnvironmentSet("platform", "linux");
+#else
+    #error "What is your platform?"
+#endif
 
 	return kFskErrNone;
 }
