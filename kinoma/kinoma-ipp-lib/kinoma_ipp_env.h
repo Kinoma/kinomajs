@@ -17,6 +17,20 @@
 #ifndef _KINOMA_IPP_ENV_
 #define _KINOMA_IPP_ENV_
 
+#ifdef MY_DLOG
+#ifdef BUILT_4_MC
+#include "my_types.h"
+#include <wmstdio.h>
+#include <wm_os.h>
+#define dlog(...)  do { wmprintf(__VA_ARGS__); wmprintf("\r\n"); } while(0)
+#else
+#include <stdio.h>
+#include <stdlib.h>
+#define dlog(...)  do { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\r\n"); } while(0)
+#endif
+#endif
+
+
 #ifdef __FSK_LAYER__
 	#include "Fsk.h"
 	#if TARGET_RT_BIG_ENDIAN

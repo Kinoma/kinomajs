@@ -23,20 +23,19 @@ static txInteger fxSourceMapValue(txParser* parser, txString* p);
 
 void fxParserSourceMap(txParser* parser, void* theStream, txGetter theGetter, txUnsigned flags, txString* name)
 {
-	txInteger line;
-	txNode* root;
-	txNode** address;
-	txNode* item;
+	txInteger line = parser->line;
+	txNode* root = parser->root;
+	txNode* object;
+    txNode* item;
+    txNode* node;
 	txPropertyAtNode* property;
 	txString id;
 	txInteger version = 0;
-	txString source;
-	txString mappings;
+	txString source = NULL;
+	txString mappings = NULL;
 	
-	line = parser->line;
-	
-	parser->nodePointer = parser->nodeArray;
-    
+	parser->line = 0;
+	parser->root = NULL;
 	parser->stream = theStream;
 	parser->getter = theGetter;
 	
@@ -58,12 +57,14 @@ void fxParserSourceMap(txParser* parser, void* theStream, txGetter theGetter, tx
 	fxJSONValue(parser);
 	if (parser->errorCount)
 		fxThrowParserError(parser, parser->errorCount);
-	root = *(parser->nodePointer - 1);
+	object = parser->root;
+	parser->line = line;
+	parser->root = root;
 	
-	mxAssert(root->description->token == XS_TOKEN_OBJECT, "source map: no object");
-	mxAssert(((txObjectNode*)root)->items, "source map: no properties");
-	address = &(((txObjectNode*)root)->items->nodes[0]);
-	while ((item = *address)) {
+	mxAssert(object->description->token == XS_TOKEN_OBJECT, "source map: no object");
+	mxAssert(((txObjectNode*)object)->items, "source map: no properties");
+	item = ((txObjectNode*)object)->items->first;
+	while (item) {
 		mxAssert(item->description->token == XS_TOKEN_PROPERTY_AT, "source map: no property");
 		property = (txPropertyAtNode*)item;
 		mxAssert(property->at->description->token == XS_TOKEN_STRING, "source map: no property name");
@@ -74,21 +75,20 @@ void fxParserSourceMap(txParser* parser, void* theStream, txGetter theGetter, tx
 		}
 		else if (!c_strcmp(id, "sources")) {
 			mxAssert(property->value->description->token == XS_TOKEN_ARRAY, "source map: sources is no array");
-			item = ((txArrayNode*)(property->value))->items->nodes[0];
-			mxAssert(item->description->token == XS_TOKEN_STRING, "source map: sources[0] is no string");
-			source = ((txStringNode*)(item))->value;
+			node = ((txArrayNode*)(property->value))->items->first;
+			mxAssert(node->description->token == XS_TOKEN_STRING, "source map: sources[0] is no string");
+			source = ((txStringNode*)(node))->value;
 		}
 		else if (!c_strcmp(id, "mappings")) {
 			mxAssert(property->value->description->token == XS_TOKEN_STRING, "source map: mappings is no string");
 			mappings = ((txStringNode*)(property->value))->value;
 		}
-		address++;
+		item = item->next;
 	}
 	mxAssert(version == 3, "source map: version is not 3");
 	mxAssert(source, "source map: no source");
 	mxAssert(mappings, "source map: no mappings");
 	
-	parser->line = line;
 	parser->lines = fxNewParserChunkClear(parser, (1 + line) * sizeof(txInteger));
 
 	fxSourceMapLines(parser, mappings);

@@ -983,9 +983,6 @@ struct xsMachineRecord {
 	xsJump* firstJump;
 	void* context;
 	xsSlot scratch;
-#if __FSK_LAYER__
-	FskInstrumentedItemDeclaration	/* xs.h */
-#endif
 };
 
 struct xsCreationRecord {
@@ -1088,12 +1085,19 @@ typedef unsigned char xsAttribute;
 	fxPop())
 
 #define xsDemarshall(_DATA) \
-	(fxDemarshall(the, (_DATA)), \
+	(fxDemarshall(the, (_DATA), 0), \
+	fxPop())
+#define xsDemarshallAlien(_DATA) \
+	(fxDemarshall(the, (_DATA), 1), \
 	fxPop())
 #define xsMarshall(_SLOT) \
 	(xsOverflow(-1), \
 	fxPush(_SLOT), \
-	fxMarshall(the))
+	fxMarshall(the, 0))
+#define xsMarshallAlien(_SLOT) \
+	(xsOverflow(-1), \
+	fxPush(_SLOT), \
+	fxMarshall(the, 1))
 
 #define xsIsProfiling() \
 	fxIsProfiling(the)
@@ -1208,8 +1212,8 @@ mxImport xsIntegerValue fxUnicodeToUTF8Offset(xsStringValue theString, xsInteger
 mxImport xsIntegerValue fxUTF8ToUnicodeOffset(xsStringValue theString, xsIntegerValue theOffset);
 
 mxImport void fxCopyObject(xsMachine*);
-mxImport void fxDemarshall(xsMachine*, void*);
-mxImport void* fxMarshall(xsMachine*);
+mxImport void fxDemarshall(xsMachine*, void*, xsBooleanValue);
+mxImport void* fxMarshall(xsMachine*, xsBooleanValue);
 mxImport void fxModulePaths(xsMachine*);
 
 mxImport xsBooleanValue fxIsProfiling(xsMachine*);

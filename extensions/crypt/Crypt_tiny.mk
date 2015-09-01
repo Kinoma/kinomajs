@@ -27,11 +27,11 @@
 <!--wrap name="md5_ltc.c"/-->	<!-- md5 is in core -->
 <wrap name="sha1.c"/>
 
-<platform name="MacOSX,Solaris,iPhone,Windows,mac-cmake">
+<platform name="MacOSX,Solaris,iPhone,Windows">
 <wrap name="aes.c"/>	<!-- aes in kps -->
 </platform>
 
-<platform name="android,Linux,MacOSX,Solaris,iPhone,mac-cmake">
+<platform name="android,Linux,MacOSX,Solaris,iPhone">
 <debug>
 XSC_OPTIONS += -t debug
 </debug>
@@ -51,7 +51,7 @@ C_OPTIONS = $(C_OPTIONS) -DARGTYPE=4 -DLTM_DESC -DLTC_NO_ASM -DLTC_NO_PK -DLTC_N
 
 <include name="/makefiles/xsLibrary.mk"/>
 
-<platform name="android,Linux,MacOSX,iPhone,Solaris,Windows,mac-cmake">
+<platform name="android,Linux,MacOSX,iPhone,Solaris,Windows">
 <common>
 $(OBJECTS): sources/common.h
 </common>

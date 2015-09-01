@@ -84,54 +84,6 @@ $(TMP_DIR)/jfdctfst-arm-v7.gas7.o: $(F_HOME)/libraries/libjpeg/jfdctfst-arm-v7.g
 <wrap name="jmemnobs.c"/>
 </platform>
 
-<platform name="android-cmake">
-<!-- JPEG library -->
-<common>
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNO_GETENV -DKINOMA_YUV2RGB565_IFAST_ARM_SUPPORTED	-DKINOMA_IDCT_IFAST_SUPPORTED -DKINOMA_DCT_IFAST_SUPPORTED")
-
-	list(APPEND sources ${F_HOME}/libraries/libjpeg/jidctfst2-arm.gas)
-	list(APPEND sources ${F_HOME}/libraries/libjpeg/jidctfst2-arm-v6.gas)
-	list(APPEND sources ${F_HOME}/libraries/libjpeg/jfdctfst-arm-v7.gas7)
-#	list(APPEND sources ${F_HOME}/libraries/libjpeg/jidctfst2-arm.wmmx)
-</common>
-
-<input name="$(F_HOME)/libraries/libjpeg"/>
-<wrap name="jcapimin.c"/>
-<wrap name="jcapistd.c"/>
-<wrap name="jccoefct.c"/>
-<wrap name="jccolor.c"/>
-<wrap name="jcdctmgr.c"/>
-<wrap name="jchuff.c"/>
-<wrap name="jcinit.c"/>
-<wrap name="jcmainct.c"/>
-<wrap name="jcmarker.c"/>
-<wrap name="jcmaster.c"/>
-<wrap name="jcomapi.c"/>
-<wrap name="jcparam.c"/>
-<wrap name="jcphuff.c"/>
-<wrap name="jcprepct.c"/>
-<wrap name="jcsample.c"/>
-<wrap name="jctrans.c"/>
-
-<wrap name="jdcolor.c"/>
-
-<wrap name="jerror.c"/>
-<wrap name="jfdctflt.c"/>
-<wrap name="jfdctfst.c"/>
-<wrap name="jfdctfst2.c"/>
-<wrap name="jfdctint.c"/>
-<wrap name="jidctflt.c"/>
-<wrap name="jidctfst.c"/>
-<wrap name="jidctfst2.c"/>
-<wrap name="jidctint.c"/>
-<wrap name="jidctred.c"/>
-<wrap name="jquant1.c"/>
-<wrap name="jquant2.c"/>
-<wrap name="jutils.c"/>
-<wrap name="jmemmgr.c"/>
-<wrap name="jmemnobs.c"/>
-</platform>
-
 <platform name="iphone/device">
 <wrap name="../../libraries/libjpeg/jfdctfst-arm-v7.gas7"/>
 <common>
@@ -140,7 +92,7 @@ C_OPTIONS += \
 </common>
 </platform>
 
-<platform name="MacOSX,iPhone,mac-cmake">
+<platform name="MacOSX,iPhone">
 <input name="$(F_HOME)/libraries/libjpeg"/>
 <wrap name="jcapimin.c"/>
 <wrap name="jcapistd.c"/>

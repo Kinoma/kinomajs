@@ -20,23 +20,6 @@
 <!-- Do not indent! Tabs are significant in makefiles... -->
 
 
-<platform name="mac-cmake">
-<common><![CDATA[
-
-#if we're not embedded, don't do this
-	set(XSB_PATH ${BUILD_TMP}/${PROJECT_NAME}.xsb)
-	add_custom_command(
-		OUTPUT ${XSB_PATH}
-		COMMAND ${XSC} -b ${DEFAULT_XSC_OPTIONS} ${includes} ${EXT_XS_FILE}
-		COMMENT generating ${PROJECT_NAME}.xsb
-	)
-
-	add_custom_target(${PROJECT_NAME} ALL DEPENDS ${XSB_PATH})
-
-	install(FILES ${XSB_PATH} DESTINATION ${BUILD_BIN})
-]]></common>
-</platform>
-
 
 <platform name="Linux,MacOSX,iPhone,Solaris,android">
 <common><![CDATA[

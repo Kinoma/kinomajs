@@ -294,7 +294,7 @@ void fx_String_prototype_charAt(txMachine* the)
 	if ((mxArgc > 0) && (mxArgv(0)->kind != XS_UNDEFINED_KIND))
 		anOffset = fxToInteger(the, mxArgv(0));
 	else
-		anOffset = -1;
+		anOffset = 0;
 	if ((0 <= anOffset) && (anOffset < aLength)) {
 		anOffset = fxUnicodeToUTF8Offset(aString, anOffset);
 		aLength = fxUnicodeToUTF8Offset(aString + anOffset, 1);
@@ -328,7 +328,7 @@ void fx_String_prototype_charCodeAt(txMachine* the)
 	if ((mxArgc > 0) && (mxArgv(0)->kind != XS_UNDEFINED_KIND))
 		anOffset = fxToInteger(the, mxArgv(0));
 	else
-		anOffset = -1;
+		anOffset = 0;
 	if ((0 <= anOffset) && (anOffset < aLength)) {
 		anOffset = fxUnicodeToUTF8Offset(aString, anOffset);
 		aLength = fxUnicodeToUTF8Offset(aString + anOffset, 1);
@@ -1390,7 +1390,7 @@ void fx_String_prototype_toCase(txMachine* the, txBoolean flag)
 		typedef struct {
 			txU2 from; txU2 to; txS2 delta;
 		} txCase;
-		static txCase gxToLower[84] = {
+		static const txCase gxToLower[84] = {
 			{0x0041,0x005A,32},{0x00C0,0x00D6,32},{0x00D8,0x00DE,32},{0x0100,0x0136,0},{0x0139,0x0147,0},{0x014A,0x0176,0},{0x0178,0x0178,-121},
 			{0x0179,0x017D,0},{0x0181,0x0181,210},{0x0182,0x0184,0},{0x0186,0x0186,206},{0x0187,0x0187,0},{0x018A,0x018A,205},{0x018B,0x018B,0},
 			{0x018E,0x018F,202},{0x0190,0x0190,203},{0x0191,0x0191,0},{0x0193,0x0193,205},{0x0194,0x0194,207},{0x0196,0x0196,211},{0x0197,0x0197,209},
@@ -1404,7 +1404,7 @@ void fx_String_prototype_toCase(txMachine* the, txBoolean flag)
 			{0x1F48,0x1F4D,-8},{0x1F59,0x1F59,-8},{0x1F5B,0x1F5B,-8},{0x1F5D,0x1F5D,-8},{0x1F5F,0x1F5F,-8},{0x1F68,0x1F6F,-8},{0x1F88,0x1F8F,-8},
 			{0x1F98,0x1F9F,-8},{0x1FA8,0x1FAF,-8},{0x1FB8,0x1FB9,-8},{0x1FD8,0x1FD9,-8},{0x1FE8,0x1FE9,-8},{0x24B6,0x24CF,26},{0xFF21,0xFF3A,32}
 		};
-		static txCase gxToUpper[84] = {
+		static const txCase gxToUpper[84] = {
 			{0x0061,0x007A,-32},{0x00E0,0x00F6,-32},{0x00F8,0x00FE,-32},{0x00FF,0x00FF,121},{0x0101,0x0137,0},{0x013A,0x0148,0},{0x014B,0x0177,0},
 			{0x017A,0x017E,0},{0x0183,0x0185,0},{0x0188,0x0188,0},{0x018C,0x018C,0},{0x0192,0x0192,0},{0x0199,0x0199,0},{0x01A1,0x01A5,0},
 			{0x01A8,0x01A8,0},{0x01AD,0x01AD,0},{0x01B0,0x01B0,0},{0x01B4,0x01B6,0},{0x01B9,0x01B9,0},{0x01BD,0x01BD,0},{0x01C6,0x01C6,-2},
@@ -1422,8 +1422,8 @@ void fx_String_prototype_toCase(txMachine* the, txBoolean flag)
 		txU4 c;
 		const txUTF8Sequence *aSequence;
 		txInteger aSize;
-		txCase* current;
-		txCase* limit = flag ? &gxToUpper[84] : &gxToLower[84];
+		const txCase* current;
+		const txCase* limit = flag ? &gxToUpper[84] : &gxToLower[84];
 		result = fxNewChunk(the, stringLength + 1);
 		s = (txU1*)string;
 		r = (txU1*)result;

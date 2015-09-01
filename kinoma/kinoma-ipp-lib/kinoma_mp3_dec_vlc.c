@@ -16,6 +16,10 @@
  */
 #ifndef KINOMA_FAST_HUFFMAN
 
+#ifdef BUILT_4_MC
+#include "kinoma_ipp_env.h"
+#endif
+
 #include "kinoma_ipp_common.h"
 
 IppStatus (__STDCALL *ippsVLCDecodeEscBlock_MP3_1u16s_universal)  (Ipp8u **ppBitStream, int *pBitOffset, int linbits, Ipp16s *pData, int len, const IppsVLCDecodeSpec_32s *pVLCSpec) = NULL;

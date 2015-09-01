@@ -19,38 +19,6 @@
 <makefile>
 <!-- Do not indent! Tabs are significant in makefiles... -->
 
-<platform name="android-cmake">
-<common>
-	include_directories(${XS_HOME}/includes)
-
-</common>
-<debug>
-	set(LIB_DIR ${XS_HOME}/lib/android/debug)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DmxDebug -g -O0 -Wall")
-	set(XSC_OPTIONS ${XSC_OPTIONS} -o $(TMP_DIR) -t $(FSK_APPLICATION) -t android -d)
-</debug>
-<release>
-	set(LIB_DIR ${XS_HOME}/lib/android/release)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
-	set(XSC_OPTIONS ${XSC_OPTIONS} -o $(TMP_DIR) -t $(FSK_APPLICATION) -t android)
-</release>
-</platform>
-
-
-
-<platform name="mac-cmake">
-<common>
-	include_directories(${XS_HOME}/includes)
-</common>
-<debug>
-	set(DEFAULT_XSC_OPTIONS -o ${BUILD_TMP} -t ${FSK_APPLICATION} -t mac-cmake -d)
-</debug>
-<release>
-	set(DEFAULT_XSC_OPTIONS -o ${BUILD_TMP} -t ${FSK_APPLICATION} -t mac-cmake)
-</release>
-</platform>
-
-
 <platform name="android">
 <common>
 

@@ -12,6 +12,8 @@
 
 #include <pthread.h>
 #include <sys/types.h>
+
+#ifndef BUILT_4_MC
 #include <semaphore.h>
 
 #ifdef __INTEL_COMPILER
@@ -25,6 +27,7 @@
 
 #include <sys/socket.h>
 #include <sys/select.h>
+#endif
 
 #ifdef __cplusplus
 extern "C"
@@ -47,6 +50,7 @@ typedef unsigned long vm_sizet;
 #define CONST_LL(X) X##LL
 #define CONST_ULL(X) X##ULL
 
+#ifndef BUILT_4_MC
 /* vm_event.h */
 typedef struct vm_event
 {
@@ -56,6 +60,7 @@ typedef struct vm_event
     int state;
 
 } vm_event;
+#endif
 
 /* vm_mmap.h */
 typedef struct vm_mmap
@@ -67,6 +72,7 @@ typedef struct vm_mmap
 
 } vm_mmap;
 
+#ifndef BUILT_4_MC
 /* vm_mutex.h */
 typedef struct vm_mutex
 {
@@ -108,6 +114,7 @@ typedef struct vm_socket
    int flags;
 
 } vm_socket;
+#endif
 
 #ifdef __cplusplus
 }

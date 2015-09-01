@@ -185,6 +185,12 @@ exports.repeat = function(path, requestObject, condition, callback)		//@@ remove
 	};
 }
 
+exports.when = function(target, path, callback)
+{
+	return this.repeat("/" + target + "/_WHEN_", path, callback);
+}
+
+
 exports.close = function() {
 	var container = new Container({behavior: Behavior({})});
 	container.invoke(new MessageWithObject("pins:close"));

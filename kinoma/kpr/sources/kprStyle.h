@@ -40,6 +40,7 @@ enum {
 	kprTextFont = 1 << 13,
 	kprTextSize = 1 << 14,
 	kprTextStyle = 1 << 15,
+	kprTextUnit = 1 << 16,
 	kprStyleInherited  = 1 << 30,
 	kprStyleDirty = 1 << 31
 };
@@ -67,6 +68,7 @@ struct KprStyleStruct {
 	FskPortTextFormat textFormat;
 	UInt16 ascent; 
 	UInt16 descent;
+	
 };
 
 FskAPI(FskErr) KprStyleNew(KprStyle *it, KprContext context, KprStyle father, KprStyle mother);

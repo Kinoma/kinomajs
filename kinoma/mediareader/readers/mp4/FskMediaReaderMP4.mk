@@ -25,10 +25,4 @@
 
 <include name="/makefiles/xsLibrary.mk"/>
 
-<platform name="mac-cmake">
-<common>
-include_directories(${LibraryQTReader_SOURCE_DIR})
-</common>
-</platform>
-
 </makefile>

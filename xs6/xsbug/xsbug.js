@@ -769,7 +769,9 @@ var LogHeader = Line.template(function($) { return {
 			width:32, right:0,
 			behavior: CONTROL.ButtonBehavior({
 				onTap: function(button) {
-					button.container.next.first.first.empty();
+// 					button.container.next.first.first.empty();
+					button.bubble("emptyLog", 7);
+					button.container.next.distribute("emptyLog");
 					button.active = false;
 				},
 				onPrint: function(button, string, newLine) {
@@ -865,6 +867,10 @@ var ViewBody = Container.template(function($) { return {
 									anchor: "LINES",
 									left:0, top:0,
 									behavior: Behavior({
+										emptyLog: function(column) {
+											column.empty();
+											column.container.container.container.scrollTo(0, 0);
+										},
 										onCreate: function(column, data) {
 											this.data = data;
 										},
@@ -1538,6 +1544,15 @@ var model = shell.behavior = Behavior({
 			this.debug.file(machine.address, viewIndex, item.name, -1, item.value);
 		}
 	},
+	emptyLog: function(shell, viewIndex) {
+		trace("emptyLog " + viewIndex + "\n");
+		var machine = this.data.currentMachine;
+		if (machine) {
+			var view = machine.views[viewIndex];
+			view.lineIndex = 0;
+			view.lines = [];
+		}
+	},
 	doSearch: function(shell, string) {
 		var indices = [];
 		var machine = this.data.currentMachine;
@@ -1966,7 +1981,7 @@ var model = shell.behavior = Behavior({
 			var split = line.split("\n");
 			split.forEach(function(string, i) {
 				if (string.length) {
-					if (view.lines.length) {
+					if (view.lines.length && (i == 0)) {
 						var line = view.lines[view.lines.length - 1];
 						line.name += string;
 						string = line.name;

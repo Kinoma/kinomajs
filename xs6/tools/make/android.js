@@ -365,7 +365,7 @@ $(NDK_PROJECT_OBJECTS)/libfsk.a: $(OBJECTS)
 	$(AR) $@ $(OBJECTS)
 
 $(TMP_DIR)/libFsk.so: $(NDK_PROJECT_OBJECTS)/libfsk.a
-	PATH=$(NDK_DIR):$(PATH) ; export KPR_TMP_DIR=$(TMP_DIR) ; export NDK_PROJECT_PATH=$(NDK_PROJECT_PATH) ; cd $(NDK_PROJECT_PATH)/.. ; ndk-build clean ; ndk-build $(NDB_OPTIONS) V=1
+	PATH=$(NDK_DIR):$(PATH) ; export KPR_TMP_DIR=$(TMP_DIR) ; export NDK_PROJECT_PATH=$(NDK_PROJECT_PATH) ; cd $(NDK_PROJECT_PATH)/.. ; ndk-build clean ; ndk-build SUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG) $(NDB_OPTIONS) V=1
 
 ##################################################
 # apk

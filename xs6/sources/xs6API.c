@@ -23,9 +23,6 @@
 #define	XS_PROFILE_COUNT (256 * 1024)
 
 static txSlot* fxCheckHostObject(txMachine* the, txSlot* it);
-#ifdef mxDebug
-static void fxDebugC(txMachine* the, txString thePath, txInteger theLine);
-#endif
 #ifdef mxFrequency
 static void fxReportFrequency(txMachine* the);
 #endif
@@ -1120,24 +1117,10 @@ txInteger fxCheckVar(txMachine* the, txInteger theIndex)
 	return theIndex;
 }
 
-#ifdef mxDebug
-void fxDebugC(txMachine* the, txString thePath, txInteger theLine)
-{
-	/*if ((the->frame) && (the->frame->flag & XS_C_FLAG)) {
-        txSlot* slot = the->frame - 1;
-		slot->next = (txSlot*)thePath;
-		slot->ID = (txID)theLine;
-	}*/
-}
-#endif
-
 void fxOverflow(txMachine* the, txInteger theCount, txString thePath, txInteger theLine)
 {
 #if mxBoundsCheck
 	txSlot* aStack = the->stack + theCount;
-//#ifdef mxDebug
-//	fxDebugC(the, thePath, theLine);
-//#endif
 	if (theCount < 0) {
 		if (aStack < the->stackBottom) {
 			fxReport(the, "stack overflow (%ld)!\n", (the->stack - the->stackBottom) + theCount);
@@ -1165,8 +1148,7 @@ void fxError(txMachine* the, txString path, txInteger line, txInteger code)
 void fxThrow(txMachine* the, txString path, txInteger line)
 {
 #ifdef mxDebug
-	fxDebugC(the, path, line);
-	fxDebugThrow(the, "C: xsThrow");
+	fxDebugThrow(the, path, line, "C: xsThrow");
 #endif
 	fxJump(the);
 }
@@ -1218,10 +1200,10 @@ void fxThrowMessage(txMachine* the, txString path, txInteger line, txError error
 					}
 				}
 			}
+			info = mxFunctionInstanceInfo(function);
+			fxIDToString(the, info->value.info.name, message + length, sizeof(message) - length);
+			c_strcat(message, ": ");
 		}
-		info = mxFunctionInstanceInfo(function);
-		fxIDToString(the, info->value.info.name, message + length, sizeof(message) - length);
-		c_strcat(message, ": ");
 		length = c_strlen(message);
 	}
 
@@ -1239,8 +1221,7 @@ void fxThrowMessage(txMachine* the, txString path, txInteger line, txError error
 	mxException.value.reference = slot;
 	slot = fxNextStringProperty(the, slot, message, mxID(_message), XS_DONT_ENUM_FLAG);
 #ifdef mxDebug
-	fxDebugC(the, path, line);
-	fxDebugThrow(the, message);
+	fxDebugThrow(the, path, line, message);
 #endif
 	fxJump(the);
 }
@@ -1250,8 +1231,7 @@ void fxThrowMessage(txMachine* the, txString path, txInteger line, txError error
 void fxDebugger(txMachine* the, txString thePath, txInteger theLine)
 {
 #ifdef mxDebug
-	fxDebugC(the, thePath, theLine);
-	fxDebugLoop(the, "C: xsDebugger");
+	fxDebugLoop(the, thePath, theLine, "C: xsDebugger");
 #endif
 }
 

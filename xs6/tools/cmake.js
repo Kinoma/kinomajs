@@ -18,11 +18,24 @@ import * as FS from "fs";
 import * as MAKE from "make";
 
 function toCMakePath(tool, path) {
-	return path.replace("\\", "/").replace(tool.homePath, "${F_HOME}");
+	var homePath = tool.resolveDirectoryPath(tool.homePath);
+	path =  path.replace(homePath, "${F_HOME}");
+	if (tool.platform == "win")
+		path =  path.replace(/\\/g, "/")
+	return fixVariable(tool, path);
 }
 
 function fixVariable(tool, item) {
-	return item.replace("(", "{").replace(")", "}");
+	return item.replace(/\$\(([^\)]*)\)/g, "${$1}");
+}
+
+function fixDefinitions(tool, item) {
+	item = fixVariable(tool, item);
+	let matches = item.match(/^"(.*)"/);
+	if (matches)
+		return "\"'" + matches[1] + "'\"";
+	else
+		return item;
 }
 
 class File {
@@ -45,62 +58,90 @@ class File {
 }
 
 export class Makefile extends MAKE.Makefile {
-	generateRules(tool, file, path) {
-		file.line("list(APPEND LIBRARIES ", this.name, ")");
+	generateRule(tool, file, path) {
+		file.line("LIST(APPEND ", this.name, "_SOURCES ", toCMakePath(tool, path), ")");
+		var parts = tool.splitPath(path);
+		if (parts.name.indexOf("neon") >= 0)
+			file.line("SET_SOURCE_FILES_PROPERTIES(", toCMakePath(tool, path), " PROPERTIES COMPILE_FLAGS ${AS_NEON_OPTIONS})");
+		if (parts.name.indexOf("wmmx") >= 0)
+			file.line("SET_SOURCE_FILES_PROPERTIES(", toCMakePath(tool, path), " PROPERTIES COMPILE_FLAGS ${AS__OPTIONS})");	//@
 	}
-	generateVariables(tool, file, path) {
-		if (this.cIncludes.length) {
-			for (let item of this.cIncludes)
-				file.line("list(APPEND ", this.name, "_C_INCLUDES ", toCMakePath(tool, item), ")");
-		}
-		if (this.cOptions.length) {
-			for (let item of this.cOptions) {
+	generateRules(tool, file, path) {
+		file.line("ADD_LIBRARY(", this.name, " STATIC ${", this.name, "_SOURCES})");
+		file.line("ADD_DEPENDENCIES(", this.name, " FskManifest.xsa)");
+		file.line("LIST(APPEND OBJECTS ", this.name, ")");
+		file.line("SET(OBJECTS ${OBJECTS} PARENT_SCOPE)");
+	}
+	processCOptions(tool, file, options, variant) {
+		var variantSuffix = variant ? "_" + variant.toUpperCase() : "";
+		if (options && options.length) {
+			for (let item of options) {
 				var regexpStr = /\$([^)]*\))/;
 				var defs = [];
 				var incs = [];
 				var copts = [];
-				switch (item.match(/"?([-\/].)/)[1]) {
-					case "-D":
-						defs.push(item);
-						break;
-					case "/D":
-						defs.push(item);
-						break;
-					case "-U":
-						defs.push(item);
-						break;
-					case "/U":
-						defs.push(item);
-						break;
-					case "-I":
-						incs.push(item.match(/"?-I(.*)/)[1]);
-						break;
-					case "/I":
-						incs.push(item.match(/"?\/I(.*)/)[1]);
-						break;
-					default:
-						copts.push(item);
-				}
+				var matches = item.match(/"?([-\/].)/);
+				if (matches) {
+					switch (matches[1]) {
+						case "-D":
+							defs.push(item);
+							break;
+						case "/D":
+							defs.push(item);
+							break;
+						case "-U":
+							defs.push(item);
+							break;
+						case "/U":
+							defs.push(item);
+							break;
+						case "-I":
+							incs.push(item.match(/"?-I(.*)/)[1]);
+							break;
+						case "/I":
+							incs.push(item.match(/"?\/I(.*)/)[1]);
+							break;
+						default:
+							copts.push(item);
+					}
+				} else
+					copts.push(item);
 
 				for (let item of incs)
-					file.line("list(APPEND ", this.name, "_C_INCLUDES ", toCMakePath(tool, item), ")");
+					file.line("INCLUDE_DIRECTORIES(", toCMakePath(tool, item), ")");
 				for (let item of defs)
-					file.line("list(APPEND ", this.name, "_C_DEFINITIONS ", fixVariable(tool, item), ")");
+					if (variant)
+						file.line(`SET(CMAKE_C_FLAGS${variantSuffix} "\${CMAKE_C_FLAGS${variantSuffix}} ${fixDefinitions(tool, item)}")`);
+					else
+						file.line("ADD_DEFINITIONS(", fixDefinitions(tool, item), ")");
 				for (let item of copts)
-					file.line("list(APPEND ", this.name, "_C_OPTIONS ",  fixVariable(tool, item), ")");
+					file.line(`SET(CMAKE_C_FLAGS${variantSuffix} "\${CMAKE_C_FLAGS${variantSuffix}} ${fixVariable(tool, item)}")`);
 			}
 		}
+	}
+	generateVariables(tool, file, path) {
+		this.processCOptions(tool, file, this.cOptions);
+		this.processCOptions(tool, file, this.cOptionsDebug, "Debug");
+		this.processCOptions(tool, file, this.cOptionsRelease, "Release");
+		if (this.cIncludes.length) {
+			for (let item of this.cIncludes)
+				file.line("INCLUDE_DIRECTORIES(", toCMakePath(tool, item), ")");
+		}
+		file.line("SET(CMAKE_CXX_FLAGS \"${CMAKE_C_FLAGS}\")");
+		file.line("SET(CMAKE_CXX_FLAGS_DEBUG \"${CMAKE_C_FLAGS_DEBUG}\")");
+		file.line("SET(CMAKE_CXX_FLAGS_RELEASE \"${CMAKE_C_FLAGS_RELEASE}\")\n");
 		if (this.headers.length) {
 			for (let item of this.headers)
-				file.line("list(APPEND ", this.name, "_HEADERS ", toCMakePath(tool, item), ")");
+				file.line("LIST(APPEND ", this.name, "_HEADERS ", toCMakePath(tool, item), ")");
+			file.line();
 		}
 		if (this.sources.length) {
 			for (let item of this.sources)
-				file.line("list(APPEND ", this.name, "_SOURCES ", toCMakePath(tool, item), ")");
+				this.generateRule(tool, file, item)
 		}
-		if (this.seperate) {
+		if (this.separate) {
 			for (let library of this.libraries) {
-				file.line("list(APPEND ", this.name, "_LIBRARIES ", library, ")");
+				file.line("LIST(APPEND ", this.name, "_LIBRARIES ", library, ")");
 			}
 		}
 	}
@@ -111,7 +152,7 @@ export class Manifest extends MAKE.Manifest {
 		return Makefile;
 	}
 	generate(tool, tmp, bin) {
-		// this.generateDirectories(tool, tmp);
+		this.generateDirectories(tool, tmp);
 		this.generateC(tool, tmp);
 		this.generateXS(tool, tmp);
 		this.generateMAKE(tool, tmp, bin);
@@ -122,131 +163,205 @@ export class Manifest extends MAKE.Manifest {
 
 		file.line("# WARNING: This file is automatically generated by config. Do not edit. #\n");
 
-		file.line("cmake_minimum_required(VERSION 2.8.8)\n");
+		file.line("CMAKE_MINIMUM_REQUIRED(VERSION 2.8.8)\n");
 
-		file.line("project(fsk)\n");
+		file.line("FILE(TO_CMAKE_PATH $ENV{F_HOME} F_HOME)");
 
-		file.line("file(TO_CMAKE_PATH $ENV{F_HOME} F_HOME)");
+		var split = tool.platform.split("/");
+		file.line("SET(PLATFORM ", split[0], ")");
+		if (split[1])
+			file.line("SET(SUBPLATFORM ", split[1], ")");
+		if (!tool.debug)
+			file.line("SET(RELEASE true)");
+		file.line();
+
+		file.line("SET(BIN_DIR ", toCMakePath(tool, bin), ")");
+		file.line("SET(TMP_DIR ", toCMakePath(tool, tmp), ")");
+		file.write("SET(SUPPORT_XS_DEBUG ");
+		file.write((tool.debug || this.tree.xsdebug.enable) ? 1 : 0);
+		file.write(")\n\n");
+
+		file.line("LIST(APPEND CMAKE_MODULE_PATH ${F_HOME}/xs6/cmake/modules)");
+		file.line("INCLUDE(XS6)");
+		file.line("INCLUDE(Kinoma)");
+		file.line("INCLUDE(" + tool.platform + " OPTIONAL)\n");
+		file.line();
 
 		this.generatePlatformVariables(tool, file, tmp, bin);
 
-		file.line("include(${F_HOME}/xs6/tools/cmake/CMakeLists.txt)");
+		file.line("PROJECT(fsk)\n");
 
-		file.line("set(TMP_DIR ", toCMakePath(tool, tmp), ")");
-		file.write("set(SUPPORT_XS_DEBUG ");
-		file.write((tool.debug || this.tree.xsdebug.enable) ? 1 : 0);
-		file.write(")\n");
+		file.line("IF(NOT DEFINED CMAKE_MACOSX_RPATH)");
+		file.line("\tSET(CMAKE_MACOSX_RPATH 0)");
+		file.line("ENDIF()\n");
+
+		file.line("IF(NOT CMAKE_BUILD_TYPE)");
+		file.line("\tMESSAGE(STATUS \"Setting build type to 'Release' as none was specified.\")");
+		file.line(`\tSET(CMAKE_BUILD_TYPE ${tool.debug ? "Debug" : "Release"} CACHE STRING "Choose the type of build." FORCE)`);
+		file.line("\tSET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS \"Debug\" \"Release\")");
+		file.line("ENDIF()\n");
+
+		file.line("IF(CMAKE_CONFIGURATION_TYPES)");
+		file.write("\tSET(CMAKE_CONFIGURATION_TYPES");
+		file.write(this.debug? ' "Debug"' : ' "Release"'); 
+		file.write(this.debug? ' "Release"' : ' "Debug"'); 
+		file.line(" CACHE STRING \"Reset the configurations to what we need\" FORCE)");
+		file.line("ENDIF()\n");
 
 		this.generateXSVariables(tool, file);
 		this.generateResourcesVariables(tool, file);
 
-		for (let makefile of this.makefiles)
-			file.line("include(", makefile.name, ".txt)");
-
-		file.line("set(C_INCLUDES ${F_HOME}/xs6/includes ${TMP_DIR} ${TMP_DIR}/src ${FskPlatform_C_INCLUDES})");
+		file.line("INCLUDE_DIRECTORIES(${F_HOME}/xs6/includes)");
+		file.line("INCLUDE_DIRECTORIES(${TMP_DIR})");
+		file.line("INCLUDE_DIRECTORIES(${TMP_DIR}/src)");
+		file.line("INCLUDE_DIRECTORIES(${FREETYPE_DIR}/include)");
+		file.write("SET(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ");
 		if (tool.windows)
-			file.line("set(C_OPTIONS /Fd${TMP_DIR\\fsk.pdb /Dxs6=1 ${FskPlatform_C_INCLUDES})");
+			file.line("/Fd${TMP_DIR}\\\\fsk.pdb /DXS6=1\")");
 		else
-			file.line("set(C_OPTIONS -DXS6=1 ${FskPlatform_C_OPTIONS})");
-		file.line("set(C_DEFINITIONS ${FskPlatform_C_DEFINITIONS})");
-		file.line("set(HEADERS ${F_HOME}/xs6/includes/xs.h ${FskPlatform_HEADERS})");
+			file.line("-DXS6=1\")");
+
+		var FskManifest = this.makefiles[0];
+		this.makefiles.splice(0, 1);
+		FskManifest.generateVariables(tool, file, tmp);
+
+		for (let makefile of this.makefiles)
+			if (!makefile.separate)
+				file.line("ADD_SUBDIRECTORY(", makefile.name, ")");
+		file.line();
 
 		for (let item of this.tree.libraries) {
-			// file.line("\t", item);
 			var parts = item.split(" ");
 			if (parts[0] === "-framework")
-				file.line("LOCAL_FIND_LIBRARY(", parts[1], ")");
-			else
-				file.line("list(APPEND LIBRARIES ", item, ")");
+				file.line("LOCAL_FIND_LIBRARY(LIBNAME ", parts[1], " LIST LIBRARIES)");
+			else {
+				if (tool.platform == "win") {
+					if (item.indexOf("/") >= 0)
+						file.line("SET(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS} ", toCMakePath(tool, item), "\")");
+					else
+						file.line("LIST(APPEND LIBRARIES ", toCMakePath(tool, item), ")");
+				} else {
+					file.line("LIST(APPEND LIBRARIES ", toCMakePath(tool, item), ")");
+				}
+			}
 		}
+		file.line()
 
-		file.line("set(SEPARATE");
+		file.line("SET(SEPARATE");
 		for (let makefile of this.makefiles)
-			if (Makefile.separate)
-				file.line("\t${SEPARATE_DIR}/lib" + makefile.name + ".so");
-		file.line("\t)");
+			if (makefile.separate)
+				file.line("\t", makefile.name);
+		file.line("\t)\n");
 
 		this.generateManifestRules(tool, file);
 		this.generateResourcesRules(tool, file);
 		this.generateXSRules(tool, file);
 		for (let makefile of this.makefiles) {
-			var makePath = tool.joinPath({directory: tmp, name: makefile.name, extension: ".txt"});
+			var makePath = tool.tmpPath + "/" + makefile.name + "/CMakeLists.txt";
 			var makeFile = new File(makePath);
+			makeFile.line("# WARNING: This file is automatically generated by config. Do not edit. #\n");
 			makefile.generateVariables(tool, makeFile, tmp);
-			if (makefile.sources.length) {
+			if (makefile.sources.length)
 				makefile.generateRules(tool, makeFile, tmp);
-				file.line("BUILD_LIBRARY(NAME ", makefile.name, ")");
-				if (makefile.seperate)
-					makefile.generateSeparateRules(tool, file, tmp);
-			}
+			makeFile.line("# vim: ft=cmake");
 			makeFile.close();
 		}
+		file.line();
 
-		file.line("list(APPEND Fsk_SOURCES ${TMP_DIR}/FskManifest.c)");
-		file.line("list(APPEND Fsk_SOURCES ${TMP_DIR}/FskManifest.xs.c)");
-		file.line("set_source_files_properties(${TMP_DIR}/FskManifest.xs.c ${TMP_DIR}/FskManifest.xs.h PROPERTIES GENERATED TRUE)");
+		file.line("LIST(APPEND SOURCES ${TMP_DIR}/FskManifest.c)");
+		file.line("LIST(APPEND SOURCES ${TMP_DIR}/src/FskManifest.xs.c)");
+		file.line("SET_SOURCE_FILES_PROPERTIES(${TMP_DIR}/src/FskManifest.xs.c ${TMP_DIR}/src/FskManifest.xs.h PROPERTIES GENERATED TRUE)");
 
 		this.generateTargetRules(tool, file);
+
+		for (let makefile of this.makefiles)
+			if (makefile.separate)
+				file.line("ADD_SUBDIRECTORY(", makefile.name, ")");
+
+		file.line();
+		file.line("# vim: ft=cmake");
 
 		file.close();
 	}
 	generateManifestRules(tool, file) {
 	}
 	generateResourcesVariables(tool, file) {
-		file.line("set(MODULES");
+		file.line("SET(MODULES");
 		file.line("\t${TMP_DIR}/FskManifest.xsb");
 		for (let item of this.tree.xmlPaths)
 			file.line("\t${TMP_DIR}/", toCMakePath(tool, item.destinationPath), ".xsb");
 		for (let item of this.tree.jsPaths)
 			file.line("\t${TMP_DIR}/", toCMakePath(tool, item.destinationPath), ".xsb");
-		file.line("\t)");
+		file.line("\t)\n");
 	}
 	generateTargetRules(tool, file) {
 		file.write(this.getTargetRules(tool));
 	}
 	generateXSRules(tool, file) {
-		file.line("XSL(NAME FskManifest)");
+		file.line("XS2JS(SOURCE ${TMP_DIR}/FskManifest.xs DESTINATION ${TMP_DIR} OPTIONS ${XSC_OPTIONS})");
+		file.line("XSC(SOURCE_FILE ${TMP_DIR}/FskManifest.js DESTINATION ${TMP_DIR} OPTIONS -c -d -e -p)");
+		file.line("XSL(NAME FskManifest SOURCES ${MODULES} TMP ${TMP_DIR} DESTINATION ${APP_DIR} SRC_DIR ${TMP_DIR}/src)");
 	}
 	generateXSVariables(tool, file) {
-		file.line("set(XSC_OPTIONS");
+		file.line("SET(XSC_OPTIONS");
 		file.line("\t-b");
-		if (tool.debug)
-			file.line("\t-d");
+		file.line("\t$<$<CONFIG:Debug>:-d>");
 		for (let item of this.xsIncludes)
 			file.line("\t-i ", toCMakePath(tool, item));
-		if (tool.debug)
-			file.line("\t-t debug");
+		file.line("\t$<$<CONFIG:Debug>:-t> $<$<CONFIG:Debug>:debug>");
 		file.line("\t-t KPR_CONFIG");
 		file.line("\t-t XS6");
 		for (let item of this.xsOptions)
 			file.line("\t", item);
-		file.line("\t)");
+		file.line("\t)\n");
 		file.line("set(XSC_PACKAGES");
 		for (let item of this.xsSources)
 			file.line("\t", toCMakePath(tool, item));
-		file.line("\t)");
+		file.line("\t)\n");
 	}
 	generatePlatformVariables(tool, file, tmp, bin) {
-		file.line("set(TARGET_PLATFORM ", tool.platform, ")");
-		var variables = this.getPlatformVariables(tool, tmp, bin);
+		let variables = this.getPlatformVariables(tool, tmp, bin);
 		for (let name in variables) {
-			var value = variables[name].replace("(", "{").replace(")", "}");
-			file.line("set(", name, " ", toCMakePath(tool, value), ")");
+			let value = variables[name];
+			if (typeof value == "string") {
+				value = toCMakePath(tool, value);
+			}
+			file.line("SET(", name, " ", value, ")");
+		}
+		var languages = this.getPlatformLanguages();
+		if (languages) {
+			file.line();
+			for (let language of languages)
+				file.line("ENABLE_LANGUAGE(", language, ")");
+			file.line();
 		}
 	}
 	generateResourcesRules(tool, file) {
 		for (let item of this.tree.xmlPaths) {
 			let parts = tool.splitPath(item.destinationPath);
-			file.line("XML2XSB(SOURCE ", toCMakePath(tool, item.sourcePath), " DESTINATION ", parts.directory, ")");
+			let sourcePath = toCMakePath(tool, item.sourcePath);
+			let destinationPath = toCMakePath(tool, item.destinationPath);
+			let directory = toCMakePath(tool, parts.directory);
+			file.line("KPR2JS(SOURCE ", sourcePath, " DESTINATION ${TMP_DIR}/", directory, ")");
+			file.line("XSC(SOURCE_FILE ${TMP_DIR}/", directory, "/", parts.name, ".js DESTINATION ${TMP_DIR}/", directory, ")");
 		}
+		file.line();
 		for (let item of this.tree.jsPaths) {
 			let parts = tool.splitPath(item.destinationPath);
-			file.line("JS2XSB(SOURCE ", toCMakePath(tool, item.sourcePath), " DESTINATION ", parts.directory, ")");
+			let sourcePath = toCMakePath(tool, item.sourcePath);
+			let destinationPath = toCMakePath(tool, item.destinationPath);
+			let directory = toCMakePath(tool, parts.directory);
+			file.line("XSC(SOURCE_FILE ", sourcePath, " DESTINATION ${TMP_DIR}/", directory, ")");
 		}
-		for (let item of this.tree.otherPaths)
-			file.line("COPY(SOURCE ", toCMakePath(tool, item.sourcePath), " DESTINATION ${APP_DIR}/", item.destinationPath, ")");
+		file.line();
+		for (let item of this.tree.otherPaths) {
+			let sourcePath = toCMakePath(tool, item.sourcePath);
+			let destinationPath = toCMakePath(tool, item.destinationPath);
+			file.line("COPY(SOURCE ", sourcePath, " DESTINATION ${APP_DIR}/", destinationPath, ")");
+		}
+		file.line();
 	}
-	getTargetRules(tool) {
-		throw new Error("unsupported platform!");
+	getPlatformLanguages() {
+		return [];
 	}
 }

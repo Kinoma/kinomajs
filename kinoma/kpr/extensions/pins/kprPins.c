@@ -44,7 +44,7 @@ static void KprPinsListenerDispose(KprPinsListener self, KprPins pins);
 static void KprPinsListenerFind(KprPinsListener *it, KprPins pins, KprMessage message);
 
 static FskErr KprPinsPollerNew(KprPinsPoller *it, KprPinsListener listener, KprMessage message, FskAssociativeArray query);
-static void KprPinsPollerDispose(KprPinsPoller self, KprPinsListener listener);
+static void KprPinsPollerDispose(KprPinsPoller self);
 static void KprPinsPollerFind(KprPinsPoller *it, KprPinsListener listener, KprMessage message, SInt32 id);
 static void KprPinsPollerStep(FskTimeCallBack callback, const FskTime time, void *param);
 
@@ -134,7 +134,7 @@ void KprPinsInvoke(KprService service, KprMessage message)
                     KprPinsPoller poller = FskListGetNext(listener->pollers, NULL);
                     while (poller) {
                         KprPinsPoller next = FskListGetNext(listener->pollers, poller);
-                        KprPinsPollerDispose(poller, listener);
+                        KprPinsPollerDispose(poller);
                         poller = next;
                     }
                     {
@@ -349,7 +349,7 @@ void KprPinsInvoke(KprService service, KprMessage message)
                 FskAssociativeArrayDispose(query);
             }
         }
-		else {
+		else {		// confirm message->parts.path starts with '/'?
 			if (listener) {
 				xsBeginHostSandboxCode(listener->the, NULL);
 				{
@@ -367,17 +367,23 @@ void KprPinsInvoke(KprService service, KprMessage message)
 							xsResult = xsGetAt(xsResult, xsStringBuffer(message->parts.path + 1, message->parts.pathLength - message->parts.nameLength - 2));
 							if (!xsTest(xsResult))
 								xsThrowDiagnosticIfFskErr(kFskErrNotFound, "BLL %s not found when invoking function %s", xsToString(xsStringBuffer(message->parts.path + 1, message->parts.pathLength - message->parts.nameLength - 2)), xsToString(xsStringBuffer(message->parts.name, message->parts.nameLength)));
-							xsVar(0) = xsGetAt(xsResult, xsStringBuffer(message->parts.name, message->parts.nameLength));
-							if (!xsTest(xsVar(0)))
-								xsThrowDiagnosticIfFskErr(kFskErrNotFound, "BLL function %s not found", xsToString(xsStringBuffer(message->parts.name, message->parts.nameLength)));
-							if (message->request.body && (message->request.size == 0xFFFFFFFF))
-								xsVar(1) = xsDemarshall(message->request.body);
-						
+
 							value = FskAssociativeArrayElementGetString(query, "repeat");
 							if (value) {
 								char *idStr = FskAssociativeArrayElementGetString(query, "id");
 								id = idStr ? FskStrToNum(idStr) : 0;
 							}
+
+							xsVar(0) = xsGetAt(xsResult, xsStringBuffer(message->parts.name, message->parts.nameLength));
+							if (!xsTest(xsVar(0))) {
+								if (value && FskAssociativeArrayElementGetString(query, "timer") && !FskStrCompareWithLength(message->parts.name, "_WHEN_", message->parts.nameLength))
+									;
+								else
+									xsThrowDiagnosticIfFskErr(kFskErrNotFound, "BLL function %s not found", xsToString(xsStringBuffer(message->parts.name, message->parts.nameLength)));
+							}
+							if (message->request.body && (message->request.size == 0xFFFFFFFF))
+								xsVar(1) = xsDemarshall(message->request.body);
+
 							if (!FskStrCompare(value, "on")) {
 								KprPinsPollerFind(&poller, listener, message, id);
 								if (poller)
@@ -388,7 +394,7 @@ void KprPinsInvoke(KprService service, KprMessage message)
 								KprPinsPollerFind(&poller, listener, message, id);
 								if (!poller)
 									xsError(kFskErrNotFound);
-								KprPinsPollerDispose(poller, listener);
+								KprPinsPollerDispose(poller);
 							}
 							else {
 								xsResult = xsCallFunction1(xsVar(0), xsResult, xsVar(1));
@@ -599,10 +605,13 @@ FskErr KprPinsPollerNew(KprPinsPoller *it, KprPinsListener listener, KprMessage 
 	FskListAppend(&listener->pollers, self);
 	self->listener = listener;
 	FskInstrumentedItemSetOwner(self, listener);
-		
-	bailIfError(FskMemPtrNewClear(message->parts.pathLength, &self->path));
-	FskStrNCopy(self->path, message->parts.path, message->parts.pathLength);
 
+	if (message) {
+		bailIfError(FskMemPtrNewClear(message->parts.pathLength, &self->path));
+		FskStrNCopy(self->path, message->parts.path, message->parts.pathLength);
+	}
+
+	self->useCount = 1;
 	self->function = xsVar(0);
 	if (xsTest(self->function))
 		xsRemember(self->function);
@@ -659,16 +668,20 @@ FskErr KprPinsPollerNew(KprPinsPoller *it, KprPinsListener listener, KprMessage 
 	FskTimeCallbackScheduleFuture(self->timeCallback, self->interval / 1000, self->interval % 1000, KprPinsPollerStep, self);
 bail:
 	if (kFskErrNone != err) {
-		KprPinsPollerDispose(self, listener);
+		KprPinsPollerDispose(self);
 		*it = NULL;
 	}
 	return err;
 }
 
-void KprPinsPollerDispose(KprPinsPoller self, KprPinsListener listener)
+void KprPinsPollerDispose(KprPinsPoller self)
 {
-	xsMachine* the = listener->the;
 	if (self) {
+		xsMachine* the = self->listener->the;
+		
+		self->useCount -= 1;
+		if (self->useCount > 0) return;
+		
 		FskMemPtrDispose(self->url);
 		FskTimeCallbackDispose(self->timeCallback);
 		if (xsTest(self->timer)) {
@@ -681,7 +694,7 @@ void KprPinsPollerDispose(KprPinsPoller self, KprPinsListener listener)
 			xsForget(self->instance);
 		if (xsTest(self->function))
 			xsForget(self->function);
-		FskListRemove(&listener->pollers, self);
+		FskListRemove(&self->listener->pollers, self);
 		FskInstrumentedItemDispose(self);
 		FskMemPtrDispose(self);
 	}
@@ -692,7 +705,8 @@ void KprPinsPollerFind(KprPinsPoller *it, KprPinsListener listener, KprMessage m
 	KprPinsPoller poller = FskListGetNext(listener->pollers, NULL);
 	*it = NULL;
 	while (poller) {
-		if ((!FskStrCompareWithLength(message->parts.path, poller->path, message->parts.pathLength)) &&
+		if (poller->path &&
+			(!FskStrCompareWithLength(message->parts.path, poller->path, message->parts.pathLength)) &&
 			(id == poller->id))
 			break;
 		poller = FskListGetNext(listener->pollers, poller);
@@ -700,11 +714,10 @@ void KprPinsPollerFind(KprPinsPoller *it, KprPinsListener listener, KprMessage m
 	*it = poller;
 }
 
-
 void KprPinsPollerRun(KprPinsPoller self)
 {
 	KprMessage message = NULL;
-//	UInt32 size;
+
 	xsBeginHostSandboxCode(self->listener->the, NULL);
 	{
 		if (self->parametersAlways > 0) {
@@ -719,19 +732,6 @@ void KprPinsPollerRun(KprPinsPoller self)
 			KprMessageNew(&message, self->url);
 			message->request.body = xsMarshall(xsResult);
 			message->request.size = 0xFFFFFFFF;
-			/*
-			if (xsTypeOf(xsResult) != xsUndefinedType) {
-				if (xsIsInstanceOf(xsResult, xsChunkPrototype)) {
-					size = xsToInteger(xsGet(xsResult, xsID("length")));
-					KprMessageSetRequestBody(message, xsGetHostData(xsResult), size);
-				}
-				else {
-					xsResult = xsCall1(xsGet(xsGlobal, xsID("JSON")), xsID("stringify"), xsResult);
-					size = xsToInteger(xsGet(xsResult, xsID("length")));
-					KprMessageSetRequestBody(message, xsToString(xsResult), size);
-				}
-			}
-			*/
 		}
 	}
 	xsEndHostSandboxCode();
@@ -742,8 +742,10 @@ void KprPinsPollerRun(KprPinsPoller self)
 void KprPinsPollerStep(FskTimeCallBack callback, const FskTime time, void *param)
 {
 	KprPinsPoller self = (KprPinsPoller)param;
+	self->useCount += 1;
 	KprPinsPollerRun(self);
 	FskTimeCallbackScheduleFuture(callback, self->interval / 1000, self->interval % 1000, KprPinsPollerStep, self);
+	KprPinsPollerDispose(self);
 }
 
 FskErr exceptionToFskErr(xsMachine *the)
@@ -807,3 +809,90 @@ void xs_hardwarepins_udelay(xsMachine *the){
   int delay = xsToInteger(xsArg(0));
   FskhardwarepinsUDelay(delay);
 }
+
+void xs_notification(void *data)
+{
+}
+
+void xs_notification_close(xsMachine *the)
+{
+	xs_notification(xsGetHostData(xsThis));
+	xsSetHostData(xsThis, NULL);
+}
+
+void xs_notification_repeat(xsMachine *the)
+{
+	KprPinsPoller poller = (xsTest(xsArg(0))) ? xsGetHostData(xsArg(0)) : NULL;
+	xsSetHostData(xsThis, poller);
+}
+
+void xs_notification_invoke(xsMachine *the)
+{
+	KprPinsPoller poller = xsGetHostData(xsThis);
+
+	if (poller && poller->url && (xsTypeOf(xsArg(0)) != xsUndefinedType)) {
+		KprMessage message;
+		KprMessageNew(&message, poller->url);
+		message->request.body = xsMarshall(xsArg(0));
+		message->request.size = 0xFFFFFFFF;
+		KprMessageInvoke(message, NULL, NULL, NULL);
+	}
+}
+
+
+//	PINS.repeat(50, this, function() {});
+
+void xs_PINS_repeat(xsMachine *the)
+{
+	FskErr err;
+	KprPins pins = gPins;
+	KprPinsListener listener;
+	KprPinsPoller poller;
+	FskAssociativeArray query;
+	xsType type;
+
+	for (listener = FskListGetNext(pins->listeners, NULL); NULL != listener; listener = FskListGetNext(pins->listeners, listener)) {
+		if (listener->the == the)
+			break;
+	}
+	if (!listener)
+		xsThrowIfFskErr(kFskErrBadState);
+
+	type = xsTypeOf(xsArg(0));
+	query = FskAssociativeArrayNew();
+	if ((xsNumberType == type) || (xsIntegerType == type)) {
+		const char *interval = xsToString(xsArg(0));
+		FskAssociativeArrayElementSet(query, "interval", interval, 0, kFskStringType);
+	}
+	else {
+		const char *timer = xsToString(xsArg(0));
+		FskAssociativeArrayElementSet(query, "timer", timer, 0, kFskStringType);
+	}
+	FskAssociativeArrayElementSet(query, "skipFirst", "true", 0, kFskStringType);
+
+	xsVars(3);
+	xsVar(0) = xsArg(2);		// function
+	xsVar(1) = xsUndefined;		// parameters to function
+	xsResult = xsArg(1);		// BLL "this"
+
+	err = KprPinsPollerNew(&poller, listener, NULL, query);
+	FskAssociativeArrayDispose(query);
+	xsThrowIfFskErr(err);
+
+	xsResult = xsNewInstanceOf(xsGet(listener->pins, xsID("repeater")));
+	xsSetHostData(xsResult, poller);
+}
+
+void xs_repeater(void *data)
+{
+	KprPinsPollerDispose((KprPinsPoller)data);
+}
+
+void xs_repeater_close(xsMachine *the)
+{
+	xs_repeater(xsGetHostData(xsThis));
+	xsSetHostData(xsThis, NULL);
+}
+
+
+

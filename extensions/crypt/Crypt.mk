@@ -159,15 +159,6 @@
 <wrap name="bn_mp_to_signed_bin_n.c"/>
 <wrap name="bn_mp_to_unsigned_bin_n.c"/>
 
-<platform name="mac-cmake,android-cmake">
-<debug>
-	list(APPEND XSC_OPTIONS -t debug)
-</debug>
-<common>
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DARGTYPE=4 -DLTM_DESC -DLTC_NO_ASM -DLTC_NO_PK -DLTC_NO_PKCS -DLTC_NO_TEST")
-</common>
-</platform>
-
 <platform name="Linux,MacOSX,Solaris,iPhone,android,threadx">
 <debug>
 XSC_OPTIONS += -t debug

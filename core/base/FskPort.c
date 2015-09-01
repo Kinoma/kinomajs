@@ -20,6 +20,8 @@
 #define __FSKWINDOW_PRIV__
 #include "FskPort.h"
 
+#include <math.h>
+
 #include "FskEffects.h"
 #include "FskList.h"
 #include "FskRectBlit.h"
@@ -2755,16 +2757,16 @@ void renderBitmapDrawSubpixel(FskPort port, FskBitmap bits, FskConstRectangle sr
 {
 	FskScaleOffset scaleOffset;
 	FskConstRectangle sR = srcRect ? srcRect : &bits->bounds;
-    FskRectangleRecord r;
+	FskRectangleRecord r;
 	double scaleX, scaleY, offsetX, offsetY;
 
 	if ((sR->width <= 1) || (sR->height <= 1) || fabs(width) <= 1 || fabs(height) <= 1)
 		return;
 
-    x += port->origin.x;
-    y += port->origin.y;
+	x += port->origin.x;
+	y += port->origin.y;
 
-    FskRectangleSet(&r, x - 0.5, y - 0.5, width + 1, height + 1);
+	FskRectangleSet(&r, (SInt32)(x - 0.5), (SInt32)(y - 0.5), (SInt32)(width + 1), (SInt32)(height + 1));
 	if (!FskPortAccumulateChange(port, &r))
         return;
 

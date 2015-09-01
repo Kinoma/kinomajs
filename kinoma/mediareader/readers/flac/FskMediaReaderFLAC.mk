@@ -62,16 +62,6 @@ C_OPTIONS = \
 </common>
 </platform>
 
-<platform name="mac-cmake">
-<common>
-add_definitions(-D__FSK_LAYER__=1)
-add_definitions(-DFLAC__INTEGER_ONLY_LIBRARY)
-add_definitions(-DFLAC__LPC_UNROLLED_FILTER_LOOPS)
-add_definitions(-DFLAC__NO_DLL)
-add_definitions(-DVERSION=\"1.2.0\")
-</common>
-</platform>
-
 <platform name="Linux">
 <common>
 C_OPTIONS = \

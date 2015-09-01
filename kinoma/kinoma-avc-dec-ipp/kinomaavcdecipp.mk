@@ -25,7 +25,7 @@
 <input name="$(F_HOME)/libraries/ipp/linux_armada16x/codec/include"/>
 </platform>
 
-<platform name="android,android-cmake">
+<platform name="android">
 <input name="$(F_HOME)/libraries/ipp/android_dkb_pxa910/codec/include"/>
 </platform>
 
@@ -46,19 +46,6 @@ C_OPTIONS += -DTARGET_OS_LINUX=1		    \
 			-mabi=aapcs-linux				\
 			-fPIC							\
 			-D_IPP_LINUX 
-</common>
-</platform>
-
-<platform name="android-cmake">
-<common>
-set(LIBRARY_OUTPUT_PATH ${F_HOME}/build/android/inNDK/Play/project/libs/armeabi)
-
-link_directories(${NDK_LIBS_PATH})
-link_directories(${F_HOME}/libraries/ipp/android_dkb_pxa910/codec/lib)
-
-set(EXTENSION_LINK_LIBS -lc -ldl -lm -lcodech264dec -lmiscgen -lFsk)
-
-set(TARGET_DEPENDENCIES FskLib)
 </common>
 </platform>
 

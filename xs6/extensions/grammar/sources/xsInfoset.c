@@ -244,7 +244,6 @@ void xs_infoset_scan(xsMachine* the)
 		XML_SetElementHandler(self.expat, scanStartTag, scanStopTag);
 		XML_SetCdataSectionHandler(self.expat, scanStartCdata, scanStopCdata);
 		XML_SetCharacterDataHandler(self.expat, scanCharacter);
-		XML_SetDefaultHandlerExpand(self.expat, scanCharacter);
 		XML_SetCommentHandler(self.expat, scanComment);
 		XML_SetProcessingInstructionHandler(self.expat, scanProcessingInstruction);
 		XML_SetUnknownEncodingHandler(self.expat, scanUnknownEncoding, NULL);

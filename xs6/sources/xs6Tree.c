@@ -125,11 +125,11 @@ void fxParserTree(txParser* parser, void* theStream, txGetter theGetter, txUnsig
 	fxGetNextCharacter(parser);
 	fxGetNextToken(parser);
 	
+	parser->root = NULL;
 	if (parser->flags & mxProgramFlag)
 		fxProgram(parser);
 	else
 		fxModule(parser);
-	parser->root = *(parser->nodePointer - 1);
 	
 #ifdef mxTreePrint
 	fxTreePrint(parser, parser->root);
@@ -141,25 +141,12 @@ void fxParserTree(txParser* parser, void* theStream, txGetter theGetter, txUnsig
 		*name = parser->name;
 }
 
-txInteger fxNodeListCount(txNodeList* list)
-{
-	txNode** node = &list->nodes[0];
-	txNode* item;
-	txInteger count = 0;
-	while ((item = *node)) {
-		count++;
-		node++;
-	}
-	return count;
-}
-
 void fxNodeListDistribute(txNodeList* list, txNodeCall call, void* param)
 {
-	txNode** node = &list->nodes[0];
-	txNode* item;
-	while ((item = *node)) {
+	txNode* item = list->first;
+	while (item) {
 		(*call)(item, param);
-		node++;
+		item = item->next;
 	}
 }
 
@@ -552,504 +539,504 @@ void fxWithNodeDistribute(void* it, txNodeCall call, void* param)
 	(*call)(self->statement, param);
 }
 
-static txNodeDispatch gxAccessNodeDispatch = {
+static const txNodeDispatch gxAccessNodeDispatch = {
 	fxNodeDistribute,
 	fxAccessNodeBind,
 	fxNodeHoist,
 	fxAccessNodeCode,
 	fxAccessNodeCodeAssign
 };
-static txNodeDispatch gxAndExpressionNodeDispatch = {
+static const txNodeDispatch gxAndExpressionNodeDispatch = {
 	fxBinaryExpressionNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxAndExpressionNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxArgumentsNodeDispatch = {
+static const txNodeDispatch gxArgumentsNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxArgumentsNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxArrayNodeDispatch = {
+static const txNodeDispatch gxArrayNodeDispatch = {
 	fxArrayNodeDistribute,
 	fxArrayNodeBind,
 	fxNodeHoist,
 	fxArrayNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxArrayBindingNodeDispatch = {
+static const txNodeDispatch gxArrayBindingNodeDispatch = {
 	fxArrayBindingNodeDistribute,
 	fxArrayBindingNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxArrayBindingNodeCodeAssign
 };
-static txNodeDispatch gxAssignNodeDispatch = {
+static const txNodeDispatch gxAssignNodeDispatch = {
 	fxAssignNodeDistribute,
 	fxAssignNodeBind,
 	fxNodeHoist,
 	fxAssignNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxBinaryExpressionNodeDispatch = {
+static const txNodeDispatch gxBinaryExpressionNodeDispatch = {
 	fxBinaryExpressionNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxBinaryExpressionNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxBindingNodeDispatch = {
+static const txNodeDispatch gxBindingNodeDispatch = {
 	fxBindingDeclareDefineNodeDistribute,
 	fxBindingNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxBindingNodeCodeAssign
 };
-static txNodeDispatch gxBlockNodeDispatch = {
+static const txNodeDispatch gxBlockNodeDispatch = {
 	fxBlockNodeDistribute,
 	fxBlockNodeBind,
 	fxBlockNodeHoist,
 	fxBlockNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxBodyNodeDispatch = {
+static const txNodeDispatch gxBodyNodeDispatch = {
 	fxBodyNodeDistribute,
 	fxBlockNodeBind,
 	fxBodyNodeHoist,
 	fxBlockNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxBreakContinueNodeDispatch = {
+static const txNodeDispatch gxBreakContinueNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxBreakContinueNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxCallNodeDispatch = {
+static const txNodeDispatch gxCallNodeDispatch = {
 	fxCallNewNodeDistribute,
 	fxNodeBind,
 	fxCallNodeHoist,
 	fxCallNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxCaseNodeDispatch = {
+static const txNodeDispatch gxCaseNodeDispatch = {
 	fxCaseNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxCatchNodeDispatch = {
+static const txNodeDispatch gxCatchNodeDispatch = {
 	fxCatchNodeDistribute,
 	fxCatchNodeBind,
 	fxCatchNodeHoist,
 	fxCatchNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxClassNodeDispatch = {
+static const txNodeDispatch gxClassNodeDispatch = {
 	fxClassNodeDistribute,
 	fxClassNodeBind,
 	fxClassNodeHoist,
 	fxClassNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxCompoundExpressionNodeDispatch = {
+static const txNodeDispatch gxCompoundExpressionNodeDispatch = {
 	fxAssignNodeDistribute,
 	fxCompoundExpressionNodeBind,
 	fxNodeHoist,
 	fxCompoundExpressionNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxDebuggerNodeDispatch = {
+static const txNodeDispatch gxDebuggerNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxDebuggerNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxDeclareNodeDispatch = {
+static const txNodeDispatch gxDeclareNodeDispatch = {
 	fxBindingDeclareDefineNodeDistribute,
 	fxBindingNodeBind,
 	fxDeclareNodeHoist,
 	fxDeclareNodeCode,
 	fxDeclareNodeCodeAssign
 };
-static txNodeDispatch gxDefineNodeDispatch = {
+static const txNodeDispatch gxDefineNodeDispatch = {
 	fxBindingDeclareDefineNodeDistribute,
 	fxDefineNodeBind,
 	fxDefineNodeHoist,
 	fxDefineNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxDelegateNodeDispatch = {
+static const txNodeDispatch gxDelegateNodeDispatch = {
 	fxStatementNodeDistribute,
 	fxDelegateNodeBind,
 	fxNodeHoist,
 	fxDelegateNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxDeleteNodeDispatch = {
+static const txNodeDispatch gxDeleteNodeDispatch = {
 	fxDeleteNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxDeleteNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxDoNodeDispatch = {
+static const txNodeDispatch gxDoNodeDispatch = {
 	fxDoNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxDoNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxEvalNodeDispatch = {
+static const txNodeDispatch gxEvalNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxEvalNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxExportNodeDispatch = {
+static const txNodeDispatch gxExportNodeDispatch = {
 	fxExportNodeDistribute,
 	fxExportNodeBind,
 	fxNodeHoist,
 	fxExportNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxExpressionsNodeDispatch = {
+static const txNodeDispatch gxExpressionsNodeDispatch = {
 	fxExpressionsNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxExpressionsNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxForNodeDispatch = {
+static const txNodeDispatch gxForNodeDispatch = {
 	fxForNodeDistribute,
 	fxForNodeBind,
 	fxForNodeHoist,
 	fxForNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxForInForOfNodeDispatch = {
+static const txNodeDispatch gxForInForOfNodeDispatch = {
 	fxForInForOfNodeDistribute,
 	fxForInForOfNodeBind,
 	fxForInForOfNodeHoist,
 	fxForInForOfNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxFunctionNodeDispatch = {
+static const txNodeDispatch gxFunctionNodeDispatch = {
 	fxFunctionNodeDistribute,
 	fxFunctionNodeBind,
 	fxFunctionNodeHoist,
 	fxFunctionNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxHostNodeDispatch = {
+static const txNodeDispatch gxHostNodeDispatch = {
 	fxNodeDistribute,
 	fxHostNodeBind,
 	fxHostNodeHoist,
 	fxHostNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxIfNodeDispatch = {
+static const txNodeDispatch gxIfNodeDispatch = {
 	fxIfNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxIfNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxImportNodeDispatch = {
+static const txNodeDispatch gxImportNodeDispatch = {
 	fxImportNodeDistribute,
 	fxNodeBind,
 	fxImportNodeHoist,
 	fxImportNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxInExpressionNodeDispatch = {
+static const txNodeDispatch gxInExpressionNodeDispatch = {
 	fxBinaryExpressionNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxInExpressionNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxIncludeNodeDispatch = {
+static const txNodeDispatch gxIncludeNodeDispatch = {
 	fxIncludeNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxIncludeNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxIntegerNodeDispatch = {
+static const txNodeDispatch gxIntegerNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxIntegerNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxLabelNodeDispatch = {
+static const txNodeDispatch gxLabelNodeDispatch = {
 	fxLabelNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxLabelNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxMemberNodeDispatch = {
+static const txNodeDispatch gxMemberNodeDispatch = {
 	fxMemberNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxMemberNodeCode,
 	fxMemberNodeCodeAssign
 };
-static txNodeDispatch gxMemberAtNodeDispatch = {
+static const txNodeDispatch gxMemberAtNodeDispatch = {
 	fxMemberAtNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxMemberAtNodeCode,
 	fxMemberAtNodeCodeAssign
 };
-static txNodeDispatch gxModuleNodeDispatch = {
+static const txNodeDispatch gxModuleNodeDispatch = {
 	fxModuleNodeDistribute,
 	fxModuleNodeBind,
 	fxModuleNodeHoist,
 	fxModuleNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxNewNodeDispatch = {
+static const txNodeDispatch gxNewNodeDispatch = {
 	fxCallNewNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNewNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxNumberNodeDispatch = {
+static const txNodeDispatch gxNumberNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNumberNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxObjectNodeDispatch = {
+static const txNodeDispatch gxObjectNodeDispatch = {
 	fxObjectNodeDistribute,
 	fxObjectNodeBind,
 	fxNodeHoist,
 	fxObjectNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxObjectBindingNodeDispatch = {
+static const txNodeDispatch gxObjectBindingNodeDispatch = {
 	fxObjectBindingNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxObjectBindingNodeCodeAssign
 };
-static txNodeDispatch gxOrExpressionNodeDispatch = {
+static const txNodeDispatch gxOrExpressionNodeDispatch = {
 	fxBinaryExpressionNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxOrExpressionNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxParamsNodeDispatch = {
+static const txNodeDispatch gxParamsNodeDispatch = {
 	fxParamsNodeDistribute,
 	fxParamsNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxParamsBindingNodeDispatch = {
+static const txNodeDispatch gxParamsBindingNodeDispatch = {
 	fxParamsBindingNodeDistribute,
 	fxParamsBindingNodeBind,
 	fxNodeHoist,
 	fxParamsBindingNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxPostfixExpressionNodeDispatch = {
+static const txNodeDispatch gxPostfixExpressionNodeDispatch = {
 	fxPostfixExpressionNodeDistribute,
 	fxPostfixExpressionNodeBind,
 	fxNodeHoist,
 	fxPostfixExpressionNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxProgramNodeDispatch = {
+static const txNodeDispatch gxProgramNodeDispatch = {
 	fxProgramNodeDistribute,
 	fxProgramNodeBind,
 	fxProgramNodeHoist,
 	fxProgramNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxPropertyNodeDispatch = {
+static const txNodeDispatch gxPropertyNodeDispatch = {
 	fxPropertyNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxPropertyAtNodeDispatch = {
+static const txNodeDispatch gxPropertyAtNodeDispatch = {
 	fxPropertyAtNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxPropertyBindingNodeDispatch = {
+static const txNodeDispatch gxPropertyBindingNodeDispatch = {
 	fxPropertyBindingNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxPropertyBindingAtNodeDispatch = {
+static const txNodeDispatch gxPropertyBindingAtNodeDispatch = {
 	fxPropertyBindingAtNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxQuestionMarkNodeDispatch = {
+static const txNodeDispatch gxQuestionMarkNodeDispatch = {
 	fxQuestionMarkNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxQuestionMarkNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxRegexpNodeDispatch = {
+static const txNodeDispatch gxRegexpNodeDispatch = {
 	fxRegexpNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxRegexpNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxRestBindingNodeDispatch = {
+static const txNodeDispatch gxRestBindingNodeDispatch = {
 	fxRestBindingNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxReturnNodeDispatch = {
+static const txNodeDispatch gxReturnNodeDispatch = {
 	fxStatementNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxReturnNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxSkipBindingNodeDispatch = {
+static const txNodeDispatch gxSkipBindingNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxSpecifierNodeDispatch = {
+static const txNodeDispatch gxSpecifierNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxSpreadNodeDispatch = {
+static const txNodeDispatch gxSpreadNodeDispatch = {
 	fxSpreadNodeDistribute,
 	fxSpreadNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxStatementNodeDispatch = {
+static const txNodeDispatch gxStatementNodeDispatch = {
 	fxStatementNodeDistribute,
 	fxNodeBind,
 	fxStatementNodeHoist,
 	fxStatementNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxStatementsNodeDispatch = {
+static const txNodeDispatch gxStatementsNodeDispatch = {
 	fxStatementsNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxStatementsNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxStringNodeDispatch = {
+static const txNodeDispatch gxStringNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxStringNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxSuperNodeDispatch = {
+static const txNodeDispatch gxSuperNodeDispatch = {
 	fxSuperNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxSuperNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxSwitchNodeDispatch = {
+static const txNodeDispatch gxSwitchNodeDispatch = {
 	fxSwitchNodeDistribute,
 	fxSwitchNodeBind,
 	fxSwitchNodeHoist,
 	fxSwitchNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxTemplateNodeDispatch = {
+static const txNodeDispatch gxTemplateNodeDispatch = {
 	fxTemplateNodeDistribute,
 	fxTemplateNodeBind,
 	fxNodeHoist,
 	fxTemplateNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxTemplateItemNodeDispatch = {
+static const txNodeDispatch gxTemplateItemNodeDispatch = {
 	fxTemplateItemNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxThrowNodeDispatch = {
+static const txNodeDispatch gxThrowNodeDispatch = {
 	fxStatementNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxThrowNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxTryNodeDispatch = {
+static const txNodeDispatch gxTryNodeDispatch = {
 	fxTryNodeDistribute,
 	fxTryNodeBind,
 	fxNodeHoist,
 	fxTryNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxUnaryExpressionNodeDispatch = {
+static const txNodeDispatch gxUnaryExpressionNodeDispatch = {
 	fxUnaryExpressionNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxUnaryExpressionNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxValueNodeDispatch = {
+static const txNodeDispatch gxValueNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxValueNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxWhileNodeDispatch = {
+static const txNodeDispatch gxWhileNodeDispatch = {
 	fxWhileNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
 	fxWhileNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxWithNodeDispatch = {
+static const txNodeDispatch gxWithNodeDispatch = {
 	fxWithNodeDistribute,
 	fxWithNodeBind,
 	fxWithNodeHoist,
 	fxWithNodeCode,
 	fxNodeCodeAssign
 };
-static txNodeDispatch gxYieldNodeDispatch = {
+static const txNodeDispatch gxYieldNodeDispatch = {
 	fxStatementNodeDistribute,
 	fxNodeBind,
 	fxNodeHoist,
@@ -1057,7 +1044,7 @@ static txNodeDispatch gxYieldNodeDispatch = {
 	fxNodeCodeAssign
 };
 
-txNodeDescription gxTokenDescriptions[XS_TOKEN_COUNT] = {
+const txNodeDescription gxTokenDescriptions[XS_TOKEN_COUNT] = {
 	{ XS_NO_CODE, XS_NO_TOKEN, "", 0, NULL },
 	{ XS_NO_CODE, XS_TOKEN_ACCESS, "Access", sizeof(txAccessNode), &gxAccessNodeDispatch },
 	{ XS_CODE_ADD, XS_TOKEN_ADD, "Add", sizeof(txBinaryExpressionNode), &gxBinaryExpressionNodeDispatch },

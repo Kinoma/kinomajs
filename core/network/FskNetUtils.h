@@ -297,11 +297,13 @@ FskAPI(FskErr) FskNetSocketOptions(FskSocket skt, int sktLevel, int sktOption, i
 FskAPI(FskErr) FskNetSocketReuseAddress(FskSocket skt);
 FskAPI(FskErr) FskNetSocketDontRoute(FskSocket skt);
 FskAPI(FskErr) FskNetSocketEnableBroadcast(FskSocket skt);
+FskAPI(FskErr) FskNetSocketDisableBroadcast(FskSocket skt);
 FskAPI(FskErr) FskNetSocketReceiveBufferSetSize(FskSocket skt, int val);
 FskAPI(FskErr) FskNetSocketSendBufferSetSize(FskSocket skt, int val);
 FskAPI(FskErr) FskNetSocketSetKeepAlive(FskSocket skt, int val);
 
 FskAPI(FskErr) FskNetSocketBind(FskSocket skt, int addr, int port);
+FskAPI(FskErr) FskNetSocketSetTTL(FskSocket skt, int ttl);
 
 FskAPI(Boolean) FskNetSocketIsReadable(FskSocket skt);
 FskAPI(Boolean) FskNetSocketIsWritable(FskSocket skt);
@@ -352,6 +354,11 @@ FskAPI(FskErr) FskNetSocketGetRemoteAddress(FskSocket skt, UInt32 *fromIP, int *
 FskAPI(FskErr) FskNetSocketMulticastJoin(FskSocket skt, int multicastAddr, int interfaceAddr, int ttl);
 FskAPI(FskErr) FskNetSocketMulticastLoop(FskSocket skt, char val);
 FskAPI(FskErr) FskNetSocketMulticastSetOutgoingInterface(FskSocket skt, int interfaceAddr, int ttl);
+FskAPI(FskErr) FskNetSocketMulticastAddMembership(FskSocket skt, int multicastAddr, int interfaceAddr);
+FskAPI(FskErr) FskNetSocketMulticastDropMembership(FskSocket skt, int multicastAddr, int interfaceAddr);
+FskAPI(FskErr) FskNetSocketMulticastSetTTL(FskSocket skt, int ttl);
+
+
 
 FskAPI(void) FskNetCancelConnection(void *connectingRef);
 

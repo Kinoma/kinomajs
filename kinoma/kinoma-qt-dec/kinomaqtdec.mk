@@ -45,14 +45,6 @@ LIBRARIES = -framework QuartzCore -framework QuickTime -framework Carbon
 </common>
 </platform>
 
-<platform name="mac-cmake">
-<common>
-find_library(QUARTZCORE_LIBRARY QuartzCore)
-mark_as_advanced(QUARTZCORE_LIBRARY)
-set(EXTENSION_LINK_LIBS ${QUARTZCORE_LIBRARY})
-</common>
-</platform>
-
 <include name="/makefiles/xsLibrary.mk"/>
 
 </makefile>

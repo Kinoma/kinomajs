@@ -305,8 +305,8 @@ static FskErr CopyAlpha(FskConstBitmap src, FskConstRectangle srcRect, FskBitmap
 	FskDimensionRecord	dim;
 
 	BAIL_IF_FALSE(
-		(8 == src->depth || 8 == FskBitmapFormatAlphaBits(src->pixelFormat))	&&					/* Only support 8 bit alpha or grayscale */
-		(8 == dst->depth || 8 == FskBitmapFormatAlphaBits(dst->pixelFormat)),
+		(kFskBitmapFormat8G == src->pixelFormat || 8 == FskBitmapFormatAlphaBits(src->pixelFormat))	&&	/* Only support 8 bit alpha or grayscale */
+		(kFskBitmapFormat8G == dst->pixelFormat || 8 == FskBitmapFormatAlphaBits(dst->pixelFormat)),
 		err, kFskErrUnsupportedPixelType);
 
 	BAIL_IF_ERR(err = BeginOneSrcBlit(src, srcRect, dst, dstPt, (const void**)(const void*)&s, &srcPixBytes, &sBump, (void**)(void*)&d, &dstPixBytes, &dBump, &dim));
@@ -551,38 +551,82 @@ static FskErr FskEffectBoxBlurApply(FskConstEffectBoxBlur params, FskConstBitmap
 
 static FskErr FskEffectColorizeApply(FskConstEffectColorize params, FskConstBitmap src, FskConstRectangle srcRect, FskBitmap dst, FskConstPoint dstPoint) {
 	FskErr				err		= kFskErrNone;
-	const UInt32		*s;
-	UInt32				*d;
+	const FskPixelType	*s	= NULL;
+	FskPixelType		*d	= NULL;
+	FskPixelType		color;
 	SInt32				srcPixBytes, dstPixBytes, sBump, dBump, w, h;
 	FskDimensionRecord	dim;
-	UInt32				color, aPos, aMask;
 
 	#if defined(LOG_PARAMETERS)
 		LogEffectsParameters(__FUNCTION__, params, src, srcRect, dst, dstPoint);
 		LogColor(&params->color, "color");
 	#endif /* LOG_PARAMETERS */
 
-	BAIL_IF_FALSE(dst->pixelFormat == src->pixelFormat, err, kFskErrMismatch);									/* Only support same pixel type in src & dst */
-	BAIL_IF_FALSE(	32 == src->depth								&&											/* Only support 32 bit pixels */
-					8 == FskBitmapFormatRedBits(src->pixelFormat),												/* Only support 8 bit red, green blue */
-					err, kFskErrUnsupportedPixelType);
+	BAIL_IF_FALSE(dst->pixelFormat == src->pixelFormat, err, kFskErrMismatch);						/* Only support same pixel type in src & dst */
+	BAIL_IF_FALSE(fskUniformChunkyPixelPacking == FskBitmapFormatPixelPacking(src->pixelFormat), err, kFskErrUnsupportedPixelType);	/* And chunky */
 
 	BAIL_IF_ERR(err = BeginOneSrcBlit(src, srcRect, dst, dstPoint, (const void**)(const void*)&s, &srcPixBytes, &sBump, (void**)(void*)&d, &dstPixBytes, &dBump, &dim));
 	FskConvertColorRGBAToBitmapPixel(&params->color, dst->pixelFormat, &color);
-	aPos = FskBitmapFormatAlphaPosition(src->pixelFormat);
-	aMask = ~(((1 << 8) - 1) << aPos);
-	for (h = dim.height; h--; S_INC(s, sBump), D_INC(d, dBump)) {
-		for (w = dim.width; w--; ++s, ++d) {
-			UInt32	pix		= *s;																				/* Get the source pixel */
-			UInt8	alpha	= (UInt8)(pix >> aPos);																/* Save alpha of the src */
-			if (!src->alphaIsPremultiplied)	FskBlend32(&pix, color, 						params->color.a);	/* Blend the    straight   colors */
-			else							FskBlend32(&pix, FskAlphaScale32(alpha, color), params->color.a);	/* Blend the premultiplied colors */
-			*d = (pix & aMask) | (alpha << aPos);																/* Restore alpha into the src. */
-		}
+
+	switch (src->depth) {
+		case 32: {
+			const UInt32	aPos = FskBitmapFormatAlphaPosition(src->pixelFormat);
+			const UInt32	aMask = ~(((1 << 8) - 1) << aPos);
+			void			(*blend)(UInt32 *d, UInt32 p, UInt8 opacity);
+
+			if (dst->pixelFormat != kFskBitmapFormat32A16RGB565LE)	blend = &FskBlend32;
+			else if (!src->alphaIsPremultiplied)					blend = &FskBlend32A16RGB565SE;
+			else													BAIL(kFskErrUnsupportedPixelType);
+			for (h = dim.height; h--; S_INC(s, sBump), D_INC(d, dBump)) for (w = dim.width; w--; S_INC(s, sizeof(s->p32)), D_INC(d, sizeof(d->p32))) {
+				UInt32	pix		= s->p32;																				/* Get the source pixel */
+				UInt8	alpha	= (UInt8)(pix >> aPos);																	/* Save alpha of the src */
+				if (!src->alphaIsPremultiplied)	(*blend)(&pix, color.p32,                         params->color.a);		/* Blend the    straight   colors */
+				else							(*blend)(&pix, FskAlphaScale32(alpha, color.p32), params->color.a);		/* Blend the premultiplied colors */
+				d->p32 = (pix & aMask) | (alpha << aPos);																/* Restore alpha into the src. */
+			}
+		}	break;
+		case 24: {
+			for (h = dim.height; h--; S_INC(s, sBump), D_INC(d, dBump)) for (w = dim.width; w--; S_INC(s, sizeof(s->p24)), D_INC(d, sizeof(d->p24))) {
+				d->p24 = s->p24;
+				FskBlend24(&d->p24, color.p24, params->color.a);
+			}
+		}	break;
+		case 16: {
+			void (*blend)(UInt16 *d, UInt16 p, UInt8 opacity);
+			switch (dst->pixelFormat) {
+				#if TARGET_RT_LITTLE_ENDIAN
+					case kFskBitmapFormat16BGR565LE:
+					case kFskBitmapFormat16RGB565LE:	blend = FskBlend565SE;	break;
+					case kFskBitmapFormat16RGB565BE:	blend = FskBlend565DE;	break;
+					case kFskBitmapFormat16RGB5515LE:	blend = FskBlend5515SE;	break;
+				#else /* TARGET_RT_BIG_ENDIAN */
+					case kFskBitmapFormat16BGR565LE:
+					case kFskBitmapFormat16RGB565LE:	blend = FskBlend565DE;	break;
+					case kFskBitmapFormat16RGB565BE:	blend = FskBlend565SE;	break;
+					case kFskBitmapFormat16RGB5515LE:	blend = FskBlend5515DE;	break;		/* TODO: alpha properly */
+				#endif /* TARGET_RT_BIG_ENDIAN */
+					case kFskBitmapFormat16RGBA4444LE:	blend = FskBlend4444;	break;		/* TODO: alpha properly */
+					case kFskBitmapFormat16AG:			blend = FskBlend88;		break;		/* TODO: alpha properly */
+					default:						BAIL(kFskErrUnsupportedPixelType);
+			}
+			for (h = dim.height; h--; S_INC(s, sBump), D_INC(d, dBump)) for (w = dim.width; w--; S_INC(s, sizeof(s->p16)), D_INC(d, sizeof(d->p16))) {
+				d->p16 = s->p16;
+				(*blend)(&d->p16, color.p16, params->color.a);
+			}
+		}	break;
+		case 8: {
+			for (h = dim.height; h--; S_INC(s, sBump), D_INC(d, dBump)) for (w = dim.width; w--; S_INC(s, sizeof(s->p8)), D_INC(d, sizeof(d->p8))) {
+				d->p8 = s->p8;
+				FskBlend8(&d->p8, color.p8, params->color.a);
+			}
+		}	break;
+		default:
+			BAIL(kFskErrUnsupportedPixelType);
 	}
-	FskBitmapReadEnd((FskBitmap)src);
-	FskBitmapWriteEnd(          dst);
+
 bail:
+	if (s)	FskBitmapReadEnd((FskBitmap)src);
+	if (d)	FskBitmapWriteEnd(          dst);
 	return err;
 }
 
@@ -704,8 +748,10 @@ static FskErr FskEffectColorizeOuterApply(FskConstEffectColorizeOuter params, Fs
 		LogColor(&params->color,    "color");
 	#endif /* LOG_PARAMETERS */
 
-	BAIL_IF_FALSE(	32 == (dst->depth)	&&																		/* Only support 32 bit pixel destinations */
-					(8 == params->matte->depth || 8 == FskBitmapFormatAlphaBits(params->matte->pixelFormat)),	/* Only support mattes with 8 bit alpha */
+	BAIL_IF_FALSE(	(8 == params->matte->depth || 8 == FskBitmapFormatAlphaBits(params->matte->pixelFormat))	&&	/* Only support mattes with 8 bit alpha */
+					dst->pixelFormat == src->pixelFormat														&&	/* Src & dst pixel formats must be identical */
+					32 == (dst->depth)																			&&	/* Only support 32 bit pixel destinations */
+					(kFskBitmapFormat32A16RGB565LE != dst->pixelFormat || !dst->alphaIsPremultiplied),				/* If 32A16RGB565LE, only with straight alpha */
 					err, kFskErrUnsupportedPixelType);
 
 	BAIL_IF_ERR(err = BeginTwoSrcBlit(src, srcRect, params->matte, NULL, dst, dstPoint,
@@ -887,6 +933,8 @@ static FskErr FskEffectMonochromeApply(FskConstEffectMonochrome params, FskConst
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_FALSE(src->depth == dst->depth, err, kFskErrMismatch);
+	BAIL_IF_FALSE(	(fskUniformChunkyPixelPacking == FskBitmapFormatPixelPacking(src->pixelFormat)) &&
+					(fskUniformChunkyPixelPacking == FskBitmapFormatPixelPacking(dst->pixelFormat)), err, kFskErrUnsupportedPixelType);
 
 	MakeMonoColorTable(&params->color0, &params->color1, src->alphaIsPremultiplied, dst->pixelFormat, mono);
 	BAIL_IF_ERR(err = BeginOneSrcBlit(src, srcRect, dst, dstPoint,
@@ -1100,10 +1148,10 @@ static FskErr FskEffectShadeApply(FskConstEffectShade params, FskConstBitmap src
 		shdRect = tmp->bounds;
 	}
 
-	BAIL_IF_FALSE(	32 == params->shadow->depth						&&
-					dst->pixelFormat ==            src->pixelFormat &&
+	BAIL_IF_FALSE(32 == params->shadow->depth, err, kFskErrUnsupportedPixelType);
+	BAIL_IF_FALSE(	dst->pixelFormat == src->pixelFormat &&
 					dst->pixelFormat == params->shadow->pixelFormat,
-					err, kFskErrUnsupportedPixelType);
+					err, kFskErrMismatch);
 
 	if (params->opacity) {
 		BAIL_IF_ERR(err = BeginTwoSrcBlit(src, srcRect, shd, /*(FskConstPoint)*/(const void*)(&shdRect), dst, dstPoint,

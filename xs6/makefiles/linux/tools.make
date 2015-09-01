@@ -63,7 +63,6 @@ MODULES_DBG = \
 
 MAKE_MODULES_DBG = \
 	$(TMP_DIR_DBG)/make/linux/aspen.xsb \
-	$(TMP_DIR_DBG)/make/linux/bg3cdp.xsb \
 	$(TMP_DIR_DBG)/make/linux/gtk.xsb
 
 MODULES_RLS = \

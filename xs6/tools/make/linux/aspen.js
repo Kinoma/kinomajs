@@ -38,7 +38,7 @@ class Manifest extends MAKE.Manifest {
 	getPlatformVariables(tool, tmp, bin) {
 		return {
 			KPR_APPLICATION: tool.application,
-		//	KPR_CONFIGURATION: tool.debug ? "debug" : "release",
+			KPR_CONFIGURATION: tool.debug ? "debug" : "release",
 			TOOL_PREFIX: "arm-marvell-linux-gnueabi-",
 
 			CC: "$(TOOL_PREFIX)gcc",

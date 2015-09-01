@@ -27,19 +27,7 @@
 XSC_OPTIONS = -t client -t clientAuth -t server
 </common>
 </platform>
-<platform name="mac-cmake">
-<common>
-set(XSC_OPTIONS ${XSC_OPTIONS} -t client -t clientAuth -t server)
-</common>
-</platform>
 
 <include name="/makefiles/xsBinary.mk"/>
-
-<platform name="mac-cmake">
-<common>
-include_directories("${BUILD_TMP}/FskSSL")
-include_directories("${BUILD_TMP}/Crypt")
-</common>
-</platform>
 
 </makefile>

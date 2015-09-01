@@ -27,20 +27,6 @@
 <wrap name="kinoma_utilities_buf_print.c"/>
 <!--wrap name="jsmn.c"/-->
   
-<platform name="android-cmake">
-<common>
-set(LIBRARY_OUTPUT_PATH ${F_HOME}/build/android/inNDK/Play/project/libs/armeabi)
-
-include_directories(${BUILD_TMP})
-
-link_directories(${NDK_LIBS_PATH})
-
-set(EXTENSION_LINK_LIBS -lFsk)
-
-set(TARGET_DEPENDENCIES FskLib)
-</common>
-</platform>    
-    
 <include name="/makefiles/xsLibrary.mk"/>
 
 </makefile>

@@ -212,7 +212,6 @@ xsIndex fxFindModule(xsMachine* the, xsIndex moduleID, xsSlot* slot)
 			i++;
 		}
 	}
-	xsReferenceError("module \"%s\" not found", name);
 	return XS_NO_ID;
 }
 

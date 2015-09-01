@@ -72,11 +72,15 @@ void Tool_prototype_get_currentPlatform(xsMachine* the)
 
 void Tool_prototype_execute(xsMachine* the)
 {
-#if mxWindows
-#else
+	FILE* pipe;
 	char buffer[PATH_MAX];
 	xsStringValue command = xsToString(xsArg(0));
-	FILE* pipe = popen(command, "r");
+#if mxWindows
+	fflush(NULL);
+	pipe = _popen(command, "r");
+#else
+	pipe = popen(command, "r");
+#endif
     xsResult = xsString("");
 	if (pipe) {
         xsIntegerValue size;
@@ -87,9 +91,12 @@ void Tool_prototype_execute(xsMachine* the)
         	buffer[size] = 0;
         	xsResult = xsCall1(xsResult, xsID("concat"), xsString(buffer));
         }
+#if mxWindows
+		_pclose(pipe);
+#else
 		pclose(pipe);
-	}
 #endif
+	}
 }
 
 void Tool_prototype_joinPath(xsMachine* the)

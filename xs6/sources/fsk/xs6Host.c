@@ -61,6 +61,7 @@ typedef void (*txLoader)(txMachine*, txString, txID);
 
 mxExport txBoolean fxFindArchive(txMachine* the, txString path);
 mxExport void* fxMapArchive(txString path, txCallbackAt callbackAt);
+mxExport void fxRunModule(txMachine* the, txString path);
 mxExport void fxRunProgram(txMachine* the, txString path);
 mxExport void fxUnmapArchive(void* it);
 
@@ -238,6 +239,16 @@ void fxBuildHost(txMachine* the)
 	slot->kind = the->stack->kind;
 	slot->value = the->stack->value;
 	the->stack++;
+}
+
+void fxDisposeParserChunks(txParser* parser)
+{
+	txParserChunk* block = parser->first;
+	while (block) {
+		txParserChunk* next = block->next;
+		c_free(block);
+		block = next;
+	}
 }
 
 void fxBuildKeys(txMachine* the)
@@ -448,7 +459,7 @@ void fxLoadModuleJS(txMachine* the, txString path, txID moduleID)
 	txScript* script = NULL;
 	bailIfError(FskFileMap(path, (unsigned char**)&(stream.buffer), &(stream.size), 0, &map));
 	stream.offset = 0;
-	fxInitializeParser(parser, the);
+	fxInitializeParser(parser, the, 32*1024, 1993);
 	parser->firstJump = &jump;
 	parser->path = fxNewParserSymbol(parser, path);
 	if (c_setjmp(jump.jmp_buf) == 0) {
@@ -683,13 +694,24 @@ txString fxMergePath(txString base, txString name, txString path)
 	return path;
 }
 
+void* fxNewParserChunk(txParser* parser, txSize size)
+{
+	txParserChunk* block = c_malloc(sizeof(txParserChunk) + size);
+	if (!block)
+		fxThrowMemoryError(parser);
+	parser->total += sizeof(txParserChunk) + size;
+	block->next = parser->first;
+	parser->first = block;
+	return block + 1;
+}
+
 txScript* fxParseScript(txMachine* the, void* stream, txGetter getter, txUnsigned flags)
 {	
 	txParser _parser;
 	txParser* parser = &_parser;
 	txParserJump jump;
 	txScript* script = NULL;
-	fxInitializeParser(parser, the);
+	fxInitializeParser(parser, the, 32*1024, 1993);
 	parser->firstJump = &jump;
 	if (c_setjmp(jump.jmp_buf) == 0) {
 		fxParserTree(parser, stream, getter, flags, NULL);
@@ -715,6 +737,13 @@ void fxQueuePromiseJobs(txMachine* the)
 {
 	FskThread thread = FskThreadGetCurrent();
 	FskThreadPostCallback(thread, (FskThreadCallback)fxPerformPromiseJobs, the, NULL, NULL, NULL);
+}
+
+void fxRunModule(txMachine* the, txString path)
+{
+	mxPushStringC(path);
+	fxRequireModule(the, XS_NO_ID, the->stack);
+	the->stack++;
 }
 
 void fxRunProgram(txMachine* the, txString path)
@@ -787,7 +816,7 @@ txBoolean fxExecute(txMachine* the, void* theStream, txGetter theGetter, txStrin
 	txParser* parser = &_parser;
 	txParserJump jump;
 	txScript* script = NULL;
-	fxInitializeParser(parser, the);
+	fxInitializeParser(parser, the, 32*1024, 1993);
 	parser->firstJump = &jump;
 	if (c_setjmp(jump.jmp_buf) == 0) {
 		if (thePath)
@@ -871,7 +900,7 @@ void fxNewFunction(txMachine* the, txString arguments, txInteger argumentsSize, 
 	stream.sizes[4] = 2;
 	stream.offset = 0;
 	stream.index = 0;
-	fxInitializeParser(parser, the);
+	fxInitializeParser(parser, the, 32*1024, 1993);
 	parser->firstJump = &jump;
 	if (c_setjmp(jump.jmp_buf) == 0) {
 		if (thePath)

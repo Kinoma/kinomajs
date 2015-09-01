@@ -21,7 +21,6 @@
 <input name="$(F_HOME)/extensions/http/sources/"/>
 <input name="$(F_HOME)/kinoma/kpr/"/>
 <input name="$(F_HOME)/kinoma/kpr/sources/"/>
-<input name="$(F_HOME)/kinoma/mediatranscoder/sources/"/>
 <header name="kpr.h"/>
 
 <platform name="android">

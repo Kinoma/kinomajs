@@ -1708,7 +1708,7 @@
 				return this.data.SECOND_PICTURE_CONTAINER.first
 			}
 			function scrollToPageIndex(pageIndex) {
-				this.scroller.scrollTo(pageIndex * this.getTrayWidth())
+				this.scroller.scrollTo(pageIndex * this.getTrayWidth(), 0)
 			}
 			function getTrayWidth() {
 				return this.scroller.first.first.width

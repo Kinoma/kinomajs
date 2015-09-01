@@ -91,6 +91,10 @@ txSlot* fxRequireModule(txMachine* the, txID moduleID, txSlot* name)
 {
 	txSlot* module;
 	moduleID = fxFindModule(the, moduleID, name);
+	if (moduleID == XS_NO_ID) {
+		fxToStringBuffer(the, name, the->nameBuffer, sizeof(the->nameBuffer));
+		mxReferenceError("module \"%s\" not found", the->nameBuffer);
+	}
 	module = fxGetModule(the, moduleID);
 	if (module)
 		return module;
@@ -140,8 +144,22 @@ void fxResolveModule(txMachine* the, txID moduleID, txScript* script, void* data
 	transfer = mxModuleTransfers(module)->value.reference->next;
 	while (transfer) {
 		from = mxTransferFrom(transfer);
-		if (from->kind != XS_NULL_KIND)
+		if (from->kind != XS_NULL_KIND) {
 			fxImportModule(the, module->ID, from);
+			if (from->kind != XS_SYMBOL_KIND) {
+				txString path = C_NULL;
+				txInteger line = 0;
+			#ifdef mxDebug
+				slot = mxTransferClosure(transfer)->next;
+				if (slot) {
+					path = slot->value.string;
+					line = slot->next->value.integer;
+				}
+			#endif	
+				fxToStringBuffer(the, from, the->nameBuffer, sizeof(the->nameBuffer));
+				fxThrowMessage(the, path, line, XS_REFERENCE_ERROR, "module \"%s\" not found", the->nameBuffer); 
+			}
+		}
 		transfer = transfer->next;
 	}
 }
@@ -209,6 +227,8 @@ void fx_require_resolve(txMachine* the)
 		mxSyntaxError("no module id");
 	fxToString(the, mxArgv(0));
 	moduleID = fxFindModule(the, fxCurrentModuleID(the), mxArgv(0));
+	if (moduleID == XS_NO_ID)
+		return;
 	key = fxGetKey(the, moduleID);
 	if (key->kind == XS_KEY_KIND)
 		mxResult->kind = XS_STRING_KIND;
@@ -300,7 +320,7 @@ void fx_Transfer(txMachine* the)
 	if (slot) {
 		slot = slot - 1;
 		if (slot->next) {
-			property = fxNextStringProperty(the, property, (txString)slot->next, XS_NO_ID, XS_DONT_ENUM_FLAG);
+			property = fxNextSlotProperty(the, property, slot->next, XS_NO_ID, XS_DONT_ENUM_FLAG);
 			property = fxNextIntegerProperty(the, property, slot->ID, XS_NO_ID, XS_DONT_ENUM_FLAG);
 		}
 	}
@@ -331,6 +351,8 @@ void fxImportModule(txMachine* the, txID moduleID, txSlot* name)
 {
 	txSlot* module;
 	moduleID = fxFindModule(the, moduleID, name);
+	if (moduleID == XS_NO_ID)
+		return;
 	module = fxGetModule(the, moduleID);
 	if (module) {
 		txSlot* slot = fxNewSlot(the);
@@ -563,19 +585,6 @@ void fxResolveLocals(txMachine* the, txSlot* module)
 				}
 				else {
 					txSlot* slot = fxGetModule(the, from->value.ID);
-					if (!slot) {
-						txString path = C_NULL;
-						txInteger line = 0;
-					#ifdef mxDebug
-						txSlot* slot = mxTransferClosure(transfer)->next;
-						if (slot) {
-							path = slot->value.string;
-							line = slot->next->value.integer;
-						}
-					#endif	
-						fxIDToString(the, from->value.ID, the->nameBuffer, sizeof(the->nameBuffer));
-						fxThrowMessage(the, path, line, XS_REFERENCE_ERROR, "module %s not found", the->nameBuffer); 
-					}
 					export = mxModuleExports(slot)->value.reference->next;
 					property = mxTransferClosure(transfer)->value.closure->value.reference->next;
 					while (export) {

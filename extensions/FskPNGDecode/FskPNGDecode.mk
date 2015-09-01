@@ -24,13 +24,6 @@
 <wrap name="FskPNGDecodeExtension.c"/>
 <wrap name="FskPngDecode.c"/>
 
-<platform name="android-cmake">
-<common>
-	list(APPEND sources $ENV{F_HOME}/extensions/FskPNGDecode/sources/png_arm_v7.gas7)
-
-</common>
-</platform>
-
 <platform name="android">
 <common>
 OBJECTS += $(TMP_DIR)/png_arm_v7.gas7.o

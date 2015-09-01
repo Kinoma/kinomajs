@@ -23,6 +23,8 @@ export MACOS_ARCH
 MACOS_VERSION_MIN = -mmacosx-version-min=10.7
 export MACOS_VERSION_MIN
 
+all: debug release
+
 debug:
 	make debug -f xsc6.make
 	make debug -f xsl6.make

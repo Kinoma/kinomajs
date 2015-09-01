@@ -23,9 +23,9 @@ and free format
 Fs = 44.1 kHz Bit rates per channel = 56, 64, 80 kbits/s
 Fs = 32 kHz Bit rates per channel = 56, 64, 80 kbits/s
 */
-extern unsigned char mp3dec_alloc_table1[];
+extern const unsigned char mp3dec_alloc_table1[];
 
-extern int mp3dec_nbal_alloc_table1[32];
+extern const int mp3dec_nbal_alloc_table1[32];
 
 /*
 Table 3-B.2b. Possible quantization per subband
@@ -37,9 +37,9 @@ Fs = 32 kHz Bitrates per channel = 96, 112, 128, 160, 192 kbits/s
 and free format
 */
 
-extern unsigned char mp3dec_alloc_table2[];
+extern const unsigned char mp3dec_alloc_table2[];
 
-extern int mp3dec_nbal_alloc_table2[32];
+extern const int mp3dec_nbal_alloc_table2[32];
 
 /*
 Table 3-B.2c. Possible quantization per subband
@@ -49,9 +49,9 @@ Fs = 48 kHz Bitrates per channel = 32, 48 kbits/s
 Fs = 44.1 kHz Bitrates per channel = 32, 48 kbits/s
 Fs = 32 kHz -------- not relevant --------
 */
-extern unsigned char mp3dec_alloc_table3[];
+extern const unsigned char mp3dec_alloc_table3[];
 
-extern int mp3dec_nbal_alloc_table3[32];
+extern const int mp3dec_nbal_alloc_table3[32];
 
 
 /*
@@ -63,9 +63,9 @@ Fs = 44.1kHz  ------- not relevant -------
 Fs = 32 kHz  Bitrates per channel = 32, 48 kbits/s
 */
 
-extern unsigned char mp3dec_alloc_table4[];
+extern const unsigned char mp3dec_alloc_table4[];
 
-extern int mp3dec_nbal_alloc_table4[32];
+extern const int mp3dec_nbal_alloc_table4[32];
 
 /*
 Table B-1 (MPEG 2). Possible quantization per subband
@@ -74,12 +74,12 @@ Fs = 16, 22.05, 24 kHz
 */
 
 
-extern unsigned char mp3dec_alloc_table5[];
-extern int mp3dec_nbal_alloc_table5[32];
-extern int mp3dec_cls_quant[17];
-extern int mp3dec_numbits[17];
-extern int mp3dec_sblimit_table[];
-extern short *mp3dec_degroup[];
+extern const unsigned char mp3dec_alloc_table5[];
+extern const int mp3dec_nbal_alloc_table5[32];
+extern const int mp3dec_cls_quant[17];
+extern const int mp3dec_numbits[17];
+extern const int mp3dec_sblimit_table[];
+extern const short *mp3dec_degroup[];
 
 #ifdef __cplusplus
 }

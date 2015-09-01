@@ -35,12 +35,6 @@ FskInstrumentedSimpleType(kinomayuv420dec, kinomayuv420dec);
 
 //#define FORCE_OUTPUT_AS_SOURCE
 
-#if SRC_YUV420i
-#define YUV420_FORMAT	kFskBitmapFormatYUV420i
-#else
-#define YUV420_FORMAT	kFskBitmapFormatYUV420
-#endif
-
 #define kBitmapCacheSize		50
 
 static FskErr yuv420DecodeSetSampleDescription(void *stateIn, void *track, UInt32 propertyID, FskMediaPropertyValue property);
@@ -95,11 +89,114 @@ static void RefitBitmap( FskBitmapFormatEnum dst_pixel_format, int width, int he
 	*bits = b;
 }
 
+int parse_yuv_header(const void *data_in, UInt32 dataSize_in, int *width, int *height, int *fps, int *pixel_format, char **mime  )
+{
+	unsigned char *s = (unsigned char *)data_in;
+
+	if( dataSize_in < 12 )
+		return kFskErrUnknownElement;
+		
+	if
+	(
+	   s[0] == 'y' &&
+	   s[1] == 'u' &&
+	   s[2] == 'v' &&
+	   s[3] == '4' &&
+	   s[4] == '2' &&
+	   s[5] == '0'
+	)
+	{
+		if( mime != NULL )
+			*mime = FskStrDoCopy("image/yuv");
+		
+		if( pixel_format != NULL )
+			*pixel_format = kFskBitmapFormatYUV420;
+	}
+	else if
+		(
+		 s[0] == '2' &&
+		 s[1] == 'v' &&
+		 s[2] == 'u' &&
+		 s[3] == 'y' &&
+		 s[4] == ' ' &&
+		 s[5] == ' '
+		 )
+	{
+		if( mime != NULL )
+			*mime = FskStrDoCopy("image/yuv");
+		
+		if( pixel_format != NULL )
+			*pixel_format = kFskBitmapFormatUYVY;
+	}
+	else if
+		(
+		 s[0] == 's' &&
+		 s[1] == 'p' &&
+		 s[2] == 'u' &&
+		 s[3] == 'v' &&
+		 s[4] == ' ' &&
+		 s[5] == ' '
+		 )
+	{
+		if( mime != NULL )
+			*mime = FskStrDoCopy("image/yuv");
+		
+		if( pixel_format != NULL )
+			*pixel_format = kFskBitmapFormatYUV420spuv;
+	}
+	else if
+		(
+		 s[0] == 's' &&
+		 s[1] == 'p' &&
+		 s[2] == 'v' &&
+		 s[3] == 'u' &&
+		 s[4] == ' ' &&
+		 s[5] == ' '
+		 )
+	{
+		if( mime != NULL )
+			*mime = FskStrDoCopy("image/yuv");
+		
+		if( pixel_format != NULL )
+			*pixel_format = kFskBitmapFormatYUV420spvu;
+	}
+	else
+		return kFskErrUnknownElement;
+
+	s += 6;
+	if( fps != NULL ) *fps = (s[0]<<8)|(s[1]<<0); 
+	s+=2;
+	if( width != NULL ) *width = (s[0]<<8)|(s[1]<<0); 
+	s+=2;
+	if( height != NULL ) *height = (s[0]<<8)|(s[1]<<0);
+	
+	return kFskErrNone;
+}
+
+
+FskErr yuv420DecodeSniff(const unsigned char *data, UInt32 dataSize, FskHeaders *headers, const char *uri, char **mime)
+{
+	int err = kFskErrUnknownElement;
+	//int offset = 0;
+
+	mlog("###########################################################################################");
+	mlog("into yuv420DecodeSniff()");
+
+	err = parse_yuv_header( data, dataSize, NULL, NULL, NULL, NULL, mime  );
+	if( err == kFskErrNone )
+	{
+		mlog(" yuv420ReaderSniff() returning *mime: %s", *mime);
+	}
+
+	return err;
+}
+
+
 
 FskErr yuv420DecodeCanHandle(UInt32 format, const char *mime, const char *extension, Boolean *canHandle)
 {
-	dlog( "###########################################################################################\n" ); 
-	dlog( "into yuv420DecodeCanHandle: format: %d, mime: %s\n", (int)format, mime ); 
+	dlog( "###########################################################################################" );
+	dlog( "into yuv420DecodeCanHandle: format: %d, mime: %s", (int)format, mime );
     
 	*canHandle =  (
 				    ('yuv ' == format)									|| 
@@ -108,8 +205,11 @@ FskErr yuv420DecodeCanHandle(UInt32 format, const char *mime, const char *extens
                     (0 == FskStrCompare(mime, "x-video-codec/yuv420sp"))||
                     (0 == FskStrCompare(mime, "x-video-codec/yuv420spuv"))||
                     (0 == FskStrCompare(mime, "x-video-codec/yuv420spvu"))||
-                    (0 == FskStrCompare(mime, "x-video-codec/bitmap"))
+                    (0 == FskStrCompare(mime, "x-video-codec/bitmap"))  ||
+                    (0 == FskStrCompare(mime, "image/yuv"))
 				   );
+		
+	dlog( "yuv420DecodeCanHandle format: %d, mime: %s, returns *canHandle: %d", (int)format, mime , *canHandle);
 		
 	return kFskErrNone;
 }
@@ -134,8 +234,8 @@ FskErr yuv420DecodeNew(FskImageDecompress deco, UInt32 format, const char *mime,
         state->useGL = value && (0 == FskStrCompare("1", value));
     }
 	
-	dlog( "###########################################################################################\n" );
-	dlog( "in yuv420DecodeNew allocated state: %x, useGL :%d, state->is_bitmap: %d\n", (int)state, (int)state->useGL, (int)state->is_bitmap );
+	dlog( "###########################################################################################" );
+	dlog( "in yuv420DecodeNew allocated state: %x, useGL :%d, state->is_bitmap: %d", (int)state, (int)state->useGL, (int)state->is_bitmap );
 	
 bail:
 	if (kFskErrNone != err)
@@ -143,7 +243,7 @@ bail:
 	
 	deco->state = state;
 	
-	dlog( "out of yuv420DecodeNew: err: %d\n", (int)err );
+	dlog( "out of yuv420DecodeNew: err: %d", (int)err );
 	
 	return err;
 }
@@ -153,8 +253,8 @@ FskErr yuv420DecodeDispose(void *stateIn, FskImageDecompress deco)
 	kinomaYUV420Decode *state = (kinomaYUV420Decode *)stateIn;
 	int i;
 	
-	dlog( "###########################################################################################\n" ); 
-	dlog( "into yuv420DecodeDispose\n" ); 
+	dlog( "###########################################################################################" );
+	dlog( "into yuv420DecodeDispose" );
 	
 	if (NULL != state) 
 	{
@@ -199,7 +299,7 @@ static int refit_yuv_16_interleave(int yuv_width, int yuv_height, unsigned char 
 	unsigned char *v0; 
 	int i,j;
 	
-	dlog(  "in refit_yuv_16_interleave uyvy_stride: %d, yuv_width: %d, yuv_height: %d\n", uyvy_stride, yuv_width, yuv_height );
+	dlog(  "in refit_yuv_16_interleave uyvy_stride: %d, yuv_width: %d, yuv_height: %d", uyvy_stride, yuv_width, yuv_height );
 	
 	s0  = uyvy_data;
 	s1  = s0 + uyvy_stride;
@@ -253,7 +353,7 @@ static int refit_yuv_16_interleave(int yuv_width, int yuv_height, unsigned char 
 	{
 		for( j = 0; j < yuv_width/2; j++ )
 		{
-			//dlog(  "i/j: %d/%d\n", i, j );
+			//dlog(  "i/j: %d/%d", i, j );
 			PACK_CbYCrY
 		}
 		
@@ -264,7 +364,7 @@ static int refit_yuv_16_interleave(int yuv_width, int yuv_height, unsigned char 
 	}	
 	
 //bail:
-	dlog(  "out of refit_yuv_16_interleave, err: %d\n", err );
+	dlog(  "out of refit_yuv_16_interleave, err: %d", err );
 	
 	return err;
 }
@@ -274,42 +374,78 @@ FskErr yuv420DecodeDecompressFrame_direct(void *stateIn, FskImageDecompress deco
 {
     FskBitmap bits = NULL;
 	FskErr	err	= kFskErrNone;
-    dlog( "###########################################################################################\n" );
-    dlog( "into yuv420DecodeDecompressFrame_direct\n" );
+    dlog( "###########################################################################################" );
+    dlog( "into yuv420DecodeDecompressFrame_direct" );
 
-    dlog( "into directly set bitmap, data_in: %x\n", (int)data_in );
+    mlog( "into directly set bitmap, data_in: %x", (int)data_in );
   
     bits = (FskBitmap)data_in;
     //FskBitmapUse( bits );
     deco->bits = bits;
-    dlog( "bits->bounds.x/y/width/height: %d/%d/%d/%d\n", bits->bounds.x, bits->bounds.y, bits->bounds.width, bits->bounds.height );
-    dlog( "bits->depth/pixelFormat/rowBytes: %d/%d/%d\n", bits->depth, bits->pixelFormat, bits->rowBytes );
-    dlog( "bits->bits/bitsToDispose: %x/%x\n", bits->bits, bits->bitsToDispose );
+    dlog( "bits->bounds.x/y/width/height: %d/%d/%d/%d", bits->bounds.x, bits->bounds.y, bits->bounds.width, bits->bounds.height );
+    dlog( "bits->depth/pixelFormat/rowBytes: %d/%d/%d", bits->depth, bits->pixelFormat, bits->rowBytes );
+    dlog( "bits->bits/bitsToDispose: %x/%x", bits->bits, bits->bitsToDispose );
 
 //bail:
-	dlog( "out of yuv420DecodeDecompressFrame_direct\n" );
+	dlog( "out of yuv420DecodeDecompressFrame_direct" );
 	return err;
 }
+
+#if FSKBITMAP_OPENGL
+#include "FskGLBlit.h"
+
+static int preferred_yuv_format = kFskBitmapFormatUnknown;
+void get_preferred_yuv_formats(FskBitmapFormatEnum *yuvFormat_out)
+{
+	FskBitmapFormatEnum *fmtp = yuvFormat_out;
+
+	UInt32 stp[4];													/* Source types with increasing cost */
+	FskGLSourceTypes(stp);											/* 0: hardware; 1: shader; 2: in-place lossless conversion; 3: conversion at a high price */
+	if (stp[0] & (1 << kFskBitmapFormatYUV420))						/* If there is hardware support for YUV 4:2:0 planar, ... */
+		*fmtp++ = kFskBitmapFormatYUV420;							/* ... it is the next choice */
+	if (stp[0] & (1 << kFskBitmapFormatYUV420spuv))					/* If there is hardware support for YUV 4:2:0 semi-planar, ... */
+		*fmtp++ = kFskBitmapFormatYUV420spuv;						/* ... it is the next choice */
+	if (stp[0] & (1 << kFskBitmapFormatYUV420spvu))					/* If there is hardware support for YUV 4:2:0 semi-planar, ... */
+		*fmtp++ = kFskBitmapFormatYUV420spvu;						/* ... it is the next choice */
+	if (stp[0] & (1 << kFskBitmapFormatUYVY))						/* If there is hardware support for YUV 4:2:2 UYVY chunky, ... */
+		*fmtp++ = kFskBitmapFormatUYVY;								/* ... it is the next choice */
+	#if GLES_VERSION == 2
+		if ((stp[0] ^ stp[1]) & (1 << kFskBitmapFormatYUV420spuv))	/* If YUV 4:2:0sp was not supported in hardware, but is in a shader, ... */
+			*fmtp++ = kFskBitmapFormatYUV420spuv;					/* ... it is the next choice */
+		if ((stp[0] ^ stp[1]) & (1 << kFskBitmapFormatYUV420spvu))	/* If YUV 4:2:0sp was not supported in hardware, but is in a shader, ... */
+			*fmtp++ = kFskBitmapFormatYUV420spvu;					/* ... it is the next choice */
+		if ((stp[0] ^ stp[1]) & (1 << kFskBitmapFormatYUV420))		/* If YUV 4:2:0 was not supported in hardware, but is in a shader, ... */
+			*fmtp++ = kFskBitmapFormatYUV420;						/* ... it is the next choice */
+		if ((stp[0] ^ stp[1]) & (1 << kFskBitmapFormatUYVY))		/* If YUV 4:2:2 UYVY was not supported in hardware, but is in a shader, ... */
+			*fmtp++ = kFskBitmapFormatUYVY;							/* ... it is the next choice */
+	#endif
+	/* We skip analysis of stp[2] because that is convert-in-place, which we can't do with YUV */
+	if ((stp[1] ^ stp[3]) & (1 << kFskBitmapFormatYUV420))			/* If YUV 4:2:0 was not supported in HW or shader, but can be converted at any expense ... */
+		*fmtp++ = kFskBitmapFormatYUV420;							/* ... it is the next choice */
+	if ((stp[1] ^ stp[3]) & (1 << kFskBitmapFormatYUV420spuv))		/* If YUV 4:2:0sp was not supported in HW or shader, but can be converted at any expense ... */
+		*fmtp++ = kFskBitmapFormatYUV420spuv;						/* ... it is the next choice */
+	if ((stp[1] ^ stp[3]) & (1 << kFskBitmapFormatYUV420spvu))		/* If YUV 4:2:0sp was not supported in HW or shader, but can be converted at any expense ... */
+		*fmtp++ = kFskBitmapFormatYUV420spvu;						/* ... it is the next choice */
+	if ((stp[1] ^ stp[3]) & (1 << kFskBitmapFormatUYVY))			/* If YUV 4:2:2 UYVY was not supported in HW or shader, but can be converted at any expense ... */
+		*fmtp++ = kFskBitmapFormatUYVY;								/* ... it is the next choice */
+}
+#endif
 
 
 FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const void *data_in, UInt32 dataSize_in, FskInt64 *decodeTime, UInt32 *compositionTimeOffset, FskInt64 *compositionTime, UInt32 frameType)
 {	
 	kinomaYUV420Decode		*state			= (kinomaYUV420Decode *)stateIn;
 	QTImageDescription		desc			= (QTImageDescription)state->sampleDescription;
-	FskBitmapFormatEnum					pixelFormat;
+	FskBitmapFormatEnum		pixelFormat;
 	unsigned char			*dstPtr		= NULL;
-	long					dst_y_rb;
-	long					width	= desc->width;
-	long					height	= desc->height;
-	long   					src_y_rb	= width;
-	long	  				src_uv_rb	= src_y_rb>>1;
+	int						width, height, dst_y_rb, src_y_rb, src_uv_rb;
 	FskImageDecompressComplete	completionFunction = deco->completionFunction;
 	void					*completionRefcon  = deco->completionRefcon;
 	FskBitmap				bits		 = NULL;
 	FskErr					err			 = kFskErrNone;
     
-	dlog( "###########################################################################################\n" ); 
-	dlog( "into yuv420DecodeDecompressFrame, state->is_bitmap: %d\n", state->is_bitmap ); 
+	mlog( "###########################################################################################" );
+	mlog( "into yuv420DecodeDecompressFrame, dataSize_in: %d", dataSize_in );
     
 	if( data_in == NULL )//eos
 		goto bail;
@@ -320,42 +456,91 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 	completionFunction = NULL;
 	completionRefcon   = NULL;
 	
-	//runtime only
-	state->src_pixel_format = desc->cType;
+	if( desc != NULL )
+	{
+		width	= desc->width;
+		height	= desc->height;
+	
+		//runtime only
+		state->src_pixel_format = desc->cType;
+	}
+	else
+	{
+		int fps;
+		err = parse_yuv_header( data_in, dataSize_in, &width, &height, &fps, &state->src_pixel_format, NULL  );
+		if( err )
+			goto bail;
+	
+		mlog( "==>parse_yuv_header");
+		mlog( "width: %d", width);
+		mlog( "height: %d", height);
+		mlog( "fps: %d", fps);
+		mlog( "state->src_pixel_format: %d", state->src_pixel_format);
+	}
+	
+	src_y_rb	= width;
+	src_uv_rb	= src_y_rb>>1;
+	
 	if( state->src_pixel_format != kFskBitmapFormatYUV420  && 
 	    state->src_pixel_format != kFskBitmapFormatUYVY    && 
         state->src_pixel_format != kFskBitmapFormatYUV420spuv &&
 	    state->src_pixel_format != kFskBitmapFormatYUV420spvu )
 	{
 		err = kFskErrUnimplemented;
+		mlog( "src pixel format not supported, bailing!!!");
 		goto bail;
 	}
 	   
+#if FSKBITMAP_OPENGL
 	if( state->dst_pixel_format == kFskBitmapFormatUnknown )
 	{
-		dlog( "dst pixel format is unknown, following src pixel format: %d\n", (int)state->src_pixel_format);
-		state->dst_pixel_format = kFskBitmapFormatYUV420;//state->src_pixel_format;
+		if( preferred_yuv_format ==  kFskBitmapFormatUnknown )
+		{
+			FskMediaPropertyValueRecord pixelFormat;
+			FskBitmapFormatEnum preferredYUVFormats[12]={kFskBitmapFormatUnknown};
+			get_preferred_yuv_formats(preferredYUVFormats);
+
+			pixelFormat.value.integers.integer = (UInt32 *)&preferredYUVFormats[0];						/* Choose the favorite format */
+			for (pixelFormat.value.integers.count = 0; 0 != preferredYUVFormats[pixelFormat.value.integers.count]; pixelFormat.value.integers.count++)
+				;
+			pixelFormat.type = kFskMediaPropertyTypeUInt32List;
+			mlog( "dst pixel format is unknown, asked, yuv420DecodeDecompressFrame=>calling FskImageDecompressSetProperty()");
+			FskImageDecompressSetProperty(deco, kFskMediaPropertyPixelFormat, &pixelFormat);
+			preferred_yuv_format = state->dst_pixel_format;
+		}
+		else
+			state->dst_pixel_format = preferred_yuv_format;
+
+		mlog( "setting system preferred dst pixel format: %d", (int)state->dst_pixel_format);
 	}
+#endif
+
+	if( state->dst_pixel_format == kFskBitmapFormatUnknown )
+	{
+		mlog( "dst pixel format is unknown, following src pixel format: %d", (int)state->src_pixel_format);
+		state->dst_pixel_format = state->src_pixel_format;//kFskBitmapFormatYUV420;//;
+	}
+
 		 
     if( !state->useGL && (state->dst_pixel_format == kFskBitmapFormatYUV420spuv || state->dst_pixel_format == kFskBitmapFormatYUV420spvu ) )
     {
-        dlog( "useGL is off, cannot handle dst pix format as kFskBitmapFormatYUV420spuv or kFskBitmapFormatYUV420spvu, set back to kFskBitmapFormatYUV420!!!\n");
+        dlog( "useGL is off, cannot handle dst pix format as kFskBitmapFormatYUV420spuv or kFskBitmapFormatYUV420spvu, set back to kFskBitmapFormatYUV420!!!");
         state->dst_pixel_format = kFskBitmapFormatYUV420;
     }
     
-	dlog( "completionFunction:      %d\n", (int)completionFunction);
-	dlog( "completionRefcon:		   %d\n", (int)completionRefcon );
-	dlog( "state->src_pixel_format: %d\n", (int)state->src_pixel_format );
-	dlog( "state->dst_pixel_format: %d\n", (int)state->dst_pixel_format );
-	dlog( "width/height/size: %d/%d/%d\n", (int)width, (int)height, (int)dataSize_in );
-	dlog( "state->dst_pixel_format: %d\n", (int)state->dst_pixel_format );
+	dlog( "completionFunction:      %d", (int)completionFunction);
+	dlog( "completionRefcon:		   %d", (int)completionRefcon );
+	dlog( "state->src_pixel_format: %d", (int)state->src_pixel_format );
+	dlog( "state->dst_pixel_format: %d", (int)state->dst_pixel_format );
+	dlog( "width/height/size: %d/%d/%d", (int)width, (int)height, (int)dataSize_in );
+	dlog( "state->dst_pixel_format: %d", (int)state->dst_pixel_format );
 	
 	
 #ifdef FORCE_OUTPUT_AS_SOURCE
-	dlog( "FORCE_OUTPUT_AS_SOURCE==> dst_pixel_format/src_pixel_format: %d/%d\n", (int)state->dst_pixel_format, (int)state->src_pixel_format );
+	dlog( "FORCE_OUTPUT_AS_SOURCE==> dst_pixel_format/src_pixel_format: %d/%d", (int)state->dst_pixel_format, (int)state->src_pixel_format );
 	state->dst_pixel_format = state->src_pixel_format;
 #endif
-	
+
 	if( deco->bits != NULL ) 
 	{
 		bits	   = deco->bits;
@@ -404,7 +589,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 		goto bail;
 	}
 	
-	dlog( "after FskBitmapWriteBegin(), dst_y_rb: %d, pixelFormat: %d\n", (int)dst_y_rb, (int)pixelFormat );
+	dlog( "after FskBitmapWriteBegin(), dst_y_rb: %d, pixelFormat: %d", (int)dst_y_rb, (int)pixelFormat );
 	
 	if( state->dst_pixel_format == kFskBitmapFormatYUV420 )
 	{
@@ -417,7 +602,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 		unsigned char	*src_u = NULL;
 		unsigned char	*src_v = NULL;	
 
-		dlog( "state->dst_pixel_format == kFskBitmapFormatYUV420 case\n" );
+		mlog( "state->dst_pixel_format == kFskBitmapFormatYUV420 case" );
 		
 		dst_y = dstPtr;
 		dst_u = dst_y + dst_frame_size;
@@ -425,14 +610,14 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 		
 		if( state->src_pixel_format == kFskBitmapFormatYUV420 )
 		{
-			dlog( "this is to kFskBitmapFormatYUV420 straight out\n");
+			mlog( "this is to kFskBitmapFormatYUV420 straight out");
 			src_y = (unsigned char *)data_in;
 			src_u = src_y + (src_y_rb*height);	
 			src_v = src_u + (src_uv_rb*(height>>1)) ;	
 		}
 		else if( state->src_pixel_format == kFskBitmapFormatUYVY )	
 		{	
-			dlog( "this is to convert 2vuy to yuv420planar mostly for verification purpose now that uyvy output pixel format is supported\n");
+			mlog( "this is to convert 2vuy to yuv420planar mostly for verification purpose now that uyvy output pixel format is supported");
 			if( state->y0 == NULL )
 			{
 				err = FskMemPtrNew(dst_frame_size, (FskMemPtr *)&state->y0);
@@ -467,7 +652,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 			unsigned char	*b_u		= NULL;
 			unsigned char	*b_v		= NULL;
 			
-			dlog( "this is to convert yuv420sp to yuv420planar\n");
+			mlog( "this is to convert yuv420sp to yuv420planar");
 			
 			if( state->u0 == NULL )
 			{
@@ -504,7 +689,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 		}
 		else
 		{
-			dlog( "a source pixel format we can't handle!!!\n" );	
+			mlog( "a source pixel format we can't handle!!!" );
 		}
 		
 		FskYUV420Copy(	  width, height,
@@ -521,7 +706,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 		unsigned char	*src_v = NULL;	
 		int				dst_frame_size = dst_y_rb*height;
 		
-		dlog( "state->dst_pixel_format == kFskBitmapFormatYUV420i case\n" );
+		mlog( "state->dst_pixel_format == kFskBitmapFormatYUV420i case" );
 		
 		if( state->src_pixel_format == kFskBitmapFormatYUV420 )
 		{
@@ -531,7 +716,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 		}
 		else if( state->src_pixel_format == kFskBitmapFormatUYVY )
 		{	
-			dlog( "this is to convert 2vuy to yuv420planar mostly for verification purpose now that uyvy output pixel format is supported\n");
+			mlog( "this is to convert 2vuy to yuv420planar mostly for verification purpose now that uyvy output pixel format is supported");
 			if( state->y0 == NULL )
 			{
 				err = FskMemPtrNew(dst_frame_size, (FskMemPtr *)&state->y0);
@@ -566,7 +751,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 			unsigned char	*b_u		= NULL;
 			unsigned char	*b_v		= NULL;
 			
-			dlog( "this is to convert yuv420sp to yuv420planar\n");
+			mlog( "this is to convert yuv420sp to yuv420planar");
 			
 			if( state->u0 == NULL )
 			{
@@ -602,7 +787,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 		}
 		else
 		{
-			dlog( "a source pixel format we can't handle!!!\n" );
+			mlog( "a source pixel format we can't handle!!!" );
 		}
 		
 		//always copy even width and height
@@ -617,13 +802,13 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 	}
 	else if( state->src_pixel_format == kFskBitmapFormatUYVY && state->dst_pixel_format == kFskBitmapFormatUYVY )
 	{
-		dlog( "state->src_pixel_format == kFskBitmapFormatUYVY && state->dst_pixel_format == kFskBitmapFormatUYVY case\n" );
+		mlog( "state->src_pixel_format == kFskBitmapFormatUYVY && state->dst_pixel_format == kFskBitmapFormatUYVY case" );
 		//int frame_size = dst_y_rb*height;
 		memcpy( dstPtr, data_in, dst_y_rb*height );
 	}
 	else if( state->src_pixel_format == kFskBitmapFormatYUV420spuv && state->dst_pixel_format == kFskBitmapFormatYUV420spuv )
 	{
-		dlog( "state->src_pixel_format == kFskBitmapFormatYUV420spuv && state->dst_pixel_format == kFskBitmapFormatYUV420spuv case\n" );
+		mlog( "state->src_pixel_format == kFskBitmapFormatYUV420spuv && state->dst_pixel_format == kFskBitmapFormatYUV420spuv case" );
 		//int frame_size = dst_y_rb*height;
 		if (src_y_rb == dst_y_rb) {
 			memcpy( dstPtr, data_in, dst_y_rb*height*3/2 );
@@ -640,7 +825,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 	}
 	else if( state->src_pixel_format == kFskBitmapFormatYUV420spvu && state->dst_pixel_format == kFskBitmapFormatYUV420spvu )
 	{
-		dlog( "state->src_pixel_format == kFskBitmapFormatYUV420spvu && state->dst_pixel_format == kFskBitmapFormatYUV420spvu case\n" );
+		mlog( "state->src_pixel_format == kFskBitmapFormatYUV420spvu && state->dst_pixel_format == kFskBitmapFormatYUV420spvu case" );
 		//int frame_size = dst_y_rb*height;
 		if (src_y_rb == dst_y_rb) {
 			memcpy( dstPtr, data_in, dst_y_rb*height*3/2 );
@@ -655,22 +840,26 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 			}
 		}
 	}
+	else
+	{
+		mlog( "not supported!!!" );
+	}
 	
 	FskBitmapWriteEnd( bits );
 	
-	dlog("returning a bits: %x\n", (int)bits);		
+	dlog("returning a bits: %x", (int)bits);
 	if( completionFunction != NULL )	
 	{
-		dlog("Async API: returning a bits: %x\n", (int)bits);		
+		dlog("Async API: returning a bits: %x", (int)bits);
 		(completionFunction)(deco, completionRefcon, kFskErrNone, bits);
 		
-		dlog( "resetting deco->completionFunction and deco->completionRefcon\n" );
+		dlog( "resetting deco->completionFunction and deco->completionRefcon" );
 		deco->completionFunction = NULL;
 		deco->completionRefcon = NULL;
 	}
 	else
 	{
-		dlog("Sync API: returning a bits: %x\n", (int)bits);		
+		dlog("Sync API: returning a bits: %x", (int)bits);
 		deco->bits = bits;
 	}
 	
@@ -685,11 +874,11 @@ FskErr yuv420DecodeFlush(void *stateIn, FskImageDecompress deco )
 	//kinomaYUV420Decode		*state	= (kinomaYUV420Decode *)stateIn;
 	FskErr				err		= kFskErrNone;
 	
-	dlog( "###########################################################################################\n" ); 
-	dlog( "into yuv420DecodeFlush\n");
+	dlog( "###########################################################################################" );
+	dlog( "into yuv420DecodeFlush");
 
 //bail:
-	dlog( "out of yuv420DecodeFlush: err: %d\n", (int)err );
+	dlog( "out of yuv420DecodeFlush: err: %d", (int)err );
 	return err;
 }
 
@@ -699,8 +888,8 @@ FskErr yuv420DecodeGetMetaData(void *stateIn, FskImageDecompress deco, UInt32 me
 	//kinomaYUV420Decode *state  = (kinomaYUV420Decode *)stateIn;
 	FskErr		  err = kFskErrNone;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog( "into yuv420DecodeGetMetaData\n");
+	mlog( "###########################################################################################" );
+	mlog( "into yuv420DecodeGetMetaData");
 
 	if (kFskImageDecompressMetaDataFrameType != metadata)
 	{
@@ -712,7 +901,7 @@ FskErr yuv420DecodeGetMetaData(void *stateIn, FskImageDecompress deco, UInt32 me
 	value->value.integer = kFskImageFrameTypeSync;
 
 bail:	
-	dlog( "out of yuv420DecodeGetMetaData: err: %d\n", (int)err );
+	mlog( "out of yuv420DecodeGetMetaData: err: %d", (int)err );
 	return err;
 }
 
@@ -723,23 +912,23 @@ FskErr yuv420DecodeSetSampleDescription(void *stateIn, void *track, UInt32 prope
 	QTImageDescription	desc = NULL;
 	int err = kFskErrNone;
 	
-	dlog( "###########################################################################################\n" ); 
-	dlog( "into yuv420DecodeSetSampleDescription\n");
+	mlog( "###########################################################################################" );
+	mlog( "into yuv420DecodeSetSampleDescription");
 
 	state->sampleDescriptionSeed++;
 	if( state->sampleDescription != NULL )
 	{
-		dlog( "disposing existing state->sampleDescription\n");
+		mlog( "disposing existing state->sampleDescription");
 		FskMemPtrDisposeAt((void **)&state->sampleDescription);
 	}
 	state->sampleDescriptionSize = property->value.data.dataSize;
     
-	dlog( "state->sampleDescriptionSize: %d\n", (int)state->sampleDescriptionSize);
+	mlog( "state->sampleDescriptionSize: %d", (int)state->sampleDescriptionSize);
 	err = FskMemPtrNewFromData(state->sampleDescriptionSize, property->value.data.data, (FskMemPtr *)&state->sampleDescription);
 	
 	desc = (QTImageDescription)state->sampleDescription;
 	state->src_pixel_format = desc->cType;
-	dlog( "state->src_pixel_format: %d\n", (int)state->src_pixel_format);
+	mlog( "state->src_pixel_format: %d", (int)state->src_pixel_format);
    
     {
         unsigned char	*bitmap_flag = NULL;
@@ -747,12 +936,12 @@ FskErr yuv420DecodeSetSampleDescription(void *stateIn, void *track, UInt32 prope
         if( bitmap_flag != NULL )
         {
             state->is_bitmap = *(UInt32 *)(bitmap_flag+8);
-            dlog( "###### got state->is_bitmap: %d\n", state->is_bitmap );
+            mlog( "###### got state->is_bitmap: %d", state->is_bitmap );
         }
     }
 
 //bail:
-	dlog( "out of yuv420DecodeSetSampleDescription: err: %d\n", (int)err );
+	mlog( "out of yuv420DecodeSetSampleDescription: err: %d", (int)err );
 	return err;
 }
 
@@ -778,40 +967,43 @@ FskErr yuv420DecodeSetPreferredPixelFormat( void *stateIn, void *track, UInt32 p
 	UInt32 i,count = property->value.integers.count;
 	UInt32 propertyType = property->type;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog( "into yuv420DecodeSetPreferredPixelFormat, propertyID: %d, propertyType: %d, count: %d\n", (int)propertyID, (int)propertyType, (int)count);
-	dlog( "prefered_yuvFormat: %d/%d/%d/%d/%d\n", (int)property->value.integers.integer[0],(int)property->value.integers.integer[1],(int)property->value.integers.integer[2],(int)property->value.integers.integer[3],(int)property->value.integers.integer[4]);
+	mlog( "###########################################################################################" );
+	mlog( "into yuv420DecodeSetPreferredPixelFormat, propertyID: %d, propertyType: %d, count: %d", (int)propertyID, (int)propertyType, (int)count);
+	mlog( "prefered_yuvFormat: %d/%d/%d/%d/%d", (int)property->value.integers.integer[0],(int)property->value.integers.integer[1],(int)property->value.integers.integer[2],(int)property->value.integers.integer[3],(int)property->value.integers.integer[4]);
 	
-	dlog( "looking for state->src_pixel_format: %d\n", (int)state->src_pixel_format);
+	dlog( "looking for state->src_pixel_format: %d", (int)state->src_pixel_format);
 	SET_PREFERRED_PIXEL_FORMAT(state->src_pixel_format)
 	
-	dlog( "looking for kFskBitmapFormatYUV420\n");
+	dlog( "looking for kFskBitmapFormatYUV420");
 	SET_PREFERRED_PIXEL_FORMAT(kFskBitmapFormatYUV420)
 
-	dlog( "looking for kFskBitmapFormatUYVY\n");
+	dlog( "looking for kFskBitmapFormatUYVY");
 	SET_PREFERRED_PIXEL_FORMAT(kFskBitmapFormatUYVY)
 	
-	dlog( "looking for kFskBitmapFormatYUV420spvu\n");
+	dlog( "looking for kFskBitmapFormatYUV420spvu");
 	SET_PREFERRED_PIXEL_FORMAT(kFskBitmapFormatYUV420spvu)
 	
-	dlog( "looking for kFskBitmapFormatYUV420spuv\n");
+	dlog( "looking for kFskBitmapFormatYUV420spuv");
 	SET_PREFERRED_PIXEL_FORMAT(kFskBitmapFormatYUV420spuv)
 	
-	dlog( "looking for kFskBitmapFormatYUV420i\n");
+	dlog( "looking for kFskBitmapFormatYUV420i");
 	SET_PREFERRED_PIXEL_FORMAT(kFskBitmapFormatYUV420i)
 	
 	if( prefered_yuvFormat != kFskBitmapFormatUnknown )
 	{
-		dlog( "got matched system preferred: %d\n", (int)prefered_yuvFormat);
+		dlog( "got matched system preferred: %d", (int)prefered_yuvFormat);
 		state->dst_pixel_format = prefered_yuvFormat;
 	}
 	else
 	{
-		dlog( "no matched system preferred, use default kFskBitmapFormatYUV420\n");
+		dlog( "no matched system preferred, use default kFskBitmapFormatYUV420");
 		state->dst_pixel_format = kFskBitmapFormatYUV420;
 	}
+
+	//state->dst_pixel_format = kFskBitmapFormatUYVY;
 		
-	dlog( "state->dst_pixel_format: %d\n", (int)state->dst_pixel_format);
+	mlog( "yuv420DecodeSetPreferredPixelFormat, set state->dst_pixel_format: %d", (int)state->dst_pixel_format);
+
 	    
 	return kFskErrNone;
 }

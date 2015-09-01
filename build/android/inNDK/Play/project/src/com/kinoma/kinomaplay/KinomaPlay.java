@@ -1369,6 +1369,10 @@ Log.i("Kinoma", "8 - 3");
 	        else {
 	    		fskPhoneStateChanged(kFskNetworkType, activeNetInfo.getType());
 	    		if (activeNetInfo.getType() == ConnectivityManager.TYPE_MOBILE) {
+					if(mOldDataConnectionState!=0) {
+						mOldDataConnectionState = 0;
+        				fskPhoneStateChanged(kFskDataConnectionState, 0);
+					}
 	        		NetworkInfo mobNetInfo = connectivityManager.getNetworkInfo(ConnectivityManager.TYPE_MOBILE);
 	        		if (mobNetInfo.isConnected() == true) {
 //			        	Log.i("Kinoma", "ConnectionChangeReceiver - TYPE_MOBILE - isConnected");

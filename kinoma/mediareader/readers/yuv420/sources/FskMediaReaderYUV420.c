@@ -31,6 +31,8 @@ FskInstrumentedSimpleType(FskMediaReaderYUV420, FskMediaReaderYUV420);
 #define vlog  FskFskMediaReaderYUV420PrintfVerbose
 #define dlog  FskFskMediaReaderYUV420PrintfDebug
 
+#define SIMULATE_CAMERA 1
+
 static Boolean yuv420ReaderCanHandle(const char *mimeType);
 static FskErr yuv420ReaderNew(FskMediaReader reader, void **readerState, const char *mimeType, const char *uri, FskMediaSpooler source);
 static FskErr yuv420ReaderDispose(FskMediaReader reader, void *readerState);
@@ -47,13 +49,15 @@ static FskErr yuv420ReaderGetTimeScale(void *state, void *track, UInt32 property
 //static FskErr yuv420ReaderGetState(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderSetScrub(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderGetDLNASinks(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
+
+int validate_yuv420( unsigned char *d, int size, int *is_ts, int *offset_out );
+#ifdef SIMULATE_CAMERA
 static FskErr yuv420ReaderSetLens(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderSetAutoFocusState(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderGetCameraCount(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
-
-int validate_yuv420( unsigned char *d, int size, int *is_ts, int *offset_out );
 static void askExtractMoreCallback(FskTimeCallBack callback, const FskTime time, void *param);
+#endif
 
 static FskMediaPropertyEntryRecord yuv420ReaderProperties[] = 
 {
@@ -61,10 +65,12 @@ static FskMediaPropertyEntryRecord yuv420ReaderProperties[] =
 	{kFskMediaPropertyTimeScale,			kFskMediaPropertyTypeInteger,		yuv420ReaderGetTimeScale,		NULL},
 	{kFskMediaPropertyScrub,				kFskMediaPropertyTypeBoolean,		NULL,						yuv420ReaderSetScrub},
 	{kFskMediaPropertyDLNASinks,			kFskMediaPropertyTypeStringList,	yuv420ReaderGetDLNASinks,		NULL},
+#ifdef SIMULATE_CAMERA
 	{kFskMediaPropertyLens,                 kFskMediaPropertyTypeString,   		NULL,                       yuv420ReaderSetLens},
 	{kFskMediaPropertyAutoFocusState,       kFskMediaPropertyTypeInteger,   	NULL,                       yuv420ReaderSetAutoFocusState},
 //	{kFskMediaPropertyJSON,                 kFskMediaPropertyTypeString,   		yuv420ReaderGetJSON,        NULL},
 //	{kFskMediaPropertyCameraCount,          kFskMediaPropertyTypeString,   		yuv420ReaderGetCameraCount,     NULL},
+#endif
 	{kFskMediaPropertyUndefined,			kFskMediaPropertyTypeUndefined,		NULL,                           NULL}
 };
 
@@ -76,10 +82,11 @@ static FskErr yuv420ReaderTrackGetFormatInfo(void *state, void *track, UInt32 pr
 static FskErr yuv420ReaderTrackGetFrameRate(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderTrackSetDimensions(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderTrackGetDimensions(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
-static FskErr yuv420ReaderTrackGetDimensionList(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderTrackGetBitRate(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
+#ifdef SIMULATE_CAMERA
+static FskErr yuv420ReaderTrackGetDimensionList(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr yuv420ReaderTrackSetEnabled(void *state_in, void *track, UInt32 propertyID, FskMediaPropertyValue property);
-
+#endif
 
 static FskMediaPropertyEntryRecord yuv420ReaderVideoTrackProperties[] = 
 {
@@ -89,8 +96,10 @@ static FskMediaPropertyEntryRecord yuv420ReaderVideoTrackProperties[] =
 	{kFskMediaPropertyFrameRate,			kFskMediaPropertyTypeRatio,			yuv420ReaderTrackGetFrameRate,		NULL},
 	{kFskMediaPropertyBitRate,				kFskMediaPropertyTypeInteger,		yuv420ReaderTrackGetBitRate,		NULL},
 	{kFskMediaPropertyDimensions,			kFskMediaPropertyTypeDimension,		yuv420ReaderTrackGetDimensions,		yuv420ReaderTrackSetDimensions},
-//	{kFskMediaPropertyDimensionList,		kFskMediaPropertyTypeUInt32List,	yuv420ReaderTrackGetDimensionList,	NULL},
+#ifdef SIMULATE_CAMERA
+	//{kFskMediaPropertyDimensionList,		kFskMediaPropertyTypeUInt32List,	yuv420ReaderTrackGetDimensionList,	NULL},
 	{kFskMediaPropertyEnabled,              kFskMediaPropertyTypeBoolean,   	NULL,                               yuv420ReaderTrackSetEnabled},
+#endif
 	{kFskMediaPropertyUndefined,			kFskMediaPropertyTypeUndefined,		NULL,								NULL}
 };
 
@@ -107,7 +116,7 @@ enum
 
 #define YUV420_HEADER_SIZE				12
 #define YUV420_DEFAULT_TIME_SCALE		3000
-#define kExtractInterval                 66
+#define kExtractInterval                66
 
 
 typedef struct YUV420ReaderRecord YUV420ReaderRecord;
@@ -132,15 +141,12 @@ struct YUV420ReaderRecord
 	Boolean					dontSeekIfExpensive;
 	Boolean					scrub;
 	
-    FskTimeCallBack			extractTimer;
-	UInt32					extractInterval;
 
 	int						initialized;
 	int						seek_offset;
 	int						width;
 	int						height;
     int                     dimenstion_count;
-    FskDimensionRecord      *dimension_list;    //**dimension_list test code
 	int						time_scale;
 	int						frame_size;
     unsigned char           *yuv420_bytes;
@@ -158,9 +164,14 @@ struct YUV420ReaderRecord
 	unsigned char			*yuv420_header[YUV420_HEADER_SIZE];
 
 	YUV420ReaderTrack		yuv420_tracks;
-    
+#ifdef SIMULATE_CAMERA
+    FskDimensionRecord      *dimension_list;    //**dimension_list test code
     unsigned char           *photo_data;
     int                     photo_data_size;
+
+    FskTimeCallBack			extractTimer;
+	UInt32					extractInterval;
+#endif
 };
 
 typedef FskErr (*yuv420ChunkWalker)(YUV420Reader yuv420, FskInt64 offset, FskInt64 size);
@@ -209,7 +220,7 @@ static FskErr doRead(YUV420Reader yuv420, FskInt64 offset, UInt32 size, void *bu
 	}
 
 bail:
-	dlog( "out of doRead() err: %d\n", (int)err );
+	dlog( "out of doRead() err: %d", (int)err );
 	
 	return err;
 }
@@ -220,10 +231,10 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 	unsigned char *s = (unsigned char *)yuv420->yuv420_header;
 	FskErr	err = 0;
 	
-	dlog("into yuv420Instantiate()\n");
+	dlog("into yuv420Instantiate()");
 	if( yuv420->initialized )
 	{
-		dlog("already initialized!!!\n");
+		dlog("already initialized!!!");
 		goto bail;
 	}
 	
@@ -239,7 +250,7 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 	err = yuv420->spooler->doGetSize(yuv420->spooler, &yuv420->file_size_fsk64);
 	BAIL_IF_ERR( err );
 		
-	dlog("parsing header:\n");
+	dlog("parsing header:");
 	if
 	( 
 	   s[0] == 'y' &&
@@ -250,7 +261,7 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 	   s[5] == '0' 
 	)
 	{
-		dlog("found yuv420!\n");
+		dlog("found yuv420!");
 		yuv420->pixel_format = kFskBitmapFormatYUV420;
 	}
 	else if
@@ -263,7 +274,7 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 		s[5] == ' ' 
 	)
 	{
-		dlog("found 2vuy  !\n");
+		dlog("found 2vuy  !");
 		yuv420->pixel_format = kFskBitmapFormatUYVY;
 	}
 	else if
@@ -276,7 +287,7 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
          s[5] == ' '
          )
 	{
-		dlog("found spuv  !\n");
+		dlog("found spuv  !");
 		yuv420->pixel_format = kFskBitmapFormatYUV420spuv;
 	}
 	else if
@@ -289,7 +300,7 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
          s[5] == ' '
          )
 	{
-		dlog("found spvu  !\n");
+		dlog("found spvu  !");
 		yuv420->pixel_format = kFskBitmapFormatYUV420spvu;
 	}
 	else
@@ -298,14 +309,18 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 		goto bail;
 	}
 	
-	dlog("got yuv420->pixel_format: %d\n", yuv420->pixel_format);
+	mlog("got yuv420->pixel_format: %d", yuv420->pixel_format);
 	
 	s += 6;
 	yuv420->frame_rate  = (s[0]<<8)|(s[1]<<0); s+=2;
 	yuv420->width       = (s[0]<<8)|(s[1]<<0); s+=2;
 	yuv420->height      = (s[0]<<8)|(s[1]<<0);
-	
 
+	mlog("got yuv420->frame_rate: %d", yuv420->frame_rate);
+	mlog("got yuv420->width: %d", yuv420->width);
+	mlog("got yuv420->height: %d", yuv420->height);
+
+#ifdef SIMULATE_CAMERA
     {//**dimension_list test code
         int i;
         yuv420->dimenstion_count = 2;
@@ -319,6 +334,7 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
             this_dimension->height = yuv420->height >> i;
         }
     }
+#endif
 
 	if( yuv420->pixel_format == kFskBitmapFormatYUV420      ||
         yuv420->pixel_format == kFskBitmapFormatYUV420spuv  ||
@@ -333,7 +349,10 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 	yuv420->frame_dur   = yuv420->time_scale / yuv420->frame_rate;
 	
 	yuv420->duration_fsk64 = yuv420->frame_total == 0 ? -1 : yuv420->frame_dur * yuv420->frame_total;
-	
+
+	mlog("got yuv420->time_scale: %d", yuv420->time_scale);
+	mlog("got yuv420->frame_total: %d", yuv420->frame_total);
+	mlog("got yuv420->frame_dur: %d", yuv420->frame_dur);
 	
 	err = FskMemPtrNew(yuv420->frame_size, &yuv420->yuv420_bytes);
 	BAIL_IF_ERR( err );
@@ -344,7 +363,7 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 	{
 		YUV420ReaderTrack  track;
 		
-		dlog( "creating yuv420 track.\n");
+		dlog( "creating yuv420 track.");
 		err = FskMemPtrNewClear(sizeof(YUV420ReaderTrackRecord), &track);
 		BAIL_IF_ERR( err );
 		
@@ -352,10 +371,11 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 		track->reader_track.dispatch = &gYUV420ReaderVideoTrack;
 		track->reader_track.state	 = track;
 		track->media_type  =  FskStrDoCopy("video");
-		
+
 		FskListAppend(&yuv420->yuv420_tracks, track);
 
-		dlog( "creating fake cama video preview track.\n");
+#ifdef SIMULATE_CAMERA
+		dlog( "creating fake cama video preview track.");
 		err = FskMemPtrNewClear(sizeof(YUV420ReaderTrackRecord), &track);
 		BAIL_IF_ERR( err );
 
@@ -366,7 +386,7 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 
 		FskListAppend(&yuv420->yuv420_tracks, track);
 
-		dlog( "creating fake cama photo track.\n");
+		dlog( "creating fake cama photo track.");
 		err = FskMemPtrNewClear(sizeof(YUV420ReaderTrackRecord), &track);
 		BAIL_IF_ERR( err );
         
@@ -374,14 +394,15 @@ FskErr yuv420Instantiate(YUV420Reader yuv420)
 		track->reader_track.dispatch = &gYUV420ReaderVideoTrack;
 		track->reader_track.state	 = track;
 		track->media_type  =  FskStrDoCopy("image");
-		
+
 		FskListAppend(&yuv420->yuv420_tracks, track);
+#endif
     }
 	
 	(yuv420->reader->doSetState)(yuv420->reader, kFskMediaPlayerStateStopped);
 
 bail:
-	dlog("out of yuv420Instantiate, initialized: %d\n", (int)yuv420->initialized);
+	dlog("out of yuv420Instantiate, initialized: %d", (int)yuv420->initialized);
 	return err;
 }
 
@@ -391,7 +412,7 @@ FskErr yuv420SpoolerCallback(void *clientRefCon, UInt32 operation, void *param)
 	YUV420Reader yuv420 = clientRefCon;
 	FskErr err = kFskErrNone;
 
-	dlog("into yuv420SpoolerCallback()\n");;
+	dlog("into yuv420SpoolerCallback()");;
 
 	switch (operation) 
 	{
@@ -419,8 +440,10 @@ FskErr yuv420SpoolerCallback(void *clientRefCon, UInt32 operation, void *param)
 
 Boolean yuv420ReaderCanHandle(const char *mimeType)
 {
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderCanHandle(), mimeType: %s\n", mimeType);
+	Boolean can_handle = false;
+
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderCanHandle(), mimeType: %s", mimeType);
 
 	if 
 	(	
@@ -429,9 +452,11 @@ Boolean yuv420ReaderCanHandle(const char *mimeType)
          0 == FskStrCompareCaseInsensitive("video/yuv420spuv",   mimeType) ||
          0 == FskStrCompareCaseInsensitive("video/yuv420spvu",   mimeType)
 	)
-		return true;
+		can_handle = true;
 
-	return false;
+	mlog("yuv420ReaderCanHandle(), mimeType: %s, returns can_handle: %d", mimeType, can_handle);
+
+	return can_handle;
 }
 
 
@@ -440,8 +465,8 @@ FskErr yuv420ReaderSniff(const unsigned char *data, UInt32 dataSize, FskHeaders 
 	int err = kFskErrUnknownElement;
 	//int offset = 0;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderSniff()\n");;
+	mlog("###########################################################################################");
+	mlog("into yuv420ReaderSniff()");
 
 	if (dataSize >= 12) 
 	{	
@@ -499,6 +524,9 @@ FskErr yuv420ReaderSniff(const unsigned char *data, UInt32 dataSize, FskHeaders 
 		}
 	}
 
+	if( *mime != NULL )
+		mlog(" yuv420ReaderSniff() returning *mime: %s", *mime);
+
 //bail:
 	return err;
 }
@@ -509,12 +537,12 @@ FskErr yuv420ReaderNew(FskMediaReader reader, void **readerState, const char *mi
 	FskErr err;
 	YUV420Reader yuv420 = NULL;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderNew()\n");;
+	mlog( "###########################################################################################" );
+	mlog("into yuv420ReaderNew()");;
 
 	if (NULL == spooler) 
 	{
-		dlog("NULL == spooler, goto bail!!!\n");;
+		dlog("NULL == spooler, goto bail!!!");;
 		err = kFskErrUnimplemented;
 		goto bail;
 	}
@@ -532,21 +560,15 @@ FskErr yuv420ReaderNew(FskMediaReader reader, void **readerState, const char *mi
 
 	if (spooler->doOpen) 
 	{
-		dlog("opening spooler\n");;
+		dlog("opening spooler");;
 		err = (spooler->doOpen)(spooler, kFskFilePermissionReadOnly);
 		BAIL_IF_ERR( err );
 
 		yuv420->spoolerOpen = true;
 	}
 
-	if (NULL == yuv420->extractTimer)
-    {
-        yuv420->extractInterval = kExtractInterval;
-		FskTimeCallbackNew(&yuv420->extractTimer);
-		BAIL_IF_NULL( yuv420->extractTimer, err, kFskErrUnknown );
-	}
     
-	dlog("calling reader->doSetState\n");;
+	dlog("calling reader->doSetState");;
 	(reader->doSetState)(reader, kFskMediaPlayerStateInstantiating);
     
 	err = yuv420Instantiate(yuv420);
@@ -557,8 +579,18 @@ FskErr yuv420ReaderNew(FskMediaReader reader, void **readerState, const char *mi
 		goto bail;
 	}
 
+#ifdef SIMULATE_CAMERA
+	if (NULL == yuv420->extractTimer)
+    {
+        yuv420->extractInterval = 1000/yuv420->frame_rate;//kExtractInterval;
+		FskTimeCallbackNew(&yuv420->extractTimer);
+		BAIL_IF_NULL( yuv420->extractTimer, err, kFskErrUnknown );
+	}
+
     yuv420->photo_data = NULL;
     yuv420->photo_data_size = 0;
+#endif
+
 bail:
 	if ((kFskErrNone != err) && (NULL != yuv420)) 
 	{
@@ -568,7 +600,7 @@ bail:
 
 	*readerState = yuv420;
 	
-	dlog("out of yuv420ReaderNew()\n");;
+	dlog("out of yuv420ReaderNew()");;
 	return err;
 }
 
@@ -577,8 +609,8 @@ FskErr yuv420ReaderDispose(FskMediaReader reader, void *readerState)
 {
 	YUV420Reader yuv420 = readerState;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderDispose()\n");;
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderDispose()");;
 
 	if( yuv420 != NULL )
 	{
@@ -592,6 +624,8 @@ FskErr yuv420ReaderDispose(FskMediaReader reader, void *readerState)
 		if (yuv420->spoolerOpen && yuv420->spooler->doClose)
 			(yuv420->spooler->doClose)(yuv420->spooler);
 
+
+#ifdef SIMULATE_CAMERA
         if( yuv420->extractTimer )
         {
             FskTimeCallbackDispose(yuv420->extractTimer);
@@ -600,9 +634,10 @@ FskErr yuv420ReaderDispose(FskMediaReader reader, void *readerState)
         
         //**dimension_list test code
         FskMemPtrDisposeAt(&yuv420->dimension_list);
-        FskMemPtrDisposeAt(&yuv420->yuv420_bytes);
         FskMemPtrDisposeAt(&yuv420->photo_data);
+#endif
 
+        FskMemPtrDisposeAt(&yuv420->yuv420_bytes);
 		FskMemPtrDispose(yuv420);
 	}
 
@@ -614,12 +649,12 @@ FskErr yuv420ReaderGetTrack(FskMediaReader reader, void *readerState, SInt32 ind
 	YUV420Reader	  yuv420  = readerState;
 	YUV420ReaderTrack walker  = yuv420->yuv420_tracks;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderGetTrack()\n");;
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderGetTrack(), index: %d", index);
 
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
@@ -632,10 +667,14 @@ FskErr yuv420ReaderGetTrack(FskMediaReader reader, void *readerState, SInt32 ind
 	if( walker ) 
 	{
 		*track = &walker->reader_track;
+		mlog("track found, *track: %x", (int)*track );
 		return kFskErrNone;
 	}
 	else
+	{
+		mlog("no track found!!!" );
 		return kFskErrNotFound;
+	}
 }
 
 
@@ -645,38 +684,43 @@ FskErr yuv420ReaderStart(FskMediaReader reader, void *readerState, double *start
 	FskInt64		start_time_fsk64  = startTime == NULL ? 0 : *startTime;
 	FskErr			err = kFskErrNone;
 	
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderStart(), start_time_fsk64: %d\n", (int)start_time_fsk64);
+	mlog( "###########################################################################################" );
+	mlog("into yuv420ReaderStart(), start_time_fsk64: %d", (int)start_time_fsk64);
 	
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		mlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
 	yuv420->seek_offset = start_time_fsk64 / yuv420->frame_dur * yuv420->frame_size;
 	yuv420->video_frame_count	= 0;
 
+#ifdef SIMULATE_CAMERA
     if( yuv420->frame_rate != 0 )
         yuv420->extractInterval = 1000/yuv420->frame_rate;
 	FskTimeCallbackScheduleFuture(yuv420->extractTimer, 0, yuv420->extractInterval, askExtractMoreCallback, yuv420);
-    
+#endif
 	return err;
 }
 
 
 FskErr yuv420ReaderStop(FskMediaReader reader, void *readerState)
 {
-	YUV420Reader	yuv420 = readerState;
-    
-	dlog( "###########################################################################################\n" );
-	dlog("into yuv420ReaderStop()\n");
-	dlog("closing extractTimer\n");
-    if( yuv420->extractTimer )
-    {
-        FskTimeCallbackDispose(yuv420->extractTimer);
-        yuv420->extractTimer = NULL;
+	mlog( "###########################################################################################" );
+	mlog("into yuv420ReaderStop()");
+
+#ifdef SIMULATE_CAMERA
+	mlog("closing extractTimer");
+	{
+		YUV420Reader yuv420 = readerState;
+		if( yuv420->extractTimer )
+		{
+			FskTimeCallbackDispose(yuv420->extractTimer);
+			yuv420->extractTimer = NULL;
+		}
     }
+#endif
     
 	return kFskErrNone;
 }
@@ -695,6 +739,7 @@ void frame_event_callback(void *refCon, int event )
     
 }
 
+#ifdef SIMULATE_CAMERA
 void askExtractMoreCallback(FskTimeCallBack callback, const FskTime time, void *param)
 {
  	YUV420Reader  yuv420  = (YUV420Reader)param;
@@ -703,7 +748,7 @@ void askExtractMoreCallback(FskTimeCallBack callback, const FskTime time, void *
    
  	FskTimeCallbackScheduleFuture(yuv420->extractTimer, 0, yuv420->extractInterval, askExtractMoreCallback, yuv420);
 }
-
+#endif
 
 FskErr yuv420ReaderExtract(FskMediaReader reader, void *readerState, FskMediaReaderTrack *trackOut, UInt32 *infoCountOut, FskMediaReaderSampleInfo *infoOut, unsigned char **data)
 {
@@ -714,8 +759,8 @@ FskErr yuv420ReaderExtract(FskMediaReader reader, void *readerState, FskMediaRea
 	FskMediaReaderSampleInfo info = NULL;
 	FskErr					 err = kFskErrNone;
 
-	//dlog( "###########################################################################################\n" );
-	//dlog("into yuv420ReaderExtract()\n");
+	mlog( "###########################################################################################" );
+	mlog("into yuv420ReaderExtract()");
 
 	*infoCountOut	= 0;
 	*infoOut		= NULL;
@@ -724,14 +769,18 @@ FskErr yuv420ReaderExtract(FskMediaReader reader, void *readerState, FskMediaRea
 
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		mlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
     
+#ifdef SIMULATE_CAMERA
 	for (track = yuv420->yuv420_tracks; NULL != track; track = track->next)
     {
         if(	0 == FskStrCompareCaseInsensitive("image", track->media_type) )
+        {
+			mlog("@image track");
             break;
+        }
 	}
 
     if( track != NULL )
@@ -740,10 +789,10 @@ FskErr yuv420ReaderExtract(FskMediaReader reader, void *readerState, FskMediaRea
         int photo_data_size = yuv420->photo_data_size;
         yuv420->photo_data = NULL;
         yuv420->photo_data_size = 0;
-        dlog("check if there is any photo data\n");
+        dlog("check if there is any photo data");
         if( photo_data_size != 0 )
         {
-            mlog("allocating a new sample record for photo\n");
+            mlog("allocating a new sample record for photo");
             err = FskMemPtrNewClear(sizeof(FskMediaReaderSampleInfoRecord), &info);
             BAIL_IF_ERR( err );
             
@@ -759,38 +808,36 @@ FskErr yuv420ReaderExtract(FskMediaReader reader, void *readerState, FskMediaRea
             info->sampleSize	= photo_data_size;
             *data				= photo_data;
             
-            mlog("done packing a new sample record for photo, photo_data_size: %d\n", photo_data_size);
+            mlog("done packing a new sample record for photo, photo_data_size: %d", photo_data_size);
             
             goto bail;
         }
     }
-    
+#endif
+
+	//only look at "video" track, "video-preview" track is dummy here
 	for (track = yuv420->yuv420_tracks; NULL != track; track = track->next)
-    {
-        if(	0 == FskStrCompareCaseInsensitive("video-preview", track->media_type) )
-            break;
+	{
+		if(	0 == FskStrCompareCaseInsensitive("video", track->media_type) )
+		{
+			mlog("@video track");
+			break;
+		}
 	}
 
-    if( track == NULL)
-    {
-        for (track = yuv420->yuv420_tracks; NULL != track; track = track->next)
-        {
-            if(	0 == FskStrCompareCaseInsensitive("video", track->media_type) )
-                break;
-        }
-    }
-    
 	fsk_time = yuv420->seek_offset/yuv420->frame_size*yuv420->frame_dur;
 	if( fsk_time >= yuv420->duration_fsk64 && yuv420->frame_total != 0 )
 	{
-		//dlog("no more frames, returning err: kFskErrEndOfFile\n");
+		mlog("no more frames, returning err: kFskErrEndOfFile");
 		err = kFskErrEndOfFile;
-        
+
+#ifdef SIMULATE_CAMERA
         if( yuv420->extractTimer )
         {
             FskTimeCallbackDispose(yuv420->extractTimer);
             yuv420->extractTimer = NULL;
         }
+#endif
         
 		goto bail;
 	}
@@ -852,7 +899,7 @@ FskErr yuv420ReaderExtract(FskMediaReader reader, void *readerState, FskMediaRea
     //cache latest frame
     memcpy(yuv420->yuv420_bytes,yuv420_bytes,yuv420->frame_size);
     
-	dlog("outputting 1 video frame: size: %d, decode_time: %d, sample_flag: %d\n", 
+	mlog("outputting 1 video frame: size: %d, decode_time: %d, sample_flag: %d",
 			(int)info->sampleSize, (int)info->decodeTime, (int)info->flags);
 
 	yuv420->video_frame_count++;
@@ -867,8 +914,8 @@ bail:
 
 FskErr yuv420ReaderGetMetadata(FskMediaReader reader, void *readerState, const char *metaDataType, UInt32 index, FskMediaPropertyValue value, UInt32 *flags)
 {
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderGetMetadata(), propertyID: %d, index: %d\n", (int)metaDataType, (int)index);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderGetMetadata(), propertyID: %d, index: %d", (int)metaDataType, (int)index);
 	return kFskErrUnknownElement;
 }
 
@@ -878,11 +925,11 @@ FskErr yuv420ReaderGetDuration(void *state, void *track, UInt32 propertyID, FskM
 	YUV420Reader	yuv420 = state;
 	float			dur = 0;
 	
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderGetDuration(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderGetDuration(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
@@ -890,6 +937,8 @@ FskErr yuv420ReaderGetDuration(void *state, void *track, UInt32 propertyID, FskM
 
 	property->type = kFskMediaPropertyTypeFloat;
 	property->value.number = dur;
+
+	mlog("returning duration: %f", property->value.number);
 
 	return kFskErrNone;
 }
@@ -899,16 +948,18 @@ FskErr yuv420ReaderGetTimeScale(void *state, void *track, UInt32 propertyID, Fsk
 {
 	YUV420Reader yuv420 = state;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderGetTimeScale(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderGetTimeScale(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
 	property->type = kFskMediaPropertyTypeInteger;
 	property->value.integer = yuv420->time_scale;
+
+	mlog("returning time_scale: %d", property->value.integer);
 
 	return kFskErrNone;
 }
@@ -918,11 +969,11 @@ FskErr yuv420ReaderSetScrub(void *state, void *track, UInt32 propertyID, FskMedi
 {
 	YUV420Reader yuv420 = state;
 	
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderSetScrub(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderSetScrub(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
@@ -954,18 +1005,18 @@ FskErr yuv420ReaderTrackGetMediaType(void *state, void *trackState, UInt32 prope
 	YUV420ReaderTrack track = state;
 	YUV420Reader		yuv420  = track->yuv420;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderTrackGetMediaType(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderTrackGetMediaType(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
 	property->type = kFskMediaPropertyTypeString;
 	property->value.str = FskStrDoCopy(track->media_type);
 
-    dlog("got media, property->value.str: %s\n", property->value.str);
+    dlog("got media, property->value.str: %s", property->value.str);
 
 	return kFskErrNone;
 }
@@ -975,34 +1026,34 @@ FskErr yuv420ReaderTrackGetFormat(void *state, void *trackState, UInt32 property
 	YUV420ReaderTrack track = state;
 	YUV420Reader		yuv420  = track->yuv420;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderTrackGetFormat(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderTrackGetFormat(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
 	property->type = kFskMediaPropertyTypeString;
-	dlog("checking yuv420->pixel_format: %d\n", yuv420->pixel_format);;
+	dlog("checking yuv420->pixel_format: %d", yuv420->pixel_format);;
 	if( yuv420->pixel_format == kFskBitmapFormatYUV420 )
 	{
-		dlog("returning x-video-codec/yuv420\n");;
+		dlog("returning x-video-codec/yuv420");;
 		property->value.str = FskStrDoCopy("x-video-codec/yuv420");
 	}
 	else if( yuv420->pixel_format == kFskBitmapFormatUYVY )
 	{
-		dlog("returning x-video-codec/2vuy\n");;
+		dlog("returning x-video-codec/2vuy");;
 		property->value.str = FskStrDoCopy("x-video-codec/2vuy");
 	}
 	else if( yuv420->pixel_format == kFskBitmapFormatYUV420spuv )
 	{
-		dlog("returning x-video-codec/yuv420spuv\n");;
+		dlog("returning x-video-codec/yuv420spuv");;
 		property->value.str = FskStrDoCopy("x-video-codec/yuv420spuv");
 	}
 	else if( yuv420->pixel_format == kFskBitmapFormatYUV420spvu )
 	{
-		dlog("returning x-video-codec/yuv420spvu\n");;
+		dlog("returning x-video-codec/yuv420spvu");;
 		property->value.str = FskStrDoCopy("x-video-codec/yuv420spvu");
 	}
 	
@@ -1018,11 +1069,11 @@ FskErr yuv420ReaderTrackGetFormatInfo(void *state, void *trackState, UInt32 prop
 	int				descSize;
 	FskErr			err   = kFskErrNone;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderTrackGetFormatInfo(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderTrackGetFormatInfo(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
@@ -1030,7 +1081,7 @@ FskErr yuv420ReaderTrackGetFormatInfo(void *state, void *trackState, UInt32 prop
 	err = FskMemPtrNewClear(descSize, (FskMemPtr *)&desc);
 	BAIL_IF_ERR( err );
 
-	dlog("setting  desc->cType: %d\n", (int)desc->cType);
+	dlog("setting  desc->cType: %d", (int)desc->cType);
 	desc->cType	 = yuv420->pixel_format;
 	desc->width  = yuv420->width;
 	desc->height = yuv420->height;
@@ -1051,11 +1102,11 @@ FskErr yuv420ReaderTrackGetFrameRate(void *state, void *trackState, UInt32 prope
 	//int					frame_dur;
 	FskErr				err = kFskErrNone;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderTrackGetFrameRate(), propertyID: %d\n", (int)propertyID);
+	mlog( "###########################################################################################" );
+	mlog("into yuv420ReaderTrackGetFrameRate(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		mlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
@@ -1074,11 +1125,11 @@ FskErr yuv420ReaderTrackSetDimensions(void *state, void *trackState, UInt32 prop
 	YUV420Reader yuv420 = track->yuv420;
     int width, height, type;
 
-	dlog( "###########################################################################################\n" );
-	dlog("into yuv420ReaderTrackGetDimensions(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderTrackGetDimensions(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 
@@ -1095,17 +1146,20 @@ FskErr yuv420ReaderTrackGetDimensions(void *state, void *trackState, UInt32 prop
 	YUV420ReaderTrack track = state;
 	YUV420Reader yuv420 = track->yuv420;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderTrackGetDimensions(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderTrackGetDimensions(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
 	property->type = kFskMediaPropertyTypeDimension;
 	property->value.dimension.width  = yuv420->width;
 	property->value.dimension.height = yuv420->height;
+
+	mlog("returning width: %d", property->value.dimension.width);
+	mlog("returning height: %d", property->value.dimension.height);
 
 	return kFskErrNone;
 }
@@ -1116,20 +1170,23 @@ FskErr yuv420ReaderTrackGetBitRate(void *state, void *trackState, UInt32 propert
 	YUV420ReaderTrack track = state;
 	YUV420Reader	  yuv420  = track->yuv420;
 
-	dlog( "###########################################################################################\n" ); 
-	dlog("into yuv420ReaderTrackGetBitRate(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderTrackGetBitRate(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
 	
 	property->type = kFskMediaPropertyTypeInteger;
 	property->value.integer = (SInt32)( yuv420->frame_size * yuv420->frame_rate * 8);
 
+	mlog("returning bitrate: %d", property->value.integer);
+
 	return kFskErrNone;
 }
 
+#ifdef SIMULATE_CAMERA
 //***camera mockup
 //a simple json
 const char js0[] = \
@@ -1165,16 +1222,16 @@ int js_size = 0;
 char js_path[] = "/Volumes/android/js2.json"; //js1.json, js2.json are checked in under the same dir with this C file
 FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property)
 {
-	YUV420Reader yuv420 = state;
+	//YUV420Reader yuv420 = state;
 	FskErr		  err   = kFskErrNone;
     
-    mlog("into yuv420ReaderGetJSON()\n");
+    mlog("into yuv420ReaderGetJSON()");
     
     {
         FILE *f = fopen(js_path, "rb");
         if( f == NULL )
         {
-            mlog( "json file not exists!!!\n");
+            mlog( "json file not exists!!!");
             goto bail;
         }
         else
@@ -1182,7 +1239,7 @@ FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMedia
             fseek(f, 0, SEEK_END);
             js_size = ftell(f);
             fseek(f, 0, SEEK_SET);
-            mlog( "js_size: %d\n", js_size);
+            mlog( "js_size: %d", js_size);
             
             if( js != NULL )
                 free(js);
@@ -1193,7 +1250,7 @@ FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMedia
             js[js_size] = 0;
         }
     }
-#if 0
+#if 0//def SIMULATE_CAMERA
     {
         jsmn_parser p;
         jsmntok_t tokens[2000];
@@ -1202,11 +1259,11 @@ FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMedia
         int i;
         char *this_string;
 
-        mlog("got camera params, js: %s\n", js);
+        mlog("got camera params, js: %s", js);
 
         jsmn_init(&p);
         r = jsmn_parse(&p, (const char*)js, strlen((const char*)js), tokens, 2000);
-        mlog("jsmn_parse() called, r: %d\n", r);
+        mlog("jsmn_parse() called, r: %d", r);
 
         i = 0;
         this_string = (char *)"previewSize";
@@ -1214,7 +1271,7 @@ FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMedia
         i++;
         if( i >= r ) goto bail;
         GET_W_H( tokens, i, this_w, this_h );
-        mlog("cam param ==> defult preview size %d x %d\n", this_w, this_h);
+        mlog("cam param ==> defult preview size %d x %d", this_w, this_h);
         
         i = 0;
         this_string = (char *)"pictureSize";
@@ -1222,7 +1279,7 @@ FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMedia
         i++;
         if( i >= r ) goto bail;
         GET_W_H( tokens, i, this_w, this_h );
-        mlog("cam param ==> defult photo size %d x %d\n", this_w, this_h);
+        mlog("cam param ==> defult photo size %d x %d", this_w, this_h);
 
         i = 0;
         this_string = (char *)"pictureSizeValues";
@@ -1232,12 +1289,12 @@ FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMedia
         if( tokens[i].type == JSMN_ARRAY )
         {
             int array_total = tokens[i].size;
-            mlog("this_string: %s, is an array with total: %d\n", this_string, array_total);
+            mlog("this_string: %s, is an array with total: %d", this_string, array_total);
             i++;//point to height/width object
             for( ;array_total--; )
             {
                 GET_W_H( tokens, i, this_w, this_h );
-                mlog("cam param ==> picture size %d x %d\n", this_w, this_h);
+                mlog("cam param ==> picture size %d x %d", this_w, this_h);
             }
         }
 
@@ -1248,18 +1305,18 @@ FskErr yuv420ReaderGetJSON(void *state, void *track, UInt32 propertyID, FskMedia
         if( tokens[i].type == JSMN_ARRAY )
         {
             int array_total = tokens[i].size;
-            mlog("this_string: %s, is an array with total: %d\n", this_string, array_total);
+            mlog("this_string: %s, is an array with total: %d", this_string, array_total);
             i++;//point to height/width object
             for( ;array_total--; )
             {
                 GET_W_H( tokens, i, this_w, this_h );
-                mlog("cam param ==> preview size %d x %d\n", this_w, this_h);
+                mlog("cam param ==> preview size %d x %d", this_w, this_h);
             }
         }
     }
 #endif
     property->type = kFskMediaPropertyTypeString;
-	property->value.str = js;
+	property->value.str = (char *)js;
     
 bail:
 	return err;
@@ -1268,59 +1325,59 @@ bail:
 
 FskErr yuv420ReaderGetCameraCount(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property)
 {
-	YUV420Reader yuv420 = state;
+	//YUV420Reader yuv420 = state;
 	FskErr		 err = kFskErrNone;
     
-    dlog("into yuv420ReaderGetCameraCount(), camera count is 1\n");
+    dlog("into yuv420ReaderGetCameraCount(), camera count is 1");
     
 	property->type = kFskMediaPropertyTypeInteger;
 	property->value.integer = 1;
     
-bail:
+//bail:
 	return err;
 }
 
 FskErr yuv420ReaderSetLens(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property)
 {
-	YUV420Reader  yuv420 = state;
+	//YUV420Reader  yuv420 = state;
 	FskErr		  err = kFskErrNone;
 	char		  *s	= property->value.str;
     
-	mlog("\n\n\n");
-	mlog("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n");
-	mlog("into yuv420ReaderSetLens(), camera name: %s\n", s);;
-	mlog("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n");
+	mlog("");
+	mlog("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\");
+	mlog("into yuv420ReaderSetLens(), camera name: %s", s);;
+	mlog("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\");
     
 	if( strcmp( s, "back" ) == 0 )
     {
-		mlog("choosing back camera!!!\n");;
+		mlog("choosing back camera!!!");;
 	}
 	else if( strcmp( s, "front" ) == 0 )
     {
-		mlog("choosing front camera!!!\n");;
+		mlog("choosing front camera!!!");;
 	}
 	
-bail:
-	mlog("out of yuv420ReaderSetLens() : %s\n", s);
+//bail:
+	mlog("out of yuv420ReaderSetLens() : %s", s);
 	return err;
 }
 
 
 FskErr yuv420ReaderSetAutoFocusState(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property)
 {
-	YUV420Reader  yuv420 = state;
+//	YUV420Reader  yuv420 = state;
 	FskErr		  err   = kFskErrNone;
 	int		  af_state	= property->value.integer;
     
-    mlog("into yuv420ReaderSetAutoFocusState\n");
+    mlog("into yuv420ReaderSetAutoFocusState");
     
 	if( af_state == 1 )
     {
-		mlog("autoFocus!!!\n");;
+		mlog("autoFocus!!!");;
 	}
     
-bail:
-	mlog("out of yuv420ReaderSetAutoFocusState() : %d\n", af_state);
+//bail:
+	mlog("out of yuv420ReaderSetAutoFocusState() : %d", af_state);
 	return err;
     
 }
@@ -1331,11 +1388,11 @@ FskErr yuv420ReaderTrackGetDimensionList(void *state, void *trackState, UInt32 p
 	YUV420ReaderTrack track = state;
 	YUV420Reader yuv420 = track->yuv420;
     
-	dlog( "###########################################################################################\n" );
-	dlog("into yuv420ReaderTrackGetDimensionList(), propertyID: %d\n", (int)propertyID);
+	dlog( "###########################################################################################" );
+	dlog("into yuv420ReaderTrackGetDimensionList(), propertyID: %d", (int)propertyID);
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420->initialized false, bail!!!\n");
+		dlog("yuv420->initialized false, bail!!!");
 		return -1;
 	}
     
@@ -1345,7 +1402,6 @@ FskErr yuv420ReaderTrackGetDimensionList(void *state, void *trackState, UInt32 p
     
 	return kFskErrNone;
 }
-
 
 FskErr save_jpeg(unsigned char *yuv_bytes, int size, int yuv_format, int width, int height, unsigned char **data, int *data_size );
 FskErr yuv420ReaderTrackSetEnabled(void *state, void *trackState, UInt32 propertyID, FskMediaPropertyValue property)
@@ -1357,21 +1413,21 @@ FskErr yuv420ReaderTrackSetEnabled(void *state, void *trackState, UInt32 propert
     
 	if( !yuv420->initialized )
 	{
-		dlog("yuv420ReaderTrackSetEnabled()=>yuv420->initialized false, bail!!!\n");
+		dlog("yuv420ReaderTrackSetEnabled()=>yuv420->initialized false, bail!!!");
 		return -1;
 	}
  
-	mlog("\n\n\n");
-	mlog("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n");
-	mlog("into yuv420ReaderTrackSetEnabled(), yuv420->media_type: %s, enabled: %d\n", track->media_type, enabled);
-	mlog("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n");
+	mlog("");
+	mlog("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\");
+	mlog("into yuv420ReaderTrackSetEnabled(), yuv420->media_type: %s, enabled: %d", track->media_type, enabled);
+	mlog("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\");
     
    
 	if( enabled )
     {
 		unsigned char *photo_data=NULL;
 		int photo_data_size=0;
-        mlog("taking a picture!!!\n");
+        mlog("taking a picture!!!");
    
         err = save_jpeg(yuv420->yuv420_bytes, yuv420->frame_size, yuv420->pixel_format, yuv420->width,yuv420->height,
                         &photo_data, &photo_data_size );
@@ -1396,8 +1452,8 @@ FskErr yuv420ReaderTrackSetEnabled(void *state, void *trackState, UInt32 propert
         frame_event_callback((void *)yuv420, kFskEventMediaReaderDataArrived );
     }
     
-bail:
-	mlog("out of yuv420ReaderTrackSetEnabled()\n");
+//bail:
+	mlog("out of yuv420ReaderTrackSetEnabled()");
 	return err;
 }
 
@@ -1436,6 +1492,7 @@ FskErr save_jpeg(unsigned char *yuv_bytes, int size, int yuv_format, int width, 
 bail:
     return err;
 }
+#endif
 
 
 

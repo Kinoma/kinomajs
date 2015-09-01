@@ -217,7 +217,7 @@ void KprServicesDiscover(KprContext context, char* id, char* services)
 					FskThreadPostCallback(service->thread, (FskThreadCallback)service->forget, service, FskStrDoCopy(context->id), FskStrDoCopy(id), NULL);
 			}
 			else 
-				FskThreadPostCallback(service->thread, (FskThreadCallback)service->discover, service, FskStrDoCopy(context->id), FskStrDoCopy(id), true);
+				FskThreadPostCallback(service->thread, (FskThreadCallback)service->discover, service, FskStrDoCopy(context->id), FskStrDoCopy(id), (void*)true);
 		}
 		service = service->next;
 	}
@@ -243,7 +243,7 @@ void KprServicesShare(KprContext context, Boolean shareIt, char* services)
 		if (service->share) {
 			if (!service->thread)
 				service->thread = KprShellGetThread(gShell);
-			FskThreadPostCallback(service->thread, (FskThreadCallback)service->share, service, FskStrDoCopy(context->id), services ? (FskStrStr(services, service->id) != NULL) : shareIt, services ? false : true);
+			FskThreadPostCallback(service->thread, (FskThreadCallback)service->share, service, FskStrDoCopy(context->id), (void*)(services ? (FskStrStr(services, service->id) != NULL) : shareIt), (void*)(services ? false : true));
 		}
 		service = service->next;
 	}
@@ -1174,7 +1174,7 @@ bail:
 	return err;
 }
 
-static void KprPromiseTargetDispose(KprMessage message, void* it)
+static void KprPromiseTargetDispose(void* it)
 {
 	KprPromiseTarget self = it;
 	fxForget(self->the, &self->reject);

@@ -544,6 +544,17 @@ FskAPI(FskErr)	FskPathTessellate(FskConstPath path, const FskFixedMatrix3x2 *M, 
 FskAPI(void) FskPathGetNextSegment(FskConstPath path, UInt32 *segType, const void **segData);
 
 
+/** Check whether the given path is an axis-aligned rectangle with integral or half-integral coordinates.
+ *	If a matrix is supplied, the path is transformed before checking.
+ *	\param[in]		path	the path.
+ *	\param[in]		M		a matrix (can be NULL).
+ *	\param[out]		r		a place to receive the rectangle (can be NULL). Undefined when false is returned.
+ *	\return			true	if the path is an axis-aligned integral or half-integral rectangle; the rectangle r is set in this case, if non-NULL.
+ *	\return			false	if the path is not an axis-aligned integral rectangle.
+ */
+FskAPI(Boolean)	FskPathIsAxisAlignedIntegralRectangle(FskConstPath path, const FskFixedMatrix3x2 *M, FskRectangle r);
+
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////

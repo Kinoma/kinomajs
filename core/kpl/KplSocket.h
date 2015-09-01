@@ -63,10 +63,15 @@ FskErr KplSocketSendUDP(KplSocket skt, void *buf, const int bufSize, int *amt, i
 FskErr KplSocketSetOption(KplSocket skt, int sktLevel, int sktOption, int val);
 
 FskErr KplSocketBind(KplSocket skt, int addr, int port);
+FskErr KplSocketSetTTL(KplSocket kplSocket, int ttl);
 
 FskErr KplSocketMulticastJoin(KplSocket skt, int multicastAddr, int interfaceAddr, int ttl);
 FskErr KplSocketMulticastLoop(KplSocket skt, char val);
 FskErr KplSocketMulticastSetOutgoingInterface(KplSocket skt, int interfaceAddr, int ttl);
+FskErr KplSocketMulticastAddMembership(KplSocket kplSocket, int multicastAddr, int interfaceAddr);
+FskErr KplSocketMulticastDropMembership(KplSocket kplSocket, int multicastAddr, int interfaceAddr);
+FskErr KplSocketMulticastSetTTL(KplSocket kplSocket, int ttl);
+
 
 FskErr KplSocketListen(KplSocket skt);
 FskErr KplSocketAcceptConnection(KplSocket listeningSkt, KplSocket *createdSocket, int *addr, int *port);

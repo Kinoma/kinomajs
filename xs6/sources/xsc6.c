@@ -102,6 +102,16 @@ txString fxCombinePath(txParser* parser, txString base, txString name)
 	return fxRealFilePath(parser, path);
 }
 
+void fxDisposeParserChunks(txParser* parser)
+{
+	txParserChunk* block = parser->first;
+	while (block) {
+		txParserChunk* next = block->next;
+		c_free(block);
+		block = next;
+	}
+}
+
 void fxIncludeScript(txParser* parser, txString name) 
 {
 	txSymbol* origin = parser->origin;
@@ -118,6 +128,17 @@ void fxIncludeScript(txParser* parser, txString name)
 	fclose(file);
 	file = NULL;
 	parser->origin = origin;
+}
+
+void* fxNewParserChunk(txParser* parser, txSize size)
+{
+	txParserChunk* block = c_malloc(sizeof(txParserChunk) + size);
+	if (!block)
+		fxThrowMemoryError(parser);
+	parser->total += sizeof(txParserChunk) + size;
+	block->next = parser->first;
+	parser->first = block;
+	return block + 1;
 }
 
 txString fxRealDirectoryPath(txParser* parser, txString path)
@@ -250,7 +271,7 @@ int main(int argc, char* argv[])
 	txBoolean embed = 0;
 	txBoolean binary = 0;
 
-	fxInitializeParser(parser, C_NULL);
+	fxInitializeParser(parser, C_NULL, 32*1024, 1993);
 	parser->firstJump = &jump;
 	if (c_setjmp(jump.jmp_buf) == 0) {
 		for (argi = 1; argi < argc; argi++) {

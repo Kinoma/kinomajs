@@ -174,85 +174,87 @@ void xs_infoset_scan(xsMachine* the)
 	int c = xsToInteger(xsArgc);
 	Scanner self;
 	xsVars(COUNT);
-	xsTry {
-		c_memset(&self, 0, sizeof(self));
+	{
+		xsTry {
+			c_memset(&self, 0, sizeof(self));
 		
-		self.expat = XML_ParserCreate(NULL);
-		xsThrowIfNULL(self.expat);
-		XML_SetUserData(self.expat, &self);
-		XML_SetElementHandler(self.expat, scanStartTag, scanStopTag);
-		XML_SetCdataSectionHandler(self.expat, scanStartCdata, scanStopCdata);
-		XML_SetCharacterDataHandler(self.expat, scanCharacter);
-		XML_SetDefaultHandlerExpand(self.expat, scanCharacter);
-		XML_SetCommentHandler(self.expat, scanComment);
-		XML_SetProcessingInstructionHandler(self.expat, scanProcessingInstruction);
-		XML_SetUnknownEncodingHandler(self.expat, scanUnknownEncoding, NULL);
-		XML_SetSkippedEntityHandler(self.expat, scanEntity);
+			self.expat = XML_ParserCreate(NULL);
+			xsThrowIfNULL(self.expat);
+			XML_SetUserData(self.expat, &self);
+			XML_SetElementHandler(self.expat, scanStartTag, scanStopTag);
+			XML_SetCdataSectionHandler(self.expat, scanStartCdata, scanStopCdata);
+			XML_SetCharacterDataHandler(self.expat, scanCharacter);
+			XML_SetDefaultHandlerExpand(self.expat, scanCharacter);
+			XML_SetCommentHandler(self.expat, scanComment);
+			XML_SetProcessingInstructionHandler(self.expat, scanProcessingInstruction);
+			XML_SetUnknownEncodingHandler(self.expat, scanUnknownEncoding, NULL);
+			XML_SetSkippedEntityHandler(self.expat, scanEntity);
 		
-		self.result = 1;
-		self.textBuffer = c_malloc(8192);
-		xsThrowIfNULL(self.textBuffer);
-		self.textSize = 8192;
+			self.result = 1;
+			self.textBuffer = c_malloc(8192);
+			xsThrowIfNULL(self.textBuffer);
+			self.textSize = 8192;
 		
-		self.the = the;
-		xsVar(ATTRIBUTE_PROTOTYPE) = xsGet(xsThis, xsID_attribute);
-		xsVar(CDATA_PROTOTYPE) = xsGet(xsThis, xsID_cdata);
-		xsVar(COMMENT_PROTOTYPE) = xsGet(xsThis, xsID_comment);
-		xsVar(DOCUMENT_PROTOTYPE) = xsGet(xsThis, xsID_document);
-		xsVar(ELEMENT_PROTOTYPE) = xsGet(xsThis, xsID_element);
-		xsVar(NO_NAMESPACE) = xsString("");
-		xsVar(NO_PREFIX) = xsString("");
-		xsVar(PATH) = (c > 1) ? xsArg(1) : xsUndefined;
-		xsVar(PI_PROTOTYPE) = xsGet(xsThis, xsID_pi);
-		xsVar(XML_NAMESPACE) = xsString("http://www.w3.org/XML/1998/namespace");
-		xsVar(XML_PREFIX) = xsString("xmlns");
+			self.the = the;
+			xsVar(ATTRIBUTE_PROTOTYPE) = xsGet(xsThis, xsID_attribute);
+			xsVar(CDATA_PROTOTYPE) = xsGet(xsThis, xsID_cdata);
+			xsVar(COMMENT_PROTOTYPE) = xsGet(xsThis, xsID_comment);
+			xsVar(DOCUMENT_PROTOTYPE) = xsGet(xsThis, xsID_document);
+			xsVar(ELEMENT_PROTOTYPE) = xsGet(xsThis, xsID_element);
+			xsVar(NO_NAMESPACE) = xsString("");
+			xsVar(NO_PREFIX) = xsString("");
+			xsVar(PATH) = (c > 1) ? xsArg(1) : xsUndefined;
+			xsVar(PI_PROTOTYPE) = xsGet(xsThis, xsID_pi);
+			xsVar(XML_NAMESPACE) = xsString("http://www.w3.org/XML/1998/namespace");
+			xsVar(XML_PREFIX) = xsString("xmlns");
 		
-		xsResult = xsNewInstanceOf(xsVar(DOCUMENT_PROTOTYPE));
-		xsSet(xsResult, xsID_encoding, xsString("UTF-8"));
-		xsSet(xsResult, xsID_version, xsString("1.0"));
-		xsVar(CHILDREN) = xsNewInstanceOf(xsArrayPrototype);
-		xsArrayCacheBegin(xsVar(CHILDREN));
-		xsSet(xsResult, xsID_children, xsVar(CHILDREN));
-		xsSet(xsResult, xsID_parent, xsNull);
-		xsSet(xsResult, xsID_xmlnsAttributes, xsNull);
+			xsResult = xsNewInstanceOf(xsVar(DOCUMENT_PROTOTYPE));
+			xsSet(xsResult, xsID_encoding, xsString("UTF-8"));
+			xsSet(xsResult, xsID_version, xsString("1.0"));
+			xsVar(CHILDREN) = xsNewInstanceOf(xsArrayPrototype);
+			xsArrayCacheBegin(xsVar(CHILDREN));
+			xsSet(xsResult, xsID_children, xsVar(CHILDREN));
+			xsSet(xsResult, xsID_parent, xsNull);
+			xsSet(xsResult, xsID_xmlnsAttributes, xsNull);
 		
-		if (c > 0) {
-			xsStringValue string = xsToString(xsArg(0));
-			xsIntegerValue stringOffset = 0;
-			xsIntegerValue stringSize = c_strlen(string);
-			while (self.result && (stringOffset < stringSize)) {
-				xsIntegerValue size = stringSize - stringOffset;
-				xsStringValue buffer = (char *)XML_GetBuffer(self.expat, 1024);
-				xsThrowIfNULL(buffer);
-				if (size > 1024) 
-					size = 1024;
-				c_memcpy(buffer, string + stringOffset, size);
-				self.result = XML_ParseBuffer(self.expat, size, (size < 1024) ? 1 : 0);
-				stringOffset += size;
-				string = xsToString(xsArg(0)); // @@ gc
+			if (c > 0) {
+				xsStringValue string = xsToString(xsArg(0));
+				xsIntegerValue stringOffset = 0;
+				xsIntegerValue stringSize = c_strlen(string);
+				while (self.result && (stringOffset < stringSize)) {
+					xsIntegerValue size = stringSize - stringOffset;
+					xsStringValue buffer = (char *)XML_GetBuffer(self.expat, 1024);
+					xsThrowIfNULL(buffer);
+					if (size > 1024) 
+						size = 1024;
+					c_memcpy(buffer, string + stringOffset, size);
+					self.result = XML_ParseBuffer(self.expat, size, (size < 1024) ? 1 : 0);
+					stringOffset += size;
+					string = xsToString(xsArg(0)); // @@ gc
+				}
 			}
-		}
 		
-		xsDelete(xsResult, xsID_xmlnsAttributes);
-		xsDelete(xsResult, xsID_parent);
-		xsArrayCacheEnd(xsVar(CHILDREN));
+			xsDelete(xsResult, xsID_xmlnsAttributes);
+			xsDelete(xsResult, xsID_parent);
+			xsArrayCacheEnd(xsVar(CHILDREN));
 		
-		if (!self.result) {
-			xsVar(LINE) = xsInteger(XML_GetCurrentLineNumber(self.expat));
-			xsVar(VALUE) = xsString((char*)XML_ErrorString(XML_GetErrorCode(self.expat)));
-			xsCall3(xsThis, xsID_reportError, xsVar(PATH), xsVar(LINE), xsVar(VALUE));
-			xsThrow(xsNewInstanceOf(xsSyntaxErrorPrototype));
-		}
-		c_free(self.textBuffer);
-		self.textBuffer = NULL;
-		XML_ParserFree(self.expat);
-		self.expat = NULL;
-	}
-	xsCatch {
-		if (self.textBuffer)
+			if (!self.result) {
+				xsVar(LINE) = xsInteger(XML_GetCurrentLineNumber(self.expat));
+				xsVar(VALUE) = xsString((char*)XML_ErrorString(XML_GetErrorCode(self.expat)));
+				xsCall3(xsThis, xsID_reportError, xsVar(PATH), xsVar(LINE), xsVar(VALUE));
+				xsThrow(xsNewInstanceOf(xsSyntaxErrorPrototype));
+			}
 			c_free(self.textBuffer);
-		if (self.expat)
+			self.textBuffer = NULL;
 			XML_ParserFree(self.expat);
+			self.expat = NULL;
+		}
+		xsCatch {
+			if (self.textBuffer)
+				c_free(self.textBuffer);
+			if (self.expat)
+				XML_ParserFree(self.expat);
+		}
 	}
 }
 

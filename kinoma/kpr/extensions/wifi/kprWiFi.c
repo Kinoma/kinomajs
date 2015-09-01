@@ -830,7 +830,7 @@ void KprWiFiInvoke(KprService service, KprMessage message)
 		else if (FskStrCompareWithLength("p2p_start", message->parts.name, message->parts.nameLength) == 0) {
             fprintf(stderr, "p2p_start: \n");
             #ifdef BG3CDP
-			    int ret = system("/data/TVShell/system/wifi.sh p2p_start");
+			    int ret = system("system/wifi.sh p2p_start");
 			    sprintf(response, "{\"status\": %d}", ret);
             #else
 			    FskStrCopy(response, "{\"status\": \"Error: command unsupported in non-bg3.\"}");
@@ -840,13 +840,24 @@ void KprWiFiInvoke(KprService service, KprMessage message)
 		}
 		else if (FskStrCompareWithLength("p2p_stop", message->parts.name, message->parts.nameLength) == 0) {
             #ifdef BG3CDP
-			    int ret = system("/data/TVShell/system/wifi.sh p2p_stop");
+			    int ret = system("system/wifi.sh p2p_stop");
 			    sprintf(response, "{\"status\": %d}", ret);
             #else
 			    FskStrCopy(response, "{\"status\": \"Error: command unsupported in non-bg3.\"}");
             #endif
 			length = FskStrLen(response);
             fprintf(stderr, "p2p_stop: response=%s\n", response);
+		}
+		else if (FskStrCompareWithLength("udhcpc_restart", message->parts.name, message->parts.nameLength) == 0) {
+			fprintf(stderr, "kprWiFi ===== > udhcpc_restart: \n");
+            #ifdef BG3CDP
+			    int ret = system("system/wifi.sh udhcpc_restart");
+			    sprintf(response, "{\"status\": %d}", ret);
+            #else
+			    FskStrCopy(response, "{\"status\": \"Error: command unsupported in non-bg3.\"}");
+            #endif
+			length = FskStrLen(response);
+            fprintf(stderr, "kprWiFi ===== > udhcpc_restart: response=%s\n", response);
 		}
 		else {
 			BAIL(kFskErrNotFound);

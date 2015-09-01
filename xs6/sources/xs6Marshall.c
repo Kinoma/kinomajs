@@ -24,19 +24,20 @@ struct sxMarshallBuffer {
 	txSize size;
 	txID symbolCount;
 	txIndex symbolSize;
+	txBoolean shared;
 };
 
 static void fxDemarshallChunk(txMachine* the, void* theData, void** theDataAddress);
-static void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* theSymbolMap);
+static void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* theSymbolMap, txBoolean alien);
 static void fxMarshallChunk(txMachine* the, void* theData, void** theDataAddress, txMarshallBuffer* theBuffer);
-static void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, txMarshallBuffer* theBuffer);
+static void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, txMarshallBuffer* theBuffer, txBoolean alien);
 static void fxMeasureChunk(txMachine* the, void* theData, txMarshallBuffer* theBuffer);
-static void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer);
+static void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer, txBoolean alien);
 
 #define mxMarshallAlign(POINTER,SIZE) \
 	if (((SIZE) &= ((sizeof(txNumber) - 1)))) (POINTER) += sizeof(txNumber) - (SIZE)
 
-void fxDemarshall(txMachine* the, void* theData)
+void fxDemarshall(txMachine* the, void* theData, txBoolean alien)
 {
 	txFlag aFlag;
 	txByte* p = (txByte*)theData;
@@ -69,7 +70,7 @@ void fxDemarshall(txMachine* the, void* theData)
 			aLength = p - (txByte*)theData;
 			mxMarshallAlign(p, aLength);
 			mxPushUndefined();
-			fxDemarshallSlot(the, (txSlot*)p, the->stack, aSymbolMap);
+			fxDemarshallSlot(the, (txSlot*)p, the->stack, aSymbolMap, alien);
 		}
 		mxCatch(the) {
 			the->stack->kind = XS_UNDEFINED_KIND;
@@ -110,7 +111,7 @@ void fxDemarshallChunk(txMachine* the, void* theData, void** theDataAddress)
 	*theDataAddress = aResult;
 }
 
-void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* theSymbolMap)
+void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* theSymbolMap, txBoolean alien)
 {
 	txID anID;
 	txSlot* aSlot;
@@ -121,7 +122,9 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 	anID = theSlot->ID;
 	if (anID < XS_NO_ID) {
 		txID anIndex = anID & 0x7FFF;
-		if (anIndex >= the->keyOffset)
+		if (alien)
+			anID = theSymbolMap[anIndex];
+		else if (anIndex >= the->keyOffset)
 			anID = theSymbolMap[anIndex - the->keyOffset];
 	}
 	theResult->ID = anID;
@@ -154,7 +157,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 			else {
 				theResult->value.reference = fxNewSlot(the);
 				theResult->kind = theSlot->kind;
-				fxDemarshallSlot(the, aSlot, theResult->value.reference, theSymbolMap);
+				fxDemarshallSlot(the, aSlot, theResult->value.reference, theSymbolMap, alien);
 			}
 		}
 		else {
@@ -173,7 +176,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 			aSlot = theSlot->value.array.address;
 			aResult = theResult->value.array.address;
 			while (aLength) {
-				fxDemarshallSlot(the, aSlot, aResult, theSymbolMap);
+				fxDemarshallSlot(the, aSlot, aResult, theSymbolMap, alien);
 				aLength--;
 				aSlot = aSlot->next;
 				aResult++;
@@ -184,7 +187,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 		theSlot->value.instance.garbage = theResult;
 		
 		theResult->value.instance.garbage = C_NULL;
-		if (theSlot->value.instance.prototype == C_NULL)
+		if (alien || (theSlot->value.instance.prototype == C_NULL))
 			theResult->value.instance.prototype = mxObjectPrototype.value.reference;
 		else
 			theResult->value.instance.prototype = theSlot->value.instance.prototype;
@@ -203,7 +206,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 		aSlotAddress = &(theResult->next);
 		while (aSlot) {
 			*aSlotAddress = fxNewSlot(the);
-			fxDemarshallSlot(the, aSlot, *aSlotAddress, theSymbolMap);
+			fxDemarshallSlot(the, aSlot, *aSlotAddress, theSymbolMap, alien);
 			aSlot = aSlot->next;
 			aSlotAddress = &((*aSlotAddress)->next);
 		}
@@ -213,7 +216,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 	}
 }
 
-void* fxMarshall(txMachine* the)
+void* fxMarshall(txMachine* the, txBoolean alien)
 {
 	txMarshallBuffer aBuffer = { C_NULL, C_NULL, C_NULL, 0, 0, 0 };
 	txSlot* aSlot;
@@ -223,7 +226,7 @@ void* fxMarshall(txMachine* the)
 	mxTry(the) {
 		aBuffer.symbolSize = sizeof(txSize) + sizeof(txID);
         the->stack->ID = XS_NO_ID;
-		fxMeasureSlot(the, the->stack, &aBuffer);
+		fxMeasureSlot(the, the->stack, &aBuffer, alien);
 		aBuffer.size += aBuffer.symbolSize;
 		mxMarshallAlign(aBuffer.size, aBuffer.symbolSize);
 		
@@ -235,14 +238,14 @@ void* fxMarshall(txMachine* the)
 		*((txID*)(aBuffer.current)) = aBuffer.symbolCount;
 		aBuffer.current += sizeof(txID);
 		if (aBuffer.symbolCount) {
-			txID anIndex = the->keyOffset;
+			txID anIndex = alien ? 0 : the->keyOffset;
 			txSlot** p = the->keyArray + anIndex;
 			txSlot** q = the->keyArray + the->keyIndex;
 			txID* lengths = (txID*)aBuffer.current;
 			aBuffer.current += aBuffer.symbolCount * sizeof(txID);
 			while (p < q) {
 				aSlot = *p;
-				if (aSlot->flag & XS_MARK_FLAG) {
+				if (aSlot->flag & XS_STRICT_FLAG) {
 					txID aLength = aSlot->ID;
 					aSlot->ID = anIndex | 0x8000;
 					c_memcpy(aBuffer.current, aSlot->value.key.string, aLength);
@@ -255,7 +258,7 @@ void* fxMarshall(txMachine* the)
 		}
 		mxMarshallAlign(aBuffer.current, aBuffer.symbolSize);
 		
-		fxMarshallSlot(the, the->stack, &aSlot, &aBuffer);
+		fxMarshallSlot(the, the->stack, &aSlot, &aBuffer, alien);
 		aSlot = aBuffer.link;
 		while (aSlot) {
 			bSlot = aSlot->value.instance.garbage;
@@ -284,13 +287,13 @@ void* fxMarshall(txMachine* the)
 		break;
 	}
 	if (aBuffer.symbolCount) {
-		txID anIndex = the->keyOffset;
+		txID anIndex = alien ? 0 : the->keyOffset;
 		txSlot** p = the->keyArray + anIndex;
 		txSlot** q = the->keyArray + the->keyIndex;
 		while (p < q) {
 			aSlot = *p;
-			if (aSlot->flag & XS_MARK_FLAG) {
-				aSlot->flag &= ~XS_MARK_FLAG;
+			if (aSlot->flag & XS_STRICT_FLAG) {
+				aSlot->flag &= ~XS_STRICT_FLAG;
 				aSlot->ID = anIndex | 0x8000;
 			}
 			p++;
@@ -314,7 +317,7 @@ void fxMarshallChunk(txMachine* the, void* theData, void** theDataAddress, txMar
 	mxMarshallAlign(theBuffer->current, aSize);
 }
 
-void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, txMarshallBuffer* theBuffer)
+void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, txMarshallBuffer* theBuffer, txBoolean alien)
 {
 	txSlot* aResult;
 	txID anID;
@@ -348,11 +351,11 @@ void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, tx
 		break;
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
-		if ((aSlot->flag & XS_SHARED_FLAG) == 0) {
+		if (alien || ((aSlot->flag & XS_SHARED_FLAG) == 0)) {
 			if (aSlot->value.instance.garbage)
 				aResult->value.reference = aSlot->value.instance.garbage;
 			else
-				fxMarshallSlot(the, aSlot, &(aResult->value.reference), theBuffer);
+				fxMarshallSlot(the, aSlot, &(aResult->value.reference), theBuffer, alien);
 		}
 		break;
 	case XS_ARRAY_KIND:
@@ -360,7 +363,7 @@ void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, tx
 		aSlot = theSlot->value.array.address;
 		aSlotAddress = &(aResult->value.array.address);
 		while (aLength) {
-			fxMarshallSlot(the, aSlot, aSlotAddress, theBuffer);
+			fxMarshallSlot(the, aSlot, aSlotAddress, theBuffer, alien);
 			aLength--;
 			aSlot++;
 			aSlotAddress = &((*aSlotAddress)->next);
@@ -368,7 +371,7 @@ void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, tx
 		break;
 	case XS_INSTANCE_KIND:
 		aResult->value.instance.garbage = theBuffer->link;
-		if (theSlot->value.instance.prototype && (theSlot->value.instance.prototype->flag & XS_SHARED_FLAG))
+		if ((!alien) && theSlot->value.instance.prototype && (theSlot->value.instance.prototype->flag & XS_SHARED_FLAG))
 			aResult->value.instance.prototype = theSlot->value.instance.prototype;
 		else
 			aResult->value.instance.prototype = C_NULL;
@@ -377,7 +380,7 @@ void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, tx
 		aSlot = theSlot->next;
 		aSlotAddress = &(aResult->next);
 		while (aSlot) {
-			fxMarshallSlot(the, aSlot, aSlotAddress, theBuffer);
+			fxMarshallSlot(the, aSlot, aSlotAddress, theBuffer, alien);
 			aSlot = aSlot->next;
 			aSlotAddress = &((*aSlotAddress)->next);
 		}
@@ -396,7 +399,7 @@ void fxMeasureChunk(txMachine* the, void* theData, txMarshallBuffer* theBuffer)
 	mxMarshallAlign(theBuffer->size, aSize);
 }
 
-void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer)
+void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer, txBoolean alien)
 {
 	txID anID;
 	txSlot* aSlot;
@@ -405,10 +408,10 @@ void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer)
 	anID = theSlot->ID;
 	if (anID < XS_NO_ID) {
 		anID &= 0x7FFF;
-		if (anID >= the->keyOffset) {
+		if (alien || (anID >= the->keyOffset)) {
 			aSlot = the->keyArray[anID];
-			if (!(aSlot->flag & XS_MARK_FLAG)) {
-				aSlot->flag |= XS_MARK_FLAG;
+			if (!(aSlot->flag & XS_STRICT_FLAG)) {
+				aSlot->flag |= XS_STRICT_FLAG;
 				aLength = c_strlen(aSlot->value.key.string) + 1;
 				if (aLength > 0x7FFF)
 					mxRangeError("marshall: too long symbol");
@@ -434,14 +437,16 @@ void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer)
 		break;
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
-		if ((aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)) == 0)
-			fxMeasureSlot(the, aSlot, theBuffer);
+		if ((aSlot->flag & XS_MARK_FLAG) == 0) {
+			if (alien || ((aSlot->flag & XS_SHARED_FLAG) == 0))
+				fxMeasureSlot(the, aSlot, theBuffer, alien);
+		}
 		break;
 	case XS_ARRAY_KIND:
 		aLength = theSlot->value.array.length;
 		aSlot = theSlot->value.array.address;
 		while (aLength) {
-			fxMeasureSlot(the, aSlot, theBuffer);
+			fxMeasureSlot(the, aSlot, theBuffer, alien);
 			aLength--;
 			aSlot++;
 		}
@@ -451,7 +456,7 @@ void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer)
 		theSlot->value.instance.garbage = C_NULL;
 		aSlot = theSlot->next;
 		while (aSlot) {
-			fxMeasureSlot(the, aSlot, theBuffer);
+			fxMeasureSlot(the, aSlot, theBuffer, alien);
 			aSlot = aSlot->next;
 		}
 		break;	

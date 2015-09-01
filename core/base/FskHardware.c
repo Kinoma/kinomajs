@@ -206,6 +206,7 @@ FskErr FskSetPhoneHWInfo(FskPhoneHWInfo info) {
 	if (hw->wifiAddr != info->wifiAddr) {
 		FskHardwarePrintfDebug("hw - wifiAddr now %x\n", info->wifiAddr);
 		hw->wifiAddr = info->wifiAddr;
+		LinuxInterfacesChanged();   // new
 	}
 
 	if (hw->afterInit != info->afterInit) {

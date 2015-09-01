@@ -310,14 +310,13 @@
 				this.clientAuth = ("policies" in certFile) && certFile.policies.toLowerCase().indexOf("clientauth") >= 0;
 				this.verifyHost = this.certificates.getPolicy() & Crypt.certificate.POLICY_VERIFY_HOST;
 				if (key) {
+					this.serverCerts = [];
+					for (var i = 0; i < certs.length; i++)
+						this.serverCerts.push(Crypt.x509.decode(certs[i]));
 					// take the SKID of the first cert which has to be the subject cert
-					var skid = certs.length > 0 && Crypt.x509.decodeSubjectKeyId(certs[0]);
-					if (skid) {
+					var skid = certs.length > 0 && this.serverCerts[0].tbsCertificate.extensions.subjectKeyId;
+					if (skid)
 						FskSSL.loadKey(this.keyring, key, skid.toString());
-						this.serverCerts = [];
-						for (var i = 0; i < certs.length; i++)
-							this.serverCerts.push(Crypt.x509.decode(certs[i]));
-					}
 				}
 			</function>
 

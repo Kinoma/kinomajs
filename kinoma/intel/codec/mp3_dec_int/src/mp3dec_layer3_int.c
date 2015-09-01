@@ -13,7 +13,7 @@
 
 #include "mp3dec_own_int.h"
 
-static struct {
+static const struct {
     int     l[22];
     int     s[39];
     int     m[38];
@@ -171,14 +171,14 @@ static const int mpeg2_intensity[2][16] =
 };
 
 /* Table 3-B.6. Layer III Preemphasis (p.14 Annex_AB ISO/IEC 11172-3 )*/
-static short pretab[22] = {
+static const short pretab[22] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 2, 0
 };
 
 /* Table 3-B.9  Layer III coefficients for aliasing reduction (p.36 Annex_AB ISO/IEC 11172-3)*/
 
 /* Q31 */
-static int aa_cs[8] = {
+static const int aa_cs[8] = {
     1841452032,
     1893526528,
     2039312000,
@@ -190,7 +190,7 @@ static int aa_cs[8] = {
 };
 
 /* Q31 */
-static int aa_ca[8] = {
+static const int aa_ca[8] = {
     -1104871168,
     -1013036672,
     -672972928,
@@ -738,7 +738,7 @@ static int mp3dec_Dequant(MP3Dec *state, int gr, int ch)
 
     IppMP3FrameHeader *header = &(state->com.header);
 
-    int     *sfb_long = mp3dec_sfBandIndex[header->id + state->com.mpg25][header->samplingFreq].l;
+    int     *sfb_long = (int *)mp3dec_sfBandIndex[header->id + state->com.mpg25][header->samplingFreq].l;
 
     int   (*GlobalScaleFactor_e)[2] = state->GlobalScaleFactor_e;
     int   (*GlobalScaleFactor_m)[2] = state->GlobalScaleFactor_m;
@@ -779,7 +779,7 @@ static int mp3dec_Dequant(MP3Dec *state, int gr, int ch)
         short   sf_tmp[13];
         int     n, j, wnd;
         int     sfbStart, sfbEnd;
-        int     *sfb_short = mp3dec_sfBandIndex[header->id + state->com.mpg25][header->samplingFreq].s;
+        int     *sfb_short = (int *)mp3dec_sfBandIndex[header->id + state->com.mpg25][header->samplingFreq].s;
 
         sfbEnd = 0; sfbStart = 0;
         if (si_mixedBlock[gr][ch]) {
@@ -864,7 +864,7 @@ static int mp3dec_Reordering(MP3Dec *state, int gr, int ch)
     sampleint *smpl_xr = state->smpl_xr;       /* out of dequantizer */
 
     if (si_winSwitch[gr][ch] && (si_blockType[gr][ch] == 2)) {
-        int *sfbShort = mp3dec_sfBandIndex[header->id + state->com.mpg25][header->samplingFreq].s;
+        int *sfbShort = (int *)mp3dec_sfBandIndex[header->id + state->com.mpg25][header->samplingFreq].s;
         if (si_mixedBlock[gr][ch]) {
             shift = sfbShort[3] * 3;
             startSfb = 3;
@@ -1100,7 +1100,7 @@ static int mp3dec_JointStereo(MP3Dec *state, int gr)
     }
 
     if (header->id == 0) {
-        unsigned char *ptr = mp3dec_nr_of_sfb[blocknumber][blocktypenumber];
+        unsigned char *ptr = (unsigned char *)mp3dec_nr_of_sfb[blocknumber][blocktypenumber];
 
         scalefPtr = isPos;
 

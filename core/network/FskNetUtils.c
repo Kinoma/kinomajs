@@ -1291,6 +1291,10 @@ FskErr FskNetSocketEnableBroadcast(FskSocket skt) {
 	return FskNetSocketOptions(skt, SOL_SOCKET, SO_BROADCAST, 1);
 }
 
+FskErr FskNetSocketDisableBroadcast(FskSocket skt) {
+	return FskNetSocketOptions(skt, SOL_SOCKET, SO_BROADCAST, 0);
+}
+
 FskErr FskNetSocketReceiveBufferSetSize(FskSocket skt, int val) {
 	return FskNetSocketOptions(skt, SOL_SOCKET, SO_RCVBUF, val);
 }
@@ -1356,6 +1360,74 @@ FskErr FskNetSocketBind(FskSocket skt, int addr, int port)
 	return kFskErrNone;
 }
 
+FskErr FskNetSocketSetTTL(FskSocket skt, int ttl) {
+	int err;
+#if !TARGET_OS_KPL
+	err = setsockopt(skt->platSkt, IPPROTO_IP, IP_TTL, (char*)&ttl, sizeof(ttl));
+	if (err == 0)
+		err = skt->lastErr = kFskErrNone;
+	else
+		err = skt->lastErr = sConvertErrorToFskErr(skt, FskGetErrno());
+#else
+	err = skt->lastErr = KplSocketSetTTL((KplSocket)skt->platSkt, ttl);
+#endif
+	return err;
+}
+
+
+// ---------------------------------------------------------------------
+FskErr FskNetSocketMulticastAddMembership(FskSocket skt, int multicastAddr, int interfaceAddr) {
+	int err;
+#if !TARGET_OS_KPL
+	{
+	struct ip_mreq maddr;
+	maddr.imr_multiaddr.s_addr = htonl(multicastAddr);
+	maddr.imr_interface.s_addr = htonl(interfaceAddr);
+	err = setsockopt(skt->platSkt, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&maddr, sizeof(struct ip_mreq));
+	if (err == 0)
+		err = skt->lastErr = kFskErrNone;
+	else
+		err = skt->lastErr = sConvertErrorToFskErr(skt, FskGetErrno());
+	}
+#else
+	err = skt->lastErr = KplSocketMulticastAddMembership((KplSocket)skt->platSkt, multicastAddr, interfaceAddr);
+#endif
+	return err;
+}
+
+FskErr FskNetSocketMulticastDropMembership(FskSocket skt, int multicastAddr, int interfaceAddr) {
+	int err;
+#if !TARGET_OS_KPL
+	{
+	struct ip_mreq maddr;
+	maddr.imr_multiaddr.s_addr = htonl(multicastAddr);
+	maddr.imr_interface.s_addr = htonl(interfaceAddr);
+	err = setsockopt(skt->platSkt, IPPROTO_IP, IP_DROP_MEMBERSHIP, (char*)&maddr, sizeof(struct ip_mreq));
+	if (err == 0)
+		err = skt->lastErr = kFskErrNone;
+	else
+		err = skt->lastErr = sConvertErrorToFskErr(skt, FskGetErrno());
+	}
+#else
+	err = skt->lastErr = KplSocketMulticastDropMembership((KplSocket)skt->platSkt, multicastAddr, interfaceAddr);
+#endif
+	return err;
+}
+
+FskErr FskNetSocketMulticastSetTTL(FskSocket skt, int ttl) {
+	int err;
+#if !TARGET_OS_KPL
+	err = setsockopt(skt->platSkt, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
+	if (err == 0)
+		err = skt->lastErr = kFskErrNone;
+	else
+		err = skt->lastErr = sConvertErrorToFskErr(skt, FskGetErrno());
+#else
+	err = skt->lastErr = KplSocketMulticastSetTTL((KplSocket)skt->platSkt, ttl);
+#endif
+	return err;
+}
+
 // ---------------------------------------------------------------------
 FskErr FskNetSocketMulticastJoin(FskSocket skt, int multicastAddr, int interfaceAddr, int ttl)
 {
@@ -1372,23 +1444,10 @@ FskErr FskNetSocketMulticastJoin(FskSocket skt, int multicastAddr, int interface
 	}
 #endif
 
-#if !TARGET_OS_KPL
-	{
-	struct ip_mreq maddr;
-	maddr.imr_multiaddr.s_addr = htonl(multicastAddr);
-	maddr.imr_interface.s_addr = htonl(interfaceAddr);
-	err = setsockopt(skt->platSkt, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&maddr, sizeof(struct ip_mreq));
-	if (err != -1)
-		err = setsockopt(skt->platSkt, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
-	if (err == 0)
-		err = skt->lastErr = kFskErrNone;
-	else {
-		err = skt->lastErr = sConvertErrorToFskErr(skt, FskGetErrno());
-	}
-	}
-#else
-	err = skt->lastErr = KplSocketMulticastJoin((KplSocket)skt->platSkt, multicastAddr, interfaceAddr, ttl);
-#endif
+	err = FskNetSocketMulticastAddMembership(skt, multicastAddr, interfaceAddr);
+	if (kFskErrNone == err)
+		err = FskNetSocketMulticastSetTTL(skt, ttl);
+
 	return err;
 }
 

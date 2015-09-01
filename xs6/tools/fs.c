@@ -257,7 +257,7 @@ void fs_openSync(xsMachine* the)
 void fs_writeFileSync(xsMachine* the)
 {
 	char *path = xsToString(xsArg(0));
-	char* buffer = xsToString(xsArg(1));;
+	char* buffer = xsToString(xsArg(1));
 	size_t size = strlen(buffer);
 	FILE* file = NULL;
 	xsTry {

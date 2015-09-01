@@ -159,7 +159,7 @@ bail:
 FskErr FskSerialIOPlatformDispose(FskSerialIO sio){
 	if (sio->platform){
 		if (((FskTTYSerialIO)sio->platform)->ttyFile) close(((FskTTYSerialIO)sio->platform)->ttyFile);
-		if (((FskTTYSerialIO)sio->platform)) FskMemPtrDispose(((FskTTYSerialIO)sio->platform));
+		FskMemPtrDispose(((FskTTYSerialIO)sio->platform));
 	}
 	return kFskErrNone;
 }
@@ -168,18 +168,16 @@ FskErr FskSerialIOPlatformWriteChar(FskSerialIO sio, char c){
 	if (sio->platform && ((FskTTYSerialIO)sio->platform)->ttyFile){
 		write(((FskTTYSerialIO)sio->platform)->ttyFile, &c, 1);
 		return kFskErrNone;
-	}else{
-		return kFskErrFileNotOpen;
 	}
+	return kFskErrFileNotOpen;
 }
 
 FskErr FskSerialIOPlatformWriteString(FskSerialIO sio, char* str, int len){
 	if (sio->platform && ((FskTTYSerialIO)sio->platform)->ttyFile){
 		write(((FskTTYSerialIO)sio->platform)->ttyFile, str, len);
 		return kFskErrNone;
-	}else{
-		return kFskErrFileNotOpen;
 	}
+	return kFskErrFileNotOpen;
 }
 
 FskErr FskSerialIOPlatformGetByteCount(FskSerialIO sio, int* count){
@@ -189,9 +187,8 @@ FskErr FskSerialIOPlatformGetByteCount(FskSerialIO sio, int* count){
 	if (result >= 0 && response >= 0){
 		*count = result;
 		return kFskErrNone;
-	}else{
-		return kFskErrFileNotOpen;
 	}
+	return kFskErrFileNotOpen;
 }
 
 FskErr FskSerialIOPlatformRead(FskSerialIO sio, char** str, int* count, int maxCount){
@@ -231,12 +228,9 @@ FskErr FskSerialIOPlatformRead(FskSerialIO sio, char** str, int* count, int maxC
 }
 
 FskErr FskSerialIOPlatformClearBuffer(FskSerialIO sio){
-	if(!tcflush(((FskTTYSerialIO)sio->platform)->ttyFile, TCIOFLUSH)){
+	if(!tcflush(((FskTTYSerialIO)sio->platform)->ttyFile, TCIOFLUSH))
 		return kFskErrNone;
-	}else{
-		return kFskErrFileNeedsRecovery;
-	}
-
+	return kFskErrFileNeedsRecovery;
 }
 
 FskErr FskSerialIOPlatformReadCharNonBlocking(FskSerialIO sio, char* c){
@@ -251,10 +245,9 @@ FskErr FskSerialIOPlatformReadCharNonBlocking(FskSerialIO sio, char* c){
 	if (read(((FskTTYSerialIO)sio->platform)->ttyFile, &w, 1) >= 0){
 		*c = w;
 		return kFskErrNone;
-	}else{
-		int error = errno;
-		return error;
 	}
+
+	return errno;		//@@ not an FskErr
 }
 
 FskErr FskSerialIOPlatformReadCharBlocking(FskSerialIO sio, char* c){
@@ -262,8 +255,18 @@ FskErr FskSerialIOPlatformReadCharBlocking(FskSerialIO sio, char* c){
 	if (read(((FskTTYSerialIO)sio->platform)->ttyFile, &w, 1) >= 0){
 		*c = w;
 		return kFskErrNone;
-	}else{
-		int error = errno;
-		return error;
 	}
+	
+	return errno;		//@@ not an FskErr
+}
+
+FskErr FskSerialIOPlatformReadBlocking(FskSerialIO sio, UInt32 bytesToRead, void *buffer, UInt32 *bytesRead)
+{
+	int count = read(((FskTTYSerialIO)sio->platform)->ttyFile, buffer, bytesToRead);
+	if (count <= 0)
+		return (EBADF == errno) ? kFskErrFileNotOpen : kFskErrNoData;
+
+	*bytesRead = (UInt32)count;
+
+	return kFskErrNone;
 }

@@ -50,6 +50,7 @@ typedef FskErr (*FrameBufferRefreshFromBackbufferFunction)(FskRectangleRecord *a
 typedef FskErr (*FrameBufferGrabScreenForDrawingFunction)();
 typedef FskErr (*FrameBufferReleaseScreenForDrawingFunction)();
 
+/* SetTransitionState is deprecated and does nothing */
 typedef FskErr (*FrameBufferSetTransitionStateFunction)(int state);
 
 typedef FskErr (*FrameBufferGetEGLContextFunction)(void **display, void **surface, void **context, void **nativeWindow);
@@ -133,6 +134,7 @@ FskAPI(FskErr) FskFrameBufferDisplayWindow(FskWindow window, FskBitmap bits, Fsk
 FskAPI(FskErr) FskFrameBufferGetScreenBitmap(FskBitmap *bitmap);
 FskAPI(FskErr) FskFrameBufferGetScreenBounds(FskRectangleRecord *bounds);
 
+/* SetTransitionState is deprecated and does nothing */
 FskAPI(FskErr) FskFrameBufferSetTransitionState(int state);
 
 FskAPI(FskErr) FskFrameBufferGetEGLContext(void **display, void **surface, void **context, void **nativeWindow);

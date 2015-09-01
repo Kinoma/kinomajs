@@ -120,46 +120,48 @@ void infoset_scan(xsMachine* the)
 	int c = xsToInteger(xsArgc);
 	txMarkupParser self;
 	xsVars(COUNT);
-	xsTry {
-		c_memset(&self, 0, sizeof(self));
-		self.line = 1;
-		self.value = c_malloc(8192);
-		xsThrowIfNULL(self.value);
-		self.valueSize = 8192;
+	{
+		xsTry {
+			c_memset(&self, 0, sizeof(self));
+			self.line = 1;
+			self.value = c_malloc(8192);
+			xsThrowIfNULL(self.value);
+			self.valueSize = 8192;
 
-		self.the = the;
-		xsVar(ATTRIBUTE_PROTOTYPE) = xsGet(xsThis, xsID_attribute);
-		xsVar(CDATA_PROTOTYPE) = xsGet(xsThis, xsID_cdata);
-		xsVar(COMMENT_PROTOTYPE) = xsGet(xsThis, xsID_comment);
-		xsVar(DOCUMENT_PROTOTYPE) = xsGet(xsThis, xsID_document);
-		xsVar(ELEMENT_PROTOTYPE) = xsGet(xsThis, xsID_element);
-		xsVar(NAMESPACE) = xsNull;
-		xsVar(PATH) = (c > 1) ? xsArg(1) : xsUndefined;
-		xsVar(PREFIX) = xsNull;
-		xsVar(PI_PROTOTYPE) = xsGet(xsThis, xsID_pi);
-		xsVar(XML_NAMESPACE) = xsString("http://www.w3.org/XML/1998/namespace");
-		xsVar(XML_PREFIX) = xsString("xmlns");
+			self.the = the;
+			xsVar(ATTRIBUTE_PROTOTYPE) = xsGet(xsThis, xsID_attribute);
+			xsVar(CDATA_PROTOTYPE) = xsGet(xsThis, xsID_cdata);
+			xsVar(COMMENT_PROTOTYPE) = xsGet(xsThis, xsID_comment);
+			xsVar(DOCUMENT_PROTOTYPE) = xsGet(xsThis, xsID_document);
+			xsVar(ELEMENT_PROTOTYPE) = xsGet(xsThis, xsID_element);
+			xsVar(NAMESPACE) = xsNull;
+			xsVar(PATH) = (c > 1) ? xsArg(1) : xsUndefined;
+			xsVar(PREFIX) = xsNull;
+			xsVar(PI_PROTOTYPE) = xsGet(xsThis, xsID_pi);
+			xsVar(XML_NAMESPACE) = xsString("http://www.w3.org/XML/1998/namespace");
+			xsVar(XML_PREFIX) = xsString("xmlns");
 		
-		xsResult = xsNewInstanceOf(xsVar(DOCUMENT_PROTOTYPE));
-		xsSet(xsResult, xsID_encoding, xsString("UTF-8"));
-		xsSet(xsResult, xsID_version, xsString("1.0"));
-		xsVar(CHILDREN) = xsNewInstanceOf(xsArrayPrototype);
-		xsArrayCacheBegin(xsVar(CHILDREN));
-		xsSet(xsResult, xsID_children, xsVar(CHILDREN));
-		xsSet(xsResult, xsID_parent, xsNull);
-		xsSet(xsResult, xsID_xmlnsAttributes, xsNull);
+			xsResult = xsNewInstanceOf(xsVar(DOCUMENT_PROTOTYPE));
+			xsSet(xsResult, xsID_encoding, xsString("UTF-8"));
+			xsSet(xsResult, xsID_version, xsString("1.0"));
+			xsVar(CHILDREN) = xsNewInstanceOf(xsArrayPrototype);
+			xsArrayCacheBegin(xsVar(CHILDREN));
+			xsSet(xsResult, xsID_children, xsVar(CHILDREN));
+			xsSet(xsResult, xsID_parent, xsNull);
+			xsSet(xsResult, xsID_xmlnsAttributes, xsNull);
 		
-		if (c > 0) {
-			self.dataGetter = fxStringGetter;
-			self.data = xsToString(xsArg(0));
-			self.dataOffset = 0;
-			self.dataSize = c_strlen(self.data);
-			fxParseDocument(&self);
+			if (c > 0) {
+				self.dataGetter = fxStringGetter;
+				self.data = xsToString(xsArg(0));
+				self.dataOffset = 0;
+				self.dataSize = c_strlen(self.data);
+				fxParseDocument(&self);
+			}
 		}
-	}
-	xsCatch {
-		if (self.value)
-			c_free(self.value);
+		xsCatch {
+			if (self.value)
+				c_free(self.value);
+		}
 	}
 }
 

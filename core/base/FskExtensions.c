@@ -248,7 +248,12 @@ FskErr FskLibraryLoad(FskLibrary *libraryOut, const char *path)
 	err = FskFilePathToNative(path, &nativePath);
 	BAIL_IF_ERR(err);
 
-    library->module = dlopen(nativePath, RTLD_LAZY | RTLD_LOCAL);
+    library->module = dlopen(nativePath, RTLD_NOW);
+	if (NULL == library->module) {
+		FskExtensionsPrintfDebug("FskLibraryLoad %s failed %s\n", path, dlerror());
+		err = kFskErrOperationFailed;
+	}
+    
 	BAIL_IF_NULL(library->module, err, kFskErrOperationFailed);
 
 bail:

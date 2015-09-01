@@ -48,6 +48,7 @@ struct KprPinsPollerStruct {
 	KprPinsPoller next;
 	KprPinsListener listener;
 	xsSlot function;
+	int useCount;
 	int interval;
 	xsSlot instance;
 	xsSlot parameters;
@@ -171,6 +172,7 @@ FskErr FskSerialIOPlatformWriteString(FskSerialIO sio, char* str, int len);
 FskErr FskSerialIOPlatformReadCharBlocking(FskSerialIO sio, char* c);
 FskErr FskSerialIOPlatformReadCharNonBlocking(FskSerialIO sio, char* c);
 FskErr FskSerialIOPlatformRead(FskSerialIO sio, char** str, int* count, int maxCount);
+FskErr FskSerialIOPlatformReadBlocking(FskSerialIO sio, UInt32 bytesToRead, void *buffer, UInt32 *bytesRead);
 FskErr FskSerialIOPlatformGetByteCount(FskSerialIO sio, int* count);
 FskErr FskSerialIOPlatformClearBuffer(FskSerialIO sio);
 

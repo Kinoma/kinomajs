@@ -154,9 +154,6 @@ struct sxMachine {
 	txJump* firstJump; /* xs.h */
 	void* context; /* xs.h */
 	txSlot scratch; /* xs.h */
-#if __FSK_LAYER__
-	FskInstrumentedItemDeclaration	/* xs.h */
-#endif
 	txFlag status;
 
 	txSlot* cRoot;
@@ -231,6 +228,9 @@ struct sxMachine {
 	txProfileRecord* profileBottom;
 	txProfileRecord* profileCurrent;
 	txProfileRecord* profileTop;
+#endif
+#if __FSK_LAYER__
+	FskInstrumentedItemDeclaration	/* xs.h */
 #endif
 };
 
@@ -352,8 +352,8 @@ mxExport void fxForget(txMachine*, txSlot*);
 mxExport void fxAccess(txMachine*, txSlot*);
 
 mxExport void fxCopyObject(txMachine* the);
-mxExport void fxDemarshall(txMachine* the, void* theData);
-mxExport void* fxMarshall(txMachine* the);
+mxExport void fxDemarshall(txMachine* the, void* theData, txBoolean alien);
+mxExport void* fxMarshall(txMachine* the, txBoolean alien);
 mxExport void fxModulePaths(txMachine* the);
 
 /* xs*Host.c */
@@ -378,7 +378,7 @@ extern void fxConnect(txMachine* the);
 extern void fxDisconnect(txMachine* the);
 extern char *fxGetAddress(txMachine* the);
 extern txBoolean fxGetAutomatic(txMachine* the);
-extern txBoolean fxIsConnected(txMachine* the);
+mxExport txBoolean fxIsConnected(txMachine* the);
 extern txBoolean fxIsReadable(txMachine* the);
 extern void fxReadBreakpoints(txMachine* the);
 extern void fxReceive(txMachine* the);
@@ -422,25 +422,25 @@ extern void fxAllocate(txMachine* the, txCreation* theCreation);
 extern void fxCollect(txMachine* the, txBoolean theFlag);
 extern txSlot* fxDuplicateSlot(txMachine* the, txSlot* theSlot);
 extern void fxFree(txMachine* the);
-extern void* fxNewChunk(txMachine* the, txSize theSize);
+mxExport void* fxNewChunk(txMachine* the, txSize theSize);
 extern txSlot* fxNewSlot(txMachine* the);
 extern void* fxRenewChunk(txMachine* the, void* theData, txSize theSize);
 extern void fxShare(txMachine* the);
 
 /* xsDebug.c */
 #ifdef mxDebug
-extern void fxCheck(txMachine* the, txString thePath, txInteger theLine);
+mxExport void fxCheck(txMachine* the, txString thePath, txInteger theLine);
 extern void fxClearAllBreakpoints(txMachine* the);
 extern void fxClearBreakpoint(txMachine* the, txString thePath, txString theLine);
 extern void fxDebugCommand(txMachine* the);
 extern void fxDebugFile(txMachine* the, txSlot* theSymbol);
 extern void fxDebugLine(txMachine* the);
-extern void fxDebugLoop(txMachine* the, txString message);
-extern void fxDebugThrow(txMachine* the, txString message);
+extern void fxDebugLoop(txMachine* the, txString thePath, txInteger theLine, txString message);
+extern void fxDebugThrow(txMachine* the, txString thePath, txInteger theLine, txString message);
 extern txSlot* fxGetNextBreakpoint(txMachine* the, txSlot* theBreakpoint, txString thePath, txString theLine);
-extern void fxLogin(txMachine* the);
-extern void fxLogout(txMachine* the);
-extern void fxSetBreakpoint(txMachine* the, txString thePath, txString theLine);
+mxExport void fxLogin(txMachine* the);
+mxExport void fxLogout(txMachine* the);
+mxExport void fxSetBreakpoint(txMachine* the, txString thePath, txString theLine);
 #endif
 mxExport void fxReport(txMachine* the, txString theFormat, ...);
 mxExport void fxReportError(txMachine* the, txString thePath, txInteger theLine, txString theFormat, ...);

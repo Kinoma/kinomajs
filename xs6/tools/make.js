@@ -40,6 +40,8 @@ export class Makefile {
 		this.name = tree.name;
 		this.cIncludes = tree.cIncludes;
 		this.cOptions = tree.cOptions;
+		this.cOptionsDebug = tree.cOptionsDebug;
+		this.cOptionsRelease = tree.cOptionsRelease;
 		this.headers = tree.headers;
 		this.libraries = tree.libraries;
 		this.objects = "$(TMP_DIR)/" + this.name + ".a";

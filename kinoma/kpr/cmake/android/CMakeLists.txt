@@ -27,8 +27,6 @@ enable_language(ASM-gas7)
 message("Using Toolchain File: ${CMAKE_TOOLCHAIN_FILE}")
 
 set(BIN_DIR ${BUILD_TMP}/jet)
-set(OSS ${F_HOME}/build/android/OSS/)
-set(OSS2 ${F_HOME}/build/android/OSS2/)
 set(NDK_PLATFORM_VER 14)
 set(CMAKE_C_ARCHIVE_APPEND "<CMAKE_AR> q <TARGET> <LINK_FLAGS> <OBJECTS>")
 set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> q <TARGET> <LINK_FLAGS> <OBJECTS>")

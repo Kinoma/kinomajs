@@ -203,15 +203,15 @@ void fxDebugLine(txMachine* the)
 			}
 		}
 		if (aBreakpoint)
-			fxDebugLoop(the, "breakpoint");
+			fxDebugLoop(the, C_NULL, 0, "breakpoint");
 		else if ((the->frame->flag & XS_STEP_OVER_FLAG))
-			fxDebugLoop(the, "step");
+			fxDebugLoop(the, C_NULL, 0, "step");
 	}
 }
 
-void fxDebugLoop(txMachine* the, txString message)
+void fxDebugLoop(txMachine* the, txString path, txInteger line, txString message)
 {
-	txSlot* aSlot;
+	txSlot* frame;
 	txString p;
 	txString q;
 
@@ -220,11 +220,11 @@ void fxDebugLoop(txMachine* the, txString message)
 	fxNewInstance(the);
 
 	fxEchoStart(the);
-	aSlot = the->frame;
+	frame = the->frame;
 	do {
-		aSlot->flag &= ~XS_DEBUG_FLAG;
-		aSlot = aSlot->next;
-	} while (aSlot);
+		frame->flag &= ~XS_DEBUG_FLAG;
+		frame = frame->next;
+	} while (frame);
 	the->frame->flag |= XS_DEBUG_FLAG;
 	fxListFrames(the);
 	fxListLocal(the);
@@ -233,7 +233,17 @@ void fxDebugLoop(txMachine* the, txString message)
 	fxListFiles(the);
 
 	fxEcho(the, "<break");
-	fxEchoFramePathLine(the, the->frame);
+	frame = the->frame;
+	while (frame && !path) {
+		txSlot* environment = frame - 1;
+		if (environment->next) {
+			path = environment->next->value.key.string;
+			line = environment->ID;
+		}
+		frame = frame->next;
+	}
+	if (path)
+		fxEchoPathLine(the, path, line);
 	fxEcho(the, "># Break: ");
 	fxEchoString(the, message);
 	fxEcho(the, "!\n</break>\n");
@@ -348,13 +358,11 @@ txString fxDebugLoopValue(txString* theBuffer, txString theName)
 	return p;
 }
 
-void fxDebugThrow(txMachine* the, txString message)
+void fxDebugThrow(txMachine* the, txString path, txInteger line, txString message)
 {
 	if (fxIsConnected(the) && (the->breakOnExceptionFlag))
-		fxDebugLoop(the, message);
+		fxDebugLoop(the, path, line, message);
 	else {
-		txString path = C_NULL;
-		txInteger line = 0;
 		txSlot* frame = the->frame;
 		while (frame && !path) {
 			txSlot* slot = frame - 1;
@@ -1467,8 +1475,8 @@ void fxListModules(txMachine* the)
 					fxEcho(the, "\"");
 					fxEchoAddress(the, exports);
 					if (exports->flag & XS_DEBUG_FLAG) {
-						fxEcho(the, ">");
 						txSlot** sorter = c_malloc(c * sizeof(txSlot*));
+						fxEcho(the, ">");
 						if (sorter) {
 							txSlot** address = sorter;
 							export = exports->value.reference->next;
@@ -1520,8 +1528,8 @@ void fxListModules(txMachine* the)
 					fxEcho(the, "\"");
 					fxEchoAddress(the, transfers);
 					if (transfers->flag & XS_DEBUG_FLAG) {
-						fxEcho(the, ">");
 						txSlot** sorter = c_malloc(c * sizeof(txSlot*));
+						fxEcho(the, ">");
 						if (sorter) {
 							txSlot** address = sorter;
 							transfer = transfers->value.reference->next;

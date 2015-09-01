@@ -74,6 +74,7 @@ FskErr FskFrameBufferGetScreenBounds(FskRectangle bounds) {
 	return (*fbVectors->doGetScreenBounds)(bounds);
 }
 
+/* SetTransitionState is deprecated and does nothing */
 FskErr FskFrameBufferSetTransitionState(int state) {
 	if ((NULL == fbVectors) || (NULL == fbVectors->doSetTransitionState))
 		return kFskErrUnimplemented;

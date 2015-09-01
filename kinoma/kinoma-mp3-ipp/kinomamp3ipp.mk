@@ -19,7 +19,7 @@
 
 <input name="$(F_HOME)/libraries/QTReader"/>
 
-<platform name="MacOSX,mac-cmake,iPhone">
+<platform name="MacOSX,iPhone">
 <input name="$(F_HOME)/kinoma/intel/ipp/ia32/include/"/>
 <input name="$(F_HOME)/kinoma/intel/ipp/ia32/stublib/"/>
 </platform>
@@ -77,7 +77,7 @@
 <wrap name="../intel/core/vm/src/vm_trace_log_win32.c"/>
 </platform>
 
-<platform name="MacOSX,mac-cmake,Linux,iPhone,android">
+<platform name="MacOSX,Linux,iPhone,android">
 <wrap name="../intel/core/vm/src/vm_debug_linux32.c"/>
 <wrap name="../intel/core/vm/src/vm_trace_log_linux32.c"/>
 </platform>-->  
@@ -104,7 +104,7 @@
 <!--wrap name="../kinoma-ipp-lib/kinoma_utilities.c"/-->
 <!--/buildstyle-->
 
-<platform name="MacOSX,mac-cmake,Solaris,iPhone,Windows">
+<platform name="MacOSX,Solaris,iPhone,Windows">
 <wrap name="../kinoma-ipp-lib/kinoma_ipp_memory.c"/>
 </platform>
   
@@ -121,18 +121,9 @@ LINKER = g++
 </common>
 </platform>
 
-<platform name="mac-cmake">
-<common>
-add_definitions(-DLINUX32=1)
-add_definitions(-DOSX32=1)
-add_definitions(-D__KINOMA_IPP__=1)
-add_definitions(-DKINOMA_MP3=1)
-</common>
-</platform>
-
 <platform name="Linux">
 <common>
-C_OPTIONS += -O2 -DTARGET_OS_LINUX=1 -DLINUX32=1 -D__KINOMA_IPP__=1 -DKINOMA_MP3=1 -D_GNU_SOURCE
+C_OPTIONS += -O2 -DTARGET_OS_LINUX=1 -DLINUX32=1 -D__KINOMA_IPP__=1 -DKINOMA_MP3=1 -D_GNU_SOURCE -DKINOMA_FAST_HUFFMAN=1
 LINKER = g++
 </common>
 </platform>

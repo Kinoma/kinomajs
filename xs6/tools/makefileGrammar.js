@@ -20,7 +20,7 @@ import infoset from "markup";
 
 var xsMakefileItem = {
 	configure(tool, manifest, tree) {},
-	push(tree, property, string) {
+	push(tree, property, string, buildType) {
 		if (property in tree) {
 			var array = tree[property];
 			if (array.indexOf(string) < 0)
@@ -34,19 +34,20 @@ var xsMakefileNamedItem = {
 	__proto__: xsMakefileItem,
 	name: "",
 	property: "",
-	configure(tool, manifest, tree) {
+	configure(tool, manifest, tree, buildType) {
+		var property = buildType ? this.property + buildType : this.property;
 		if (!this.name)
 			tool.reportError(this.__xs__path, this.__xs__line, "missing name attribute");
 		else
-			this.push(tree, this.property, this.name);
+			this.push(tree, property, this.name);
 	},
 };
 var xsMakefileList = {
 	__proto__: xsMakefileItem,
 	items: [],
-	configureItems(tool, manifest, tree) {
+	configureItems(tool, manifest, tree, buildType) {
 		for (var item of this.items)
-			item.configure(tool, manifest, tree);
+			item.configure(tool, manifest, tree, buildType);
 	},
 };
 var xsMakefile = {
@@ -83,12 +84,18 @@ var xsConfiguration = {
 		if (!this.name)
 			xs2js.reportError(this.__xs__path, this.__xs__line, "missing name attribute");
 		if (this.name == "debug") {
-			if (tool.debug)
-				this.configureItems(tool, manifest, tree);
+			if (tool.cmake)
+				this.configureItems(tool, manifest, tree, "Debug");
+			else
+				if (tool.debug)
+					this.configureItems(tool, manifest, tree);
 		}
 		else if (this.name == "release") {
-			if (!tool.debug)
-				this.configureItems(tool, manifest, tree);
+			if (tool.cmake)
+					this.configureItems(tool, manifest, tree, "Release");
+			else
+				if (!tool.debug)
+					this.configureItems(tool, manifest, tree);
 		}
 		else
 			this.configureItems(tool, manifest, tree);
@@ -165,7 +172,7 @@ var xsBuildStyle = {
 var xsCommon = {
 	__proto__: xsMakefileItem,
 	text: "",
-	concatCOptions(tool, manifest, tree, text) {
+	concatCOptions(tool, manifest, tree, text, buildType) {
 		var options = "";
 		var regexpTmp = /-I\$\(F_HOME\)(\/|)tmp\/(include|android)/g;
 		var regexp = /^C_OPTIONS\s+\+?=\s+(.+)$/gm;
@@ -192,14 +199,17 @@ var xsCommon = {
 		options = options.replace(/\s+/g, " ");
 		var split = options.split(" ");
 		var c = split.length;
+		var property = "cOptions";
+		if (buildType)
+			property += buildType;
 		for (var i = 0; i < c; i++) {
 			var name = split[i];
 			if (name == "/D") {
 				i++;
-				this.push(tree, "cOptions", name + " " + split[i]);
+				this.push(tree, property, name + " " + split[i]);
 			}
 			else if (name)
-				this.push(tree, "cOptions", name);
+				this.push(tree, property, name);
 		}
 	},
 	concatLibraries(tool, manifest, tree, text) {
@@ -317,10 +327,10 @@ var xsCommon = {
 				tool.insertUnique(manifest.xsOptions, "-" + option);
 		}
 	},
-	configure(tool, manifest, tree) {
+	configure(tool, manifest, tree, buildType) {
 		if (this.text) {
 			var text = this.filter(this.text);
-			this.concatCOptions(tool, manifest, tree, text);
+			this.concatCOptions(tool, manifest, tree, text, buildType);
 			this.concatLibraries(tool, manifest, tree, text);
 			this.concatObjects(tool, manifest, tree, text);
 			this.concatXSCOptions(tool, manifest, tree, text);
@@ -338,15 +348,21 @@ var xsCommon = {
 var xsDebug = {
 	__proto__: xsCommon,
 	configure(tool, manifest, tree) {
-		if (tool.debug)
-			super.configure(tool, manifest, tree)
+		if (tool.cmake)
+			super.configure(tool, manifest, tree, "Debug")
+		else
+			if (tool.debug)
+				super.configure(tool, manifest, tree)
 	}	
 };
 var xsRelease = {
 	__proto__: xsCommon,
 	configure(tool, manifest, tree) {
-		if (!tool.debug)
-			super.configure(tool, manifest, tree)
+		if (tool.cmake)
+			super.configure(tool, manifest, tree, "Release")
+		else
+			if (!tool.debug)
+				super.configure(tool, manifest, tree)
 	}	
 };
 var xsInclude = {

@@ -26,7 +26,7 @@
 <wrap name="kxMarkup.c"/>
 <wrap name="asxParser.c"/>
 
-<platform name="MacOSX,mac-cmake,Solaris,iPhone,Windows,Linux">
+<platform name="MacOSX,Solaris,iPhone,Windows,Linux">
 <wrap name="FskMediaReader.c"/>
 </platform>
 

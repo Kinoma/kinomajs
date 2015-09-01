@@ -49,6 +49,7 @@ static FskInstrumentedTypeRecord KprStyleInstrumentation = { NULL, sizeof(FskIns
 #endif
 
 char* kprDefaultFont = NULL;
+static UInt32 kprFitFonts = 1;
 
 FskErr KprStyleNew(KprStyle *it, KprContext context, KprStyle father, KprStyle mother)
 {
@@ -543,6 +544,7 @@ FskErr KprShellDefaultStyles(KprShell self)
 	KprStyleSetTextFont(self->style, font);
 	KprStyleSetTextSize(self->style, size);
 	KprStyleSetTextStyle(self->style, style);
+	kprFitFonts = KprEnvironmentGetUInt32("fitFonts", 1);
 bail:
 	FskMemPtrDispose(font);
 	return err;
@@ -566,23 +568,24 @@ void KprShellUpdateStyles(KprShell self)
 
 UInt32 KprComputeScaledSize(FskPort port, UInt32 size)
 {
-	UInt32 targetHeight = size;
-
 	if (!port) return 0;
+    if (kprFitFonts) {
+		UInt32 targetHeight = size;
+        size <<= 16;
+		while (size > 0) {
+			FskTextFontInfoRecord info;
 
-    size <<= 16;
-	while (size > 0) {
-		FskTextFontInfoRecord info;
+			FskPortSetTextSize(port, size);
+			FskPortGetFontInfo(port, &info);
 
-		FskPortSetTextSize(port, size);
-		FskPortGetFontInfo(port, &info);
+			if (info.glyphHeight <= targetHeight)
+				break;
 
-		if (info.glyphHeight <= targetHeight)
-			break;
-
-		size -= (1 << 16) >> 2;
+			size -= (1 << 16) >> 2;
+		}
 	}
-
+	else
+		size = FskPortUInt32Scale(port, size << 16);
 	return size;
 }
 
@@ -820,17 +823,17 @@ void KPR_style_set_font(xsMachine *the)
 					break;
 				p++;
 			}
-			if (!c)
-				break;
-			if (state == 2) {
-				textFont = p;
-				break;
-			}
 			q = p;
 			while ((c = *q)) {
 				if (c == ' ')
 					break;
 				q++;
+			}
+			if (p == q)
+				break;
+			if (state == 2) {
+				textFont = p;
+				break;
 			}
 			if (state == 0) {
 				if (!FskStrCompareWithLength(p, "100", q - p))
@@ -899,11 +902,13 @@ void KPR_style_set_font(xsMachine *the)
 						textSize = -size;
 					else if (!FskStrCompareWithLength(r, "px", q - r))
 						textSize = size;
+					else {
+						textFont = p;
+						break;
+					}
 				}
 				state = 2;
 			}
-			if (!c)
-				break;
 			p = q;
 		}
 		if (textFont)

@@ -61,8 +61,11 @@ void console_log(xsMachine* the)
 		case xsBooleanType:
 		case xsIntegerType:
 		case xsNumberType:
-		case xsSymbolType:
 			fprintf(stderr,  "%s", xsToString(xsArg(i)));
+			break;
+		case xsSymbolType:
+			xsResult = xsCall1(xsGlobal, xsID("String"), xsArg(i));
+			fprintf(stderr,  "%s", xsToString(xsResult));
 			break;
 		case xsStringType:
 		case xsStringXType:
@@ -232,7 +235,7 @@ int main(int argc, char* argv[])
                 if (realpath(argv[argi], path)) {
                 	archive = fxMapArchive(path, NULL);
                     if (!archive) {
-                        fprintf(stdout, "# invalid archive: %s\n", path);
+                        fprintf(stderr, "# invalid archive: %s\n", path);
                         return 1;
                     }
                     if (strstr(path, "mc.xsa")) {
@@ -240,7 +243,7 @@ int main(int argc, char* argv[])
                     }
                 }
 				else {
-					fprintf(stdout, "# archive not found: %s\n", argv[argi]);
+					fprintf(stderr, "# archive not found: %s\n", argv[argi]);
 					return 1;
 				}
 				argi++;
@@ -261,109 +264,111 @@ int main(int argc, char* argv[])
 	{
 		xsVars(2);
 		//xsStartProfiling();
-		xsTry {
-			xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
-			xsVar(1) = xsNewHostFunction(console_log, 0);
-			xsSet(xsVar(0), xsID("log"), xsVar(1));
-			xsSet(xsGlobal, xsID("console"), xsVar(0));
-
-			xsVar(0) = xsNewHostObject(weakTest);
-			xsVar(1) = xsNewHostConstructor(WeakTest, 1, xsVar(0));
-			xsSet(xsGlobal, xsID("WeakTest"), xsVar(1));
-			xsVar(1) = xsNewHostFunction(gc, 0);
-			xsSet(xsGlobal, xsID("gc"), xsVar(1));
-
-			xsResult = xsModulePaths();
-			realpath(argv[0], modulePath);
-			slash = strrchr(modulePath, mxSeparator);
-			if (slash) {
-				strcpy(slash + 1, "modules");
-				size = c_strlen(modulePath);
-				modulePath[size++] = mxSeparator;
-				modulePath[size] = 0;
-				xsCall1(xsResult, xsID("add"), xsString(modulePath));
-			}
-
-			if (argi == argc) {
-				fprintf(stdout, "# no module, no program\n");
-				error = 1;
-			}	
-			else if (program) {
-				xsVar(0) = xsNewHostFunction(print, 0);
-				xsSet(xsGlobal, xsID("print"), xsVar(0));
-				while (argi < argc) {
-					if (argv[argi][0] != '-') {
-						xsElseError(realpath(argv[argi], path));
-						strcpy(modulePath, path);
-						slash = strrchr(modulePath, mxSeparator);
-						*(slash + 1) = 0;
-						xsCall1(xsResult, xsID("add"), xsString(modulePath));
-						strcat(modulePath, "modules/");
-						xsCall1(xsResult, xsID("add"), xsString(modulePath));
-						fxRunProgram(the, path);
-					}
-					argi++;
-				}
-				fxRunLoop(the);
-			}
-			else {
+		{
+			xsTry {
 				xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
-				xsVar(1) = xsNewHostFunction(process_cwd, 0);
-				xsSet(xsVar(0), xsID("cwd"), xsVar(1));
-			#ifdef mxDebug
-				xsSet(xsVar(0), xsID("debug"), xsTrue);
-			#else
-				xsSet(xsVar(0), xsID("debug"), xsFalse);
-			#endif
-				xsVar(1) = xsNewHostFunction(process_execArgv, 0);
-				xsSet(xsVar(0), xsID("execArgv"), xsVar(1));
-				xsVar(1) = xsNewHostFunction(process_getenv, 0);
-				xsSet(xsVar(0), xsID("getenv"), xsVar(1));
-				xsVar(1) = xsNewHostFunction(process_then, 1);
-				xsSet(xsVar(0), xsID("then"), xsVar(1));
-				xsSet(xsVar(0), xsID("platform"), xsString("darwin"));
-				xsSet(xsGlobal, xsID("process"), xsVar(0));
-		
-				strcpy(path, argv[argi]);
-				slash = strrchr(path, mxSeparator);
+				xsVar(1) = xsNewHostFunction(console_log, 0);
+				xsSet(xsVar(0), xsID("log"), xsVar(1));
+				xsSet(xsGlobal, xsID("console"), xsVar(0));
+
+				xsVar(0) = xsNewHostObject(weakTest);
+				xsVar(1) = xsNewHostConstructor(WeakTest, 1, xsVar(0));
+				xsSet(xsGlobal, xsID("WeakTest"), xsVar(1));
+				xsVar(1) = xsNewHostFunction(gc, 0);
+				xsSet(xsGlobal, xsID("gc"), xsVar(1));
+
+				xsResult = xsModulePaths();
+				realpath(argv[0], modulePath);
+				slash = strrchr(modulePath, mxSeparator);
 				if (slash) {
-					*slash = 0;
-					realpath(path, modulePath);
+					strcpy(slash + 1, "modules");
 					size = c_strlen(modulePath);
 					modulePath[size++] = mxSeparator;
 					modulePath[size] = 0;
-              		xsCall1(xsResult, xsID("add"), xsString(modulePath));
-                	strcat(modulePath, "modules");
-					size = c_strlen(modulePath);
-					modulePath[size++] = mxSeparator;
-					modulePath[size] = 0;
-                	xsCall1(xsResult, xsID("add"), xsString(modulePath));
-					name = slash + 1;
-					
+					xsCall1(xsResult, xsID("add"), xsString(modulePath));
+				}
+
+				if (argi == argc) {
+					fprintf(stderr, "# no module, no program\n");
+					error = 1;
+				}	
+				else if (program) {
+					xsVar(0) = xsNewHostFunction(print, 0);
+					xsSet(xsGlobal, xsID("print"), xsVar(0));
+					while (argi < argc) {
+						if (argv[argi][0] != '-') {
+							xsElseError(realpath(argv[argi], path));
+							strcpy(modulePath, path);
+							slash = strrchr(modulePath, mxSeparator);
+							*(slash + 1) = 0;
+							xsCall1(xsResult, xsID("add"), xsString(modulePath));
+							strcat(modulePath, "modules/");
+							xsCall1(xsResult, xsID("add"), xsString(modulePath));
+							fxRunProgram(the, path);
+						}
+						argi++;
+					}
+					fxRunLoop(the);
 				}
 				else {
-					realpath(".", modulePath);
-					size = c_strlen(modulePath);
-					modulePath[size++] = mxSeparator;
-					modulePath[size] = 0;
-              		xsCall1(xsResult, xsID("add"), xsString(modulePath));
-                	strcat(modulePath, "modules");
-					size = c_strlen(modulePath);
-					modulePath[size++] = mxSeparator;
-					modulePath[size] = 0;
-                	xsCall1(xsResult, xsID("add"), xsString(modulePath));
-					name = path;
+					xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
+					xsVar(1) = xsNewHostFunction(process_cwd, 0);
+					xsSet(xsVar(0), xsID("cwd"), xsVar(1));
+				#ifdef mxDebug
+					xsSet(xsVar(0), xsID("debug"), xsTrue);
+				#else
+					xsSet(xsVar(0), xsID("debug"), xsFalse);
+				#endif
+					xsVar(1) = xsNewHostFunction(process_execArgv, 0);
+					xsSet(xsVar(0), xsID("execArgv"), xsVar(1));
+					xsVar(1) = xsNewHostFunction(process_getenv, 0);
+					xsSet(xsVar(0), xsID("getenv"), xsVar(1));
+					xsVar(1) = xsNewHostFunction(process_then, 1);
+					xsSet(xsVar(0), xsID("then"), xsVar(1));
+					xsSet(xsVar(0), xsID("platform"), xsString("darwin"));
+					xsSet(xsGlobal, xsID("process"), xsVar(0));
+		
+					strcpy(path, argv[argi]);
+					slash = strrchr(path, mxSeparator);
+					if (slash) {
+						*slash = 0;
+						realpath(path, modulePath);
+						size = c_strlen(modulePath);
+						modulePath[size++] = mxSeparator;
+						modulePath[size] = 0;
+						xsCall1(xsResult, xsID("add"), xsString(modulePath));
+						strcat(modulePath, "modules");
+						size = c_strlen(modulePath);
+						modulePath[size++] = mxSeparator;
+						modulePath[size] = 0;
+						xsCall1(xsResult, xsID("add"), xsString(modulePath));
+						name = slash + 1;
+					
+					}
+					else {
+						realpath(".", modulePath);
+						size = c_strlen(modulePath);
+						modulePath[size++] = mxSeparator;
+						modulePath[size] = 0;
+						xsCall1(xsResult, xsID("add"), xsString(modulePath));
+						strcat(modulePath, "modules");
+						size = c_strlen(modulePath);
+						modulePath[size++] = mxSeparator;
+						modulePath[size] = 0;
+						xsCall1(xsResult, xsID("add"), xsString(modulePath));
+						name = path;
+					}
+					extension = strrchr(name, '.');
+					if (extension)
+						*extension = 0;
+					fxRunModule(the, name);
 				}
-				extension = strrchr(name, '.');
-				if (extension)
-					*extension = 0;
-				fxRunModule(the, name);
 			}
-		}
-		xsCatch {
-			xsStringValue message = xsToString(xsException);
-			fprintf(stdout, "### %s\n", message);
-			error = 1;
+			xsCatch {
+				xsStringValue message = xsToString(xsException);
+				fprintf(stderr, "### %s\n", message);
+				error = 1;
+			}
 		}
 		//xsStopProfiling();
 	}

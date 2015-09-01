@@ -475,13 +475,17 @@ static void
 time_callback(FskTimeCallBack callback, const FskTime time, void *param)
 {
 	FskSSL *fssl = param;
+	FskSocket skt;
+	void *refCon;
 
 	FskTimeCallbackDispose(callback);
 	fssl->timer = NULL;
-	(*fssl->socketCallback)(fssl->skt, fssl->callbackData);
-
-	if (fssl->skt == NULL)
+	skt = fssl->skt;
+	refCon = fssl->callbackData;
+	if (fssl->skt == NULL)		/* check if some error has occurred and dispose everything here in that case as there's no chance to do after this point */
 		FskSSLDispose(fssl);
+	(*fssl->socketCallback)(skt, refCon);
+	/* nothing should be here! */
 }
 
 static void

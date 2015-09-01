@@ -212,10 +212,5 @@ class Tool extends TOOL {
 	}
 }
 
-try {
-	var tool = new Tool(process.execArgv());
-	tool.run();
-}
-catch(e) {
-	console.log("### " + e.message);
-}
+var tool = new Tool(process.execArgv());
+tool.run();

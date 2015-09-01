@@ -210,7 +210,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer dat
 						break;
 				}
 			}
-			
+
 			key[1] = 0;
 			FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, 2, key);
 		}
@@ -252,7 +252,7 @@ static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event, gpointer d
 						break;
 				}
 			}
-			
+
 			key[1] = 0;
 			FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, 2, key);
 		}
@@ -312,7 +312,7 @@ static void menu_select_cb(GtkWidget *widget, gpointer data)
 		if(entryBar->id == groupID) {
 			break;
 		}
-		
+
 		entryBar = entryBar->next;
 	}
 	if(entryBar) {
@@ -341,7 +341,7 @@ static void FskGtkWindowLoop(void *refcon)
 
 	gtkWin->owner = fskWindow;
 	gtkWin->window = win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_default_size(win, 750, 505);
+	gtk_window_set_default_size((GtkWindow*)win, 750, 505);
 
 	//	Set App Icon
 	char *iconPath = FskStrDoCat(FskGetApplicationPath(), "fsk.png");
@@ -372,7 +372,7 @@ static void FskGtkWindowLoop(void *refcon)
 	gtk_widget_add_events(GTK_WIDGET(win), GDK_EXPOSURE_MASK | GDK_KEY_PRESS_MASK);
 	gtk_widget_add_events(GTK_WIDGET(gtkWin->da), GDK_ALL_EVENTS_MASK);
 
-	g_signal_connect(win, "destroy", 			G_CALLBACK(app_quit), gtkWin);	
+	g_signal_connect(win, "destroy", 			G_CALLBACK(app_quit), gtkWin);
 	g_signal_connect(win, "key-press-event", 	G_CALLBACK(on_key_press), gtkWin);
 	g_signal_connect(win, "key-release-event", 	G_CALLBACK(on_key_release), gtkWin);
 	g_signal_connect(win, "configure-event", 	G_CALLBACK(configure_event_win), gtkWin);
@@ -475,7 +475,7 @@ void FskGtkWindowSetSize(FskGtkWindow gtkWin, UInt32 width, UInt32 height)
 		width = 800;
 		height = 600;
 	}
-		
+
 	gtk_window_resize(GTK_WINDOW(gtkWin->window), (int)width, (gint)height);
 
 	gtkWin->width = width;
@@ -600,7 +600,7 @@ void FskGtkWindowMenuBarClear(FskGtkWindow win)
 		// Next
 		entryBar = FskListRemoveFirst(&win->menu);
 	}
-	
+
 	win->menu = NULL;
 }
 
@@ -614,7 +614,7 @@ void FskGtkWindowSetMenuItemCallback(FskGtkWindow win, GtkWidget* menuItem, int 
 		entry->win = win;
 		entry->id  = id;
 		entry->item= menuItem;
-		
+
 		entryBar = win->menu;
 		while(entryBar) {
 			if(entryBar->id == (id & 0xFF00)) {
@@ -623,7 +623,7 @@ void FskGtkWindowSetMenuItemCallback(FskGtkWindow win, GtkWidget* menuItem, int 
 			entryBar = entryBar->next;
 		}
 		FskListAppend(&entryBar->menulist, entry);
-		
+
 		// Update menuItem immediately (enabled? checked?)
 		if(kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuStatus, NULL, kFskEventModifierNotSet)) {
 			FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(id), &id);
@@ -644,7 +644,7 @@ void FskGtkWindowSetMenuItemStatus(FskGtkWindow win, int id, Boolean enabled, Bo
 		}
 		entryBar = entryBar->next;
 	}
-	if(entryBar) { 
+	if(entryBar) {
 		for(items = (menuItems)entryBar->menulist; items != NULL; items = items->next) {
 			if(items->id == id) {
 				gtk_check_menu_item_set_active((GtkCheckMenuItem*)items->item, checked);
@@ -658,8 +658,8 @@ void FskGtkWindowSetMenuItemStatus(FskGtkWindow win, int id, Boolean enabled, Bo
 void FskGtkWindowSetDialog(FskGtkWindow win, GtkMessageType type, const char* title, const char* message)
 {
 	GtkWidget *dialog;
-	
-	dialog = gtk_message_dialog_new(GTK_WINDOW(win->window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, type, GTK_BUTTONS_OK, title);
+
+	dialog = gtk_message_dialog_new(GTK_WINDOW(win->window), GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT, type, GTK_BUTTONS_OK, "%s", title);
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s", message);
 	g_async_queue_push(win->queue, dialog);
 }

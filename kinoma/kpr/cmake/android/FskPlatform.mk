@@ -79,7 +79,6 @@
 	<c option="-DSUPPORT_NEON=1"/>
 	<c option="-DSUPPORT_WMMX=1"/>
 	<c option="-DANDROID=1"/>
-	<c option="-DTRY_ANDROID_DD=1"/>
 	<c option="--static"/>
 	<c option="-DBAD_FTRUNCATE=1"/>
 	<c option="-DUSE_POLL=1"/>

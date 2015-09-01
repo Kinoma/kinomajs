@@ -48,6 +48,8 @@
 	#ifdef mxDebug
 		#define mxProfile 1
 	#endif
+	#define mxExport extern __declspec( dllexport )
+	#define mxImport extern __declspec( dllimport )
 #elif TARGET_OS_MACOSX || TARGET_OS_MAC
 	#if TARGET_OS_IPHONE
 		#undef mxiPhone
@@ -59,19 +61,24 @@
 			#define mxProfile 1
 		#endif
 	#endif
+	#define mxExport __attribute__ ((visibility("default")))
+	#define mxImport __attribute__ ((visibility("default")))
 #elif TARGET_OS_ANDROID
 	#undef mxAndroid
 	#define mxAndroid 1
+	#define mxExport extern    
+	#define mxImport extern
 #elif TARGET_OS_LINUX
 	#undef mxLinux
 	#define mxLinux 1
+	#define mxExport extern    
+	#define mxImport extern
 #elif TARGET_OS_KPL
 	#undef mxKpl
 	#define mxKpl 1
+	#define mxExport extern    
+	#define mxImport extern
 #endif
-
-#define mxExport extern    
-#define mxImport extern
 
 #define XS_FUNCTION_NORETURN FSK_FUNCTION_NORETURN
 #define XS_FUNCTION_ANALYZER_NORETURN FSK_FUNCTION_ANALYZER_NORETURN

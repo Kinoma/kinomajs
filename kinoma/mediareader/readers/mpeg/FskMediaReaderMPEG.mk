@@ -68,32 +68,6 @@ $(TMP_DIR)/kinoma_avc_dec_bitstream-arm.gas.o: $(F_HOME)/kinoma/kinoma-ipp-lib/a
 </common>
 </platform>
 
-<platform name="android-cmake">
-<common>
-set(LIBRARY_OUTPUT_PATH ${F_HOME}/build/android/inNDK/Play/project/libs/armeabi)
-
-add_definitions(-DTARGET_OS_LINUX=1)
-add_definitions(-DLINUX32=1)
-add_definitions(-D__KINOMA_IPP_ARM_V5__=1)
-add_definitions(-DKINOMA)
-add_definitions(-D__KINOMA_IPP__=1)
-add_definitions(-DKINOMA_AVC=1)
-add_definitions(-DDROP_C)
-add_definitions(-DDROP_HIGH_PROFILE)
-add_definitions(-DDROP_VUI)
-add_definitions(-DDROP_FIELD)
-add_definitions(-DDROP_MBAFF)
-add_definitions(-DDROP_CABAC)
-
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
-
-list(APPEND sources ${F_HOME}/kinoma/kinoma-ipp-lib/arm_asm/kinoma_ipp_memory-arm.gas)
-list(APPEND sources ${F_HOME}/kinoma/kinoma-ipp-lib/arm_asm/kinoma_avc_dec_bitstream-arm.gas)
-
-</common>
-</platform>
-
-
 <platform name="Linux">
 <common>
 C_OPTIONS += -DTARGET_OS_LINUX=1		    \
@@ -130,22 +104,6 @@ C_OPTIONS += -DLINUX32=1				\
   		-DDROP_CABAC
             
 LINKER = $(CXX)
-</common>
-</platform>
-
-<platform name="mac-cmake">
-<common>
-add_definitions(-DLINUX32=1)
-add_definitions(-DOSX32=1)
-add_definitions(-DKINOMA)
-add_definitions(-D__KINOMA_IPP__=1)
-add_definitions(-DKINOMA_AVC=1)
-add_definitions(-DDROP_C)
-add_definitions(-DDROP_HIGH_PROFILE)
-add_definitions(-DDROP_VUI)
-add_definitions(-DDROP_FIELD)
-add_definitions(-DDROP_MBAFF)
-add_definitions(-DDROP_CABAC)
 </common>
 </platform>
 

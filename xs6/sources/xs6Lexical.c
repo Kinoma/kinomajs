@@ -29,7 +29,7 @@ static txBoolean fxGetNextString0(txParser* parser, int c, txU4* value);
 static void fxGetNextTokenAux(txParser* parser);
 
 #define XS_KEYWORD_COUNT 36
-static txKeyword gxKeywords[XS_KEYWORD_COUNT] = {
+static const txKeyword gxKeywords[XS_KEYWORD_COUNT] = {
 	{ "break", XS_TOKEN_BREAK },
 	{ "case", XS_TOKEN_CASE },
 	{ "catch", XS_TOKEN_CATCH },
@@ -69,7 +69,7 @@ static txKeyword gxKeywords[XS_KEYWORD_COUNT] = {
 };
 
 #define XS_STRICT_KEYWORD_COUNT 9
-static txKeyword gxStrictKeywords[XS_STRICT_KEYWORD_COUNT] = {
+static const txKeyword gxStrictKeywords[XS_STRICT_KEYWORD_COUNT] = {
 	{ "implements", XS_TOKEN_IMPLEMENTS },
 	{ "interface", XS_TOKEN_INTERFACE },
 	{ "let", XS_TOKEN_LET },
@@ -285,7 +285,7 @@ void fxGetNextNumberX(txParser* parser)
 void fxGetNextString(txParser* parser, int c)
 {
 	txString p = parser->buffer;
-	txString q = p + sizeof(parser->buffer) - 1;
+	txString q = p + parser->bufferSize - 1;
 	txString r, s;
 	char character;
 	txU4 t;
@@ -362,7 +362,7 @@ void fxGetNextString(txParser* parser, int c)
 	parser->raw2 = fxNewParserString(parser, parser->buffer, parser->rawLength2);
 	if (parser->escaped2) {
 		p = parser->buffer;
-		q = p + sizeof(parser->buffer) - 1;	
+		q = p + parser->bufferSize - 1;	
 		s = parser->raw2;
 		character = *s++;
 		while (character) {
@@ -876,7 +876,7 @@ void fxGetNextTokenAux(txParser* parser)
 			else if (parser->character == '/') {
 				fxGetNextCharacter(parser);
 				p = parser->buffer;
-				q = p + sizeof(parser->buffer) - 1;
+				q = p + parser->bufferSize - 1;
 				while ((parser->character != (txU4)C_EOF) && (parser->character != 10) && (parser->character != 13)) {
 					if (p < q)
 						*p++ = (char)parser->character;
@@ -931,7 +931,7 @@ void fxGetNextTokenAux(txParser* parser)
 			else if ((parser->crlf2) || (fxAcceptRegExp(parser))) {
 				parser->token2 = XS_TOKEN_NULL;
 				p = parser->buffer;
-				q = p + sizeof(parser->buffer) - 1;
+				q = p + parser->bufferSize - 1;
 				for (;;) {
 					if (p == q) {
 						fxReportParserWarning(parser, "regular expression overflow");			
@@ -951,7 +951,7 @@ void fxGetNextTokenAux(txParser* parser)
 						parser->string2 = fxNewParserString(parser, parser->buffer, parser->stringLength2);
 						parser->token2 = XS_TOKEN_REGEXP;
 						p = parser->buffer;
-						q = p + sizeof(parser->buffer) - 1;
+						q = p + parser->bufferSize - 1;
 						for (;;) {
 							fxGetNextCharacter(parser);
 							if (p == q) {
@@ -1030,7 +1030,7 @@ void fxGetNextTokenAux(txParser* parser)
 			
 		default:
 			p = parser->buffer;
-			q = p + sizeof(parser->buffer) - 1;
+			q = p + parser->bufferSize - 1;
 			if (fxIsIdentifierFirst((char)parser->character)) {
 				*p++ = (char)parser->character;
 				fxGetNextCharacter(parser);
@@ -1247,7 +1247,7 @@ void fxGetNextTokenJSON(txParser* parser)
 		default:
 			if (fxIsIdentifierFirst((char)parser->character)) {
 				p = parser->buffer;
-				q = p + sizeof(parser->buffer) - 1;
+				q = p + parser->bufferSize - 1;
 				for (;;) {
 					if (p == q) {
 						fxReportParserError(parser, "identifier overflow");			

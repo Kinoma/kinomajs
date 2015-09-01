@@ -1161,10 +1161,9 @@ void KPR_system_get_SSID(xsMachine *the)
 void KPR_HTTP_Server(xsMachine *the)
 {
 	KprHTTPServer self = NULL;
-	static UInt32 serverIndex = 0;
+//	static UInt32 serverIndex = 0;
 	xsVars(2);
 	xsEnterSandbox();
-
 	{
 		xsTry {
 			UInt32 port = 0;
@@ -1184,7 +1183,7 @@ void KPR_HTTP_Server(xsMachine *the)
 						certs = &certsRecord;
 					}
 					else if (xsIsInstanceOf(xsArg(0), xsObjectPrototype)) {
-						certs = &certsRecord;
+							certs = &certsRecord;
 						if (xsHas(xsVar(0), xsID("certificates"))) {
 							certs->certificates = (void*)xsToString(xsGet(xsVar(0), xsID("certificates")));
 							certs->certificatesSize = FskStrLen(certs->certificates);
@@ -1199,7 +1198,7 @@ void KPR_HTTP_Server(xsMachine *the)
 							certs->key = (void*)xsToString(xsGet(xsVar(0), xsID("key")));
 							certs->keySize = FskStrLen(certs->key);
 						}
-					}
+				}
 					if (certs) {
 						if (!certs->certificates) {
 							certs->certificates = (void*)kKprHTTPServerDefaultCretificates;

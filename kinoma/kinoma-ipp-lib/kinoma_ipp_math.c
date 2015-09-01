@@ -14,8 +14,17 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+#ifdef BUILT_4_MC
+#include "kinoma_ipp_env.h"
+#endif
+
 #include "kinoma_ipp_common.h"
 #include "kinoma_ipp_lib.h"
+
+#ifdef BUILT_4_XS6
+#include "mc_memory.h"
+#endif
+
 
 IppStatus (__STDCALL *ippsAbs_16s_I_universal)				(Ipp16s* pSrcDst,int len)=NULL;
 IppStatus (__STDCALL *ippsAbs_16s_universal)					(const Ipp16s* pSrc, Ipp16s* pDst,int len)=NULL;
@@ -1102,6 +1111,15 @@ so, remainder = 2*Iroot*froot + froot^2
 then, froot = (remainder - froot^2) / (2*Iroot)
 here,we can use iterative method to approach the froot
 */
+
+static double my_fabs(double x)
+{
+	if( x < 0 )
+		return -x;
+	else
+		return x;
+}
+
 static long double  __inline float_part(Ipp64s remainder, Ipp64s root)
 {
 	long double froot,ftmp;
@@ -1117,7 +1135,12 @@ static long double  __inline float_part(Ipp64s remainder, Ipp64s root)
 	{
 		ftmp = froot;
 		froot =(remainder - ftmp*ftmp) / (long double)Iroot2;
-	}while (fabs(froot - ftmp) > limit);
+	}
+#ifdef BUILT_4_MC
+	while (my_fabs(froot - ftmp) > limit);
+#else
+	while (fabs(froot - ftmp) > limit);
+#endif
 
 	return froot;
 }
@@ -3630,7 +3653,11 @@ IppStatus __STDCALL ippsMagnitude_16sc_Sfs_c(const Ipp16sc* pSrc,Ipp16s* pDst, i
 	if (len <= 0)
 		return ippStsSizeErr;
 
+#ifdef USE_MC_MALLOC
+	tmpD = mc_malloc(sizeof(__int64)*len);
+#else
 	tmpD = malloc(sizeof(__int64)*len);
+#endif
 
 	for (i = 0; i < len; i++)
 	{
@@ -3658,7 +3685,12 @@ IppStatus __STDCALL ippsMagnitude_16s_Sfs_c(const Ipp16s* pSrcRe,const Ipp16s* p
 	if (len <= 0)
 		return ippStsSizeErr;
 
+#ifdef USE_MC_MALLOC
+	tmpD = mc_malloc(sizeof(__int64)*len);
+#else
 	tmpD = malloc(sizeof(__int64)*len);
+#endif
+
 
 	for (i = 0; i < len; i++)
 	{

@@ -645,6 +645,7 @@ static FskErr WriteBMPToPath(FskConstBitmap bits, const char *path) {
 	}
 	else {
 		LOGD("Cannot open \"%s\"\n", path);
+		err = kFskErrFileNotFound;
 	}
 bail:
 	FskMemPtrDispose((void*)data);
@@ -1518,8 +1519,8 @@ static const char gColorizeOuterStraightFragmentShader[] = {
 	"uniform	"LOWP"		vec4		color;\n"							/* Color */
 	"varying	"HIGHP"		vec4		srcCoord;\n"						/* Source coordinate {x, y}. Matte  coordinate {z, w} */
 	"void main() {\n"
-	"	"LOWP" vec4  src = texture2D(srcBM, srcCoord.xy);\n"
-	"	gl_FragColor.a   = (texture2D(mttBM, srcCoord.zw).a * (1.0 - src.a)) * color.a + src.a;\n"
+	"	"MEDIUMP" vec4 src = texture2D(srcBM, srcCoord.xy);\n"
+	"	gl_FragColor.a = (texture2D(mttBM, srcCoord.zw).a * (1.0 - src.a)) * color.a + src.a;\n"
 	"	if (gl_FragColor.a != 0.0) src.a /= gl_FragColor.a;\n"
 	"	gl_FragColor.rgb = mix(color.rgb, src.rgb, src.a);\n"
 	"}\n"
@@ -3016,6 +3017,19 @@ FskErr FskGLEffectHiSigmaGaussianBlurApply(FskConstEffectGaussianBlur params, Fs
 	else {
 		FskRectangleRecord sRect;
 		FskEffectCopyMirrorBordersRecord mir;
+		#ifdef LOG_IMAGES
+			const char *outDir = NULL;
+			#if TARGET_OS_ANDROID
+				const char *dirs[] = { "/storage/extSdCard", "/storage/sdcard0", "/sdcard", "/data/local/tmp" };
+				for (i = 0; i < sizeof(dirs) / sizeof(dirs[0]); ++i) {
+					if (kFskErrNone == WriteGLBMPToVPath(src, "%s/gtest/GLEffHiSigma%g-%di.bmp", dirs[i], params->sigmaX, 0)) {
+						outDir = dirs[i];
+						break;
+					}
+				}
+			#endif /* TARGET_OS_ANDROID */
+			if (!outDir)	outDir = "";
+		#endif /* LOG_IMAGES */
 
 		mir.border = (UInt32)(((params->sigmaX > params->sigmaY) ? params->sigmaX : params->sigmaY) * kSigmaCutoff);	/* Allocate intermediate buffers */
 		sRect.width  = srcRect->width  + 2 * mir.border;														/* ... with a border all around */
@@ -3035,9 +3049,21 @@ FskErr FskGLEffectHiSigmaGaussianBlurApply(FskConstEffectGaussianBlur params, Fs
 			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[0][0], stage[0][1], mid[0], &sRect, dst, dstPoint));
 		}
 		else {
-			for (i = 1, j = 0, midStages = numStages - 1; i < midStages; i = 1 - i, ++j)
-				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[1 - i], NULL, mid[i], NULL));
-			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[1 - i], &sRect, dst, dstPoint));
+			for (j = 0, midStages = numStages - 1; j < midStages; ++j) {
+				#ifdef LOG_IMAGES
+					WriteGLBMPToVPath(mid[0], "%s/gtest/GLEffHiSigma%g-%di.bmp", outDir, params->sigmaX, j);
+				#endif /* LOG_IMAGES */
+//				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[0], NULL, mid[1], NULL));						/* Blur everything */
+				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[0],  &sRect, mid[1], (FskConstPoint)(&sRect)));	/* Blur central part */
+				#ifdef LOG_IMAGES
+					WriteGLBMPToVPath(mid[1], "%s/gtest/GLEffHiSigma%g-%do.bmp", outDir, params->sigmaX, j);
+				#endif /* LOG_IMAGES */
+				BAIL_IF_ERR(err = FskGLEffectCopyMirrorBordersApply(&mir, mid[1], &sRect, mid[0], NULL));										/* Mirror central part over borders */
+			}
+			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[0], &sRect, dst, dstPoint));
+			#ifdef LOG_IMAGES
+				WriteGLBMPToVPath(mid[1], "%s/gtest/GLEffHiSigma%g-%do.bmp", outDir, params->sigmaX, j);
+			#endif /* LOG_IMAGES */
 		}
 	}
 

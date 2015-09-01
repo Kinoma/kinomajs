@@ -14,7 +14,7 @@
 #include "mp3dec_own_int.h"
 
 /* Q30 */
-static int C_quant[] = {
+static const int C_quant[] = {
      1431655808,
      1717986944,
      1227133568,
@@ -34,7 +34,7 @@ static int C_quant[] = {
      1073758208,
 };
 
-static int D_quant[] = {
+static const int D_quant[] = {
    1073741824,
    1073741824,
     536870912,
@@ -55,7 +55,7 @@ static int D_quant[] = {
     };
 
 /* Q28 */
-static int scale_values_int[3] = {
+static const int scale_values_int[3] = {
       268435456,
       213057360,
       169103744,

@@ -14,7 +14,7 @@
 #include "mp3dec_own_int.h"
 
 /* Q31 */
-static int mp3dec_l1_dequant_tabled[] = {
+static const int mp3dec_l1_dequant_tabled[] = {
               0,
      1431655808,
      1227133571,
@@ -33,7 +33,7 @@ static int mp3dec_l1_dequant_tabled[] = {
 };
 
 /* Q28 */
-static int scale_values_int[3] = {
+static const int scale_values_int[3] = {
       268435456,
       213057360,
       169103744,

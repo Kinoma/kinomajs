@@ -44,24 +44,5 @@ C_OPTIONS += -DTARGET_OS_LINUX=1		    \
 </common>
 </platform>
 
-<platform name="android-cmake">
-<common>
-set(LIBRARY_OUTPUT_PATH ${F_HOME}/build/android/inNDK/Play/project/libs/armeabi)
-
-add_definitions(-DTARGET_OS_LINUX=1)
-add_definitions(-D_IPP_LINUX)
-add_definitions(-DCLASSNAME="com/marvell/kinoma/kinomaplay/MediaCodecCore")
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -fPIC -mabi=aapcs-linux")
-
-link_directories(${F_HOME}/build/android/inNDK/Play/project/libs/armeabi)
-link_directories(${NDK_LIBS_PATH})
-
-set(EXTENSION_LINK_LIBS -lFsk -lKinomaLibG)
-
-set(TARGET_DEPENDENCIES FskLib)
-</common>
-</platform>
-
 <include name="/makefiles/xsLibrary.mk"/>
 </makefile>

@@ -523,20 +523,21 @@ FskErr	FskBitmapSetOpenGLSourceAccelerated(FskBitmap bm, Boolean accelerated) {
  *	\param[in,out]	bm	the bitmap whose pixels are to be disposed.
  ********************************************************************************/
 
+#if FSKBITMAP_DOUBLE_ALLOC
 static void DoGLSourceDispose(FskBitmap bm) {
-	#if FSKBITMAP_DOUBLE_ALLOC
-		#if TARGET_OS_MAC
-			FskCocoaBitmapDispose(bm);
-		#endif /* TARGET_OS_MAC */
-		FskMemPtrDispose(bm->bitsToDispose);
-		bm->bitsToDispose			= NULL;
-		bm->bits					= NULL;
-		bm->depth					= 0;
-		bm->rowBytes				= 0;
-		bm->disposeUploadedPixels	= 0;
-		bm->pixelFormat				= kFskBitmapFormatGLRGBA;
-	#endif /* FSKBITMAP_DOUBLE_ALLOC */
+	#if TARGET_OS_MAC
+		FskCocoaBitmapDispose(bm);
+	#endif /* TARGET_OS_MAC */
+	FskMemPtrDispose(bm->bitsToDispose);
+	bm->bitsToDispose			= NULL;
+	bm->bits					= NULL;
+	bm->depth					= 0;
+	bm->rowBytes				= 0;
+	bm->disposeUploadedPixels	= 0;
+	if (fskUniformChunkyPixelPacking == FskBitmapFormatPixelPacking(bm->pixelFormat))	/* Indicate that non-YUV ... */
+		bm->pixelFormat = kFskBitmapFormatGLRGBA;										/* ... is now GLRGBA */
 }
+#endif /* FSKBITMAP_DOUBLE_ALLOC */
 
 
 /********************************************************************************

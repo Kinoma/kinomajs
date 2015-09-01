@@ -1091,7 +1091,7 @@ FskGrowablePathAppendSegmentEllipticalArc(
 
 		subDivisions = (SInt32)(fabs(dTheta) * 0.5);	/* No more than 2 radians per segment */
 		dTheta /= (subDivisions + 1);
-		w  = cos(dTheta * 0.5);				/* All segments share the same w, since they are equally divided */
+		w  = cos(dTheta * 0.5);							/* All segments share the same w, since they are equally divided */
 		cr = cos(xAxisRotation);
 		sr = sin(xAxisRotation);
 		ct = cos(theta1);
@@ -1606,7 +1606,7 @@ FskPathTessellate(
 			}	break;
 			case kFskPathSegmentMoveTo:
 			{	const TaggedSegmentMoveTo						*moveTo = (const TaggedSegmentMoveTo*)(segPtr);
-																if ((numPoints = FskGrowableArrayGetItemCount(ptArray)) != 0) {				/* Latter contours */
+																if ((numPoints = FskGrowableArrayGetItemCount(ptArray)) != 0) {						/* Latter contours */
 																	numPoints -= prevNumPoints;
 																	if (numPoints)
 																		BAIL_IF_ERR(err = FskGrowableArrayAppendItem(numPointArray, &numPoints));	/* Record the number of points in the previous contour */
@@ -1714,7 +1714,7 @@ FskPathFill(
 			}	break;
 			case kFskPathSegmentMoveTo:
 			{	const TaggedSegmentMoveTo						*moveTo = (const TaggedSegmentMoveTo*)(segPtr);
-																if ((numPoints = FskGrowableArrayGetItemCount(ptArray)) != 0) {				/* Latter contours */
+																if ((numPoints = FskGrowableArrayGetItemCount(ptArray)) != 0) {						/* Latter contours */
 																	numPoints -= prevNumPoints;
 																	if (numPoints)
 																		BAIL_IF_ERR(err = FskGrowableArrayAppendItem(numPointArray, &numPoints));	/* Record the number of points in the previous contour */
@@ -1983,7 +1983,7 @@ FskPathFrameFill(
 			}	break;
 			case kFskPathSegmentMoveTo:
 			{	const TaggedSegmentMoveTo						*moveTo = (const TaggedSegmentMoveTo*)(segPtr);
-																if ((numPoints = FskGrowableArrayGetItemCount(ptArray)) != 0) {				/* Latter contours */
+																if ((numPoints = FskGrowableArrayGetItemCount(ptArray)) != 0) {					/* Latter contours */
 																	numPoints -= prevNumPoints;
 																	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(numPointArray, &numPoints));	/* Record the number of points in the previous contour */
 																	prevNumPoints += numPoints;
@@ -2184,15 +2184,15 @@ TessellateRoundedRectControlPoints(FskFixedPoint2D pts[12], FskGrowableFixedPoin
 
 	BAIL_IF_ERR(err = FskGrowableFixedPoint2DArrayNew(50, returnedArray));
 	ptArray = *returnedArray;
-	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 0]));									/* Start of top segment */
+	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 0]));										/* Start of top segment */
 	BAIL_IF_ERR(err = FskTessellateRationalBezier2DRegularly(&pts[ 0], &pts[ 1], &w, 3, NULL, ptArray));	/* Upper right corner */
-	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 3]));									/* Right segment */
+	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 3]));										/* Right segment */
 	BAIL_IF_ERR(err = FskTessellateRationalBezier2DRegularly(&pts[ 3], &pts[ 4], &w, 3, NULL, ptArray));	/* Lower right corner */
-	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 6]));									/* Bottom segment */
+	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 6]));										/* Bottom segment */
 	BAIL_IF_ERR(err = FskTessellateRationalBezier2DRegularly(&pts[ 6], &pts[ 7], &w, 3, NULL, ptArray));	/* Lower left corner */
-	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 9]));									/* Left segment */
+	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 9]));										/* Left segment */
 	BAIL_IF_ERR(err = FskTessellateRationalBezier2DRegularly(&pts[ 9], &pts[10], &w, 3, NULL, ptArray));	/* Upper left corner */
-	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 0]));									/* Top segment */
+	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 0]));										/* Top segment */
 bail:
 	if (err != kFskErrNone) {	FskGrowableFixedPoint2DArrayDispose(ptArray); *returnedArray = NULL;	}
 	return(err);
@@ -2298,7 +2298,7 @@ FskFrameShapeRect(
 	UInt32							n;
 	const FskFixed					jointSharpness		= kFskLineJoinMiter90;
 
-	if (((rect->radius.x | rect->radius.y) == 0) && ((err = SetRectPoints(rect, pts)) == kFskErrNone)) {														/* Simple rectangle */
+	if (((rect->radius.x | rect->radius.y) == 0) && ((err = SetRectPoints(rect, pts)) == kFskErrNone)) {															/* Simple rectangle */
 		err = FskFramePolygon(4, pts, strokeWidth, jointSharpness, frameColor, M, quality, clipRect, dstBM);
 	}
 	else if (((err = SetRoundedRectControlPoints(rect, M, pts)) == kFskErrNone) && ((err = TessellateRoundedRectControlPoints(pts, &ptArray)) == kFskErrNone)) {	/* Rounded rectangle */
@@ -2335,7 +2335,7 @@ FskFrameFillShapeRect(
 	UInt32							n;
 	const FskFixed					jointSharpness		= kFskLineJoinMiter90;
 
-	if (((rect->radius.x | rect->radius.y) == 0) && ((err = SetRectPoints(rect, pts)) == kFskErrNone)) {														/* Simple rectangle */
+	if (((rect->radius.x | rect->radius.y) == 0) && ((err = SetRectPoints(rect, pts)) == kFskErrNone)) {															/* Simple rectangle */
 		if ((err = FskFillPolygon( 4, pts, fillColor, kFskFillRuleNonZero,         M, quality, clipRect, dstBM)) >= 0)
 			err = FskFramePolygon(4, pts, strokeWidth, jointSharpness, frameColor, M, quality, clipRect, dstBM);
 	}
@@ -2440,7 +2440,7 @@ TessellateEllipseControlPoints(FskFixedPoint2D pts[9], FskGrowableFixedPoint2DAr
 
 	BAIL_IF_ERR(err = FskGrowableFixedPoint2DArrayNew(50, returnedArray));
 	ptArray = *returnedArray;
-	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 0]));									/* Start of top segment */
+	BAIL_IF_ERR(err = FskGrowableArrayAppendItem(ptArray,  &pts[ 0]));										/* Start of top segment */
 	BAIL_IF_ERR(err = FskTessellateRationalBezier2DRegularly(&pts[ 0], &pts[ 1], &w, 3, NULL, ptArray));	/* Upper right corner */
 	BAIL_IF_ERR(err = FskTessellateRationalBezier2DRegularly(&pts[ 2], &pts[ 3], &w, 3, NULL, ptArray));	/* Lower right corner */
 	BAIL_IF_ERR(err = FskTessellateRationalBezier2DRegularly(&pts[ 4], &pts[ 5], &w, 3, NULL, ptArray));	/* Lower left corner */
@@ -3156,6 +3156,90 @@ FskPathComputeBoundingBox(FskConstPath path, const FskFixedMatrix3x2 *M, Boolean
 }
 
 
+/********************************************************************************
+ * FskPathIsAxisAlignedIntegralRectangle
+ ********************************************************************************/
+
+Boolean
+FskPathIsAxisAlignedIntegralRectangle(FskConstPath path, const FskFixedMatrix3x2 *M, FskRectangle r)
+{
+	const TaggedSegment	*segPtr;
+	UInt32				numSegs;
+	FskFixedPoint2D		points[5];
+
+	numSegs = GetPathSegmentCount(path);
+	if (numSegs < 4 || numSegs > 5)
+		return false;
+
+	segPtr = GetConstPathSegments(path);															/* Get segment 1 */
+	if (segPtr->type != kFskPathSegmentMoveTo)
+		return false;
+	points[0] = ((const TaggedSegmentMoveTo*)segPtr)->data.p;										/* MoveTo(point 0) */
+
+	segPtr = NextConstTaggedPathSegment(segPtr);													/* Get segment 2 */
+	if (segPtr->type != kFskPathSegmentLineTo)
+		return false;
+	points[1] = ((const TaggedSegmentMoveTo*)segPtr)->data.p;										/* LineTo(point 1) */
+
+	segPtr = NextConstTaggedPathSegment(segPtr);													/* Get segment 3 */
+	if (segPtr->type != kFskPathSegmentLineTo)
+		return false;
+	points[2] = ((const TaggedSegmentMoveTo*)segPtr)->data.p;										/* LineTo(point 2) */
+
+	segPtr = NextConstTaggedPathSegment(segPtr);													/* Get segment 4 */
+	if (segPtr->type != kFskPathSegmentLineTo)
+		return false;
+	points[3] = ((const TaggedSegmentMoveTo*)segPtr)->data.p;										/* LineTo(point 3) */
+
+	/* Fill will do an auto-close, so no explicit close is necessary; this is the case if there are only 4 segments.
+	 * With 5 segments, the extra segment could be a close or another line, yielding the following representations for a rectangle:
+	 *		M L L L
+	 *		M L L L Z	(preferred)
+	 *		M L L L L
+	 */
+	if (numSegs == 5) {																				/* Look for an explicit close (preferred) */
+		segPtr = NextConstTaggedPathSegment(segPtr);												/* Get segment 5 */
+		if (segPtr->type != kFskPathSegmentClose) {													/* Look for a duplicate of the first point */
+			if (segPtr->type != kFskPathSegmentLineTo)
+				return false;
+			points[4] = ((const TaggedSegmentMoveTo*)segPtr)->data.p;
+			if (points[4].x != points[0].x || points[4].y != points[0].y)
+				return false;
+		}
+	}
+
+	/* The path has the right topology. Now check that it has the right geometry */
+
+	if (M != NULL &&																					/* If a transformation is given, and ... */
+		(	r != NULL ||																				/* ... either the rectangle is requested, or ... */
+			(((M->M[0][0] | M->M[1][1] | M->M[2][0] | M->M[2][1]) & 0xFFFF) | M->M[0][1] | M->M[1][0])	/* ... the transformation can introduce non-integer coordinates, ... */
+		)
+	)
+		FskTransformFixedRowPoints2D(points, 4, M, points);												/* ... transform the points (sufficient but not necessary) */
+
+	if (points[0].x == points[1].x) {
+		if ((points[3].x - points[2].x) | (points[0].y - points[3].y) | (points[1].y - points[2].y))
+			return false;																			/* Not an aligned rectangle */
+	}
+	else if (points[0].y == points[1].y) {
+		if ((points[3].y - points[2].y) | (points[0].x - points[3].x) | (points[1].x - points[2].x))
+			return false;																			/* Not an aligned rectangle */
+	}
+	else {
+		return false;																				/* Not an aligned rectangle */
+	}
+
+	if ((points[0].x | points[0].y | points[1].x | points[1].y | points[2].x | points[2].y | points[3].x | points[3].y) & 0x7FFF)
+		return false;																				/* Not integral or half-integral coordinates */
+
+	if (r) {																						/* If the rectangle was requested, compute it. */
+		if ((r->width  = ((points[2].x + 0x8000) >> 16) - (r->x = (points[0].x + 0x8000) >> 16)) < 0) { r->x += r->width;  r->width  = -r->width;  }
+		if ((r->height = ((points[2].y + 0x8000) >> 16) - (r->y = (points[0].y + 0x8000) >> 16)) < 0) { r->y += r->height; r->height = -r->height; }
+	}
+
+	return true;
+}
+
 #if PRAGMA_MARK_SUPPORTED
 #pragma mark -
 #endif /* PRAGMA_MARK_SUPPORTED */
@@ -3859,14 +3943,14 @@ FskErr FskPathString(FskConstPath path, int precision, FskGrowableStorage str) {
 
 			case kFskPathSegmentRationalQuadraticBezierTo:
 			{	const FskPathSegmentRationalQuadraticBezierTo *conicTo = (const FskPathSegmentRationalQuadraticBezierTo*)(segData);
-				BAIL_IF_ERR(err = FskGrowableStorageAppendF(str, "%c%.*g,%.*g,%.*g,%.*g,%.*g", 	/* Nonstandard -- our proprietary extension */
+				BAIL_IF_ERR(err = FskGrowableStorageAppendF(str, "%c%.*g,%.*g,%.*g,%.*g,%.*g", 			/* Nonstandard -- our proprietary extension */
 					(('K' == lastCmd) ? ' ' : 'K'),
 					precision, conicTo->p1.x * kFixedToFloat, precision, conicTo->p1.y * kFixedToFloat, precision, conicTo->w1 * kFractToFloat,
 					precision, conicTo->p.x  * kFixedToFloat, precision, conicTo->p.y  * kFixedToFloat));
 				lastCmd = 'K';
 			}	break;
 			case kFskPathSegmentEndGlyph:
-				BAIL_IF_ERR(err = FskGrowableStorageAppendF(str, "G"));													/* Nonstandard -- our proprietary extension */
+				BAIL_IF_ERR(err = FskGrowableStorageAppendF(str, "G"));									/* Nonstandard -- our proprietary extension */
 				lastCmd = 0;
 				break;
 		}

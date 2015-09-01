@@ -32,6 +32,12 @@
 				<function name="init"/>
 				<function name="close"/>
 			</object>
+			<object name="notification" c="xs_notification">
+                <function name="init"/>
+                <function name="close" params="" c="xs_notification_close" />
+                <function name="repeat" params="" c="xs_notification_repeat" />
+                <function name="invoke" params="" c="xs_notification_invoke" />
+			</object>
 		</object>
 		<null name="config"/>
 		<object name="constructors">
@@ -46,6 +52,7 @@
 				this.pin = it.pin;
 				this.voltage = ("voltage" in it) ? it.voltage : 3.3;
 			</function>
+			<function name="Notification" params="it" prototype="PINS.prototypes.notification"/>
 		</object>
 		<function name="configure" params="configurations">
 			PINS.config = this.configure_aux(configurations, true);
@@ -64,6 +71,7 @@
 			pin = pin.sandbox;
 			return new (this.constructors[pin.type])(pin);
 		</function>
+		<function name="repeat" params="interval, target, callback" c="xs_PINS_repeat"/>
 		<function name="merge" params="defaultPin, configurationPin">
 			for (var i in defaultPin) {
 				if (!(i in configurationPin))
@@ -82,12 +90,12 @@
 				var defaults = undefined;
                 if (!("require" in configuration)) {
 					if (!("type" in configuration))
-						throw new Error("!!!!require property missing in configuration " + i + ": " + JSON.stringify(configuration));
-					var type = configuration.type.toLowerCase();
+						throw new Error("required property missing in configuration " + i + ": " + JSON.stringify(configuration));
+					var type = configuration.type;
 					var config = {};
 					config.sandbox.require = type;
 					config.sandbox.pins = {};
-					config.sandbox.pins.sandbox[type] = configurations[i];
+					config.sandbox.pins.sandbox[type.toLowerCase()] = configurations[i];
 					configurations[i] = config;
 					configuration = config.sandbox;
 				}
@@ -122,8 +130,11 @@
 			return ("metadata" in prototype.sandbox) ? prototype.sandbox.metadata : undefined;
 		</function>
 		<function name="configuration">
-			return JSON.parse(JSON.sandbox.stringify(PINS.config));		// hack to get object into form xsMarshall will tolerate
+			return JSON.parse(JSON.sandbox.stringify(PINS.config));		//@@ hack to get object into form xsMarshall will tolerate
 		</function>
+		<object name="repeater" c="xs_repeater">
+			<function name="close" c="xs_repeater_close"/>
+		</object>
 	</object>
 	
 	<patch prototype="KPR.message">

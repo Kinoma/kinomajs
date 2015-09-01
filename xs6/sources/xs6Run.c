@@ -899,7 +899,7 @@ XS_CODE_JUMP:
 			mxException = *mxStack;
 		#ifdef mxDebug
 			mxSaveState;
-			fxDebugThrow(the, "throw");
+			fxDebugThrow(the, C_NULL, 0, "throw");
 			mxRestoreState;
 		#endif
 			fxJump(the);
@@ -990,7 +990,7 @@ XS_CODE_JUMP:
 				mxException = *mxStack;
 			#ifdef mxDebug
 				mxSaveState;
-				fxDebugThrow(the, "throw");
+				fxDebugThrow(the, C_NULL, 0, "throw");
 				mxRestoreState;
 			#endif
 				fxJump(the);
@@ -2521,7 +2521,7 @@ XS_CODE_JUMP:
 			mxNextCode(1);
 		#ifdef mxDebug
 			mxSaveState;
-			fxDebugLoop(the, "debugger");
+			fxDebugLoop(the, C_NULL, 0, "debugger");
 			mxRestoreState;
 		#endif
 			mxBreak;

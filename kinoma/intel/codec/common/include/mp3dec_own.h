@@ -121,8 +121,8 @@ typedef struct {
 
 extern int mp3dec_bitrate[2][3][15];
 extern int mp3dec_frequency[3][4];
-extern unsigned char mp3dec_nr_of_sfb[6][3][4];
-extern ssfBandIndex mp3dec_sfBandIndex[3][3];
+extern const unsigned char mp3dec_nr_of_sfb[6][3][4];
+extern const ssfBandIndex mp3dec_sfBandIndex[3][3];
 
 MP3Status mp3decInit_com(MP3Dec_com *state_ptr);
 MP3Status mp3decClose_com(MP3Dec_com *state);

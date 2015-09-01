@@ -25,44 +25,58 @@ class Manifest extends CMAKE.Manifest {
 		var parts = tool.splitPath(tool.manifestPath);
 		var icns = parts.directory + "/mac/fsk.icns";
 		var nib = parts.directory + "/mac/fsk.nib";
-		var plist = parts.directory + "/mac/fsk.plist"; var path = process.debug ? "$(F_HOME)/xs6/bin/mac/debug" : "$(F_HOME)/xs6/bin/mac/release"
+		var plist = parts.directory + "/mac/fsk.plist";
+		var path = process.debug ? "$(F_HOME)/xs6/bin/mac/debug" : "$(F_HOME)/xs6/bin/mac/release";
 		return {
-			AR: "libtool -static -o",
+			APP_NAME: tool.application,
 			KPR2JS: path + "/xsr6 -a " + path + "/modules/tools.xsa kpr2js",
 			XS2JS: path + "/xsr6 -a " +  path + "/modules/tools.xsa xs2js",
 			XSC: path + "/xsc6",
 			XSL: path + "/xsl6",
-			CMAKE_OSX_ARCHITECTURES: "i386",
-			
+
 			APP_DIR: bin + ".app/Contents/MacOS",
 			TMP_DIR: tmp,
 			
+			CMAKE_OSX_ARCHITECTURES: "i386 CACHE STRING \"Build architecture of MacOS\"",
 			ICNS: FS.existsSync(icns) ? icns : "$(F_HOME)/build/mac/fsk.icns",
 			NIB: FS.existsSync(nib) ? nib : "$(F_HOME)/build/mac/fsk.nib",
 			PLIST: FS.existsSync(plist) ? plist : "$(F_HOME)/build/mac/fsk.plist",
 			// FskPlatform.mk
-			SDKVER: "10.8",
 		};
 	}
 	getTargetRules(tool) {
-		return `if (CMAKE_GENERATOR STREQUAL "Xcode")
-	set(CMAKE_XCODE_ATTRIBUTE_CONFIGURATION_BUILD_DIR \${APP_DIR})
-else ()
-	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \${APP_DIR})
-endif ()
-add_executable(fsk \${Fsk_SOURCES} \${F_HOME}/kinoma/kpr/patches/main.m)
-target_link_libraries(fsk \${LIBRARIES} -ObjC)
-target_include_directories(fsk PUBLIC \${C_INCLUDES})
-target_compile_definitions(fsk PUBLIC \${C_DEFINITIONS})
-target_compile_options(fsk PUBLIC \${C_OPTIONS})
+		var application = this.tree.application;
+		var namespace = this.tree.environment.NAMESPACE;
+		if (!namespace)
+			namespace = `com.marvell.kinoma.${application.toLowerCase()}`;
+
+		return `
+ADD_EXECUTABLE(${application} MACOSX_BUNDLE \${SOURCES} \${FskPlatform_SOURCES} \${F_HOME}/kinoma/kpr/patches/main.m)
+TARGET_LINK_LIBRARIES(${application} \${LIBRARIES} \${OBJECTS} -ObjC)
+TARGET_INCLUDE_DIRECTORIES(${application} PUBLIC \${C_INCLUDES})
+TARGET_COMPILE_DEFINITIONS(${application} PUBLIC \${C_DEFINITIONS})
+TARGET_COMPILE_OPTIONS(${application} PUBLIC \${C_OPTIONS})
+
+SET(MACOSX_BUNDLE_ICON_FILE "fsk.icns")
+SET(MACOSX_BUNDLE_GUI_IDENTIFIER "${namespace}")
+
+ADD_CUSTOM_COMMAND(
+	TARGET ${application}
+	POST_BUILD
+	COMMAND \${CMAKE_COMMAND} -E copy \$<TARGET_FILE:${application}> \${APP_DIR}/fsk
+	COMMAND \${CMAKE_COMMAND} -E copy \${APP_DIR}/FskManifest.xsa \$<TARGET_FILE_DIR:${application}>
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/modules \$<TARGET_FILE_DIR:${application}>/modules
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/program \$<TARGET_FILE_DIR:${application}>/program
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/../Resources \$<TARGET_FILE_DIR:${application}>/../Resources
+	)
 
 COPY(SOURCE \${ICNS} DESTINATION \${APP_DIR}/../Resources/fsk.icns)
 COPY(SOURCE \${NIB} DESTINATION \${APP_DIR}/../Resources/English.lproj/fsk.nib)
 COPY(SOURCE \${PLIST} DESTINATION \${APP_DIR}/../Info.plist)
-file(WRITE \${APP_DIR}/../PkgInfo "APPLTINY")
+FILE(WRITE \${APP_DIR}/../PkgInfo "APPLTINY")
 `;
+	return output;
 	}
 }
 
 export default Manifest;
-

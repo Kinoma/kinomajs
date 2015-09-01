@@ -28,6 +28,7 @@ FskErr yuv420DecodeDispose(void *stateIn, FskImageDecompress deco);
 FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const void *data, UInt32 dataSize, FskInt64 *decodeTime, UInt32 *compositionTimeOffset, FskInt64 *compositionTime, UInt32 frameType);
 FskErr yuv420DecodeGetMetaData(void *stateIn, FskImageDecompress deco, UInt32 metadata, UInt32 index, FskMediaPropertyValue value, UInt32 *flags);
 FskErr yuv420DecodeFlush(void *state, FskImageDecompress deco);
+FskErr yuv420DecodeSniff(const unsigned char *data, UInt32 dataSize, FskHeaders *headers, const char *uri, char **mime);
 
 extern FskMediaPropertyEntryRecord yuv420DecodeProperties[];
 

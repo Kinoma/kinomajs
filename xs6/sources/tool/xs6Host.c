@@ -239,6 +239,18 @@ void fxBuildKeys(txMachine* the)
 	}
 }
 
+#ifdef mxParse
+void fxDisposeParserChunks(txParser* parser)
+{
+	txParserChunk* block = parser->first;
+	while (block) {
+		txParserChunk* next = block->next;
+		c_free(block);
+		block = next;
+	}
+}
+#endif
+
 txBoolean fxFindArchive(txMachine* the, txString path)
 {
 	txArchive* archive = the->archive;
@@ -326,7 +338,6 @@ txID fxFindModule(txMachine* the, txID moduleID, txSlot* slot)
 				return id;
 		}
 	}
-	mxReferenceError("module \"%s\" not found", name);
 	return XS_NO_ID;
 }
 
@@ -554,7 +565,7 @@ txScript* fxLoadText(txMachine* the, txString path, txUnsigned flags)
 	char buffer[PATH_MAX];
 	char map[PATH_MAX];
 	txScript* script = NULL;
-	fxInitializeParser(parser, the);
+	fxInitializeParser(parser, the, 32*1024, 1993);
 	parser->firstJump = &jump;
 	if (c_setjmp(jump.jmp_buf) == 0) {
 		parser->path = fxNewParserSymbol(parser, path);
@@ -771,6 +782,19 @@ txString fxMergePath(txString base, txString name, txString path)
 	return path;
 }
 
+#ifdef mxParse
+void* fxNewParserChunk(txParser* parser, txSize size)
+{
+	txParserChunk* block = c_malloc(sizeof(txParserChunk) + size);
+	if (!block)
+		fxThrowMemoryError(parser);
+	parser->total += sizeof(txParserChunk) + size;
+	block->next = parser->first;
+	parser->first = block;
+	return block + 1;
+}
+#endif
+
 txScript* fxParseScript(txMachine* the, void* stream, txGetter getter, txUnsigned flags)
 {
 #ifdef mxParse
@@ -778,7 +802,7 @@ txScript* fxParseScript(txMachine* the, void* stream, txGetter getter, txUnsigne
 	txParser* parser = &_parser;
 	txParserJump jump;
 	txScript* script = NULL;
-	fxInitializeParser(parser, the);
+	fxInitializeParser(parser, the, 32*1024, 1993);
 	parser->firstJump = &jump;
 	if (c_setjmp(jump.jmp_buf) == 0) {
 		fxParserTree(parser, stream, getter, flags, NULL);

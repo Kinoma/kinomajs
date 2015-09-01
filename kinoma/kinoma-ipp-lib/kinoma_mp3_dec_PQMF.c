@@ -14,6 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+#ifdef BUILT_4_MC
+#include "kinoma_ipp_env.h"
+#endif
+
 #include "kinoma_ipp_common.h"
 
 IppStatus (__STDCALL *ippsSynthPQMF_MP3_32s16s_universal)		  (Ipp32s* pSrcY, Ipp16s* pDstAudioOut, Ipp32s* pVBuffer, int* pVPosition, int mode) = NULL;

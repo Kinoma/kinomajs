@@ -54,14 +54,34 @@ FskErr FskEnvironmentInitialize(void)
 	FskEnvironmentSet("applicationPath", appPath);
 	FskMemPtrDispose(appPath);
 
+#if TARGET_CPU_X86_64
+	FskEnvironmentSet("arch", "ia64");
+#elif TARGET_CPU_X86
+	FskEnvironmentSet("arch", "x86");
+#elif TARGET_CPU_ARM64
+	FskEnvironmentSet("arch", "arm64");
+#elif TARGET_CPU_ARM
+	FskEnvironmentSet("arch", "arm");
+#elif TARGET_CPU_PPC
+	FskEnvironmentSet("arch", "ppc");
+#elif TARGET_CPU_MIPS
+	FskEnvironmentSet("arch", "mips");
+#endif
+
+#if TARGET_OS_ANDROID
+	FskEnvironmentSet("platform", "android");
+#elif TARGET_OS_WIN32
+	FskEnvironmentSet("platform", "win32");
+#elif TARGET_OS_IPHONE		// must be before MAC
+	FskEnvironmentSet("platform", "iphone");
+#elif TARGET_OS_MAC
+	FskEnvironmentSet("platform", "darwin");
+#elif TARGET_OS_LINUX
+	FskEnvironmentSet("platform", "linux");
+#endif
+
 #if TARGET_OS_KPL
 	KplEnvironmentInitialize(gEnvironment);
-#elif TARGET_OS_ANDROID
-	FskEnvironmentSet("application", "PLAY");
-#elif TARGET_OS_WIN32 || TARGET_OS_MAC || TARGET_OS_LINUX
-	FskEnvironmentSet("application", FSK_APPLICATION);
-#else
-	FskEnvironmentSet("application", "PLAY");
 #endif
 
 #if TARGET_OS_WIN32

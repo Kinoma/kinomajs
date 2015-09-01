@@ -73,8 +73,10 @@ typedef struct {
 	txToken token;
 	txString name;
 	txInteger size;
-	txNodeDispatch* dispatch;
+	const txNodeDispatch* dispatch;
 } txNodeDescription;
+
+typedef struct sxNode txNode;
 
 typedef struct sxDeclareNode txDeclareNode;
 typedef struct sxDefineNode txDefineNode;
@@ -87,7 +89,8 @@ typedef struct sxSpecifierNode txSpecifierNode;
 typedef struct sxStringNode txStringNode;
 
 #define mxNodePart\
-	txNodeDescription* description;\
+	txNode* next;\
+	const txNodeDescription* description;\
 	txSymbol* path;\
 	txInteger line;\
 	txUnsigned flags
@@ -103,13 +106,23 @@ typedef struct sxStringNode txStringNode;
 	txSpecifierNode* importSpecifier;\
 	txSpecifierNode* firstExportSpecifier
 
-typedef struct {
+struct sxNode {
 	mxNodePart;
-} txNode;
+};
 
 typedef struct {
-	txNode* nodes[1];
+	txNode* next;
+	const txNodeDescription* description;
+	txSymbol* symbol;
+} txNodeLink;
+
+typedef struct {
+	txNode* next;
+	const txNodeDescription* description;
+	txNode* first;
+	txInteger length;
 } txNodeList;
+
 
 typedef struct {
 	mxNodePart;
@@ -186,8 +199,8 @@ typedef struct {
 	mxNodePart;
 	txSymbol* symbol;
 	txNode* heritage;
-	txNode* constructor;
 	txNodeList* items;
+	txNode* constructor;
 	txScope* scope;
 } txClassNode;
 
@@ -522,9 +535,6 @@ struct sxParser {
 	
 	txSize symbolModulo;
 	txSymbol** symbolTable;
-	txID symbolCount;
-	txID symbolIndex;
-	txSymbol** symbolArray;
 	
 	txID hostNodeIndex;
 	txHostNode* firstHostNode;
@@ -579,9 +589,7 @@ struct sxParser {
 	int* lines;
 
 	txNode* root;
-	txNode** nodeArray;
-	txNode** nodeLimit;
-	txNode** nodePointer;
+	int nodeCount;
 	
 	txString emptyString;
 	txSymbol* __dirnameSymbol;
@@ -618,8 +626,10 @@ struct sxParser {
 	txSymbol* uriSymbol;
 	txSymbol* valueSymbol;
 	txSymbol* withSymbol;
-
-	char buffer[32 * 1024];			// must be last
+	
+	char* buffer;
+	txSize bufferSize;
+	txSize total;
 };
 
 enum {
@@ -782,8 +792,7 @@ enum {
 
 /* xs6Script.c */
 
-extern void fxInitializeParser(txParser* parser, void* console);
-extern void* fxNewParserChunk(txParser* parser, txSize size);
+extern void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSize symbolModulo);
 extern void* fxNewParserChunkClear(txParser* parser, txSize size);
 extern txString fxNewParserString(txParser* parser, txString buffer, txSize size);
 extern txSymbol* fxNewParserSymbol(txParser* parser, txString buffer);
@@ -795,7 +804,9 @@ extern void fxThrowMemoryError(txParser* parser);
 extern void fxThrowParserError(txParser* parser, txInteger count);
 
 /* xs6*Host.c */
+extern void fxDisposeParserChunks(txParser* parser);
 extern void fxIncludeScript(txParser* parser, txString name);
+extern void* fxNewParserChunk(txParser* parser, txSize size);
 
 /* xs6Lexical.c */
 
@@ -817,7 +828,6 @@ extern void fxJSONValue(txParser* parser);
 extern void fxIncludeTree(txParser* parser, void* stream, txGetter getter, txUnsigned flags, txString path);
 extern void fxParserTree(txParser* parser, void* theStream, txGetter theGetter, txUnsigned flags, txString* name);
 
-extern txInteger fxNodeListCount(txNodeList* list);
 extern void fxNodeListDistribute(txNodeList* list, txNodeCall call, void* param);
 
 extern txAccessNode* fxAccessNodeNew(txParser* parser, txToken token, txSymbol* symbol);
@@ -826,7 +836,7 @@ extern txDefineNode* fxDefineNodeNew(txParser* parser, txToken token, txSymbol* 
 extern txEvalNode* fxEvalNodeNew(txParser* parser, txToken token, txScope* scope);
 extern txNode* fxValueNodeNew(txParser* parser, txToken token);
 
-extern txNodeDescription gxTokenDescriptions[XS_TOKEN_COUNT];
+extern const txNodeDescription gxTokenDescriptions[XS_TOKEN_COUNT];
 
 /* xs6SourceMap.c */
 

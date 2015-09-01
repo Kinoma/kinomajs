@@ -69,7 +69,7 @@ static KprDispatchRecord KprCanvasDispatchRecord = {
 
 static FskBitmapFormatEnum PreferredPixelFormat(void)
 {
-	#if 0//FSKBITMAP_OPENGL
+	#if FSKBITMAP_OPENGL && !defined(DISABLE_GL_CANVAS)
 		if (gShell->window->usingGL)
 			return kFskBitmapFormatGLRGBA;
 	#endif

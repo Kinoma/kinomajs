@@ -320,7 +320,7 @@ FskName4(Fsk,TintCopy,SrcPixelKind,DstPixelKind)(const FskRectBlitParams *params
 		BLIT_STARTLOOP {
 			GetSrcAsDst(s, pix);
 			pix = FskName2(FskPixelMul,DstPixelKind)((UInt8)pix, (UInt8)tint);
-			FskName2(FskBlend,DstPixelKind)(d, (UInt16)pix, params->alpha);
+			FskName2(FskBlend,DstPixelKind)(d, (UInt8)pix, params->alpha);
 		} BLIT_ENDLOOP
 	#else /* FskName3(fsk,SrcPixelKind,AlphaBits) == 8 */
 		BLIT_STARTLOOP {
@@ -351,7 +351,7 @@ FskName4(FskBilinear,TintCopy,SrcPixelKind,DstPixelKind)(const FskRectBlitParams
 		BLIT_STARTLOOP {
 			BilerpSrcAsDst(s, pix);
 			pix = FskName2(FskPixelMul,DstPixelKind)((UInt8)pix, (UInt8)tint);
-			FskName2(FskBlend,DstPixelKind)(d, (UInt16)pix, params->alpha);
+			FskName2(FskBlend,DstPixelKind)(d, (UInt8)pix, params->alpha);
 		} BLIT_ENDLOOP
 	#else /* FskName3(fsk,SrcPixelKind,AlphaBits) == 8 */
 		BLIT_STARTLOOP {

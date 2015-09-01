@@ -14,8 +14,7 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#if  1//ndef KINOMA_FAST_HUFFMAN		//this is still needed for aac sbr before it's optimized
-
+#if !defined(BUILT_4_MC)//!defined(KINOMA_MP3) || !defined(KINOMA_FAST_HUFFMAN)		//this is still needed for aac sbr before it's optimized
 #include "kinoma_ipp_lib.h"
 #include "kinoma_ipp_common.h"
 

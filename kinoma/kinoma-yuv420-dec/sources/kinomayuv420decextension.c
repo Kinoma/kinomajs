@@ -20,7 +20,7 @@
 
 
 static FskImageDecompressorRecord yuv420Decompress =
-	{yuv420DecodeCanHandle, yuv420DecodeNew, yuv420DecodeDispose, yuv420DecodeDecompressFrame, NULL, yuv420DecodeGetMetaData, yuv420DecodeProperties, NULL, yuv420DecodeFlush };
+	{yuv420DecodeCanHandle, yuv420DecodeNew, yuv420DecodeDispose, yuv420DecodeDecompressFrame, NULL, yuv420DecodeGetMetaData, yuv420DecodeProperties, yuv420DecodeSniff, yuv420DecodeFlush };
 
 
 FskExport(FskErr) kinomayuv420dec_fskLoad(FskLibrary library)

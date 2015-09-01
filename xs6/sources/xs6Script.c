@@ -16,22 +16,18 @@
  */
 #include "xs6Script.h"
 
-void fxInitializeParser(txParser* parser, void* console)
+void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSize symbolModulo)
 {
 	c_memset(parser, 0, sizeof(txParser));
 	parser->first = C_NULL;
 	parser->console = console;
-	
-	parser->nodeArray = fxNewParserChunkClear(parser, 0x7FFF * sizeof(txNode*));
-	parser->nodeLimit = parser->nodeArray + 0x7FFF;
-	parser->nodePointer = parser->nodeArray;
+
+	parser->buffer = fxNewParserChunk(parser, bufferSize);
+	parser->bufferSize = bufferSize;
 	
 	parser->dtoa = fxNew_dtoa();
-	parser->symbolModulo = 1993;
+	parser->symbolModulo = symbolModulo;
 	parser->symbolTable = fxNewParserChunkClear(parser, parser->symbolModulo * sizeof(txSymbol*));
-	parser->symbolCount = 0x7FFF;
-	parser->symbolIndex = 0;
-	parser->symbolArray = fxNewParserChunkClear(parser, parser->symbolCount * sizeof(txSymbol*));
 
 	parser->emptyString = fxNewParserString(parser, "", 0);
 
@@ -71,16 +67,6 @@ void fxInitializeParser(txParser* parser, void* console)
 	parser->withSymbol = fxNewParserSymbol(parser, "with");
 }
 
-void* fxNewParserChunk(txParser* parser, txSize size)
-{
-	txParserChunk* block = c_malloc(sizeof(txParserChunk) + size);
-	if (!block)
-		fxThrowMemoryError(parser);
-	block->next = parser->first;
-	parser->first = block;
-	return block + 1;
-}
-
 void* fxNewParserChunkClear(txParser* parser, txSize size)
 {
 	void* result = fxNewParserChunk(parser, size);
@@ -103,7 +89,6 @@ txSymbol* fxNewParserSymbol(txParser* parser, txString theString)
 	txSize aSum;
 	txSize aModulo;
 	txSymbol* aSymbol;
-	txID anID;
 	
 	aString = theString;
 	aLength = 0;
@@ -122,20 +107,14 @@ txSymbol* fxNewParserSymbol(txParser* parser, txString theString)
 		aSymbol = aSymbol->next;
 	}
 	if (aSymbol == C_NULL) {
-		anID = parser->symbolIndex;
-		if (anID == parser->symbolCount) {
-			exit(1);
-		}
 		aSymbol = fxNewParserChunk(parser, sizeof(txSymbol));
 		aSymbol->next = parser->symbolTable[aModulo];
-		aSymbol->ID = anID;
+		aSymbol->ID = -1;
 		aSymbol->length = aLength + 1;
 		aSymbol->string = fxNewParserString(parser, theString, aLength);
 		aSymbol->sum = aSum;
 		aSymbol->usage = 0;
-		parser->symbolArray[anID] = aSymbol;
 		parser->symbolTable[aModulo] = aSymbol;
-		parser->symbolIndex++;
 	}
 	return aSymbol;
 }
@@ -169,12 +148,7 @@ void fxReportLineError(txParser* parser, txInteger line, txString theFormat, ...
 
 void fxTerminateParser(txParser* parser)
 {
-	txParserChunk* block = parser->first;
-	while (block) {
-		txParserChunk* next = block->next;
-		c_free(block);
-		block = next;
-	}
+	fxDisposeParserChunks(parser);
 	if (parser->dtoa)
 		fxDelete_dtoa(parser->dtoa);
 }

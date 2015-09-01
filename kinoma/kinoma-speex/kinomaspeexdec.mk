@@ -25,11 +25,11 @@
 <input name="sources/win32/"/>
 </platform>
 
-<platform name="android,android-cmake">
+<platform name="android">
 <input name="sources/android/"/>
 </platform>
 
-<platform name="MacOSX,mac-cmake">
+<platform name="MacOSX">
 <input name="sources/android/"/>
 </platform>
 
@@ -115,82 +115,9 @@ C_OPTIONS += -DOSX32=1 -DHAVE_CONFIG_H
 <wrap name="speex-1.2rc1/libspeex/window.c"/>
 </platform>
 
-<platform name="mac-cmake">
-<common>
-add_definitions(-DOSX32=1)
-add_definitions(-DHAVE_CONFIG_H)
-</common>
-<wrap name="speex-1.2rc1/libspeex/kinoma_speex.c"/>
-<wrap name="speex-1.2rc1/libspeex/bits.c"/>
-<wrap name="speex-1.2rc1/libspeex/cb_search.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_10_16_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_10_32_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_20_32_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_5_256_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_5_64_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_8_128_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/filters.c"/>
-<wrap name="speex-1.2rc1/libspeex/gain_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/gain_table_lbr.c"/>
-<wrap name="speex-1.2rc1/libspeex/hexc_10_32_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/hexc_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/high_lsp_tables.c"/>
-<wrap name="speex-1.2rc1/libspeex/lpc.c"/>
-<wrap name="speex-1.2rc1/libspeex/lsp.c"/>
-<wrap name="speex-1.2rc1/libspeex/lsp_tables_nb.c"/>
-<wrap name="speex-1.2rc1/libspeex/ltp.c"/>
-<wrap name="speex-1.2rc1/libspeex/modes.c"/>
-<wrap name="speex-1.2rc1/libspeex/modes_wb.c"/>
-<wrap name="speex-1.2rc1/libspeex/nb_celp.c"/>
-<wrap name="speex-1.2rc1/libspeex/quant_lsp.c"/>
-<wrap name="speex-1.2rc1/libspeex/sb_celp.c"/>
-<wrap name="speex-1.2rc1/libspeex/speex.c"/>
-<wrap name="speex-1.2rc1/libspeex/speex_callbacks.c"/>
-<wrap name="speex-1.2rc1/libspeex/speex_header.c"/>
-<wrap name="speex-1.2rc1/libspeex/vbr.c"/>
-<wrap name="speex-1.2rc1/libspeex/vq.c"/>
-<wrap name="speex-1.2rc1/libspeex/window.c"/>
-</platform>
-
 <platform name="iPhone">
 <common>
 C_OPTIONS += -DOSX32=1 -DHAVE_CONFIG_H	            
-</common>
-<wrap name="speex-1.2rc1/libspeex/kinoma_speex.c"/>
-<wrap name="speex-1.2rc1/libspeex/bits.c"/>
-<wrap name="speex-1.2rc1/libspeex/cb_search.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_10_16_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_10_32_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_20_32_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_5_256_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_5_64_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/exc_8_128_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/filters.c"/>
-<wrap name="speex-1.2rc1/libspeex/gain_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/gain_table_lbr.c"/>
-<wrap name="speex-1.2rc1/libspeex/hexc_10_32_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/hexc_table.c"/>
-<wrap name="speex-1.2rc1/libspeex/high_lsp_tables.c"/>
-<wrap name="speex-1.2rc1/libspeex/lpc.c"/>
-<wrap name="speex-1.2rc1/libspeex/lsp.c"/>
-<wrap name="speex-1.2rc1/libspeex/lsp_tables_nb.c"/>
-<wrap name="speex-1.2rc1/libspeex/ltp.c"/>
-<wrap name="speex-1.2rc1/libspeex/modes.c"/>
-<wrap name="speex-1.2rc1/libspeex/modes_wb.c"/>
-<wrap name="speex-1.2rc1/libspeex/nb_celp.c"/>
-<wrap name="speex-1.2rc1/libspeex/quant_lsp.c"/>
-<wrap name="speex-1.2rc1/libspeex/sb_celp.c"/>
-<wrap name="speex-1.2rc1/libspeex/speex.c"/>
-<wrap name="speex-1.2rc1/libspeex/speex_callbacks.c"/>
-<wrap name="speex-1.2rc1/libspeex/speex_header.c"/>
-<wrap name="speex-1.2rc1/libspeex/vbr.c"/>
-<wrap name="speex-1.2rc1/libspeex/vq.c"/>
-<wrap name="speex-1.2rc1/libspeex/window.c"/>
-</platform>
-
-<platform name="android-cmake">
-<common>
-add_definitions(-DHAVE_CONFIG_H)
 </common>
 <wrap name="speex-1.2rc1/libspeex/kinoma_speex.c"/>
 <wrap name="speex-1.2rc1/libspeex/bits.c"/>

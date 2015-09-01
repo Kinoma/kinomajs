@@ -267,9 +267,9 @@ void fxScopeLookup(txScope* self, txAccessNode* access, txBoolean closureFlag)
 					if (closureFlag) {
 						// define closure so it is new at each iteration
 						txAccessNode* accessNode = fxAccessNodeNew(self->parser, XS_TOKEN_ACCESS, access->symbol);
+						txDefineNode* defineNode = fxDefineNodeNew(self->parser, XS_TOKEN_DEFINE, access->symbol);
 						accessNode->line = declaration->line;
 						accessNode->declaration = declaration;
-						txDefineNode* defineNode = fxDefineNodeNew(self->parser, XS_TOKEN_DEFINE, access->symbol);
 						defineNode->flags |= mxDeclareNodeClosureFlag;
 						defineNode->line = declaration->line;
 						defineNode->declaration = (txDeclareNode*)defineNode;
@@ -561,8 +561,8 @@ void fxImportNodeHoist(void* it, void* param)
 	txImportNode* self = it;
 	txHoister* hoister = param;
 	if (self->specifiers) {
-		txSpecifierNode *specifier, **address = (txSpecifierNode**)&self->specifiers->nodes[0];
-		while ((specifier = *address)) {
+		txSpecifierNode* specifier = (txSpecifierNode*)self->specifiers->first;
+		while (specifier) {
 			txSymbol* symbol = specifier->asSymbol ? specifier->asSymbol : specifier->symbol;
 			txDeclareNode* node = fxScopeGetDeclareNode(hoister->scope, symbol);
 			if (node)
@@ -575,7 +575,7 @@ void fxImportNodeHoist(void* it, void* param)
 				node->importSpecifier = specifier;
 				fxScopeAddDeclareNode(hoister->scope, node);
 			}
-			address++;
+			specifier = (txSpecifierNode*)specifier->next;
 		}
 	}
 }
@@ -610,7 +610,7 @@ void fxStatementNodeHoist(void* it, void* param)
 				txAccessNode* access = (txAccessNode*)call->reference;
 				if (access->symbol == parser->includeSymbol) {
 					txParamsNode* params = (txParamsNode*)call->params;
-					txNode *item = params->items->nodes[0];
+					txNode* item = params->items->first;
 					if (item && (item->description->token == XS_TOKEN_STRING)) {
 						txNode* root = parser->root;
 						fxIncludeScript(parser, ((txStringNode*)item)->value);
@@ -747,7 +747,7 @@ void fxCatchNodeBind(void* it, void* param)
 void fxClassNodeBind(void* it, void* param) 
 {
 	txClassNode* self = it;
-	txNode *item, **address = &self->items->nodes[0];
+	txNode* item = self->items->first;
 	fxBinderPushVariables(param, 2);
 	if (self->heritage)
 		fxNodeDispatchBind(self->heritage, param);
@@ -756,7 +756,7 @@ void fxClassNodeBind(void* it, void* param)
 	if (self->symbol)
 		((txFunctionNode*)(self->constructor))->symbol = self->symbol;
 	fxNodeDispatchBind(self->constructor, param);
-	while ((item = *address)) {
+	while (item) {
 		txNode* value;
 		txSymbol* symbol;
 		if (item->description->token == XS_TOKEN_PROPERTY) {
@@ -774,7 +774,7 @@ void fxClassNodeBind(void* it, void* param)
 			node->flags |= item->flags & (mxGetterFlag | mxSetterFlag | mxStaticFlag);
 		}
 		fxNodeDispatchBind(item, param);
-		address++;
+		item = item->next;
 	}
 	if (self->scope) 
 		fxScopeBound(self->scope, param);
@@ -817,8 +817,8 @@ void fxExportNodeBind(void* it, void* param)
 	if (self->from)
 		return;
 	if (self->specifiers) {
-		txSpecifierNode *specifier, **address = (txSpecifierNode**)&self->specifiers->nodes[0];
-		while ((specifier = *address)) {
+		txSpecifierNode* specifier = (txSpecifierNode*)self->specifiers->first;
+		while (specifier) {
 			txAccessNode* node = fxAccessNodeNew(binder->parser, XS_TOKEN_ACCESS, specifier->symbol);
 			fxScopeLookup(binder->scope, node, 0);
 			if (node->declaration) {
@@ -829,7 +829,7 @@ void fxExportNodeBind(void* it, void* param)
 			}
 			else
 				fxReportLineError(binder->parser, specifier->line, "unknown variable %s", specifier->symbol->string);
-			address++;
+			specifier = (txSpecifierNode*)specifier->next;
 		}
 	}
 }
@@ -950,9 +950,9 @@ void fxModuleNodeBind(void* it, void* param)
 void fxObjectNodeBind(void* it, void* param) 
 {
 	txObjectNode* self = it;
-	txNode *item, **address = &self->items->nodes[0];
+	txNode* item = self->items->first;
 	fxBinderPushVariables(param, 1);
-	while ((item = *address)) {
+	while (item) {
 		txNode* value;
 		txSymbol* symbol;
 		if (item->description->token == XS_TOKEN_PROPERTY) {
@@ -975,7 +975,7 @@ void fxObjectNodeBind(void* it, void* param)
 				node->symbol = symbol;
 		}
 		fxNodeDispatchBind(item, param);
-		address++;
+		item = item->next;
 	}
 	fxBinderPopVariables(param, 1);
 }
@@ -999,18 +999,18 @@ void fxParamsBindingNodeBind(void* it, void* param)
 	txScope* functionScope = binder->scope;
 	txFunctionNode* functionNode = (txFunctionNode*)(functionScope->node);
 	if (functionNode->flags & mxGetterFlag) {
-		txInteger count = fxNodeListCount(self->items);
+		txInteger count = self->items->length;
 		if (count != 0)
 			fxReportLineError(binder->parser, self->line, "invalid getter arguments");
 	}
 	else if (functionNode->flags & mxSetterFlag) {
-		txInteger count = fxNodeListCount(self->items);
-		if ((count != 1) || (self->items->nodes[0]->description->token == XS_TOKEN_REST_BINDING))
+		txInteger count = self->items->length;
+		if ((count != 1) || (self->items->first->description->token == XS_TOKEN_REST_BINDING))
 			fxReportLineError(binder->parser, self->line, "invalid setter arguments");
 	}
 	if (functionNode->flags & mxArgumentsFlag) {
 		txScope* bodyScope = ((txBodyNode*)(functionNode->body))->scope;
-		txNode *item, **address;
+		txNode* item;
 		txDeclareNode* declaration = fxScopeGetDeclareNode(functionScope, binder->parser->argumentsSymbol);
 		if (!declaration)
 			declaration = fxScopeGetDeclareNode(bodyScope, binder->parser->argumentsSymbol);
@@ -1027,18 +1027,18 @@ void fxParamsBindingNodeBind(void* it, void* param)
 		self->declaration = declaration;
 		if (functionNode->flags & mxStrictFlag)
 			goto bail;
-		address = &self->items->nodes[0];
-		while ((item = *address)) {
+		item = self->items->first;
+		while (item) {
 			if (item->description->token != XS_TOKEN_ARG)
 				goto bail;
 			if (((txBindingNode*)item)->initializer)
 				goto bail;
-			address++;
+			item = item->next;
 		}
-		address = &self->items->nodes[0];
-		while ((item = *address)) {
+		item = self->items->first;
+		while (item) {
 			item->flags |= mxDeclareNodeClosureFlag;
-			address++;
+			item = item->next;
 		}
 		self->mapped = 1;
 	}
