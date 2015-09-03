@@ -527,7 +527,7 @@ static void InitCanvasState(FskCanvas2dContextState *st, SInt32 width, SInt32 he
     st->textAlign					= kFskCanvas2dTextAlignDefault;
     st->textBaseline				= kFskCanvas2dTextBaselineDefault;
 	st->globalCompositeOperation	= kFskCompositePreSourceOver;
-	st->fillRule					= kFskCanvas2dFillRuleWindingNumber;
+	st->fillRule					= kFskCanvas2dFillRuleNonZero;
 	st->quality						= 1;
 	st->lineWidth					= kFskFixedOne;
 	st->miterLimit					= FskRoundFloatToFixed(10);
@@ -1727,6 +1727,10 @@ FskCanvasNew(UInt32 width, UInt32 height, FskBitmapFormatEnum pixelFormat, FskCa
 
 	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(FskCanvasRecord), &cnv));
 	if (width > 0 && height > 0) {
+		#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+			if (pixelFormat == kFskBitmapFormatGLRGBA)
+				BAIL_IF_ERR(err = FskGLCanvasInit());								/* This returns immediately if GLCanvas is already inited. */
+		#endif /* FSKBITMAP_OPENGL */
 		BAIL_IF_ERR(err = FskBitmapNew(width, height, pixelFormat, &cnv->bm));
 		BAIL_IF_ERR(err = FskBitmapSetHasAlpha(cnv->bm, true));					/* Alpha things don't happen unless this is set */
 		BAIL_IF_ERR(err = FskBitmapSetAlphaIsPremultiplied(cnv->bm, true));		/* Alpha should be premultiplied */
@@ -3408,6 +3412,16 @@ FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fi
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_FALSE(fskUniformChunkyPixelPacking == FskBitmapFormatPixelPacking(bm->pixelFormat), err, kFskErrUnsupportedPixelType);
+	if (!path) path = ctx->path;
+	st = FskCanvasGetStateFromContext(ctx);
+
+	#define OPTIMIZE_RECTANGLE_CLIPPING
+	#ifdef OPTIMIZE_RECTANGLE_CLIPPING
+		if (st->clipBM == NULL && FskPathIsAxisAlignedIntegralRectangle(FskGrowablePathGetConstPath(path), &st->fixedTransform, &pathRect)) {
+			FskRectangleIntersect(&st->clipRect, &pathRect, &st->clipRect);
+			return kFskErrNone;
+		}
+	#endif /* OPTIMIZE_RECTANGLE_CLIPPING */
 
 	if (ctx->canvas->tmp == NULL) {
 		BAIL_IF_ERR(err = FskBitmapNew(bm->bounds.width, bm->bounds.height, bm->pixelFormat, &ctx->canvas->tmp));
@@ -3416,7 +3430,6 @@ FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fi
 	}
 	(void)FskBitmapWriteBegin(ctx->canvas->tmp, NULL, NULL, NULL);
 
-	st = FskCanvasGetStateFromContext(ctx);
 	if (st->clipBM == NULL) {	/* New clip region */
 		BAIL_IF_ERR(err = FskBitmapNew(bm->bounds.width, bm->bounds.height, kFskBitmapFormat8G, &st->clipBM));
 		ClearBufferToValue(st->clipBM, 255U);
@@ -3429,7 +3442,6 @@ FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fi
 	tmpClipBM.rowBytes = (tmpClipBM.rowBytes < 0) ? -tmpClipBM.bounds.width : tmpClipBM.bounds.width;
 
 	/* Draw path */
-	if (!path) path = ctx->path;
 	color.colorSource.type = kFskColorSourceTypeConstant;
 	color.colorSource.dashCycles = 0;
 	color.colorSource.dash = NULL;
@@ -3948,6 +3960,11 @@ FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, d
 bail:
 	return err;
 }
+
+
+/********************************************************************************
+ * FskCanvas2dSetOpenGLSourceAccelerated
+ ********************************************************************************/
 
 FskErr
 FskCanvas2dSetOpenGLSourceAccelerated(FskCanvas cnv, Boolean accelerated)

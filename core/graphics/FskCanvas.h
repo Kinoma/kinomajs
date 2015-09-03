@@ -82,8 +82,8 @@ enum {
  *	which required only the non-zero or winding-number fill.
  */
 enum {
-	kFskCanvas2dFillRuleWindingNumber	= 0,	/**< Winding number or non-zero fill (Canvas 2d default). */
-	kFskCanvas2dFillRuleParity			= 1		/**< Parity or even-odd fill. */
+	kFskCanvas2dFillRuleNonZero			= 0,	/**< Winding number or non-zero fill (Canvas 2d default). */
+	kFskCanvas2dFillRuleEvenOdd			= 1		/**< Parity or even-odd fill. */
 };
 
 
@@ -881,28 +881,12 @@ FskAPI(void)	FskCanvas2dPathDispose(FskCanvas2dPath path);
 FskAPI(FskErr)	FskCanvas2dPathBegin(FskCanvas2dContext ctx, FskCanvas2dPath path);
 
 
-/** Reset the current path.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\return		kFskErrNone	If the current path was successfully reset and initialized to the null path.
- */
-FskErr	FskCanvas2dBeginPath(FskCanvas2dContext ctx);
-#define FskCanvas2dBeginPath(ctx)	FskCanvas2dPathBegin(ctx, NULL)
-
-
 /** Close the given path to the most recent MoveTo or equivalent.
  *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
  *	\param[in]	path		The path. NULL implies the path in the context.
  *	\return		kFskErrNone	If the current path was successfully closed.
  */
 FskAPI(FskErr)	FskCanvas2dPathClose(FskCanvas2dContext ctx, FskCanvas2dPath path);
-
-
-/** Close the current path to the most recent MoveTo or equivalent.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\return		kFskErrNone	If the current path was successfully closed.
- */
-FskErr	FskCanvas2dClosePath(FskCanvas2dContext ctx);
-#define FskCanvas2dClosePath(ctx)	FskCanvas2dPathClose(ctx, NULL)
 
 
 /** Set the current point in the given path.
@@ -916,17 +900,6 @@ FskErr	FskCanvas2dClosePath(FskCanvas2dContext ctx);
 FskAPI(FskErr)	FskCanvas2dPathMoveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y);
 
 
-/** Set the current point in the current path.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	x			The desired X-coordinate of the current point.
- *	\param[in]	y			The desired Y-coordinate of the current point.
- *	\return		kFskErrNone	If the current point was successfully set.
- *	\note		The path is not implicitly closed.
- */
-FskErr	FskCanvas2dMoveTo(FskCanvas2dContext ctx, double x, double y);
-#define FskCanvas2dMoveTo(ctx, x, y)	FskCanvas2dPathMoveTo(ctx, NULL, x, y)
-
-
 /** Append a linear segment to the given path.
  *	The segment extends from the current point to (x, y).
  *	Afterward, the current point is updated to (x, y).
@@ -937,18 +910,6 @@ FskErr	FskCanvas2dMoveTo(FskCanvas2dContext ctx, double x, double y);
  *	\return		kFskErrNone	If the linear segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathLineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y);
-
-
-/** Append a linear segment to the current path.
- *	The segment extends from the current point to (x, y).
- *	Afterward, the current point is updated to (x, y).
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	x			The X-coordinate of the far end of the new linear segment.
- *	\param[in]	y			The Y-coordinate of the far end of the new linear segment.
- *	\return		kFskErrNone	If the linear segment was successfully appended.
- */
-FskErr	FskCanvas2dLineTo(FskCanvas2dContext ctx, double x, double y);
-#define	FskCanvas2dLineTo(ctx, x, y)	FskCanvas2dPathLineTo(ctx, NULL, x, y)
 
 
 /** Append a quadratic Bezier segment to the given path.
@@ -967,22 +928,6 @@ FskErr	FskCanvas2dLineTo(FskCanvas2dContext ctx, double x, double y);
 FskAPI(FskErr)	FskCanvas2dPathQuadraticCurveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double cpx, double cpy, double x, double y);
 
 
-/** Append a quadratic Bezier segment to the current path.
- *	The segment extends from the current point to (x, y),
- *	and its shape is controlled by the Bezier control point (cpx, cpy).
- *	Afterward, the current point is updated to (x, y).
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	cpx			The X-coordinate of the quadratic Bezier control point.
- *	\param[in]	cpy			The Y-coordinate of the quadratic Bezier control point.
- *	\param[in]	y			The Y-coordinate of the far end of the new quadratic Bezier segment.
- *	\param[in]	x			The X-coordinate of the far end of the new quadratic Bezier segment.
- *	\param[in]	y			The Y-coordinate of the far end of the new quadratic Bezier segment.
- *	\return		kFskErrNone	If the quadratic segment was successfully appended.
- */
-FskErr	FskCanvas2dQuadraticCurveTo(FskCanvas2dContext ctx, double cpx, double cpy, double x, double y);
-#define	FskCanvas2dQuadraticCurveTo(ctx, cpx, cpy, x, y)	FskCanvas2dPathQuadraticCurveTo(ctx, NULL, cpx, cpy, x, y)
-
-
 /** Append a cubic Bezier segment to the given path.
  *	The segment extends from the current point to (x, y).
  *	Afterward, the current point is updated to (x, y).
@@ -997,22 +942,6 @@ FskErr	FskCanvas2dQuadraticCurveTo(FskCanvas2dContext ctx, double cpx, double cp
  *	\return		kFskErrNone	If the cubic segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathCubicCurveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double cp1x, double cp1y, double cp2x, double cp2y, double x, double y);
-
-
-/** Append a cubic Bezier segment to the current path.
- *	The segment extends from the current point to (x, y).
- *	Afterward, the current point is updated to (x, y).
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	cp1x		The X-coordinate of the first  cubic Bezier control point.
- *	\param[in]	cp1y		The Y-coordinate of the first  cubic Bezier control point.
- *	\param[in]	cp2x		The X-coordinate of the second cubic Bezier control point.
- *	\param[in]	cp2y		The Y-coordinate of the second cubic Bezier control point.
- *	\param[in]	x			The X-coordinate of the far end of the new cubic Bezier segment.
- *	\param[in]	y			The Y-coordinate of the far end of the new cubic Bezier segment.
- *	\return		kFskErrNone	If the cubic segment was successfully appended.
- */
-FskErr	FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, double cp1y, double cp2x, double cp2y, double x, double y);
-#define	FskCanvas2dCubicCurveTo(ctx, cp1x, cp1y, cp2x, cp2y, x, y)	FskCanvas2dPathCubicCurveTo(ctx, NULL, cp1x, cp1y, cp2x, cp2y, x, y)
 
 
 /** Append a cubic Bezier segment to the given path.
@@ -1031,23 +960,6 @@ FskErr	FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, double cp1y,
  *	\return		kFskErrNone	If the cubic segment was successfully appended.
  */
 #define	FskCanvas2dPathBezierCurveTo(ctx, path, cp1x, cp1y, cp2x, cp2y, x, y) FskCanvas2dPathCubicCurveTo(ctx, path, cp1x, cp1y, cp2x, cp2y, x, y)
-
-
-/** Append a cubic Bezier segment to the current path.
- *	This is an alias for FskCanvas2dCubicCurveTo(), because bezierCurveTo is mentioned in the Canvas specification;
- *	however, it is ambiguous because we have both quadratic and cubic (and linear) Bezier segments.
- *	The segment extends from the current point to (x, y).
- *	Afterward, the current point is updated to (x, y).
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	cp1x		The X-coordinate of the first  cubic Bezier control point.
- *	\param[in]	cp1y		The Y-coordinate of the first  cubic Bezier control point.
- *	\param[in]	cp2x		The X-coordinate of the second cubic Bezier control point.
- *	\param[in]	cp2y		The Y-coordinate of the second cubic Bezier control point.
- *	\param[in]	x			The X-coordinate of the far end of the new cubic Bezier segment.
- *	\param[in]	y			The Y-coordinate of the far end of the new cubic Bezier segment.
- *	\return		kFskErrNone	If the cubic segment was successfully appended.
- */
-#define	FskCanvas2dBezierCurveTo(ctx, cp1x, cp1y, cp2x, cp2y, x, y) FskCanvas2dCubicCurveTo(ctx, cp1x, cp1y, cp2x, cp2y, x, y)
 
 
 /** Append a circular arc segment to the given path.
@@ -1081,37 +993,6 @@ FskErr	FskCanvas2dCubicCurveTo(FskCanvas2dContext ctx, double cp1x, double cp1y,
 FskAPI(FskErr)	FskCanvas2dPathArcTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x1, double y1, double x2, double y2, double radius);
 
 
-/** Append a circular arc segment to the current path.
- *	Guidelines are constructed from the previous point (call it p0), p1=(x1,y1) and p2=(x2,y2).
- *	A circle with the specified radius is placed tangent to the two guidelines,
- *	and the intersections of the circle with the guidelines shall be called the start point and end point.
- *	First, a linear segment is drawn from p0 to the start point.
- *	Then, an arc wth the specified radius is drawn from the start point to the end point.
- *	The current point is then updated to the end point.\n
- *	Note that the purpose of p2 is only to specify a guideline of tangency,
- *	and that no segment is drawn between the end point and p2.
- *	Once can consider this a fillet at (x1, y1).
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	x1			The X-coordinate of the "corner" of the arc.
- *	\param[in]	y1			The Y-coordinate of the "corner" of the arc.
- *	\param[in]	x2			Helps to specify the exit tangent X-component.
- *	\param[in]	y2			Helps to specify the exit tangent Y-component.
- *	\param[in]	radius		The radius of the arc (fillet).
- *	\return		kFskErrNone	If the circular arc segment was successfully appended.
- *	\par	Example: Rounded Rect(x0, y0, x1, y1, r)
- *	\code
- *	FskCanvas2dMoveTo(ctx, (x0+x1)*.5, y0);		// mid top edge
- *	FskCanvas2dArcTo(ctx, x1, y0, x1, y1, r);	// upper right corner
- *	FskCanvas2dArcTo(ctx, x1, y1, x0, y1, r);	// lower right corner
- *	FskCanvas2dArcTo(ctx, x0, y1, x0, y0, r);	// lower left corner
- *	FskCanvas2dArcTo(ctx, x0, y0, x1, y0, r);	// upper left corner
- *	FskCanvas2dClosePath(ctx);			// stroke back to mid top edge
- *	\endcode
- */
-FskErr	FskCanvas2dArcTo(FskCanvas2dContext ctx, double x1, double y1, double x2, double y2, double radius);
-#define	FskCanvas2dArcTo(ctx, x1, y1, x2, y2, radius)	FskCanvas2dPathArcTo(ctx, NULL, x1, y1, x2, y2, radius)
-
-
 /** Append a circular arc to the given path.
  *	If a previous subpath exists, then a straight line is first drawn
  *	from the current point to the starting point on the arc.
@@ -1129,22 +1010,6 @@ FskErr	FskCanvas2dArcTo(FskCanvas2dContext ctx, double x1, double y1, double x2,
 FskAPI(FskErr)	FskCanvas2dPathArc(FskCanvas2dContext ctx, FskCanvas2dPath path, double cx, double cy, double radius, double startAngle, double endAngle, Boolean counterClockwise);
 
 
-/** Append a circular arc to the current path.
- *	If a previous subpath exists, then a straight line is first drawn
- *	from the current point to the starting point on the arc.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	cx		The X-coordinate of the center of the arc.
- *	\param[in]	cy		The Y-coordinate of the center of the arc.
- *	\param[in]	radius	The radius of the arc.
- *	\param[in]	startAngle	The start angle of the arc.
- *	\param[in]	endAngle	The end angle of the arc.
- *	\param[in]	counterClockwise	If true,  draws the arc counterclockwise from the start angle to the end angle;
- *									if false, draws the arc        clockwise from the start angle to the end angle.
- *	\return		kFskErrNone	If the circular arc segment was successfully appended.
- */
-#define	FskCanvas2dArc(ctx, cx, cy, radius, startAngle, endAngle, counterClockwise)	FskCanvas2dPathArc(ctx, NULL, cx, cy, radius, startAngle, endAngle, counterClockwise)
-
-
 /** Append a rectangle to the given path.
  *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
  *	\param[in]	path	The path. NULL implies the path in the context.
@@ -1157,18 +1022,6 @@ FskAPI(FskErr)	FskCanvas2dPathArc(FskCanvas2dContext ctx, FskCanvas2dPath path, 
 FskAPI(FskErr)	FskCanvas2dPathRect(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y, double w, double h);
 
 
-/** Append a rectangle to the current path.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	x		The left edge of the rectangle.
- *	\param[in]	y		The top edge of the rectangle.
- *	\param[in]	w		The width of the rectangle.
- *	\param[in]	h		The height of the rectangle.
- *	\return		kFskErrNone	If the rectangle was successfully appended.
- */
-FskErr	FskCanvas2dRect(FskCanvas2dContext ctx, double x, double y, double w, double h);
-#define	FskCanvas2dRect(ctx, x, y, w, h)	FskCanvas2dPathRect(ctx, NULL, x, y, w, h)
-
-
 /** Parse a path string (as described in the SVG specification) and append it to the given path.
  *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
  *	\param[in]	path	The path. NULL implies the path in the context.
@@ -1176,15 +1029,6 @@ FskErr	FskCanvas2dRect(FskCanvas2dContext ctx, double x, double y, double w, dou
  *	\return		kFskErrNone	If the operation was completed successfully.
  */
 FskAPI(FskErr)	FskCanvas2dPathAppendPathString(FskCanvas2dContext ctx, FskCanvas2dPath path, const char *pathStr);
-
-
-/** Parse a path string (as described in the SVG specification) and append it to the current path.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	pathStr	The path string.
- *	\return		kFskErrNone	If the operation was completed successfully.
- */
-FskErr	FskCanvasAppendPathString(FskCanvas2dContext ctx, const char *pathStr);
-#define	FskCanvasAppendPathString(ctx, pathStr)	FskCanvas2dPathAppendPathString(ctx, NULL, pathStr)
 
 
 /** Append a path to the given path.
@@ -1216,27 +1060,11 @@ FskAPI(FskErr)	FskCanvas2dPathEndGlyph(FskCanvas2dContext ctx, FskCanvas2dPath p
 FskAPI(FskErr)	FskCanvas2dPathFill(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fillRule);
 
 
-/** Fill the current path with the current fill style.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\return		kFskErrNone	If the path was successfully filled.
- */
-FskErr	FskCanvas2dFill(FskCanvas2dContext ctx);
-#define	FskCanvas2dFill(ctx)	FskCanvas2dPathFill(ctx, NULL, kFskCanvas2dFillRuleWindingNumber)
-
-
 /** Stroke the given path with the current stroke style.
  *	\param[in]	ctx		The Canvas 2d context. Cannot be NULL.
  *	\return		kFskErrNone	If the path was successfully stroked.
  */
 FskAPI(FskErr)	FskCanvas2dPathStroke(FskCanvas2dContext ctx, FskConstCanvas2dPath path);
-
-
-/** Stroke the current path with the current stroke style.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\return		kFskErrNone	If the path was successfully stroked.
- */
-FskErr	FskCanvas2dStroke(FskCanvas2dContext ctx);
-#define	FskCanvas2dStroke(ctx)	FskCanvas2dPathStroke(ctx, NULL)
 
 
 /** Intersect the given clip region with the given path, and update the current clip region.
@@ -1247,14 +1075,6 @@ FskErr	FskCanvas2dStroke(FskCanvas2dContext ctx);
  *	\return		kFskErrNone	If the clip region was successfully set.
  */
 FskAPI(FskErr)	FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fillRule);
-
-
-/** Intersect the current clip region with the current path, and update the current clip region.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\return		kFskErrNone	If the clip region was successfully set.
- */
-FskErr	FskCanvas2dClip(FskCanvas2dContext ctx);
-#define	FskCanvas2dClip(ctx)	FskCanvas2dPathClip(ctx, NULL, kFskCanvas2dFillRuleWindingNumber)
 
 
 /** Reset the clip region to the largest infinite surface.
@@ -1274,17 +1094,6 @@ FskAPI(void)	FskCanvas2dClipReset(FskCanvas2dContext ctx);
  *				false otherwise.
  */
 FskAPI(Boolean)	FskCanvas2dIsPointInGivenPath(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y, SInt32 fillRule);
-
-
-/** Query as to whether the specified point is within the current path.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	x		The X-coordinate of the point in question.
- *	\param[in]	y		The Y-coordinate of the point in question.
- *	\return		True if the point is contained within the path,
- *				false otherwise.
- */
-Boolean	FskCanvas2dIsPointInPath(FskCanvas2dContext ctx, double x, double y);
-#define	FskCanvas2dIsPointInPath(ctx, x, y)	FskCanvas2dIsPointInGivenPath(ctx, NULL, x, y, kFskCanvas2dFillRuleWindingNumber)
 
 
 /** Query as to whether the specified point is within the stroke of the current path.

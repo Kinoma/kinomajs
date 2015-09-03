@@ -100,10 +100,8 @@ static FskInstrumentedTypeRecord KprPinsInstrumentation = { NULL, sizeof(FskInst
 FskErr KprPinsNew(KprPins *it)
 {
 	FskErr err = kFskErrNone;
-	KprPins self;
 	bailIfError(FskMemPtrNewClear(sizeof(KprPinsRecord), it));
-	self = *it;
-	FskInstrumentedItemNew(self, NULL, &KprPinsInstrumentation);
+	FskInstrumentedItemNew((KprPins)*it, NULL, &KprPinsInstrumentation);
 bail:
 	return err;
 }
@@ -357,7 +355,7 @@ void KprPinsInvoke(KprService service, KprMessage message)
 					FskAssociativeArray query = NULL;
 					KprMessageScriptTarget target = (KprMessageScriptTarget)message->stream;
 					char* value;
-					SInt32 id;
+					SInt32 id = 0;
 					xsVars(2);
 					{
 						xsTry {
@@ -839,9 +837,6 @@ void xs_notification_invoke(xsMachine *the)
 	}
 }
 
-
-//	PINS.repeat(50, this, function() {});
-
 void xs_PINS_repeat(xsMachine *the)
 {
 	FskErr err;
@@ -870,7 +865,7 @@ void xs_PINS_repeat(xsMachine *the)
 	}
 	FskAssociativeArrayElementSet(query, "skipFirst", "true", 0, kFskStringType);
 
-	xsVars(3);
+	xsVars(2);
 	xsVar(0) = xsArg(2);		// function
 	xsVar(1) = xsUndefined;		// parameters to function
 	xsResult = xsArg(1);		// BLL "this"

@@ -203,6 +203,9 @@ class Manifest extends CMAKE.Manifest {
 		var permissions = "";
 		for (let i = 0, c = info.permissions.length; i < c; i++)
 			permissions += '\t<uses-permission android:name="android.permission.' + info.permissions[i] + '"/>\n';
+		var versionCode = 1;
+		if (environment.ANDROID_VERSION_CODE)
+			versionCode = environment.ANDROID_VERSION_CODE;
 		this.copyNdkFile(tool, tmp, true, "/project/AndroidManifest.xml", [
 			{ "key": "#NAMESPACE#", "value": environment.NAMESPACE },
 			{ "key": "#VERSION#", "value": environment.VERSION },
@@ -214,6 +217,7 @@ class Manifest extends CMAKE.Manifest {
 			{ "key": "#MANIFEST_MODULES#", "value": "" },
 			{ "key": "#MANIFEST_PERMISSIONS#", "value": permissions },
 			{ "key": "#MANIFEST_FEATURES#", "value": features },
+			{ "key": "#ANDROID_VERSION_CODE#", "value": versionCode },
 		]);
 
 		this.copyNdkFile(tool, tmp, true, "/project/build.xml", [{ "key": "#KPR_APPLICATION#", "value": info.name }]);

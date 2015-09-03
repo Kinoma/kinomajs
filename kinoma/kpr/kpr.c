@@ -549,8 +549,10 @@ void KPR_require(xsMachine* the)
 			}
 		}
 		if (!xsTest(xsResult)) {
-			if (!xsTest(xsVar(FUNCTION)))
+			if (!xsTest(xsVar(FUNCTION))) {
+				xsToStringBuffer(xsArg(0), name, sizeof(name) - 4);
                 xsThrowDiagnosticIfFskErr(kFskErrExtensionNotFound, "require failed to load module '%s'", name);
+			}
 			xsVar(CONTEXT) = xsNewInstanceOf(xsObjectPrototype);
 			xsVar(REQUIRE) = xsNewHostFunction(KPR_require, 1);
 			xsSet(xsVar(REQUIRE), xsID("uri"), xsString(url));
