@@ -293,8 +293,8 @@ static const char* SpreadMethodNameFromCode(UInt32 spreadMethod) {
 }
 static const char* FillRuleNameFromCode(SInt32 fillRule) {
 	switch (fillRule) {
-		case kFskCanvas2dFillRuleWindingNumber:	return "nonzero";
-		case kFskCanvas2dFillRuleParity:		return "even-odd";
+		case kFskCanvas2dFillRuleNonZero:		return "nonzero";
+		case kFskCanvas2dFillRuleEvenOdd:		return "even-odd";
 		default:								return "UNKNOWN";
 	}
 }
