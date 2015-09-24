@@ -47,7 +47,7 @@ typedef txCallback (*txCallbackAt)(txID index);
 typedef void (*txDestructor)(void*);
 typedef void (*txMarker)(void*, void (*)(txMachine*, txSlot*));
 typedef void (*txStep)(txMachine*, txSlot*, txInteger, txSlot*);
-typedef void (*txTypeCallback)(txMachine*, txSlot*, txInteger, txSlot*);
+typedef void (*txTypeCallback)(txMachine*, txSlot*, txInteger, txSlot*, int);
 typedef int (*txTypeCompare)(const void*, const void*);
 
 typedef struct {

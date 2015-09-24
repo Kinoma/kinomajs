@@ -40,6 +40,7 @@ struct KprPinsListenerStruct {
 	xsSlot pins;
 	char* referrer;
 	xsMachine* the;
+	int useCount;
 	FskInstrumentedItemDeclaration
 };
 

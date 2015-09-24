@@ -88,8 +88,8 @@ exports.configure = function(configuration, mux, callback)
 						if (configuration)
 							container.invoke(new MessageWithObject("pins:configure", configuration), Message.JSON);
 						else {
-						exports.forget(container);
-						callback.call(null, true);
+							exports.forget(container);
+							callback.call(null, true);
 						}
 						break;
 					}
@@ -190,22 +190,40 @@ exports.when = function(target, path, callback)
 	return this.repeat("/" + target + "/_WHEN_", path, callback);
 }
 
-
 exports.close = function() {
 	var container = new Container({behavior: Behavior({})});
 	container.invoke(new MessageWithObject("pins:close"));
 }
 
+
 //@@ still not dealing with connection settings.... how will this work for PubNub is the big question...
-exports.connect = function(connectionDescription)
+/*exports.connect = function(connectionDescription)
 {
 	if (typeof connectionDescription == "string")
 		connectionDescription = {connections: [connectionDescription]};
 
-//	var url = connectionDescription.connections[connectionDescription.connections.length - 1];
-	var url = connectionDescription.connections[0];
+	//	var url = connectionDescription.connections[connectionDescription.connections.length - 1];
+	var url = JSON.stringify(connectionDescription.connections[0]);
 	var protocol = url.substring(0, url.indexOf(":"));		//@@ choose preferred protocol!
 	return require("pins_connect_" + protocol).instantiate(exports, {url: url}, connectionDescription);		//@@ ugly hack
+}*/
+exports.connect = function(connectionDescription, settings)
+{
+	if (typeof connectionDescription == "string") {
+		if (settings) {
+			var protocol = connectionDescription;
+		} else {
+			var url = connectionDescription;
+			settings = {url: url};
+			var protocol = url.substring(0, url.indexOf(":"));	
+		}
+	} else {
+		var url = connectionDescription.connections[0];
+		var protocol = url.substring(0, url.indexOf(":"));		//@@ choose preferred protocol!	
+		settings = connectionDescription;
+		settings.url = url;
+	}
+	return require("pins_connect_" + protocol).instantiate(exports, settings);
 }
 
 var shared;
@@ -217,7 +235,7 @@ exports.share = function(shares, advertise)
 	if (!("uuid" in advertise)) advertise.uuid = application.uuid;
 
 	if (!(shares instanceof Array))
-		shares = [shares];
+		shares = shares ? [shares] : [];
 
 	if (shared && shared.length) {
 		shared = [];
@@ -236,7 +254,7 @@ exports.share = function(shares, advertise)
 	}
 
 	if (("zeroconf" in advertise) && advertise.zeroconf) {
-		Pins.invoke("configuration", function(configuration) {
+		exports.invoke("configuration", function(configuration) {
 			var bll = [];
 			for (var c in configuration) {
 				if (-1 == bll.indexOf(configuration[c].require))
@@ -283,6 +301,11 @@ exports.toMessage = function(path, object) {
 	var message;
 
 	switch (path) {
+		case "metadata":
+			message = new Message("pins:metadata");
+			message.setRequestHeader("referrer", "xkpr://" + (application ? application.id : shell.id));
+			break;
+
 		case "getPinMux":
 			message = new Message("pins:/pinmux/get");
 			message.setRequestHeader("referrer", "xkpr://shell");
@@ -321,6 +344,7 @@ zeroconfBrowse = {
 			if (undefined === i) {
 				  connectionDescription = {
 					name: service.name,
+					ip: service.ip,
 					id: service.txt.uuid,
 					bll: service.txt.bll.split(","),
 					connections: []
@@ -364,6 +388,8 @@ function configurationToMux(config)
 	};
 
 	for (var bll in config) {
+		if (!("pins" in config[bll]))
+			continue;
 		var pins = config[bll].pins;
 		for (var pin in pins) {
 			pin = pins[pin];

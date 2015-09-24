@@ -114,31 +114,31 @@ int mp3dec_SetAllocTable(MP3Dec_com *state)
     int           sblimit;
 
     if (header->id == 0) {
-        alloc_table = mp3dec_alloc_table5;
-        nbal_alloc_table = mp3dec_nbal_alloc_table5;
+        alloc_table = (unsigned char *)mp3dec_alloc_table5;
+        nbal_alloc_table = (int *)mp3dec_nbal_alloc_table5;
         sblimit = mp3dec_sblimit_table[4];
     } else if (bit_rate <= 48) {
         if (freq == 32000) {
-            alloc_table = mp3dec_alloc_table4;
-            nbal_alloc_table = mp3dec_nbal_alloc_table4;
+            alloc_table = (unsigned char *)mp3dec_alloc_table4;
+            nbal_alloc_table = (int *)mp3dec_nbal_alloc_table4;
             sblimit = mp3dec_sblimit_table[3];
         } else {
-            alloc_table = mp3dec_alloc_table3;
-            nbal_alloc_table = mp3dec_nbal_alloc_table3;
+            alloc_table = (unsigned char *)mp3dec_alloc_table3;
+            nbal_alloc_table = (int *)mp3dec_nbal_alloc_table3;
             sblimit = mp3dec_sblimit_table[2];
         }
     } else if (bit_rate <= 80) {
-        alloc_table = mp3dec_alloc_table1;
-        nbal_alloc_table = mp3dec_nbal_alloc_table1;
+        alloc_table = (unsigned char  *)mp3dec_alloc_table1;
+        nbal_alloc_table = (int *)mp3dec_nbal_alloc_table1;
         sblimit = mp3dec_sblimit_table[0];
     } else if (bit_rate <= 192) {
         if (freq == 48000) {
-            alloc_table = mp3dec_alloc_table1;
-            nbal_alloc_table = mp3dec_nbal_alloc_table1;
+            alloc_table = (unsigned char *)mp3dec_alloc_table1;
+            nbal_alloc_table = (int *)mp3dec_nbal_alloc_table1;
             sblimit = mp3dec_sblimit_table[0];
         } else {
-            alloc_table = mp3dec_alloc_table2;
-            nbal_alloc_table = mp3dec_nbal_alloc_table2;
+            alloc_table = (unsigned char *)mp3dec_alloc_table2;
+            nbal_alloc_table = (int *)mp3dec_nbal_alloc_table2;
             sblimit = mp3dec_sblimit_table[1];
         }
     } else {

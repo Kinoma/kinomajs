@@ -22,7 +22,7 @@ and free format
 Fs = 44.1 kHz Bit rates per channel = 56, 64, 80 kbits/s
 Fs = 32 kHz Bit rates per channel = 56, 64, 80 kbits/s
 */
-unsigned char mp3dec_alloc_table1[] =  {
+const unsigned char mp3dec_alloc_table1[] =  {
     0,  0,  2,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
     0,  0,  2,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
     0,  0,  2,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
@@ -52,7 +52,7 @@ unsigned char mp3dec_alloc_table1[] =  {
     0,  0,  1, 16,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
 };
 
-int mp3dec_nbal_alloc_table1[32] =  {
+const int mp3dec_nbal_alloc_table1[32] =  {
     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3,
     3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 0, 0, 0, 0, 0
 };
@@ -67,7 +67,7 @@ Fs = 32 kHz Bitrates per channel = 96, 112, 128, 160, 192 kbits/s
 and free format
 */
 
-unsigned char mp3dec_alloc_table2[] =  {
+const unsigned char mp3dec_alloc_table2[] =  {
     0,  0,  2,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
     0,  0,  2,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
     0,  0,  2,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16,
@@ -100,7 +100,7 @@ unsigned char mp3dec_alloc_table2[] =  {
     0,  0,  1, 16,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
 };
 
-int mp3dec_nbal_alloc_table2[32] =  {
+const int mp3dec_nbal_alloc_table2[32] =  {
     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3,
     3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 0, 0
 };
@@ -113,7 +113,7 @@ Fs = 48 kHz Bitrates per channel = 32, 48 kbits/s
 Fs = 44.1 kHz Bitrates per channel = 32, 48 kbits/s
 Fs = 32 kHz -------- not relevant --------
 */
-unsigned char mp3dec_alloc_table3[] =  {
+const unsigned char mp3dec_alloc_table3[] =  {
     0,  0,  1,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
     0,  0,  1,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
     0,  0,  1,  3,  4,  5,  6,  7,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -124,7 +124,7 @@ unsigned char mp3dec_alloc_table3[] =  {
     0,  0,  1,  3,  4,  5,  6,  7,  0,  0,  0,  0,  0,  0,  0,  0
 };
 
-int mp3dec_nbal_alloc_table3[32] =  {
+const int mp3dec_nbal_alloc_table3[32] =  {
     4, 4, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
@@ -139,7 +139,7 @@ Fs = 44.1kHz  ------- not relevant -------
 Fs = 32 kHz  Bitrates per channel = 32, 48 kbits/s
 */
 
-unsigned char mp3dec_alloc_table4[] =  {
+const unsigned char mp3dec_alloc_table4[] =  {
     0,  0,  1,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
     0,  0,  1,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15,
     0,  0,  1,  3,  4,  5,  6,  7,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -154,7 +154,7 @@ unsigned char mp3dec_alloc_table4[] =  {
     0,  0,  1,  3,  4,  5,  6,  7,  0,  0,  0,  0,  0,  0,  0,  0
 };
 
-int mp3dec_nbal_alloc_table4[32] =  {
+const int mp3dec_nbal_alloc_table4[32] =  {
     4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
@@ -165,7 +165,7 @@ Table B-1 (MPEG 2). Possible quantization per subband
 Fs = 16, 22.05, 24 kHz
 */
 
-unsigned char mp3dec_alloc_table5[] =  {
+const unsigned char mp3dec_alloc_table5[] =  {
     0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
     0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
     0,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14,
@@ -198,24 +198,24 @@ unsigned char mp3dec_alloc_table5[] =  {
     0,  0,  1,  3,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
 };
 
-int mp3dec_nbal_alloc_table5[32] =  {
+const int mp3dec_nbal_alloc_table5[32] =  {
     4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2,
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0
 };
 
-int mp3dec_cls_quant[17] = {
+const int mp3dec_cls_quant[17] = {
     -5, -7, 3, -10, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 };
 
-int mp3dec_numbits[17] = {
+const int mp3dec_numbits[17] = {
     2, 3, 3, 4, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 };
 
-int mp3dec_sblimit_table[] = {
+const int mp3dec_sblimit_table[] = {
     27, 30, 8, 12, 30
 };
 
-static short mp3dec_degroup_9[] = {
+const static short mp3dec_degroup_9[] = {
     0x0000, 0x0100, 0x0200, 0x0300, 0x0400, 0x0500, 0x0600, 0x0700,
     0x0800, 0x0010, 0x0110, 0x0210, 0x0310, 0x0410, 0x0510, 0x0610,
     0x0710, 0x0810, 0x0020, 0x0120, 0x0220, 0x0320, 0x0420, 0x0520,
@@ -346,7 +346,7 @@ static short mp3dec_degroup_9[] = {
     0x0843, 0x0053, 0x0153, 0x0253, 0x0353, 0x0453, 0x0553, 0x0653
 };
 
-static short mp3dec_degroup_5[] = {
+const static short mp3dec_degroup_5[] = {
     0x0000, 0x0100, 0x0200, 0x0300, 0x0400, 0x0010, 0x0110, 0x0210,
     0x0310, 0x0410, 0x0020, 0x0120, 0x0220, 0x0320, 0x0420, 0x0030,
     0x0130, 0x0230, 0x0330, 0x0430, 0x0040, 0x0140, 0x0240, 0x0340,
@@ -365,14 +365,14 @@ static short mp3dec_degroup_5[] = {
     0x0044, 0x0144, 0x0244, 0x0344, 0x0444, 0x0000, 0x0100, 0x0200
 };
 
-static short mp3dec_degroup_3[] = {
+const static short mp3dec_degroup_3[] = {
     0x0000, 0x0100, 0x0200, 0x0010, 0x0110, 0x0210, 0x0020, 0x0120,
     0x0220, 0x0001, 0x0101, 0x0201, 0x0011, 0x0111, 0x0211, 0x0021,
     0x0121, 0x0221, 0x0002, 0x0102, 0x0202, 0x0012, 0x0112, 0x0212,
     0x0022, 0x0122, 0x0222, 0x0000, 0x0100, 0x0200, 0x0010, 0x0110
 };
 
-short *mp3dec_degroup[] = {
+const short *mp3dec_degroup[] = {
     NULL, NULL, NULL, NULL, NULL, mp3dec_degroup_3,
     NULL, mp3dec_degroup_5, NULL, NULL, mp3dec_degroup_9
 };

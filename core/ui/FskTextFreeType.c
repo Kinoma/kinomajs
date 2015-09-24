@@ -1766,6 +1766,40 @@ FskErr freeTypeFormatCacheDispose(FskTextEngineState state, FskTextFormatCache c
 	return kFskErrNone;
 }
 
+
+#if SUPPORT_INSTRUMENTATION
+void FskFreeTypeTextFormatCacheInfoStringGet(FskTextFormatCache cache, char **pInfoStr)
+{
+	FskFTFace fFace = ((FskTextFormatCacheFT)cache)->fFace;
+	char styleStr[8], *famName, *styName, *s;
+
+	*pInfoStr = NULL;
+	if (fFace->ftFace) {
+		famName = fFace->ftFace->family_name;
+		styName = fFace->ftFace->style_name;
+		s = styleStr;
+		if (fFace->style & kFskTextBold)			*s++ = 'B';
+		if (fFace->style & kFskTextItalic)			*s++ = 'I';
+		if (fFace->style & kFskTextUnderline)		*s++ = 'U';
+		if (fFace->style & kFskTextOutline)			*s++ = 'O';
+		if (fFace->style & kFskTextOutlineHeavy)	*s++ = 'H';
+		if (fFace->style & kFskTextCode)			*s++ = 'C';
+		*s = 0;
+	}
+	else {
+		famName = styName = "???";
+		styleStr[0] = 0;
+	}
+	if (styleStr[0] == 0) {
+		styleStr[0] = 'P';
+		styleStr[1] = 0;
+	}
+	asprintf(pInfoStr, "<TextFormatCache familyName=\"%.32s\" styleName=\"%.32s\" textSize=%g weight=%u style=\"%s\" path=\"%s\"/>",
+		famName, styName, fFace->size / 65536., fFace->weight, styleStr, fFace->path);
+}
+#endif /* SUPPORT_INSTRUMENTATION */
+
+
 FskErr freeTypeSetZoom(void *stateIn, void *track, UInt32 propertyID, FskMediaPropertyValue property)
 {
 	FskTextEngineFreeType state = stateIn;

@@ -864,7 +864,7 @@ FskErr yuv420DecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const
 	}
 	
 bail:
-	dlog( "out of yuv420DecodeDecompressFrame\n" );
+	dlog( "out of yuv420DecodeDecompressFrame" );
 	return err;
 }
 

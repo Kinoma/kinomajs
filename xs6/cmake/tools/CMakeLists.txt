@@ -14,121 +14,133 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-PROJECT(TOOLS)
+project(TOOLS)
 
-INCLUDE_DIRECTORIES(${F_HOME}/libraries/expat)
-INCLUDE_DIRECTORIES(${XS6}/includes)
-INCLUDE_DIRECTORIES(${XS6}/sources)
-INCLUDE_DIRECTORIES(${XS6}/sources/tool)
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/modules)
+include_directories(${F_HOME}/libraries/expat)
+include_directories(${XS6}/includes)
+include_directories(${XS6}/sources)
+include_directories(${XS6}/sources/tool)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/modules)
 
-IF(NOT DEFINED CMAKE_MACOSX_RPATH)
-	SET(CMAKE_MACOSX_RPATH 0)
-ENDIF()
+if(NOT DEFINED CMAKE_MACOSX_RPATH)
+	set(CMAKE_MACOSX_RPATH 0)
+endif()
 
-ADD_DEFINITIONS(-DmxDebug=1)
-ADD_DEFINITIONS(-DHAVE_MEMMOVE=1)
+add_definitions(-DmxDebug=1)
+add_definitions(-DHAVE_MEMMOVE=1)
 
-IF(WIN32)
-	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /c /D _CONSOLE /D WIN32 /D _CRT_SECURE_NO_DEPRECATE /D HAVE_MEMMOVE=1 /D XML_STATIC=1 /nologo /Zp1")
-	SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} /D _DEBUG /D mxDebug /Od /Z7")
-	SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} /D NDEBUG /O2")
-	LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/cmake/xsr/${CMAKE_CFG_INTDIR})
-	SET(LINK_OPTIONS ws2_32.lib comctl32.lib gdi32.lib xsr6.lib)
-	SET(SUFFIX ".dll")
-ELSEIF(UNIX)
-	IF(APPLE)
-		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -arch i386 -mmacosx-version-min=10.7")
-		SET(LINK_OPTIONS "-dynamiclib -flat_namespace -undefined suppress")
-	ELSE()
-		SET(LINK_OPTIONS "-shared -Wl,-Bdynamic\\,-Bsymbolic")
-	ENDIF()
-	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-common")
-	SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter")
-	SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O3")
-	SET(SUFFIX ".so")
-ENDIF()
+if(WIN32)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /c /D _CONSOLE /D WIN32 /D _CRT_SECURE_NO_DEPRECATE /D HAVE_MEMMOVE=1 /D XML_STATIC=1 /nologo /Zp1")
+	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} /D _DEBUG /D mxDebug /Od /Z7")
+	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} /D NDEBUG /O2")
+	link_directories(${CMAKE_BINARY_DIR}/cmake/xsr/${CMAKE_CFG_INTDIR})
+	set(LINK_OPTIONS ws2_32.lib comctl32.lib gdi32.lib xsr6.lib)
+	set(SUFFIX ".dll")
+elseif(UNIX)
+	if(APPLE)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -arch i386 -mmacosx-version-min=10.7")
+		set(LINK_OPTIONS "-dynamiclib -flat_namespace -undefined suppress")
+	else()
+		set(LINK_OPTIONS "-shared -Wl,-Bdynamic\\,-Bsymbolic")
+	endif()
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-common")
+	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -g -O0 -Wall -Wextra -Wno-missing-field-initializers -Wno-unused-parameter")
+	set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O3")
+	set(SUFFIX ".so")
+endif()
 
 set(XSC_OPTIONS -c -d -e)
 
-LIST(APPEND MODULES cmake)
-LIST(APPEND MODULES fs)
-LIST(APPEND MODULES grammar)
-LIST(APPEND MODULES infoset)
-LIST(APPEND MODULES kpr2js)
-LIST(APPEND MODULES kprconfig)
-LIST(APPEND MODULES make)
-LIST(APPEND MODULES makefileGrammar)
-LIST(APPEND MODULES manifestGrammar)
-LIST(APPEND MODULES markup)
-LIST(APPEND MODULES packageGrammar)
-LIST(APPEND MODULES plistGrammar)
-LIST(APPEND MODULES templateGrammar)
-LIST(APPEND MODULES tool)
-LIST(APPEND MODULES xs2js)
+list(APPEND OBJECTS ${XS6}/tools/fs.c)
+list(APPEND OBJECTS ${XS6}/tools/grammar.c)
+list(APPEND OBJECTS ${XS6}/tools/infoset.c)
+list(APPEND OBJECTS ${XS6}/tools/markup.c)
+list(APPEND OBJECTS ${XS6}/tools/tool.c)
 
-LIST(APPEND MODULES cmake/android)
-LIST(APPEND MODULES cmake/linux/aspen)
-LIST(APPEND MODULES cmake/linux/gtk)
-LIST(APPEND MODULES cmake/ios)
-LIST(APPEND MODULES cmake/mac)
-LIST(APPEND MODULES cmake/win)
+list(APPEND EXPAT_OBJECTS ${F_HOME}/libraries/expat/xmlparse.c)
+list(APPEND EXPAT_OBJECTS ${F_HOME}/libraries/expat/xmlrole.c)
+list(APPEND EXPAT_OBJECTS ${F_HOME}/libraries/expat/xmltok.c)
 
-LIST(APPEND MODULES make/android)
-LIST(APPEND MODULES make/ios)
-LIST(APPEND MODULES make/linux/aspen)
-LIST(APPEND MODULES make/linux/gtk)
-LIST(APPEND MODULES make/mac)
-LIST(APPEND MODULES make/win)
+file(GLOB MODULES RELATIVE ${XS6}/tools ${XS6}/tools/*.js)
+if (UNIX)
+	if (APPLE)
+		list(APPEND MODULES
+			cmake/android.js
+			cmake/ios.js
+			cmake/mac.js
+			make/android.js
+			make/ios.js
+			make/mac.js
+			shared/android.js
+			shared/ios.js
+			)
+	else ()
+		file(GLOB_RECURSE LINUX_MODULES RELATIVE ${XS6}/tools ${XS6}/tools/cmake/linux/*.js ${XS6}/tools/make/linux/*.js)
+		list(APPEND MODULES ${LINUX_MODULES})
+	endif ()
+else ()
+	list(APPEND MODULES
+		cmake/win.js
+		make/win.js)
+endif ()
 
-LIST(APPEND OBJECTS ${XS6}/tools/fs.c)
-LIST(APPEND OBJECTS ${XS6}/tools/grammar.c)
-LIST(APPEND OBJECTS ${XS6}/tools/infoset.c)
-LIST(APPEND OBJECTS ${XS6}/tools/markup.c)
-LIST(APPEND OBJECTS ${XS6}/tools/tool.c)
+foreach(MODULE ${MODULES})
+	get_filename_component(MODULE_PATH ${MODULE} NAME_WE)
+	get_filename_component(MODULE_DIR ${MODULE} PATH)
+	if (MODULE_DIR)
+		set(MODULE_PATH ${MODULE_DIR}/${MODULE_PATH})
+	endif ()
+	xsc(SOURCE_DIR ${XS6}/tools SOURCE ${MODULE_PATH} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/modules OPTIONS ${XSC_OPTIONS})
+	list(APPEND XSB_PACKAGES ${CMAKE_CURRENT_BINARY_DIR}/modules/${MODULE_PATH}.xsb)
+	list(APPEND SOURCES ${XS6}/tools/${MODULE})
+endforeach()
 
-LIST(APPEND EXPAT_OBJECTS ${F_HOME}/libraries/expat/xmlparse.c)
-LIST(APPEND EXPAT_OBJECTS ${F_HOME}/libraries/expat/xmlrole.c)
-LIST(APPEND EXPAT_OBJECTS ${F_HOME}/libraries/expat/xmltok.c)
+xsl(NAME tools TMP ${CMAKE_CURRENT_BINARY_DIR}/modules SOURCES ${XSB_PACKAGES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+list(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/modules/tools.xs.c)
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/modules/tools.xs.c PROPERTIES GENERATED TRUE)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/modules)
 
-FOREACH(MODULE ${MODULES})
-	XSC(SOURCE_DIR ${XS6}/tools SOURCE ${MODULE} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/modules OPTIONS ${XSC_OPTIONS})
-	LIST(APPEND XSB_PACKAGES ${CMAKE_CURRENT_BINARY_DIR}/modules/${MODULE}.xsb)
-	LIST(APPEND SOURCES ${XS6}/tools/${MODULE}.js)
-ENDFOREACH()
-
-XSL(NAME tools TMP ${CMAKE_CURRENT_BINARY_DIR}/modules DESTINATION ${XS6_TOOLS_BIN} SOURCES ${XSB_PACKAGES} DESTINATION ${XS6_TOOLS_BIN}/modules)
-LIST(APPEND SOURCES ${CMAKE_CURRENT_BINARY_DIR}/modules/tools.xs.c)
-SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_BINARY_DIR}/modules/tools.xs.c PROPERTIES GENERATED TRUE)
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/modules)
-
-ADD_LIBRARY(tools SHARED ${OBJECTS} ${EXPAT_OBJECTS} ${SOURCES})
-ADD_DEPENDENCIES(tools tools.xsa xsr)
-IF(LINK_OPTIONS)
-	TARGET_LINK_LIBRARIES(tools ${LINK_OPTIONS})
-ENDIF()
-SET_TARGET_PROPERTIES(tools PROPERTIES
+add_library(tools SHARED ${OBJECTS} ${EXPAT_OBJECTS} ${SOURCES})
+add_dependencies(tools tools.xsa xsc xsl xsr)
+if(LINK_OPTIONS)
+	target_link_libraries(tools ${LINK_OPTIONS})
+endif()
+set_target_properties(tools PROPERTIES
 	SUFFIX ${SUFFIX} PREFIX ""
 	)
-ADD_CUSTOM_COMMAND(
+add_custom_command(
 	TARGET tools
 	POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${XS6_TOOLS_BIN}/modules
 	COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:tools> ${XS6_TOOLS_BIN}/modules
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/tools.xsa ${XS6_TOOLS_BIN}/modules
 	)
 
-SET(SHEBANG "#!/usr/bin/env bash\n")
-STRING(REPLACE ";" " " EXEC "${XSR}")
+set(SHEBANG "#!/usr/bin/env bash\n")
+string(REPLACE ";" " " EXEC "${XSR}")
 
-FOREACH(COMMAND kprconfig kpr2js xs2js)
-	FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6 ${SHEBANG})
-	FILE(APPEND ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6 "${EXEC} ${COMMAND} $*")
-	FILE(COPY ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6
-		DESTINATION ${XS6_TOOLS_BIN}
-		FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-	IF(WIN32)
-		FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6.bat "${EXEC} ${COMMAND} %*")
-		FILE(COPY ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6.bat
-			DESTINATION ${XS6_TOOLS_BIN}
+foreach(COMMAND kprconfig kpr2js xs2js)
+	if(WIN32)
+		add_custom_command(
+			TARGET tools
+			POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${XS6_TOOLS_BIN}
+			COMMAND ${CMAKE_COMMAND} -E echo "@ECHO OFF" > ${COMMAND}6.bat
+			COMMAND ${CMAKE_COMMAND} -E echo "${EXEC} ${COMMAND} %%*" >> ${COMMAND}6.bat
+			COMMAND ${CMAKE_COMMAND} -E copy ${COMMAND}6.bat ${XS6_TOOLS_BIN}
+			)
+	else()
+		file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6 ${SHEBANG})
+		file(COPY ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6
+			DESTINATION ${CMAKE_BINARY_DIR}
 			FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE)
-	ENDIF()
-ENDFOREACH()
+		add_custom_command(
+			TARGET tools
+			POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E make_directory ${XS6_TOOLS_BIN}
+			COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/${COMMAND}6 ${XS6_TOOLS_BIN}
+			COMMAND ${CMAKE_COMMAND} -E echo_append "${EXEC} ${COMMAND} $$" >> ${XS6_TOOLS_BIN}/${COMMAND}6
+			COMMAND ${CMAKE_COMMAND} -E echo '*' >> ${XS6_TOOLS_BIN}/${COMMAND}6
+			)
+	endif()
+endforeach()

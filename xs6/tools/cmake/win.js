@@ -22,12 +22,13 @@ class Makefile extends CMAKE.Makefile {
 	constructor(tree) {
 		super(tree);
 	}
-	// generateRules(tool, file, path) {
-	// 	file.line("ADD_LIBRARY(", this.name, " OBJECT ${", this.name, "_SOURCES})");
-	// 	file.line("LIST(APPEND TARGET_OBJECTS $<TARGET_OBJECTS:", this.name, ">)");
-	// 	file.line("SET(TARGET_OBJECTS ${TARGET_OBJECTS} PARENT_SCOPE)");
-	// 	file.line("ADD_DEPENDENCIES(", this.name, " FskManifest.xsa)");
-	// }
+	generateRules(tool, file, path) {
+		file.line(`add_library(${this.name} STATIC \${${this.name}_SOURCES})`);
+		file.line(`set_target_properties(${this.name} PROPERTIES STATIC_LIBRARY_FLAGS /LTCG)`);
+		file.line(`add_dependencies(${this.name} FskManifest.xsa)`);
+		file.line(`list(APPEND OBJECTS ${this.name})`);
+		file.line(`set(OBJECTS \${OBJECTS} PARENT_SCOPE)`);
+	}
 };
 
 class Manifest extends CMAKE.Manifest {
@@ -42,12 +43,7 @@ class Manifest extends CMAKE.Manifest {
 		var resource = parts.directory + "\\win\\resource.rc";
 		var path = process.debug ? "$(F_HOME)\\xs6\\bin\\win\\debug" : "$(F_HOME)\\xs6\\bin\\win\\release"
 		return {
-			KPR2JS: path + "\\xsr6 -a " + path + "\\modules\\tools.xsa kpr2js",
-			XS2JS: path + "\\xsr6 -a " +  path + "\\modules\\tools.xsa xs2js",
-			XSC: path + "\\xsc6",
-			XSL: path + "\\xsl6",
-		
-			APP_DIR: bin,
+			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/$<CONFIG>/${tool.application}`,
 			TMP_DIR: tmp,
 			
 			APP_NAME: tool.application,
@@ -57,14 +53,17 @@ class Manifest extends CMAKE.Manifest {
 		};
 	}
 	getTargetRules(tool) {
-		// return `ADD_EXECUTABLE(\${APP_NAME} \${SOURCES} \${FskPlatform_SOURCES} \${TARGET_OBJECTS})
 		return `LIST(APPEND SOURCES \${RESOURCE})
-ADD_EXECUTABLE(\${APP_NAME} WIN32 \${SOURCES} \${FskPlatform_SOURCES})
-TARGET_LINK_LIBRARIES(\${APP_NAME} \${LIBRARIES} \${OBJECTS})
+add_executable(\${APP_NAME} WIN32 \${SOURCES} \${FskPlatform_SOURCES})
+target_link_libraries(\${APP_NAME} \${LIBRARIES} \${OBJECTS})
 
-ADD_CUSTOM_COMMAND(
+add_custom_command(
 	TARGET \${APP_NAME}
 	POST_BUILD
+	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${TMP_DIR}/app \$<TARGET_FILE_DIR:\${APP_NAME}>
+	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy \$<TARGET_FILE:\${APP_NAME}> \${APP_DIR}
 	)
 `;

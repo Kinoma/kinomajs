@@ -99,6 +99,7 @@ enum {
 	kFskTextOutline			= 1L<<3,
 	kFskTextStrike			= 1L<<4,
 	kFskTextOutlineHeavy	= 1L<<5,
+	kFskTextCode			= 1L<<6,
 
 	kFskTextTruncateEnd		= 1L<<8,
 	kFskTextTruncateCenter	= 1L<<9

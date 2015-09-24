@@ -66,6 +66,10 @@ MAKE_MODULES_DBG = \
 	$(TMP_DIR_DBG)/make/ios.xsb \
 	$(TMP_DIR_DBG)/make/mac.xsb
 
+SHARED_MODULES_DBG = \
+	$(TMP_DIR_DBG)/shared/android.xsb \
+	$(TMP_DIR_DBG)/shared/ios.xsb
+
 MODULES_RLS = \
 	$(TMP_DIR_RLS)/fs.xsb \
 	$(TMP_DIR_RLS)/grammar.xsb \
@@ -86,6 +90,10 @@ MAKE_MODULES_RLS = \
 	$(TMP_DIR_RLS)/make/android.xsb \
 	$(TMP_DIR_RLS)/make/ios.xsb \
 	$(TMP_DIR_RLS)/make/mac.xsb
+
+SHARED_MODULES_RLS = \
+	$(TMP_DIR_RLS)/shared/android.xsb \
+	$(TMP_DIR_RLS)/shared/ios.xsb\
 
 OBJECTS_DBG = \
 	$(TMP_DIR_DBG)/fs.o \
@@ -111,7 +119,7 @@ EXPAT_OBJECTS_RLS = \
 	$(TMP_DIR_RLS)/xmlrole.o \
 	$(TMP_DIR_RLS)/xmltok.o
 
-debug: DEBUG_VARIABLES $(TMP_DIR_DBG) $(TMP_DIR_DBG)/make $(BIN_DIR_DBG) $(BIN_DIR_DBG)/tools.xsa $(BIN_DIR_DBG)/tools.so 
+debug: DEBUG_VARIABLES $(TMP_DIR_DBG) $(TMP_DIR_DBG)/make $(TMP_DIR_DBG)/shared $(BIN_DIR_DBG) $(BIN_DIR_DBG)/tools.xsa $(BIN_DIR_DBG)/tools.so 
 
 DEBUG_VARIABLES:
 	$(eval XSC6 = $(XS6)/bin/mac/debug/xsc6)
@@ -123,17 +131,23 @@ $(TMP_DIR_DBG):
 $(TMP_DIR_DBG)/make:
 	mkdir -p $(TMP_DIR_DBG)/make
 	
+$(TMP_DIR_DBG)/shared:
+	mkdir -p $(TMP_DIR_DBG)/shared
+	
 $(BIN_DIR_DBG):
 	mkdir -p $(BIN_DIR_DBG)
 	
-$(BIN_DIR_DBG)/tools.xsa $(TMP_DIR_DBG)/tools.xs.c: $(MODULES_DBG) $(MAKE_MODULES_DBG)
-	$(XSL6) -a tools -b $(TMP_DIR_DBG) -o $(BIN_DIR_DBG) $(MODULES_DBG) $(MAKE_MODULES_DBG)
+$(BIN_DIR_DBG)/tools.xsa $(TMP_DIR_DBG)/tools.xs.c: $(MODULES_DBG) $(MAKE_MODULES_DBG) $(SHARED_MODULES_DBG)
+	$(XSL6) -a tools -b $(TMP_DIR_DBG) -o $(BIN_DIR_DBG) $(MODULES_DBG) $(MAKE_MODULES_DBG) $(SHARED_MODULES_DBG)
 
 $(MODULES_DBG): $(TMP_DIR_DBG)/%.xsb: $(MOD_DIR)/%.js
 	$(XSC6) -c -d -e $< -o $(TMP_DIR_DBG)
 
 $(MAKE_MODULES_DBG): $(TMP_DIR_DBG)/make/%.xsb: $(MOD_DIR)/make/%.js
 	$(XSC6) -c -d -e $< -o $(TMP_DIR_DBG)/make
+
+$(SHARED_MODULES_DBG): $(TMP_DIR_DBG)/shared/%.xsb: $(MOD_DIR)/shared/%.js
+	$(XSC6) -c -d -e $< -o $(TMP_DIR_DBG)/shared
 
 $(BIN_DIR_DBG)/tools.so: $(OBJECTS_DBG) $(EXPAT_OBJECTS_DBG) $(TMP_DIR_DBG)/tools.xs.o
 	$(CC) $(LINK_OPTIONS) $(LIBRARIES) $(OBJECTS_DBG) $(EXPAT_OBJECTS_DBG) $(TMP_DIR_DBG)/tools.xs.o -o $(BIN_DIR_DBG)/tools.so
@@ -149,7 +163,7 @@ $(TMP_DIR_DBG)/tools.xs.o: $(TMP_DIR_DBG)/tools.xs.c
 	$(CC) $< $(C_OPTIONS_DBG) -c -o $@
 
 	
-release: RELEASE_VARIABLES $(TMP_DIR_RLS) $(TMP_DIR_RLS)/make $(BIN_DIR_RLS) $(BIN_DIR_RLS)/tools.xsa $(BIN_DIR_RLS)/tools.so 
+release: RELEASE_VARIABLES $(TMP_DIR_RLS) $(TMP_DIR_RLS)/make $(TMP_DIR_RLS)/shared $(BIN_DIR_RLS) $(BIN_DIR_RLS)/tools.xsa $(BIN_DIR_RLS)/tools.so 
 
 RELEASE_VARIABLES:
 	$(eval XSC6 = $(XS6)/bin/mac/release/xsc6)
@@ -161,17 +175,23 @@ $(TMP_DIR_RLS):
 $(TMP_DIR_RLS)/make:
 	mkdir -p $(TMP_DIR_RLS)/make
 	
+$(TMP_DIR_RLS)/shared:
+	mkdir -p $(TMP_DIR_RLS)/shared
+	
 $(BIN_DIR_RLS):
 	mkdir -p $(BIN_DIR_RLS)
 	
-$(BIN_DIR_RLS)/tools.xsa $(TMP_DIR_RLS)/tools.xs.c: $(MODULES_RLS) $(MAKE_MODULES_RLS)
-	$(XSL6) -a tools -b $(TMP_DIR_RLS) -o $(BIN_DIR_RLS) $(MODULES_RLS) $(MAKE_MODULES_RLS)
+$(BIN_DIR_RLS)/tools.xsa $(TMP_DIR_RLS)/tools.xs.c: $(MODULES_RLS) $(MAKE_MODULES_RLS) $(SHARED_MODULES_RLS)
+	$(XSL6) -a tools -b $(TMP_DIR_RLS) -o $(BIN_DIR_RLS) $(MODULES_RLS) $(MAKE_MODULES_RLS) $(SHARED_MODULES_RLS)
 
 $(MODULES_RLS): $(TMP_DIR_RLS)/%.xsb: $(MOD_DIR)/%.js
 	$(XSC6) -c -d -e $< -o $(TMP_DIR_RLS)
 
 $(MAKE_MODULES_RLS): $(TMP_DIR_RLS)/make/%.xsb: $(MOD_DIR)/make/%.js
 	$(XSC6) -c -d -e $< -o $(TMP_DIR_RLS)/make
+
+$(SHARED_MODULES_RLS): $(TMP_DIR_RLS)/shared/%.xsb: $(MOD_DIR)/shared/%.js
+	$(XSC6) -c -d -e $< -o $(TMP_DIR_RLS)/shared
 
 $(BIN_DIR_RLS)/tools.so: $(OBJECTS_RLS) $(EXPAT_OBJECTS_RLS) $(TMP_DIR_RLS)/tools.xs.o
 	$(CC) $(LINK_OPTIONS) $(LIBRARIES) $(OBJECTS_RLS) $(EXPAT_OBJECTS_RLS) $(TMP_DIR_RLS)/tools.xs.o -o $(BIN_DIR_RLS)/tools.so

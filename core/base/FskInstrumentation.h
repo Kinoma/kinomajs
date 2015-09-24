@@ -157,7 +157,7 @@ FskExport(FskErr) FskInstrumentedTypePrintfForLevel_(FskInstrumentedType dispatc
 FskExport(FskErr) FskInstrumentedSystemPrintfForLevel(UInt32 level, const char *msg, ...);
 
 #define FskInstrumentedItemDeclaration FskInstrumentedItemRecord _instrumented;
-#define FskInstrumentationOffset(a) (UInt32)(UInt32)&(((a *)0)->_instrumented)		// offsetof
+#define FskInstrumentationOffset(a)	((char*)(&((a*)0)->_instrumented) - (char*)(0))		// offsetof
 #define FskInstrumentedItemNew(obj, name, dispatch) if (NULL != obj) FskInstrumentedItemNew_(&(obj)->_instrumented, obj, name, dispatch)
 #define FskInstrumentedItemDispose(obj) FskInstrumentedItemDispose_(&(obj)->_instrumented)
 #define FskInstrumentedItemSetOwner(obj, owner) if (obj) FskInstrumentedItemSetOwner_(&(obj)->_instrumented, &(owner)->_instrumented)

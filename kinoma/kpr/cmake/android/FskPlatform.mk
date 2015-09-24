@@ -98,14 +98,12 @@
 	<c option="-Werror-implicit-function-declaration"/>
 
 	<version name="debug">
-		<c option="-DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)"/>
 		<c option="-DmxDebug"/>
 		<c option="-g"/>
 		<c option="-O0"/>
 	</version>
 	
 	<version name="release">
-		<c option="-DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)"/>
 		<c option="-O2"/>
 	</version>
 </makefile>

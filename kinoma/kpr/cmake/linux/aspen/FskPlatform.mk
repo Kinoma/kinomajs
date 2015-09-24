@@ -27,13 +27,18 @@
 	<input name="$(F_HOME)/xs/includes"/>
 	<input name="$(F_HOME)/libraries/QTReader"/>
 
-	<input name="$(F_HOME)/libraries/freetype/src/freetype-$(FREETYPE_VERSION)/include"/>
+	<input name="$(F_HOME)/libraries/freetype/include"/>
 	<input name="$(FSK_SYSROOT_LIB)/include"/>
 	<input name="$(FSK_SYSROOT_LIB)/usr/include"/>
 
 	<input name="$(F_HOME)/build/linux/kpl"/>
 	<input name="$(F_HOME)/core/kpl"/>
 	<input name="$(F_HOME)/libraries/libjpeg"/>
+
+	<input name="$(FSK_SYSROOT_LIB)/include"/>
+	<input name="$(FSK_SYSROOT_LIB)/usr/include"/>
+
+	<input name="$(F_HOME)/libraries/freetype/include"/>
 
 	<header name="FskPlatform.h"/>
 	
@@ -98,13 +103,11 @@
 	<c option="-Wno-multichar"/>
 	
 	<version name="debug">
-		<c option="-DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)"/>
 		<c option="-DmxDebug"/>
 		<c option="-g"/>
 	</version>
 	
 	<version name="release">
-		<c option="-DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)"/>
 		<c option="-g"/>
 		<c option="-O2"/>
 	</version>

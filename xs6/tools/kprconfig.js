@@ -60,6 +60,7 @@ class Tool extends TOOL {
 		this.application = null;
 		this.binPath = null;
 		this.cmake = false;
+		this.cmakeGenerator = null;
 		this.debug = false;
 		this.errorCount = 0;		
 		this.ide = false;
@@ -124,6 +125,14 @@ class Tool extends TOOL {
 				break;
 			case "-d":
 				this.debug = true;
+				break;
+			case "-g":
+				argi++;
+				if (argi >= argc)
+					throw new Error("-g: no generator!");
+				this.cmakeGenerator = argv[argi];
+				while (argi++ && argi < argc && argv[argi].substring(0, 1) !== '-')
+					this.cmakeGenerator += " " + argv[argi];
 				break;
 			case "-i":
 				this.instrument = true;
@@ -232,7 +241,6 @@ class Tool extends TOOL {
 		if (this.platform == "linux/aspen") {
 			variables = [
 				"FSK_SYSROOT_LIB",
-				"FREETYPE_VERSION", 
 				"ARM_MARVELL_LINUX_GNUEABI",
 			]
 		}
@@ -240,7 +248,6 @@ class Tool extends TOOL {
 			variables = [
 				"BG3CDP_TOP",
 				"BG3CDP_SYSROOT_LIB",
-				"FREETYPE_VERSION", 
 			]
 		}
 		else {
@@ -280,7 +287,7 @@ class Tool extends TOOL {
 			path += this.slash + parts[1];
 			FS.mkdirSync(path);
 		}
-		if (!skipVariantFlag) {
+		if (!this.cmake) {
 			if (this.debug) 
 				path += this.slash + "debug";
 			else
@@ -636,6 +643,7 @@ class Tool extends TOOL {
 				throw new Error("" + this.errorCount + " error(s)!");
 		}
 
+		manifestTree.cmakefiles = [];
 		manifestTree.makefiles = [];
 		manifestTree.libraries = [];
 		manifestTree.xsIncludes = [];
@@ -663,18 +671,10 @@ class Tool extends TOOL {
 
 		manifestTree.application = this.application;
 		
-		if (!this.binPath) {
-			if (this.cmake)
-				this.binPath = this.createDirectories(this.outputPath, "bin", this.platform != "mac", this.cmake);
-			else
-				this.binPath = this.createDirectories(this.outputPath, "bin", this.platform != "mac");
-		}
-		if (!this.tmpPath) {
-			if (this.cmake)
-				this.tmpPath = this.createDirectories(this.outputPath, "tmp", true, this.cmake);
-			else
-				this.tmpPath = this.createDirectories(this.outputPath, "tmp", true);
-		}
+		if (!this.binPath)
+			this.binPath = this.createDirectories(this.outputPath, "bin", this.platform != "mac" && !this.cmake)
+		if (!this.tmpPath)
+			this.tmpPath = this.createDirectories(this.outputPath, "tmp", true)
 		this.generateFskPlatform();
 
 		parts = { directory: this.makePath, name: "FskPlatform", extension: ".mk" };
@@ -686,10 +686,15 @@ class Tool extends TOOL {
 			let path = extensions[name];
 			if (path) {
 				path = this.resolveFilePath(path);
-				if (path)
-					this.processMakefile(manifestTree, this.splitPath(path), path, false);
-				else
-					tool.reportError(null, null, extensions[name] + ": directory or file not found");
+				let parts = tool.splitPath(path)
+				if (parts.extension && parts.extension == ".txt") {
+					manifestTree.cmakefiles.push({directory: parts.directory, name: name});
+				} else {
+					if (path)
+						this.processMakefile(manifestTree, this.splitPath(path), path, false);
+					else
+						tool.reportError(null, null, extensions[name] + ": directory or file not found");
+				}
 			}
 		}
 		let separate = manifestTree.separate;
@@ -742,20 +747,29 @@ class Tool extends TOOL {
 		if (this.errorCount)
 			throw new Error("" + this.errorCount + " error(s)!");
 		
-		if (this.cmake) {
-			var Manifest = require("cmake/" + this.platform);
-			var manifest = new Manifest(manifestTree);
-		} else {
-			var Manifest = require("make/" + this.platform);
-			var manifest = new Manifest(manifestTree);
+		try {
+			if (this.cmake) {
+				var Manifest = require("cmake/" + this.platform);
+				var manifest = new Manifest(manifestTree);
+			} else {
+				var Manifest = require("make/" + this.platform);
+				var manifest = new Manifest(manifestTree);
+			}
+		} catch (e) {
+			throw new Error(`-p '${this.platform}': unsupported to build on this system`);
 		}
 		manifest.generate(this, this.tmpPath, this.binPath);
 		if (this.cmake) {
 			tool.report("Generating project...");
-			var command = `cmake -H${this.tmpPath} -B${this.tmpPath}`;
-			if (this.ide)
+			var command = `cmake -H${this.tmpPath} -B${this.tmpPath} -DCMAKE_BUILD_TYPE=`;
+			command += this.debug ? "Debug" : "Release";
+			if (this.ide) {
 				if (this.platform == "ios" || this.platform == "mac")
 					command += " -GXcode";
+			} else {
+				if (this.cmakeGenerator)
+					command += ` -G"${this.cmakeGenerator}"`;
+			}
 			tool.report(`${command}`)
 			var output = tool.execute(command);
 			tool.report(output.trim());
@@ -764,7 +778,7 @@ class Tool extends TOOL {
 				if (this.platform == "ios" || this.platform == "mac")
 					process.then("open", this.tmpPath + this.slash + "fsk.xcodeproj");
 				else if (this.platform == "win")
-					process.then("devenv.exe", this.tmpPath + this.slash + "fsk.sln");
+					process.then("cmd.exe", "/c", this.tmpPath + this.slash + "fsk.sln");
 				return;
 			}
 		}

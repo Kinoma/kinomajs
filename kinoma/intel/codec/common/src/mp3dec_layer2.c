@@ -85,7 +85,7 @@ int mp3dec_audio_data_LayerII(MP3Dec_com *state)
                     idx = mp3dec_cls_quant[idx];
                     if (idx < 0) {
                         idx = - idx;
-                        degroup_table = mp3dec_degroup[idx];
+                        degroup_table = (short *)mp3dec_degroup[idx];
                         GET_BITS(m_StreamData, c, idx);
                         value = degroup_table[c];
                         sample[ch][sb][3 * gr + 0] = value >> 8;

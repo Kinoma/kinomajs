@@ -29,15 +29,10 @@ class Manifest extends CMAKE.Manifest {
 		var path = process.debug ? "$(F_HOME)/xs6/bin/mac/debug" : "$(F_HOME)/xs6/bin/mac/release";
 		return {
 			APP_NAME: tool.application,
-			KPR2JS: path + "/xsr6 -a " + path + "/modules/tools.xsa kpr2js",
-			XS2JS: path + "/xsr6 -a " +  path + "/modules/tools.xsa xs2js",
-			XSC: path + "/xsc6",
-			XSL: path + "/xsl6",
 
-			APP_DIR: bin + ".app/Contents/MacOS",
+			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/$<CONFIGURATION>/${this.tree.application}.app/Contents/MacOS`,
 			TMP_DIR: tmp,
 			
-			CMAKE_OSX_ARCHITECTURES: "i386 CACHE STRING \"Build architecture of MacOS\"",
 			ICNS: FS.existsSync(icns) ? icns : "$(F_HOME)/build/mac/fsk.icns",
 			NIB: FS.existsSync(nib) ? nib : "$(F_HOME)/build/mac/fsk.nib",
 			PLIST: FS.existsSync(plist) ? plist : "$(F_HOME)/build/mac/fsk.plist",
@@ -51,29 +46,30 @@ class Manifest extends CMAKE.Manifest {
 			namespace = `com.marvell.kinoma.${application.toLowerCase()}`;
 
 		return `
-ADD_EXECUTABLE(${application} MACOSX_BUNDLE \${SOURCES} \${FskPlatform_SOURCES} \${F_HOME}/kinoma/kpr/patches/main.m)
-TARGET_LINK_LIBRARIES(${application} \${LIBRARIES} \${OBJECTS} -ObjC)
-TARGET_INCLUDE_DIRECTORIES(${application} PUBLIC \${C_INCLUDES})
-TARGET_COMPILE_DEFINITIONS(${application} PUBLIC \${C_DEFINITIONS})
-TARGET_COMPILE_OPTIONS(${application} PUBLIC \${C_OPTIONS})
+add_executable(${application} MACOSX_BUNDLE \${SOURCES} \${FskPlatform_SOURCES} \${F_HOME}/kinoma/kpr/patches/main.m)
+target_link_libraries(${application} \${LIBRARIES} \${OBJECTS} -ObjC)
+target_include_directories(${application} PUBLIC \${C_INCLUDES})
+target_compile_definitions(${application} PUBLIC \${C_DEFINITIONS})
+target_compile_options(${application} PUBLIC \${C_OPTIONS})
 
-SET(MACOSX_BUNDLE_ICON_FILE "fsk.icns")
-SET(MACOSX_BUNDLE_GUI_IDENTIFIER "${namespace}")
+copy(SOURCE "\${PLIST}" DESTINATION "\${TMP_DIR}/MacOSXBundleInfo.plist.in")
 
-ADD_CUSTOM_COMMAND(
+set(MACOSX_BUNDLE_ICON_FILE "fsk.icns")
+set(MACOSX_BUNDLE_GUI_IDENTIFIER "${namespace}")
+
+add_custom_command(
 	TARGET ${application}
 	POST_BUILD
-	COMMAND \${CMAKE_COMMAND} -E copy \$<TARGET_FILE:${application}> \${APP_DIR}/fsk
-	COMMAND \${CMAKE_COMMAND} -E copy \${APP_DIR}/FskManifest.xsa \$<TARGET_FILE_DIR:${application}>
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/modules \$<TARGET_FILE_DIR:${application}>/modules
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/program \$<TARGET_FILE_DIR:${application}>/program
+	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:\${APP_NAME}> \${APP_DIR}/fsk
+	COMMAND \${CMAKE_COMMAND} -E copy \${ICNS} \${APP_DIR}/../Resources/fsk.icns
+	COMMAND \${CMAKE_COMMAND} -E copy \${PLIST} \${APP_DIR}/../Info.plist
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/../Resources \$<TARGET_FILE_DIR:${application}>/../Resources
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${NIB} \${APP_DIR}/../Resources/English.lproj/fsk.nib
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \$<TARGET_FILE_DIR:\${APP_NAME}>
+	COMMAND \${CMAKE_COMMAND} -E echo "APPLTINY" > \${APP_DIR}/../PkgInfo
 	)
-
-COPY(SOURCE \${ICNS} DESTINATION \${APP_DIR}/../Resources/fsk.icns)
-COPY(SOURCE \${NIB} DESTINATION \${APP_DIR}/../Resources/English.lproj/fsk.nib)
-COPY(SOURCE \${PLIST} DESTINATION \${APP_DIR}/../Info.plist)
-FILE(WRITE \${APP_DIR}/../PkgInfo "APPLTINY")
 `;
 	return output;
 	}

@@ -520,7 +520,10 @@ var _skin = {
 	},
 	print(out) {
 		out.at(this.__xs__path, this.__xs__line);
-		out.printVar(this.id);
+		if (this.id == "applicationIconSkin")
+			out.line("applicationIconSkin = ");
+		else
+			out.printVar(this.id);
 		this.printConstructor(out);
 		out.cat(";");
 	},

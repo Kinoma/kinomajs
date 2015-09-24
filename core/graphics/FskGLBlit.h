@@ -995,7 +995,7 @@ FskAPI(UInt32) FskGLEstimateTextureMemoryUsage(void);
 	FskAPI(FskErr)			FskGLDstPort(FskBitmap bm, FskGLPort *glPortPtr);
 	FskAPI(void)			FskGLFBOInit(FskGLPort glPort);
 	FskAPI(Boolean)			FskGLFBOIsInited(FskGLPort glPort);
-	FskAPI(const float*)	FskGLGetViewMatrix(void);
+	FskAPI(const float*)	FskGLGetViewMatrix(UInt32 *matrixSeed);
 	FskAPI(FskErr)			FskGLNewProgram(unsigned int vertexShader, unsigned int fragmentShader, unsigned int *progID, ...);
 	FskAPI(FskErr)			FskGLNewShader(const char *shaderStr, unsigned int type, unsigned int *shaderID);
 	FskAPI(FskErr)			FskGLPortResizeTexture(FskGLPort glPort, int glFormat, int width, int height);
@@ -1038,7 +1038,7 @@ FskAPI(UInt32) FskGLEstimateTextureMemoryUsage(void);
 	#define FskGLFBOIsInited(port)																	(GL_TRACE_LOG("FskGLFBOIsInited"),					FskGLFBOIsInited(port))
 	#define FskGLGetFocusDefocusProcs(focus,defocus)												(GL_TRACE_LOG("FskGLGetFocusDefocusProcs"),			FskGLGetFocusDefocusProcs(focus,defocus))
 	#define FskGLGetFormatAndTypeFromPixelFormat(fmt,glfmt,gltyp,glintfmt)							(GL_TRACE_LOG("FskGLGetFormatAndTypeFromPixelFormat"),	FskGLGetFormatAndTypeFromPixelFormat(fmt,glfmt,gltyp,glintfmt))
-	#define FskGLGetViewMatrix()																	(GL_TRACE_LOG("FskGLGetViewMatrix"),				FskGLGetViewMatrix())
+	#define FskGLGetViewMatrix(s)																	(GL_TRACE_LOG("FskGLGetViewMatrix"),				FskGLGetViewMatrix(s))
 	#define FskGLInit(v)																			(GL_TRACE_LOG("FskGLInit"),							FskGLInit(v))
 	#define FskGLMaximumTextureDimension()															(GL_TRACE_LOG("FskGLMaximumTextureDimension"),		FskGLMaximumTextureDimension())
 	#define FskGLNewProgram(...)																	(GL_TRACE_LOG("FskGLNewProgram"),					FskGLNewProgram(__VA_ARGS__))

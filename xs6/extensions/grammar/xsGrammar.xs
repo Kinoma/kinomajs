@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!--
      Copyright (C) 2010-2015 Marvell International Ltd.
      Copyright (C) 2002-2010 Kinoma, Inc.

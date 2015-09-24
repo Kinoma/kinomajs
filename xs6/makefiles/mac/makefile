@@ -34,11 +34,11 @@ debug:
 	make debug -f tools.make
 	make debug -f xsbug.make
 	make debug -f kct6.make
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kprconfig $$*' > $(XS6)/bin/mac/debug/kprconfig6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kprconfig "$$@"' > $(XS6)/bin/mac/debug/kprconfig6
 	chmod +x $(XS6)/bin/mac/debug/kprconfig6
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js $$*' > $(XS6)/bin/mac/debug/kpr2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js "$$@"' > $(XS6)/bin/mac/debug/kpr2js6
 	chmod +x $(XS6)/bin/mac/debug/kpr2js6
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js $$*' > $(XS6)/bin/mac/debug/xs2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js "$$@"' > $(XS6)/bin/mac/debug/xs2js6
 	chmod +x $(XS6)/bin/mac/debug/xs2js6
 	
 release:
@@ -50,11 +50,11 @@ release:
 	make release -f tools.make
 	make release -f xsbug.make
 	make release -f kct6.make
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kprconfig $$*' > $(XS6)/bin/mac/release/kprconfig6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kprconfig "$$@"' > $(XS6)/bin/mac/release/kprconfig6
 	chmod +x $(XS6)/bin/mac/release/kprconfig6
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js $$*' > $(XS6)/bin/mac/release/kpr2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js "$$@"' > $(XS6)/bin/mac/release/kpr2js6
 	chmod +x $(XS6)/bin/mac/release/kpr2js6
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js $$*' > $(XS6)/bin/mac/release/xs2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js "$$@"' > $(XS6)/bin/mac/release/xs2js6
 	chmod +x $(XS6)/bin/mac/release/xs2js6
 	
 clean:

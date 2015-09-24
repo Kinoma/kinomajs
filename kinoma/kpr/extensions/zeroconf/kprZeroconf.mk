@@ -26,24 +26,28 @@
 <source name="kprZeroconfCommon.c"/>
 
 <platform name="android">
-	<input name="mdnsresponder/mDNSPosix/"/>
-	<input name="mdnsresponder/mDNSCore/"/>
-	<input name="mdnsresponder/mDNSShared/"/>
+	<input name="$(F_HOME)/libraries/mDNSResponder/"/>
+	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSCore/"/>
+	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSPosix/"/>
+	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
 	
 	<source name="kprZeroconfApple.c"/>
 	
-	<source name="mdnsresponder/mDNSCore/mDNS.c"/>
-	<source name="mdnsresponder/mDNSCore/DNSDigest.c"/>
-	<source name="mdnsresponder/mDNSCore/uDNS.c"/>
-	<source name="mdnsresponder/mDNSCore/DNSCommon.c"/>
-	<source name="mdnsresponder/mDNSPosix/mDNSPosix.c"/>
-	<source name="mdnsresponder/mDNSPosix/mDNSUNP.c"/>
-	<source name="mdnsresponder/mDNSShared/mDNSDebug.c"/>
-	<source name="mdnsresponder/mDNSShared/dnssd_clientlib.c"/>
-	<source name="mdnsresponder/mDNSShared/dnssd_clientshim.c"/>
-	<source name="mdnsresponder/mDNSShared/dnssd_ipc.c"/>
-	<source name="mdnsresponder/mDNSShared/GenLinkedList.c"/>
-	<source name="mdnsresponder/mDNSShared/PlatformCommon.c"/>
+	<source name="mDNSCore/anonymous.c"/>
+	<source name="mDNSCore/CryptoAlg.c"/>
+	<source name="mDNSCore/mDNS.c"/>
+	<source name="mDNSCore/uDNS.c"/>
+	<source name="mDNSCore/DNSCommon.c"/>
+	<source name="mDNSCore/DNSDigest.c"/>
+	<source name="mDNSPosix/mDNSPosix.c"/>
+	<source name="mDNSPosix/mDNSUNP.c"/>
+	<source name="mDNSShared/mDNSDebug.c"/>
+	<source name="mDNSShared/dnssd_clientlib.c"/>
+	<source name="mDNSShared/dnssd_clientshim.c"/>
+	<source name="mDNSShared/dnssd_ipc.c"/>
+	<source name="mDNSShared/GenLinkedList.c"/>
+	<source name="mDNSShared/PlatformCommon.c"/>
+	
 	<library name="libcutils"/>
 	<library name="liblog"/>
 	<common>
@@ -55,7 +59,6 @@ C_OPTIONS += \
     -DPLATFORM_NO_RLIMIT \
     -DTARGET_OS_LINUX \
     -DUSES_NETLINK \
-	-DSO_REUSEADDR \
     -DMDNS_DEBUGMSGS=0 \
     -DMDNS_UDS_SERVERPATH=\"/dev/socket/mdnsd\" \
     -DMDNS_USERNAME=\"mdnsr\"
@@ -69,9 +72,11 @@ C_OPTIONS += \
 </platform>
 <platform name="linux/bg3cdp,linux/gtk">
 	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
+	<!--library name="-ldns_sd"/-->
 	<source name="kprZeroconfApple.c"/>
 </platform>
 <platform name="linux/aspen">
+	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
 	<library name="-ldns_sd"/>
 	<source name="kprZeroconfApple.c"/>
 </platform>

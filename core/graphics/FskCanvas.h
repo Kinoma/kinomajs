@@ -472,6 +472,9 @@ FskAPI(void)	FskCanvas2dSetGlobalCompositeOperation(FskCanvas2dContext ctx, UInt
 /** The maximum number of color stops accommodatde for linear and radial gradients. */
 #define kCanvas2DMaxGradientStops			6
 
+/** The maximum number of cycles in a dash. */
+#define kCanvas2DMaxDashCycles				4
+
 
 /** Get the current stroke style as a color source.
  *	\param[in]	ctx			The Canvas 2d context.
@@ -486,7 +489,7 @@ FskAPI(const FskColorSource*)	FskCanvas2dGetStrokeStyle(FskConstCanvas2dContext 
 /** Set the current stroke style as a color source.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	cs			The desired color source to be used for stroking paths.
- *	\bug		In this implementation, dashes are not accommodated, because they are not part of the canvas spec.
+ *	\bug		In this implementation,  dashes   are restricted to at most kCanvas2DMaxDashCycles cycles.
  *	\bug		In this implementation, gradients are restricted to at most kCanvas2DMaxGradientStops color stops.
  *	\todo		Accommodate an arbitrary number of gradient color stops.
  *	\see		FskColorSource
@@ -508,7 +511,7 @@ FskAPI(const FskColorSource*)	FskCanvas2dGetFillStyle(FskConstCanvas2dContext ct
 /** Set the current fill style as a color source.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	cs			The desired color source to be used for filling paths.
- *	\bug		In this implementation, dashes are not accommodated, because they are not part of the canvas spec.
+ *	\bug		In this implementation,  dashes   are restricted to at most kCanvas2DMaxDashCycles cycles.
  *	\bug		In this implementation, gradients are restricted to at most kCanvas2DMaxGradientStops color stops.
  *	\todo		Accommodate an arbitrary number of gradient color stops.
  *	\see		FskColorSource
@@ -1053,8 +1056,8 @@ FskAPI(FskErr)	FskCanvas2dPathEndGlyph(FskCanvas2dContext ctx, FskCanvas2dPath p
 /** Fill the given path with the current fill style.
  *	\param[in]	ctx			The Canvas 2d context. Cannot be NULL.
  *	\param[in]	path		The path to be filled. NULL implies the path in the context.
- *	\param[in]	fillRule	The fill rule: { kFskCanvas2dFillRuleWindingNumber, kFskCanvas2dFillRuleParity, 0 },
- *							where 0 is the default kFskCanvas2dFillRuleWindingNumber.
+ *	\param[in]	fillRule	The fill rule: { kFskCanvas2dFillRuleNonZero, kFskCanvas2dFillRuleEvenOdd, 0 },
+ *							where 0 is the default kFskCanvas2dFillRuleNonZero.
  *	\return		kFskErrNone	If the path was successfully filled.
  */
 FskAPI(FskErr)	FskCanvas2dPathFill(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fillRule);
@@ -1070,8 +1073,8 @@ FskAPI(FskErr)	FskCanvas2dPathStroke(FskCanvas2dContext ctx, FskConstCanvas2dPat
 /** Intersect the given clip region with the given path, and update the current clip region.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	path		The clip path. NULL implies the path in the context.
- *	\param[in]	fillRule	The rule for filling { kFskCanvas2dFillRuleWindingNumber, kFskCanvas2dFillRuleParity, 0 },
- *							where kFskCanvas2dFillRuleWindingNumber=0 is the default.
+ *	\param[in]	fillRule	The rule for filling { kFskCanvas2dFillRuleNonZero, kFskCanvas2dFillRuleEvenOdd, 0 },
+ *							where kFskCanvas2dFillRuleNonZero=0 is the default.
  *	\return		kFskErrNone	If the clip region was successfully set.
  */
 FskAPI(FskErr)	FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fillRule);
@@ -1088,8 +1091,8 @@ FskAPI(void)	FskCanvas2dClipReset(FskCanvas2dContext ctx);
  *	\param[in]	path	The
  *	\param[in]	x		The X-coordinate of the point in question.
  *	\param[in]	y		The Y-coordinate of the point in question.
- *	\param[in]	fillRule	The rule for filling { kFskCanvas2dFillRuleWindingNumber, kFskCanvas2dFillRuleParity, 0 },
- *							where kFskCanvas2dFillRuleWindingNumber=0 is the default.
+ *	\param[in]	fillRule	The rule for filling { kFskCanvas2dFillRuleNonZero, kFskCanvas2dFillRuleEvenOdd, 0 },
+ *							where kFskCanvas2dFillRuleNonZero=0 is the default.
  *	\return		True if the point is contained within the path,
  *				false otherwise.
  */
@@ -1131,14 +1134,14 @@ FskAPI(FskErr)	FskCanvas2dSetFont(FskCanvas2dContext ctx, const struct FskFontAt
  *	\return		The current text alignment.
  *				The default is kFskCanvas2dTextAlignStart.
  */
-FskAPI(UInt32) FskCanvas2dGetTextAlignment(FskConstCanvas2dContext ctx);
+FskAPI(UInt32)	FskCanvas2dGetTextAlignment(FskConstCanvas2dContext ctx);
 
 
 /** Set the current text alignment.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	alignment	The desired text alignment.
  */
-FskAPI(void) FskCanvas2dSetTextAlignment(FskCanvas2dContext ctx, UInt32 alignment);
+FskAPI(void)	FskCanvas2dSetTextAlignment(FskCanvas2dContext ctx, UInt32 alignment);
 
 /** Get the current text baseline.
  *	\param[in]	ctx		The Canvas 2d context.
@@ -1152,7 +1155,7 @@ UInt32 FskCanvas2dGetTextBaseline(FskConstCanvas2dContext ctx);
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	baseline	The desired text baseline.
  */
-FskAPI(void) FskCanvas2dSetTextBaseline(FskCanvas2dContext ctx, UInt32 baseline);
+FskAPI(void)	FskCanvas2dSetTextBaseline(FskCanvas2dContext ctx, UInt32 baseline);
 
 
 /** Fill the specified text using the current font attributes and fill style.
@@ -1337,7 +1340,7 @@ FskAPI(FskCanvas2dImageData)	FskCanvas2dCreateImageData(FskConstCanvas2dContext 
 /** Delete an ImageData pixel buffer. Alternatively, call FskMemPtrDispose().
  *	\param[in]	id		The image data.
  */
-FskAPI(void) FskCanvas2dDisposeImageData(FskCanvas2dImageData id);
+FskAPI(void)	FskCanvas2dDisposeImageData(FskCanvas2dImageData id);
 
 
 /** Make a replica of the given pixel buffer.
@@ -1377,7 +1380,7 @@ FskAPI(FskCanvas2dImageData)	FskCanvas2dGetImageData(FskConstCanvas2dContext ctx
  *	\param[in]	sh		The height edge of the source rectangle.
  *	\return		kFskErrNone	if the image data was successfully transferred.
  */
-FskAPI(FskErr) FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, double dx, double dy, double sx, double sy, double sw, double sh);
+FskAPI(FskErr)	FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dImageData src, double dx, double dy, double sx, double sy, double sw, double sh);
 
 
 /** Set the Canvas bitmap's OpenGLSourceAccelerated bit.
@@ -1386,6 +1389,88 @@ FskAPI(FskErr) FskCanvas2dPutImageData(FskCanvas2dContext ctx, FskConstCanvas2dI
  *	\return			kFskErrNone	if the operation was executed successfully.
  */
 FskAPI(FskErr)	FskCanvas2dSetOpenGLSourceAccelerated(FskCanvas cnv, Boolean accelerated);
+
+
+/** Set the line dash.
+ *	\param[in,out]	ctx			the canvas 2D context.
+ *	\param[in]		numCycles	the number of cycles in the dash.
+ *	\param[in]		dash		an array of { on pixels, off pixels } cycles.
+ *	\return			kFskErrNone	if the operation completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dSetLineDash(FskCanvas2dContext ctx, UInt32 numCycles, const double *dash);
+
+
+/** Get the line dash.
+ *	\param[in]		ctx			the canvas 2D context.
+ *	\param[in]		pNumCycles	a place to store the number of cycles in the dash.
+ *	\param[in]		dash		an array of { on pixels, off pixels } cycles.
+ *								This must be disposed with FskMemPtrDispose() when done..
+ *	\return			kFskErrNone	if the operation completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dGetLineDash(FskConstCanvas2dContext ctx, UInt32 *pNumCycles, double **dash);
+
+
+/** Set the line dash offset.
+ *	\param[in,out]	ctx			the canvas 2D context.
+ *	\param[in]		offset		the desired dash offset. It is typically positive, but should work if negative.
+ *	\return			kFskErrNone	if the operation completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dSetLineDashOffset(FskCanvas2dContext ctx, double offset);
+
+
+/** Get the line dash offset.
+ *	\param[in,out]	ctx			the canvas 2D context.
+ *	\param[in]		offset		the desired dash offset. It is typically positive, but should work if negative.
+ */
+FskAPI(double)	FskCanvas2dGetLineDashOffset(FskConstCanvas2dContext ctx);
+
+
+/** Add a hit region to the current canvas.
+ *	\param[in,out]	ctx		the canvas 2D context.
+ *	\param[in,out]	path	the hit path; if NULL, uses the path in the context ctx. Can be NULL.
+ *	\param[in]		id		the ID of the hit region. It can be NULL.
+ *	\param[in]		control	the control for the hit region. It can be NULL.
+ *	\note			The ID and control cannot both be NULL.
+ *	\return			kFskErrNone	if the operation completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, FskConstCanvas2dPath path, const char *id, void *control);
+
+
+/** Remove a hit region from the hit region list in the current canvas.
+ *	Either the id or control must be non-NULL.
+ *	\param[in,out]	ctx		the canvas 2D context.
+ *	\param[in]		id		the    ID   of the hit region to be removed (can be NULL).
+ *	\param[in]		control	the control of the hit region to be removed (can be NULL).
+ *	\return			kFskErrNone	if the operation completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dRemoveHitRegion(FskCanvas2dContext ctx, const char *id, void *control);
+
+
+/** Clear the hit region list in the current canvas.
+ *	\param[in,out]	ctx		the canvas 2D context.
+ *	\return			kFskErrNone	if the operation completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dClearHitRegions(FskCanvas2dContext ctx);
+
+
+/** Pick one of the hit regions.
+ *	\param[in]	ctx			the canvas 2D context.
+ *	\param[in]	x			the X-coordinate of the pick point.
+ *	\param[in]	y			the Y-coordinate of the pick point.
+ *	\param[out]	pID			a place to store the   ID    of the hit region (can be NULL).
+ *	\param[out]	pControl	a place to store the control of the hit region (can be NULL).
+ *	\return		kFskErrNone		if the pick point hit a  region.
+ *	\return		kFskNotFound	if the pick point hit no region.
+ */
+FskAPI(FskErr)	FskCanvas2dPickHitRegion(FskCanvas2dContext ctx, double x, double y, const char **pID, void **pControl);
+
+
+/** Allocate a new path2d object as an identical copy of an existing path.
+ *	\param[in]	oldPath		the path2d object to duplicate.
+ *	\param[out]	pPath		a place to store the new path2d object.
+ *	\return		kFskErrNone	if the operation completed successfully.
+ */
+FskAPI(FskErr)	FskCanvas2dPathClone(FskConstCanvas2dPath oldPath, FskCanvas2dPath *pPath);
 
 
 #ifdef PUNT
@@ -1400,16 +1485,9 @@ struct FskCanvasDrawingStylesRecord;
 FskAPI(FskErr)	FskCanvas2dPathAppendByStrokingPath(FskCanvas2dContext ctx, FskCanvas2dPath dst, FskConstCanvas2dPath src, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M);
 FskAPI(FskErr)	FskCanvas2dPathAppendText(FskCanvas2dContext ctx, FskCanvas2dPath dst, const UInt16 *uniChars, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M, double x, double y, double maxWidth);
 FskAPI(FskErr)	FskCanvas2dPathAppendByStrokingText(FskCanvas2dContext ctx, FskCanvas2dPath dst, const UInt16 *uniChars, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M, double x, double y, double maxWidth);
-FskAPI(FskErr)	FskCanvas2dSetLineDash(FskCanvas2dContext ctx, UInt32 numCycles, const double *dash);
-FskAPI(FskErr)	FskCanvas2dGetLineDash(FskConstCanvas2dContext ctx, UInt32 *pNumCycles, const double **dash);
-FskAPI(void)	FskCanvas2dSetLineDashOffset(FskCanvas2dContext ctx, double offset);
-FskAPI(double)	FskCanvas2dGetLineDashOffset(FskConstCanvas2dContext ctx);
+FFskAPI(FskErr)	FskCanvas2dPathEllipse(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, Boolean anticlockwise);
 FskAPI(void)	FskCanvas2dSetTextDirection(FskCanvas2dContext ctx, SInt32 direction);
-FskAPI(SInt32)	FskCanvas2dGetTextDirection(FskConstCanvas2dContext ctx);
-FskAPI(void)	FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, optional HitRegionOptions options);
-FskAPI(void)	FskCanvas2dRemoveHitRegion(FskCanvas2dContext ctx, DOMString id);
-FskAPI(void)	FskCanvas2dClearHitRegions(FskCanvas2dContext ctx);
-FskAPI(FskErr)	FskCanvas2dPathEllipse(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, Boolean anticlockwise);
+skAPI(SInt32)	FskCanvas2dGetTextDirection(FskConstCanvas2dContext ctx);
 FskAPI(Boolean)	FskCanvasProbablySupportsContext(const char *);
 FskAPI(void)	FskCanvasSetContext(FskCanvas2dContext ctx);
 FskAPI(FskErr)	FskCanvasToBlob(FskCanvas cnv, const char *type, float quality, UInt32 *numBytes, char **bytes);
@@ -1426,8 +1504,28 @@ FskAPI(CanvasProxy)	FskCanvasTransferControlToProxy(FskCanvas cnv);
 typedef struct FskCanvas2dColorSource {
 	FskColorSourceUnion	csu;							/**< The color source proper. */
 	FskGradientStop		gs[kCanvas2DMaxGradientStops];	/**< The gradient stops associated with the color source. */
+	FskFixed			dash[kCanvas2DMaxDashCycles*2];	/**< The dash specification. */
 } FskCanvas2dColorSource;								/**< The encapsulation of a color source. */
 
+
+/** Hit region specification. */
+
+typedef struct FskCanvas2dBlobData {
+	UInt32	offset;
+	UInt32	size;
+} FskCanvas2dBlobData;
+
+typedef struct FskCanvas2dHitRegionDirectoryEntry {
+	void				*control;
+	FskRectangleRecord	bbox;
+	FskCanvas2dBlobData	id;
+	FskCanvas2dBlobData	path;
+	FskCanvas2dBlobData	more;
+} FskCanvas2dHitRegionDirectoryEntry;
+
+UInt32 FskCanvas2dHitRegionGetCount(FskCanvas2dContext ctx);
+
+FskErr FskCanvas2dHitRegionGet(FskCanvas2dContext ctx, UInt32 index, char **id, void **control, FskRectangle *bbox, FskPath *path, void **more);
 
 /** The encapsulation of the Canvas 2D state. */
 typedef struct FskCanvas2dContextState {
@@ -1462,6 +1560,7 @@ struct FskCanvas2dContextRecord {
 	FskCanvasMatrix3x2d		deviceTransform;			/**< The current device transform. */
 	FskGrowablePath			path;						/**< The current path. */
 	FskGrowableArray		state;						/**< FskCanvas2dContextState. */
+	FskGrowableBlobArray	hitRegions;					/**< The list of active hit regions. */
 };
 
 /** The encapsulation of the 2D Canvas. */

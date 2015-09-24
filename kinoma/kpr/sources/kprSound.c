@@ -311,6 +311,7 @@ FskErr KprSoundPlay(KprSound self)
 	UInt32 c;
 	KprSoundFrame frame;
 	
+	bailIfNULL(soundChannel);
 	bailIfError(KprSoundLoad(self));
 	FskTimeCallbackRemove(gSoundTimer);
 	FskSndChannelSetMoreCallback(soundChannel, NULL, NULL);
@@ -400,14 +401,16 @@ void KPR_sound_play(xsMachine *the)
 void KPR_Sound_get_volume(xsMachine *the)
 {
 	float volume = 0;
-	FskSndChannelGetVolume(gSoundChannel, &volume);
+	if (NULL != gSoundChannel)
+		FskSndChannelGetVolume(gSoundChannel, &volume);
 	xsResult = xsNumber(volume);
 }
 
 void KPR_Sound_set_volume(xsMachine *the)
 {
 	float volume = (float)xsToNumber(xsArg(0));
-	FskSndChannelSetVolume(gSoundChannel, volume);
+	if (NULL != gSoundChannel)
+		FskSndChannelSetVolume(gSoundChannel, volume);
 }
 
 void KPR_Sound_hibernate(xsMachine *the UNUSED)
@@ -425,6 +428,10 @@ extern void fxAliasInstance(xsMachine* the, xsSlot* slot);
 void KPR_Sound_patch(xsMachine *the)
 {
 	xsResult = xsGet(xsGlobal, xsID("Sound"));
+#ifndef XS6
+	fxAliasInstance(the, &xsResult);
+	xsSet(xsGlobal, xsID("Sound"), xsResult);
+#endif
 	xsNewHostProperty(xsResult, xsID("volume"), xsNewHostFunction(KPR_Sound_get_volume, 0), xsIsGetter, xsDontScript | xsIsGetter);
 	xsNewHostProperty(xsResult, xsID("volume"), xsNewHostFunction(KPR_Sound_set_volume, 1), xsIsSetter, xsDontScript | xsIsSetter);
 	xsNewHostProperty(xsResult, xsID("hibernate"), xsNewHostFunction(KPR_Sound_hibernate, 0), xsDefault, xsDontScript);

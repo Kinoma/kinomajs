@@ -21,6 +21,7 @@
  	<require id="BUTTONS" path="controls/buttons"/>
 	<require id="CONTROL" path="mobile/control"/>
 	<require id="MIXED" path="creations/mixedInput"/>
+	<require id="SCROLLER" path="mobile/scroller"/>
 
 	<!-- HEADER -->
 	<style id="headerButtonsStyle" font="bold 24px" align="right,middle" lines="1">

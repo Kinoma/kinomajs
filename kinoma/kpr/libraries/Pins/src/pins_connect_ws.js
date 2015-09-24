@@ -16,12 +16,13 @@
 //     limitations under the License.
 //
 
-exports.instantiate = function(Pins, settings)
+exports.instantiate = function(Pins, settings, description, callback)
 {
 	var result = Object.create(wsPins);
 	result.Pins = Pins;
 	result.settings = settings;
 	result.configure();
+	result.callback = callback;
 	return result;
 }
 
@@ -45,11 +46,17 @@ var wsPins = {
 			}, this);
 		}
 		this.ws.onclose = function() {
-			debugger
-			this.connection.open = false;
+		//	debugger
+			var connection = this.connection;
+			connection.open = false;
+			if (connection.callback)
+				connection.callback.call(null, "closed", connection);
 		}
 		this.ws.onerror = function() {
-			debugger
+		//	debugger
+			var connection = this.connection;
+			if (connection.callback)
+				connection.callback.call(null, "error", connection);
 		}
 		this.ws.onmessage = function(e) {
 			if (this.waiting) {

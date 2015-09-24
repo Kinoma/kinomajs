@@ -387,7 +387,7 @@ void fx_String_prototype_concat(txMachine* the)
 void fx_String_prototype_endsWith(txMachine* the)
 {
 	txString string = fxCoerceToString(the, mxThis);
-	txInteger length = c_strlen(string);
+	txInteger length = fxUnicodeLength(string);
 	txString searchString;
 	txInteger searchLength;
 	txInteger offset;
@@ -399,7 +399,7 @@ void fx_String_prototype_endsWith(txMachine* the)
 		mxTypeError("future editions");
 	searchString = fxToString(the, mxArgv(0));
 	searchLength = c_strlen(searchString);
-	offset = fxUnicodeToUTF8Offset(string, fxArgToPosition(the, 1, length, fxUnicodeLength(string)));
+	offset = fxUnicodeToUTF8Offset(string, fxArgToPosition(the, 1, length, length));
 	if (offset < searchLength)
 		return;
 	if (!c_strncmp(string + offset - searchLength, searchString, searchLength))

@@ -32,7 +32,7 @@ var httpPins = {
 	configure: function() {
 		this.httpServer = new HTTP.Server({id: "PinShared", port: ("port" in this.settings) ? this.settings.port : undefined});
 		this.httpServer.behavior = new ServerBehavior;
-		this.httpServer.behavior.Pins = Pins;
+		this.httpServer.behavior.Pins = this.Pins;
 		this.httpServer.behavior.repeats = [];
 		this.httpServer.start();
 	},

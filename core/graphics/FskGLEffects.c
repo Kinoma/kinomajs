@@ -1906,7 +1906,8 @@ bail:
  ********************************************************************************/
 
 static void SetEffectMatrix(GLint id, float *state) {
-	const float *M = FskGLGetViewMatrix();
+	UInt32 matrixSeed;
+	const float *M = FskGLGetViewMatrix(&matrixSeed);
 	if (M[0] != state[0] || M[4] != state[1]) {	/* Only the scale coefficients change */
 		glUniformMatrix3fv(id, 1, GL_FALSE, M);
 		state[0] = M[0];

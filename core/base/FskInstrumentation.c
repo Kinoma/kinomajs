@@ -52,6 +52,7 @@ static FskInstrumentedTypeRecord gFskErrorInstrumentation = {NULL, sizeof(FskIns
 #define c_va_start va_start
 #define c_va_end va_end
 #define c_va_arg va_arg
+#define c_va_copy va_copy
 
 typedef struct {
     const char *msg;
@@ -434,7 +435,8 @@ FskErr FskInstrumentedTypeFormatMessage(FskInstrumentedType dispatch, UInt32 msg
 
 	if (!result && (kFskInstrumentedItemPrintf == msg)) {
         FskInstrumentationPrintf pr = (FskInstrumentationPrintf)msgData;
-        c_va_list arguments = *(pr->arguments);
+		c_va_list arguments;
+		c_va_copy(arguments, *(pr->arguments));
 		vsnprintf(buffer, bufferSize, pr->msg, arguments);
 		result = true;
 	}
@@ -619,7 +621,8 @@ void iscSystemListener(void *refcon, UInt32 msg, const void *data, UInt32 level)
 	else
 	if (kFskInstrumentedItemPrintf == msg) {
         FskInstrumentationPrintf pr = (FskInstrumentationPrintf)data;
-        c_va_list arguments = *(pr->arguments);
+		c_va_list arguments;
+		c_va_copy(arguments, *(pr->arguments));
 		vsnprintf(buffer, sizeof(buffer) - 1, pr->msg, arguments);
 		FskStrCat(buffer, "\n");
 		iscWriteLogLine(buffer, level);

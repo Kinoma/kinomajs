@@ -14,7 +14,7 @@
 #include "mp3dec_own.h"
 
 /* scfsi_band  scalefactor bands (p.24 ISO/IEC 11172-3 )*/
-static struct {
+static const struct {
     int     l[5];
     int     s[3];
 } sfbtable = {
@@ -23,14 +23,14 @@ static struct {
             0, 6, 12}
 };
 
-static int slen[2][16] = {
+static const int slen[2][16] = {
     {0x0, 0x0, 0x0, 0x0, 0x3, 0x1, 0x1, 0x1, 0x2, 0x2, 0x2, 0x3, 0x3, 0x3, 0x4, 0x4},
     {0x0, 0x1, 0x2, 0x3, 0x0, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x1, 0x2, 0x3, 0x2, 0x3}
 };
 
 /* Table 3-B.8. Layer III scalefactor bands (p.33 Annex_AB ISO/IEC 11172-3)*/
 
-ssfBandIndex mp3dec_sfBandIndex[3][3] = {
+const ssfBandIndex mp3dec_sfBandIndex[3][3] = {
     {
         {
             {
@@ -90,7 +90,7 @@ ssfBandIndex mp3dec_sfBandIndex[3][3] = {
 };
 
 
-unsigned char mp3dec_nr_of_sfb[6][3][4] =
+const unsigned char mp3dec_nr_of_sfb[6][3][4] =
 {
     {{0x6, 0x5, 0x5, 0x5}, { 0x9,  0x9, 0x9, 0x9}, {0x6,  0x9, 0x9, 0x9}},
     {{0x6, 0x5, 0x7, 0x3}, { 0x9,  0x9, 0xc, 0x6}, {0x6,  0x9, 0xc, 0x6}},
@@ -788,7 +788,7 @@ int mp3dec_GetScaleFactorsL3_LSF(MP3Dec_com *state, int ch) {
     }
 
     k = 0;
-    ptr = mp3dec_nr_of_sfb[blocknumber][blocktypenumber];
+    ptr = (unsigned char *)mp3dec_nr_of_sfb[blocknumber][blocktypenumber];
 
     for (i = 0; i < 4; i++) {
         int num = ptr[i];

@@ -14,45 +14,44 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-PROJECT(XSBUG)
+project(XSBUG)
 
-STRING(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
+string(TOUPPER ${CMAKE_BUILD_TYPE} BUILD_TYPE)
 
-SET(BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/build)
-SET(KPRCONFIG_OPTIONS -x -t ${BUILD_DIR})
+set(BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/build)
+set(KPRCONFIG_OPTIONS -x -t ${BUILD_DIR})
 
-IF(UNIX)
-	IF(APPLE)
-		SET(OUTPUT ${XS6_TOOLS_BIN}/xsbug.app/Contents/MacOS/fsk)
-	ELSE()
-		IF(NOT "${ARCHITECTURE}" STREQUAL "x86_64")
-			FILE(MAKE_DIRECTORY ${XS6_TOOLS_BIN}/xsbug)
-			LIST(APPEND KPRCONFIG_OPTIONS -b ${XS6_TOOLS_BIN}/xsbug)
-			SET(OPTIONS -p linux/gtk)
-			SET(OUTPUT ${XS6_TOOLS_BIN}/xsbug/Kpl)
-		ENDIF()
-	ENDIF()
-ELSEIF(WIN32)
-	SET(OUTPUT ${XS6_TOOLS_BIN}/xsbug/xsbug.exe)
-ENDIF()
+if(UNIX)
+	if(APPLE)
+		set(OUTPUT ${XS6_TOOLS_BIN}/xsbug.app/Contents/MacOS/fsk)
+	else()
+		if(NOT "${ARCHITECTURE}" STREQUAL "x86_64")
+			file(MAKE_DIRECTORY ${XS6_TOOLS_BIN}/xsbug)
+			list(APPEND KPRCONFIG_OPTIONS -b ${XS6_TOOLS_BIN}/xsbug)
+			set(OPTIONS -p linux/gtk)
+			set(OUTPUT ${XS6_TOOLS_BIN}/xsbug/Kpl)
+		endif()
+	endif()
+elseif(WIN32)
+	set(OUTPUT ${XS6_TOOLS_BIN}/xsbug/xsbug.exe)
+endif()
 
-IF(NOT NO_BUILD)
-	LIST(APPEND KPRCONFIG_OPTIONS -m)
-ENDIF()
+if(NOT NO_BUILD)
+	list(APPEND KPRCONFIG_OPTIONS -m)
+endif()
 
-SET(KPRCONFIG_OPTIONS_RELEASE ${KPRCONFIG_OPTIONS})
-SET(KPRCONFIG_OPTIONS_DEBUG ${KPRCONFIG_OPTIONS} -d -i)
+set(KPRCONFIG_OPTIONS_RELEASE ${KPRCONFIG_OPTIONS})
+set(KPRCONFIG_OPTIONS_DEBUG ${KPRCONFIG_OPTIONS} -d -i)
 
-FILE(MAKE_DIRECTORY ${BUILD_DIR})
+file(MAKE_DIRECTORY ${BUILD_DIR})
 
-IF(OUTPUT)
-	SET(PATH "$ENV{PATH}")
-	ADD_CUSTOM_COMMAND(
-		OUTPUT ${OUTPUT}
-		COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_DIR}
-		COMMAND ${KPRCONFIG} ${OPTIONS} ${KPRCONFIG_OPTIONS_${BUILD_TYPE}} -o ${XS6} ${XS6}/xsbug/manifest.json
-		COMMENT "Creating xsbug"
-		DEPENDS tools xsc xsl xsr
-		)
-	ADD_CUSTOM_TARGET(xsbug ALL DEPENDS ${OUTPUT})
-ENDIF()
+add_custom_target(
+	xsbug
+	ALL
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_DIR}
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${XS6_TOOLS_BIN}/xsbug
+	COMMAND ${CMAKE_COMMAND} -E echo ${KPRCONFIG} ${OPTIONS} ${KPRCONFIG_OPTIONS_${BUILD_TYPE}} -o ${XS6} ${XS6}/xsbug/manifest.json
+	COMMAND ${KPRCONFIG} ${OPTIONS} ${KPRCONFIG_OPTIONS_${BUILD_TYPE}} -o ${XS6} ${XS6}/xsbug/manifest.json
+	COMMENT "Creating xsbug"
+	DEPENDS tools xsc xsl xsr
+	)

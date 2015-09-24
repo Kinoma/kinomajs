@@ -405,7 +405,7 @@ FskErr FskBitmapDispose(FskBitmap bits)
 	if (NULL != bits) {
 #if SUPPORT_INSTRUMENTATION
 		if ((0 != bits->readLock) || (0 != bits->writeLock))
-			FskInstrumentedItemSendMessageMinimal(bits, kFskBitmapInstrMsgDisposeLocked, (void *)(int)(bits->readLock + bits->writeLock));
+			FskInstrumentedItemSendMessageMinimal(bits, kFskBitmapInstrMsgDisposeLocked, (void *)(long)(bits->readLock + bits->writeLock));
 #endif /* SUPPORT_INSTRUMENTATION */
 
 		bits->useCount -= 1;
@@ -673,7 +673,7 @@ FskErr FskBitmapReadBegin(FskBitmap bmp, const void **bits, SInt32 *rowBytes, Fs
 	bmp->readLock += 1;
 	bmp->useCount += 1;
 
-	FskInstrumentedItemSendMessageVerbose(bmp, kFskBitmapInstrMsgGet, (void *)(int)bmp->readLock);
+	FskInstrumentedItemSendMessageVerbose(bmp, kFskBitmapInstrMsgGet, (void *)(long)bmp->readLock);
 
 	if (bits) *bits = bmp->bits;
 	if (rowBytes) *rowBytes = bmp->rowBytes;
@@ -687,10 +687,10 @@ FskErr FskBitmapReadEnd(FskBitmap bmp)
 	bmp->readLock -= 1;
 
 #if SUPPORT_INSTRUMENTATION
-	FskInstrumentedItemSendMessageVerbose(bmp, kFskBitmapInstrMsgRelease, (void *)(int)bmp->readLock);
+	FskInstrumentedItemSendMessageVerbose(bmp, kFskBitmapInstrMsgRelease, (void *)(long)bmp->readLock);
 
 	if (bmp->readLock < 0)
-		FskInstrumentedItemSendMessageMinimal(bmp, kFskBitmapInstrMsgTooManyUnlocks, (void *)(int)bmp->readLock);
+		FskInstrumentedItemSendMessageMinimal(bmp, kFskBitmapInstrMsgTooManyUnlocks, (void *)(long)bmp->readLock);
 #endif /* SUPPORT_INSTRUMENTATION */
 
 	if (0 == (bmp->readLock + bmp->writeLock)) {
@@ -720,7 +720,7 @@ FskErr FskBitmapWriteBegin(FskBitmap bmp, void **bits, SInt32 *rowBytes, FskBitm
 	bmp->writeSeed += 1;
 	bmp->useCount += 1;
 
-	FskInstrumentedItemSendMessageVerbose(bmp, kFskBitmapInstrMsgGet, (void *)(int)bmp->writeLock);
+	FskInstrumentedItemSendMessageVerbose(bmp, kFskBitmapInstrMsgGet, (void *)(long)bmp->writeLock);
 
 	if (bits) *bits = bmp->bits;
 	if (rowBytes) *rowBytes = bmp->rowBytes;
@@ -734,10 +734,10 @@ FskErr FskBitmapWriteEnd(FskBitmap bmp)
 	bmp->writeLock -= 1;
 
 #if SUPPORT_INSTRUMENTATION
-	FskInstrumentedItemSendMessageVerbose(bmp, kFskBitmapInstrMsgRelease, (void *)(int)bmp->writeLock);
+	FskInstrumentedItemSendMessageVerbose(bmp, kFskBitmapInstrMsgRelease, (void *)(long)bmp->writeLock);
 
 	if (bmp->writeLock < 0)
-		FskInstrumentedItemSendMessageMinimal(bmp, kFskBitmapInstrMsgTooManyUnlocks, (void *)(int)bmp->writeLock);
+		FskInstrumentedItemSendMessageMinimal(bmp, kFskBitmapInstrMsgTooManyUnlocks, (void *)(long)bmp->writeLock);
 #endif /* SUPPORT_INSTRUMENTATION */
 
 	if (0 == (bmp->readLock + bmp->writeLock)) {
@@ -1006,11 +1006,11 @@ Boolean doFormatMessageBitmap(FskInstrumentedType dispatch, UInt32 msg, void *ms
 {
 	switch (msg) {
 		case kFskBitmapInstrMsgGet:
-			snprintf(buffer, bufferSize, "get, lockCount=%d", (int)msgData);
+			snprintf(buffer, bufferSize, "get, lockCount=%ld", (long)msgData);
 			return true;
 
 		case kFskBitmapInstrMsgRelease:
-			snprintf(buffer, bufferSize, "release, lockCount=%d", (int)msgData);
+			snprintf(buffer, bufferSize, "release, lockCount=%ld", (long)msgData);
 			return true;
 
 		case kFskBitmapInstrMsgDisposeLocked:
@@ -1023,15 +1023,15 @@ Boolean doFormatMessageBitmap(FskInstrumentedType dispatch, UInt32 msg, void *ms
 
 		case kFskBitmapInstrMsgInitialize: {
 			FskBitmap bits = (FskBitmap)msgData;
-			snprintf(buffer, bufferSize, "initialize: width=%ld, height=%ld, pixelFormat=%s, rowBytes=%ld, bytes=%ld",
-					bits->bounds.width, bits->bounds.height, FskBitmapFormatName(bits->pixelFormat), bits->rowBytes, bits->rowBytes * bits->bounds.height);
+			snprintf(buffer, bufferSize, "initialize: width=%d, height=%d, pixelFormat=%s, rowBytes=%d, bytes=%ld",
+					(int)bits->bounds.width, (int)bits->bounds.height, FskBitmapFormatName(bits->pixelFormat), (int)bits->rowBytes, (long)bits->rowBytes * bits->bounds.height);
 			}
 			return true;
 
 		case kFskBitmapInstrMsgInitializeWrapper: {
 			FskBitmap bits = (FskBitmap)msgData;
-			snprintf(buffer, bufferSize, "initialize wrapper: width=%ld, height=%ld, pixelFormat=%s, rowBytes=%ld",
-					bits->bounds.width, bits->bounds.height, FskBitmapFormatName(bits->pixelFormat), bits->rowBytes);
+			snprintf(buffer, bufferSize, "initialize wrapper: width=%d, height=%d, pixelFormat=%s, rowBytes=%d",
+					(int)bits->bounds.width, (int)bits->bounds.height, FskBitmapFormatName(bits->pixelFormat), (int)bits->rowBytes);
 			}
 			return true;
 

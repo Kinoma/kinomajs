@@ -104,18 +104,20 @@
 				behavior.sandbox.id = i;
 				if ("pins" in behavior.sandbox)
 					defaults = behavior.sandbox.pins.sandbox;
-				var pins = configuration.pins.sandbox;
-				for (var j in pins) {
-					var pin = pins[j].sandbox;
-					if (defaults && (j in defaults))
-						this.merge(defaults[j].sandbox, pin);
-                    var type = pin.type;
-                    if (!type)
-                        throw new Error("Pin " + j + " missing type: " + JSON.stringify(pin));
-                    if (!(type in constructors))
-                        throw new Error("Unsupported pin type on pin " + j + ": " + JSON.stringify(pin));
-					if (construct)
-						behavior.sandbox[j] = new (constructors[type])(pin);
+				var pins = ("pins" in configuration) ? configuration.pins.sandbox : undefined;
+				if (pins) {
+					for (var j in pins) {
+						var pin = pins[j].sandbox;
+						if (defaults && (j in defaults))
+							this.merge(defaults[j].sandbox, pin);
+						var type = pin.type;
+						if (!type)
+							throw new Error("Pin " + j + " missing type: " + JSON.stringify(pin));
+						if (!(type in constructors))
+							throw new Error("Unsupported pin type on pin " + j + ": " + JSON.stringify(pin));
+						if (construct)
+							behavior.sandbox[j] = new (constructors[type])(pin);
+					}
 				}
 				if (construct && ("configure" in behavior.sandbox))
 					behavior.sandbox.configure(configuration, i);	// passing i for debugging / simulators
@@ -126,8 +128,16 @@
 			return configurationsNS;
 		</function>
 		<function name="metadata" params="bll">
-			var prototype = require(bll.split("/")[1]);
-			return ("metadata" in prototype.sandbox) ? prototype.sandbox.metadata : undefined;
+			if (bll) {
+				var prototype = require(bll.split("/")[1]);
+				return ("metadata" in prototype.sandbox) ? prototype.sandbox.metadata : undefined;
+			}
+			var result = {};
+			for (var i in this.behaviors) {
+				var behavior = this.behaviors[i];
+				result[i] = behavior.metadata;
+			}
+			return result;
 		</function>
 		<function name="configuration">
 			return JSON.parse(JSON.sandbox.stringify(PINS.config));		//@@ hack to get object into form xsMarshall will tolerate

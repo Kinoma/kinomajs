@@ -803,7 +803,7 @@ FskGrowableArrayGetItem(FskConstGrowableArray array, UInt32 index, void *item)
 FskErr
 FskGrowableArrayGetPointerToItem(FskGrowableArray array, UInt32 index, void **pPtr)
 {
-	return FskGrowableStorageGetPointerToItem(&array->storage, index * array->itemSize, pPtr);
+	return array->numItems ? FskGrowableStorageGetPointerToItem(&array->storage, index * array->itemSize, pPtr) : kFskErrItemNotFound;
 }
 
 
@@ -842,7 +842,7 @@ FskGrowableArrayGetPointerToNewEndItem(FskGrowableArray array, void **pPtr)
 FskErr
 FskGrowableArrayGetConstPointerToItem(FskConstGrowableArray array, UInt32 index, const void **pPtr)
 {
-	return FskGrowableStorageGetConstPointerToItem(&array->storage, index * array->itemSize, pPtr);
+	return array->numItems ? FskGrowableStorageGetConstPointerToItem(&array->storage, index * array->itemSize, pPtr) : kFskErrItemNotFound;
 }
 
 
@@ -954,6 +954,8 @@ FskGrowableBlobArraySetItemCount(FskGrowableBlobArray array, UInt32 numItems)
 	FskErr	err		= kFskErrNone;
 	UInt32	oldNum	= FskGrowableArrayGetItemCount(array->directory);
 
+	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
+	oldNum = FskGrowableArrayGetItemCount(array->directory);
 	if (oldNum != numItems) {
 		BAIL_IF_ERR(err = FskGrowableArraySetItemCount(array->directory, numItems));
 		if (numItems > oldNum) {
@@ -979,7 +981,7 @@ bail:
 UInt32
 FskGrowableBlobArrayGetItemCount(FskConstGrowableBlobArray array)
 {
-	return FskGrowableArrayGetItemCount(array->directory);
+	return array ? FskGrowableArrayGetItemCount(array->directory) : 0;
 }
 
 
@@ -1037,19 +1039,18 @@ FskGrowableBlobArrayGetPointerToNewEndItem(FskGrowableBlobArray array, UInt32 it
 	BlobEntry	*dirPtr;
 
 	*blob = NULL;
-	if (	((err = FskGrowableArrayGetPointerToNewEndItem(array->directory, (void**)(void*)(&dirPtr))) == kFskErrNone)
-		&&	((err = InitBlobDirEntry(dirPtr, array, itemSize, id)) == kFskErrNone)
-	) {
-		err = FskGrowableStorageGetPointerToItem(array->data, dirPtr->offset, blob);
-		if (	(array->flags & BLOB_DIR_IDSORTED)
-			&&	(array->directory->storage.size > array->directory->itemSize)
-			&&	(((BlobEntry*)(((char*)dirPtr) - array->directory->itemSize))->id	<= dirPtr->id)
-		)
-			array->flags &= ~BLOB_DIR_IDSORTED;	/* Not sorted */
-	}
+	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToNewEndItem(array->directory, (void**)(void*)(&dirPtr)));
+	BAIL_IF_ERR(err = InitBlobDirEntry(dirPtr, array, itemSize, id));
+	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, dirPtr->offset, blob));
+	if (	(array->flags & BLOB_DIR_IDSORTED)
+		&&	(array->directory->storage.size > array->directory->itemSize)
+		&&	(((BlobEntry*)(((char*)dirPtr) - array->directory->itemSize))->id	<= dirPtr->id)
+	)
+		array->flags &= ~BLOB_DIR_IDSORTED;	/* Not sorted */
 
+bail:
 	if (dirData != NULL)	*dirData = (err == kFskErrNone) ? (dirPtr + 1) : NULL;	/* Return pointer to the public portion of the directory */
-
 	return err;
 }
 
@@ -1065,15 +1066,14 @@ FskGrowableBlobArrayGetPointerToNewItem(FskGrowableBlobArray array, UInt32 index
 	BlobEntry	*dirPtr;
 
 	*blob = NULL;
-	if (	((err = FskGrowableArrayGetPointerToNewItem(array->directory, index, (void**)(void*)(&dirPtr))) == kFskErrNone)
-		&&	((err = InitBlobDirEntry(dirPtr, array, itemSize, id)) == kFskErrNone)
-	) {
-		err = FskGrowableStorageGetPointerToItem(array->data, dirPtr->offset, blob);
-		array->flags &= ~BLOB_DIR_IDSORTED;
-	}
+	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToNewItem(array->directory, index, (void**)(void*)(&dirPtr)));
+	BAIL_IF_ERR(err = InitBlobDirEntry(dirPtr, array, itemSize, id));
+	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, dirPtr->offset, blob));
+	array->flags &= ~BLOB_DIR_IDSORTED;
 
+bail:
 	if (dirData != NULL)	*dirData = (err == kFskErrNone) ? (dirPtr + 1) : NULL;
-
 	return err;
 }
 
@@ -1089,13 +1089,14 @@ FskGrowableBlobArrayGetPointerToItem(FskGrowableBlobArray array, UInt32 index, v
 	BlobEntry	*dirPtr	= NULL;
 	void		*myPtr	= NULL;
 
-	if ((err = FskGrowableArrayGetPointerToItem(array->directory, index, (void**)(void*)(&dirPtr))) == kFskErrNone)
-		err = FskGrowableStorageGetPointerToItem(array->data, dirPtr->offset, &myPtr);
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, (void**)(void*)(&dirPtr)));
+	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, dirPtr->offset, &myPtr));
 
+bail:
 	if (blob    != NULL)	*blob		= (err == kFskErrNone) ? myPtr			: NULL;
 	if (dirData != NULL)	*dirData	= (err == kFskErrNone) ? (dirPtr + 1)	: NULL;
 	if (size    != NULL)	*size		= (err == kFskErrNone) ? dirPtr->size	: 0;
-
 	return err;
 }
 
@@ -1111,13 +1112,14 @@ FskGrowableBlobArrayGetConstPointerToItem(FskConstGrowableBlobArray array, UInt3
 	const BlobEntry *dirPtr	= NULL;
 	const void		*myPtr	= NULL;
 
-	if ((err = FskGrowableArrayGetConstPointerToItem(array->directory, index, (const void**)(const void*)(&dirPtr))) == kFskErrNone)
-		err = FskGrowableStorageGetConstPointerToItem(array->data, dirPtr->offset, &myPtr);
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
+	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, index, (const void**)(const void*)(&dirPtr)));
+	BAIL_IF_ERR(err = FskGrowableStorageGetConstPointerToItem(array->data, dirPtr->offset, &myPtr));
 
+bail:
 	if (blob    != NULL)	*blob		= (err == kFskErrNone) ? myPtr			: NULL;
 	if (dirData != NULL)	*dirData	= (err == kFskErrNone) ? (dirPtr + 1)	: NULL;
 	if (size    != NULL)	*size		= (err == kFskErrNone) ? dirPtr->size	: 0;
-
 	return err;
 }
 
@@ -1133,9 +1135,11 @@ FskGrowableBlobArrayGetSizeOfItem(FskConstGrowableBlobArray array, UInt32 index)
 	const BlobEntry	*dirPtr;
 	UInt32			size	= 0;
 
-	if ((err = FskGrowableArrayGetConstPointerToItem(array->directory, index, (const void**)(const void*)(&dirPtr))) == kFskErrNone)
-		size = dirPtr->size;
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
+	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, index, (const void**)(const void*)(&dirPtr)));
+	size = dirPtr->size;
 
+bail:
 	return size;
 }
 
@@ -1150,6 +1154,7 @@ FskGrowableBlobArraySetSizeOfItem(FskGrowableBlobArray array, UInt32 index, UInt
 	FskErr		err;
 	BlobEntry	*dirPtr;
 
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
 	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, (void**)(void*)(&dirPtr)));
 	if (size > dirPtr->size) {
 		dirPtr->offset = FskGrowableStorageGetSize(array->data);										/* Waste old memory, if not at then end */
@@ -1271,23 +1276,23 @@ FskGrowableBlobArraySwapItems(FskGrowableBlobArray array, UInt32 index0, UInt32 
 {
 	FskErr		err;
 	BlobEntry	*d0, *d1;
+	UInt32	t;																					/* The id's and indices stay the same */
 
-	if (	((err = FskGrowableArrayGetPointerToItem(array->directory, index0, (void**)(void*)(&d0))) == kFskErrNone)
-		&&	((err = FskGrowableArrayGetPointerToItem(array->directory, index1, (void**)(void*)(&d1))) == kFskErrNone)
-	) {
-		UInt32	t;																					/* The id's and indices stay the same */
-		t = d0->offset;		d0->offset = d1->offset;	d1->offset = t;								/* Swap offsets */
-		t = d0->size;		d0->size   = d1->size;		d1->size   = t;								/* Swap sizes */
-		if ((t = array->directory->itemSize - sizeof(BlobEntry)) > 0) {								/* Swap extra directory information */
-			UInt32	*p0, *p1, i;
-			for (i = t / sizeof(UInt32), p0 = (UInt32*)(d0 + 1), p1 = (UInt32*)(d1 + 1); i--; ) {
-				t     = *p0;
-				*p0++ = *p1;
-				*p1++ = t;
-			}
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index0, (void**)(void*)(&d0)));
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index1, (void**)(void*)(&d1)));
+	t = d0->offset;		d0->offset = d1->offset;	d1->offset = t;								/* Swap offsets */
+	t = d0->size;		d0->size   = d1->size;		d1->size   = t;								/* Swap sizes */
+	if ((t = array->directory->itemSize - sizeof(BlobEntry)) > 0) {								/* Swap extra directory information */
+		UInt32	*p0, *p1, i;
+		for (i = t / sizeof(UInt32), p0 = (UInt32*)(d0 + 1), p1 = (UInt32*)(d1 + 1); i--; ) {
+			t     = *p0;
+			*p0++ = *p1;
+			*p1++ = t;
 		}
 	}
 
+bail:
 	return err;
 }
 
@@ -1299,7 +1304,7 @@ FskGrowableBlobArraySwapItems(FskGrowableBlobArray array, UInt32 index0, UInt32 
 FskErr
 FskGrowableBlobArraySortItems(FskGrowableBlobArray array, FskCompareFunction comp)
 {
-	return FskGrowableArraySortItems(array->directory, comp);
+	return array ? FskGrowableArraySortItems(array->directory, comp) : kFskErrNotDirectory;
 }
 
 
@@ -1328,9 +1333,11 @@ FskGrowableBlobArraySortItemsByID(FskGrowableBlobArray array)
 {
 	FskErr	err;
 
-	if ((err = FskGrowableArraySortItems(array->directory, CompareID)) == kFskErrNone)
-		array->flags |= BLOB_DIR_IDSORTED;
+	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
+	BAIL_IF_ERR(err = FskGrowableArraySortItems(array->directory, CompareID));
+	array->flags |= BLOB_DIR_IDSORTED;
 
+bail:
 	return err;
 }
 
@@ -1365,6 +1372,7 @@ FskGrowableBlobArrayCompact(FskConstGrowableBlobArray array)
 	UInt8		*tmp	= NULL;
 	UInt32		z, n, dirSize;
 
+	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
 	z = FskGrowableStorageGetSize(array->data);	/* The current size of the data is always larger that the final result */
 	BAIL_IF_ERR(err = FskMemPtrNew(z, &tmp));															/* Allocate tmp */
 	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, 0, (void**)(void*)(&data)));		/* Get data ptr */
@@ -1397,7 +1405,7 @@ GetDirectoryEntryFromIdOfItemInGrowableBlobArray(FskGrowableBlobArray array, UIn
 
 	if (	((numItems = FskGrowableArrayGetItemCount(array->directory)) < BSEARCH_THRESH)		/* If the list is small ... */
 		||	!(array->flags & BLOB_DIR_IDSORTED)													/* ... or unsorted ... */
-	){																							/* Do a linear search */
+	) {																							/* Do a linear search */
 		void			*ptr;
 		register UInt32	id			= theID;
 		register UInt32	dirSize		= array->directory->itemSize;
@@ -1424,9 +1432,11 @@ GetConstDirectoryEntryFromIdOfItemInGrowableBlobArray(FskConstGrowableBlobArray 
 	register UInt32				numItems;
 	register const BlobEntry	*dirPtr;
 
+	if (!array)
+		return NULL;
 	if (	((numItems = FskGrowableArrayGetItemCount(array->directory)) < BSEARCH_THRESH)		/* If the list is small ... */
 		||	!(array->flags & BLOB_DIR_IDSORTED)													/* ... or unsorted ... */
-	){																							/* Do a linear search */
+	) {																							/* Do a linear search */
 		const void		*ptr;
 		register UInt32	id			= theID;
 		register UInt32	dirSize		= array->directory->itemSize;
@@ -1476,9 +1486,11 @@ FskGrowableBlobArrayGetIDOfItem(FskConstGrowableBlobArray array, UInt32 index, U
 	FskErr			err;
 	const BlobEntry	*dirPtr;
 
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
 	err = FskGrowableArrayGetConstPointerToItem(array->directory, index, (const void**)(const void*)(&dirPtr));
-	*id = (err == kFskErrNone) ? dirPtr->id : 0;	/* Returns 0 if error, since 0 is an invalid id */
 
+bail:
+	*id = (err == kFskErrNone) ? dirPtr->id : 0;	/* Returns 0 if error, since 0 is an invalid id */
 	return err;
 }
 
@@ -1493,11 +1505,12 @@ FskGrowableBlobArraySetIDOfItem(FskGrowableBlobArray array, UInt32 index, UInt32
 	FskErr		err			= kFskErrNone;
 	BlobEntry	*dirPtr;
 
-	if ((err = FskGrowableArrayGetPointerToItem(array->directory, index, (void**)(void*)(&dirPtr))) == kFskErrNone) {
-		dirPtr->id = id;
-		array->flags &= ~BLOB_DIR_IDSORTED;		/* This will probably cause the data to be unsorted */
-	}
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, (void**)(void*)(&dirPtr)));
+	dirPtr->id = id;
+	array->flags &= ~BLOB_DIR_IDSORTED;		/* This will probably cause the data to be unsorted */
 
+bail:
 	return err;
 }
 

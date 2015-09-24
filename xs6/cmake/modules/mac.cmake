@@ -14,5 +14,5 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 #
-SET(CMAKE_OSX_ARCHITECTURES "i386")
-SET(SDKVER "10.8")
+set(CMAKE_OSX_ARCHITECTURES "i386" CACHE STRING "Default Architecture")
+set(SDKVER "10.9")

@@ -124,6 +124,7 @@ LINKER = g++
 <platform name="Linux">
 <common>
 C_OPTIONS += -O2 -DTARGET_OS_LINUX=1 -DLINUX32=1 -D__KINOMA_IPP__=1 -DKINOMA_MP3=1 -D_GNU_SOURCE -DKINOMA_FAST_HUFFMAN=1
+LIBRARIES += -lstdc++
 LINKER = g++
 </common>
 </platform>

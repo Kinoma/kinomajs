@@ -26,11 +26,9 @@
 		<c option="-DmxDebug=1"/>
 		<c option="-g"/>
 		<c option="-O0"/>
-		<c option="-DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)"/>
 	</version>
 
 	<version name="release">
 		<c option="-O3"/>
-		<c option="-DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)"/>
 	</version>
 </makefile>

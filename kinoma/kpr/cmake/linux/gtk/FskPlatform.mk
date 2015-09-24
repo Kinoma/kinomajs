@@ -76,13 +76,11 @@
 	<c option="-Wno-multichar"/>
 	
 	<version name="debug">
-		<c option="-DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)"/>
 		<c option="-DmxDebug"/>
 		<c option="-g"/>
 	</version>
 	
 	<version name="release">
-		<c option="-DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)"/>
 		<c option="-g"/>
 		<c option="-O2"/>
 	</version>

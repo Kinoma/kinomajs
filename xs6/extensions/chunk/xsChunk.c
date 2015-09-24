@@ -71,6 +71,7 @@ void xs_Chunk(xsMachine* the)
 					else
 						length -= offset;
 				}
+				xsVar(1) = xsArg(0);
 			}
 			else
 				xsRangeError("invalid parameter");

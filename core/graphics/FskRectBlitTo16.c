@@ -378,7 +378,7 @@ FskName4(Fsk,Blend,SrcPixelKind,DstPixelKind)(const FskRectBlitParams *params)
 				x = x0;
 
 				// made dst word aligned
-				if(2 & (int)d){
+				if(2 & (long)d){
 					BlendAlphaHWord();
 					width--;
 				}
@@ -386,7 +386,7 @@ FskName4(Fsk,Blend,SrcPixelKind,DstPixelKind)(const FskRectBlitParams *params)
 				// made dst Dword aligned
 				width2 = width >>1;
 				if(width2){
-					if(4 & (int)d){
+					if(4 & (long)d){
 						BlendAlphaHWord();
 						BlendAlphaHWord();
 						width2--;

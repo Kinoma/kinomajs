@@ -77,30 +77,30 @@ static void fx_TypedArray_prototype_values(txMachine* the);
 static void fx_TypedArray_prototype_values_next(txMachine* the);
 
 static int fxFloat32Compare(const void* p, const void* q);
-static void fxFloat32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxFloat32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
+static void fxFloat32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxFloat32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
 static int fxFloat64Compare(const void* p, const void* q);
-static void fxFloat64Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxFloat64Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
+static void fxFloat64Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxFloat64Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
 static int fxInt8Compare(const void* p, const void* q);
-static void fxInt8Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxInt8Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
+static void fxInt8Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxInt8Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
 static int fxInt16Compare(const void* p, const void* q);
-static void fxInt16Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxInt16Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
+static void fxInt16Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxInt16Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
 static int fxInt32Compare(const void* p, const void* q);
-static void fxInt32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxInt32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
+static void fxInt32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxInt32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
 static int fxUint8Compare(const void* p, const void* q);
-static void fxUint8Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxUint8Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
+static void fxUint8Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxUint8Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
 static int fxUint16Compare(const void* p, const void* q);
-static void fxUint16Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxUint16Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
+static void fxUint16Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxUint16Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
 static int fxUint32Compare(const void* p, const void* q);
-static void fxUint32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxUint32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
-static void fxUint8ClampedSetter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot);
+static void fxUint32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxUint32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
+static void fxUint8ClampedSetter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian);
 
 #define mxTypeDispatchCount 9
 const txTypeDispatch gTypeDispatches[mxTypeDispatchCount] = {
@@ -113,6 +113,12 @@ const txTypeDispatch gTypeDispatches[mxTypeDispatchCount] = {
 	{ 2, fxUint16Getter, fxUint16Setter, fxUint16Compare, _getUint16, _setUint16, _Uint16Array },
 	{ 4, fxUint32Getter, fxUint32Setter, fxUint32Compare, _getUint32, _setUint32, _Uint32Array },
 	{ 1, fxUint8Getter, fxUint8ClampedSetter, fxUint8Compare, _getUint8Clamped, _setUint8Clamped, _Uint8ClampedArray }
+};
+
+enum {
+	EndianNative = 0,
+	EndianLittle = 1,
+	EndianBig = 2
 };
 
 void fxArrayBuffer(txMachine* the, txSlot* slot, void* data, txInteger byteLength)
@@ -555,12 +561,15 @@ void fx_DataView_prototype_get(txMachine* the)
 	txSlot* buffer = view->next;
 	txInteger delta = dispatch->value.typedArray->size;
 	txInteger offset;
+	int endian = EndianBig;
 	if ((mxArgc < 1) || !fxCheckLength(the, mxArgv(0), &offset))
 		mxRangeError("invalid byteOffset");
+	if (mxArgc >= 2 && fxToBoolean(the, mxArgv(1)))
+		endian = EndianLittle;
 	if ((offset < 0) || (view->value.dataView.size < (offset + delta)))
 		mxRangeError("out of range byteOffset");
 	offset += view->value.dataView.offset;
-	(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, offset, mxResult);
+	(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, offset, mxResult, endian);
 }
 
 void fx_DataView_prototype_set(txMachine* the)
@@ -571,12 +580,15 @@ void fx_DataView_prototype_set(txMachine* the)
 	txSlot* buffer = view->next;
 	txInteger delta = dispatch->value.typedArray->size;
 	txInteger offset;
+	int endian = EndianBig;
 	if ((mxArgc < 1) || !fxCheckLength(the, mxArgv(0), &offset))
 		mxRangeError("invalid byteOffset");
+	if (mxArgc >= 3 && fxToBoolean(the, mxArgv(2)))
+		endian = EndianLittle;
 	if ((offset < 0) || (view->value.dataView.size < (offset + delta)))
 		mxRangeError("out of range byteOffset");
 	offset += view->value.dataView.offset;
-	(*dispatch->value.typedArray->setter)(the, buffer->value.reference->next, offset, (mxArgc < 2) ? &mxUndefined : mxArgv(1));
+	(*dispatch->value.typedArray->setter)(the, buffer->value.reference->next, offset, (mxArgc < 2) ? &mxUndefined : mxArgv(1), endian);
 }
 
 #define mxTypedArrayDeclarations \
@@ -593,7 +605,7 @@ void fxCallTypedArrayItem(txMachine* the, txSlot* function, txSlot* dispatch, tx
 {
 	/* ARG0 */
 	mxPushUndefined();
-	(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * dispatch->value.typedArray->size), the->stack);
+	(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * dispatch->value.typedArray->size), the->stack, EndianNative);
 	if (item) {
 		item->kind = the->stack->kind;
 		item->value = the->stack->value;
@@ -619,7 +631,7 @@ int fxCompareTypedArrayItem(txMachine* the, txSlot* function, txSlot* dispatch, 
 	txSlot* slot = the->stack;
 	int result;
 	mxPushUndefined();
-	(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * dispatch->value.typedArray->size), the->stack);
+	(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * dispatch->value.typedArray->size), the->stack, EndianNative);
 	mxPushSlot(slot);
 	/* ARGC */
 	mxPushInteger(2);
@@ -644,7 +656,7 @@ void fxReduceTypedArrayItem(txMachine* the, txSlot* function, txSlot* dispatch, 
 	mxPushSlot(mxResult);
 	/* ARG1 */
 	mxPushUndefined();
-	(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * dispatch->value.typedArray->size), the->stack);
+	(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * dispatch->value.typedArray->size), the->stack, EndianNative);
 	/* ARG2 */
 	mxPushInteger(index);
 	/* ARG3 */
@@ -693,7 +705,7 @@ txSlot* fxGetTypedArrayProperty(txMachine* the, txSlot* instance, txInteger inde
 	txInteger delta = dispatch->value.typedArray->size;
 	index *= delta;
 	if ((0 <= index) && ((index + delta) <= view->value.dataView.size))
-		(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, view->value.dataView.offset + index, &(the->scratch));
+		(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, view->value.dataView.offset + index, &(the->scratch), EndianNative);
 	else
 		the->scratch.kind = XS_UNDEFINED_KIND;
 	return &the->scratch;
@@ -707,7 +719,7 @@ txSlot* fxSetTypedArrayProperty(txMachine* the, txSlot* instance, txInteger inde
 	txInteger delta = dispatch->value.typedArray->size;
 	index *= delta;
 	if ((0 <= index) && ((index + delta) <= view->value.dataView.size))
-		(*dispatch->value.typedArray->setter)(the, buffer->value.reference->next, view->value.dataView.offset + index, the->stack + 1);
+		(*dispatch->value.typedArray->setter)(the, buffer->value.reference->next, view->value.dataView.offset + index, the->stack + 1, EndianNative);
 	return &the->scratch;
 }
 
@@ -761,8 +773,8 @@ void fx_TypedArray(txMachine* the)
 			else {
 				mxPushUndefined();
 				while (offset < size) {
-					(*arrayDispatch->value.typedArray->getter)(the, arrayData, arrayOffset, the->stack);
-					(*dispatch->value.typedArray->setter)(the, data, offset, the->stack);
+					(*arrayDispatch->value.typedArray->getter)(the, arrayData, arrayOffset, the->stack, EndianNative);
+					(*dispatch->value.typedArray->setter)(the, data, offset, the->stack, EndianNative);
 					arrayOffset += arrayDelta;
 					offset += delta;
 				}
@@ -883,7 +895,7 @@ void fx_TypedArray_from_object(txMachine* the, txSlot* instance, txSlot* functio
 			mxPushReference(function);
 			fxCall(the);
 		}
-		(*dispatch->value.typedArray->setter)(the, data, (index * delta), the->stack);
+		(*dispatch->value.typedArray->setter)(the, data, (index * delta), the->stack, EndianNative);
 		the->stack++;
 		slot = slot->next;
 		index++;
@@ -905,7 +917,7 @@ void fx_TypedArray_of(txMachine* the)
 		txSlot* resultView = resultDispatch->next;
 		txSlot* resultData = resultView->next->value.reference->next;
 		while (index < count) {
-			(*resultDispatch->value.typedArray->setter)(the, resultData, resultView->value.dataView.offset + (index * resultDispatch->value.typedArray->size), mxArgv(index));
+			(*resultDispatch->value.typedArray->setter)(the, resultData, resultView->value.dataView.offset + (index * resultDispatch->value.typedArray->size), mxArgv(index), EndianNative);
 			index++;
 		}
 	}
@@ -978,7 +990,7 @@ void fx_TypedArray_prototype_entries_next(txMachine* the)
 	if (offset < view->value.dataView.size) {
 		mxPushSlot(index);
 		mxPushUndefined();
-		(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, view->value.dataView.offset + offset, the->stack);
+		(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, view->value.dataView.offset + offset, the->stack, EndianNative);
 		fxConstructArrayEntry(the, value);
 		index->value.integer++;
 	}
@@ -1020,7 +1032,7 @@ void fx_TypedArray_prototype_fill(txMachine* the)
 	else
 		mxPushUndefined();
 	while (start < end) {
-		(*dispatch->value.typedArray->setter)(the, data, start, the->stack);
+		(*dispatch->value.typedArray->setter)(the, data, start, the->stack, EndianNative);
 		start += delta;
 	}
 	the->stack++;
@@ -1060,7 +1072,7 @@ void fx_TypedArray_prototype_filter(txMachine* the)
 		txInteger resultOffset = 0;
 		slot = list->next;
 		while (slot) {
-			(*resultDispatch->value.typedArray->setter)(the, resultData, resultOffset, slot);
+			(*resultDispatch->value.typedArray->setter)(the, resultData, resultOffset, slot, EndianNative);
 			resultOffset += resultDelta;
 			slot = slot->next;
 		}
@@ -1128,7 +1140,7 @@ void fx_TypedArray_prototype_indexOf(txMachine* the)
 		mxPushUndefined();
 	mxPushUndefined();
 	while (index < length) {
-		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * delta), the->stack);
+		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * delta), the->stack, EndianNative);
 		if (fxIsSameSlot(the, the->stack, the->stack + 1)) {
 			mxResult->value.integer = index;
 			break;
@@ -1168,7 +1180,7 @@ void fx_TypedArray_prototype_join(txMachine* the)
 			}
 			else
 				comma = 1;
-			(*dispatch->value.typedArray->getter)(the, data, offset, the->stack);
+			(*dispatch->value.typedArray->getter)(the, data, offset, the->stack, EndianNative);
 			slot = fxNextSlotProperty(the, slot, the->stack, XS_NO_ID, XS_NO_FLAG);
 			string = fxToString(the, slot);
 			slot->kind = XS_KEY_KIND;
@@ -1241,7 +1253,7 @@ void fx_TypedArray_prototype_lastIndexOf(txMachine* the)
     if (index == length)
         index--;
 	while (index >= 0) {
-		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * delta), the->stack);
+		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * delta), the->stack, EndianNative);
 		if (fxIsSameSlot(the, the->stack, the->stack + 1)) {
 			mxResult->value.integer = index;
 			break;
@@ -1279,7 +1291,7 @@ void fx_TypedArray_prototype_map(txMachine* the)
 		txInteger index = 0;
 		while (index < length) {
 			fxCallTypedArrayItem(the, function, dispatch, view, data, index, C_NULL);
-			(*dispatch->value.typedArray->setter)(the, resultData, resultView->value.dataView.offset + (index * resultDispatch->value.typedArray->size), the->stack);
+			(*dispatch->value.typedArray->setter)(the, resultData, resultView->value.dataView.offset + (index * resultDispatch->value.typedArray->size), the->stack, EndianNative);
 			the->stack++;
 			index++;
 		}
@@ -1294,7 +1306,7 @@ void fx_TypedArray_prototype_reduce(txMachine* the)
 	if (mxArgc > 1)
 		*mxResult = *mxArgv(1);
 	else if (index < length) {
-		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset, mxResult);
+		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset, mxResult, EndianNative);
 		index++;
 	}
 	while (index < length) {
@@ -1312,7 +1324,7 @@ void fx_TypedArray_prototype_reduceRight(txMachine* the)
 	if (mxArgc > 1)
 		*mxResult = *mxArgv(1);
 	else if (index >= 0) {
-		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * delta), mxResult);
+		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * delta), mxResult, EndianNative);
 		index--;
 	}
 	while (index >= 0) {
@@ -1378,8 +1390,8 @@ void fx_TypedArray_prototype_set(txMachine* the)
 		else {
 			mxPushUndefined();
 			while (offset < limit) {
-				(*arrayDispatch->value.typedArray->getter)(the, arrayData, arrayOffset, the->stack);
-				(*dispatch->value.typedArray->setter)(the, data, offset, the->stack);
+				(*arrayDispatch->value.typedArray->getter)(the, arrayData, arrayOffset, the->stack, EndianNative);
+				(*dispatch->value.typedArray->setter)(the, data, offset, the->stack, EndianNative);
 				arrayOffset += arrayDelta;
 				offset += delta;
 			}
@@ -1398,7 +1410,7 @@ void fx_TypedArray_prototype_set(txMachine* the)
 		while (index < count) {
 			mxPushSlot(mxArgv(0));
 			fxGetID(the, index);
-			(*dispatch->value.typedArray->setter)(the, data, offset, the->stack++);
+			(*dispatch->value.typedArray->setter)(the, data, offset, the->stack++, EndianNative);
 			offset += delta;
 			index++;
 		}	
@@ -1424,8 +1436,8 @@ void fx_TypedArray_prototype_slice(txMachine* the)
 		txSlot* resultView = resultDispatch->next;
 		txSlot* resultData = resultView->next->value.reference->next;
 		while (start < end) {
-			(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (start * delta), the->stack);
-			(*resultDispatch->value.typedArray->setter)(the, resultData, resultView->value.dataView.offset + (index * resultDispatch->value.typedArray->size), the->stack);
+			(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (start * delta), the->stack, EndianNative);
+			(*resultDispatch->value.typedArray->setter)(the, resultData, resultView->value.dataView.offset + (index * resultDispatch->value.typedArray->size), the->stack, EndianNative);
 			start++;
 			index++;
 		}
@@ -1473,9 +1485,9 @@ void fx_TypedArray_prototype_sort(txMachine* the)
 			for (k = 0; k < delta; k++) *to++ = *from++
 		#define PUSH(INDEX) \
 			mxPushUndefined(); \
-			(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + ((INDEX) * delta), the->stack)
+			(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + ((INDEX) * delta), the->stack, EndianNative)
 		#define PULL(INDEX) \
-			(*dispatch->value.typedArray->setter)(the, data, view->value.dataView.offset + ((INDEX) * delta), the->stack++)
+			(*dispatch->value.typedArray->setter)(the, data, view->value.dataView.offset + ((INDEX) * delta), the->stack++, EndianNative)
 		if (length > 0) {
 			txInteger i, j, k;
 			txByte* from;
@@ -1617,7 +1629,7 @@ void fx_TypedArray_prototype_values_next(txMachine* the)
 	txSlot* buffer = view->next;
 	txInteger offset = index->value.integer * dispatch->value.typedArray->size;
 	if (offset < view->value.dataView.size) {
-		(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, view->value.dataView.offset + offset, value);
+		(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, view->value.dataView.offset + offset, value, EndianNative);
 		index->value.integer++;
 	}
 	else {
@@ -1628,6 +1640,93 @@ void fx_TypedArray_prototype_values_next(txMachine* the)
 	mxResult->value = result->value;
 }
 
+#if mxBigEndian
+	#define mxEndianU64_BtoN(a) (a)
+	#define mxEndianS32_BtoN(a) (a)
+	#define mxEndianU32_BtoN(a) (a)
+	#define mxEndianS16_BtoN(a) (a)
+	#define mxEndianU16_BtoN(a) (a)
+
+	#define mxEndianU64_NtoB(a) (a)
+	#define mxEndianS32_NtoB(a) (a)
+	#define mxEndianU32_NtoB(a) (a)
+	#define mxEndianS16_NtoB(a) (a)
+	#define mxEndianU16_NtoB(a) (a)
+#else
+	#define mxEndianU64_LtoN(a) (a)
+	#define mxEndianS32_LtoN(a) (a)
+	#define mxEndianU32_LtoN(a) (a)
+	#define mxEndianS16_LtoN(a) (a)
+	#define mxEndianU16_LtoN(a) (a)
+
+	#define mxEndianU64_NtoL(a) (a)
+	#define mxEndianS32_NtoL(a) (a)
+	#define mxEndianU32_NtoL(a) (a)
+	#define mxEndianS16_NtoL(a) (a)
+	#define mxEndianU16_NtoL(a) (a)
+#endif
+
+#if mxLittleEndian
+	#define mxEndianU64_BtoN(a) (mxEndian64_Swap(a))
+	#define mxEndianS32_BtoN(a) ((txS4) mxEndian32_Swap(a))
+	#define mxEndianU32_BtoN(a) ((txU4) mxEndian32_Swap(a))
+	#define mxEndianS16_BtoN(a) ((txS2) mxEndian16_Swap(a))
+	#define mxEndianU16_BtoN(a) ((txU2) mxEndian16_Swap(a))
+
+	#define mxEndianU64_NtoB(a) (mxEndian64_Swap(a))
+	#define mxEndianS32_NtoB(a) ((txS4) mxEndian32_Swap(a))
+	#define mxEndianU32_NtoB(a) ((txU4) mxEndian32_Swap(a))
+	#define mxEndianS16_NtoB(a) ((txS2) mxEndian16_Swap(a))
+	#define mxEndianU16_NtoB(a) ((txU2) mxEndian16_Swap(a))
+#else
+	#define mxEndianU64_LtoN(a) (mxEndian64_Swap(a))
+	#define mxEndianS32_LtoN(a) ((txS4) mxEndian32_Swap(a))
+	#define mxEndianU32_LtoN(a) ((txU4) mxEndian32_Swap(a))
+	#define mxEndianS16_LtoN(a) ((txS2) mxEndian16_Swap(a))
+	#define mxEndianU16_LtoN(a) ((txU2) mxEndian16_Swap(a))
+
+	#define mxEndianU64_NtoL(a) (mxEndian64_Swap(a))
+	#define mxEndianS32_NtoL(a) ((txS4) mxEndian32_Swap(a))
+	#define mxEndianU32_NtoL(a) ((txU4) mxEndian32_Swap(a))
+	#define mxEndianS16_NtoL(a) ((txS2) mxEndian16_Swap(a))
+	#define mxEndianU16_NtoL(a) ((txU2) mxEndian16_Swap(a))
+#endif
+
+static txU2 mxEndian16_Swap(txU2 a)
+{
+	txU2 b;
+	txU1 *p1 = (txU1 *) &a, *p2 = (txU1 *) &b;
+	int i;
+	for (i = 0; i < 2; i++)
+		p2[i] = p1[1 - i];
+	return b;
+}
+
+static txU4 mxEndian32_Swap(txU4 a)
+{
+	txU4 b;
+	txU1 *p1 = (txU1 *) &a, *p2 = (txU1 *) &b;
+	int i;
+	for (i = 0; i < 4; i++)
+		p2[i] = p1[3 - i];
+	return b;
+}
+
+static double mxEndian64_Swap(double a)
+{
+	double b;
+	txU1 *p1 = (txU1 *) &a, *p2 = (txU1 *) &b;
+	int i;
+	for (i = 0; i < 8; i++)
+		p2[i] = p1[7 - i];
+	return b;
+}
+
+#define toNative(size, endian) mxEndian##size##_##endian##toN
+#define fromNative(size, endian) mxEndian##size##_Nto##endian
+#define IMPORT(size) (endian == EndianBig ? toNative(size, B)(value) : endian == EndianLittle ? toNative(size, L)(value) : (value))
+#define EXPORT(size) (endian == EndianBig ? fromNative(size, B)(value) : endian == EndianLittle ? toNative(size, L)(value) : (value))
+
 int fxFloat32Compare(const void* p, const void* q)
 {
 	float a = *((float*)p);
@@ -1635,15 +1734,18 @@ int fxFloat32Compare(const void* p, const void* q)
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void fxFloat32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxFloat32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
+	float value;
 	slot->kind = XS_NUMBER_KIND;
-	slot->value.number = *((float*)(data->value.arrayBuffer.address + offset));
+	value = *((float*)(data->value.arrayBuffer.address + offset));
+	slot->value.number = IMPORT(U32);
 }
 
-void fxFloat32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxFloat32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
-	*((float*)(data->value.arrayBuffer.address + offset)) = (float)fxToNumber(the, slot);
+	float value = (float)fxToNumber(the, slot);
+	*((float*)(data->value.arrayBuffer.address + offset)) = EXPORT(U32);
 }
 
 int fxFloat64Compare(const void* p, const void* q)
@@ -1653,15 +1755,18 @@ int fxFloat64Compare(const void* p, const void* q)
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void fxFloat64Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxFloat64Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
+	double value;
 	slot->kind = XS_NUMBER_KIND;
-	slot->value.number = *((double*)(data->value.arrayBuffer.address + offset));
+	value = *((double*)(data->value.arrayBuffer.address + offset));
+	slot->value.number = IMPORT(U64);
 }
 
-void fxFloat64Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxFloat64Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
-	*((double*)(data->value.arrayBuffer.address + offset)) = (double)fxToNumber(the, slot);
+	double value = (double)fxToNumber(the, slot);
+	*((double*)(data->value.arrayBuffer.address + offset)) = EXPORT(U64);
 }
 
 int fxInt8Compare(const void* p, const void* q)
@@ -1671,13 +1776,13 @@ int fxInt8Compare(const void* p, const void* q)
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void fxInt8Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxInt8Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
 	slot->kind = XS_INTEGER_KIND;
 	slot->value.integer = *((txS1*)(data->value.arrayBuffer.address + offset));
 }
 
-void fxInt8Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxInt8Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
 	*((txS1*)(data->value.arrayBuffer.address + offset)) = (txS1)fxToInteger(the, slot);
 }
@@ -1689,15 +1794,18 @@ int fxInt16Compare(const void* p, const void* q)
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void fxInt16Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxInt16Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
+	txS2 value;
 	slot->kind = XS_INTEGER_KIND;
-	slot->value.integer = *((txS2*)(data->value.arrayBuffer.address + offset));
+	value = *((txS2*)(data->value.arrayBuffer.address + offset));
+	slot->value.integer = IMPORT(S16);
 }
 
-void fxInt16Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxInt16Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
-	*((txS2*)(data->value.arrayBuffer.address + offset)) = (txS2)fxToInteger(the, slot);
+	txS2 value = (txS2)fxToInteger(the, slot);
+	*((txS2*)(data->value.arrayBuffer.address + offset)) = EXPORT(S16);
 }
 
 int fxInt32Compare(const void* p, const void* q)
@@ -1707,15 +1815,18 @@ int fxInt32Compare(const void* p, const void* q)
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void fxInt32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxInt32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
+	txS4 value;
 	slot->kind = XS_INTEGER_KIND;
-	slot->value.integer = *((txS4*)(data->value.arrayBuffer.address + offset));
+	value = *((txS4*)(data->value.arrayBuffer.address + offset));
+	slot->value.integer = IMPORT(S32);
 }
 
-void fxInt32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxInt32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
-	*((txS4*)(data->value.arrayBuffer.address + offset)) = (txS4)fxToInteger(the, slot);
+	txS4 value = (txS4)fxToInteger(the, slot);
+	*((txS4*)(data->value.arrayBuffer.address + offset)) = EXPORT(S32);
 }
 
 int fxUint8Compare(const void* p, const void* q)
@@ -1725,13 +1836,13 @@ int fxUint8Compare(const void* p, const void* q)
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void fxUint8Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxUint8Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
 	slot->kind = XS_INTEGER_KIND;
 	slot->value.integer = *((txU1*)(data->value.arrayBuffer.address + offset));
 }
 
-void fxUint8Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxUint8Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
 	*((txU1*)(data->value.arrayBuffer.address + offset)) = (txU1)fxToUnsigned(the, slot);
 }
@@ -1743,15 +1854,18 @@ int fxUint16Compare(const void* p, const void* q)
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void fxUint16Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxUint16Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
+	txU2 value;
 	slot->kind = XS_INTEGER_KIND;
-	slot->value.integer = *((txU2*)(data->value.arrayBuffer.address + offset));
+	value = *((txU2*)(data->value.arrayBuffer.address + offset));
+	slot->value.integer = IMPORT(U16);
 }
 
-void fxUint16Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxUint16Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
-	*((txU2*)(data->value.arrayBuffer.address + offset)) = (txU2)fxToUnsigned(the, slot);
+	txU2 value = (txU2)fxToUnsigned(the, slot);
+	*((txU2*)(data->value.arrayBuffer.address + offset)) = EXPORT(U16);
 }
 
 int fxUint32Compare(const void* p, const void* q)
@@ -1761,9 +1875,10 @@ int fxUint32Compare(const void* p, const void* q)
 	return (a < b) ? -1 : (a > b) ? 1 : 0;
 }
 
-void fxUint32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxUint32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
 	txUnsigned value = *((txU4*)(data->value.arrayBuffer.address + offset));
+	value = IMPORT(U32);
 	if (((txInteger)value) >= 0) {
 		slot->kind = XS_INTEGER_KIND;
 		slot->value.integer = value;
@@ -1774,12 +1889,13 @@ void fxUint32Getter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot
 	}
 }
 
-void fxUint32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxUint32Setter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
-	*((txU4*)(data->value.arrayBuffer.address + offset)) = (txU4)fxToUnsigned(the, slot);
+	txU4 value = (txU4)fxToUnsigned(the, slot);
+	*((txU4*)(data->value.arrayBuffer.address + offset)) = EXPORT(U32);
 }
 
-void fxUint8ClampedSetter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot)
+void fxUint8ClampedSetter(txMachine* the, txSlot* data, txInteger offset, txSlot* slot, int endian)
 {
 	txInteger aValue = fxToInteger(the, slot);
 	if (aValue < 0) aValue = 0;

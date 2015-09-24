@@ -585,7 +585,7 @@ FskUnityCopyHomogeneousRect(const FskRectBlitParams *params, UInt32 pixelBytes)
 		dPix = d0;
 
 		/* Source and destination are appropriately aligned */
-		if ((i = ((int)sPix & 3)) == ((int)dPix & 3)) {			/* Src & Dst are at the same phase relative to a quadByte */
+		if ((i = ((long)sPix & 3)) == ((long)dPix & 3)) {			/* Src & Dst are at the same phase relative to a quadByte */
 
 			/* Leading stragglers */
 			if (i != 0) {
@@ -610,7 +610,7 @@ FskUnityCopyHomogeneousRect(const FskRectBlitParams *params, UInt32 pixelBytes)
 			}
 		}
 
-		else if ((i = ((int)sPix & 1)) == ((int)dPix & 1)) {	/* Src & Dst are at the same phase relative to a duoByte */
+		else if ((i = ((long)sPix & 1)) == ((long)dPix & 1)) {	/* Src & Dst are at the same phase relative to a duoByte */
 
 			/* Leading stragglers */
 			if (i != 0) {
@@ -1566,15 +1566,15 @@ FskBitmapDraw(
 	int					i;
 	FskScaleOffset		invXfm;
 
-	#ifdef LOG_PARAMETERS
-		LogBitmapDraw(srcBM, srcRect, dstBM, dstRect, dstClip, opColor, mode, modeParams);
-	#endif /* LOG_PARAMETERS */
-
 	#if FSKBITMAP_OPENGL
 	if (FskBitmapIsOpenGLDestinationAccelerated(dstBM)) {
 		return FskGLBitmapDraw(srcBM, srcRect, dstBM, dstRect, dstClip, opColor, mode, modeParams);
 	}
 	#endif /* FSKBITMAP_OPENGL */
+
+	#ifdef LOG_PARAMETERS
+		LogBitmapDraw(srcBM, srcRect, dstBM, dstRect, dstClip, opColor, mode, modeParams);
+	#endif /* LOG_PARAMETERS */
 
 	FskBitmapReadBegin((FskBitmap)srcBM, NULL, NULL, NULL);
 	FskBitmapWriteBegin(dstBM, NULL, NULL, NULL);
@@ -1792,15 +1792,15 @@ FskScaleOffsetBitmap(
 	FskErr				err = kFskErrNone;
 	FskScaleOffset		invXfm;
 
-	#ifdef LOG_PARAMETERS
-		LogScaleOffsetBitmap(srcBM, srcRect, dstBM, dstClip, scaleOffset, opColor, mode, modeParams);
-	#endif /* LOG_PARAMETERS */
-
 	#if FSKBITMAP_OPENGL
 		if (FskBitmapIsOpenGLDestinationAccelerated(dstBM)) {
 			return FskGLScaleOffsetBitmap(srcBM, srcRect, dstBM, dstClip, scaleOffset, opColor, mode, modeParams);
 		}
 	#endif /* FSKBITMAP_OPENGL */
+
+	#ifdef LOG_PARAMETERS
+		LogScaleOffsetBitmap(srcBM, srcRect, dstBM, dstClip, scaleOffset, opColor, mode, modeParams);
+	#endif /* LOG_PARAMETERS */
 
 	FskBitmapReadBegin((FskBitmap)srcBM, NULL, NULL, NULL);
 	FskBitmapWriteBegin(dstBM, NULL, NULL, NULL);

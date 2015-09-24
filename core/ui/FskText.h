@@ -309,6 +309,11 @@ FskAPI(FskErr) FskTextAddFontFile(FskTextEngine fte, const char *path);
      FskAPI(FskErr) FskTextGetGlyphs(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layout, float *widthPtr, float *heightPtr, FskTextFormatCache cache);
 #endif
 
+#if SUPPORT_INSTRUMENTATION	/* TODO: Put these into the dispatch table. Make available outside of instrumentation for debugging? */
+FskAPI(void) FskCocoaTextFormatCacheInfoStringGet(FskTextFormatCache cache, char **pInfoStr);
+FskAPI(void) FskFreeTypeTextFormatCacheInfoStringGet(FskTextFormatCache cache, char **pInfoStr);
+#endif /* SUPPORT_INSTRUMENTATION */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

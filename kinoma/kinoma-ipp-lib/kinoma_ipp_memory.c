@@ -14,9 +14,17 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+ 
+ #ifdef BUILT_4_MC
+#include "kinoma_ipp_env.h"
+#endif
+
 #include "kinoma_ipp_lib.h"
 #include "kinoma_ipp_common.h"
-#include "kinoma_utilities.h"
+
+#ifdef BUILT_4_XS6
+#include "mc_memory.h"
+#endif
 
 //Memory
 //ipps
@@ -48,7 +56,11 @@ Ipp8u* __STDCALL ippsMalloc_8u_c(int len)
 	Ipp8u *tmp_ptr;
 	const int align = 32;
 
-	if ((tmp_ptr = (Ipp8u*) malloc(len + align)) != NULL) 
+#ifdef USE_MC_MALLOC
+	if ((tmp_ptr = (Ipp8u*) mc_malloc(len + align)) != NULL)
+#else
+	if ((tmp_ptr = (Ipp8u*) malloc(len + align)) != NULL)
+#endif	
 	{
 		/* Align the tmp pointer */
 		mem_ptr = 	(Ipp8u*) ((unsigned long) (tmp_ptr + align - 1) & (~(unsigned long) (align - 1)));
@@ -83,7 +95,11 @@ Ipp32u* __STDCALL  ippsMalloc_32u_c(int len)
 	Ipp8u *tmp_ptr;
 	const int align = 32;
 
+#ifdef USE_MC_MALLOC
+	if ((tmp_ptr = (Ipp8u *) mc_malloc(len*sizeof(Ipp32u) + align)) != NULL) 
+#else
 	if ((tmp_ptr = (Ipp8u *) malloc(len*sizeof(Ipp32u) + align)) != NULL) 
+#endif	
 	{
 		/* Align the tmp pointer */
 		mem_ptr = 	(Ipp8u *) ((unsigned long) (tmp_ptr + align - 1) & (~(unsigned long) (align - 1)));
@@ -115,7 +131,11 @@ Ipp32s* __STDCALL  ippsMalloc_32s_c(int len)
 	Ipp8u *tmp_ptr;
 	const int align = 32;
 
+#ifdef USE_MC_MALLOC
+	if ((tmp_ptr = (Ipp8u *) mc_malloc(len*sizeof(Ipp32s) + align)) != NULL) 
+#else
 	if ((tmp_ptr = (Ipp8u *) malloc(len*sizeof(Ipp32s) + align)) != NULL) 
+#endif
 	{
 		/* Align the tmp pointer */
 		mem_ptr = 	(Ipp8u *) ((unsigned long) (tmp_ptr + align - 1) & (~(unsigned long) (align - 1)));
@@ -154,7 +174,12 @@ void __STDCALL ippsFree_c(void* ptr)
 
 	tmp_ptr -= *(tmp_ptr - 1);
 
+#ifdef USE_MC_MALLOC
+	mc_free(tmp_ptr);
+#else
 	free(tmp_ptr);
+#endif
+	
 #endif
 
 #ifdef PRINT_REF_INFO
@@ -205,7 +230,7 @@ IppStatus __STDCALL ippiCopy_8u_C1R_c ( const Ipp8u* pSrc, int srcStep, Ipp8u* p
 	Ipp8u *pDsttmp=pDst;
 
 
-	Profile_Start(ippiCopy_8u_C1R_c_profile);
+	//Profile_Start(ippiCopy_8u_C1R_c_profile);
 
 	i = roiSize.width;
 	j = roiSize.height;
@@ -218,7 +243,7 @@ IppStatus __STDCALL ippiCopy_8u_C1R_c ( const Ipp8u* pSrc, int srcStep, Ipp8u* p
 
 	}
 
-	Profile_End(ippiCopy_8u_C1R_c_profile);
+	//Profile_End(ippiCopy_8u_C1R_c_profile);
 
 	return ippStsNoErr;
 
@@ -278,13 +303,13 @@ IppStatus __STDCALL ippsZero_8u_c(Ipp8u* pDst, int len)
 		return ippStsSizeErr;
 
 
-	Profile_Start(ippsZero_8u_c_profile);
+	//Profile_Start(ippsZero_8u_c_profile);
 
 
 	memset((unsigned char*)pDst, 0, len);
 
 
-	Profile_End(ippsZero_8u_c_profile);
+	//Profile_End(ippsZero_8u_c_profile);
 
 
 #endif
@@ -404,11 +429,11 @@ IppStatus __STDCALL ippsSet_8u_c(Ipp8u val, Ipp8u* pDst, int len)
 	if(len < 1)
 		return ippStsSizeErr;
 
-	Profile_Start(ippsSet_8u_c_profile);
+	//Profile_Start(ippsSet_8u_c_profile);
 
 	memset((unsigned char*)pDst, val, len);
 
-	Profile_End(ippsSet_8u_c_profile);
+	//Profile_End(ippsSet_8u_c_profile);
 
 
 #endif
@@ -433,7 +458,7 @@ IppStatus __STDCALL ippiSet_8u_C1R_c( Ipp8u value, Ipp8u* pDst, int dstStep, Ipp
 	int i;//, j;
 
 
-	Profile_Start(ippiSet_8u_C1R_c_profile);
+	//Profile_Start(ippiSet_8u_C1R_c_profile);
 
 	for(i=0; i<roiSize.height; i++)
 	{
@@ -441,7 +466,7 @@ IppStatus __STDCALL ippiSet_8u_C1R_c( Ipp8u value, Ipp8u* pDst, int dstStep, Ipp
 		pDst += dstStep;
 	}
 
-	Profile_End(ippiSet_8u_C1R_c_profile);
+	//Profile_End(ippiSet_8u_C1R_c_profile);
 
 	return ippStsNoErr;
 }

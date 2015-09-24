@@ -25,6 +25,7 @@
 /********************************************************************/
 //***
 #include "kinoma_ipp_lib.h"
+#include "kinoma_dec_huff.h"
 
 #include "aac_dec_huff_tables.h"
 #include "aac_dec_own.h"

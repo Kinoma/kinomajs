@@ -14,25 +14,35 @@
 #      See the License for the specific language governing permissions and
 #      limitations under the License.
 #
-INCLUDE(CMakeParseArguments)
-INCLUDE(Kinoma)
+include(CMakeParseArguments)
+include(Kinoma)
 
-MACRO(XS2JS)
-	SET(oneValueArgs SOURCE DESTINATION)
-	SET(multiValueArgs OPTIONS)
-	CMAKE_PARSE_ARGUMENTS(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-	GET_FILENAME_COMPONENT(NAME ${LOCAL_SOURCE} NAME_WE)
-	SET(OUTPUT ${LOCAL_DESTINATION}/${NAME}.js)
-	IF(XS_BUILD)
-		SET(DEPENDS xsr)
-	ENDIF()
+macro(FIND_XS_TOOL VAR EXEC)
+	find_program(
+		${VAR}
+		${EXEC}
+		PATHS
+		${XS6}/bin/${BUILD_PLATFORM}/Release
+		${XS6}/bin/${BUILD_PLATFORM}/Debug
+		)
+endmacro()
 
-	ADD_CUSTOM_COMMAND(
+macro(XS2JS)
+	set(oneValueArgs SOURCE DESTINATION)
+	set(multiValueArgs OPTIONS)
+	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	get_filename_component(NAME ${LOCAL_SOURCE} NAME_WE)
+	set(OUTPUT ${LOCAL_DESTINATION}/${NAME}.js)
+	if(XS_BUILD)
+		set(DEPENDS xsr)
+	endif()
+
+	add_custom_command(
 		OUTPUT ${OUTPUT}
 		COMMAND ${XS2JS} ${LOCAL_SOURCE} ${LOCAL_OPTIONS} -p -o ${LOCAL_DESTINATION}
 		DEPENDS ${LOCAL_SOURCE} ${DEPENDS}
 		)
-ENDMACRO()
+endmacro()
 
 # Run XSC against a JS file
 #
@@ -42,31 +52,31 @@ ENDMACRO()
 # The following two options are used for xs6 tools and not needed for kprconfig
 # SOURCE_DIR: Directory to search for source files
 # SOURCE: Path under SOURCE_DIR to find the file without the .js
-MACRO(XSC)
-	SET(oneValueArgs SOURCE_DIR SOURCE SOURCE_FILE DESTINATION)
-	SET(multiValueArgs OPTIONS)
-	CMAKE_PARSE_ARGUMENTS(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-	IF(LOCAL_SOURCE_FILE)
-		GET_FILENAME_COMPONENT(NAME ${LOCAL_SOURCE_FILE} NAME_WE)
-		SET(SOURCE_FILE ${LOCAL_SOURCE_FILE})
-		SET(OUTDIR ${LOCAL_DESTINATION})
-	ELSE()
-		GET_FILENAME_COMPONENT(NAME ${LOCAL_SOURCE} NAME_WE)
-		GET_FILENAME_COMPONENT(BASE ${LOCAL_SOURCE} DIRECTORY)
-		SET(SOURCE_FILE ${LOCAL_SOURCE_DIR}/${LOCAL_SOURCE}.js)
-		SET(OUTDIR ${LOCAL_DESTINATION}/${BASE})
-	ENDIF()
-	SET(OUTPUT ${OUTDIR}/${NAME}.xsb)
-	IF(XS_BUILD)
-		SET(DEPENDS xsc)
-	ENDIF()
-	ADD_CUSTOM_COMMAND(
+macro(XSC)
+	set(oneValueArgs SOURCE_DIR SOURCE SOURCE_FILE DESTINATION)
+	set(multiValueArgs OPTIONS)
+	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	if(LOCAL_SOURCE_FILE)
+		get_filename_component(NAME ${LOCAL_SOURCE_FILE} NAME_WE)
+		set(SOURCE_FILE ${LOCAL_SOURCE_FILE})
+		set(OUTDIR ${LOCAL_DESTINATION})
+	else()
+		get_filename_component(NAME ${LOCAL_SOURCE} NAME_WE)
+		get_filename_component(BASE ${LOCAL_SOURCE} DIRECTORY)
+		set(SOURCE_FILE ${LOCAL_SOURCE_DIR}/${LOCAL_SOURCE}.js)
+		set(OUTDIR ${LOCAL_DESTINATION}/${BASE})
+	endif()
+	set(OUTPUT ${OUTDIR}/${NAME}.xsb)
+	if(XS_BUILD)
+		set(DEPENDS xsc)
+	endif()
+	add_custom_command(
 		OUTPUT ${OUTPUT}
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTDIR}
 		COMMAND ${XSC} ${LOCAL_OPTIONS} ${SOURCE_FILE} -o ${OUTDIR}
 		DEPENDS ${SOURCE_FILE} ${DEPENDS}
 		)
-ENDMACRO()
+endmacro()
 
 # Use XSL to create an XSA file from XSB files
 #
@@ -75,26 +85,26 @@ ENDMACRO()
 # DESTINATION: The bin directory for the xsa
 # SOURCES: A list of xsb files
 # SRC_DIR: Move generated source files into another directory
-MACRO(XSL)
-	SET(oneValueArgs NAME TMP DESTINATION SRC_DIR)
-	SET(multiValueArgs SOURCES XSC_OPTIONS)
-	CMAKE_PARSE_ARGUMENTS(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-	SET(OUTPUT ${LOCAL_DESTINATION}/${LOCAL_NAME}.xsa)
-	IF(XS_BUILD)
-		SET(DEPENDS xsl)
-	ENDIF()
-	ADD_CUSTOM_COMMAND(
+macro(XSL)
+	set(oneValueArgs NAME TMP DESTINATION SRC_DIR)
+	set(multiValueArgs SOURCES XSC_OPTIONS DEPENDS)
+	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	set(OUTPUT ${LOCAL_DESTINATION}/${LOCAL_NAME}.xsa)
+	if(XS_BUILD)
+		list(APPEND LOCAL_DEPENDS xsl)
+	endif()
+	add_custom_command(
 		OUTPUT ${OUTPUT} ${LOCAL_TMP}/${LOCAL_NAME}.xs.c ${LOCAL_TMP}/${LOCAL_NAME}.xs.h
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${LOCAL_DESTINATION}
 		COMMAND ${XSL} -a ${LOCAL_NAME} -b ${LOCAL_TMP} -o ${LOCAL_DESTINATION} ${LOCAL_SOURCES}
-		DEPENDS ${LOCAL_SOURCES} ${DEPENDS}
+		DEPENDS ${LOCAL_SOURCES} ${LOCAL_DEPENDS}
 		)
-	ADD_CUSTOM_TARGET(
+	add_custom_target(
 		${LOCAL_NAME}.xsa
 		DEPENDS ${OUTPUT}
 		)
-	IF(LOCAL_SRC_DIR)
-		ADD_CUSTOM_COMMAND(
+	if(LOCAL_SRC_DIR)
+		add_custom_command(
 			TARGET ${LOCAL_NAME}.xsa
 			POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E make_directory ${LOCAL_SRC_DIR}
@@ -102,18 +112,18 @@ MACRO(XSL)
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LOCAL_TMP}/${LOCAL_NAME}.xs.h ${LOCAL_SRC_DIR}/${LOCAL_NAME}.xs.h
 			COMMAND ${CMAKE_COMMAND} -E remove  ${LOCAL_TMP}/${LOCAL_NAME}.xs.c ${LOCAL_TMP}/${LOCAL_NAME}.xs.h
 			)
-	ENDIF()
-ENDMACRO()
+	endif()
+endmacro()
 
-MACRO(KPR2JS)
-	SET(oneValueArgs SOURCE DESTINATION)
-	CMAKE_PARSE_ARGUMENTS(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-	GET_FILENAME_COMPONENT(NAME ${LOCAL_SOURCE} NAME_WE)
-	SET(OUTPUT ${LOCAL_DESTINATION}/${NAME}.js)
-	IF(XS_BUILD)
-		SET(DEPENDS xsr tools)
-	ENDIF()
-	ADD_CUSTOM_COMMAND(
+macro(KPR2JS)
+	set(oneValueArgs SOURCE DESTINATION)
+	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+	get_filename_component(NAME ${LOCAL_SOURCE} NAME_WE)
+	set(OUTPUT ${LOCAL_DESTINATION}/${NAME}.js)
+	if(XS_BUILD)
+		set(DEPENDS xsr tools)
+	endif()
+	add_custom_command(
 		OUTPUT ${OUTPUT}
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${LOCAL_DESTINATION}
 		COMMAND ${KPR2JS} ${LOCAL_SOURCE} -o ${LOCAL_DESTINATION}

@@ -125,16 +125,11 @@ void KprPinsInvoke(KprService service, KprMessage message)
 	if (KprMessageContinue(message)) {
 		KprPinsListener listener = NULL;
 		KprPinsListenerFind(&listener, self, message);
+		if (listener) listener->useCount++;
 		if (!FskStrCompareWithLength(message->parts.path, "close", message->parts.pathLength)) {
 			if (listener) {
 				xsBeginHostSandboxCode(listener->the, NULL);
 				{
-                    KprPinsPoller poller = FskListGetNext(listener->pollers, NULL);
-                    while (poller) {
-                        KprPinsPoller next = FskListGetNext(listener->pollers, poller);
-                        KprPinsPollerDispose(poller);
-                        poller = next;
-                    }
                     {
 						xsTry {
 							(void)xsCall0(xsAccess(listener->pins), xsID("close"));
@@ -143,9 +138,13 @@ void KprPinsInvoke(KprService service, KprMessage message)
 							err = exceptionToFskErr(the);
 						}
 					}
+
+                    while (listener->pollers)
+                        KprPinsPollerDispose(listener->pollers);
 				}
 				xsEndHostSandboxCode();
 				KprPinsListenerDispose(listener, self);
+				listener = NULL;
 			}
 			else {
 				err = kFskErrNotFound;
@@ -158,6 +157,7 @@ void KprPinsInvoke(KprService service, KprMessage message)
 				err = KprPinsListenerNew(&listener, self, message);
             }
 			if (!err) {
+				listener->useCount++;
 				xsBeginHostSandboxCode(listener->the, NULL);
 				{
 					xsTry {
@@ -181,6 +181,7 @@ void KprPinsInvoke(KprService service, KprMessage message)
 				err = KprPinsListenerNew(&listener, self, message);
             }
 			if (!err) {
+				listener->useCount++;
 				xsBeginHostSandboxCode(listener->the, NULL);
 				{
 					KprMessageScriptTarget target = (KprMessageScriptTarget)message->stream;
@@ -200,6 +201,7 @@ void KprPinsInvoke(KprService service, KprMessage message)
 				}
 				xsEndHostSandboxCode();
 				KprPinsListenerDispose(listener, self);
+				listener = NULL;
 			}
 		}
 		else if (!FskStrCompareWithLength(message->parts.path, "configuration", message->parts.pathLength)) {
@@ -244,8 +246,32 @@ void KprPinsInvoke(KprService service, KprMessage message)
 					}
 				}
 				xsEndHostSandboxCode();
-				if (disposeListener)
+				if (disposeListener) {
 					KprPinsListenerDispose(listener, self);
+					listener = NULL;
+				}
+			}
+		}
+		else if (!FskStrCompareWithLength(message->parts.path, "metadata", message->parts.pathLength)) {
+			if (listener) {
+				xsBeginHost(listener->the);
+				{
+					KprMessageScriptTarget target = (KprMessageScriptTarget)message->stream;
+					{
+						xsTry {
+							xsResult = xsCall0(xsAccess(listener->pins), xsID("metadata"));
+							if (target)
+								target->result = xsMarshall(xsResult);
+						}
+						xsCatch {
+							err = exceptionToFskErr(the);
+						}
+					}
+				}
+				xsEndHost(listener->the);
+			}
+			else {
+				err = kFskErrNotFound;
 			}
 		}
 		else if (!FskStrCompareWithLength(message->parts.path, "clearAllBreakpoints", message->parts.pathLength)) {
@@ -356,7 +382,8 @@ void KprPinsInvoke(KprService service, KprMessage message)
 					KprMessageScriptTarget target = (KprMessageScriptTarget)message->stream;
 					char* value;
 					SInt32 id = 0;
-					xsVars(2);
+					xsIndex nameID;
+					xsVars(3);
 					{
 						xsTry {
 							if (message->parts.query)
@@ -372,7 +399,12 @@ void KprPinsInvoke(KprService service, KprMessage message)
 								id = idStr ? FskStrToNum(idStr) : 0;
 							}
 
-							xsVar(0) = xsGetAt(xsResult, xsStringBuffer(message->parts.name, message->parts.nameLength));
+							xsVar(2) = xsStringBuffer(message->parts.name, message->parts.nameLength);
+							nameID = xsFindID(xsToString(xsVar(2)));
+							if (0 != nameID) {
+								if (xsHas(xsResult, nameID))
+									xsVar(0) = xsGetAt(xsResult, xsVar(2));
+							}
 							if (!xsTest(xsVar(0))) {
 								if (value && FskAssociativeArrayElementGetString(query, "timer") && !FskStrCompareWithLength(message->parts.name, "_WHEN_", message->parts.nameLength))
 									;
@@ -412,6 +444,8 @@ void KprPinsInvoke(KprService service, KprMessage message)
 				err = kFskErrNotFound;
 			}
 		}
+		if (listener)
+			listener->useCount--;
 	}
 	message->error = err;
 	switch (err) {
@@ -847,7 +881,7 @@ void xs_PINS_repeat(xsMachine *the)
 	xsType type;
 
 	for (listener = FskListGetNext(pins->listeners, NULL); NULL != listener; listener = FskListGetNext(pins->listeners, listener)) {
-		if (listener->the == the)
+		if ((listener->the == the) && listener->useCount)
 			break;
 	}
 	if (!listener)

@@ -32,6 +32,7 @@ var wsPins = {
 	open: false,
 	configure: function() {
 		var wss = this.wss = new WebSocketServer(("port" in this.settings) ? this.settings.port : undefined);
+		wss.Pins = this.Pins;
 		wss.onlaunch = function() {
 			this.repeats = [];
 		}
@@ -55,7 +56,7 @@ var wsPins = {
 				var request = JSON.parse(e.data);
 				if ("repeat" in request) {
 					if (request.repeat) {
-						var repeat = Pins.repeat(request.path, ("interval" in request) ? parseInt(request.interval) : request.timer, function(result) {
+						var repeat = wss.Pins.repeat(request.path, ("interval" in request) ? parseInt(request.interval) : request.timer, function(result) {
 							if ((typeof result === "object") && (result instanceof Chunk)) {
 								ws.send(JSON.stringify({inReplyTo: request.id, binary: true}));
 								ws.send(result);
@@ -74,7 +75,7 @@ var wsPins = {
 					}
 				}
 				else {
-					Pins.invoke(request.path, ("requestObject" in request) ? request.requestObject : undefined, function(result) {
+					wss.Pins.invoke(request.path, ("requestObject" in request) ? request.requestObject : undefined, function(result) {
 						if ((typeof result === "object") && (result instanceof Chunk)) {
 							ws.send(JSON.stringify({inReplyTo: request.id, binary: true}));
 							ws.send(result);

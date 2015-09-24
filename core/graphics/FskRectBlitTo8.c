@@ -314,7 +314,8 @@ FskName4(Fsk,TintCopy,SrcPixelKind,DstPixelKind)(const FskRectBlitParams *params
 {
 	BLIT_DECL;
 	UInt32 tint, pix;
-	FskName2(fskConvert24RGB,DstPixelKind)(*((Fsk24BitType*)(&(params->red))), tint);
+
+	fskConvertRGBtoGray(params->red, params->green, params->blue, tint);
 
 	#if FskName3(fsk,SrcPixelKind,AlphaBits) < 8
 		BLIT_STARTLOOP {
@@ -345,7 +346,8 @@ FskName4(FskBilinear,TintCopy,SrcPixelKind,DstPixelKind)(const FskRectBlitParams
 {
 	BLIT_DECL;
 	UInt32 tint,pix;
-	FskName2(fskConvert24RGB,DstPixelKind)(*((Fsk24BitType*)(&(params->red))), tint);
+
+	fskConvertRGBtoGray(params->red, params->green, params->blue, tint);
 
 	#if FskName3(fsk,SrcPixelKind,AlphaBits) < 8
 		BLIT_STARTLOOP {

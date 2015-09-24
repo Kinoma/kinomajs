@@ -463,14 +463,15 @@ void Math_bounceEaseInOut(xsMachine* the)
 
 void Math_elasticEaseIn(xsMachine* the)
 {
+	xsIntegerValue c = xsToInteger(xsArgc);
 	double fraction = xsToNumber(xsArg(0));
 	if (fraction == 0)	
 		xsResult = xsNumber(0);
 	else if (fraction == 1) 
 		xsResult = xsNumber(1);
 	else {
-		double a = xsTest(xsArg(1)) ? xsToNumber(xsArg(1)) : 0;
-		double p = xsTest(xsArg(2)) ? xsToNumber(xsArg(2)) : 0;
+		double a = (c > 1) ? xsToNumber(xsArg(1)) : 0;
+		double p = (c > 2) ? xsToNumber(xsArg(2)) : 0;
 		double s;
 		if (!p) 
 			p = 0.3;
@@ -487,14 +488,15 @@ void Math_elasticEaseIn(xsMachine* the)
 
 void Math_elasticEaseOut(xsMachine* the)
 {
+	xsIntegerValue c = xsToInteger(xsArgc);
 	double fraction = xsToNumber(xsArg(0));
 	if (fraction == 0)	
 		xsResult = xsNumber(0);
 	else if (fraction == 1) 
 		xsResult = xsNumber(1);
 	else {
-		double a = xsTest(xsArg(1)) ? xsToNumber(xsArg(1)) : 0;
-		double p = xsTest(xsArg(2)) ? xsToNumber(xsArg(2)) : 0;
+		double a = (c > 1) ? xsToNumber(xsArg(1)) : 0;
+		double p = (c > 2) ? xsToNumber(xsArg(2)) : 0;
 		double s;
 		if (!p) 
 			p = 0.3;
@@ -510,14 +512,15 @@ void Math_elasticEaseOut(xsMachine* the)
 
 void Math_elasticEaseInOut(xsMachine* the)
 {
+	xsIntegerValue c = xsToInteger(xsArgc);
 	double fraction = xsToNumber(xsArg(0));
 	if (fraction == 0) 
 		xsResult = xsNumber(0);
 	else if (fraction == 1) 
 		xsResult = xsNumber(1);
 	else {
-		double a = xsTest(xsArg(1)) ? xsToNumber(xsArg(1)) : 0;
-		double p = xsTest(xsArg(2)) ? xsToNumber(xsArg(2)) : 0;
+		double a = (c > 1) ? xsToNumber(xsArg(1)) : 0;
+		double p = (c > 2) ? xsToNumber(xsArg(2)) : 0;
 		double s;
 		fraction *= 2;
 		if (!p)

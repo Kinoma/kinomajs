@@ -49,7 +49,6 @@
 	<c option="/DKPR_CONFIG=1"/>
 	<c option="/DSONY=0"/>
 	<c option="/DSUPPORT_DLLEXPORT=1"/>
-	<c option="/DSUPPORT_XS_DEBUG=1"/>
 	<c option="/DTARGET_OS_WIN32=1"/>
 	<c option="/DWIN32"/>
 	<c option="/DFSK_WINDOWS_DEFAULT_WINDOW_ICON_ID=IDI_ICON1"/>

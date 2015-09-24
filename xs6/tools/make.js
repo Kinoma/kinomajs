@@ -411,9 +411,7 @@ export class Manifest {
 		file.write("TMP_DIR = ");
 		file.write(tmp);
 		file.write("\n");
-		file.write("SUPPORT_XS_DEBUG = ");
-		file.write((tool.debug || this.tree.xsdebug.enabled || tool.xsdebug) ? 1 : 0);
-		file.write("\n");
+		file.write("SUPPORT_XS_DEBUG=" + (tool.debug || this.tree.xsdebug.enabled || tool.xsdebug ? 1 : 0) + "\n");
 	
 		this.generateXSVariables(tool, file);
 		this.generateResourcesVariables(tool, file);
@@ -422,12 +420,14 @@ export class Manifest {
 		
 		if (tool.windows) {
 			file.write("C_INCLUDES = /I$(F_HOME)\\xs6\\includes /I$(TMP_DIR) $(FskPlatform_C_INCLUDES)\n");
-			file.write("C_OPTIONS = /Fd$(TMP_DIR)\\fsk.pdb /DXS6=1 $(FskPlatform_C_OPTIONS)\n");
+			file.write("C_OPTIONS = /Fd$(TMP_DIR)\\fsk.pdb /DXS6=1 $(FskPlatform_C_OPTIONS)");
+			file.write(" /DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)\n");
 			file.write("HEADERS = $(F_HOME)\\xs6\\includes\\xs.h $(FskPlatform_HEADERS)\n");
 		}
 		else {
 			file.write("C_INCLUDES = -I$(F_HOME)/xs6/includes -I$(TMP_DIR) $(FskPlatform_C_INCLUDES)\n");
-			file.write("C_OPTIONS = -DXS6=1 $(FskPlatform_C_OPTIONS)\n");
+			file.write("C_OPTIONS = -DXS6=1 $(FskPlatform_C_OPTIONS)");
+			file.write(" -DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)\n");
 			file.write("HEADERS = $(F_HOME)/xs6/includes/xs.h $(FskPlatform_HEADERS)\n");
 		}
 		file.write("LIBRARIES =");

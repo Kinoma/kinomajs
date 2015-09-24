@@ -45,7 +45,7 @@
 	//#define LOG_MEMORY			/**< Log the amount of memory that we use. */
 	//#define LOG_READPIXELS		/**< Log any call to read from the screen. */
 	//#define LOG_RENDER_TO_TEXTURE	/**< Log when changing render target. */
-	//#define LOG_SET_TEXTURE		/**< Log texture uploads. */
+	#define LOG_SET_TEXTURE		/**< Log texture uploads. */
 	#define LOG_SHUTDOWN			/**< Log the results of shutting down. */
 	//#define LOG_SWAPBUFFERS		/**< Log swapbuffer calls, along with timestamp. */
 	//#define LOG_TEXT				/**< Log any text-related activity. */
@@ -4594,7 +4594,7 @@ static FskErr InitGlobalGLAssets() {
 			FskGLPort p;
 			LOGD("InitGlobalGLAssets  -- activePorts NOT NULL");
 			for (p = gGLGlobalAssets.activePorts; p != NULL; p = p->next) {
-				LOGD("ActiveGLPort(%p): (%u,%u) tex(w=%u h=%u if=%u y=%u u=%u v=%u bm=%p ft=%#x wr=%d fl=%d)",
+				LOGD("ActiveGLPort(%p): (%u,%u) tex(w=%u h=%u if=%u name={%u %u %u} bm=%p ft=%#x wr=%d fl=%d)",
 					p,
 					(unsigned)p->portWidth,
 					(unsigned)p->portHeight,
@@ -6192,9 +6192,6 @@ static FskErr SetGLTexture(FskConstBitmap srcBM, FskConstRectangle texRect, GLTe
 			return kFskErrInvalidParameter;
 	#endif /* FSK_DEBUG */
 
-	if (srcBM->depth < 8)
-		return kFskErrUnsupportedPixelType;
-
 	tx->flipY = false;	/* Indicate that we loaded the texture, as opposed to being loaded from the screen with the opposite vertical polarity */
 	/* Use special YUV loaders if they exist */
 	switch (srcBM->pixelFormat) {
@@ -6333,12 +6330,25 @@ static FskErr SetGLTexture(FskConstBitmap srcBM, FskConstRectangle texRect, GLTe
 				return SetGLUYVYTexture(srcBM, tx, GL_LINEAR);					/* Shader-based UYVY loader; this sets lastTexture */
 			#endif /* GLES_VERSION == 2 */
 			break;
-		case kFskBitmapFormatGLRGBA:
 		case kFskBitmapFormatGLRGB:
-			return kFskErrNone;
+			err = ReshapeOffscreenTexture(GL_RGB, srcBM->bounds.width, srcBM->bounds.height, GL_RGB, GL_UNSIGNED_BYTE, tx);
+			#if 1||CHECK_GL_ERROR
+				PRINT_IF_ERROR(err, __LINE__, "ReshapeOffscreenTexture(GL_RGB)");
+			#endif /* CHECK_GL_ERROR */
+			if (!err)
+				return err;
+		case kFskBitmapFormatGLRGBA:
+			err = ReshapeOffscreenTexture(GL_RGBA, srcBM->bounds.width, srcBM->bounds.height, GL_RGBA, GL_UNSIGNED_BYTE, tx);
+			#if 1||CHECK_GL_ERROR
+				PRINT_IF_ERROR(err, __LINE__, "ReshapeOffscreenTexture(GL_RGBA)");
+			#endif /* CHECK_GL_ERROR */
+			return err;
 		default:
 			break;
 	}
+
+	if (srcBM->depth < 8)
+		return kFskErrUnsupportedPixelType;
 
 	BAIL_IF_ERR(err = FskBitmapReadBegin((FskBitmap)srcBM, (const void**)(const void*)&srcTopLeft, &srcRowBytes, &srcPixelFormat));		// Note: in the format conversion case, we are writing... but we really don't want this operation to change the write seed
 
@@ -10285,12 +10295,14 @@ void FskPrintGLState(void) {
 
 /****************************************************************************//**
  * FskGLGetViewMatrix - gets a pointer to the current view matrix.
+ *	\param[in]	matrixSeed	A place to store the current matrix seed. Can be NULL.
  *	\return	a pointer to the current view matrix.
  ********************************************************************************/
 
 #undef FskGLGetViewMatrix
-const float* FskGLGetViewMatrix(void) {
+const float* FskGLGetViewMatrix(UInt32 *matrixSeed) {
 	#if GLES_VERSION == 2
+		if (matrixSeed) *matrixSeed = gGLGlobalAssets.matrixSeed;
 		return gGLGlobalAssets.matrix[0];
 	#else /* GLES_VERSION == 1 */
 		return NULL;
@@ -12303,6 +12315,8 @@ FskErr FskGLBitmapTextureSetRenderable(FskBitmap bm, Boolean renderable) {
 		glPort = bm->glPort;
 		if (0 == glPort->texture.name || GL_TEXTURE_UNLOADED == glPort->texture.name) {		/* If there is no current texture ... */
 			BAIL_IF_ERR(err = FskGenGLTexturesAndInit(1, &glPort->texture.name));			/* ... generate one */
+			if (GL_TEXTURE_UNLOADED == glPort->texture.nameU)								/* If there is a missing persistent texture ... */
+				BAIL_IF_ERR(err = FskGenGLTexturesAndInit(1, &glPort->texture.nameU));		/* ... generate one */
 			#ifdef LOG_RENDER_TO_TEXTURE
 				LogDstBitmap(bm, "bm FskGLBitmapTextureSetRenderable");
 			#endif /* LOG_RENDER_TO_TEXTURE */
@@ -12509,13 +12523,21 @@ FskErr FskGLRenderToBitmapTexture(FskBitmap bm, FskConstColorRGBA clear) {
 				doPersistent	= false;
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_RENDER_TO_TEXTURE)
-		LOGD("GLRenderToBitmapTexture(bm=%p, clear=%p)", bm, clear);
+		LOGD("FskGLRenderToBitmapTexture(bm=%p, clear=%p)", bm, clear);
 		LogSrcBitmap(bm, "bm");
 		LogColor(clear, "clear");
 	#endif /* LOG_PARAMETERS */
 
 	if (bm && bm->glPort) {	/* If the texture is persistent, swap textures to save the previous frame */
 		GLTexture tx = &bm->glPort->texture;
+		#if TARGET_OS_ANDROID
+			if (tx->name == GL_TEXTURE_UNLOADED) {
+				err = FskGLBitmapTextureSetRenderable(bm, true);
+				#if CHECK_GL_ERROR
+					BAIL_IF_ERR(err);
+				#endif /* CHECK_GL_ERROR */
+			}
+		#endif /* TARGET_OS_ANDROID */
 		if (tx->persistent && tx->fboInited && tx->name && tx->name != gGLGlobalAssets.blitContext->fboTexture) {
 			GLuint swapTex;
 			swapTex   = tx->name;
@@ -12523,7 +12545,7 @@ FskErr FskGLRenderToBitmapTexture(FskBitmap bm, FskConstColorRGBA clear) {
 			tx->nameU = swapTex;
 			doPersistent = true;
 			#if defined(LOG_RENDER_TO_TEXTURE)
-				LOGD("GLRenderToBitmapTexture swaps textures #%u and #%u", tx->nameU, tx->name);
+				LOGD("FskGLRenderToBitmapTexture swaps textures #%u and #%u", tx->nameU, tx->name);
 			#endif /* LOG_RENDER_TO_TEXTURE */
 		}
 	}
@@ -12554,7 +12576,7 @@ FskErr FskGLRenderToBitmapTexture(FskBitmap bm, FskConstColorRGBA clear) {
 	if (doPersistent) {
 		RestoreGLPortTexture(bm->glPort, doBlend);
 		#if defined(LOG_RENDER_TO_TEXTURE)
-			LOGD("GLRenderToBitmapTexture restores #%u to persistent texture #%u %c= #%u", bm->glPort->texture.nameU, gGLGlobalAssets.blitContext->fboTexture,
+			LOGD("FskGLRenderToBitmapTexture restores #%u to persistent texture #%u %c= #%u", bm->glPort->texture.nameU, gGLGlobalAssets.blitContext->fboTexture,
 				((gGLGlobalAssets.blitContext->fboTexture == bm->glPort->texture.name) ? '=' : '!'), bm->glPort->texture.name);
 		#endif /* LOG_RENDER_TO_TEXTURE */
 	}

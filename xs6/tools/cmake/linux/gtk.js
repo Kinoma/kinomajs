@@ -39,34 +39,35 @@ class Manifest extends MAKE.Manifest {
 		path += tool.execute("uname -m").trim();
 		path += process.debug ? "/debug" : "/release";
 		return {
-			KPR_APPLICATION: tool.application,
+			KPR_APPLICATION: this.tree.environment.KPR_BINARY_NAME ? this.tree.environment.KPR_BINARY_NAME : tool.application,
 
-			KPR2JS: path + "/xsr6 -a " + path + "/modules/tools.xsa kpr2js",
-			XS2JS: path + "/xsr6 -a " +  path + "/modules/tools.xsa xs2js",
-			XSC: path + "/xsc6",
-			XSL: path + "/xsl6",
-
-			KPR_CONFIGURATION: tool.debug ? "debug" : "release",
-
-			APP_DIR: bin,
+			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/$<CONFIGURATION>/${tool.application}`,
 		}
 	}
 	getTargetRules(tool) {
 		return `
-ADD_EXECUTABLE(Kpl \${SOURCES} \${FskPlatform_SOURCES} \${TARGET_OBJECTS})
-TARGET_INCLUDE_DIRECTORIES(Kpl  PRIVATE \${C_INCLUDES})
-TARGET_COMPILE_DEFINITIONS(Kpl PRIVATE \${C_DEFINITIONS})
-TARGET_COMPILE_OPTIONS(Kpl PRIVATE \${C_OPTIONS})
-TARGET_LINK_LIBRARIES(Kpl -Wl,--whole-archive -Wl,-Map,\${TMP_DIR}/Kpl.map \${OBJECTS} \${LIBRARIES})
-SET_TARGET_PROPERTIES(Kpl PROPERTIES RUNTIME_OUTPUT_DIRECTORY \${APP_DIR})
+add_executable(\${KPR_APPLICATION} \${SOURCES} \${FskPlatform_SOURCES} \${TARGET_OBJECTS})
+target_include_directories(\${KPR_APPLICATION}  PRIVATE \${C_INCLUDES})
+target_compile_definitions(\${KPR_APPLICATION} PRIVATE \${C_DEFINITIONS})
+target_compile_options(\${KPR_APPLICATION} PRIVATE \${C_OPTIONS})
+target_link_libraries(\${KPR_APPLICATION} -Wl,--whole-archive -Wl,-Map,\${TMP_DIR}/\${KPR_APPLICATION}.map \${OBJECTS} \${LIBRARIES})
 
-IF(RELEASE)
-	ADD_CUSTOM_COMMAND(
-			TARGET Kpl
+if("\${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+	add_custom_command(
+			TARGET \${KPR_APPLICATION}
 			POST_BUILD
-			COMMAND \${TOOL_PREFIX}strip \$<TARGET_FILE:Kpl>
+			COMMAND \${TOOL_PREFIX}strip \$<TARGET_FILE:\${KPR_APPLICATION}>
 			)
-ENDIF()
+endif()
+
+add_custom_command(
+	TARGET \${KPR_APPLICATION}
+	POST_BUILD
+	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:\${KPR_APPLICATION}> \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${TMP_DIR}/app \${APP_DIR}
+	)
 `;
 	}
 };

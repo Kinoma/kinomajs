@@ -209,15 +209,37 @@ Boolean FskCocoaBitmapUseGL()
 #pragma mark --- text ---
 #if USE_CORE_TEXT
 
-#if defined(SUPPORT_TEXT_FORMAT_CACHE_DEBUG) && SUPPORT_TEXT_FORMAT_CACHE_DEBUG
-void FskCocoaTextFormatCacheInfoStringGet(FskTextFormatCache cache, char **pInfoStr);
+#if SUPPORT_INSTRUMENTATION
 void FskCocoaTextFormatCacheInfoStringGet(FskTextFormatCache cache, char **pInfoStr)
 {
+	char *nameBuf = NULL;
+	CFIndex length, maxSize;
+	CTFontSymbolicTraits traits;
+	char styleStr[10], *s;
+
+	traits = CTFontGetSymbolicTraits(cache->fontInfo->fontRef);
+	s = styleStr;
+	if (traits & kCTFontItalicTrait)		*s++ = 'I';
+	if (traits & kCTFontBoldTrait)			*s++ = 'B';
+	if (traits & kCTFontExpandedTrait)		*s++ = 'E';
+	if (traits & kCTFontCondensedTrait)		*s++ = 'C';
+	if (traits & kCTFontMonoSpaceTrait)		*s++ = 'M';
+	if (traits & kCTFontVerticalTrait)		*s++ = 'V';
+	if (traits & kCTFontUIOptimizedTrait)	*s++ = 'U';
+	if (cache->strikeThrough)				*s++ = 'S';
+	*s = 0;
+	if (styleStr[0] == 0)	{ styleStr[0] = 'P'; styleStr[1] = 0; }
+
 	*pInfoStr = NULL;
-	asprintf(pInfoStr, "fontName=\"%s\" textSize=%u fontRef=%p ascent=%g descent=%g leading=%g width=%g strikeThrough=%d numRunFonts=%d",
-		 cache->fontName, cache->textSize, cache->fontRef, cache->ascent, cache->descent, cache->leading, cache->width, cache->strikeThrough, cache->numRunFonts);
+	length  = CFStringGetLength(cache->fontInfo->name);
+	maxSize = CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
+	if ((kFskErrNone != FskMemPtrNew(maxSize, &nameBuf)) || !CFStringGetCString(cache->fontInfo->name, nameBuf, maxSize, kCFStringEncodingUTF8))	goto bail;
+	asprintf(pInfoStr, "<TextFormatCache fontName=\"%s\" textSize=%g traits=\"%s\" ascent=%g descent=%g leading=%g width=%g numRunFonts=%d/>",
+		 nameBuf, cache->textSize/65536., styleStr, cache->ascent, cache->descent, cache->leading, cache->width, cache->fontInfo->numRunFonts);
+bail:
+	FskMemPtrDispose(nameBuf);
 }
-#endif /* SUPPORT_TEXT_FORMAT_CACHE_DEBUG */
+#endif /* SUPPORT_INSTRUMENTATION */
 
 #if 0
 static char *
@@ -335,8 +357,24 @@ createFontWithAttributes(CTFontRef fref, UInt32 textSizeIn, UInt32 textStyle)
 			[descs release];
 		}
 	}
-	if (aref == NULL)
-		aref = CTFontCreateCopyWithAttributes(fref, textSize, NULL, NULL);
+	if (aref == NULL) {
+		CTFontDescriptorRef fontDescriptor = NULL;
+		if (textStyle & kFskTextCode) {
+			const UniChar characters[2]={'W','.'};
+			CGGlyph glyphs[2];
+			CGSize advances[2];
+			CTFontGetGlyphsForCharacters(fref, characters, glyphs, 2);
+			CTFontGetAdvancesForGlyphs(fref, kCTFontHorizontalOrientation, glyphs, advances, 2);
+			float advance = round(advances[0].width);
+			CFTypeRef keys[1];
+			CFTypeRef values[1];
+			keys[0] = kCTFontFixedAdvanceAttribute;
+			values[0] = CFNumberCreate(nil, kCFNumberFloatType, (void *)&advance);
+			CFDictionaryRef fontAttributes = CFDictionaryCreate(NULL, (const void **)keys, (const void **)values, 1, NULL, NULL);
+			fontDescriptor = CTFontDescriptorCreateWithAttributes(fontAttributes);
+		}
+		aref = CTFontCreateCopyWithAttributes(fref, textSize, NULL, fontDescriptor);
+	}
 //	{
 //		CTFontDescriptorRef desc = CTFontCopyFontDescriptor(aref);
 //		NSString *name = (NSString *)CTFontDescriptorCopyAttribute(desc, kCTFontNameAttribute);
@@ -962,7 +1000,7 @@ bail:
 		freeLineList(ll);
 	if (tmpCache != NULL)
 		FskCocoaTextFormatCacheDispose(state, tmpCache);
-		
+
 	return ret;
 }
 
