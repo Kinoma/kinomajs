@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<fsk xmlns="http://www.kinoma.com/Fsk/1" xmlns:build="http://www.kinoma.com/Fsk/manifest/1">
+    <xsdebug enabled="true" />
+    <rootvm>
+        <environment>
+            <variable name="KDT_HOME" value="[F_HOME]/kinoma/kdt/" platform="build" />
+            <variable name="extensions" value="[F_HOME]/extensions/" platform="build" />
+            <variable name="kinomaExtensions" value="[F_HOME]/kinoma/" platform="build" />
+            <variable name="kplPath" value="[F_HOME]/build/linux/kpl/" platform="build" />
+            <variable name="screenScale" value="1" platform="mac,win,linux" />
+            <variable name="httpPoolSize" value="5" platform="mac,win,linux" />
+            <variable name="httpCacheSize" value="197" platform="mac,win,linux" />
+            <variable name="httpCookiesSize" value="197" platform="mac,win,linux" />
+            <variable name="httpKeychainSize" value="197" platform="mac,win,linux" />
+            <variable name="httpLocalStorageSize" value="197" platform="mac,win,linux" />
+            <variable name="httpServerPort" value="10000" />
+            <variable name="textureCacheSize" value="2500000" platform="mac,win,linux" />
+            <variable name="useGL" value="0" />
+            <variable name="useSSDP" value="1"/>
+            <variable name="ssdpDiscoverSelf" value="0" platform="android,linux"/>
+            <variable name="ssdpExpire" value="1800"/>
+            <variable name="ssdpSearchAll" value="0"/>
+            <variable name="ssdpTTL" value="4"/>
+            <variable name="displayFPS" value="0" platform="mac,win,linux" />
+            <variable name="windowStyle" value="0" platform="mac,win" />
+            <variable name="updateIntervalMS" value="33"/>
+
+            <variable name="windowWidth" value="320" platform="mac,win" />
+            <variable name="windowHeight" value="240" platform="mac,win" />
+
+            <variable name="touchEnabled" value="false" />
+            <variable name="wifiEnabled" value="true" platform="linux" />
+            <variable name="defaultDeviceName" value="Kinoma Create" />
+
+            <variable name="modulePath" value="[applicationPath]bin/modules/" />
+            <variable name="shellPath" value="[applicationPath]bin/deviceShell.jsb" />
+            <variable name="applicationURLs" value="[applicationPath]apps/"/>
+            <variable name="userApplicationDir" value="create/applications/"/>
+
+            <variable name="MTVROTATE" value="0" platform="linux" />
+			
+			<variable name="defaultValidationPreferences" value="defaultsMockup.json" platform="win,mac"/>
+			<variable name="defaultValidationPreferences" value="defaults.json" platform="linux"/>
+            
+            <variable name="PICVersion" value="7"/>
+            <variable name="PICsNeedUpdate" value="false"/>
+
+            <variable name="cleanPathStart" value="/fsk/"/>
+			<!--variable name="debugger" value="10.0.1.26" platform="linux"/-->   <!-- xsbug address -->
+        </environment>
+
+        <debug platform="mac">
+            <debugger url="localhost" />
+            <source keep="true" />
+            <breakpoints href="breakpoints.txt" />
+        </debug>
+
+        <instrument log="/tmp/kinoma-instrumentationLog.txt" trace="true">
+			<kind name="KplScreenDirectfb" messages="debug"/>
+        </instrument>
+
+        <ssl>
+            <CA_list href="ca-bundle.crt" />
+        </ssl>
+
+        <ui platform="linux">
+            <font face="Fira Sans" size="12" href="[applicationPath]fonts/" />
+        </ui>
+
+        <extension href="fsZip" build:from="[extensions]fsZip/fsZip.mk" build:embed="true" />
+		
+        <extension href="Crypt" build:from="[extensions]crypt/Crypt.mk" build:embed="true" build:style="nonembed" />
+        <bytecode href="FskSSLAll" build:from="[extensions]ssl/FskSSLAll.mk" build:embed="true" />
+
+        <extension href="FskBMPCodec" build:from="[extensions]FskBMPCodec/FskBMPCodec.mk" build:embed="true" />
+        <extension href="FskJPEGDecode" build:from="[extensions]FskJPEGDecode/FskJPEGDecode.mk" build:embed="true" />
+        <extension href="FskGIFDecode" build:from="[extensions]FskGIFDecode/FskGIFDecode.mk" build:embed="true" />
+		<extension href="FskPNGDecode" build:from="[extensions]FskPNGDecode/FskPNGDecode.mk" build:embed="true"/>
+
+        <extension href="coreaudiofilters" build:from="[extensions]coreaudiofilters/coreaudiofilters.mk" build:embed="true" />
+
+        <extension href="mediareader" build:from="[kinomaExtensions]mediareader/mediareader.mk" build:embed="true" />
+        <extension href="FskMediaReaderMP3" build:from="[kinomaExtensions]mediareader/readers/mp3/FskMediaReaderMP3.mk" build:embed="true" />
+        <extension href="FskMediaReaderWave" build:from="[kinomaExtensions]mediareader/readers/wave/FskMediaReaderWave.mk" build:embed="true" />
+        <extension href="FskMediaReaderMP4" build:from="[kinomaExtensions]mediareader/readers/mp4/FskMediaReaderMP4.mk" build:embed="true" />
+        <extension href="FskMediaReaderFLV" build:from="[kinomaExtensions]mediareader/readers/flv/FskMediaReaderFLV.mk" build:embed="true" />
+        <extension href="FskMediaReaderPCM" build:from="[kinomaExtensions]mediareader/readers/pcm/FskMediaReaderPCM.mk" build:embed="true" />
+
+        <extension href="kinomaamrnb" build:from="[kinomaExtensions]kinoma-amr-nb/kinomaamrnb.mk" build:embed="true" />
+
+        <extension href="kinomamp3decipp" build:from="[kinomaExtensions]kinoma-mp3-dec-ipp/kinomamp3decipp.mk" build:embed="true" />
+        <extension href="kinomaaacdecipp" build:from="[kinomaExtensions]kinoma-aac-dec-ipp/kinomaaacdecipp.mk" build:embed="true" />
+        <extension href="kinomamp4decipp" build:from="[kinomaExtensions]kinoma-mp4-dec-ipp/kinomamp4decipp.mk" build:embed="true" />
+        <extension href="kinomaavcdecipp" build:from="[kinomaExtensions]kinoma-avc-dec-ipp/kinomaavcdecipp.mk" build:embed="true" />
+
+        <extension href="KplFrameBuffer" build:from="[kplPath]framebuffer/KplFrameBuffer.mk" build:embed="true" />
+
+        <extension href="kpr" build:from="[kinomaExtensions]kpr/kpr.mk" build:embed="true"/>
+        <extension href="kprSSDP" build:from="[kinomaExtensions]kpr/extensions/ssdp/kprSSDP.mk"/>
+        <extension href="kprZeroconf" build:from="[kinomaExtensions]kpr/extensions/zeroconf/kprZeroconf.mk"/>
+        <extension href="kprPins" build:from="[kinomaExtensions]kpr/extensions/pins/kprPins.mk" />
+		<extension href="kprWiFi" build:from="[kinomaExtensions]kpr/extensions/wifi/kprWiFi.mk" platform="linux,mac"/>
+        <extension href="kprWebSocket" build:from="[kinomaExtensions]kpr/extensions/websocket/kprWebSocket.mk"/>
+        <extension href="kprCoAP" build:from="[kinomaExtensions]kpr/extensions/coap/kprCoAP.mk"/>
+        <extension href="kprMQTT" build:from="[kinomaExtensions]kpr/extensions/mqtt/kprMQTT.mk"/>
+		<extension href="kprK4" build:from="[kinomaExtensions]kpr/extensions/k4/kprK4.mk"/>
+        <extension href="k4validation" build:from="[kinomaExtensions]kpr/extensions/k4validation/k4validation.mk"/>
+		<extension href="kprBrowser" build:from="[kinomaExtensions]kpr/extensions/browser/kprBrowser.mk" platform="mac,iphone,android"/>
+        <extension href="kprXMPP" build:from="[kinomaExtensions]kpr/extensions/xmpp/kprXMPP.mk"/>
+		<extension href="kprTouchd" build:from="[kinomaExtensions]kpr/extensions/touchd/kprTouchd.mk"/>
+    </rootvm>
+
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/projects/create/shell/deviceShell.xml" destinationPath="bin" />    
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/projects/create/shell/src" destinationPath="bin/src" />
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/projects/create/shell/upnp" destinationPath="bin/upnp"/>
+    <build:copy sourcePath="[KDT_HOME]/kpr/core/modules" destinationPath="bin/modules" />
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Controls/src" destinationPath="bin/modules"/>
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/MobileFramework/src" destinationPath="bin/modules"/>    
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Localization/src" destinationPath="bin/modules"/>    
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/MediaPlayerLib/src" destinationPath="bin/modules"/>    
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Transitions/src" destinationPath="bin/modules"/>
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Creations/src" destinationPath="bin/modules"/>
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/MultiTouchLib/src" destinationPath="bin/modules"/>
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/projects/create/shell/device" destinationPath="bin/modules"/>
+    <build:copy sourcePath="[F_HOME]/build/devices/k4/FSfixes" destinationPath="fsFixes"/>
+    
+    <!--  validation test modules -->    
+    <build:copy sourcePath="[KDT_HOME]/kpr/sdk/libraries/Hardwarepins/src" destinationPath="bin/modules"/>
+    
+    <!-- copy the icon -->
+    <build:copy sourcePath="[KDT_HOME]/kpr/config/devices/k4/launcher/icon.png" destinationPath="bin"/>
+    
+    <!-- required  -->
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/projects/create/apps" destinationPath="apps"/>
+	<build:copy sourcePath="[F_HOME]/data/fonts/FiraSans-Regular.ttf" destinationPath="fonts/FiraSans-Regular.ttf" platform="linux" />
+	<build:copy sourcePath="[F_HOME]/data/fonts/FiraSans-Bold.ttf" destinationPath="fonts/FiraSans-Bold.ttf" platform="linux" />
+	<build:copy sourcePath="[F_HOME]/data/fonts/FiraMono-Regular.ttf" destinationPath="fonts/FiraMono-Regular.ttf" platform="linux" />
+
+</fsk>
