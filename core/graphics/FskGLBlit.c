@@ -404,7 +404,7 @@ typedef struct GLTextureRecord {
 	Boolean					flipY;								/**< Indicates that the image in the texture is flipped vertically from the usual. */
 	Boolean					fboInited;							/**< Indicates that the texture has been cleared at least once for use as a frame buffer texture. */
 	Boolean					persistent;							/**< Save the value when switching textures in FBO. */
-	Boolean					unused;								/**< Pad to a multiple of 4. */
+	UInt8					viewRotation;						/**< Rotate when rendering (only 0 and 180 degrees). */
 } GLTextureRecord,
  *GLTexture;											/**< Object that contains auxiliary data to be stored with each GL texture. */
 typedef const struct GLTextureRecord *ConstGLTexture;	/**< Read-only object that contains auxiliary data to be stored with each GL texture. */
@@ -11103,6 +11103,10 @@ Boolean FskGLPortIsDestination(FskConstGLPort port) {
 FskErr FskGLPortSetPersistent(FskGLPort port, Boolean value) {
 	FskErr err = kFskErrNone;
 
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskGLPortSetPersistent(port=%p value=%d)", port, value);
+	#endif /* LOG_PARAMETERS */
+
 	if (!port) goto bail;
 	port->texture.persistent = value;
 	if (port->texture.persistent) {													/* If persistent, check to see that we have a second texture */
@@ -11130,6 +11134,35 @@ bail:
 #undef  FskGLPortIsPersistent
 Boolean FskGLPortIsPersistent(FskConstGLPort port) {
 	return port ? port->texture.persistent : true;
+}
+
+
+/********************************************************************************
+ * FskGLPortSetRotation
+ ********************************************************************************/
+
+FskErr FskGLPortSetRotation(FskGLPort port, UInt32 rotation) {
+	FskErr	err = kFskErrNone;
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskGLPortSetRotation(port=%p rotation=%u)", port, (unsigned)rotation);
+	#endif /* LOG_PARAMETERS */
+
+	BAIL_IF_FALSE(port && (rotation == 0 || rotation == 180), err, kFskErrInvalidParameter);
+	port->texture.viewRotation = (UInt8)rotation;
+	err = FskGLSetGLView(port);
+
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGLPortGetRotation
+ ********************************************************************************/
+
+UInt32 FskGLPortGetRotation(FskConstGLPort port) {
+	return port ? port->texture.viewRotation : 0;
 }
 
 
@@ -11179,22 +11212,29 @@ FskErr FskGLSetGLView(FskGLPort port) {
 	#else /* GLES_VERSION == 2 */
 	{	float	wi = (float)(2.f / port->portWidth),
 				hi = (float)(2.f / port->portHeight);
+		float	x0, y0;
 		if (!gGLGlobalAssets.blitContext->fboTexture)
 			hi = -hi;
+		if (port->texture.viewRotation) {
+			wi = -wi;
+			hi = -hi;
+		}
+		x0 = (wi < 0.f) ? +1.f : -1.f;
+		y0 = (hi < 0.f) ? +1.f : -1.f;
 		#ifdef LOG_VIEW
 			if (!(	gGLGlobalAssets.matrix[0][0] == wi		&&
 					gGLGlobalAssets.matrix[1][1] == hi)
 			)
-				LOGD("GLSetGLView(%p) matrix was { [%.4g %.4g %.4g] [%.4g %.4g %.4g] [%.4g %.4g %.4g] }, new { [%.4g 0 0] [0 %.4g 0] [-1 %d 1] }",
+				LOGD("GLSetGLView(%p) matrix was { [%.4g %.4g %.4g] [%.4g %.4g %.4g] [%.4g %.4g %.4g] }, new { [%.4g 0 0] [0 %.4g 0] [%g %g 1] }",
 					port,
 					gGLGlobalAssets.matrix[0][0], gGLGlobalAssets.matrix[0][1], gGLGlobalAssets.matrix[0][2],
 					gGLGlobalAssets.matrix[1][0], gGLGlobalAssets.matrix[1][1], gGLGlobalAssets.matrix[1][2],
 					gGLGlobalAssets.matrix[2][0], gGLGlobalAssets.matrix[2][1], gGLGlobalAssets.matrix[2][2],
-					wi, hi, ((hi < 0) ? +1 : -1)
+					wi, hi, x0, y0
 				);
 			#if 0
 				else
-					LOGD("GLSetGLView(%p) matrix set but unchanged { [%.4g 0 0] [0 %.4g 0] [-1 %d  1] }", port, wi, hi, ((hi < 0) ? +1 : -1));
+					LOGD("GLSetGLView(%p) matrix set but unchanged { [%.4g 0 0] [0 %.4g 0] [%g %g  1] }", port, wi, hi, x0, y0);
 			#endif /* LOG_VIEW */
 		#endif /* LOG_VIEW */
 		if (!(	gGLGlobalAssets.matrix[0][0] == wi		&&
@@ -11221,9 +11261,9 @@ FskErr FskGLSetGLView(FskGLPort port) {
 			glViewport(0, 0, port->portWidth, port->portHeight);	/* ... set the viewport ... */
 			gGLGlobalAssets.matrixSeed++;							/* ... and the matrix every time */
 		}
-		gGLGlobalAssets.matrix[0][0] = wi;		gGLGlobalAssets.matrix[0][1] =  0.f;					gGLGlobalAssets.matrix[0][2] = 0.f;
-		gGLGlobalAssets.matrix[1][0] =  0.f;	gGLGlobalAssets.matrix[1][1] = hi;						gGLGlobalAssets.matrix[1][2] = 0.f;
-		gGLGlobalAssets.matrix[2][0] = -1.f;	gGLGlobalAssets.matrix[2][1] = hi < 0.f ? +1.f : -1.f;	gGLGlobalAssets.matrix[2][2] = 1.f;
+		gGLGlobalAssets.matrix[0][0] = wi;	gGLGlobalAssets.matrix[0][1] = 0.f;	gGLGlobalAssets.matrix[0][2] = 0.f;
+		gGLGlobalAssets.matrix[1][0] = 0.f;	gGLGlobalAssets.matrix[1][1] = hi;	gGLGlobalAssets.matrix[1][2] = 0.f;
+		gGLGlobalAssets.matrix[2][0] = x0;	gGLGlobalAssets.matrix[2][1] = y0;	gGLGlobalAssets.matrix[2][2] = 1.f;
 	}
 	#endif /* GLES_VERSION == 2 */
 

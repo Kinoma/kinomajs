@@ -262,6 +262,22 @@ FskErr			FskGLPortSetPersistent(FskGLPort port, Boolean value);
 Boolean			FskGLPortIsPersistent(FskConstGLPort port);
 
 
+/** Set the rotation of the port. This affects the view matrix when rendering.
+ *	\param[in]	port		the port to be set.
+ *	\param[in]	rotation	the port to be set.
+ *	\return		kfskErrNone				if the operation was completed successfully.
+ *	\return		kFskErrInvalidParameter	if the rotation is other than 0 (default) or 180.
+ **/
+FskErr			FskGLPortSetRotation(FskGLPort port, UInt32 rotation);
+
+
+/** Query the rotation of the port.
+ *	\param[in]	port	the port to be queried.
+ *	\return		the rotation of the port, either 0 or 180.
+ **/
+UInt32			FskGLPortGetRotation(FskConstGLPort port);
+
+
 /*********************************************************************************
  *********************************************************************************
  **							FskGLBlitContext									**

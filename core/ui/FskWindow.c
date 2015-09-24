@@ -3362,6 +3362,7 @@ void setWindowBitmap(FskWindow w, FskBitmap bits)
 #if FSKBITMAP_OPENGL
 	if (w->usingGL) {
 		if (bits) {
+			const char *str;
 			if (bits->glPort) {
 				#if TARGET_OS_ANDROID
 					LOGD("[%s] setWindowBitmap(%p, %p) setting OpenGLSysContext with FskGLPortResize", FskThreadName(FskThreadGetCurrent()), w, bits);
@@ -3384,6 +3385,7 @@ void setWindowBitmap(FskWindow w, FskBitmap bits)
 					FskGLPortNew(bits->bounds.width, bits->bounds.height, w, &bits->glPort);
 				#endif /* !TARGET_OS_ANDROID */
 			}
+			(void)FskGLPortSetRotation(bits->glPort, ((NULL != (str = FskEnvironmentGet("portRotation"))) && (0 == FskStrCompare("180", str))) ? 180 : 0);
 		}
 	}
 #endif
