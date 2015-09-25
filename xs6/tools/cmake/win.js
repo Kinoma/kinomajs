@@ -57,14 +57,15 @@ class Manifest extends CMAKE.Manifest {
 add_executable(\${APP_NAME} WIN32 \${SOURCES} \${FskPlatform_SOURCES})
 target_link_libraries(\${APP_NAME} \${LIBRARIES} \${OBJECTS})
 
-add_custom_command(
-	TARGET \${APP_NAME}
-	POST_BUILD
+add_custom_target(
+	Assemble
+	ALL
 	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${TMP_DIR}/app \$<TARGET_FILE_DIR:\${APP_NAME}>
 	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy \$<TARGET_FILE:\${APP_NAME}> \${APP_DIR}
+	DEPENDS \${APP_NAME} FskManifest.xsa
 	)
 `;
 	}

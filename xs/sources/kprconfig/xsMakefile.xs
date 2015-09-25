@@ -444,6 +444,7 @@
 		<string name="type" pattern="@type" />
 		<string name="depends" pattern="@depends" />
 		<string name="links" pattern="@links" />
+		<string name="build" pattern="@build" />
 		<function name="crossReference" params="thePlatform, theMakefile">
 			if (xsTool.cmake) {
 				theMakefile.cmakeOutputType = this.type;

@@ -61,9 +61,9 @@ set_target_properties(${this.tree.application}
 	MACOSX_BUNDLE_GUI_IDENTIFIER ${this.ios.info.CFBundleIdentifier}
 	)
 
-add_custom_command(
-	TARGET ${this.tree.application}
-	POST_BUILD
+add_custom_target(
+	Assemble
+	ALL
 	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
 	`;
@@ -79,6 +79,7 @@ add_custom_command(
 	COMMAND \${CMAKE_COMMAND} -E copy \${PROVISION} \${APP_DIR}/embedded.mobileprovision
 	COMMAND codesign -f -v -s ${this.ios.identityHash} --entitlements \${TMP_DIR}/Entitlements.plist \${APP_DIR}
 	COMMAND xcrun -sdk iphoneos PackageApplication \${APP_DIR} -o \${APP_IPA}
+	DEPENDS ${this.tree.application} FskManifest.xsa
 	VERBATIM
 	)
 `;

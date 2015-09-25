@@ -123,16 +123,18 @@ var cmakeOptions = {
 	type: "",
 	depends: "",
 	links: "",
+	build: "",
 	configure(tool, manifest, tree) {
 		if (!this.name)
 			tool.reportError(this.__xs__path, this.__xs__line, "missing name attribute");
 		else {
 			if (!("cmakeOptions" in tree))
-				tree.cmake = {};
-			tree.cmake[this.name] = {
+				tree.cmakeOptions = {};
+			tree.cmakeOptions[this.name] = {
 				type: this.type,
 				depends: this.depends,
-				links: this.links
+				links: this.links,
+				build: this.build
 			};
 		}
 	},
@@ -413,7 +415,8 @@ g.object(xsASMOption, "asm", {
 g.object(cmakeOptions, "cmake", {
 	type: g.string("@type"),
 	depends: g.string("@depends"),
-	links: g.string("@links")
+	links: g.string("@links"),
+	build: g.string("@build")
 });
 g.object(xsLibrary, "library", {});
 g.object(xsSource, "source", {});

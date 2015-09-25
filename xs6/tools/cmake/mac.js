@@ -57,9 +57,9 @@ copy(SOURCE "\${PLIST}" DESTINATION "\${TMP_DIR}/MacOSXBundleInfo.plist.in")
 set(MACOSX_BUNDLE_ICON_FILE "fsk.icns")
 set(MACOSX_BUNDLE_GUI_IDENTIFIER "${namespace}")
 
-add_custom_command(
-	TARGET ${application}
-	POST_BUILD
+add_custom_target(
+	Assemble
+	ALL
 	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:\${APP_NAME}> \${APP_DIR}/fsk
@@ -69,6 +69,7 @@ add_custom_command(
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${NIB} \${APP_DIR}/../Resources/English.lproj/fsk.nib
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \$<TARGET_FILE_DIR:\${APP_NAME}>
 	COMMAND \${CMAKE_COMMAND} -E echo "APPLTINY" > \${APP_DIR}/../PkgInfo
+	DEPENDS ${application} FskManifest.xsa
 	)
 `;
 	return output;

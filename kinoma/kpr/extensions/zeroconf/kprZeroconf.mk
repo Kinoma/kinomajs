@@ -71,6 +71,7 @@ C_OPTIONS += \
 	<source name="kprZeroconfApple.c"/>
 </platform>
 <platform name="linux/bg3cdp,linux/gtk">
+	<cmake name="mDNSResponder" build="$(F_HOME)/libraries/mDNSResponder/CMakeLists.txt" />
 	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
 	<!--library name="-ldns_sd"/-->
 	<source name="kprZeroconfApple.c"/>

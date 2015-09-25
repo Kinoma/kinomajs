@@ -58,6 +58,12 @@ class File {
 }
 
 export class Makefile extends MAKE.Makefile {
+	constructor(tree) {
+		super(tree);
+		this.cmakeOptions = tree.cmakeOptions;
+		this.cOptionsDebug = tree.cOptionsDebug;
+		this.cOptionsRelease = tree.cOptionsRelease;
+	}
 	generateRule(tool, file, path) {
 		file.line("list(APPEND ", this.name, "_SOURCES ", toCMakePath(tool, path), ")");
 		var parts = tool.splitPath(path);
@@ -67,10 +73,24 @@ export class Makefile extends MAKE.Makefile {
 			file.line("set_source_files_properties(", toCMakePath(tool, path), " PROPERTIES COMPILE_FLAGS ${AS__OPTIONS})");	//@
 	}
 	generateRules(tool, file, path) {
-		file.line("add_library(", this.name, " STATIC ${", this.name, "_SOURCES})");
-		file.line("add_dependencies(", this.name, " FskManifest.xsa)");
+		var depends = [];
+		for (let name in this.cmakeOptions) {
+			var option = this.cmakeOptions[name]
+			if (option.build) {
+				var path = tool.splitPath(option.build);
+				file.line(`add_subdirectory("${toCMakePath(tool, path.directory)}" ${name})`);
+				depends.push(name);
+			}
+		}
+		file.line(`add_library(${this.name} STATIC \${${this.name}_SOURCES})`);
+		file.write(`add_dependencies(${this.name} FskManifest.xsa`);
+		if (depends.length > 0)
+			file.write(" " + depends.join(" "));
+		file.line(')');
 		file.line("list(APPEND OBJECTS ", this.name, ")");
 		file.line("set(OBJECTS ${OBJECTS} PARENT_SCOPE)");
+		if (depends.length > 0)
+			file.line("set(LIBRARIES ${LIBRARIES} PARENT_SCOPE)");
 	}
 	processCOptions(tool, file, options, variant) {
 		var variantSuffix = variant ? "_" + variant.toUpperCase() : "";
@@ -246,6 +266,8 @@ export class Manifest extends MAKE.Manifest {
 		this.makefiles.splice(0, 1);
 		FskManifest.generateVariables(tool, file, tmp);
 
+		for (let cmakefile of this.tree.cmakefiles)
+			file.line(`add_subdirectory("${toCMakePath(tool, cmakefile.directory)}" "${cmakefile.name}")`);
 		for (let makefile of this.makefiles)
 			if (!makefile.separate)
 				file.line("add_subdirectory(", makefile.name, ")");

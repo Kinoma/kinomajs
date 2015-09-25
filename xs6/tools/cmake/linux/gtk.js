@@ -60,13 +60,14 @@ if("\${CMAKE_BUILD_TYPE}" STREQUAL "Release")
 			)
 endif()
 
-add_custom_command(
-	TARGET \${KPR_APPLICATION}
-	POST_BUILD
+add_custom_target(
+	Assemble
+	ALL
 	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:\${KPR_APPLICATION}> \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${TMP_DIR}/app \${APP_DIR}
+	DEPENDS \${KPR_APPLICATION FskManifest.xsa}
 	)
 `;
 	}
