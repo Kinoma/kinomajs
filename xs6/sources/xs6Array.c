@@ -642,16 +642,17 @@ void fx_Array_isArray(txMachine* the)
 	if (mxArgc > 0) {
 		slot = fxGetInstance(the, mxArgv(0));
 	again:
-		if (slot->flag & XS_VALUE_FLAG) {
-			slot = slot->next;
-			if (slot->kind == XS_ARRAY_KIND)
-				mxResult->value.boolean = 1;
-			else if (slot->kind == XS_PROXY_KIND) {
-				slot = slot->value.proxy.target;
-				goto again;
+		if (slot) {
+			if (slot->flag & XS_VALUE_FLAG) {
+				slot = slot->next;
+				if (slot->kind == XS_ARRAY_KIND)
+					mxResult->value.boolean = 1;
+				else if (slot->kind == XS_PROXY_KIND) {
+					slot = slot->value.proxy.target;
+					goto again;
+				}
 			}
 		}
-		
 	}
 }
 

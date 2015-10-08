@@ -59,8 +59,11 @@ class Tool extends TOOL {
 
 		this.application = null;
 		this.binPath = null;
+		this.clean = false;
+		this.cleanall = false;
 		this.cmake = false;
 		this.cmakeGenerator = null;
+		this.cmakeGenerate = true;
 		this.debug = false;
 		this.errorCount = 0;		
 		this.ide = false;
@@ -117,6 +120,12 @@ class Tool extends TOOL {
 				else
 					throw new Error("-c '" + name + "': unknown configuration!");
 				break;
+			case "-clean":
+				this.clean = true;
+				break;
+			case "-cleanall":
+				this.cleanall = true;
+				break;
 			case "-csi":
 				argi++;	
 				if (argi >= argc)
@@ -131,8 +140,6 @@ class Tool extends TOOL {
 				if (argi >= argc)
 					throw new Error("-g: no generator!");
 				this.cmakeGenerator = argv[argi];
-				while (argi++ && argi < argc && argv[argi].substring(0, 1) !== '-')
-					this.cmakeGenerator += " " + argv[argi];
 				break;
 			case "-i":
 				this.instrument = true;
@@ -146,6 +153,9 @@ class Tool extends TOOL {
 				break;
 			case "-m":
 				this.make = true;
+				break;
+			case "-ng":
+				this.cmakeGenerate = false;
 				break;
 			case "-o":
 				argi++;	
@@ -217,14 +227,21 @@ class Tool extends TOOL {
 				path = this.resolveFilePath("manifest.xml");
 				if (path)
 					this.manifestPath = path;
-				else
+				else if (!this.cleanall)
 					throw new Error("no manifest!");
 			}
 		}
 		if (!this.outputPath)
 			this.outputPath = this.homePath;
-		if (!this.platform)
-			this.platform = this.currentPlatform;
+		if (!this.platform) {
+			if (this.currentPlatform == "linux")
+				this.platform = "linux/gtk";
+			else
+				this.platform = this.currentPlatform;
+		}
+
+		if (this.platform == "android" && this.homePath.indexOf(" ") > 0)
+			throw new Error("The Android NDK does not support spaces in it's path. Please move your FSK folder accordingly.");
 			
 		if (this.platform == "ios")
 			path = this.resolveDirectoryPath("$(F_HOME)/kinoma/kpr/cmake/iphone");
@@ -287,11 +304,18 @@ class Tool extends TOOL {
 			path += this.slash + parts[1];
 			FS.mkdirSync(path);
 		}
-		if (!this.cmake) {
-			if (this.debug) 
-				path += this.slash + "debug";
-			else
-				path += this.slash + "release";
+		if (!skipVariantFlag) {
+			if (this.cmake) {
+				if (this.debug)
+					path += this.slash + "Debug";
+				else
+					path += this.slash + "Release";
+			} else {
+				if (this.debug) 
+					path += this.slash + "debug";
+				else
+					path += this.slash + "release";
+			}
 		}
 		FS.mkdirSync(path);
 		path += this.slash + this.application;
@@ -619,6 +643,12 @@ class Tool extends TOOL {
 		});
 	}
 	run() {
+		if (this.cleanall) {
+			this.deleteDirectory(this.outputPath + this.slash + "bin");
+			this.deleteDirectory(this.outputPath + this.slash + "tmp");
+			return;
+		}
+
 		var path = this.manifestPath;
 		var parts = this.splitPath(path);
 		var buffer = FS.readFileSync(path);
@@ -654,7 +684,7 @@ class Tool extends TOOL {
 		manifestTree.xmlPaths = [];
 		manifestTree.jsPaths = [];
 		manifestTree.otherPaths = [];
-		
+
 		if (this.application)
 			manifestTree.environment.NAME = this.application;
 		else if (manifestTree.environment.NAME)
@@ -672,9 +702,34 @@ class Tool extends TOOL {
 		manifestTree.application = this.application;
 		
 		if (!this.binPath)
-			this.binPath = this.createDirectories(this.outputPath, "bin", this.platform != "mac" && !this.cmake)
+			this.binPath = this.createDirectories(this.outputPath, "bin", this.platform != "mac");
 		if (!this.tmpPath)
-			this.tmpPath = this.createDirectories(this.outputPath, "tmp", true)
+			this.tmpPath = this.createDirectories(this.outputPath, "tmp", true, this.cmake);
+
+		if (this.clean) {
+			if (this.platform == "mac")
+				this.deleteDirectory(this.binPath + ".app");
+			else
+				this.deleteDirectory(this.binPath);
+
+			this.deleteDirectory(this.tmpPath);
+
+			this.debug = this.debug ? false : true;
+
+			let otherBinPath = this.createDirectories(this.outputPath, "bin", this.platform != "mac");
+			if (this.platform == "mac")
+				this.deleteDirectory(otherBinPath + ".app");
+			else
+				this.deleteDirectory(otherBinPath);
+
+			if (!this.cmake) {
+				let otherTmpPath = this.createDirectories(this.outputPath, "tmp", true, this.cmake);
+				this.deleteDirectory(otherTmpPath);
+			}
+
+			return;
+		}
+
 		this.generateFskPlatform();
 
 		parts = { directory: this.makePath, name: "FskPlatform", extension: ".mk" };
@@ -748,50 +803,28 @@ class Tool extends TOOL {
 			throw new Error("" + this.errorCount + " error(s)!");
 		
 		try {
-			if (this.cmake) {
+			if (this.cmake)
 				var Manifest = require("cmake/" + this.platform);
-				var manifest = new Manifest(manifestTree);
-			} else {
+			else
 				var Manifest = require("make/" + this.platform);
-				var manifest = new Manifest(manifestTree);
-			}
+			var manifest = new Manifest(manifestTree);
 		} catch (e) {
 			throw new Error(`-p '${this.platform}': unsupported to build on this system`);
 		}
 		manifest.generate(this, this.tmpPath, this.binPath);
-		if (this.cmake) {
-			tool.report("Generating project...");
-			var command = `cmake -H${this.tmpPath} -B${this.tmpPath} -DCMAKE_BUILD_TYPE=`;
-			command += this.debug ? "Debug" : "Release";
-			if (this.ide) {
-				if (this.platform == "ios" || this.platform == "mac")
-					command += " -GXcode";
-			} else {
-				if (this.cmakeGenerator)
-					command += ` -G"${this.cmakeGenerator}"`;
-			}
-			tool.report(`${command}`)
-			var output = tool.execute(command);
-			tool.report(output.trim());
-			if (this.ide) {
-				tool.report("Opening the IDE...");
-				if (this.platform == "ios" || this.platform == "mac")
-					process.then("open", this.tmpPath + this.slash + "fsk.xcodeproj");
-				else if (this.platform == "win")
-					process.then("cmd.exe", "/c", this.tmpPath + this.slash + "fsk.sln");
-				return;
-			}
-		}
-		if (this.make) {
-			if (this.cmake) {
-				tool.report(`cmake --build ${this.tmpPath} --config ${this.debug ? "Debug" : "Release"}`);
-				process.then("cmake", "--build", this.tmpPath, "--config", this.debug ? "Debug" : "Release");
-			} else {
-				if (this.windows)
-					process.then("nmake", "/nologo", "/f", this.tmpPath + "\\makefile");
-				else
-					process.then("make", "-f", this.tmpPath + "/makefile");
-			}
+		if (this.make)
+			manifest.make(tool);
+	}
+	deleteDirectory(path) {
+		if (this.verbose)
+			this.report(`Deleting ${path}`);
+		if (FS.existsSync(path) < 0) {
+			var contents = FS.readDirSync(path);
+			for (let item of contents)
+				this.deleteDirectory(path + this.slash + item);
+			FS.deleteDirectory(path);
+		} else {
+			FS.deleteFile(path);
 		}
 	}
 }

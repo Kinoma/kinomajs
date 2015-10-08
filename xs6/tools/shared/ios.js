@@ -62,8 +62,10 @@ class IOS {
 		if (!("UISupportedInterfaceOrientations~ipad" in info))
 			info["UISupportedInterfaceOrientations~ipad"] = [ "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"];
 		info.CFBundleExecutable = "fsk";
-		if (!("CFBundleIdentifier" in info))
-			info.CFBundleIdentifier = this.entitlements["application-identifier"];
+		if (!("CFBundleIdentifier" in info)) {
+			info.CFBundleIdentifier = this.entitlements["application-identifier"].replace(`${this.entitlements['com.apple.developer.team-identifier']}.`, "");
+			tool.report(info.CFBundleIdentifier);
+		}
 		info.CFBundleSupportedPlatforms = [ "iPhoneOS" ];
 		info.LSRequiresIPhoneOS = true;
 		this.info = info;
@@ -83,7 +85,7 @@ class IOS {
 				certificates: [],
 			}
 			if (tool.identityName) {
-				if (identity.name == tool.identityName) {
+				if (identity.name.indexOf(tool.identityName) > 0 || identity.hash == tool.identityName) {
 					identities.push(identity);
 				}
 			}
@@ -112,7 +114,7 @@ class IOS {
 			provision.path = path;
 			if (now <= provision.ExpirationDate.valueOf()) {
 				if (tool.provisionName) {
-					if (provision.Name == tool.provisionName)
+					if (provision.Name == tool.provisionName || provision.path == tool.provisionName)
 						foundProvisions.push(provision);
 				}
 				else if (provision.Entitlements["get-task-allow"])

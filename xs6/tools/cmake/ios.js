@@ -25,12 +25,18 @@ class Manifest extends CMAKE.Manifest {
 		super(tree);
 		this.ios = new IOS(tree);
 	}
+	getIDEGenerator() {
+		return "Xcode";
+	}
+	openIDE(tool, path) {
+		process.then("open", `${path}${tool.slash}fsk.xcodeproj`);
+	}
 	getPlatformLanguages() {
 		return ["ASM"];
 	}
 	generate(tool, tmp, bin) {
 		this.ios.findIdentity(tool);
-		this.ios.completeInfo();
+		this.ios.completeInfo(tool);
 		this.ios.addResources(tool);
 		this.ios.info.CFBundleExecutable = this.tree.application;
 		super.generate(tool, tmp, bin);
@@ -40,50 +46,61 @@ class Manifest extends CMAKE.Manifest {
 	getPlatformVariables(tool, tmp, bin) {
 		var path = process.debug ? "$(F_HOME)/xs6/bin/mac/debug" : "$(F_HOME)/xs6/bin/mac/release";
 		return {
-			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/\${CMAKE_BUILD_TYPE}/${tool.application}/${this.tree.application}.app`,
+			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/\${CONFIG_TYPE}/${this.tree.application}/${this.tree.application}.app`,
 			TMP_DIR: tmp,
 
-			APP_IPA: `${bin}/\${CMAKE_BUILD_TYPE}/${this.tree.application}.ipa`,
-			APP_IPA: `${tool.outputPath}/bin/${tool.platform}/\${CMAKE_BUILD_TYPE}/${tool.application}/${this.tree.application}.ipa`,
+			APP_IPA: `${tool.outputPath}/bin/${tool.platform}/\${CONFIG_TYPE}/${this.tree.application}/${this.tree.application}.ipa`,
 			MANIFEST: tool.manifestPath,
 			PROVISION: this.ios.provisionPath,
 		};
 	}
 	getTargetRules(tool, file, tmp, bin) {
-		var output = `
-add_executable(${this.tree.application} \${APP_TYPE} \${SOURCES} \${FskPlatform_SOURCES} \${F_HOME}/kinoma/kpr/patches/main.m)
+		return `
+add_executable(${this.tree.application} MACOSX_BUNDLE \${SOURCES} \${FskPlatform_SOURCES} \${F_HOME}/kinoma/kpr/patches/main.m)
 target_link_libraries(${this.tree.application} \${LIBRARIES} \${OBJECTS} -ObjC)
+
+set(MACOSX_BUNDLE_INFO_PLIST \${TMP_DIR}/Info.plist)
 
 set_target_properties(${this.tree.application}
 	PROPERTIES
 	XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${this.ios.identityName}"
-	MACOSX_BUNDLE_INFO_PLIST \${TMP_DIR}/Info.plist
 	MACOSX_BUNDLE_GUI_IDENTIFIER ${this.ios.info.CFBundleIdentifier}
 	)
 
-add_custom_target(
-	Assemble
-	ALL
+add_custom_command(
+	TARGET ${this.tree.application}
+	POST_BUILD
 	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
-	`;
-	if (tool.ide || tool.cmakeGenerator == "Xcode") {
-		output += `COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \${CMAKE_CURRENT_BINARY_DIR}/$<CONFIGURATION>-iphoneos/${this.tree.application}.app
-	COMMAND \${CMAKE_COMMAND} -E copy \${CMAKE_CURRENT_BINARY_DIR}/$<CONFIGURATION>-iphoneos/${this.tree.application}.app/${this.tree.application} \${APP_DIR}`;
-	} else {
-		output += `COMMAND \${CMAKE_COMMAND} -E copy  $<TARGET_FILE:${this.tree.application}> \${APP_DIR}
-	COMMAND dsymutil $<TARGET_FILE:${this.tree.application}> -o $<TARGET_FILE:${this.tree.application}>.dSYM`;
-	}
-	output += `
 	COMMAND \${CMAKE_COMMAND} -E copy \${TMP_DIR}/Info.plist \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy \${PROVISION} \${APP_DIR}/embedded.mobileprovision
+	)
+
+if(CMAKE_CONFIGURATION_TYPES)
+	add_custom_command(
+		TARGET ${this.tree.application}
+		POST_BUILD
+		COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_CFG_INTDIR}/${this.tree.application}.app
+		COMMAND \${CMAKE_COMMAND} -E copy \${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_CFG_INTDIR}/${this.tree.application}.app/${this.tree.application} \${APP_DIR}
+		)
+else()
+	add_custom_command(
+		TARGET ${this.tree.application}
+		POST_BUILD
+		COMMAND \${CMAKE_COMMAND} -E copy  $<TARGET_FILE:${this.tree.application}> \${APP_DIR}
+		COMMAND dsymutil $<TARGET_FILE:${this.tree.application}> -o $<TARGET_FILE:${this.tree.application}>.dSYM
+		)
+endif()
+
+add_custom_command(
+	TARGET ${this.tree.application}
+	POST_BUILD
+	COMMAND codesign -f -v -s ${this.ios.identityHash} --entitlements \${TMP_DIR}/Entitlements.plist \${TMP_DIR}/\${CMAKE_CFG_INTDIR}/Balls.app
 	COMMAND codesign -f -v -s ${this.ios.identityHash} --entitlements \${TMP_DIR}/Entitlements.plist \${APP_DIR}
 	COMMAND xcrun -sdk iphoneos PackageApplication \${APP_DIR} -o \${APP_IPA}
-	DEPENDS ${this.tree.application} FskManifest.xsa
 	VERBATIM
 	)
 `;
-		return output;
 	}
 };
 

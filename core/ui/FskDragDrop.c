@@ -37,11 +37,14 @@ static FskErr DragDropTargetProc(UInt32 message, UInt32 mouseX, UInt32 mouseY, v
 	FskDragDropFile fileList;
 	UInt32 fileListSize;
 	FskEvent event;
-	FskPointRecord pos;
+	FskPointAndTicksRecord pos;
+	FskTimeRecord now;
+	FskTimeGetNow(&now);
 
-	pos.x = mouseX;
-	pos.y = mouseY;
-
+	pos.pt.x = mouseX;
+	pos.pt.y = mouseY;
+	pos.ticks = (((double)now.seconds) * 1000.0) + (((double)now.useconds) / 1000.0);
+	
 	switch(message) {
 		case kFskDragDropTargetEnterWindow:
 			// Calculate the size of the packed file list

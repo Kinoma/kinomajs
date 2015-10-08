@@ -200,7 +200,7 @@ static txTokenFlag gxTokenFlags[XS_TOKEN_COUNT] = {
 	/* XS_TOKEN_LEFT_SHIFT_ASSIGN */ XS_TOKEN_ASSIGN_EXPRESSION,
 	/* XS_TOKEN_LESS */ XS_TOKEN_RELATIONAL_EXPRESSION,
 	/* XS_TOKEN_LESS_EQUAL */ XS_TOKEN_RELATIONAL_EXPRESSION,
-	/* XS_TOKEN_LET */ XS_TOKEN_IDENTIFIER_NAME,
+	/* XS_TOKEN_LET */ XS_TOKEN_BEGIN_STATEMENT | XS_TOKEN_IDENTIFIER_NAME,
 	/* XS_TOKEN_MEMBER */ 0,
 	/* XS_TOKEN_MEMBER_AT */ 0,
 	/* XS_TOKEN_MINUS */ 0,
@@ -1342,7 +1342,7 @@ void fxSwitchStatement(txParser* parser)
 			fxMatchToken(parser, XS_TOKEN_COLON);
 			aCaseCount = parser->nodeCount;
 			while (gxTokenFlags[parser->token] & XS_TOKEN_BEGIN_STATEMENT)
-				fxStatement(parser, 0);
+				fxStatement(parser, 1);
 			aCaseCount = parser->nodeCount - aCaseCount;
 			if (aCaseCount > 1) {
 				fxPushNodeList(parser, aCaseCount);
@@ -1361,7 +1361,7 @@ void fxSwitchStatement(txParser* parser)
 			fxMatchToken(parser, XS_TOKEN_COLON);
 			aCaseCount = parser->nodeCount;
 			while (gxTokenFlags[parser->token] & XS_TOKEN_BEGIN_STATEMENT)
-				fxStatement(parser, 0);
+				fxStatement(parser, 1);
 			aCaseCount = parser->nodeCount - aCaseCount;
 			if (aCaseCount > 1) {
 				fxPushNodeList(parser, aCaseCount);
@@ -2726,7 +2726,10 @@ void fxObjectBinding(txParser* parser, txToken theToken)
 		aCount++;
         if (parser->token == XS_TOKEN_RIGHT_BRACE)
             break;
-		fxMatchToken(parser, XS_TOKEN_COMMA);
+		if (parser->token == XS_TOKEN_COMMA)
+			fxGetNextToken(parser);
+		else
+            break;
 	}
 	fxMatchToken(parser, XS_TOKEN_RIGHT_BRACE);
 	fxPushNodeList(parser, aCount);
@@ -2764,19 +2767,23 @@ void fxParametersBinding(txParser* parser)
 {
 	txInteger aCount = 0;
 	txInteger aLine = parser->line;
-	fxMatchToken(parser, XS_TOKEN_LEFT_PARENTHESIS);
-	while (gxTokenFlags[parser->token] & XS_TOKEN_BEGIN_BINDING) {
-		if (parser->token == XS_TOKEN_SPREAD) {
-			fxRestBinding(parser, XS_TOKEN_ARG);
+	if (parser->token == XS_TOKEN_LEFT_PARENTHESIS) {
+		fxGetNextToken(parser);
+		while (gxTokenFlags[parser->token] & XS_TOKEN_BEGIN_BINDING) {
+			if (parser->token == XS_TOKEN_SPREAD) {
+				fxRestBinding(parser, XS_TOKEN_ARG);
+				aCount++;
+				break;
+			}
+			fxBinding(parser, XS_TOKEN_ARG, 1);
 			aCount++;
-			break;
+			if (parser->token != XS_TOKEN_RIGHT_PARENTHESIS)
+				fxMatchToken(parser, XS_TOKEN_COMMA);
 		}
-		fxBinding(parser, XS_TOKEN_ARG, 1);
-		aCount++;
-		if (parser->token != XS_TOKEN_RIGHT_PARENTHESIS)
-			fxMatchToken(parser, XS_TOKEN_COMMA);
+		fxMatchToken(parser, XS_TOKEN_RIGHT_PARENTHESIS);
 	}
-	fxMatchToken(parser, XS_TOKEN_RIGHT_PARENTHESIS);
+	else
+		fxReportParserError(parser, "missing (");
 	fxPushNodeList(parser, aCount);
 	fxPushNodeStruct(parser, 1, XS_TOKEN_PARAMS_BINDING, aLine);
 }

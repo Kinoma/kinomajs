@@ -348,60 +348,96 @@ void fxFreeSlots(txMachine* the, void* theSlots)
 	c_free(theSlots);
 }
 
+extern FskErr KprPathToURL(char* path, char** result);
+extern FskErr KprURLMerge(char* base, char* reference, char** result);
+extern FskErr KprURLToPath(char* url, char** result);
+
 void fxIncludeScript(txParser* parser, txString string) 
 {
-#define mxParserThrowElse(_ASSERTION) { if (!(_ASSERTION)) { parser->error = errno; c_longjmp(parser->firstJump->jmp_buf, 1); } }
-	char include[PATH_MAX];
-	char path[PATH_MAX];
+	txBoolean done = 0;
+	char* base = NULL;
+	char name[PATH_MAX];
+	char* slash = NULL;
+	char* dot = NULL;
+	char* extension = NULL;
+	char* url = NULL;
+	char* path = NULL;
 	FskFileInfo fileInfo;
-	FskFileMapping map;
+	FskFileMapping map= NULL;
 	txFileMapStream fileMapStream;
 	txStringStream stringStream;
-	c_strcpy(include, string);
-	c_strcat(include, ".js");
-	fxMergePath(parser->path->string, include, path);
-	if (kFskErrNone == FskFileGetFileInfo(path, &fileInfo)) {
-		FskErr err = kFskErrNone;
-		bailIfError(FskFileMap(path, (unsigned char**)&(fileMapStream.buffer), &(fileMapStream.size), 0, &map));
-		fileMapStream.offset = 0;
-		fxIncludeTree(parser, &fileMapStream, fxFileMapGetter, parser->flags, path);
-	bail:
-		FskFileDisposeMap(map);
-		return;
-	}
-	c_strcpy(include, string);
-	c_strcat(include, ".xml");
-	fxMergePath(parser->path->string, include, path);
-	if (kFskErrNone == FskFileGetFileInfo(path, &fileInfo)) {
-		txMachine* the = parser->console;
+	txMachine* the = parser->console;
+	fxBeginHost(the);
+	{
 		mxTry(the) {
-			fxBeginHost(the);
-			xsThrowIfFskErr(FskFileMap(path, &fileMapStream.buffer, &fileMapStream.size, 0, &map));
-			fileMapStream.offset = 0;
-			mxPushInteger(0);
-			mxPushInteger(0);
-			mxPushInteger(0);
-			mxPushInteger(0);
-			mxPushInteger(3);
-			fxParse(the, &fileMapStream, fxFileMapGetter, path, 1, xsSourceFlag | xsDebugFlag);
-			fxCallID(the, fxID(the, "generate"));
-			fxToString(the, the->stack);
-			stringStream.slot = the->stack;
-			stringStream.size = c_strlen(stringStream.slot->value.string);
-			stringStream.offset = 0;
-			fxIncludeTree(parser, &stringStream, fxStringGetter, parser->flags, path);
-			fxEndHost(the);
+			xsThrowIfFskErr(KprPathToURL(parser->path->string, &base));
+			FskStrCopy(name, string);
+			slash = FskStrRChr(name, '/');
+			if (!slash)
+				slash = name;
+			dot = FskStrRChr(slash, '.');
+			if (dot)
+				extension = dot;
+			else
+				extension = name + FskStrLen(name);
+			if (!dot)
+				FskStrCopy(extension, ".js");
+			if (!FskStrCompare(extension, ".js")) {
+				xsThrowIfFskErr(KprURLMerge(base, name, &url));
+				xsThrowIfFskErr(KprURLToPath(url, &path));
+				if (kFskErrNone == FskFileGetFileInfo(path, &fileInfo)) {
+					xsThrowIfFskErr(FskFileMap(path, (unsigned char**)&(fileMapStream.buffer), &(fileMapStream.size), 0, &map));
+					fileMapStream.offset = 0;
+					fxIncludeTree(parser, &fileMapStream, fxFileMapGetter, parser->flags, path);
+					done = 1;
+					FskFileDisposeMap(map);
+					map = NULL;
+				}
+				FskMemPtrDisposeAt(&path);
+				FskMemPtrDisposeAt(&url);
+			}
+			if (!dot)
+				FskStrCopy(extension, ".xml");
+			if (!FskStrCompare(extension, ".xml")) {
+				xsThrowIfFskErr(KprURLMerge(base, name, &url));
+				xsThrowIfFskErr(KprURLToPath(url, &path));
+				if (kFskErrNone == FskFileGetFileInfo(path, &fileInfo)) {
+					xsThrowIfFskErr(FskFileMap(path, &fileMapStream.buffer, &fileMapStream.size, 0, &map));
+					fileMapStream.offset = 0;
+					mxPushInteger(0);
+					mxPushInteger(0);
+					mxPushInteger(0);
+					mxPushInteger(0);
+					mxPushInteger(3);
+					fxParse(the, &fileMapStream, fxFileMapGetter, path, 1, xsSourceFlag | xsDebugFlag);
+					fxCallID(the, fxID(the, "generate"));
+					fxToString(the, the->stack);
+					stringStream.slot = the->stack;
+					stringStream.size = c_strlen(stringStream.slot->value.string);
+					stringStream.offset = 0;
+					fxIncludeTree(parser, &stringStream, fxStringGetter, parser->flags, path);
+					done = 1;
+					FskFileDisposeMap(map);
+					map = NULL;
+				}
+				FskMemPtrDisposeAt(&path);
+				FskMemPtrDisposeAt(&url);
+			}
+			FskMemPtrDispose(base);
 		}
 		mxCatch(the) {
+			FskFileDisposeMap(map);
+			FskMemPtrDispose(path);
+			FskMemPtrDispose(url);
+			FskMemPtrDispose(base);
 			break;
 		}
-		FskFileDisposeMap(map);
-		return;
 	}
-	fxReportParserError(parser, "file not found: %s", path);
+	fxEndHost(the);
+	if (!done)	
+		fxReportParserError(parser, "include file not found: %s", string);
 }
 
-extern FskErr KprURLToPath(char* url, char** result);
 void fxLoadModule(txMachine* the, txID moduleID)
 {
 	txArchive* archive = the->archive;

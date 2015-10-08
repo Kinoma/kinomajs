@@ -116,7 +116,7 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/tools.xsa ${XS6_TOOLS_BIN}/modules
 	)
 
-set(SHEBANG "#!/usr/bin/env bash\n")
+set(SHEBANG "#!/usr/bin/env bash\nIFS=$(printf '\\n')\n")
 string(REPLACE ";" " " EXEC "${XSR}")
 
 foreach(COMMAND kprconfig kpr2js xs2js)

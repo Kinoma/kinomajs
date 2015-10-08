@@ -468,7 +468,8 @@ txScript* fxParserCode(txParser* parser)
 	p = script->codeBuffer;
 	while (code) {
 		txS1 s1; txS2 s2; txS4 s4; 
-		txU1 u1; txU2 u2; 
+		txU1 u1; txU2 u2;
+		txNumber n;
 		if (code->id)
 			*p++ = (txS1)(code->id);
 		switch (code->id) {
@@ -603,7 +604,8 @@ txScript* fxParserCode(txParser* parser)
 			mxEncode4(p, s4);
 			break;
 		case XS_CODE_NUMBER:
-			mxEncode8(p, ((txNumberCode*)code)->number);
+			n = ((txNumberCode*)code)->number;
+			mxEncode8(p, n);
 			break;
 		case XS_CODE_STRING_1:
 			u1 = (txU1)(((txStringCode*)code)->length);

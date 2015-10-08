@@ -125,8 +125,8 @@
         
         <method id="setCredentials" params="credentials">
             <![CDATA[
-                getPreferences().setPreference( CREDENTIALS, credentials );
-                getPreferences().write();
+                this.getPreferences().setPreference( CREDENTIALS, credentials );
+                this.getPreferences().write();
             ]]>
         </method>
         
@@ -138,7 +138,7 @@
         
         <method id="getCredentials">
             <![CDATA[
-                return getPreferences().getPreference( CREDENTIALS, this.getDefaultCredentials() );
+                return this.getPreferences().getPreference( CREDENTIALS, this.getDefaultCredentials() );
             ]]>
         </method>
 
@@ -165,19 +165,127 @@
                 var description = new Object();
                 
                 description.version = getEnvironmentVariable( "CORE_VERSION" );
-                
-                var credentials = this.getCredentials();
-                
-                description.locked = credentials.required == true && credentials.password != DEFAULT_PASSWORD;
                 description.uuid = shell.uuid;
+                description.name = this.getDeviceName();
+                description.id = this.getDeviceId();
+                
+                // add studio info
+                description.studio = new Object();
+                description.studio.version = this.getStudioVersion();
+                description.studio.locked = this.getStudioIsLocked();
+                description.studio.compile = this.getStudioCompileOption();
+                description.studio.install = this.getStudioInstallOption();
+                description.studio.profile = this.getStudioIsProfilerSupported();
+                
+                // add the studio services
+                description.studio.services = this.getStudioServices();
+                
+                // TODO: remove the following lines!!! left in place for backwards compatibility
+                // until next stable studio release is available.
+                description.debugShell = true;
+                description.locked = description.studio.locked;
                 
                 return description;
             ]]>
         </method>
         
-        <method id="getPreferencesPath">
+        <method id="getDeviceName">
             <![CDATA[
-                return Files.preferencesDirectory + "kdt/preferences.json";
+               var deviceInfo = getPreferences().getPreference( "deviceInfo", null );
+                           
+               if( deviceInfo != null && "name" in deviceInfo && deviceInfo.name != null && deviceInfo.name.length > 0 )
+                   return deviceInfo.name;
+               else
+                   return getEnvironmentVariable( "defaultDeviceName" ) || this.getDefaultDeviceName();
+            ]]>
+        </method>
+        
+        <method id="getDefaultDeviceName">
+            <![CDATA[
+                return "Kinoma Device";
+            ]]>
+        </method>
+        
+        <method id="getDeviceId">
+            <![CDATA[
+                return "com.marvell.kinoma.unknown";
+            ]]>
+        </method>
+        
+        <method id="getStudioVersion">
+            <![CDATA[
+                return "1.3.46";
+            ]]>
+        </method>
+        
+        <method id="getStudioIsLocked">
+            <![CDATA[
+                var credentials = this.getCredentials();
+
+                return credentials != null && credentials.required == true && credentials.password != DEFAULT_PASSWORD;
+            ]]>
+        </method>
+        
+        <method id="getStudioCompileOption">
+            <![CDATA[
+                return "optional";
+            ]]>
+        </method>
+        
+        <method id="getStudioInstallOption">
+            <![CDATA[
+                return "optional";
+            ]]>
+        </method>
+        
+        <method id="getStudioIsProfilerSupported">
+            <![CDATA[
+                return true;
+            ]]>
+        </method>
+        
+        <method id="getStudioServices">
+            <![CDATA[
+                var services = new Object();
+                
+                services.diagnostics = { path: "/diagnostics" };
+                
+                if( this.getLogFilePath() != null )
+                    services.logs = { path: "/logs" };
+                
+                return services;
+            ]]>
+        </method>
+        
+        <method id="getDiagnostics">
+            <![CDATA[
+                var diagnostics = new Object();
+                
+                diagnostics.systemModulePath = this.getSystemModulePath().split( ";" );
+                diagnostics.modulePath = getEnvironmentVariable( "modulePath" ).split( ";" );
+                diagnostics.preferencesPath = this.getPreferencesPath();
+                diagnostics.preferences = this.getPreferences().preferences;
+                diagnostics.applicationSearchPaths = this.getApplicationSearchPaths();
+                diagnostics.uploadPath = this.getUploadPath();
+                diagnostics.tempUploadPath = this.getUploadPath( true );
+                diagnostics.logFilePath = this.getLogFilePath();
+                diagnostics.hwpModulePath = this.getHardwarePinsModulePath();
+                diagnostics.profilingDirectory = this.profilingDirectory;
+                diagnostics.applications = [];
+                
+                for( var j = 0; j < this.getApplicationManager().getExtensionCount(); j++ )
+                {
+                    var info = this.getApplicationManager().getExtensionByIndex( j );
+                    var app = new Object();
+                    
+                    app.title = info.title;
+                    app.id = info.id;
+                    app.url = info.url;                    
+                    
+                    diagnostics.applications.push( app );
+                }
+                
+                return diagnostics;
             ]]>
         </method>
         
@@ -187,6 +295,12 @@
             ]]>
         </method>
         
+        <method id="getPreferencesPath">
+            <![CDATA[
+                return Files.preferencesDirectory + "kdt/preferences.json";
+            ]]>
+        </method>
+
         <method id="getUploadPath" params="temporary">
             <![CDATA[
             	if (temporary)
@@ -201,6 +315,12 @@
             ]]>
         </method>
         
+        <method id="getLogFilePath">
+            <![CDATA[
+                return null;
+            ]]>
+        </method>
+        
         <method id="getApplicationManager">
             <![CDATA[
                 return this.applicationManager;
@@ -211,14 +331,13 @@
             <![CDATA[
                 if( this.shareConfig == null )
                 {
-                    var ssdpconf = getEnvironmentVariable( "ssdpconf" );
+                    var ssdpconf = getEnvironmentVariable( "ssdpconf" );                    
+                    var allowdesc = getEnvironmentVariable( "allowdesc" );
                     
-                    if( ssdpconf != null )
-                        this.shareConfig = { ssdp: ssdpconf == true };
+                    this.shareConfig = new Object();
+                    this.shareConfig.ssdp = ssdpconf == null || ssdpconf == "true";
+                    this.shareConfig.allowdesc = allowdesc == null || allowdesc == "true";
                 }
-                
-                if( this.shareConfig == null )
-                    this.shareConfig = { ssdp: true };
             
                 return this.shareConfig;
             ]]>
@@ -553,6 +672,8 @@
             ]]>
         </method>
 
+        <method id="handleUploadBegan" params="path, size"/>        
+        <method id="handleUploadEnded"/>
         <method id="handleMessageBegin" params="message"/>
         <method id="handleMessageEnd" params="message"/>
         <method id="handleShellQuit" params="message"/>
@@ -562,7 +683,7 @@
                 var temporary = "temporary" in launch ? launch.temporary : true;
                 var application = "application" in launch ? launch.application : null;
                 var profiler = "profiler" in launch ? launch.profiler : null;
-                
+
 	            var applicationInfo = null;
 	            
 	            if( application != null )
@@ -604,8 +725,8 @@
                         applicationInfo.environment = launch.environment;           
 	            
 	                // set the initial breakpoins
-	                //if( "breakpoints" in launch )
-	                //   this.setBreakpoints( launch.breakpoints );
+	                if( "breakpoints" in launch )
+	                   this.setBreakpoints( launch.breakpoints );
 	                
 	                // send a message to the shell to start the application, because if
 	                // we call setSelectedApplication() directly the interface may not
@@ -682,11 +803,16 @@
 
     <handler path="/description">
         <behavior like="DebugHandlerMessageBehavior">
-            <![CDATA[
-                function processMessage( handler, message ) {
+            <method id="onAccept" params="handler, message">
+                <![CDATA[
+                    return getBehavior().getShareConfig().allowdesc;
+                ]]>
+            </method>            
+            <method id="processMessage" params="handler, message, params">
+                <![CDATA[
                     message.responseText = JSON.stringify( getBehavior().getDescription() );
-                }
-            ]]>
+                ]]>
+            </method>
         </behavior>
     </handler>
 
@@ -875,15 +1001,15 @@
                     if( message.method == "POST" )
                         getBehavior().handleLaunch( JSON.parse( message.requestText ) );
 
-                    else
+                    else if( message.method == "GET" )
                     {
                         var applicationId = params.getValue( "id" );
                         var launch = {};
 	                    
-	                    launch.application = { id:applicationId };
+                        launch.application = { id:applicationId };
                        
                         getBehavior().handleLaunch( launch );
-	                }
+	                 }
                 }
             ]]>
         </behavior>
@@ -907,31 +1033,40 @@
         </behavior>
     </handler>
 
-    <handler path="/upload">
-        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+	<handler path="/upload">
+		<behavior like="AuthenticatedDebugHandlerMessageBehavior">
+			<method id="onAccept" params="handler, message">
             <![CDATA[
-                function onAccept( handler, message )
-                {
-                    if( message.method == "PUT" ) 
-                    {
-                        var params = new DebugHandlerMessageBehavior.MessageParams( message );
-                
-                        if( params.contains( "path" ) )
-                        {
-                            var path = getBehavior().getUploadPath( params.getBool( "temporary", true ) ) + "/" + params.getValue( "path" );
-                        
-                            Files.ensureDirectory( path );
-                            
-                            message.requestPath = path;
-                            
-                            return true;
-                        }
-                    }
-                }
-            ]]>
-        </behavior>
-    </handler>
-     
+               if( message.method == "PUT" ) 
+               {
+                  var params = new DebugHandlerMessageBehavior.MessageParams( message );
+                  
+                  if( params.contains( "path" ) ) 
+                  {
+                     var path = getBehavior().getUploadPath(params.getBool("temporary", true)) + "/" + params.getValue( "path" );
+                     
+                     Files.ensureDirectory(path);
+                     
+                     message.requestPath = path;
+                     
+                     getBehavior().handleUploadBegan(path, message.getRequestHeader("Content-Length"));
+                     
+                     return true;
+                  }
+               }
+               else if( message.method == "OPTIONS" )
+                  return true;
+			   ]]>
+         </method>
+			<method id="processMessage" params="handler, message, params">
+            <![CDATA[
+               if( message.method == "PUT" )
+                  getBehavior().handleUploadEnded();
+			   ]]>
+         </method>
+		</behavior>
+	</handler>
+
 	<handler path="/unload">
 		<behavior like="AuthenticatedDebugHandlerMessageBehavior">
 			<method id="processMessage" params="handler, message, params"><![CDATA[
@@ -955,21 +1090,25 @@
             <![CDATA[
                 function onAccept( handler, message )
                 {
+                    var accept = true;                 
+                        
                     if( message.method == "PUT" ) 
                     {
                         var params = new DebugHandlerMessageBehavior.MessageParams( message );
                         
-                        if( params.contains( "put" ) && params.contains( "path" ) )
+                        if( params.contains( "path" ) )
                         {
                             var manifestPath = getBehavior().getManifestPath( params.getValue( "path"  ),  params.getBool( "temporary", true ) );
                             
                             Files.ensureDirectory( manifestPath );
                         
                             message.requestPath = manifestPath;
-                        
                         }
+                        else
+                            accept = false;
                     }
-                    return true;
+                    
+                    return accept;
                 }
 
                 function processMessage( handler, message, params ) 
@@ -979,7 +1118,7 @@
                     if( message.method == "PUT" ) 
                         getBehavior().processManifest( manifestPath );
                         
-                    else
+                    else if( message.method == "GET" )
                     {
                         if( Files.exists( manifestPath ) )
                             message.responsePath = manifestPath;
@@ -1075,4 +1214,56 @@
             </method>
         </behavior>
     </handler>
+    
+    <handler path="/diagnostics">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <method id="processMessage" params="handler, message, params">
+                <![CDATA[
+                    message.responseText = JSON.stringify( getBehavior().getDiagnostics() );
+                ]]>
+            </method>
+        </behavior>
+    </handler>
+    
+    <handler path="/logs">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <method id="processMessage" params="handler, message, params">
+                <![CDATA[
+                    if( params.contains( "list" ) )
+                    {
+                        var result = new Object();
+                        var logPath = getBehavior().getLogFilePath();
+                        
+                        result.path = logPath;
+                        result.logs = [];
+
+                        if( logPath != null && Files.exists( logPath ) )
+                        {
+                            var iterator = new Files.Iterator( logPath );
+                            var extension = ".log";
+                            var info = null;
+                            var path;
+                            
+                            while( info = iterator.getNext() )
+                            {
+                                if( info.path.indexOf( extension, info.path.length - extension.length ) != -1 )
+                                    result.logs.push( info.path );
+                            }
+                        }
+                        
+                        message.responseText = JSON.stringify( result );
+                    }
+                    else if( params.contains( "path" ) )
+                    {
+                        var logPath = getBehavior().getLogFilePath();
+                        var logFile = mergeURI( logPath, params.getValue( "path" ) );
+                        
+                        if( Files.exists( logFile ) == "file" )
+                            message.responsePath = logFile;
+                    }
+                ]]>
+            </method>
+        </behavior>
+    </handler>
+    
 </module>

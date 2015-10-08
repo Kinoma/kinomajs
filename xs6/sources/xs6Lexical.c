@@ -246,7 +246,7 @@ void fxGetNextNumberE(txParser* parser, int parseDot)
 		}
 	}
 	*p++ = 0;
-	fxGetNextNumber(parser, c_strtod(parser->buffer, C_NULL));
+	fxGetNextNumber(parser, fxStringToNumber(parser->dtoa, parser->buffer, 1));
 }
 
 void fxGetNextNumberO(txParser* parser, int c)

@@ -1233,6 +1233,12 @@ void KPR_HTTP_server(void* it)
 	}
 }
 
+void KPR_HTTP_server_get_isSecure(xsMachine *the)
+{
+	KprHTTPServer self = xsGetHostData(xsThis);
+	xsResult = xsBoolean(KprHTTPServerIsSecure(self));
+}
+
 void KPR_HTTP_server_get_port(xsMachine *the)
 {
 	KprHTTPServer self = xsGetHostData(xsThis);

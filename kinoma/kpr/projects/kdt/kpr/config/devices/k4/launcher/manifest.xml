@@ -19,7 +19,7 @@
     <xsdebug enabled="true" />
     <rootvm>
         <environment>
-            <variable name="KDT_HOME" value="[F_HOME]/kinoma/kdt/" platform="build" />
+            <variable name="KPR_BINARY_NAME" value="Kpl" />
             <variable name="extensions" value="[F_HOME]/extensions/" platform="build" />
             <variable name="kinomaExtensions" value="[F_HOME]/kinoma/" platform="build" />
             <variable name="kplPath" value="[F_HOME]/build/linux/kpl/" platform="build" />
@@ -63,6 +63,7 @@
 
             <variable name="cleanPathStart" value="/fsk/"/>
 			<!--variable name="debugger" value="10.0.1.26" platform="linux"/-->   <!-- xsbug address -->
+            <variable name="KDT_HOME" value="[kinomaExtensions]/kpr/projects/kdt" platform="build"/>
         </environment>
 
         <debug platform="mac">
@@ -137,7 +138,9 @@
     <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Transitions/src" destinationPath="bin/modules"/>
     <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Creations/src" destinationPath="bin/modules"/>
     <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/MultiTouchLib/src" destinationPath="bin/modules"/>
+    <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Pins/src" destinationPath="bin/modules"/>
     <build:copy sourcePath="[F_HOME]/kinoma/kpr/projects/create/shell/device" destinationPath="bin/modules"/>
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/LowPAN/src" destinationPath="bin/modules"/>
     <build:copy sourcePath="[F_HOME]/build/devices/k4/FSfixes" destinationPath="fsFixes"/>
     
     <!--  validation test modules -->    
@@ -148,8 +151,8 @@
     
     <!-- required  -->
     <build:copy sourcePath="[F_HOME]/kinoma/kpr/projects/create/apps" destinationPath="apps"/>
-	<build:copy sourcePath="[F_HOME]/data/fonts/FiraSans-Regular.ttf" destinationPath="fonts/FiraSans-Regular.ttf" platform="linux" />
-	<build:copy sourcePath="[F_HOME]/data/fonts/FiraSans-Bold.ttf" destinationPath="fonts/FiraSans-Bold.ttf" platform="linux" />
-	<build:copy sourcePath="[F_HOME]/data/fonts/FiraMono-Regular.ttf" destinationPath="fonts/FiraMono-Regular.ttf" platform="linux" />
-
+    <build:exclude path="[F_HOME]/kinoma/kpr/projects/create/apps/bll-explorer" platform="linux"/>
+    <build:copy sourcePath="[F_HOME]/data/fonts/FiraSans-Regular.ttf" destinationPath="fonts/FiraSans-Regular.ttf" platform="linux" />
+    <build:copy sourcePath="[F_HOME]/data/fonts/FiraSans-Bold.ttf" destinationPath="fonts/FiraSans-Bold.ttf" platform="linux" />
+    <build:copy sourcePath="[F_HOME]/data/fonts/FiraMono-Regular.ttf" destinationPath="fonts/FiraMono-Regular.ttf" platform="linux" />
 </fsk>

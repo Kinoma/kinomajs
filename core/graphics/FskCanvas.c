@@ -3482,17 +3482,17 @@ bail:
 
 
 /********************************************************************************
- * FskCanvas2dIsPointInGivenPath
+ * FskCanvas2dIsPointInPathFill
  ********************************************************************************/
 
 Boolean
-FskCanvas2dIsPointInGivenPath(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y, SInt32 fillRule)
+FskCanvas2dIsPointInPathFill(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y, SInt32 fillRule)
 {
 	FskCanvas2dContextState *st = FskCanvasGetStateFromContext(ctx);
 	FskPointRecord pt;
 
 	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dIsPointInGivenPath(ctx=%p path=%p x=%g y=%g fillRule=%s)", ctx, path, x, y, FillRuleNameFromCode(fillRule));
+		LOGD("FskCanvas2dIsPointInPathFill(ctx=%p path=%p x=%g y=%g fillRule=%s)", ctx, path, x, y, FillRuleNameFromCode(fillRule));
 	#endif /* LOG_PARAMETERS */
 	#if defined(LOG_PATH)
 		LogPath(FskGrowablePathGetConstPath(path), "path");
@@ -4115,7 +4115,7 @@ FskCanvas2dGetLineDashOffset(FskConstCanvas2dContext ctx)
  ********************************************************************************/
 
 UInt32
-FskCanvas2dHitRegionGetCount(FskCanvas2dContext ctx)
+FskCanvas2dHitRegionGetCount(FskConstCanvas2dContext ctx)
 {
 	return FskGrowableBlobArrayGetItemCount(ctx->hitRegions);
 }
@@ -4126,7 +4126,7 @@ FskCanvas2dHitRegionGetCount(FskCanvas2dContext ctx)
  ********************************************************************************/
 
 FskErr
-FskCanvas2dHitRegionGet(FskCanvas2dContext ctx, UInt32 index, char **id, void **control, FskRectangle *bbox, FskPath *path, void **more)
+FskCanvas2dHitRegionGet(FskCanvas2dContext ctx, UInt32 index, char **id, char **control, FskRectangle *bbox, FskPath *path)
 {
 	FskErr	err;
 	char	*blob;
@@ -4134,14 +4134,13 @@ FskCanvas2dHitRegionGet(FskCanvas2dContext ctx, UInt32 index, char **id, void **
 	FskCanvas2dHitRegionDirectoryEntry *dir;
 
 	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dHitRegionGet(ctx=%p index=%u pID=%p pControl=% pBbox=%p pPath=%p pMore=%p)", ctx, index, id, control, bbox, path, more);
+		LOGD("FskCanvas2dHitRegionGet(ctx=%p index=%u pID=%p pControl=% pBbox=%p pPath=%p pMore=%p)", ctx, index, id, control, bbox, path);
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_ERR(err = FskGrowableBlobArrayGetPointerToItem(ctx->hitRegions, index, (void**)&blob, &blobSize, (void**)&dir));
-	*id			= (char*)  (dir->id.offset   + blob);
-	*path		= (FskPath)(dir->path.offset + blob);
-	*more		= (char*)  (dir->more.offset + blob);
-	*control	= dir->control;
+	*id			= (char*)  (dir->id.offset      + blob);
+	*control	= (char*)  (dir->control.offset + blob);
+	*path		= (FskPath)(dir->path.offset    + blob);
 	*bbox		= &dir->bbox;
 
 bail:
@@ -4154,23 +4153,22 @@ bail:
  ********************************************************************************/
 
 FskErr
-FskCanvas2dRemoveHitRegion(FskCanvas2dContext ctx, const char *id, void *control)
+FskCanvas2dRemoveHitRegion(FskCanvas2dContext ctx, const char *id, const char *control)
 {
 	FskErr	err			= kFskErrNone;
 	UInt32	numItems	= FskGrowableBlobArrayGetItemCount(ctx->hitRegions);
 	UInt32	i;
-	char *hitID;
-	void *hitControl, *hitMore;
+	char *hitID, *hitControl;
 	FskRectangle hitBbox;
 	FskPath hitPath;
 
 	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dRemoveHitRegion(ctx=%p id=\"%s\" control=%p)", ctx, id, control);
+		LOGD("FskCanvas2dRemoveHitRegion(ctx=%p id=\"%s\" control=\"%s\")", ctx, id, control);
 	#endif /* LOG_PARAMETERS */
 
 	for (i = 0; i < numItems; ++i) {
-		err = FskCanvas2dHitRegionGet(ctx, i, &hitID, &hitControl, &hitBbox, &hitPath, &hitMore);
-		if (!err && ((id && !FskStrCompare(id, hitID)) || (control && control == hitControl))) {
+		err = FskCanvas2dHitRegionGet(ctx, i, &hitID, &hitControl, &hitBbox, &hitPath);
+		if (!err && ((id && !FskStrCompare(id, hitID)) || (control && !FskStrCompare(control, hitControl)))) {
 			FskGrowableBlobArrayRemoveItem(ctx->hitRegions, i);
 			return kFskErrNone;
 		}
@@ -4180,23 +4178,47 @@ FskCanvas2dRemoveHitRegion(FskCanvas2dContext ctx, const char *id, void *control
 }
 
 
+/****************************************************************************//**
+ * Set Blob Directory Offsets
+ *	\param[in]		n			the number of items in the blob data array.
+ *	\param[in,out]	b			the blob data whose offset field is to be computed from the size fields.
+ *	\param[in]		alignment	the alignment of each sub-blob;
+ *								0 implies the machine default, typically 4.
+ *	\return			the resultant blob size.
+ ********************************************************************************/
+
+static UInt32 SetBlobDirectoryOffsets(UInt32 n, FskCanvas2dBlobData *b, UInt32 alignment)
+{
+	UInt32 offset = 0;
+
+	if (!alignment)
+		alignment = 4;
+	for (; n--; ++b) {
+		b->offset = offset;
+		offset += BLOCKIFY(offset + b->size, alignment);
+	}
+
+	return offset;
+}
+
+
 /********************************************************************************
  * FskCanvas2dAddHitRegion
  ********************************************************************************/
 
 FskErr
-FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, FskConstCanvas2dPath path, const char *id, void *control)
+FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, FskConstCanvas2dPath path, const char *id, const char *control)
 {
 	FskConstPath thePath = FskGrowablePathGetConstPath(path ? path : ctx->path);
 	FskCanvas2dHitRegionDirectoryEntry dir, *dirPtr;
 	FskFixedRectangleRecord	xBox;
 	FskPath	hitPath;
 	UInt32	blobSize;
-	char	*blob, *hitID;
+	char	*blob, *hitID, *hitControl;
 	FskErr	err;
 
 	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dAddHitRegion(ctx=%p path=%p id=\"%s\" control=%p)", ctx, path, id, control);
+		LOGD("FskCanvas2dAddHitRegion(ctx=%p path=%p id=\"%s\" control=\"%s\")", ctx, path, id, control);
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_FALSE((id || control), err, kFskErrInvalidParameter);					/* Make sure that either an ID or control has been specified */
@@ -4204,20 +4226,21 @@ FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, FskConstCanvas2dPath path, const
 	(void)FskCanvas2dRemoveHitRegion(ctx, id, control);								/* Remove any existing hit region with this ID or control */
 
 	/* Compute the sub-blobs */
-	dir.control		= control;
-	dir.id.offset   = 0;											dir.id.size   = FskStrLen(id) + 1;		/* Make sure to include the \0 terminator character */
-	dir.path.offset = BLOCKIFY(dir.id.offset   + dir.id.size,   4);	dir.path.size = FskPathSize(thePath);
-	dir.more.offset = BLOCKIFY(dir.path.offset + dir.path.size, 4);	dir.more.size = 0;
-	blobSize		= BLOCKIFY(dir.more.offset + dir.more.size, 4);
+	dir.id.size			= FskStrLen(id)      + 1;									/* Make sure to include the \0 terminator character */
+	dir.control.size	= FskStrLen(control) + 1;
+	dir.path.size		= FskPathSize(thePath);
+	blobSize			= SetBlobDirectoryOffsets(3, &dir.id, 0);					/* id is first in the list */
 
 	/* Allocate blob and directory entry, and set them appropriately */
 	if (!ctx->hitRegions)
 		BAIL_IF_ERR(err = FskGrowableBlobArrayNew(blobSize, 4, sizeof(FskCanvas2dHitRegionDirectoryEntry), &ctx->hitRegions));
 	BAIL_IF_ERR(err = FskGrowableBlobArrayGetPointerToNewEndItem(ctx->hitRegions, blobSize, NULL, (void**)(&blob), (void**)(&dirPtr)));	/* Allocate blob */
-	hitID   = (char*)  (dir.id.offset   + blob);									/* Initialize sub-blob pointer to ID */
-	hitPath = (FskPath)(dir.path.offset + blob);									/* Initialize sub-blob pointer to path */
-	FskStrNCopy(hitID,  id,      dir.id.size);										/* Set the ID */
-	FskMemCopy(hitPath, thePath, dir.path.size);									/* Set the path */
+	hitID		=   (char*)(dir.id.offset		+ blob);							/* Initialize sub-blob pointer to ID */
+	hitControl	=   (char*)(dir.control.offset	+ blob);							/* Initialize sub-blob pointer to control */
+	hitPath		= (FskPath)(dir.path.offset		+ blob);							/* Initialize sub-blob pointer to path */
+	FskMemCopy(hitID,		id,			dir.id.size);								/* Set the ID */
+	FskMemCopy(hitControl,	control,	dir.control.size);							/* Set the ID */
+	FskMemCopy(hitPath,		thePath,	dir.path.size);								/* Set the path */
 	FskPathTransform(hitPath, &FskCanvasGetStateFromContext(ctx)->fixedTransform);	/* Transform the path by the current matrix */
 	BAIL_IF_ERR(err = FskPathComputeBoundingBox(hitPath, NULL, true, &xBox));		/* Compute a tight bounding box, in fixed point */
 	FixedToIntBounds(&xBox, &dir.bbox);												/* Find an int bounding box that bounds the fixed bounding box */
@@ -4244,7 +4267,7 @@ FskCanvas2dClearHitRegions(FskCanvas2dContext ctx)
  ********************************************************************************/
 
 FskErr
-FskCanvas2dPickHitRegion(FskCanvas2dContext ctx, double x, double y, const char **pID, void **pControl)
+FskCanvas2dPickHitRegion(FskCanvas2dContext ctx, double x, double y, const char **pID, const char **pControl)
 {
 	FskPointRecord			pt	= { FskRoundFloatToInt(x), FskRoundFloatToInt(y) };
 	FskCanvas2dContextState	*st;
@@ -4252,8 +4275,7 @@ FskCanvas2dPickHitRegion(FskCanvas2dContext ctx, double x, double y, const char 
 	FskRectangle			bbox;
 	SInt32					dx, dy;
 	UInt32					n;
-	char					*id;
-	void					*control, *more;
+	char					*id, *control;
 
 	#if defined(LOG_PARAMETERS)
 		LOGD("FskCanvas2dPickHitRegion(ctx=%p x=%.7g y=%.7g pID=%p pControl=%p)", ctx, x, y, pID, pControl);
@@ -4269,11 +4291,11 @@ FskCanvas2dPickHitRegion(FskCanvas2dContext ctx, double x, double y, const char 
 		return kFskErrNotFound;																		/* ... the point is clipped out, and impickable */
 
 	for (n = FskGrowableBlobArrayGetItemCount(ctx->hitRegions); n--;) {								/* Check all of the hit regions */
-		if (kFskErrNone == FskCanvas2dHitRegionGet(ctx, n, &id, &control, &bbox, &path, &more)	&&
-			0  <= (dx = pt.x - bbox->x)															&&	/* If inside the bounding box of the hit region, ... */
-			dx <= bbox->width																	&&
-			0  <= (dy = pt.y - bbox->y)															&&
-			dy <= bbox->height																	&&
+		if (kFskErrNone == FskCanvas2dHitRegionGet(ctx, n, &id, &control, &bbox, &path)	&&
+			0  <= (dx = pt.x - bbox->x)													&&			/* If inside the bounding box of the hit region, ... */
+			dx <= bbox->width															&&
+			0  <= (dy = pt.y - bbox->y)													&&
+			dy <= bbox->height															&&
 			kFskHitTrue == FskPickPathRadius(path, -1, 0, 0, kFskCanvas2dFillRuleNonZero, NULL, NULL, NULL, 1, &pt, NULL)	/* ... we do a more expensive Path Pick test */
 		) {																							/* We got a hit */
 			if (pID)		*pID    = id;

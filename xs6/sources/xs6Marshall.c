@@ -81,8 +81,10 @@ void fxDemarshall(txMachine* the, void* theData, txBoolean alien)
 			p += sizeof(txSlot);
 			switch (aSlot->kind) {
 			case XS_STRING_KIND:
+			case XS_ARRAY_BUFFER_KIND:
 				aChunk = (txChunk*)p;
 				p += aChunk->size;
+				mxMarshallAlign(p, aChunk->size);
 				break;
 			case XS_HOST_KIND:
 				aLength = aSlot->next->value.integer;
@@ -140,12 +142,32 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 		theResult->value = theSlot->value;
 		theResult->kind = theSlot->kind;
 		break;
-	case XS_STRING_KIND:
-		{
+	case XS_STRING_KIND: {
 		char **s = &theResult->value.string;
 		fxDemarshallChunk(the, theSlot->value.string, (void **)s);
 		theResult->kind = theSlot->kind;
 		}
+		break;
+	case XS_ARRAY_BUFFER_KIND: 
+		if (theSlot->value.arrayBuffer.address) {
+			txByte **s = &theResult->value.arrayBuffer.address;
+			fxDemarshallChunk(the, theSlot->value.arrayBuffer.address, (void **)s);
+            theResult->value.arrayBuffer.length = theSlot->value.arrayBuffer.length;
+            theResult->kind = theSlot->kind;
+		}
+		break;
+	case XS_HOST_KIND:
+		aLength = theSlot->next->value.integer;
+		if (aLength) {
+			theResult->value.host.data = c_malloc(aLength);
+			if (!theResult->value.host.data)
+				fxJump(the);
+			c_memcpy(theResult->value.host.data, theSlot->value.host.data, aLength);
+		}
+		else
+			theResult->value.host.data = C_NULL;
+		theResult->value.host.variant.destructor = theSlot->value.host.variant.destructor;
+		theResult->kind = theSlot->kind;
 		break;
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
@@ -201,6 +223,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 			case XS_DATE_KIND: theResult->value.instance.prototype = mxDatePrototype.value.reference; break;
 			case XS_NUMBER_KIND: theResult->value.instance.prototype = mxNumberPrototype.value.reference; break;
 			case XS_STRING_KIND: theResult->value.instance.prototype = mxStringPrototype.value.reference; break;
+			case XS_ARRAY_BUFFER_KIND: theResult->value.instance.prototype = mxArrayBufferPrototype.value.reference; break;
 			}
 		}
 		aSlotAddress = &(theResult->next);
@@ -349,6 +372,23 @@ void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, tx
 		fxMarshallChunk(the, theSlot->value.string, (void **)s, theBuffer);
 		}
 		break;
+	case XS_ARRAY_BUFFER_KIND: 
+		if (theSlot->value.arrayBuffer.address) {
+			txByte **s = &aResult->value.arrayBuffer.address;
+			fxMarshallChunk(the, theSlot->value.arrayBuffer.address, (void **)s, theBuffer);
+		}
+		break;
+	case XS_HOST_KIND:
+		aLength = theSlot->next->value.integer;
+		if (aLength) {
+			aResult->value.host.data = theBuffer->current;
+			c_memcpy(theBuffer->current, theSlot->value.host.data, aLength);
+			theBuffer->current += aLength;
+			mxMarshallAlign(theBuffer->current, aLength);
+		}
+		else
+			aResult->value.host.data = C_NULL;
+		break;
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
 		if (alien || ((aSlot->flag & XS_SHARED_FLAG) == 0)) {
@@ -434,6 +474,20 @@ void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer,
 		break;
 	case XS_STRING_KIND:
 		fxMeasureChunk(the, theSlot->value.string, theBuffer);
+		break;
+	case XS_ARRAY_BUFFER_KIND: 
+		if (theSlot->value.arrayBuffer.address)
+			fxMeasureChunk(the, theSlot->value.arrayBuffer.address, theBuffer);
+		break;
+	case XS_HOST_KIND:
+		aSlot = theSlot->next;
+		if (aSlot && (aSlot->kind == XS_INTEGER_KIND)) {
+			aLength = aSlot->value.integer;
+			theBuffer->size += aLength;
+			mxMarshallAlign(theBuffer->size, aLength);
+		}
+		else
+			mxDebugID(XS_TYPE_ERROR, "marshall %s: no chunk host", theSlot->ID);
 		break;
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;

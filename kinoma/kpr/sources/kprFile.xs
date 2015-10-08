@@ -58,5 +58,11 @@
 			<function name="getNext" c="KPR_Files_volume_iterator_getNext"/>
 		</object>
 		<function name="VolumeIterator" prototype="Files.volumeIterator" c="KPR_Files_Volume_Iterator"/>
+		
+		<object name="directoryNotifier" c="KPR_Files_directoryNotifier">
+			<null name="callback"/>
+			<function name="close" c="KPR_Files_directoryNotifier_close"/>
+		</object>
+		<function name="DirectoryNotifier" params="url, callback" prototype="Files.directoryNotifier" c="KPR_Files_DirectoryNotifier"/>
 	</object>
 </package>

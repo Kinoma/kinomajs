@@ -19,6 +19,7 @@ import * as MAKE from "make";
 
 function toCMakePath(tool, path) {
 	var homePath = tool.resolveDirectoryPath(tool.homePath);
+	path =  path.replace(tool.homePath, "${F_HOME}").replace(/"/g, '');
 	path =  path.replace(homePath, "${F_HOME}").replace(/"/g, '');
 	if (tool.platform == "win")
 		path =  path.replace(/\\/g, "/")
@@ -128,7 +129,7 @@ export class Makefile extends MAKE.Makefile {
 					copts.push(item);
 
 				for (let item of incs)
-					file.line("include_directories(", toCMakePath(tool, item), ")");
+					file.line(`include_directories("${toCMakePath(tool, item)}")`);
 				for (let item of defs)
 					if (variant)
 						file.line(`set(CMAKE_C_FLAGS${variantSuffix} "\${CMAKE_C_FLAGS${variantSuffix}} ${fixDefinitions(tool, item)}")`);
@@ -145,7 +146,7 @@ export class Makefile extends MAKE.Makefile {
 		this.processCOptions(tool, file, this.cOptionsRelease, "Release");
 		if (this.cIncludes.length) {
 			for (let item of this.cIncludes)
-				file.line("include_directories(", toCMakePath(tool, item), ")");
+				file.line(`include_directories("${toCMakePath(tool, item)}")`);
 		}
 		file.line("set(CMAKE_CXX_FLAGS \"${CMAKE_C_FLAGS}\")");
 		file.line("set(CMAKE_CXX_FLAGS_DEBUG \"${CMAKE_C_FLAGS_DEBUG}\")");
@@ -176,6 +177,7 @@ export class Manifest extends MAKE.Manifest {
 		this.generateC(tool, tmp);
 		this.generateXS(tool, tmp);
 		this.generateMAKE(tool, tmp, bin);
+		this.generateProject(tool);
 	}
 	generateMAKE(tool, tmp, bin) {
 		var path = tool.joinPath({ directory: tmp, name: "CMakeLists", extension: ".txt" });
@@ -186,37 +188,44 @@ export class Manifest extends MAKE.Manifest {
 		file.line("cmake_minimum_required(VERSION 2.8.12.2)\n");
 
 		file.line("file(TO_CMAKE_PATH $ENV{F_HOME} F_HOME)");
+		file.line("if(ENV{XS6})");
+		file.line("\tfile(TO_CMAKE_PATH $ENV{XS6} XS6)");
+		file.line("else()");
+		file.line("\tset(XS6 \"${F_HOME}/xs6\")");
+		file.line("endif()");
+
 
 		var split = tool.platform.split("/");
 		file.line("set(PLATFORM ", split[0], ")");
 		if (split[1])
 			file.line("set(SUBPLATFORM ", split[1], ")");
-		if (!tool.debug)
-			file.line("set(RELEASE true)");
-		file.line();
 
-		file.line("set(BIN_DIR ", toCMakePath(tool, bin), ")");
-		file.line("set(TMP_DIR ", toCMakePath(tool, tmp), ")");
-		file.line("set(RES_DIR ", toCMakePath(tool, tmp), "/res)");
+		file.line("list(APPEND CMAKE_MODULE_PATH ${F_HOME}/xs6/cmake/modules)");
 
+		file.line(`set(TMP_DIR "${toCMakePath(tool, tmp)}")`);
+		file.line(`set(RES_DIR "\${TMP_DIR}/res")`);
+
+		file.line("include(" + tool.platform + " OPTIONAL)\n");
+
+		file.line("project(fsk)\n");
 
 		file.line("if(CMAKE_CONFIGURATION_TYPES)");
 		file.write("\tset(CMAKE_CONFIGURATION_TYPES");
 		file.write(this.debug? ' "Debug"' : ' "Release"'); 
 		file.write(this.debug? ' "Release"' : ' "Debug"'); 
 		file.line(" CACHE STRING \"Reset the configurations to what we need\" FORCE)");
+		file.line("\tset(CONFIG_TYPE $(CONFIGURATION))");
 		file.line("else()");
 		file.line("\tif(NOT CMAKE_BUILD_TYPE)");
 		file.line("\t\tmessage(STATUS \"Setting build type to 'Release' as none was specified.\")");
 		file.line(`\t\tset(CMAKE_BUILD_TYPE ${tool.debug ? "Debug" : "Release"} CACHE STRING "Choose the type of build." FORCE)`);
 		file.line("\tendif()");
 		file.line("\tset_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS \"Debug\" \"Release\")\n");
+		file.line("\tset(CONFIG_TYPE ${CMAKE_BUILD_TYPE})");
 		file.line("endif()\n");
 
-		file.line("list(APPEND CMAKE_MODULE_PATH ${F_HOME}/xs6/cmake/modules ${TMP_DIR})");
 		file.line("include(XS6)");
 		file.line("include(Kinoma)");
-		file.line("include(" + tool.platform + " OPTIONAL)\n");
 
 		file.line("find_xs_tool(XSC xsc6)");
 		file.line("find_xs_tool(XSL xsl6)");
@@ -226,8 +235,6 @@ export class Manifest extends MAKE.Manifest {
 		file.line("set(XS2JS ${XSR} -a ${XS_BIN_DIR}/modules/tools.xsa xs2js)\n");
 
 		this.generatePlatformVariables(tool, file, tmp, bin);
-
-		file.line("project(fsk)\n");
 
 		file.line("if(NOT DEFINED CMAKE_MACOSX_RPATH)");
 		file.line("\tset(CMAKE_MACOSX_RPATH 0)");
@@ -299,13 +306,16 @@ export class Manifest extends MAKE.Manifest {
 		file.line("add_custom_target(");
 		file.line("\tmake_dirs");
 		for (let path of this.tree.directoryPaths)
-			if (path != ".")
+			if (path != ".") {
 				file.line(`\tCOMMAND \${CMAKE_COMMAND} -E make_directory "\${APP_DIR}/${toCMakePath(tool, path)}"`);
+				file.line(`\tCOMMAND \${CMAKE_COMMAND} -E touch "\${APP_DIR}/${toCMakePath(tool, path)}/DO_NOT_DELETE"`);
+			}
 		file.line('\t)\n');
 
 		this.generateManifestRules(tool, file);
 		this.generateResourcesRules(tool, file);
 		this.generateXSRules(tool, file);
+
 		for (let makefile of this.makefiles) {
 			var makePath = tool.tmpPath + "/" + makefile.name + "/CMakeLists.txt";
 			var makeFile = new File(makePath);
@@ -318,9 +328,9 @@ export class Manifest extends MAKE.Manifest {
 		}
 		file.line();
 
-		file.line("list(APPEND SOURCES ${TMP_DIR}/FskManifest.c)");
-		file.line("list(APPEND SOURCES ${TMP_DIR}/src/FskManifest.xs.c)");
-		file.line("set_source_files_properties(${TMP_DIR}/src/FskManifest.xs.c ${TMP_DIR}/src/FskManifest.xs.h PROPERTIES GENERATED TRUE)");
+		file.line(`list(APPEND SOURCES "\${TMP_DIR}/FskManifest.c")`);
+		file.line(`list(APPEND SOURCES "\${TMP_DIR}/src/FskManifest.xs.c")`);
+		file.line(`set_source_files_properties("\${TMP_DIR}/src/FskManifest.xs.c" "\${TMP_DIR}/src/FskManifest.xs.h" PROPERTIES GENERATED TRUE)`);
 
 		this.generateTargetRules(tool, file);
 
@@ -337,7 +347,7 @@ export class Manifest extends MAKE.Manifest {
 	}
 	generateResourcesVariables(tool, file) {
 		file.line("set(MODULES");
-		file.line("\tFskManifest.xsb");
+		file.line(`\t"FskManifest.xsb"`);
 		for (let item of this.tree.xmlPaths)
 			file.line(`\t"${toCMakePath(tool, item.destinationPath)}.xsb"`);
 		for (let item of this.tree.jsPaths)
@@ -350,23 +360,23 @@ export class Manifest extends MAKE.Manifest {
 	generateXSRules(tool, file) {
 		file.line("xs2js(SOURCE ${TMP_DIR}/FskManifest.xs DESTINATION ${TMP_DIR} OPTIONS ${XSC_OPTIONS})");
 		file.line("xsc(SOURCE_FILE ${TMP_DIR}/FskManifest.js DESTINATION ${TMP_DIR} OPTIONS -c -d -e -p)");
-		file.line("xsl(NAME FskManifest SOURCES ${MODULES} TMP ${TMP_DIR} DESTINATION ${RES_DIR}/ SRC_DIR ${TMP_DIR}/src DEPENDS make_dirs)");
+		file.line("xsl(NAME FskManifest SOURCES ${MODULES} TMP ${TMP_DIR} DESTINATION ${RES_DIR}/ SRC_DIR ${TMP_DIR}/src DEPENDS make_dirs COPY ${APP_DIR} ${BUILD_APP_DIR})");
 	}
 	generateXSVariables(tool, file) {
 		file.line("set(XSC_OPTIONS");
 		file.line("\t-b");
 		file.line("\t$<$<CONFIG:Debug>:-d>");
 		for (let item of this.xsIncludes)
-			file.line("\t-i ", toCMakePath(tool, item));
+			file.line(`\t-i "${toCMakePath(tool, item)}"`);
 		file.line("\t$<$<CONFIG:Debug>:-t> $<$<CONFIG:Debug>:debug>");
 		file.line("\t-t KPR_CONFIG");
 		file.line("\t-t XS6");
 		for (let item of this.xsOptions)
-			file.line("\t", item);
+			file.line(`\t${item}`);
 		file.line("\t)\n");
 		file.line("set(XSC_PACKAGES");
 		for (let item of this.xsSources)
-			file.line("\t", toCMakePath(tool, item));
+			file.line(`\t"${toCMakePath(tool, item)}"`);
 		file.line("\t)\n");
 	}
 	generatePlatformVariables(tool, file, tmp, bin) {
@@ -376,7 +386,7 @@ export class Manifest extends MAKE.Manifest {
 			if (typeof value == "string") {
 				value = toCMakePath(tool, value);
 			}
-			file.line("set(", name, " ", value, ")");
+			file.line(`set(${name} "${value}")`);
 		}
 		var languages = this.getPlatformLanguages();
 		if (languages) {
@@ -413,5 +423,50 @@ export class Manifest extends MAKE.Manifest {
 	}
 	getPlatformLanguages() {
 		return [];
+	}
+	getGenerator() {
+		return;
+	}
+	getIDEGenerator() {
+		return;
+	}
+	generateProject(tool) {
+		if (tool.cmakeGenerate) {
+			tool.report("Generating project...");
+			var command = `cmake -H"${tool.tmpPath}" -B"${tool.tmpPath}" -DCMAKE_BUILD_TYPE="${tool.debug ? "Debug" : "Release"}"`;
+			var generator = this.getGenerator(tool);
+			if (tool.ide) {
+				let ide = this.getIDEGenerator(tool);
+				if (ide)
+					generator = ide;
+			} else {
+				if (tool.cmakeGenerator)
+					generator = tool.cmakeGenerator;
+			}
+			if (generator)
+				command += ` -G"${generator}"`;
+			var cmakeCache = tool.joinPath({ directory: tool.tmpPath, name: "CMakeCache", extension: ".txt" });
+			if (FS.existsSync(cmakeCache)) {
+				var cache = FS.readFileSync(cmakeCache);
+				var currentGenerator = cache.match(/CMAKE_GENERATOR:INTERNAL=(.*)/)[1];
+				if (currentGenerator && currentGenerator != generator)
+					FS.deleteFile(cmakeCache);
+			}
+			tool.report(`${command}`);
+			var output = tool.execute(command);
+			tool.report(output.trim());
+			if (tool.ide) {
+				tool.report("Opening the IDE...");
+				this.openIDE(tool, `${tool.tmpPath}${tool.slash}`);
+				return;
+			}
+		}
+	}
+	make(tool) {
+		if (tool.cmakeGenerate && !tool.ide) {
+			tool.report(`cmake --build "${tool.tmpPath}" --config "${tool.debug ? "Debug" : "Release"}"`);
+			process.then("cmake", "--build", `${tool.tmpPath}`, "--config", `${tool.debug ? "Debug" : "Release"}`);
+		}
+		return;
 	}
 }

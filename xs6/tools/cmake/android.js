@@ -81,11 +81,14 @@ class Manifest extends CMAKE.Manifest {
 			FSK_JAVA_NAMESPACE: info.path,
 			
 			APP_DIR: "$(RES_DIR)",
+			BIN_DIR: bin,
 			
 			NAME: environment.NAME,
 			NAMESPACE: environment.NAMESPACE,
 			OBJECTBASE: environment.NAMESPACE.replace(".", "_"),
 			VERSION: environment.VERSION,
+
+			ANT_CONFIGURATION: FS.existsSync(process.getenv("HOME") + "/.android.keystore.info") ? "release" : "debug",
 			
 			KPR_RESOURCE_PATH: tool.joinPath(parts),
 			KPR_MAKE_PATH: tool.makePath,
@@ -99,6 +102,8 @@ class Manifest extends CMAKE.Manifest {
 		else
 			var xsdebug = "$<$<CONFIG:Debug>:1>$<$<CONFIG:Release>:0>";
 
+		var application = tool.application;
+
 		return `
 file(MAKE_DIRECTORY \${FREETYPE_DIR})
 
@@ -106,13 +111,6 @@ add_subdirectory(\${F_HOME}/libraries/freetype/xs6 FreeType)
 
 add_library(fsk \${SOURCES} \${OBJECTS} \${TARGET_OBJECTS})
 add_dependencies(fsk FreeType)
-
-set(ANT_CONFIGURATION debug)
-if(EXISTS \$ENV{HOME}/.android.keystore.info)
-	SET(ANT_CONFIGURATION release)
-	FILE(READ \$ENV{HOME}/.android.keystore.info LOCAL_KEYSTORE)
-	FILE(APPEND \${NDK_PROJECT_PATH}/local.properties \${LOCAL_KEYSTORE})
-endif()
 
 add_custom_command(
 	OUTPUT \${NDK_PROJECT_OBJECTS}/libfsk.a
@@ -123,7 +121,7 @@ add_custom_target(copy DEPENDS \${NDK_PROJECT_OBJECTS}/libfsk.a)
 
 add_custom_command(
 	OUTPUT \${NDK_PROJECT_LIBRARIES}/libFsk.so
-	COMMAND KPR_TMP_DIR=\${TMP_DIR} NDK_PROJECT_PATH=\${NDK_PROJECT_PATH} ndk-build clean
+	COMMAND KPR_TMP_DIR="\${TMP_DIR}" NDK_PROJECT_PATH="\${NDK_PROJECT_PATH}" ndk-build clean
 	COMMAND SUPPORT_XS_DEBUG=${xsdebug} KPR_TMP_DIR=\${TMP_DIR} NDK_PROJECT_PATH=\${NDK_PROJECT_PATH} NDK_TOOLCHAIN_VERSION=\${NDK_TOOLCHAIN_VERSION} ndk-build \${NDB_OPTIONS} V=1
 	DEPENDS copy
 	WORKING_DIRECTORY \${NDK_PROJECT_PATH}
@@ -141,18 +139,18 @@ add_custom_command(
 add_custom_target(jet DEPENDS \${NDK_PROJECT_PATH}/res/raw/kinoma.jet)
 
 add_custom_command(
-	OUTPUT \${BIN_DIR}/\${CMAKE_BUILD_TYPE}/\${KPR_APPLICATION}.apk
+	OUTPUT \${BIN_DIR}/${application}.apk
 	COMMAND android update project -p .
 	COMMAND ant -Dsdk.dir=\${ANDROID_SDK} \${ANT_CONFIGURATION}
-	COMMAND \${CMAKE_COMMAND} -E copy \${NDK_PROJECT_BIN}/\${KPR_APPLICATION}-\${ANT_CONFIGURATION}.apk \${BIN_DIR}/\${CMAKE_BUILD_TYPE}/\${KPR_APPLICATION}.apk
+	COMMAND \${CMAKE_COMMAND} -E copy \${NDK_PROJECT_BIN}/${application.toLowerCase()}-\${ANT_CONFIGURATION}.apk \${BIN_DIR}/${application}.apk
 	DEPENDS ndk jet \${SEPARATE}
 	WORKING_DIRECTORY \${NDK_PROJECT_PATH}
 	)
-add_custom_target(apk ALL DEPENDS \${BIN_DIR}/\${CMAKE_BUILD_TYPE}/\${KPR_APPLICATION}.apk)
+add_custom_target(apk ALL DEPENDS \${BIN_DIR}/${application}.apk)
 
 add_custom_target(message ALL
 	COMMAND \${CMAKE_COMMAND} -E echo  "--------------------------------------------------------------------------------"
-	COMMAND \${CMAKE_COMMAND} -E echo  "-   Install: adb -d install -r \${BIN_DIR}/\${CMAKE_BUILD_TYPE}/\${KPR_APPLICATION}.apk"
+	COMMAND \${CMAKE_COMMAND} -E echo  "-   Install: adb -d install -r \${BIN_DIR}/${application}.apk"
 	COMMAND \${CMAKE_COMMAND} -E echo  "- Uninstall: adb -d uninstall \${KPR_NAMESPACE}"
 	COMMAND \${CMAKE_COMMAND} -E echo  "-     Start: adb shell am start -n \${KPR_NAMESPACE}/\${KPR_NAMESPACE}.KinomaPlay"
 	COMMAND \${CMAKE_COMMAND} -E echo  "-      Stop: adb shell am force-stop \${KPR_NAMESPACE}"

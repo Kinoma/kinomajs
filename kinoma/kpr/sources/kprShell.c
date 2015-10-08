@@ -94,6 +94,8 @@ static void KprShellInvalidated(void* it, FskRectangle area);
 static void KprShellReflowing(void* it, UInt32 flags);
 
 static void KprShellClose(KprShell self);
+static void KprShellDragEnter(KprShell self, FskEvent event);
+static void KprShellDragLeave(KprShell self, FskEvent event);
 static void KprShellDump(KprShell self);
 static void KprShellDumpContent(void* it, SInt32 c);
 static void KprShellDumpEffects(KprShell self);
@@ -118,6 +120,7 @@ static void KprShellMouseIdle(void* it);
 static void KprShellMouseMoved(void* it, UInt32 id, SInt32 x, SInt32 y, double ticks);
 static void KprShellMouseUp(void* it, UInt32 id, SInt32 x, SInt32 y, double ticks);
 static void KprShellMouseWheeled(void* it, FskEvent event);
+static void KprShellOpenFiles(KprShell self, FskEvent event);
 static Boolean KprShellSensor(void* it, FskEvent event);
 static void KprTouchSampleAppend(KprTouchLink link, SInt32 x, SInt32 y, double ticks);
 static void KPR_shell_sensorAux(xsMachine* the, UInt32 modifiers);
@@ -215,6 +218,7 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 	}
 	else {
 		char *screenScale = FskEnvironmentGet("screenScale");
+		char *portScale = FskEnvironmentGet("portScale");
 		UInt32 windowStyle = KprEnvironmentGetUInt32("windowStyle", 16);
 		if (screenScale && (0 == FskStrCompare(screenScale, "1.5"))) {
 			bounds->width = (3 * bounds->width) >> 1;
@@ -225,6 +229,15 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 			bounds->height = bounds->height << 1;
 		}
 		bailIfError(FskWindowNew(&window, bounds->width, bounds->height, windowStyle, NULL, NULL));
+		if (portScale) {
+			FskPort port = FskWindowGetPort(window);
+			if (0 == FskStrCompare(portScale, "1.5"))
+				FskPortScaleSet(port, FskIntToFixed(3) >> 1);
+			else if (0 == FskStrCompare(portScale, "2") || 0 == FskStrCompare(portScale, "2.0"))
+				FskPortScaleSet(port, FskIntToFixed(2));
+			else if (0 == FskStrCompare(portScale, "3") || 0 == FskStrCompare(portScale, "3.0"))
+				FskPortScaleSet(port, FskIntToFixed(3));
+		}
 		FskWindowSetSizeConstraints(window, 320, 240, 3200, 2400);
 		FskWindowGetSize(window, (UInt32*)&bounds->width, (UInt32*)&bounds->height);
 	}
@@ -687,6 +700,64 @@ void KprShellClose(KprShell self)
 	KprShellIdleCheck(self);
 }
 
+void KprShellDragEnter(KprShell self, FskEvent event)
+{
+	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+	UInt32 paramSize;
+	FskMemPtr fileList = NULL;
+	char *fileListWalker;
+	xsBeginHostSandboxCode(self->the, self->code);
+	{
+		xsVars(3);
+		{
+			xsTry {
+				xsVar(0) = xsAccess(behavior->slot);
+				if (xsFindResult(xsVar(0), xsID("onFilesEntered"))) {
+					xsVar(1) = kprContentGetter(self);
+					xsThrowIfFskErr(FskEventParameterGetSize(event, kFskEventParameterFileList, &paramSize));
+					xsThrowIfFskErr(FskMemPtrNew(paramSize, &fileList));
+					xsThrowIfFskErr(FskEventParameterGet(event, kFskEventParameterFileList, fileList));
+					xsVar(2) = xsNewInstanceOf(xsArrayPrototype);
+					fileListWalker = (char*)fileList;
+					while (0 != *fileListWalker) {
+						(void)xsCall1(xsVar(2), xsID("push"), xsString(fileListWalker));
+						fileListWalker += FskStrLen(fileListWalker) + 1;
+					}
+					FskMemPtrDisposeAt(&fileList);
+					(void)xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsVar(2));
+				}
+			}
+			xsCatch {
+				FskMemPtrDispose(fileList);
+			}
+		}
+	}
+	xsEndHostSandboxCode();
+	self->flags |= kprDraggingFiles;
+}
+
+void KprShellDragLeave(KprShell self, FskEvent event)
+{
+	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+	xsBeginHostSandboxCode(self->the, self->code);
+	{
+		xsVars(3);
+		{
+			xsTry {
+				xsVar(0) = xsAccess(behavior->slot);
+				if (xsFindResult(xsVar(0), xsID("onFilesExited"))) {
+					xsVar(1) = kprContentGetter(self);
+					(void)xsCallFunction1(xsResult, xsVar(0), xsVar(1));
+				}
+			}
+			xsCatch {
+			}
+		}
+	}
+	xsEndHostSandboxCode();
+	self->flags &= ~kprDraggingFiles;
+}
+
 void KprShellDump(KprShell self)
 {
 	fprintf(stderr, "CONTENTS\n");
@@ -948,10 +1019,13 @@ Boolean KprShellEventHandler(FskEvent event, UInt32 eventCode, FskWindow window 
 			KprShellMenuStatus(it, event);
 			break;
 		case kFskEventWindowOpenFiles:
+			KprShellOpenFiles(it, event);
 			break;
 		case kFskEventWindowDragEnter:
+			KprShellDragEnter(it, event);
 			break;
 		case kFskEventWindowDragLeave:
+			KprShellDragLeave(it, event);
 			break;
 		case kFskEventButton:
 			result = KprShellSensor(it, event);
@@ -1583,37 +1657,85 @@ void KprShellMouseMoved(void* it, UInt32 id, SInt32 x, SInt32 y, double ticks)
 {
 	KprShell self = it;
 	KprTouchLink link;
-	link = (KprTouchLink)KprContentChainGetFirst(&self->touchChain);
-	while (link) {
-		if (link->id == id)
-			KprTouchSampleAppend(link, x, y, ticks);
-		link = (KprTouchLink)KprContentChainGetNext(&self->touchChain);
+	if (self->flags & kprDraggingFiles) {
+		KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+		xsBeginHostSandboxCode(self->the, self->code);
+		{
+			xsVars(2);
+			{
+				xsTry {
+					xsVar(0) = xsAccess(behavior->slot);
+					if (xsFindResult(xsVar(0), xsID("onFilesMoved"))) {
+						xsVar(1) = kprContentGetter(self);
+						(void)xsCallFunction5(xsResult, xsVar(0), xsVar(1), xsInteger(id), xsInteger(x), xsInteger(y), xsNumber(ticks));
+					}
+				}
+				xsCatch {
+				}
+			}
+		}
+		xsEndHostSandboxCode();
 	}
-	kprDelegateTouchMoved((KprContent)self, id, x, y, ticks);
+	else {
+		link = (KprTouchLink)KprContentChainGetFirst(&self->touchChain);
+		while (link) {
+			if (link->id == id)
+				KprTouchSampleAppend(link, x, y, ticks);
+			link = (KprTouchLink)KprContentChainGetNext(&self->touchChain);
+		}
+		kprDelegateTouchMoved((KprContent)self, id, x, y, ticks);
+	}
 }
 
 void KprShellMouseUp(void* it, UInt32 id, SInt32 x, SInt32 y, double ticks)
 {
 	KprShell self = it;
 	KprTouchLink link, *linkAddress;
-	link = (KprTouchLink)KprContentChainGetFirst(&self->touchChain);
-	while (link) {
-		if (link->id == id) {
-			KprContent content = link->content;
-			KprTouchSampleAppend(link, x, y, ticks);
-			kprDelegateTouchEnded(content, id, x, y, ticks);
+	if (self->flags & kprDraggingFiles) {
+		KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+		xsBeginHostSandboxCode(self->the, self->code);
+		{
+			xsVars(2);
+			{
+				xsTry {
+					xsVar(0) = xsAccess(behavior->slot);
+					if (xsFindResult(xsVar(0), xsID("onFilesDropped"))) {
+						xsVar(1) = kprContentGetter(self);
+						(void)xsCallFunction5(xsResult, xsVar(0), xsVar(1), xsInteger(id), xsInteger(x), xsInteger(y), xsNumber(ticks));
+					}
+				}
+				xsCatch {
+				}
+			}
 		}
-		link = (KprTouchLink)KprContentChainGetNext(&self->touchChain);
+		xsEndHostSandboxCode();
+		#if TARGET_OS_MAC && !TARGET_OS_IPHONE
+			FskCocoaDragDropWindowResult(self->window, true);
+		#else
+			// On Windows, we don't need to let the native implementation know if the drop succeeded or not
+		#endif
+		self->flags &= ~kprDraggingFiles;
 	}
-	kprDelegateTouchEnded((KprContent)self, id, x, y, ticks);
-	linkAddress = (KprTouchLink*)&self->touchChain.first;
-	while ((link = *linkAddress)) {
-		if (link->id == id) {
-			*linkAddress = (KprTouchLink)link->next;
-			FskMemPtrDispose(link);
+	else {
+		link = (KprTouchLink)KprContentChainGetFirst(&self->touchChain);
+		while (link) {
+			if (link->id == id) {
+				KprContent content = link->content;
+				KprTouchSampleAppend(link, x, y, ticks);
+				kprDelegateTouchEnded(content, id, x, y, ticks);
+			}
+			link = (KprTouchLink)KprContentChainGetNext(&self->touchChain);
 		}
-		else
-			linkAddress = (KprTouchLink*)&link->next;
+		kprDelegateTouchEnded((KprContent)self, id, x, y, ticks);
+		linkAddress = (KprTouchLink*)&self->touchChain.first;
+		while ((link = *linkAddress)) {
+			if (link->id == id) {
+				*linkAddress = (KprTouchLink)link->next;
+				FskMemPtrDispose(link);
+			}
+			else
+				linkAddress = (KprTouchLink*)&link->next;
+		}
 	}
 	KprShellIdleCheck(self);
 }
@@ -1635,6 +1757,41 @@ void KprShellMouseWheeled(void* it, FskEvent event)
 	if (xsFindResult(xsVar(0), xsID_onTouchScrolled)) {
 		xsVar(1) = kprContentGetter(content);
 		(void)xsCallFunction5(xsResult, xsVar(0), xsVar(1), xsBoolean(touched), xsNumber(x), xsNumber(y), xsNumber(ticks));
+	}
+	xsEndHostSandboxCode();
+}
+
+void KprShellOpenFiles(KprShell self, FskEvent event)
+{
+	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+	UInt32 paramSize;
+	FskMemPtr fileList = NULL;
+	char *fileListWalker;
+	xsBeginHostSandboxCode(self->the, self->code);
+	{
+		xsVars(3);
+		{
+			xsTry {
+				xsVar(0) = xsAccess(behavior->slot);
+				if (xsFindResult(xsVar(0), xsID("onFilesOpen"))) {
+					xsVar(1) = kprContentGetter(self);
+					xsThrowIfFskErr(FskEventParameterGetSize(event, kFskEventParameterFileList, &paramSize));
+					xsThrowIfFskErr(FskMemPtrNew(paramSize, &fileList));
+					xsThrowIfFskErr(FskEventParameterGet(event, kFskEventParameterFileList, fileList));
+					xsVar(2) = xsNewInstanceOf(xsArrayPrototype);
+					fileListWalker = (char*)fileList;
+					while (0 != *fileListWalker) {
+						(void)xsCall1(xsVar(2), xsID("push"), xsString(fileListWalker));
+						fileListWalker += FskStrLen(fileListWalker) + 1;
+					}
+					FskMemPtrDisposeAt(&fileList);
+					(void)xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsVar(2));
+				}
+			}
+			xsCatch {
+				FskMemPtrDispose(fileList);
+			}
+		}
 	}
 	xsEndHostSandboxCode();
 }
@@ -1737,6 +1894,16 @@ void KprShellSetVolume(KprShell self UNUSED, double volume)
 #endif
 }
 
+void KPR_shell_get_acceptFiles(xsMachine* the)
+{
+#if (TARGET_OS_MAC && !TARGET_OS_IPHONE) || TARGET_OS_WIN32
+	KprShell self = xsGetHostData(xsThis);
+	Boolean result;
+	FskWindowGetUseDragDropNativeProxy(self->window, &result);
+	xsResult = xsBoolean(result);
+#endif
+}
+
 void KPR_shell_get_breakOnException(xsMachine* the)
 {
 #ifdef mxDebug
@@ -1825,6 +1992,21 @@ void KPR_shell_get_windowTitle(xsMachine *the)
 	FskWindowGetTitle(self->window, &title);
 	xsResult = xsString(title);
 	FskMemPtrDispose(title);
+#endif
+}
+
+void KPR_shell_set_acceptFiles(xsMachine* the)
+{
+#if (TARGET_OS_MAC && !TARGET_OS_IPHONE) || TARGET_OS_WIN32
+	KprShell self = xsGetHostData(xsThis);
+	if (xsTest(xsArg(0))) {
+		FskWindowRequestDragDrop(self->window);
+		FskWindowSetUseDragDropNativeProxy(self->window, true);
+	}
+	else {
+		FskWindowSetUseDragDropNativeProxy(self->window, false);
+		FskWindowCancelDragDrop(self->window);
+	}	
 #endif
 }
 

@@ -1,14 +1,16 @@
-# XS6 and KinomaJS
-The 6th edition brings a lot of new features to JavaScript. This tech note explains how you can use some of them in KinomaJS...
+# Using JavaScript 6th Edition features in KinomaJS
+JavaScript 6th Edition, often referred to by its tecnical abbreviation ES6, edition brings many new features to the JavaScript language. We've updated KinomaJS to use some of these new features, includes Classes, Promises, and Generators. This Tech Note describes how you can use these news capabilities in KinomaJS.
 
-## Templates love Arrows
-Templates are a powerful way to define the constructors that build your containment hierarchies, see the "Contemplate This" tech note. Arrow functions allow to get rid of the `function` keyword, which simplifies further the notation.
+KinomaJS is just beginning to take advantage of the many features in JavaScript 6th Edition. We welcome your ideas on how we can make KinomaJS even better through the use of new JavaScript 6th Edition features.
+
+## Templates love arrows
+Templates are a powerful way to define the constructors you use to build your containment hierarchies. Templates are introduced in the "[Contemplate This](http://kinoma.com/develop/documentation/technotes/introducing-kinomajs-dictionary-based-constructors-and-templates.php)" Tech Note. [Arrow functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Functions/Arrow_functions) are a feature of JavaScript 6th Edition that eliminates the `function` keyword when creating anonymous callback functions, simplifying your source code.
 
 	let MyLabel = Label.template($ => ({
 	  left:0, right:0, height:40, string:$ 
 	}));
 
-And of course you can use arrow functions to map data into contents.
+You can also use arrow functions to map data into contents.
 	
 	let MyScroller = Scroller.template($ => ({
 	  left:0, right:0, top:0, bottom:0, 
@@ -21,12 +23,12 @@ And of course you can use arrow functions to map data into contents.
 	}));
 	application.add(new MyScroller(["one","two","three","four"]));
 
-## Behaviors with Class
-Behaviors are ordinary objects with functions corresponding to events triggered by contents or handlers. Typically frameworks use inheritance to define increasingly specialized behaviors.
+## Behaviors with class
+Behaviors are ordinary objects with functions that correspond to events triggered by contents or handlers. Typically frameworks like KinomaJS use inheritance to define increasingly specialized behaviors.
 
-You can define behaviors with `Object.create` and property descriptors but the syntax is so intricate that KinomaJS introduced dictionary-based constructors, see the "Good Behavior" tech note. It helps but re-calling inherited functions is still cumbersome.
+You have always been able to define KinomaJS behaviors using `Object.create` and property descriptors. However, that syntax is so intricate that KinomaJS introduced dictionary-based constructors as described in the "[Good Behavior](http://kinoma.com/develop/documentation/technotes/introducing-kinomajs-dictionary-based-constructors-and-templates.php)" Tech Note. Dictionary-based construtors are simpler, but calling inherited functions is still cumbersome.
 
-Now you can use classes to define behaviors.
+With JavaScript 6th Edition, you can now use [classes](http://www.2ality.com/2015/02/es6-classes-final.html) to define behaviors.
 
 	class ButtonBehavior extends Behavior {
 	  onCreate(content, data) {
@@ -40,7 +42,7 @@ Now you can use classes to define behaviors.
 	  }
 	};
 
-Behaviors can then use `super` to re-call inherited functions.
+Behaviors can then use `super` to call inherited functions.
 
 	class URLButtonBehavior extends ButtonBehavior {
 	  onTouchEnded(content) {
@@ -50,7 +52,7 @@ Behaviors can then use `super` to re-call inherited functions.
 	  }
 	};
 
-Contrarily to dictionary-based constructors, classes define only functions. If you need to define other properties, override the class constructor.
+Unlike dictionary-based constructors, classes only define functions. Dictonary-based constructors can also define property values, including numbers, booleans, and strings. If you need to define other properties, do so by overriding the constructor of the class.
 
 	class MyBehavior extends Behavior {
 		constructor(...args) {
@@ -60,9 +62,9 @@ Contrarily to dictionary-based constructors, classes define only functions. If y
 	};
 
 	
-### Containment Hierarchy
+### Containment hierarchy
 
-Templates now support classes to bind contents and behaviors.
+Templates now support classes to bind behaviors to contents.
 
 	let URLButton = Content.template($ => ({
 		Behavior: URLButtonBehavior
@@ -72,7 +74,7 @@ When the template is instantiated, KinomaJS calls the class constructor to creat
 
 > Notice the uppercase `B`. Use `Behavior` to bind a content to a class, use `behavior` to bind a content to an object. 
 
-It is often useful to specialize a behavior inline, in the template itself. To do that, use an anonymous class.
+It is often useful to specialize a behavior inline, as part of the template itself. To do that, use an anonymous class.
 
 	let BackButton = Content.template($ => ({
 		Behavior: class extends ButtonBehavior {
@@ -85,11 +87,11 @@ It is often useful to specialize a behavior inline, in the template itself. To d
  
 ### Handlers
 
-Similarly the `Handler.Bind` function accepts a class to bind a path to a behavior.
+The `Handler.Bind` function now accepts a class to bind a path to a behavior.
 
 	Handler.Bind("/wow", class extends Behavior {
 		onInvoke: function(handler, message) {
-			debugger
+			debugger;
 		}
 	});
 	
@@ -98,9 +100,9 @@ The `Handler.Bind` function calls the class constructor to create the behavior.
 > Notice the uppercase `B`. Use `Handler.Bind` to bind a path to a class, use `Handler.bind` to bind a path to an object. 
 
 ## Transitions too
-There are no dictionary-based constructors to define transitions so you needed to use `Object.create` and property descriptors. 
+KinomaJS does not implement dictionary-based constructors to define transitions. You have had to use `Object.create` and property descriptors when creating transitions.
 
-Now you can use classes to define transitions too.
+KinomaJS now supports the use of classes to define transitions.
 
 	class FadeInTransition extends Transition {
 		onBegin(container, content) {
@@ -118,24 +120,27 @@ Now you can use classes to define transitions too.
 
 ## Contents iterator
 
-Of course you could define a contents iterator with a generator function.
+[Generator functions](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Iterators_and_Generators) are a new feature of JavaScript 6th Edition. A common use of generator functions is to implement iterators. A common iterator in KinomaJS a to loop over a container's contents. You can define a contents iterator with a generator function.
 
-	function* iterator(container) {
+	function* contentsIterator(container) {
 		let content = container.first;
 		while (content) {
 			yield content;
 			content = content.next;
 		}
 	}
+	let iterator = contentsIterator(container);
+	for (let content of iterator)
+		trace(content.constructor.name + "\n");
 
-To make it easier and faster, the contents iterator is now a property of `Container.prototype`. The symbol of the property is the well-known symbol referenced by `Symbol.iterator`. So you can use a `for of` loop for instance.
+But you don't need to include this generator function in your code, because KinomaJS now has a built-in content iterator that works with a simple `for of` loop. The contents iterator is now a property of `Container.prototype`. The symbol of the content iterator property is the [well-known symbol](http://ponyfoo.com/articles/es6-symbols-in-depth) referenced by `Symbol.iterator`.
 
 	for (let content of container)
 		trace(content.constructor.name + "\n");
 
 ## Promises from Message
 
-Applications use messages to communicate with each other, with the shell, and with Internet services. Messages are asynchronous. So far only contents and handlers could invoke messages and process results in the `onComplete` event of their behavior.
+Applications written in KinomaJS use messages to communicate with each other, with the shell, and with Internet services. Messages are always asynchronous. To date only contents and handlers could invoke messages, receiving the message result in the `onComplete` event of their behavior.
 
 	let GetURL = Content.template($ => ({
 		Behavior: class extents Behavior {
@@ -149,7 +154,7 @@ Applications use messages to communicate with each other, with the shell, and wi
 	}));
 	let getURL = new GetURL("http://www.kinoma.com");
 
-Thanks to XS6, you can now invoke messages directly. `Message.prototype.invoke` returns a promise.
+KinomaJS has extended messages, so that they can be invoked directly, returning a JavaScript 6th Edition [Promise](http://www.datchley.name/es6-promises/) to receive the message result. `Message.prototype.invoke` returns a promise.
 
 	let message = new Message("http://www.kinoma.com");
 	let promise = message.invoke(Message.TEXT);
@@ -158,9 +163,10 @@ Thanks to XS6, you can now invoke messages directly. `Message.prototype.invoke` 
 The argument of `Message.prototype.invoke` is the type of result you want. If `undefined`, the promise will resolve with the message itself.
  
 	let message = new Message("http://www.kinoma.com");
-	message.invoke().then(message => { trace(message.responseText) });
+	message.invoke().then(message =>
+			{ trace(message.responseText) });
 
-You can chain messages with `then`. For instance here the first message gets the latitude and longitude, then the second messages gets the weather forecast.
+You can chain messages with `then`. For example, here the first message retrieves the latitude and longitude, and then the second messages retrieves the weather forecast.
 
 	let message = new Message("http://k3.cloud.kinoma.com/api?extAction=GeoIP&extMethod=getRecord")
 	message.invoke(Message.JSON).then(json => {
@@ -170,13 +176,5 @@ You can chain messages with `then`. For instance here the first message gets the
 	}).then(json => {
 		let day = json.query.results.location.forecast.day[0];
 		trace(day.temp.high + " " + day.temp.low + "\n");
-		debugger;
 	});
-
-## To Be Continued
-
-No doubt XS6 can bring more features to KinomaJS. Do not hesitate to share ideas...
-
-
-
 

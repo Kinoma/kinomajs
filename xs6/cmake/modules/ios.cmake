@@ -53,6 +53,7 @@ set(CMAKE_C_COMPILER_WORKS TRUE)
 set(SDKROOT /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk)
 
 set(CMAKE_OSX_DEPLOYMENT_TARGET "" CACHE STRING "Force unset of the deployment target for iOS" FORCE)
+set(CMAKE_XCODE_ATTRIBUTE_IPHONEOS_DEPLOYMENT_TARGET "8.0" CACHE STRING "Set iOS deployment target" FORCE)
 set(CMAKE_OSX_SYSROOT ${SDKROOT} CACHE PATH "Sysroot used for iOS support")
 set(CMAKE_FIND_ROOT_PATH ${SDKROOT} ${CMAKE_PREFIX_PATH} CACHE string  "iOS find search path root")
 set(CMAKE_FIND_FRAMEWORK FIRST)

@@ -356,6 +356,57 @@ bail:
 	xsThrowIfFskErr(err);
 }
 
+typedef struct {
+	FskDirectoryChangeNotifier notifier;
+	xsMachine* the;
+	xsSlot slot;
+} KprDirectoryChangeNotifierRecord, *KprDirectoryChangeNotifier;
+
+static void KPR_Files_DirectoryNotifier_callback(UInt32 flags, const char *path, void *it);
+
+void KPR_Files_DirectoryNotifier(xsMachine* the)
+{
+	FskErr err = kFskErrNone;
+	char* path = NULL;
+	UInt32 flags = 0;
+	KprDirectoryChangeNotifier data;
+	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
+	xsSet(xsThis, xsID_callback, xsArg(1));
+	bailIfError(FskMemPtrNewClear(sizeof(KprDirectoryChangeNotifierRecord), &data));
+	data->the = the;
+	data->slot = xsThis;
+	xsSetHostData(xsThis, data);
+	bailIfError(FskDirectoryChangeNotifierNew(path, flags, KPR_Files_DirectoryNotifier_callback, data, &data->notifier));
+bail:
+	FskMemPtrDispose(path);
+	xsThrowIfFskErr(err);
+}
+
+void KPR_Files_DirectoryNotifier_callback(UInt32 flags, const char *path, void *it)
+{
+	KprDirectoryChangeNotifier self = (KprDirectoryChangeNotifier)it;
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+	xsResult = xsGet(xsThis, xsID_callback);
+	(void)xsCallFunction2(xsResult, xsThis, path ? xsString(path) : xsNull, xsInteger(flags));
+	xsEndHost(self->the);
+}
+
+void KPR_Files_directoryNotifier(void *data)
+{
+	KprDirectoryChangeNotifier self = (KprDirectoryChangeNotifier)data;
+	if (self) {
+		FskDirectoryChangeNotifierDispose(self->notifier);
+		FskMemPtrDispose(self);
+	}
+}
+
+void KPR_Files_directoryNotifier_close(xsMachine *the)
+{
+	KPR_Files_directoryNotifier(xsGetHostData(xsThis));
+	xsSetHostData(xsThis, NULL);
+}
+
 void KPR_Files_renameFile(xsMachine* the)
 {
 	FskErr err = kFskErrNone;

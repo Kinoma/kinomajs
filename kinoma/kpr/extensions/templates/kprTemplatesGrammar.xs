@@ -1183,6 +1183,9 @@
 
 		<object name="picture" prototype="kprGrammar.resource" pattern="picture">
 			<string name="constructor" value="Picture"/>
+			<string name="url" value="null" pattern="@url"/>
+			<string name="mime" value="null" pattern="@mime"/>
+			<string name="aspect" value="" pattern="@aspect"/>
 		</object>
 	
 		<object name="thumbnail" prototype="kprGrammar.resource" pattern="thumbnail">

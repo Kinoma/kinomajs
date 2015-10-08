@@ -21,6 +21,15 @@ class Manifest extends CMAKE.Manifest {
 	constructor(tree) {
 		super(tree);
 	}
+	getGenerator() {
+		return "Unix Makefiles";
+	}
+	getIDEGenerator() {
+		return "Xcode";
+	}
+	openIDE(tool, path) {
+		process.then("open", `${path}${tool.slash}fsk.xcodeproj`);
+	}
 	getPlatformVariables(tool, tmp, bin) {
 		var parts = tool.splitPath(tool.manifestPath);
 		var icns = parts.directory + "/mac/fsk.icns";
@@ -30,12 +39,11 @@ class Manifest extends CMAKE.Manifest {
 		return {
 			APP_NAME: tool.application,
 
-			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/$<CONFIGURATION>/${this.tree.application}.app/Contents/MacOS`,
-			TMP_DIR: tmp,
+			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/\${CONFIG_TYPE}/${this.tree.application}.app/Contents/MacOS`,
+			BUILD_APP_DIR: `\${TMP_DIR}/\${CMAKE_CFG_INTDIR}/${this.tree.application}.app/Contents/MacOS`,
 			
 			ICNS: FS.existsSync(icns) ? icns : "$(F_HOME)/build/mac/fsk.icns",
 			NIB: FS.existsSync(nib) ? nib : "$(F_HOME)/build/mac/fsk.nib",
-			PLIST: FS.existsSync(plist) ? plist : "$(F_HOME)/build/mac/fsk.plist",
 			// FskPlatform.mk
 		};
 	}
@@ -52,24 +60,25 @@ target_include_directories(${application} PUBLIC \${C_INCLUDES})
 target_compile_definitions(${application} PUBLIC \${C_DEFINITIONS})
 target_compile_options(${application} PUBLIC \${C_OPTIONS})
 
-copy(SOURCE "\${PLIST}" DESTINATION "\${TMP_DIR}/MacOSXBundleInfo.plist.in")
-
+set(MACOSX_BUNDLE_INFO_STRING "Kinoma Simulator 2.0.0 Copyright © ${new Date().getFullYear()} Marvell Semiconductor, Inc.")
 set(MACOSX_BUNDLE_ICON_FILE "fsk.icns")
 set(MACOSX_BUNDLE_GUI_IDENTIFIER "${namespace}")
+set(MACOSX_BUNDLE_LONG_VERSION_STRING "Kinoma Simulator 2.0.0")
+set(MACOSX_BUNDLE_BUNDLE_NAME "Kinoma Simulator")
+set(MACOSX_BUNDLE_SHORT_VERSION_STRING "2.0.0")
 
-add_custom_target(
-	Assemble
-	ALL
+add_custom_command(
+	TARGET ${application}
+	POST_BUILD
 	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:\${APP_NAME}> \${APP_DIR}/fsk
 	COMMAND \${CMAKE_COMMAND} -E copy \${ICNS} \${APP_DIR}/../Resources/fsk.icns
-	COMMAND \${CMAKE_COMMAND} -E copy \${PLIST} \${APP_DIR}/../Info.plist
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/../Resources \$<TARGET_FILE_DIR:${application}>/../Resources
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${NIB} \${APP_DIR}/../Resources/English.lproj/fsk.nib
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \$<TARGET_FILE_DIR:\${APP_NAME}>
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/../Resources \${BUILD_APP_DIR}/../Resources
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \${BUILD_APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:${application}> \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE_DIR:${application}>/../Info.plist \${APP_DIR}/../
 	COMMAND \${CMAKE_COMMAND} -E echo "APPLTINY" > \${APP_DIR}/../PkgInfo
-	DEPENDS ${application} FskManifest.xsa
 	)
 `;
 	return output;

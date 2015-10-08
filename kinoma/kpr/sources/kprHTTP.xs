@@ -36,6 +36,7 @@
 			<function name="set" params="host, realm, user, password" c="KPR_HTTP_Keychain_set"/>
 		</object>
 		<object name="server" c="KPR_HTTP_server">
+			<function name="get isSecure" c="KPR_HTTP_server_get_isSecure"/>
 			<function name="get port" c="KPR_HTTP_server_get_port"/>
 			<function name="get running" c="KPR_HTTP_server_get_running"/>
 			<function name="start" c="KPR_HTTP_server_start"/>

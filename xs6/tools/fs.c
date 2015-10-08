@@ -82,6 +82,47 @@ void fs_destructor(void* data)
 		fclose(data);
 }
 
+void fs_deleteDirectory(xsMachine* the)
+{
+	char *path = xsToString(xsArg(0));
+	int result;
+
+#if mxWindows
+	result = _rmdir(path);
+#else
+	result = rmdir(path);
+#endif
+
+	if (result)
+		xsElseError(NULL);
+
+	xsResult = xsInteger(1);
+}
+
+void fs_deleteFile(xsMachine* the)
+{
+	char *path = xsToString(xsArg(0));
+	int result;
+
+#if mxWindows
+	result = _unlink(path);
+#else
+	result = unlink(path);
+#endif
+
+	if (result) {
+		switch (errno) {
+			case ENOENT:
+				break;
+			default:
+				xsElseError(NULL);
+				break;
+		}
+	}
+	xsResult = xsInteger(1);
+}
+
+
 void fs_existsSync(xsMachine* the)
 {
 	char *path = xsToString(xsArg(0));

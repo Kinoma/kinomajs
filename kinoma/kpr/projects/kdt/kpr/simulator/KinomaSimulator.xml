@@ -17,12 +17,15 @@
     <![CDATA[
         var SimulatorDebugBehavior = require( "kdt/simulator/SimulatorDebugBehavior" );
         var Logger = require( "kdt/core/Logger" );
+        
+        /*
         var CONTROL_THEME = require( "kdt/simulator/themes/flat/theme" );
         var THEME = require( "kdt/simulator/themes/sample/theme" );
 
         // merge the mobile and control library themes
         for( var i in CONTROL_THEME )
             THEME[i] = CONTROL_THEME[i];
+        */
         
         var getBehavior = function() {
         	return shell.behavior;

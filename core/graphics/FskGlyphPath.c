@@ -43,6 +43,47 @@
 #endif /* TEST_LINUX_ON_MAC */
 
 
+#if SUPPORT_INSTRUMENTATION
+	#define LOG_PARAMETERS				/**< Log the parameters of API calls. */
+	//#define LOG_FONT_MATCH			/**< Log the process of matching fonts. */
+
+	#define FskInstrumentedGlobalType(type)			(&(g##type##TypeInstrumentation))												/**< The data structure created with FskInstrumentedSimpleType(). */
+	#define FskInstrumentedTypeEnabled(type, level)	FskInstrumentedTypeHasListenersForLevel(FskInstrumentedGlobalType(type), level)	/**< Whether instrumentation will print anything. */
+#else /* !SUPPORT_INSTRUMENTATION */
+	#define FskInstrumentedTypeEnabled(type, level)	(0)																				/**< Instrumentation will not print anything. */
+#endif /* SUPPORT_INSTRUMENTATION */
+#ifndef GLYPH_DEBUG
+	#define GLYPH_DEBUG 0				/**< Turn off extra debugging logs. */
+#endif /* GLYPH_DEBUG */
+#if									\
+	defined(LOG_PARAMETERS)			|| \
+	defined(LOG_FONT_MATCH)
+	#undef  GLYPH_DEBUG
+	#define GLYPH_DEBUG 1
+#endif /* LOG_PARAMETERS et al */
+
+FskInstrumentedSimpleType(GlyphPath, glyphpath);												/**< This declares the types needed for instrumentation. */
+
+#if GLYPH_DEBUG
+	#define	LOGD(...)	FskGlyphPathPrintfDebug(__VA_ARGS__)									/**< Print debugging logs. */
+	#define	LOGI(...)	FskGlyphPathPrintfVerbose(__VA_ARGS__)									/**< Print information logs. */
+#endif /* GLYPH_DEBUG */
+#define		LOGE(...)	FskGlyphPathPrintfMinimal(__VA_ARGS__)									/**< Print error logs always, when instrumentation is on. */
+#ifndef     LOGD
+	#define LOGD(...)	do {} while(0)															/**< Don't print debugging logs. */
+#endif   	/* LOGD */
+#ifndef     LOGI
+	#define LOGI(...)	do {} while(0)															/**< Don't print information logs. */
+#endif   	/* LOGI */
+#ifndef     LOGE
+	#define LOGE(...)	do {} while(0)															/**< Don't print error logs. */
+#endif   	/* LOGE */
+#define LOGD_ENABLED()	FskInstrumentedTypeEnabled(GlyphPath, kFskInstrumentationLevelDebug)		/**< Whether LOGD() will print anything. */
+#define LOGI_ENABLED()	FskInstrumentedTypeEnabled(GlyphPath, kFskInstrumentationLevelVerbose)	/**< Whether LOGI() will print anything. */
+#define LOGE_ENABLED()	FskInstrumentedTypeEnabled(GlyphPath, kFskInstrumentationLevelMinimal)	/**< Whether LOGE() will print anything. */
+
+
+
 #define UNUSED(x)	((void)(x))
 
 #define USE_UNHINTED_OUTLINES
@@ -56,6 +97,41 @@ static const char	*gDefaultFontNames[] = {
 	NULL
 };
 #endif
+
+
+#if GLYPH_DEBUG
+#include "FskTextConvert.h"
+
+static void LogAttributes(const FskFontAttributes *a) {
+	static const char *anchor[]		= { "start", "middle", "end" };
+	static const char *style[]		= { "normal", "italic", "oblique" };
+	static const char *stretch[]	= { NULL, "UltraCondensed" "ExtraCondensed" "Condensed" "SemiCondensed" "Normal" "SemiExpanded" "Expanded" "ExtraExpanded" "UltraExpanded" };
+
+	if (!a)
+		return;
+
+	LOGD("\tAttributes(family=\"%s\" size=%g weight=%u style=%s anchor=%s stretch=%s decoration=%u variant=%u sizeadjust=%g)",
+		a->family, a->size, a->weight, style[a->style], anchor[a->anchor], stretch[a->stretch], a->decoration, a->variant, a->sizeAdjust);
+}
+
+static void LogGrowablePathFromUnicodeStringNew(
+	const UInt16			*uniChars,
+	UInt32					numUniChars,
+	const FskFontAttributes	*attributes,
+	FskFixedPoint2D			*origin,
+	FskGrowablePath			*path
+) {
+	char *utf8 = NULL;
+	UInt32 utfBytes;
+	(void)FskTextUnicode16NEToUTF8(uniChars, numUniChars*sizeof(*uniChars), &utf8, &utfBytes);
+	LOGD("GrowablePathFromUnicodeStringNew(unichars=%*s numUniChars=%u attributes=%p origin=(%g,%g) path=%p",
+		(int)utfBytes, utf8, numUniChars, attributes, origin->x/65536., origin->y/65536., path);
+	FskMemPtrDispose(utf8);
+	LogAttributes(attributes);
+}
+
+#endif /* GLYPH_DEBUG */
+
 
 /********************************************************************************
  * GetNextTokenInCommaSeparatedList
@@ -286,18 +362,26 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 	if (at->family != NULL) {		/* Parse the font family */
 		const char *fs;
 		char fontName[256];
-		for (fs = at->family; GetNextTokenInCommaSeparatedList(&fs, fontName, 256);)
-			if ((font = GetFontWithCString(fontName, at)) != NULL)
+		for (fs = at->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName));) {
+			if ((font = GetFontWithCString(fontName, at)) != NULL) {
+				LOGD("Succeeded getting text context from \"%s\"", fontName);
 				break;
+			}
+			LOGD("Failed    getting text context from \"%s\"", fontName);
+		}
 	}
 	if (font == NULL) {		/* Couldn't find the fonts - choose one from our default list */
 		const char **fl;
-		for (fl = gDefaultFontNames; *fl != NULL; fl++)
-			if ((font = GetFontWithCString(*fl, at)) != NULL)
+		for (fl = gDefaultFontNames; *fl != NULL; fl++) {
+			if ((font = GetFontWithCString(*fl, at)) != NULL) {
+				LOGD("Succeeded getting text context from default \"%s\"", *fl);
 				break;
+			}
+			LOGD("Failed    getting text context from default \"%s\"", *fl);
+		}
 	}
 
-	BAIL_IF_NULL(font, err, kFskErrOperationFailed);
+	BAIL_IF_NULL(font, err, kFskErrNotFound);
 
 	textContext->font = font;
 
@@ -774,15 +858,23 @@ NewStyleFromFontAttributes(const FskFontAttributes *attr, ATSUStyle *atsuStyle)
 	if (attr->family != NULL) {						/* Parse the font family */
 		const char	*fs;
 		char		fontName[256];
-		for (fs = attr->family; GetNextTokenInCommaSeparatedList(&fs, fontName, 256); )
-			if ((fmFontFamily = GetFMFontFamilyFromFontName(fontName)) != kInvalidFontFamily)
+		for (fs = attr->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName)); ) {
+			if ((fmFontFamily = GetFMFontFamilyFromFontName(fontName)) != kInvalidFontFamily) {
+				LOGD("Succeeded getting text context from \"%s\"", fontName);
 				break;
+			}
+			LOGD("Failed    getting text context from \"%s\"", fontName);
+		}
 	}
 	if (fmFontFamily ==  kInvalidFontFamily) {		/* Couldn't find the fonts - choose one from our default list */
 		const char **fl;
-		for (fl = gDefaultFontNames; *fl != NULL; fl++)
-			if ((fmFontFamily = GetFMFontFamilyFromFontName(*fl)) != kInvalidFontFamily)
+		for (fl = gDefaultFontNames; *fl != NULL; fl++) {
+			if ((fmFontFamily = GetFMFontFamilyFromFontName(*fl)) != kInvalidFontFamily) {
+				LOGD("Succeeded getting text context from default \"%s\"", *fl);
 				break;
+			}
+			LOGD("Failed    getting text context from default \"%s\"", *fl);
+		}
 	}
 
 	/* Set the style to select the closest member of the font family */
@@ -1047,6 +1139,10 @@ FskGrowablePathFromUnicodeStringNew(
 	ItemCount		numRecords;
 	FskFixedPoint2D	org;
 
+	#if defined(LOG_PARAMETERS)
+		LogGrowablePathFromUnicodeStringNew(uniChars, numUniChars, attributes, origin, path);
+	#endif /* LOG_PARAMETERS */
+
 	if (origin != NULL)	{	org   = *origin;			}
 	else				{	org.x = 0;		org.y = 0;	}
 
@@ -1239,22 +1335,29 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 		const char	*fs;
 		char		fontName[256];
 		char		*fn;
-		for (fs = at->family; GetNextTokenInCommaSeparatedList(&fs, fontName, 256); ) {
+		for (fs = at->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName)); ) {
 			if (	((fn = FskGrowableArrayBSearchItems(faceNames, fontName, MyCompareFontNamesProc)) != NULL)
 				&&	CreateFontFromFontName(at, fn, textContext)
-			)
+			) {
+				LOGD("Succeeded getting text context from \"%s\"", fontName);
 				break;
+			}
+			LOGD("Failed    getting text context from \"%s\"", fontName);
 		}
 	}
 
 	/* Couldn't find any fonts: look through our default list */
 	if (textContext->hFont == NULL) {
 		const char **fl;
-		for (fl = gDefaultFontNames; *fl != NULL; fl++)
-			if (CreateFontFromFontName(at, *fl, textContext))
+		for (fl = gDefaultFontNames; *fl != NULL; fl++) {
+			if (CreateFontFromFontName(at, *fl, textContext)) {
+				LOGD("Succeeded getting text context from \"%s\"", *fl);
 				break;
+			}
+			LOGD("Failed    getting text context from default \"%s\"", *fl);
+		}
 	}
-	BAIL_IF_NULL(textContext->hFont, err, GDI_ERROR);
+	BAIL_IF_NULL(textContext->hFont, err, kFskErrNotFound);
 
 	textContext->oldFont = SelectObject(textContext->hdc, textContext->hFont);
 
@@ -1540,6 +1643,10 @@ FskGrowablePathFromUnicodeStringNew(
 	int				*dx;
 	FskFixedPoint2D	org;
 
+	#if defined(LOG_PARAMETERS)
+		LogGrowablePathFromUnicodeStringNew(uniChars, numUniChars, attributes, origin, path);
+	#endif /* LOG_PARAMETERS */
+
 	*path					= NULL;
 	placement.lpDx			= NULL;				/* We allocate memory for this later */
 	placement.lpGlyphs		= NULL;				/* We allocate memory for this later */
@@ -1720,6 +1827,10 @@ FskUnicodeStringGetWidth(const UInt16 *uniChars, UInt32 numUniChars, const FskFo
 	FskErr			err		= kFskErrNone;
 	FskGrowablePath	path	= NULL;
 	FskFixedPoint2D	origin;
+
+	#if defined(LOG_PARAMETERS)
+		LogGrowablePathFromUnicodeStringNew(uniChars, numUniChars, attributes, origin, path);
+	#endif /* LOG_PARAMETERS */
 
 	origin.x = 0;
 	origin.y = 0;
@@ -1911,12 +2022,16 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *attributes, FskText
 	if (attributes->family != NULL) {						/* Parse the font family */
 		const char	*fs;
 		char		fontName[256];
-		for (fs = attributes->family; GetNextTokenInCommaSeparatedList(&fs, fontName, 256); )
-			if ((textContext->face = FskFTFindFont(fontName, textStyle, attributes->size)) != NULL)
+		for (fs = attributes->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName)); ) {
+			if ((textContext->face = FskFTFindFont(fontName, textStyle, attributes->size)) != NULL) {
+				LOGD("Succeeded getting text context from \"%s\"", fontName);
 				break;
+			}
+			LOGD("Failed    getting text context from \"%s\"", fontName);
+		}
 	}
 	if (textContext->face == NULL) {		/* Couldn't find the fonts - choose one from our default list */
-		BAIL_IF_NULL((textContext->face = FskFTFindFont(NULL, textStyle, attributes->size)), err, kFskErrUnknown);
+		BAIL_IF_NULL((textContext->face = FskFTFindFont(NULL, textStyle, attributes->size)), err, kFskErrNotFound);
 	}
 	textContext->hasKerning = FT_HAS_KERNING(textContext->face);
 
@@ -2096,6 +2211,10 @@ FskGrowablePathFromUnicodeStringNew(
 		FskGlyphID	missingCharGlyphID	= 0;
 	#endif /* USE_MISSING_GLYPH_GLYPH */
 
+	#if defined(LOG_PARAMETERS)
+		LogGrowablePathFromUnicodeStringNew(uniChars, numUniChars, attributes, origin, path);
+	#endif /* LOG_PARAMETERS */
+
 	*path = NULL;
 	BAIL_IF_ERR(err = FskTextContextFromFontAttributesNew(attributes, &textContext));
 
@@ -2242,6 +2361,11 @@ FskGrowablePathFromUnicodeStringNew(
 )
 {
 	*path = NULL;
+
+	#if defined(LOG_PARAMETERS)
+		LogGrowablePathFromUnicodeStringNew(uniChars, numUniChars, attributes, origin, path);
+	#endif /* LOG_PARAMETERS */
+
 	return kFskErrUnimplemented;
 }
 

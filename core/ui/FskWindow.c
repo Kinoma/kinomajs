@@ -73,6 +73,7 @@ static FskListMutex gWindowList;
 
 #if TARGET_OS_WIN32
 	#include "Windowsx.h"
+	#include "resource.h"
 
 	static long FAR PASCAL FskWindowWndProc(HWND hwnd, UINT msg, UINT wParam, LONG lParam);
 	static long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lParam);
@@ -225,7 +226,8 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 	DWORD style, styleEx = 0;
 
 	if (false == registeredWindowClass) {
-		WNDCLASS wc;
+		WNDCLASSEX wc;
+		wc.cbSize = sizeof(WNDCLASSEX);
 		wc.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
 		wc.lpfnWndProc = FskWindowWndProc;
 		wc.cbClsExtra = 0;
@@ -236,11 +238,12 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 #else /* !FSK_WINDOWS_DEFAULT_WINDOW_ICON_ID */
 		wc.hIcon = NULL;
 #endif /* !FSK_WINDOWS_DEFAULT_WINDOW_ICON_ID */
+		wc.hIconSm = NULL;
 		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
 		wc.hbrBackground = NULL;
 		wc.lpszMenuName = NULL;
 		wc.lpszClassName = kFskWindowClassName;
-		RegisterClass(&wc);
+		RegisterClassEx(&wc);
 
 		gEventMessage = RegisterWindowMessageW(L"FskWindowEventMessage");
 		gFskApplicationMessage = RegisterWindowMessageW(L"FskApplicationMessage");

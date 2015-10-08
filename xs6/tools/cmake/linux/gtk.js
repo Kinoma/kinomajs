@@ -67,7 +67,7 @@ add_custom_target(
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:\${KPR_APPLICATION}> \${APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${TMP_DIR}/app \${APP_DIR}
-	DEPENDS \${KPR_APPLICATION FskManifest.xsa}
+	DEPENDS \${KPR_APPLICATION} FskManifest.xsa
 	)
 `;
 	}

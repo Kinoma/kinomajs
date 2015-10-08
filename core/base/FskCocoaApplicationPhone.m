@@ -99,6 +99,9 @@ NSString *FskCocoaApplicationViewOrientationDidChangeNotification = @"FskCocoaAp
 	_remoteNotificationUserInfo = [[launchOptions objectForKey:UIApplicationLaunchOptionsRemoteNotificationKey] retain];
 #endif	/* SUPPORT_REMOTE_NOTIFICATION */
 
+    //Extend the splash screen for a while
+    [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:1.5]];
+
 	return YES;
 }
 

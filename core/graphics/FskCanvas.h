@@ -1096,7 +1096,7 @@ FskAPI(void)	FskCanvas2dClipReset(FskCanvas2dContext ctx);
  *	\return		True if the point is contained within the path,
  *				false otherwise.
  */
-FskAPI(Boolean)	FskCanvas2dIsPointInGivenPath(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y, SInt32 fillRule);
+FskAPI(Boolean)	FskCanvas2dIsPointInPathFill(FskCanvas2dContext ctx, FskConstCanvas2dPath path, double x, double y, SInt32 fillRule);
 
 
 /** Query as to whether the specified point is within the stroke of the current path.
@@ -1433,7 +1433,7 @@ FskAPI(double)	FskCanvas2dGetLineDashOffset(FskConstCanvas2dContext ctx);
  *	\note			The ID and control cannot both be NULL.
  *	\return			kFskErrNone	if the operation completed successfully.
  */
-FskAPI(FskErr)	FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, FskConstCanvas2dPath path, const char *id, void *control);
+FskAPI(FskErr)	FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, FskConstCanvas2dPath path, const char *id, const char *control);
 
 
 /** Remove a hit region from the hit region list in the current canvas.
@@ -1443,7 +1443,7 @@ FskAPI(FskErr)	FskCanvas2dAddHitRegion(FskCanvas2dContext ctx, FskConstCanvas2dP
  *	\param[in]		control	the control of the hit region to be removed (can be NULL).
  *	\return			kFskErrNone	if the operation completed successfully.
  */
-FskAPI(FskErr)	FskCanvas2dRemoveHitRegion(FskCanvas2dContext ctx, const char *id, void *control);
+FskAPI(FskErr)	FskCanvas2dRemoveHitRegion(FskCanvas2dContext ctx, const char *id, const char *control);
 
 
 /** Clear the hit region list in the current canvas.
@@ -1462,7 +1462,7 @@ FskAPI(FskErr)	FskCanvas2dClearHitRegions(FskCanvas2dContext ctx);
  *	\return		kFskErrNone		if the pick point hit a  region.
  *	\return		kFskNotFound	if the pick point hit no region.
  */
-FskAPI(FskErr)	FskCanvas2dPickHitRegion(FskCanvas2dContext ctx, double x, double y, const char **pID, void **pControl);
+FskAPI(FskErr)	FskCanvas2dPickHitRegion(FskCanvas2dContext ctx, double x, double y, const char **pID, const char **pControl);
 
 
 /** Allocate a new path2d object as an identical copy of an existing path.
@@ -1507,25 +1507,36 @@ typedef struct FskCanvas2dColorSource {
 	FskFixed			dash[kCanvas2DMaxDashCycles*2];	/**< The dash specification. */
 } FskCanvas2dColorSource;								/**< The encapsulation of a color source. */
 
-
-/** Hit region specification. */
-
+/** A directory entry for the data stored in the blob of a hit region. */
 typedef struct FskCanvas2dBlobData {
-	UInt32	offset;
-	UInt32	size;
+	UInt32	offset;									/* The offset of some data in the blob. */
+	UInt32	size;									/* The  size  of some data in the blob. */
 } FskCanvas2dBlobData;
 
+/** A directory entry for a hit region. */
 typedef struct FskCanvas2dHitRegionDirectoryEntry {
-	void				*control;
-	FskRectangleRecord	bbox;
-	FskCanvas2dBlobData	id;
-	FskCanvas2dBlobData	path;
-	FskCanvas2dBlobData	more;
+	FskRectangleRecord	bbox;						/**< The bounding box of the hit region. */
+	FskCanvas2dBlobData	id;							/**< The ID of the hit region. */
+	FskCanvas2dBlobData	control;					/**< The control of the hit region. */
+	FskCanvas2dBlobData	path;						/**< The path of the hit region */
 } FskCanvas2dHitRegionDirectoryEntry;
 
-UInt32 FskCanvas2dHitRegionGetCount(FskCanvas2dContext ctx);
+/** Count the number of hit regions in the Canvas2d context.
+ *	\param[in]	ctx		the Canvas2D context.
+ *	\return		the number of hit regions in the Canvas2d context.
+ */
+UInt32 FskCanvas2dHitRegionGetCount(FskConstCanvas2dContext ctx);
 
-FskErr FskCanvas2dHitRegionGet(FskCanvas2dContext ctx, UInt32 index, char **id, void **control, FskRectangle *bbox, FskPath *path, void **more);
+/** Get the hit region at the specified index.
+ *	\param[in]	ctx	the Canvas2d context.
+ *	\param[in]	index	the index of the hit region to be retrieved.
+ *	\param[out]	id		a place to store the   id    of the hit region at the specified index.
+ *	\param[out]	control	a place to store the control of the hit region at the specified index.
+ *	\param[out]	control	a place to store the  path   of the hit region at the specified index.
+ */
+FskErr FskCanvas2dHitRegionGet(FskCanvas2dContext ctx, UInt32 index, char **id, char **control, FskRectangle *bbox, FskPath *path);
+
+
 
 /** The encapsulation of the Canvas 2D state. */
 typedef struct FskCanvas2dContextState {

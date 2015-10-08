@@ -106,4 +106,51 @@
 	return terminateReply;
 }
 
+- (BOOL)application:(NSApplication *)application openFiles:(NSArray *)filenames
+{
+	NSWindow* mainWindow = [NSApp mainWindow];
+	if (mainWindow) {
+		FskWindow fskWindow = [(FskCocoaWindow *)mainWindow fskWindow];
+		NSInteger c = [filenames count], i;
+		NSString* filename;
+		UInt32 length = 0;
+		FskMemPtr fileList = NULL;
+		BOOL isDirectory;
+		FskEvent fskEvent;
+		for (i = 0; i < c; i++) {
+			filename = [filenames objectAtIndex:i];
+			length += (UInt32)[filename lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
+			isDirectory = NO;
+			[[NSFileManager defaultManager] fileExistsAtPath:filename isDirectory:(&isDirectory)];
+			if (isDirectory)
+				length++;
+			length++;
+		}
+		length++;
+		if (kFskErrNone == FskMemPtrNew(length, &fileList)) {
+			char *fileListWalker = (char*)fileList;
+			for (i = 0; i < c; i++) {
+				filename = [filenames objectAtIndex:i];
+				FskStrCopy(fileListWalker, [filename UTF8String]);
+				fileListWalker += FskStrLen(fileListWalker);
+				isDirectory = NO;
+				[[NSFileManager defaultManager] fileExistsAtPath:filename isDirectory:(&isDirectory)];
+				if (isDirectory) {
+					*fileListWalker++ = '/';
+					*fileListWalker = 0;
+				}
+				fileListWalker++;
+			}
+			*fileListWalker = 0;
+			if (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowOpenFiles, NULL, kFskEventModifierNotSet))
+			{
+				FskEventParameterAdd(fskEvent, kFskEventParameterFileList, length, fileList);
+				FskWindowEventQueue(fskWindow, fskEvent);
+			}
+			FskMemPtrDispose(fileList);
+		}
+	}
+	return YES;
+}
+
 @end

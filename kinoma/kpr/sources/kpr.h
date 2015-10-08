@@ -328,6 +328,7 @@ enum {
 	kprWindowActive = 1 << 27,
 	kprQuitting = 1 << 28,
 	kprClosing = 1 << 30,
+	kprDraggingFiles = 1 << 31,
 	
 	/* Host */
 	kprRotating = 1 << 24,

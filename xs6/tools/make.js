@@ -630,4 +630,10 @@ export class Manifest {
 	getTargetRules(tool) {
 		throw new Error("unsupported platform!");
 	}
+	make(tool) {
+		if (tool.windows)
+			process.then("nmake", "/nologo", "/f", tool.tmpPath + "\\makefile");
+		else
+			process.then("make", "-f", tool.tmpPath + "/makefile");
+	}
 };

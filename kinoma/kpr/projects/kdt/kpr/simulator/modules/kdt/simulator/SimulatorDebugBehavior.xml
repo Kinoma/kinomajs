@@ -23,6 +23,7 @@
     <require id="DeviceManager" path="DeviceManager"/>
     <require id="MenuBar" path="MenuBar"/>
     <require id="MultitouchHandler" path="MultitouchHandler"/>
+    <require id="Logger" path="kdt/core/Logger"/>
 
     <script>
         <![CDATA[
@@ -657,7 +658,7 @@
         
         <method id="doAbout" params="shell, item">
             <![CDATA[
-                shell.alert( "about", "Kinoma Simulator", "Copyright © 2013 Marvell. All rights reserved. Kinoma is a registered trademark of Kinoma, Inc." );
+                shell.alert( "about", "Kinoma Simulator", "Copyright © 2015 Marvell. All rights reserved. Kinoma is a registered trademark of Kinoma, Inc." );
             ]]>
         </method>
     </class>

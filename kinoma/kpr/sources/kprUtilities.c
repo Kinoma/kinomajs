@@ -152,7 +152,7 @@ Boolean KprInsrumentationFormatMessage(FskInstrumentedType dispatch UNUSED, UInt
 	case kprInstrumentedTextDumpLine:
 		{
 			KprTextLine line = msgData;
-			snprintf(buffer, bufferSize, "Line y: %d ascent: %d descent: %d x: %d width: %d portion: %d slop: %d count: %d", line->y, line->ascent, line->descent, line->x, line->width, line->portion, line->slop, line->count);
+			snprintf(buffer, bufferSize, "Line y: %d ascent: %d descent: %d x: %d width: %d portion: %d slop: %d count: %d", (int)line->y, line->ascent, line->descent, line->x, line->width, line->portion, line->slop, line->count);
 		}
 		return true;
 	case kprInstrumentedTextDumpRun:

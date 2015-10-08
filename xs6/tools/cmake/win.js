@@ -38,10 +38,54 @@ class Manifest extends CMAKE.Manifest {
 	get Makefile() {
 		return Makefile;
 	}
+	getGenerator(tool) {
+		let vs = null;
+		let VisualStudioVariants = {
+			10: "Visual Studio 10 2010",
+			11: "Visual Studio 11 2012",
+			12: "Visual Studio 12 2013",
+			14: "Visual Studio 14 2015"
+		};
+		for (let key in VisualStudioVariants) {
+			let version = key * 10;
+			let comntools = process.getenv(`VS${version}COMNTOOLS`);
+			if (comntools) {
+				vs = VisualStudioVariants[key];
+			}
+		}
+
+		if (vs)
+			return vs;
+		else {
+			let envPath = process.getenv("PATH");
+			let nmake = false;
+			for (let dir of envPath.split(";")) {
+				let path = tool.joinPath({ directory: dir, name: "nmake.exe"});
+				let nmakeFound = FS.existsSync(path);
+				if (nmakeFound) {
+					nmake = true;
+				}
+			}
+			if (nmake)
+				return "NMake Makefiles";
+			else
+				throw new Error("Unable to find Visual Studio or NMake");
+		}
+	}
+	getIDEGenerator(tool) {
+		let vs =  this.getGenerator(tool);
+		if (vs == "NMake Makefiles")
+			throw new Error("Unable to determine your Visual Studio version");
+		else
+			return vs;
+	}
+	openIDE(tool, path) {
+		process.then("cmd.exe", "/c", `${path}${tool.slash}fsk.sln`);
+	}
 	getPlatformVariables(tool, tmp, bin) {
 		var parts = tool.splitPath(tool.manifestPath);
 		var resource = parts.directory + "\\win\\resource.rc";
-		var path = process.debug ? "$(F_HOME)\\xs6\\bin\\win\\debug" : "$(F_HOME)\\xs6\\bin\\win\\release"
+		var path = process.debug ? "$(F_HOME)\\xs6\\bin\\win\\debug" : "$(F_HOME)\\xs6\\bin\\win\\release";
 		return {
 			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/$<CONFIG>/${tool.application}`,
 			TMP_DIR: tmp,

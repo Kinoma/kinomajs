@@ -16,6 +16,8 @@
  */
 export function closeSync(fd) @ "fs_closeSync";
 export function copyFileSync(from, to) @ "fs_copyFileSync";
+export function deleteDirectory(path) @ "fs_deleteDirectory";
+export function deleteFile(path) @ "fs_deleteFile";
 export function existsSync(path) @ "fs_existsSync";
 export function mkdirSync(path) @ "fs_mkdirSync";
 export function readDirSync(path) @ "fs_readDirSync";

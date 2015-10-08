@@ -18,6 +18,7 @@ include(CMakeParseArguments)
 include(Kinoma)
 
 macro(FIND_XS_TOOL VAR EXEC)
+	get_platform(BUILD_PLATFORM)
 	find_program(
 		${VAR}
 		${EXEC}
@@ -87,7 +88,7 @@ endmacro()
 # SRC_DIR: Move generated source files into another directory
 macro(XSL)
 	set(oneValueArgs NAME TMP DESTINATION SRC_DIR)
-	set(multiValueArgs SOURCES XSC_OPTIONS DEPENDS)
+	set(multiValueArgs SOURCES XSC_OPTIONS DEPENDS COPY)
 	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 	set(OUTPUT ${LOCAL_DESTINATION}/${LOCAL_NAME}.xsa)
 	if(XS_BUILD)
@@ -112,6 +113,16 @@ macro(XSL)
 			COMMAND ${CMAKE_COMMAND} -E copy_if_different ${LOCAL_TMP}/${LOCAL_NAME}.xs.h ${LOCAL_SRC_DIR}/${LOCAL_NAME}.xs.h
 			COMMAND ${CMAKE_COMMAND} -E remove  ${LOCAL_TMP}/${LOCAL_NAME}.xs.c ${LOCAL_TMP}/${LOCAL_NAME}.xs.h
 			)
+	endif()
+	if(LOCAL_COPY)
+		foreach(DIR ${LOCAL_COPY})
+			add_custom_command(
+				TARGET ${LOCAL_NAME}.xsa
+				POST_BUILD
+				COMMAND ${CMAKE_COMMAND} -E make_directory ${DIR}
+				COMMAND ${CMAKE_COMMAND} -E copy ${OUTPUT} ${DIR}
+				)
+		endforeach()
 	endif()
 endmacro()
 

@@ -179,6 +179,13 @@ export default class Android {
 		this.copyNdkFile(tool, tmp, false, "/project/proguard.cfg", null);
 		this.copyNdkFile(tool, tmp, false, "/project/project.properties", null);
 
+		var localPropertiesPath = process.getenv("HOME") + "/.android.keystore.info";
+		if (FS.existsSync(localPropertiesPath)) {
+			var buffer = FS.readFileSync(tmp + "/ndk/project/local.properties");
+			buffer += FS.readFileSync(localPropertiesPath);
+			FS.writeFileSync(tmp + "/ndk/project/local.properties", buffer);
+		}
+
 		FS.mkdirSync(tmp + "/ndk/project/res");
 
 		FS.mkdirSync(tmp + "/ndk/project/res/drawable");

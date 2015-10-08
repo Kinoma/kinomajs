@@ -56,10 +56,6 @@
                         }
                     }
                 }
-
-                this.extensionList.sort(function (a, b) {
-                    return a.title.toLowerCase().compare(b.title.toLowerCase());
-                });
             ]]>
         </method>
         

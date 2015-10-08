@@ -482,6 +482,7 @@
 		
 		<object name="shell" prototype="KPR.container">
 			<null name="menus"/>
+			<function name="get acceptFiles" c="KPR_shell_get_acceptFiles" script="true"/>
 			<function name="get breakOnException" c="KPR_shell_get_breakOnException" script="true"/>
 			<function name="get debugging" c="KPR_shell_get_debugging" script="true"/>
 			<function name="get id" c="KPR_shell_get_id" script="true"/>
@@ -492,7 +493,8 @@
 			<function name="get windowState" c="KPR_shell_get_windowState" script="true"/>
 			<function name="get windowTitle" c="KPR_shell_get_windowTitle" script="true"/>
 			
-			<function name="set breakOnException" c="KPR_shell_set_breakOnException" script="true"/>
+			<function name="set acceptFiles" params="it" c="KPR_shell_set_acceptFiles" script="true"/>
+			<function name="set breakOnException" params="it" c="KPR_shell_set_breakOnException" script="true"/>
 			<function name="set debugging" params="it" c="KPR_shell_set_debugging" script="true"/>
 			<function name="set profiling" params="it" c="KPR_shell_set_profiling" script="true"/>
 			<function name="set profilingDirectory" params="it" c="KPR_shell_set_profilingDirectory" script="true"/>

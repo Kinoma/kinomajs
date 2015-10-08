@@ -896,6 +896,17 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 		}
 		aSlot = aSlot->next;
 	}
+	if (theInstance->ID >= 0) {
+		aSlot = the->aliasArray[theInstance->ID];
+		if (aSlot) {
+			aSlot = aSlot->next;
+			while (aSlot) {
+				if (aSlot->ID < -1)
+					aCount++;
+				aSlot = aSlot->next;
+			}
+		}
+	}
 	if (aCount) {
 		txSlot** aSorter = c_malloc(aCount * sizeof(txSlot*));
 		if (aSorter) {
@@ -905,6 +916,17 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 				if (aSlot->ID < -1)
 					*aSlotAddress++ = aSlot;
 				aSlot = aSlot->next;
+			}
+			if (theInstance->ID >= 0) {
+				aSlot = the->aliasArray[theInstance->ID];
+				if (aSlot) {
+					aSlot = aSlot->next;
+					while (aSlot) {
+						if (aSlot->ID < -1)
+							*aSlotAddress++ = aSlot;
+						aSlot = aSlot->next;
+					}
+				}
 			}
 			fxSortProperties(the, aSorter, 0, aCount);
 			aSlotAddress = aSorter;
@@ -921,6 +943,17 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 				if (aSlot->ID < -1)
 					fxEchoProperty(the, aSlot, theList, C_NULL, -1, C_NULL);
 				aSlot = aSlot->next;
+			}
+			if (theInstance->ID >= 0) {
+				aSlot = the->aliasArray[theInstance->ID];
+				if (aSlot) {
+					aSlot = aSlot->next;
+					while (aSlot) {
+						if (aSlot->ID < -1)
+							fxEchoProperty(the, aSlot, theList, C_NULL, -1, C_NULL);
+						aSlot = aSlot->next;
+					}
+				}
 			}
 		}
 	}

@@ -914,9 +914,17 @@ static SInt32 GetFillRule(xsStringValue fillStr) {
 void KPR_canvasRenderingContext2D_fill(xsMachine *the)
 {
 	FskCanvas2dContext	ctx			= xsGetHostData(xsThis);
+	FskCanvas2dPath		path		= NULL;
+	SInt32				fillRule	= kFskCanvas2dFillRuleNonZero;
 	int					numArgs		= xsToInteger(xsArgc);
-	FskCanvas2dPath		path		= (numArgs > 0) ? xsGetHostData(xsArg(0)) : NULL;
-	SInt32				fillRule	= GetFillRule((numArgs > 1) ? xsToString(xsArg(1)) : NULL);
+
+	if (numArgs > 0) {																		/* ctx.fill(), when numArgs==0 */
+		if (xsIsInstanceOf(xsArg(0), xsGet(xsGet(xsGlobal, xsID_KPR), xsID("path2D")))) {	/* ctx.fill(path) */
+			path = xsGetHostData(xsArg(0));
+			if (numArgs > 1)	fillRule = GetFillRule(xsToString(xsArg(1)));				/* ctx.fill(path, fillRule) */
+		} else {				fillRule = GetFillRule(xsToString(xsArg(0)));				/* ctx.fill(fillRule) */
+		}
+	}
 	FskCanvas2dPathFill(ctx, path, fillRule);
 }
 
@@ -930,19 +938,59 @@ void KPR_canvasRenderingContext2D_stroke(xsMachine *the)
 void KPR_canvasRenderingContext2D_clip(xsMachine *the)
 {
 	FskCanvas2dContext	ctx			= xsGetHostData(xsThis);
+	FskCanvas2dPath		path		=  NULL;
+	SInt32				fillRule	= kFskCanvas2dFillRuleNonZero;
 	int					numArgs		= xsToInteger(xsArgc);
-	FskCanvas2dPath		path		= (numArgs > 0) ? xsGetHostData(xsArg(0)) : NULL;
-	SInt32				fillRule	= GetFillRule((numArgs > 1) ? xsToString(xsArg(1)) : NULL);
+
+	if (numArgs > 0) {																		/* ctx.clip(), when numArgs==0 */
+		if (xsIsInstanceOf(xsArg(0), xsGet(xsGet(xsGlobal, xsID_KPR), xsID("path2D")))) {	/* ctx.clip(path) */
+			path = xsGetHostData(xsArg(0));
+			if (numArgs > 1)	fillRule = GetFillRule(xsToString(xsArg(1)));				/* ctx.clip(path, fillRule) */
+		} else {				fillRule = GetFillRule(xsToString(xsArg(0)));				/* ctx.clip(fillRule) */
+		}
+	}
 	FskCanvas2dPathClip(ctx, path, fillRule);
 }
 
 void KPR_canvasRenderingContext2D_isPointInPath(xsMachine *the)
 {
-	FskCanvas2dContext ctx = xsGetHostData(xsThis);
-	xsNumberValue x = xsToNumber(xsArg(0));
-	xsNumberValue y = xsToNumber(xsArg(1));
-	xsResult = xsBoolean(FskCanvas2dIsPointInGivenPath(ctx, NULL, x, y, kFskCanvas2dFillRuleNonZero));
+	FskCanvas2dContext	ctx			= xsGetHostData(xsThis);
+	FskCanvas2dPath		path		= NULL;
+	SInt32				fillRule	= kFskCanvas2dFillRuleNonZero;
+	int					numArgs		= xsToInteger(xsArgc);
+	xsNumberValue		x, y;
+
+	if (xsIsInstanceOf(xsArg(0), xsGet(xsGet(xsGlobal, xsID_KPR), xsID("path2D")))) {	/* ctx.isPointInPath(path, x, y) */
+		path = xsGetHostData(xsArg(0));
+		x = xsToNumber(xsArg(1));
+		y = xsToNumber(xsArg(2));
+		if (numArgs > 3)	fillRule = GetFillRule(xsToString(xsArg(3)));				/* ctx.isPointInPath(path, x, y, fillRule) */
+	} else {																			/* ctx.isPointInPath(x, y) */
+		x = xsToNumber(xsArg(0));
+		y = xsToNumber(xsArg(1));
+		if (numArgs > 2)	fillRule = GetFillRule(xsToString(xsArg(2)));				/* ctx.isPointInPath(x, y, fillRule) */
+	}
+	xsResult = xsBoolean(FskCanvas2dIsPointInPathFill(ctx, path, x, y, fillRule));
 }
+
+
+void KPR_canvasRenderingContext2D_isPointInPathStroke(xsMachine *the)
+{
+	FskCanvas2dContext	ctx			= xsGetHostData(xsThis);
+	FskCanvas2dPath		path		= NULL;
+	xsNumberValue		x, y;
+
+	if (xsIsInstanceOf(xsArg(0), xsGet(xsGet(xsGlobal, xsID_KPR), xsID("path2D")))) {	/* ctx.isPointInPathStroke(path, x, y) */
+		path = xsGetHostData(xsArg(0));
+		x = xsToNumber(xsArg(1));
+		y = xsToNumber(xsArg(2));
+	} else {																			/* ctx.isPointInPathStroke(x, y) */
+		x = xsToNumber(xsArg(0));
+		y = xsToNumber(xsArg(1));
+	}
+	xsResult = xsBoolean(FskCanvas2dIsPointInPathStroke(ctx, path, x, y));
+}
+
 
 // focus management
 void KPR_canvasRenderingContext2D_drawFocusRing(xsMachine *the)
@@ -1252,6 +1300,252 @@ void KPR_canvasRenderingContext2D_putImageData(xsMachine *the)
 	FskCanvas2dPutImageData(ctx, data, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
 }
 
+// image data
+void KPR_canvasRenderingContext2D_cloneImageData(xsMachine *the)
+{
+	FskCanvas2dContext ctx = xsGetHostData(xsThis);
+	FskCanvas2dImageData data = xsGetHostData(xsArg(0));
+	data = FskCanvas2dCloneImageData(ctx, data);
+	xsResult = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID("KPR")), xsID("imageData")));
+	xsSetHostData(xsResult, data);
+}
+
+// clip
+void KPR_canvasRenderingContext2D_resetClip(xsMachine *the)
+{
+	FskCanvas2dContext ctx = xsGetHostData(xsThis);
+	FskCanvas2dClipReset(ctx);
+}
+
+// hit regions
+void KPR_canvasRenderingContext2D_addHitRegion(xsMachine *the)
+{
+	FskCanvas2dContext		ctx			= xsGetHostData(xsThis);
+	const char				*id			= NULL,
+							*control	= NULL;
+	FskConstCanvas2dPath	path		= NULL;
+	xsVars(1);
+
+	xsEnterSandbox();	/* Enter sandbox to access the properties of an object */
+		xsFindString(xsArg(0), xsID("id"),      &id);
+		xsFindString(xsArg(0), xsID("control"), &control);
+		if (xsHasOwn(xsArg(0), xsID("path")))	path = xsGetHostData(xsGet(xsArg(0), xsID("path")));
+		//xsFindString(xsArg(0), xsID("parentID"), &parentID);
+		//xsFindString(xsArg(0), xsID("cursor"),   &cursor);
+		//xsFindString(xsArg(0), xsID("fillRule"), &fillRuleStr);
+		//xsFindString(xsArg(0), xsID("label"),    &label);
+		//xsFindString(xsArg(0), xsID("role"),     &label);
+	xsLeaveSandbox();
+	(void)FskCanvas2dAddHitRegion(ctx, path, id, control);
+}
+
+void KPR_canvasRenderingContext2D_removeHitRegion(xsMachine *the)
+{
+	FskCanvas2dContext	ctx	= xsGetHostData(xsThis);
+	xsStringValue		id	= xsToString(xsArg(0));
+	FskCanvas2dRemoveHitRegion(ctx, id, NULL);
+}
+
+void KPR_canvasRenderingContext2D_clearHitRegions(xsMachine *the)
+{
+	FskCanvas2dContext ctx = xsGetHostData(xsThis);
+	FskCanvas2dClearHitRegions(ctx);
+}
+
+#define ENABLE_HIT_TESTING 0
+#if ENABLE_HIT_TESTING
+void KPR_canvasRenderingContext2D_pickHitRegion(xsMachine *the)
+{
+	FskCanvas2dContext	ctx			= xsGetHostData(xsThis);
+	xsNumberValue		x			= xsToNumber(xsArg(0)),
+						y			= xsToNumber(xsArg(1));
+	const char			*id			= NULL,
+						*control	= NULL;
+
+	if (kFskErrNone == FskCanvas2dPickHitRegion(ctx, x, y, &id, &control)) {
+		xsResult = xsNewInstanceOf(xsObjectPrototype);
+		if (id)			xsNewHostProperty(xsResult, xsID("id"),      xsString((char*)id),      xsDefault, xsDontScript);	// TODO: Would we send a mouse event to the id?
+		if (control)	xsNewHostProperty(xsResult, xsID("control"), xsString((char*)control), xsDefault, xsDontScript);	// TODO: We should call the control directly.
+	}
+	else {
+		// How do we indicate failure? xsResult = NULL;
+	}
+}
+#endif /* ENABLE_HIT_TESTING */
+
+
+// dashes
+void KPR_canvasRenderingContext2D_setLineDash(xsMachine *the)
+{
+	FskCanvas2dContext	ctx		= xsGetHostData(xsThis);
+	UInt32				len		= xsToInteger(xsGet(xsArg(0), xsID("length")));	/* Array of even length */
+	double				dash[kCanvas2DMaxDashCycles*2];
+	UInt32				i;
+
+	if (len) {
+		if (len > sizeof(dash) / sizeof(dash[0])) {								/* If too large, truncate */
+			kprTraceDiagnostic(the, "dash length %u > %u is too long", (unsigned)len, sizeof(dash) / sizeof(dash[0]));
+			len = sizeof(dash) / sizeof(dash[0]);
+		}
+		i = (len & 1) ? (len * 2) : len;										/* If odd, double the length to make it even */
+		for (i = 0; i < len; ++i)
+			dash[i] = xsToNumber(xsGetAt(xsArg(0), xsInteger(i)));				/* Copy from xs Array to C array to interface to FskCanvas2dSetLineDash() */
+		if (len & 1) {															/* If odd, ... */
+			for (i = 0; i < len; ++i)
+				dash[i + len] = dash[i];										/* ... replicate. Now it is even. */
+		}
+		else {
+			len /= 2;															/* Len here is the number of cycles */
+		}
+	}
+	(void)FskCanvas2dSetLineDash(ctx, len, dash);								/* Set the context line dash state */
+	return;
+}
+
+void KPR_canvasRenderingContext2D_getLineDash(xsMachine *the)
+{
+	FskCanvas2dContext	ctx = xsGetHostData(xsThis);
+	double				*dash	= NULL;
+	FskErr				err;
+	UInt32				len, i;
+
+	bailIfError(FskCanvas2dGetLineDash(ctx, &len, &dash));
+	len *= 2;																	/* Convert from cycles to length */
+	xsResult = xsNew1(xsGlobal, xsID("Array"), xsInteger(len));
+	for (i = 0; i < len; i++)
+		xsSetAt(xsResult, xsInteger(i), xsNumber(dash[i]));
+bail:
+	(void)FskMemPtrDispose(dash);
+	return;
+}
+
+void KPR_canvasRenderingContext2D_set_lineDashOffset(xsMachine *the)
+{
+	FskCanvas2dContext ctx = xsGetHostData(xsThis);
+	xsNumberValue offset = xsToNumber(xsArg(0));
+	FskCanvas2dSetLineDashOffset(ctx, offset);
+}
+
+void KPR_canvasRenderingContext2D_get_lineDashOffset(xsMachine *the)
+{
+	FskCanvas2dContext ctx = xsGetHostData(xsThis);
+	xsResult = xsNumber(FskCanvas2dGetLineDashOffset(ctx));
+}
+
+// path objects
+void KPR_path2D(void* theData)
+{
+	FskCanvas2dPath path = (FskCanvas2dPath)theData;
+	FskCanvas2dPathDispose(path);
+}
+
+void KPR_Path2D(xsMachine *the)
+{
+	FskCanvas2dPath		path	= NULL;
+	FskErr				err;
+
+	bailIfError(FskCanvas2dPathNew(&path));
+	if (xsToInteger(xsArgc) > 0) {
+		if (xsIsInstanceOf(xsArg(0), xsGet(xsGet(xsGlobal, xsID_KPR), xsID("path2D")))) {
+			FskCanvas2dPath fromPath = xsGetHostData(xsArg(0));
+			BAIL_IF_NULL(fromPath, err, kFskErrNotFound);
+			bailIfError(FskCanvas2dPathAppendPath(NULL, path, fromPath, NULL));
+		}
+		else {
+			xsStringValue str = xsToString(xsArg(0));
+			(void)FskCanvas2dPathAppendPathString(NULL, path, str);
+		}
+	}
+	xsSetHostData(xsResult, path);
+bail:
+	if (err) FskCanvas2dPathDispose(path);
+	return;
+}
+
+void KPR_path2D_beginPath(xsMachine *the)
+{
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	FskCanvas2dPathBegin(NULL, path);
+}
+
+void KPR_path2D_closePath(xsMachine *the)
+{
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	FskCanvas2dPathClose(NULL, path);
+}
+
+void KPR_path2D_moveTo(xsMachine *the)
+{
+	FskCanvas2dPath	path	= xsGetHostData(xsThis);
+	xsNumberValue	x		= xsToNumber(xsArg(0));
+	xsNumberValue	y		= xsToNumber(xsArg(1));
+	FskCanvas2dPathMoveTo(NULL, path, x, y);
+}
+
+void KPR_path2D_lineTo(xsMachine *the)
+{
+	FskCanvas2dPath	path	= xsGetHostData(xsThis);
+	xsNumberValue	x		= xsToNumber(xsArg(0));
+	xsNumberValue	y		= xsToNumber(xsArg(1));
+	FskCanvas2dPathLineTo(NULL, path, x, y);
+}
+
+void KPR_path2D_quadraticCurveTo(xsMachine *the)
+{
+	FskCanvas2dPath	path	= xsGetHostData(xsThis);
+	xsNumberValue	cpx		= xsToNumber(xsArg(0));
+	xsNumberValue	cpy		= xsToNumber(xsArg(1));
+	xsNumberValue	x 		= xsToNumber(xsArg(2));
+	xsNumberValue	y		= xsToNumber(xsArg(3));
+	FskCanvas2dPathQuadraticCurveTo(NULL, path, cpx, cpy, x, y);
+}
+
+void KPR_path2D_bezierCurveTo(xsMachine *the)
+{
+	FskCanvas2dPath	path	= xsGetHostData(xsThis);
+	xsNumberValue	cp1x	= xsToNumber(xsArg(0));
+	xsNumberValue	cp1y	= xsToNumber(xsArg(1));
+	xsNumberValue	cp2x	= xsToNumber(xsArg(2));
+	xsNumberValue	cp2y	= xsToNumber(xsArg(3));
+	xsNumberValue	x		= xsToNumber(xsArg(4));
+	xsNumberValue	y		= xsToNumber(xsArg(5));
+	FskCanvas2dPathBezierCurveTo(NULL, path, cp1x, cp1y, cp2x, cp2y, x, y);
+}
+
+void KPR_path2D_arcTo(xsMachine *the)
+{
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	xsNumberValue x1		= xsToNumber(xsArg(0));
+	xsNumberValue y1		= xsToNumber(xsArg(1));
+	xsNumberValue x2		= xsToNumber(xsArg(2));
+	xsNumberValue y2		= xsToNumber(xsArg(3));
+	xsNumberValue radius	= xsToNumber(xsArg(4));
+	FskCanvas2dPathArcTo(NULL, path, x1, y1, x2, y2, radius);
+}
+
+void KPR_path2D_rect(xsMachine *the)
+{
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	xsNumberValue x = xsToNumber(xsArg(0));
+	xsNumberValue y = xsToNumber(xsArg(1));
+	xsNumberValue w = xsToNumber(xsArg(2));
+	xsNumberValue h = xsToNumber(xsArg(3));
+	FskCanvas2dPathRect(NULL, path, x, y, w, h);
+}
+
+void KPR_path2D_arc(xsMachine *the)
+{
+	FskCanvas2dPath	path = xsGetHostData(xsThis);
+	xsNumberValue	x				= xsToNumber(xsArg(0));
+	xsNumberValue	y				= xsToNumber(xsArg(1));
+	xsNumberValue	radius			= xsToNumber(xsArg(2));
+	xsNumberValue	startAngle		= xsToNumber(xsArg(3));
+	xsNumberValue	endAngle		= xsToNumber(xsArg(4));
+	xsBooleanValue	anticlockwise	= (xsToInteger(xsArgc) > 5) ? xsTest(xsArg(5)) : 0;
+	FskCanvas2dPathArc(NULL, path, x, y, radius, startAngle, endAngle, anticlockwise);
+}
+
+// imageData object
 void KPR_imageData_destructor(void *hostData)
 {
 	if (hostData)

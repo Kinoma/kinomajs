@@ -29,7 +29,7 @@
 					"bounceEaseIn", "bounceEaseInOut", "bounceEaseOut",
 					"circularEaseIn", "circularEaseInOut", "circularEaseOut",
 					"cubicEaseIn", "cubicEaseInOut", "cubicEaseOut",
-					"exponentialEaseIn", "exponentialEaseInOut", "exponetialEaseOut",
+					"exponentialEaseIn", "exponentialEaseInOut", "exponentialEaseOut",
 					"quadEaseIn", "quadEaseInOut", "quadEaseOut",
 					"quartEaseIn", "quartEaseInOut", "quartEaseOut",
 					"quintEaseIn", "quintEaseInOut", "quintEaseOut",

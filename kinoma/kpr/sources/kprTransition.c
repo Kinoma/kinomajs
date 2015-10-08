@@ -370,7 +370,7 @@ void Math_exponentialEaseIn(xsMachine* the)
 	xsResult = xsNumber((fraction == 0) ? 0 : pow(2, 10 * (fraction - 1)));
 }
 
-void Math_exponetialEaseOut(xsMachine* the)
+void Math_exponentialEaseOut(xsMachine* the)
 {
 	double fraction = xsToNumber(xsArg(0));
 	xsResult = xsNumber((fraction == 1) ? 1 : (-pow(2, -10 * fraction) + 1));
@@ -559,7 +559,7 @@ void Math_patch(xsMachine* the)
 	xsNewHostProperty(xsResult, xsID("elasticEaseOut"), xsNewHostFunction(Math_elasticEaseOut, 1), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsResult, xsID("exponentialEaseIn"), xsNewHostFunction(Math_exponentialEaseIn, 1), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsResult, xsID("exponentialEaseInOut"), xsNewHostFunction(Math_exponentialEaseInOut, 1), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-	xsNewHostProperty(xsResult, xsID("exponetialEaseOut"), xsNewHostFunction(Math_exponetialEaseOut, 1), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
+	xsNewHostProperty(xsResult, xsID("exponentialEaseOut"), xsNewHostFunction(Math_exponentialEaseOut, 1), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsResult, xsID("quadEaseIn"), xsNewHostFunction(Math_quadEaseIn, 1), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsResult, xsID("quadEaseInOut"), xsNewHostFunction(Math_quadEaseInOut, 1), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsResult, xsID("quadEaseOut"), xsNewHostFunction(Math_quadEaseOut, 1), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
