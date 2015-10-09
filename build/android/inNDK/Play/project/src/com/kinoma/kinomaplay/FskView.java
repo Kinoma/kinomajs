@@ -47,7 +47,7 @@ class FskView extends SurfaceView implements IFskView, SurfaceHolder.Callback {
     public FskView(Context context, AttributeSet attrs) {
         super(context, attrs);
 Log.i("FSKVIEW", "Constructor");
-        setZOrderOnTop(true);
+//        setZOrderOnTop(true);
 
         SurfaceHolder holder = getHolder();
         holder.addCallback(this);
