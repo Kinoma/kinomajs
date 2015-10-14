@@ -34,5 +34,10 @@
 	<string>${MACOSX_BUNDLE_COPYRIGHT}</string>
 	<key>ATSApplicationFontsPath</key>
 	<string>../MacOS/fonts</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

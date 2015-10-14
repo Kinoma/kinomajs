@@ -201,24 +201,6 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 	FskInstrumentedItemNew(win, NULL, &gWindowTypeInstrumentation);
 	FskInstrumentedItemSetOwner(win->port, win);
 
-#if (TARGET_OS_IPHONE)
-	// screenScale will be available after cocoa window is created.
-	//{
-	//	float scale;
-	//	scale = FskCocoaDeviceScreenScaleFactor();
-	//	if (1.0 < scale)
-	//		FskPortScaleSet(win->port, FskRoundFloatToFixed(scale));
-	//}
-#elif TARGET_OS_MAC || TARGET_OS_WIN32
-	{
-		const char *value = FskEnvironmentGet("screenScale");
-	if (value && (0 == FskStrCompare(value, "1.5")))
-		FskPortScaleSet(win->port, FskIntToFixed(3) >> 1);
-	else if (value && ((0 == FskStrCompare(value, "2")) || (0 == FskStrCompare(value, "2.0"))))
-		FskPortScaleSet(win->port, FskIntToFixed(2));
-	}
-#endif
-
 #if TARGET_OS_WIN32
 	{
 	static Boolean registeredWindowClass = false;

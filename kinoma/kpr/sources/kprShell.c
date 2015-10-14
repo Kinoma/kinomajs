@@ -218,28 +218,34 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 	}
 	else {
 		char *screenScale = FskEnvironmentGet("screenScale");
-		char *portScale = FskEnvironmentGet("portScale");
 		UInt32 windowStyle = KprEnvironmentGetUInt32("windowStyle", 16);
-		if (screenScale && (0 == FskStrCompare(screenScale, "1.5"))) {
-			bounds->width = (3 * bounds->width) >> 1;
-			bounds->height = (3 * bounds->height) >> 1;
+		Boolean scaleBounds = true;
+		double scale = 1.0;
+		
+#if USE_FRAMEBUFFER_VECTORS
+		FskRectangleRecord r;
+
+		if (kFskErrNone == FskFrameBufferGetScreenBounds(&r)) {
+			bounds->width = r.width;
+			bounds->height = r.height;
+			scaleBounds = false;
 		}
-		else if (screenScale && ((0 == FskStrCompare(screenScale, "2")) || (0 == FskStrCompare(screenScale, "2.0")))) {
-			bounds->width = bounds->width << 1;
-			bounds->height = bounds->height << 1;
+#endif
+		if (screenScale)
+			scale = FskStrToD(screenScale, NULL);
+			
+		if (scaleBounds) {
+			bounds->width *= scale;
+			bounds->height *= scale;
 		}
 		bailIfError(FskWindowNew(&window, bounds->width, bounds->height, windowStyle, NULL, NULL));
-		if (portScale) {
+		
+		if (scale > 1.0) {
 			FskPort port = FskWindowGetPort(window);
-			if (0 == FskStrCompare(portScale, "1.5"))
-				FskPortScaleSet(port, FskIntToFixed(3) >> 1);
-			else if (0 == FskStrCompare(portScale, "2") || 0 == FskStrCompare(portScale, "2.0"))
-				FskPortScaleSet(port, FskIntToFixed(2));
-			else if (0 == FskStrCompare(portScale, "3") || 0 == FskStrCompare(portScale, "3.0"))
-				FskPortScaleSet(port, FskIntToFixed(3));
+			FskPortScaleSet(port, (FskFixed)(scale * 65536));
 		}
-		FskWindowSetSizeConstraints(window, 320, 240, 3200, 2400);
 		FskWindowGetSize(window, (UInt32*)&bounds->width, (UInt32*)&bounds->height);
+		FskWindowSetSizeConstraints(window, 320, 240, 3200, 2400);
 	}
 	
 #ifdef XS6	
@@ -702,7 +708,7 @@ void KprShellClose(KprShell self)
 
 void KprShellDragEnter(KprShell self, FskEvent event)
 {
-	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;
 	UInt32 paramSize;
 	FskMemPtr fileList = NULL;
 	char *fileListWalker;
@@ -738,7 +744,7 @@ void KprShellDragEnter(KprShell self, FskEvent event)
 
 void KprShellDragLeave(KprShell self, FskEvent event)
 {
-	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;
 	xsBeginHostSandboxCode(self->the, self->code);
 	{
 		xsVars(3);
@@ -1658,7 +1664,7 @@ void KprShellMouseMoved(void* it, UInt32 id, SInt32 x, SInt32 y, double ticks)
 	KprShell self = it;
 	KprTouchLink link;
 	if (self->flags & kprDraggingFiles) {
-		KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+		KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;
 		xsBeginHostSandboxCode(self->the, self->code);
 		{
 			xsVars(2);
@@ -1692,7 +1698,7 @@ void KprShellMouseUp(void* it, UInt32 id, SInt32 x, SInt32 y, double ticks)
 	KprShell self = it;
 	KprTouchLink link, *linkAddress;
 	if (self->flags & kprDraggingFiles) {
-		KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+		KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;
 		xsBeginHostSandboxCode(self->the, self->code);
 		{
 			xsVars(2);
@@ -1763,7 +1769,7 @@ void KprShellMouseWheeled(void* it, FskEvent event)
 
 void KprShellOpenFiles(KprShell self, FskEvent event)
 {
-	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;;
+	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;
 	UInt32 paramSize;
 	FskMemPtr fileList = NULL;
 	char *fileListWalker;

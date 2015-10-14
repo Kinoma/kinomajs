@@ -210,6 +210,12 @@ bail:
 	anAddress.sin_port = htons(aPort);
 
 	signal(SIGPIPE, SIG_IGN);
+#if mxMacOSX
+	{
+		int set = 1;
+		setsockopt(the->connection, SOL_SOCKET, SO_NOSIGPIPE, (void *)&set, sizeof(int));
+	}
+#endif
 	fcntl(the->connection, F_SETFL, aSocketFlag | O_NONBLOCK);
 	if (connect(the->connection, (struct sockaddr*)&anAddress, sizeof(anAddress))) {
 		fd_set aReadSet;

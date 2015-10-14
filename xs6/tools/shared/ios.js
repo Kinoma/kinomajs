@@ -66,6 +66,7 @@ class IOS {
 			info.CFBundleIdentifier = this.entitlements["application-identifier"].replace(`${this.entitlements['com.apple.developer.team-identifier']}.`, "");
 			tool.report(info.CFBundleIdentifier);
 		}
+		info.NSAppTransportSecurity = { NSAllowsArbitraryLoads: true };
 		info.CFBundleSupportedPlatforms = [ "iPhoneOS" ];
 		info.LSRequiresIPhoneOS = true;
 		this.info = info;

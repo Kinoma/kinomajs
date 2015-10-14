@@ -23,6 +23,8 @@ function toCMakePath(tool, path) {
 	path =  path.replace(homePath, "${F_HOME}").replace(/"/g, '');
 	if (tool.platform == "win")
 		path =  path.replace(/\\/g, "/")
+	if (path.indexOf("{F_HOME}/") < 0)
+		path = path.replace("{F_HOME}", "{F_HOME}/");
 	return fixVariable(tool, path);
 }
 
