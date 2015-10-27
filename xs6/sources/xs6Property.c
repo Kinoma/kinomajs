@@ -16,6 +16,8 @@
  */
 #include "xs6All.h"
 
+static void fxEnumProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property);
+
 static txSlot* fxGetStarProperty(txMachine* the, txSlot* theInstance, txInteger theID);
 static txBoolean fxRemoveStarProperty(txMachine* the, txSlot* theInstance, txInteger theID);
 static txSlot* fxSetStarProperty(txMachine* the, txSlot* theInstance, txInteger theID);
@@ -159,77 +161,52 @@ txSlot* fxNextTypeDispatchProperty(txMachine* the, txSlot* property, txTypeDispa
 	return property;
 }
 
-
-void fxEachOwnProperty(txMachine* the, txSlot* theInstance, txFlag theFlag, txStep theStep, txSlot* theContext)
+void fxDescribeProperty(txMachine* the, txSlot* property)
 {
-	txSlot* aProperty;
-	txIndex aCount;
-	txIndex anIndex;
+	txSlot* slot;
+	mxPush(mxObjectPrototype);
+	fxNewObjectInstance(the);
+	slot = fxLastProperty(the, fxNewObjectInstance(the));
+	slot= fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_DELETE_FLAG) ? 0 : 1, mxID(_configurable), XS_NO_FLAG);
+	slot= fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_ENUM_FLAG) ? 0 : 1, mxID(_enumerable), XS_NO_FLAG);
+	if (property->kind == XS_ACCESSOR_KIND) {
+		slot = fxNextUndefinedProperty(the, slot, mxID(_get), XS_NO_FLAG);
+		if (property->value.accessor.getter) {
+			slot->kind = XS_REFERENCE_KIND;
+			slot->value.reference = property->value.accessor.getter;
+		}
+		slot = fxNextUndefinedProperty(the, slot, mxID(_set), XS_NO_FLAG);
+		if (property->value.accessor.setter) {
+			slot->kind = XS_REFERENCE_KIND;
+			slot->value.reference = property->value.accessor.setter;
+		}
+	}
+	else {
+		slot = fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_SET_FLAG) ? 0 : 1, mxID(_writable), XS_NO_FLAG);
+		slot = fxNextSlotProperty(the, slot, property, mxID(_value), XS_NO_FLAG);
+	}
+}
 
-	txFlag propertyFlag = theFlag & XS_DONT_ENUM_FLAG;
-	if (!(theFlag & XS_DONT_ENUM_STRING_FLAG)) {
-		aProperty = theInstance->next;
-		if (theInstance->flag & XS_VALUE_FLAG) {
-			if (aProperty->kind == XS_STAR_KIND) {
-				aProperty = aProperty->next;
-				while (aProperty) {
-					if (!(aProperty->flag & propertyFlag)) {
-						if (aProperty->ID != XS_NO_ID)
-							(*theStep)(the, theContext, aProperty->ID, aProperty->value.closure);
-					}
-					aProperty = aProperty->next;
-				}
-				return;
-			}
-			else if ((aProperty->kind == XS_STRING_KIND) || (aProperty->kind == XS_STRING_X_KIND)) {
-				aCount = fxUnicodeLength(aProperty->value.string);
-				for (anIndex = 0; anIndex < aCount; anIndex++) {
-					(*theStep)(the, theContext, anIndex, &mxEmptyString);
-				}
-			}
-		}
-		while (aProperty) {
-			if (!(aProperty->flag & propertyFlag)) {
-				if (aProperty->ID == XS_NO_ID) {
-					if (aProperty->kind == XS_ARRAY_KIND) {
-						aCount = aProperty->value.array.length;
-						for (anIndex = 0; anIndex < aCount; anIndex++) {
-							if ((aProperty->value.array.address + anIndex)->ID)
-								(*theStep)(the, theContext, anIndex, aProperty->value.array.address + anIndex);
-						}
-						break;
-					}
-				}
-			}
-			aProperty = aProperty->next;
-		}
-		aProperty = theInstance->next;
-		while (aProperty) {
-			if (!(aProperty->flag & propertyFlag)) {
-				if (aProperty->ID < XS_NO_ID) {
-					txSlot* key = fxGetKey(the, aProperty->ID);
-					if (key && (key->flag & XS_DONT_ENUM_FLAG)) {
-						(*theStep)(the, theContext, aProperty->ID, aProperty);
-					}
-				}
-			}
-			aProperty = aProperty->next;
-		}
-	}
-	if (!(theFlag & XS_DONT_ENUM_SYMBOL_FLAG)) {
-		aProperty = theInstance->next;
-		while (aProperty) {
-			if (!(aProperty->flag & propertyFlag)) {
-				if (aProperty->ID < XS_NO_ID) {
-					txSlot* key = fxGetKey(the, aProperty->ID);
-					if (!key || !(key->flag & XS_DONT_ENUM_FLAG)) {
-						(*theStep)(the, theContext, aProperty->ID, aProperty);
-					}
-				}
-			}
-			aProperty = aProperty->next;
-		}
-	}
+void fxEnumProperties(txMachine* the, txSlot* instance, txFlag flag)
+{
+	txSlot* array;
+	txSlot context;
+	mxPush(mxArrayPrototype);
+	array = fxNewArrayInstance(the);
+	*mxResult = *(the->stack++);
+	context.value.array.length = 0;
+	context.value.array.address = array->next;
+	fxEachInstanceProperty(the, instance, flag, fxEnumProperty, &context, instance);
+	array->next->value.array.length = context.value.array.length;
+	fxCacheArray(the, array);
+}
+
+void fxEnumProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property)
+{
+	txSlot* item = context->value.array.address->next = fxNewSlot(the);
+	fxIDToSlot(the, id, item);
+	context->value.array.address = item;
+	context->value.array.length++;
 }
 
 txSlot* fxGetOwnProperty(txMachine* the, txSlot* theInstance, txInteger theID) 
@@ -366,8 +343,11 @@ again:
 
 txBoolean fxHasOwnProperty(txMachine* the, txSlot* theInstance, txInteger theID) 
 {
-	if ((theInstance->flag & XS_VALUE_FLAG) && (theInstance->next->kind == XS_PROXY_KIND))
-		return fxHasProxyProperty(the, theInstance, theID);
+    if ((theInstance->flag & XS_VALUE_FLAG) && (theInstance->next->kind == XS_PROXY_KIND)) {
+		txBoolean result = fxGetInstanceOwnProperty(the, theInstance, theID) ? 1 : 0;
+		mxPop();
+		return result;
+	}
 	return (fxGetOwnProperty(the, theInstance, theID)) ? 1 : 0;
 }
 

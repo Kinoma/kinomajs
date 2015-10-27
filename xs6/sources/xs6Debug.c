@@ -111,7 +111,8 @@ void fxDebugCommand(txMachine* the)
 {
 	txString echoBuffer = NULL;
 	txString p;
-	txString q;
+    txString q;
+    txString r;
 
 	if (!fxIsConnected(the))
 		return;
@@ -147,6 +148,19 @@ void fxDebugCommand(txMachine* the)
 		else if (fxDebugLoopTest(&p, "set-breakpoint")) {
 			q = fxDebugLoopValue(&p, "path");
 			fxSetBreakpoint(the, q, fxDebugLoopValue(&p, "line"));
+			fxEchoStart(the);
+			fxListBreakpoints(the);
+		}
+		else if (fxDebugLoopTest(&p, "set-breakpoints")) {
+            r = p;
+			while (r) {
+				r = c_strstr(r, "<breakpoint ");
+				if (!r)
+					goto bail;
+				q = fxDebugLoopValue(&r, "path");
+				fxSetBreakpoint(the, q, fxDebugLoopValue(&r, "line"));
+                p = r;
+			}
 			fxEchoStart(the);
 			fxListBreakpoints(the);
 		}
@@ -332,7 +346,7 @@ txBoolean fxDebugLoopTest(txString* theBuffer, txString theName)
 {
 	txBoolean aResult = 0;
 	txInteger aLength = c_strlen(theName);
-	if (((*theBuffer)[aLength] == ' ') || ((*theBuffer)[aLength] == '/')) {
+	if (((*theBuffer)[aLength] == ' ') || ((*theBuffer)[aLength] == '/') || ((*theBuffer)[aLength] == '>')) {
 		if (c_strncmp(*theBuffer, theName, aLength) == 0) {
 			aResult = 1;
 			*theBuffer += aLength;
@@ -876,6 +890,9 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 			fxEchoProperty(the, aProperty, theList, "(items)", -1, C_NULL);
 			aProperty = aProperty->next;
 			break;
+		case XS_PROXY_KIND:
+			fxEchoProperty(the, aProperty, theList, "(proxy)", -1, C_NULL);
+			break;
 		}
 	}
 	aCount = 0;
@@ -1027,6 +1044,8 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 		fxEcho(the, "-");
 	else if (theProperty->kind == XS_ACCESSOR_KIND)
 		fxEcho(the, "+");
+	else if (theProperty->kind == XS_PROXY_KIND)
+		fxEcho(the, "+");
 	else if (anInstance && !(anInstance->flag & XS_LEVEL_FLAG))
 		fxEcho(the, "+");
 	else
@@ -1106,6 +1125,33 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 			if (theProperty->value.accessor.setter) {
 				fxEcho(the, ">");
 				fxEchoInstance(the, theProperty->value.accessor.setter, theList);
+				fxEcho(the, "</property>");
+			}
+			else {
+				fxEcho(the, " value=\"undefined\"/>");
+			}
+			fxEcho(the, "</property>");
+		}
+		else
+			fxEcho(the, "/>");
+		break;
+	case XS_PROXY_KIND:
+		fxEchoAddress(the, theProperty);
+		if (theProperty->flag & XS_DEBUG_FLAG) {
+			fxEcho(the, ">");
+			fxEcho(the, "<property flags=\" \" name=\"(target)\"");
+			if (theProperty->value.proxy.target) {
+				fxEcho(the, ">");
+				fxEchoInstance(the, theProperty->value.proxy.target, theList);
+				fxEcho(the, "</property>");
+			}
+			else {
+				fxEcho(the, " value=\"undefined\"/>");
+			}
+			fxEcho(the, "<property flags=\" \" name=\"(handler)\"");
+			if (theProperty->value.proxy.handler) {
+				fxEcho(the, ">");
+				fxEchoInstance(the, theProperty->value.proxy.handler, theList);
 				fxEcho(the, "</property>");
 			}
 			else {
@@ -1624,7 +1670,7 @@ void fxLogin(txMachine* the)
 	fxListBreakpoints(the);
 	fxEchoStop(the);
 	fxSend(the);
-	fxReceive(the);
+	fxDebugCommand(the);
 }
 
 void fxLogout(txMachine* the)

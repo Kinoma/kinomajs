@@ -369,8 +369,8 @@ void fxIDToSlot(txMachine* the, txInteger id, txSlot* slot)
 		}
 	}
 	else {
-		slot->kind = XS_INTEGER_KIND;
-		slot->value.integer = id;
+		char buffer[16];
+		fxCopyStringC(the, slot, fxIntegerToString(the->dtoa, id, buffer, sizeof(buffer)));
 	}
 }
 
@@ -419,4 +419,3 @@ void fxIDToString(txMachine* the, txInteger id, txString theBuffer, txSize theSi
 	else
 		fxIntegerToString(the->dtoa, id, theBuffer, theSize);
 }
-

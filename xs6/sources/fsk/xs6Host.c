@@ -202,7 +202,6 @@ void fxBuildHost(txMachine* the)
 	fxNewHostAccessorGlobal(the, fx_get_sandbox, C_NULL, fxID(the, "sandbox"), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	property = fxLastProperty(the, mxObjectPrototype.value.reference);
 	property = fxNextHostAccessorProperty(the, property, fx_Object_prototype_get_sandbox, C_NULL, fxID(the, "sandbox"), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
-	property = fxNextHostFunctionProperty(the, property, fx_Object_prototype_patch, 1, fxID(the, "patch"), XS_GET_ONLY);
 
 	mxPush(mxObjectPrototype);
 	property = fxLastProperty(the, fxNewObjectInstance(the));
@@ -267,7 +266,6 @@ void fxBuildKeys(txMachine* the)
 				txString string = archive->symbols[i];
 				txID id = the->keyIndex;
 				txSlot* description = fxNewSlot(the);
-				description->flag = XS_DONT_ENUM_FLAG;
 				fxCopyStringC(the, description, string);
 				the->keyArray[id] = description;
 				the->keyIndex++;
@@ -285,7 +283,6 @@ void fxBuildKeys(txMachine* the)
 		for (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {
 			txID id = the->keyIndex;
 			txSlot* description = fxNewSlot(the);
-			description->flag = XS_DONT_ENUM_FLAG;
 			fxCopyStringC(the, description, gxIDStrings[i]);
 			the->keyArray[id] = description;
 			the->keyIndex++;
@@ -993,7 +990,7 @@ void fxRunForIn(txMachine* the)
 	txSlot* limit = the->stack;
 	txSlot* slot = fxToInstance(the, limit);
 	while (slot) {
-		fxEachOwnProperty(the, slot, XS_DONT_ENUM_FLAG, fxRunForInProperty, limit);
+		fxEachInstanceProperty(the, slot, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG, fxRunForInProperty, limit, slot);
 		slot = fxGetParent(the, slot);
 	}
 	slot = the->stack;

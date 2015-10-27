@@ -1701,7 +1701,7 @@ XS_CODE_JUMP:
 			}
 			else {
 				slot = fxGetInstance(the, mxStack);
-            	if (!slot || !mxIsFunction(slot))
+            	if (!slot)
 					mxRunDebug(XS_TYPE_ERROR, "extends: no function");
 				mxSaveState;
 				fxCreateInstance(the, slot);
@@ -1827,7 +1827,7 @@ XS_CODE_JUMP:
 			if (gxDoTrace) fxTraceID(the, offset);
 #endif
 			mxOverflow(1);
-			*mxStack = mxFunctionPrototype;
+			*mxStack = mxGeneratorFunctionPrototype;
 			mxSaveState;
 			fxNewGeneratorFunctionInstance(the,(txID) offset);
 			mxRestoreState;
@@ -2444,49 +2444,7 @@ XS_CODE_JUMP:
 			goto XS_CODE_CALL_ALL;
 		mxCase(XS_CODE_INSTANCEOF)
 			mxNextCode(1);
-			offset = 0;
-			if (!mxIsReference(mxStack))
-				mxRunDebug(XS_TYPE_ERROR, "instanceof: no reference");
-			variable = fxGetInstance(the, mxStack);
-			slot = fxGetProperty(the, variable, mxID(_Symbol_hasInstance));
-			if (slot) {
-				slot = fxGetInstance(the, slot);
-            	if (!slot || !mxIsFunction(slot))
-					mxRunDebug(XS_TYPE_ERROR, "[Symbol.hasInstance]: no function");
-				mxPushKind(XS_INTEGER_KIND);
-				mxStack->value.integer = 1;
-				/* SWAP THIS */
-				scratch = *(mxStack);
-				*(mxStack) = *(mxStack + 1);
-				*(mxStack + 1) = scratch;
-				/* FUNCTION */
-				mxPushKind(XS_REFERENCE_KIND);
-				mxStack->value.reference = slot;
-				/* TARGET */
-				mxPushKind(XS_UNDEFINED_KIND);
-				/* RESULT */
-				mxPushKind(XS_UNDEFINED_KIND);
-				goto XS_CODE_CALL_ALL;
-			}
-			if (!mxIsFunction(variable))
-				mxRunDebug(XS_TYPE_ERROR, "instanceof: no function");
-			slot = mxFunctionInstancePrototype(variable);
-			if (mxIsReference(slot)) {
-				slot = fxGetInstance(the, slot);
-				mxStack++;
-				if (mxIsReference(mxStack)) {
-					variable = fxGetInstance(the, mxStack);
-					while (variable) {
-						if (variable == slot) {
-							offset = 1;
-							break;
-						}
-						variable = fxGetParent(the, variable);
-					}
-				}
-			}
-			mxStack->kind = XS_BOOLEAN_KIND;
-			mxStack->value.boolean = offset;
+			offset = mxID(_Symbol_hasInstance);
 			mxBreak;
 		mxCase(XS_CODE_TYPEOF)
 			byte = mxStack->kind;
@@ -2610,7 +2568,10 @@ XS_CODE_JUMP:
 				if (slot) {
 					mxPushKind(XS_REFERENCE_KIND);
 					mxStack->value.reference = slot;
-					if (fxIsScopableSlot(the, slot, offset)) {
+					mxSaveState;
+					index = fxIsScopableSlot(the, slot, offset);
+					mxRestoreState;
+					if (index) {
 						slot = fxGetProperty(the, slot, offset);
 						if (slot) {
 							index = (txU2)fxRemoveProperty(the, mxStack->value.reference, offset);
@@ -2641,7 +2602,10 @@ XS_CODE_JUMP:
 				if (slot) {
 					mxPushKind(XS_REFERENCE_KIND);
 					mxStack->value.reference = slot;
-					if (fxIsScopableSlot(the, slot, offset)) {
+					mxSaveState;
+					index = fxIsScopableSlot(the, slot, offset);
+					mxRestoreState;
+					if (index) {
 						slot = fxGetProperty(the, slot, offset);
 						if (slot) {
 							if ((XS_CODE_CALL == byte) || (XS_CODE_CALL_TAIL == byte)) {
@@ -2703,7 +2667,10 @@ XS_CODE_JUMP:
 				if (slot) {
 					mxPushKind(XS_REFERENCE_KIND);
 					mxStack->value.reference = slot;
-					if (fxIsScopableSlot(the, slot, offset)) {
+					mxSaveState;
+					index = fxIsScopableSlot(the, slot, offset);
+					mxRestoreState;
+					if (index) {
 						slot = fxGetProperty(the, slot, offset);
 						if (slot) {
 							mxSaveState;
@@ -2783,6 +2750,19 @@ txBoolean fxIsSameSlot(txMachine* the, txSlot* a, txSlot* b)
 
 txBoolean fxIsScopableSlot(txMachine* the, txSlot* instance, txInteger id)
 {	
+	txBoolean result = 1;
+	fxBeginHost(the);
+	mxPushReference(instance);
+	fxGetID(the, mxID(_Symbol_unscopables));
+	if (mxIsReference(the->stack)) {
+		fxGetID(the, id);
+		result = fxToBoolean(the, the->stack) ? 0 : 1;
+	}
+	the->stack++;
+	fxEndHost(the);
+	return result;
+
+	/*
 	txSlot* unscopables = fxGetProperty(the, instance, mxID(_Symbol_unscopables));
 	if (unscopables && (unscopables->kind == XS_REFERENCE_KIND)) {
 		txSlot* unscopable = fxGetProperty(the, unscopables->value.reference, id);
@@ -2790,6 +2770,7 @@ txBoolean fxIsScopableSlot(txMachine* the, txSlot* instance, txInteger id)
 			return fxToBoolean(the, unscopable) ? 0 : 1;
 	}
 	return 1;
+	*/
 }
 
 void fxRemapIDs(txMachine* the, txByte* codeBuffer, txSize codeSize, txID* theIDs)

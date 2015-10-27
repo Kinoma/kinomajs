@@ -366,28 +366,30 @@ void fxResolvePromise(txMachine* the)
 	txSlot* result;
 	//fprintf(stderr, "fxResolvePromise %d\n", promise->next->ID);
 	if (mxIsReference(argument)) {
-		slot = fxGetProperty(the, argument->value.reference, mxID(_then));
-		if (slot) {
-			if (mxIsReference(slot)) {
-				function = slot->value.reference;
-				if (mxIsFunction(function)) {
-					already = fxNewPromiseAlready(the);
-					fxNewPromiseFunction(the, already, promise, mxResolvePromiseFunction.value.reference);
-					fxNewPromiseFunction(the, already, promise, mxRejectPromiseFunction.value.reference);
-					/* COUNT */
-					mxPushInteger(2);
-					/* THIS */
-					mxPushReference(argument->value.reference);
-					/* FUNCTION */
-					mxPushReference(function);
-					/* TARGET */
-					mxPushUndefined();
-					fxQueueJob(the, XS_NO_ID);
-					the->stack++;
-					return;
-				}
+		mxPushSlot(argument);
+		fxGetID(the, mxID(_then));
+		slot = the->stack;
+		if (mxIsReference(slot)) {
+			function = slot->value.reference;
+			if (mxIsFunction(function)) {
+				already = fxNewPromiseAlready(the);
+				fxNewPromiseFunction(the, already, promise, mxResolvePromiseFunction.value.reference);
+				fxNewPromiseFunction(the, already, promise, mxRejectPromiseFunction.value.reference);
+				/* COUNT */
+				mxPushInteger(2);
+				/* THIS */
+				mxPushSlot(argument);
+				/* FUNCTION */
+				mxPushReference(function);
+				/* TARGET */
+				mxPushUndefined();
+				fxQueueJob(the, XS_NO_ID);
+				mxPop();
+				mxPop();
+				return;
 			}
 		}
+		mxPop();
 	}
 	result = mxPromiseResult(promise);
 	result->kind = argument->kind;

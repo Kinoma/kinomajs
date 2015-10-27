@@ -48,7 +48,7 @@ typedef int (*txPutter)(txString, void*);
 #define XS_ATOM_VERSION 0x56455253 /* 'VERS' */
 #define XS_MAJOR_VERSION 6
 #define XS_MINOR_VERSION 0
-#define XS_PATCH_VERSION 7
+#define XS_PATCH_VERSION 8
 
 typedef struct {
 	txS4 atomSize;

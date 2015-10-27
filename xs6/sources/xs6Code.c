@@ -1570,9 +1570,20 @@ void fxAssignNodeCode(void* it, void* param)
 void fxBinaryExpressionNodeCode(void* it, void* param) 
 {
 	txBinaryExpressionNode* self = it;
+	if (self->description->code == XS_CODE_INSTANCEOF) {
+	fxNodeDispatchCode(self->left, param);
+	fxCoderAddInteger(param, 1, XS_CODE_INTEGER_1, 1);
+	fxNodeDispatchCode(self->right, param);
+	fxCoderAddByte(param, 1, XS_CODE_DUB);
+	fxCoderAddByte(param, 0, XS_CODE_INSTANCEOF);
+	fxCoderAddByte(param, 0, XS_CODE_GET_PROPERTY_AT);
+	fxCoderAddByte(param, -3, XS_CODE_CALL);
+	}
+	else {
 	fxNodeDispatchCode(self->left, param);
 	fxNodeDispatchCode(self->right, param);
 	fxCoderAddByte(param, -1, self->description->code);
+	}
 }
 
 void fxBindingNodeCodeAssign(void* it, void* param) 
@@ -3025,6 +3036,7 @@ void fxTemplateNodeCode(void* it, void* param)
 {
 	txTemplateNode* self = it;
 	txCoder* coder = param;
+	txParser* parser = coder->parser;
 	txNode* item = self->items->first;
 	if (self->reference) {
 		txInteger raws = fxCoderUseTemporaryVariable(param);
@@ -3062,6 +3074,22 @@ void fxTemplateNodeCode(void* it, void* param)
 			}
 			item = item->next;
 		}
+		fxCoderAddIndex(param, 1, XS_CODE_GET_LOCAL_1, strings);
+		fxCoderAddInteger(param, 1, XS_CODE_INTEGER_1, 1);
+		fxCoderAddSymbol(param, 1, XS_CODE_GET_GLOBAL, parser->ObjectSymbol);
+		fxCoderAddByte(param, 1, XS_CODE_DUB);
+		fxCoderAddSymbol(param, 0, XS_CODE_GET_PROPERTY, parser->freezeSymbol);
+		fxCoderAddByte(param, -3, XS_CODE_CALL);
+		fxCoderAddByte(param, -1, XS_CODE_POP);
+		
+		fxCoderAddIndex(param, 1, XS_CODE_GET_LOCAL_1, raws);
+		fxCoderAddInteger(param, 1, XS_CODE_INTEGER_1, 1);
+		fxCoderAddSymbol(param, 1, XS_CODE_GET_GLOBAL, parser->ObjectSymbol);
+		fxCoderAddByte(param, 1, XS_CODE_DUB);
+		fxCoderAddSymbol(param, 0, XS_CODE_GET_PROPERTY, parser->freezeSymbol);
+		fxCoderAddByte(param, -3, XS_CODE_CALL);
+		fxCoderAddByte(param, -1, XS_CODE_POP);
+		
 		fxCoderAddInteger(param, 1, XS_CODE_INTEGER_1, c);
 		switch (self->reference->description->token) {
 		case XS_TOKEN_MEMBER: 
@@ -3086,8 +3114,13 @@ void fxTemplateNodeCode(void* it, void* param)
 		while (item) {
 			if (item->description->token == XS_TOKEN_TEMPLATE_MIDDLE)
 				fxNodeDispatchCode(((txTemplateItemNode*)item)->string, param);
-			else
+			else {
+				fxCoderAddInteger(param, 1, XS_CODE_INTEGER_1, 0);
 				fxNodeDispatchCode(item, param);
+				fxCoderAddByte(param, 1, XS_CODE_DUB);
+				fxCoderAddSymbol(param, 0, XS_CODE_GET_PROPERTY, parser->toStringSymbol);
+				fxCoderAddByte(param, -2, XS_CODE_CALL);
+			}
 			fxCoderAddByte(param, -1, XS_CODE_ADD);
 			item = item->next;
 		}

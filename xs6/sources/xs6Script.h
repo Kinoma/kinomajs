@@ -592,6 +592,7 @@ struct sxParser {
 	int nodeCount;
 	
 	txString emptyString;
+	txSymbol* ObjectSymbol;
 	txSymbol* __dirnameSymbol;
 	txSymbol* __filenameSymbol;
 	txSymbol* __proto__Symbol;
@@ -605,6 +606,7 @@ struct sxParser {
 	txSymbol* doneSymbol;
 	txSymbol* evalSymbol;
 	txSymbol* exportsSymbol;
+	txSymbol* freezeSymbol;
 	txSymbol* fromSymbol;
 	txSymbol* getSymbol;
 	txSymbol* idSymbol;
@@ -622,6 +624,7 @@ struct sxParser {
 	txSymbol* sliceSymbol;
 	txSymbol* targetSymbol;
 	txSymbol* thisSymbol;
+	txSymbol* toStringSymbol;
 	txSymbol* undefinedSymbol;
 	txSymbol* uriSymbol;
 	txSymbol* valueSymbol;

@@ -16,6 +16,8 @@
  */
 #include "xs6All.h"
 
+static txBoolean fxIsFunction(txMachine* the, txSlot* instance);
+
 static void fx_Function(txMachine* the);
 static void fx_Function_prototype_get_length(txMachine* the);
 static void fx_Function_prototype_set_length(txMachine* the);
@@ -27,6 +29,7 @@ static void fx_Function_prototype_apply(txMachine* the);
 static void fx_Function_prototype_bind(txMachine* the);
 static void fx_Function_prototype_bound(txMachine* the);
 static void fx_Function_prototype_call(txMachine* the);
+static void fx_Function_prototype_hasInstance(txMachine* the);
 
 void fxBuildFunction(txMachine* the)
 {
@@ -34,19 +37,20 @@ void fxBuildFunction(txMachine* the)
 		{ fx_Function_prototype_apply, 2, _apply },
 		{ fx_Function_prototype_bind, 1, _bind },
 		{ fx_Function_prototype_call, 1, _call },
+		{ fx_Function_prototype_hasInstance, 1, _Symbol_hasInstance },
 		{ C_NULL, 0, 0 },
     };
     const txHostFunctionBuilder* builder;
 	txSlot* slot;
 	mxPush(mxFunctionPrototype);
 	slot = fxLastProperty(the, the->stack->value.reference);
-	slot = fxNextHostAccessorProperty(the, slot, fx_Function_prototype_get_length, fx_Function_prototype_set_length, mxID(_length), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextHostAccessorProperty(the, slot, fx_Function_prototype_get_length, fx_Function_prototype_set_length, mxID(_length), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	slot = fxNextHostAccessorProperty(the, slot, fx_Function_prototype_get_name, fx_Function_prototype_set_name, mxID(_name), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	slot = fxNextHostAccessorProperty(the, slot, fx_Function_prototype_get_prototype, fx_Function_prototype_set_prototype, mxID(_prototype), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
 	for (builder = gx_Function_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	slot = fxNextStringProperty(the, slot, "Function", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
-	fxNewHostConstructorGlobal(the, fx_Function, 1, mxID(_Function), XS_GET_ONLY);
+	slot = fxNewHostConstructorGlobal(the, fx_Function, 1, mxID(_Function), XS_GET_ONLY);
 	the->stack++;
 }
 
@@ -63,6 +67,15 @@ txSlot* fxCheckFunctionInstance(txMachine* the, txSlot* slot)
 
 txSlot* fxCreateInstance(txMachine* the, txSlot* slot)
 {
+	txSlot* prototype;
+	mxPushUndefined();
+	prototype = the->stack;
+	fxBeginHost(the);
+	mxPushReference(slot);
+	fxGetID(the, mxID(_prototype));
+	*prototype = *the->stack;
+	fxEndHost(the);
+	/*
 	txSlot* prototype = mxFunctionInstancePrototype(slot);
 	if (prototype->kind == XS_NULL_KIND) {
 		if (prototype->flag & XS_DONT_SET_FLAG)
@@ -72,6 +85,7 @@ txSlot* fxCreateInstance(txMachine* the, txSlot* slot)
 		fxDefaultFunctionPrototype(the, slot, prototype);
 	}
 	mxPushSlot(prototype);
+	*/
 	fxNewInstanceOf(the);
 	return the->stack->value.reference;
 }
@@ -83,6 +97,25 @@ txBoolean fxIsBaseFunctionInstance(txMachine* the, txSlot* slot)
 		return 1;
 	if (((XS_CODE_KIND == slot->kind) || (XS_CODE_X_KIND == slot->kind)) && (XS_CODE_BEGIN_STRICT_DERIVED != *(slot->value.code)))
 		return 1;
+	return 0;
+}
+
+txBoolean fxIsFunction(txMachine* the, txSlot* instance) 
+{
+again:
+	if (instance) {
+		if (instance->flag & XS_VALUE_FLAG) {
+			txSlot* exotic = instance->next;
+			if ((exotic->kind == XS_CALLBACK_KIND) || (exotic->kind == XS_CODE_KIND) || (exotic->kind == XS_CODE_X_KIND))
+				return 1;
+#if mxProxy
+			if (exotic->kind == XS_PROXY_KIND) {
+				instance = exotic->value.proxy.target;
+				goto again;
+			}
+#endif
+		}
+	}
 	return 0;
 }
 
@@ -129,7 +162,7 @@ txSlot* fxNewFunctionInstance(txMachine* the, txID name)
 	/* MODULE */
 	property = property->next = fxNewSlot(the);
 	property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
-	if (the->frame && (mxFunction->kind == XS_REFERENCE_KIND)) {
+	if (the->frame && (mxFunction->kind == XS_REFERENCE_KIND) && (mxIsFunction(mxFunction->value.reference))) {
 		txSlot* slot = mxFunctionInstanceModule(mxFunction->value.reference);
 		property->kind = slot->kind;
 		property->value = slot->value;
@@ -188,10 +221,15 @@ void fx_Function(txMachine* the)
 	else {
 		txSlot* from = fxGetInstance(the, the->stack++);
 		txSlot* to = fxGetInstance(the, mxThis);
+		txSlot* fromProperty;
+		txSlot* toProperty;
         to->next->value.code = from->next->value.code;
-        to = mxFunctionInstanceInfo(to);
-        from = mxFunctionInstanceInfo(from);
-        to->value = from->value;
+        fromProperty = mxFunctionInstancePrototype(from);
+        toProperty = mxFunctionInstancePrototype(to);
+        *toProperty = *fromProperty;
+        fromProperty = mxFunctionInstanceInfo(from);
+        toProperty = mxFunctionInstanceInfo(to);
+        *toProperty = *fromProperty;
 	}
 }
 
@@ -309,7 +347,7 @@ void fx_Function_prototype_apply(txMachine* the)
 
 void fx_Function_prototype_bind(txMachine* the)
 {
-	txSlot* instance = fxCheckFunctionInstance(the, mxThis);
+	txSlot* instance = fxToInstance(the, mxThis);
 	txSize length;
 	txSlot* slot;
 	txID id;
@@ -317,20 +355,30 @@ void fx_Function_prototype_bind(txMachine* the)
 	txSlot* argument;
 	txSize c = mxArgc, i;
 
-	mxPushSlot(mxThis);
-	fxGetID(the, mxID(_length));
-	length = fxToInteger(the, the->stack++);
-	if (c > 1)
-		length -= c - 1;
-	if (length < 0)
-		length = 0;
+	if (!fxIsFunction(the, instance))
+		mxTypeError("this is no Function instance");
 	
+	if (fxHasOwnProperty(the, instance, mxID(_length))) {
+		mxPushSlot(mxThis);
+		fxGetID(the, mxID(_length));
+		length = fxToInteger(the, the->stack++);
+		if (c > 1)
+			length -= c - 1;
+		if (length < 0)
+			length = 0;
+		mxPop();
+	}
+	else
+		length = 0;
+		
 	mxPushSlot(mxThis);
 	fxGetID(the, mxID(_name));
 	mxPushStringC("bound ");
 	fxConcatString(the, the->stack, the->stack + 1);
 	slot = fxNewName(the, the->stack);
 	id = slot->ID;
+	mxPop();
+	mxPop();
 		
 	mxPushReference(instance->value.instance.prototype);
 	instance = fxNewFunctionInstance(the, id);
@@ -363,7 +411,7 @@ void fx_Function_prototype_bind(txMachine* the)
 	arguments->next->value.array.length = mxArgc - 1;
 	fxCacheArray(the, arguments);
 	slot = fxNextSlotProperty(the, slot, the->stack, mxID(_boundArguments), XS_GET_ONLY);
-	the->stack++;
+	mxPop();
 }
 
 void fx_Function_prototype_bound(txMachine* the)
@@ -419,3 +467,28 @@ void fx_Function_prototype_call(txMachine* the)
 	mxPullSlot(mxResult);
 }
 
+void fx_Function_prototype_hasInstance(txMachine* the)
+{	
+	txSlot* instance;
+	txSlot* prototype;
+	mxResult->value.boolean = 0;
+	mxResult->kind = XS_BOOLEAN_KIND;
+	if (mxArgc == 0)
+		return;
+	instance = fxGetInstance(the, mxArgv(0));
+	if (!instance)
+		return;
+	mxPushSlot(mxThis);
+	fxGetID(the, mxID(_prototype));
+	prototype = fxGetInstance(the, the->stack);
+	if (!prototype)
+		mxTypeError("prototype is no object");
+	while (instance) {
+		if (instance == prototype) {
+			mxResult->value.boolean = 1;
+			break;
+		}
+		instance = fxGetParent(the, instance);
+	}
+	the->stack++;
+}

@@ -29,6 +29,7 @@ extern void fxUnmapArchive(void* it);
 	#include <process.h>
 	#define mxSeparator '\\'
 #else
+	#include <unistd.h>
 	#define mxSeparator '/'
 #endif
 

@@ -121,6 +121,7 @@ string(REPLACE ";" " " EXEC "${XSR}")
 
 foreach(COMMAND kprconfig kpr2js xs2js)
 	if(WIN32)
+		string(REPLACE "${F_HOME}" "%%F_HOME%%" EXEC "${EXEC}")
 		add_custom_command(
 			TARGET tools
 			POST_BUILD
@@ -130,6 +131,7 @@ foreach(COMMAND kprconfig kpr2js xs2js)
 			COMMAND ${CMAKE_COMMAND} -E copy ${COMMAND}6.bat ${XS6_TOOLS_BIN}
 			)
 	else()
+		string(REPLACE "${F_HOME}" "\\$$F_HOME" EXEC "${EXEC}")
 		file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6 ${SHEBANG})
 		file(COPY ${CMAKE_CURRENT_BINARY_DIR}/${COMMAND}6
 			DESTINATION ${CMAKE_BINARY_DIR}

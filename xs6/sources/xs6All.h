@@ -31,7 +31,12 @@ extern "C" {
 		#undef mxProfile
 	#endif
 #endif
-#define mxRegExp 1
+#ifndef mxProxy
+	#define mxProxy 1
+#endif
+#ifndef mxRegExp
+	#define mxRegExp 1
+#endif
 
 typedef struct sxMachine txMachine;
 typedef struct sxSlot txSlot;
@@ -446,11 +451,21 @@ mxExport void fxReport(txMachine* the, txString theFormat, ...);
 mxExport void fxReportError(txMachine* the, txString thePath, txInteger theLine, txString theFormat, ...);
 mxExport void fxReportWarning(txMachine* the, txString thePath, txInteger theLine, txString theFormat, ...);
 
-
 /* xsType.c */
 extern txSlot* fxGetInstance(txMachine* the, txSlot* theSlot);
 extern txSlot* fxGetParent(txMachine* the, txSlot* theSlot);
+extern void fxCallInstance(txMachine* the, txSlot* instance, txSlot* _this, txSlot* arguments);
+extern void fxConstructInstance(txMachine* the, txSlot* instance, txSlot* arguments, txSlot* target);
+extern txBoolean fxDefineInstanceProperty(txMachine* the, txSlot* instance, txInteger id, txSlot* descriptor);
+extern void fxEachInstanceProperty(txMachine* the, txSlot* target, txFlag flag, txStep step, txSlot* context, txSlot* instance);
+extern void fxEnumerateInstance(txMachine* the, txSlot* instance);
+extern txSlot* fxGetInstanceOwnProperty(txMachine* the, txSlot* instance, txInteger id);
+extern void fxGetInstancePrototype(txMachine* the, txSlot* instance);
+extern void fxIsInstanceExtensible(txMachine* the, txSlot* instance);
 extern txSlot* fxNewInstance(txMachine* the);
+extern void fxPreventInstanceExtensions(txMachine* the, txSlot* instance);
+extern void fxSetInstancePrototype(txMachine* the, txSlot* instance, txSlot* prototype);
+extern void fxStepInstanceProperty(txMachine* the, txSlot* target, txFlag flag, txStep step, txSlot* context, txInteger id, txSlot* property);
 extern txSlot* fxToInstance(txMachine* the, txSlot* theSlot);
 extern void fxToPrimitive(txMachine* the, txSlot* theSlot, txBoolean theHint);
 extern void fx_species_get(txMachine* the);
@@ -470,8 +485,8 @@ extern txSlot* fxNextStringProperty(txMachine* the, txSlot* property, txString s
 extern txSlot* fxNextSymbolProperty(txMachine* the, txSlot* property, txID symbol, txID id, txFlag flag);
 extern txSlot* fxNextTypeDispatchProperty(txMachine* the, txSlot* property, txTypeDispatch* dispatch, txID id, txFlag flag);
 
-void fxEachOwnProperty(txMachine*, txSlot*, txFlag, txStep, txSlot*);
-
+extern void fxDescribeProperty(txMachine* the, txSlot* property);
+extern void fxEnumProperties(txMachine* the, txSlot* instance, txFlag flag);
 extern txSlot* fxGetOwnProperty(txMachine* the, txSlot* theInstance, txInteger theID);
 extern txSlot* fxGetProperty(txMachine* the, txSlot* theInstance, txInteger theID);
 extern txBoolean fxHasOwnProperty(txMachine* the, txSlot* theInstance, txInteger theID);
@@ -483,7 +498,6 @@ extern txSlot* fxSetProperty(txMachine* the, txSlot* theInstance, txInteger theI
 extern txSlot* fxGetGlobalProperty(txMachine* the, txSlot* theInstance, txInteger theID);
 extern txBoolean fxRemoveGlobalProperty(txMachine* the, txSlot* theInstance, txInteger theID);
 extern txSlot* fxSetGlobalProperty(txMachine* the, txSlot* theInstance, txInteger theID, txFlag* theFlag);
-
 
 /* xsModule.c */
 #define mxTransferLocal(TRANSFER) (TRANSFER)->value.reference->next
@@ -508,8 +522,8 @@ mxExport void fxEncodeURI(txMachine* the, txString theSet);
 
 /* xsObject.c */
 extern void fxBuildObject(txMachine* the);
-extern void fxEnumPropertyKeys(txMachine* the, txSlot* theContext, txInteger theID, txSlot* theProperty);
 extern txSlot* fxNewObjectInstance(txMachine* the);
+extern void fxDefineDataProperty(txMachine* the, txSlot* instance, txInteger id, txSlot* value);
 
 /* xsFunction.c */
 extern void fxBuildFunction(txMachine* the);
@@ -555,10 +569,13 @@ extern txSlot* fxNewStringInstance(txMachine* the);
 extern txSlot* fxGetStringProperty(txMachine* the, txSlot* instance, txInteger index);
 extern txBoolean fxRemoveStringProperty(txMachine* the, txSlot* instance, txInteger index);
 extern txSlot* fxSetStringProperty(txMachine* the, txSlot* instance, txInteger index);
+extern txSlot* fx_String_prototype_split_aux(txMachine* the, txSlot* theString, txSlot* theArray, txSlot* theItem, txInteger theStart, txInteger theStop);
+extern txInteger fx_String_prototype_replace_aux(txMachine* the, txSlot* theString, txInteger theDelta, txInteger theLength, txInteger theCount, txSlot* theSlot);
+extern void fxPushSubstitutionString(txMachine* the, txSlot* string, txInteger size, txInteger offset, txSlot* match, txInteger length, txInteger count, txSlot* captures, txSlot* replace);
 
 /* xsRegExp.c */
 extern void fxBuildRegExp(txMachine* the);
-extern txInteger fxExecuteRegExp(txMachine* the, txSlot* theRegExp, txSlot* theString, txInteger theOffset);
+extern txBoolean fxIsRegExp(txMachine* the, txSlot* slot);
 extern txSlot* fxNewRegExpInstance(txMachine* the);
 
 /* xsArray.c */
@@ -569,6 +586,8 @@ extern void fxCacheArray(txMachine* the, txSlot* theArray);
 extern void fxConstructArrayEntry(txMachine* the, txSlot* entry);
 extern txSlot* fxGetArrayProperty(txMachine* the, txSlot* array, txInteger index);
 extern txSlot* fxNewArrayInstance(txMachine* the);
+extern txSlot* fxNewArrayFromList(txMachine* the, txSlot* reference);
+extern txSlot* fxNewListFromArray(txMachine* the, txSlot* reference);
 extern txBoolean fxRemoveArrayProperty(txMachine* the, txSlot* array, txInteger index);
 extern void fxSetArrayLength(txMachine* the, txSlot* array, txIndex target);
 extern txSlot* fxSetArrayProperty(txMachine* the, txSlot* array, txInteger index);
@@ -616,22 +635,26 @@ extern void fxRunPromiseJobs(txMachine* the);
 /* xs6Proxy.c */
 extern void fxBuildProxy(txMachine* the);
 extern txSlot* fxNewProxyInstance(txMachine* the);
+
+extern void fxCallProxy(txMachine* the, txSlot* instance, txSlot* _this, txSlot* arguments);
+extern void fxConstructProxy(txMachine* the, txSlot* instance, txSlot* arguments, txSlot* target);
+extern txBoolean fxDefineProxyProperty(txMachine* the, txSlot* instance, txInteger id, txSlot* descriptor);
+extern void fxEachProxyProperty(txMachine* the, txSlot* target, txFlag flag, txStep step, txSlot* context, txSlot* instance);
+extern void fxEnumerateProxy(txMachine* the, txSlot* instance);
+extern txSlot* fxGetProxyOwnProperty(txMachine* the, txSlot* instance, txInteger id);
 extern txSlot* fxGetProxyProperty(txMachine* the, txSlot* instance, txInteger id);
+extern void fxGetProxyPrototype(txMachine* the, txSlot* instance);
 extern txBoolean fxHasProxyProperty(txMachine* the, txSlot* instance, txInteger id);
+extern void fxIsProxyExtensible(txMachine* the, txSlot* instance);
+extern void fxPreventProxyExtensions(txMachine* the, txSlot* instance);
 extern txBoolean fxRemoveProxyProperty(txMachine* the, txSlot* instance, txInteger id);
 extern txSlot* fxSetProxyProperty(txMachine* the, txSlot* instance, txInteger id);
-extern txSlot* fxGetHostProperty(txMachine* the, txSlot* instance, txInteger id);
+extern void fxSetProxyPrototype(txMachine* the, txSlot* instance, txSlot* prototype);
+extern void fxStepProxyProperty(txMachine* the, txSlot* target, txFlag flag, txStep step, txSlot* context, txInteger id, txSlot* property);
 
-extern void fxCallInstance(txMachine* the, txSlot* instance, txSlot* _this, txSlot* arguments);
-extern void fxConstructInstance(txMachine* the, txSlot* instance, txSlot* arguments, txSlot* target);
-extern void fxDefineInstanceProperty(txMachine* the, txSlot* instance, txInteger id, txSlot* descriptor);
-extern void fxEnumerateInstance(txMachine* the, txSlot* instance);
-extern void fxGetInstanceOwnKeys(txMachine* the, txSlot* instance, txFlag flag);
-extern void fxGetInstanceOwnPropertyDescriptor(txMachine* the, txSlot* instance, txInteger id);
-extern void fxGetInstancePrototype(txMachine* the, txSlot* instance);
-extern void fxIsInstanceExtensible(txMachine* the, txSlot* instance);
-extern void fxPreventInstanceExtensions(txMachine* the, txSlot* instance);
-extern void fxSetInstancePrototype(txMachine* the, txSlot* instance, txSlot* prototype);
+
+
+extern txSlot* fxGetHostProperty(txMachine* the, txSlot* instance, txInteger id);
 
 /* xsChunk.c */
 extern void fxBuildChunk(txMachine* the);
@@ -704,9 +727,13 @@ enum {
 	/* XS_DEBUG_FLAG = 128, */
 
 	/* fxEachOwnProperty flags */
-	/* XS_DONT_ENUM_FLAG = 4, */
-	XS_DONT_ENUM_STRING_FLAG = 16,
-	XS_DONT_ENUM_SYMBOL_FLAG = 32,
+	XS_EACH_ENUMERABLE_FLAG = 1,
+	XS_EACH_STRING_FLAG = 2,
+	XS_EACH_SYMBOL_FLAG = 4,
+	XS_STEP_GET_OWN_FLAG = 8,
+	XS_STEP_GET_FLAG = 16,
+	XS_STEP_DESCRIBE_FLAG = 32,
+	XS_STEP_DEFINE_FLAG = 64,
 
 	/* XS_PUT_MEMBER/fxPut flags */
 	/* XS_DONT_DELETE_FLAG = 2, */
@@ -907,6 +934,8 @@ enum {
 	(/* (THE_SLOT) && */ ((THE_SLOT)->flag & XS_VALUE_FLAG) && ((THE_SLOT)->next->kind == XS_SYMBOL_KIND))
 #define mxIsHost(THE_SLOT) \
 	(/* (THE_SLOT) && */ ((THE_SLOT)->flag & XS_VALUE_FLAG) && ((THE_SLOT)->next->kind == XS_HOST_KIND))
+#define mxIsProxy(THE_SLOT) \
+	(/* (THE_SLOT) && */ ((THE_SLOT)->flag & XS_VALUE_FLAG) && ((THE_SLOT)->next->kind == XS_PROXY_KIND))
 
 #define mxIsStringPrimitive(THE_SLOT) \
 	(((THE_SLOT)->kind == XS_STRING_KIND) || ((THE_SLOT)->kind == XS_STRING_X_KIND))
@@ -1084,6 +1113,9 @@ enum {
 	((THE_SLOT)->value = the->stack->value, \
 	(THE_SLOT)->kind = (the->stack++)->kind)
 
+#define mxPop() \
+	(the->stack++)
+
 #define mxArgv(THE_INDEX) (the->frame + 5 + ((the->frame + 5)->value.integer) - (THE_INDEX))
 #define mxArgc ((the->frame + 5)->value.integer)
 #define mxThis (the->frame + 4)
@@ -1219,6 +1251,9 @@ enum {
 	mxArgumentsStrictPrototypeStackIndex,
 	
 	mxHookInstanceIndex,
+	
+	mxInitializeRegExpFunctionIndex,
+	
 	mxStackIndexCount
 };
 
@@ -1316,6 +1351,7 @@ enum {
 #define mxArgumentsStrictPrototype the->stackTop[-1 - mxArgumentsStrictPrototypeStackIndex]
 
 #define mxHookInstance the->stackTop[-1 - mxHookInstanceIndex]
+#define  mxInitializeRegExpFunction the->stackTop[-1 - mxInitializeRegExpFunctionIndex]
 
 #define mxErrorPrototypes(THE_ERROR) (the->stackTop[-mxErrorPrototypeStackIndex-(THE_ERROR)])
 

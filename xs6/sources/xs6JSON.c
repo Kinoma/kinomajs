@@ -719,6 +719,7 @@ void fx_JSON_stringify(txMachine* the)
 		c_memset((txJSONSerializer*)&aSerializer, 0, sizeof(aSerializer));
 		fxSerializeJSON(the, (txJSONSerializer*)&aSerializer);
 		if (aSerializer.offset) {
+			fxSerializeJSONChar(the, (txJSONSerializer*)&aSerializer, 0);
 			mxResult->value.string = (txString)fxNewChunk(the, aSerializer.offset);
 			c_memcpy(mxResult->value.string, aSerializer.buffer, aSerializer.offset);
 			mxResult->kind = XS_STRING_KIND;
@@ -784,7 +785,6 @@ void fxSerializeJSON(txMachine* the, txJSONSerializer* theSerializer)
 		mxPushUndefined();
 	mxPush(mxEmptyString);
 	fxSerializeJSONProperty(the, theSerializer, &aFlag);
-	fxSerializeJSONChar(the, theSerializer, 0);
 	the->stack++;
 }
 
@@ -983,7 +983,8 @@ again:
 		anInstance = fxGetInstance(the, aValue);
 		if (anInstance->flag & XS_VALUE_FLAG) {
 			aValue = anInstance->next;
-			goto again;
+			if (aValue->kind != XS_PROXY_KIND)
+				goto again;
 		}
 		fxSerializeJSONName(the, theSerializer, theFlag);
 		anInstance->flag |= XS_LEVEL_FLAG;
@@ -995,7 +996,7 @@ again:
 			txSlot aContext;
 			aContext.value.regexp.code = theSerializer;
 			aContext.value.regexp.offsets = &aFlag;
-			fxEachOwnProperty(the, anInstance, XS_DONT_ENUM_FLAG, fxSerializeJSONOwnProperty, &aContext);
+			fxEachInstanceProperty(the, anInstance, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG, fxSerializeJSONOwnProperty, &aContext, anInstance);
 		}
 		theSerializer->level--;
 		fxSerializeJSONIndent(the, theSerializer);

@@ -31,6 +31,7 @@ void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSi
 
 	parser->emptyString = fxNewParserString(parser, "", 0);
 
+	parser->ObjectSymbol = fxNewParserSymbol(parser, "Object");
 	parser->__dirnameSymbol = fxNewParserSymbol(parser, "__dirname");
 	parser->__filenameSymbol = fxNewParserSymbol(parser, "__filename");
 	parser->__proto__Symbol = fxNewParserSymbol(parser, "__proto__");
@@ -44,6 +45,7 @@ void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSi
 	parser->doneSymbol = fxNewParserSymbol(parser, "done");
 	parser->evalSymbol = fxNewParserSymbol(parser, "eval");
 	parser->exportsSymbol = fxNewParserSymbol(parser, "exports");
+	parser->freezeSymbol = fxNewParserSymbol(parser, "freeze");
 	parser->fromSymbol = fxNewParserSymbol(parser, "from");
 	parser->getSymbol = fxNewParserSymbol(parser, "get");
 	parser->idSymbol = fxNewParserSymbol(parser, "id");
@@ -61,6 +63,7 @@ void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSi
 	parser->sliceSymbol = fxNewParserSymbol(parser, "slice");
 	parser->thisSymbol = fxNewParserSymbol(parser, "this");
 	parser->targetSymbol = fxNewParserSymbol(parser, "target");
+	parser->toStringSymbol = fxNewParserSymbol(parser, "toString");
 	parser->undefinedSymbol = fxNewParserSymbol(parser, "undefined");
 	parser->uriSymbol = fxNewParserSymbol(parser, "uri");
 	parser->valueSymbol = fxNewParserSymbol(parser, "value");

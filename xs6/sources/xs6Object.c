@@ -45,8 +45,8 @@ static void fx_Object_preventExtensions(txMachine* the);
 static void fx_Object_seal(txMachine* the);
 static void fx_Object_setPrototypeOf(txMachine* the);
 
-static void fxAssignProperty(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty);
-static void fxDefineProperty(txMachine* the, txSlot* theInstance, txInteger theID, txSlot* theDescriptor);
+static void fxAssignProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property);
+static void fxDefineProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property);
 static void fxFreezeProperty(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty);
 static void fxIsPropertyFrozen(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty);
 static void fxIsPropertySealed(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty);
@@ -149,43 +149,19 @@ void fx_Object_prototype___proto__set(txMachine* the)
 
 void fx_Object_prototype_hasOwnProperty(txMachine* the)
 {
-	txInteger id;
 	txSlot* instance;
+	txInteger id;
 	txSlot* property;
-
 	if ((mxThis->kind == XS_UNDEFINED_KIND) || (mxThis->kind == XS_NULL_KIND))
 		mxTypeError("invalid this");
 	if (mxArgc < 1)
 		mxTypeError("invalid key");
-	mxResult->kind = XS_BOOLEAN_KIND;
-	mxResult->value.boolean = 0;
-	fxSlotToID(the, mxArgv(0), &id);
 	instance = fxToInstance(the, mxThis);
-	property = fxGetOwnProperty(the, instance, id);
-	if (property)
-		mxResult->value.boolean = 1;
-	else {
-		if ((instance->flag & XS_VALUE_FLAG) && (id < 0)) {
-			property = instance->next;
-			switch (property->kind) {
-			case XS_ARRAY_KIND:
-				if (id == mxID(_length))
-					mxResult->value.boolean = 1;
-				break;
-			case XS_CALLBACK_KIND:
-			case XS_CODE_KIND:
-				if (id == mxID(_length))
-					mxResult->value.boolean = 1;
-				else if (id == mxID(_name))
-					mxResult->value.boolean = 1;
-				else if (id == mxID(_prototype)) {
-					property = mxFunctionInstancePrototype(instance);
-					mxResult->value.boolean = ((property->kind == XS_NULL_KIND) && (property->flag & XS_DONT_SET_FLAG)) ? 0 : 1;
-				}
-				break;
-			}
-		}
-	}
+	fxSlotToID(the, mxArgv(0), &id);
+	property = fxGetInstanceOwnProperty(the, instance, id);
+	mxResult->kind = XS_BOOLEAN_KIND;
+	mxResult->value.boolean = (property) ? 1 : 0;
+	mxPop();
 }
 
 void fx_Object_prototype_isPrototypeOf(txMachine* the)
@@ -212,20 +188,20 @@ void fx_Object_prototype_isPrototypeOf(txMachine* the)
 
 void fx_Object_prototype_propertyIsEnumerable(txMachine* the)
 {
-	txInteger id;
 	txSlot* instance;
+	txInteger id;
 	txSlot* property;
-	if (mxArgc < 1)
-		mxTypeError("invalid key");
 	if ((mxThis->kind == XS_UNDEFINED_KIND) || (mxThis->kind == XS_NULL_KIND))
 		mxTypeError("invalid this");
-	mxResult->kind = XS_BOOLEAN_KIND;
+	if (mxArgc < 1)
+		mxTypeError("invalid key");
 	mxResult->value.boolean = 0;
-	fxSlotToID(the, mxArgv(0), &id);
 	instance = fxToInstance(the, mxThis);
-	property = fxGetOwnProperty(the, instance, id);
-	if (property && ((property->flag & XS_DONT_ENUM_FLAG) == 0))
-		mxResult->value.boolean = 1;
+	fxSlotToID(the, mxArgv(0), &id);
+	property = fxGetInstanceOwnProperty(the, instance, id);
+	mxResult->kind = XS_BOOLEAN_KIND;
+	mxResult->value.boolean = (property && ((property->flag & XS_DONT_ENUM_FLAG) == 0)) ? 1 : 0;
+	mxPop();
 }
 
 void fx_Object_prototype_propertyIsScriptable(txMachine* the)
@@ -330,40 +306,37 @@ void fx_Object_assign(txMachine* the)
 {
 	txSlot* target;
 	txInteger c, i;
+	txSlot* source;
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid target");
-	target = fxToInstance(the, mxArgv(0));
+	target = mxArgv(0);
 	c = mxArgc;
 	for (i = 1; i < c; i++) {
-		txSlot* source = mxArgv(i);
-		if ((source->kind == XS_UNDEFINED_KIND) || (source->kind == XS_NULL_KIND))
+		if ((mxArgv(i)->kind == XS_UNDEFINED_KIND) || (mxArgv(i)->kind == XS_NULL_KIND))
 			continue;
-		fxEachOwnProperty(the, fxToInstance(the, source), XS_DONT_ENUM_FLAG, fxAssignProperty, source);
+		source = fxToInstance(the, mxArgv(i));
+		fxEachInstanceProperty(the, source, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxAssignProperty, target, source);
 	}
-	*mxResult = *mxArgv(0);
+	*mxResult = *target;
 }
 
 void fx_Object_create(txMachine* the)
 {
-	txSlot* properties;
 	txSlot* instance;
-
+	txSlot* properties;
 	if ((mxArgc < 1) || ((mxArgv(0)->kind != XS_NULL_KIND) && (mxArgv(0)->kind != XS_REFERENCE_KIND)))
 		mxTypeError("invalid prototype");
-	if (mxArgv(0)->kind == XS_NULL_KIND) {
+	if (mxArgv(0)->kind == XS_NULL_KIND)
 		fxNewInstance(the);
-	}
 	else {
 		mxPushSlot(mxArgv(0));
 		fxNewInstanceOf(the);
 	}
 	mxPullSlot(mxResult);
+	instance = fxGetInstance(the, mxResult);
 	if ((mxArgc > 1) && (mxArgv(1)->kind != XS_UNDEFINED_KIND)) {
 		properties = fxToInstance(the, mxArgv(1));
-		if (properties) {
-			instance = fxGetInstance(the, mxResult);
-			fxEachOwnProperty(the, properties, XS_DONT_ENUM_FLAG, fxDefineInstanceProperty, instance);
-		}
+		fxEachInstanceProperty(the, properties, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxDefineProperty, instance, properties);
 	}
 }
 
@@ -371,22 +344,20 @@ void fx_Object_defineProperties(txMachine* the)
 {
 	txSlot* instance;
 	txSlot* properties;
-
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("invalid object");
-	if ((mxArgc < 2) || (mxArgv(1)->kind == XS_UNDEFINED_KIND) || (mxArgv(1)->kind == XS_NULL_KIND))
+	if ((mxArgc < 2) || (mxArgv(1)->kind == XS_UNDEFINED_KIND))
 		mxTypeError("invalid properties");
 	instance = fxGetInstance(the, mxArgv(0));
-	*mxResult = *mxArgv(0);
 	properties = fxToInstance(the, mxArgv(1));
-	fxEachOwnProperty(the, properties, XS_DONT_ENUM_FLAG, fxDefineInstanceProperty, instance);
+	fxEachInstanceProperty(the, properties, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxDefineProperty, instance, properties);
+	*mxResult = *mxArgv(0);
 }
 
 void fx_Object_defineProperty(txMachine* the)
 {
 	txSlot* instance;
     txInteger id;
-
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("invalid object");
 	if (mxArgc < 2)
@@ -394,9 +365,9 @@ void fx_Object_defineProperty(txMachine* the)
 	if ((mxArgc < 3) || (mxArgv(2)->kind != XS_REFERENCE_KIND))
 		mxTypeError("invalid descriptor");
 	instance = fxGetInstance(the, mxArgv(0));
-	*mxResult = *mxArgv(0);
     fxSlotToID(the, mxArgv(1), &id);
-	fxDefineInstanceProperty(the, instance, id, mxArgv(2));
+	fxDefineProperty(the, instance, id, mxArgv(2));
+	*mxResult = *mxArgv(0);
 }
 
 void fx_Object_freeze(txMachine* the)
@@ -406,7 +377,7 @@ void fx_Object_freeze(txMachine* the)
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
 			fxPreventInstanceExtensions(the, slot);
-			fxEachOwnProperty(the, slot, XS_NO_FLAG, fxFreezeProperty, mxResult);
+			fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_DEFINE_FLAG, fxFreezeProperty, mxResult, slot);
 		}
 		*mxResult = *mxArgv(0);
 	}
@@ -416,41 +387,40 @@ void fx_Object_getOwnPropertyDescriptor(txMachine* the)
 {
 	txSlot* instance;
 	txInteger id;
-	
+	txSlot* property;
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid object");
 	if (mxArgc < 2)
 		mxTypeError("invalid key");
 	instance = fxToInstance(the, mxArgv(0));
 	fxSlotToID(the, mxArgv(1), &id);
-	fxGetInstanceOwnPropertyDescriptor(the, instance, id);
+	property = fxGetInstanceOwnProperty(the, instance, id);
+	if (property) {
+		fxDescribeProperty(the, property);
+		mxPullSlot(mxResult);
+	}
+	mxPop();
 }
 
 void fx_Object_getOwnPropertyNames(txMachine* the)
 {
-	txSlot* instance;
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid object");
-	instance = fxToInstance(the, mxArgv(0));
-	fxGetInstanceOwnKeys(the, instance, XS_DONT_ENUM_SYMBOL_FLAG);
+	fxEnumProperties(the, fxToInstance(the, mxArgv(0)), XS_EACH_STRING_FLAG);
 }
 
 void fx_Object_getOwnPropertySymbols(txMachine* the)
 {
-	txSlot* instance;
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid object");
-	instance = fxToInstance(the, mxArgv(0));
-	fxGetInstanceOwnKeys(the, instance, XS_DONT_ENUM_STRING_FLAG);
+	fxEnumProperties(the, fxToInstance(the, mxArgv(0)), XS_EACH_SYMBOL_FLAG);
 }
 
 void fx_Object_getPrototypeOf(txMachine* the)
 {
-	txSlot* instance;
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid object");
-	instance = fxToInstance(the, mxArgv(0));
-	fxGetInstancePrototype(the, instance);
+	fxGetInstancePrototype(the, fxToInstance(the, mxArgv(0)));
 }
 
 void fx_Object_is(txMachine* the)
@@ -509,9 +479,12 @@ void fx_Object_isFrozen(txMachine* the)
 		txSlot* slot = mxArgv(0);
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
+			mxResult->value.boolean = 0;
 			fxIsInstanceExtensible(the, slot);
-			if (mxResult->value.boolean)
-				fxEachOwnProperty(the, slot, XS_NO_FLAG, fxIsPropertyFrozen, mxResult);
+			mxResult->value.boolean = mxResult->value.boolean ? 0 : 1;
+			if (mxResult->value.boolean) {
+				fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG, fxIsPropertyFrozen, mxResult, slot);
+			}
 		}
 	}
 }
@@ -526,18 +499,16 @@ void fx_Object_isSealed(txMachine* the)
 			slot = slot->value.reference;
 			fxIsInstanceExtensible(the, slot);
 			if (mxResult->value.boolean)
-				fxEachOwnProperty(the, slot, XS_NO_FLAG, fxIsPropertySealed, mxResult);
+				fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG, fxIsPropertySealed, mxResult, slot);
 		}
 	}
 }
 
 void fx_Object_keys(txMachine* the)
 {
-	txSlot* instance;
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid object");
-	instance = fxToInstance(the, mxArgv(0));
-	fxGetInstanceOwnKeys(the, instance, XS_DONT_ENUM_FLAG | XS_DONT_ENUM_SYMBOL_FLAG);
+	fxEnumProperties(the, fxToInstance(the, mxArgv(0)), XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG);
 }
 
 void fx_Object_preventExtensions(txMachine* the)
@@ -559,7 +530,7 @@ void fx_Object_seal(txMachine* the)
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
 			fxPreventInstanceExtensions(the, slot);
-			fxEachOwnProperty(the, slot, XS_NO_FLAG, fxSealProperty, mxResult);
+			fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_DEFINE_FLAG, fxSealProperty, mxResult, slot);
 		}
 		*mxResult = *mxArgv(0);
 	}
@@ -579,177 +550,31 @@ void fx_Object_setPrototypeOf(txMachine* the)
 	*mxResult = *mxArgv(0);
 }
 
-void fxAssignProperty(txMachine* the, txSlot* theSource, txInteger theID, txSlot* theProperty)
+void fxAssignProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property)
 {
-	mxPushSlot(theSource);
-	fxGetID(the, theID);
-	mxPushSlot(mxArgv(0));
-	fxSetID(the, theID);
+	mxPushSlot(property);
+	mxPushSlot(context);
+	fxSetID(the, id);
+	mxPop();
+}
+
+void fxDefineDataProperty(txMachine* the, txSlot* instance, txInteger id, txSlot* value)
+{
+	txSlot* slot;
+	mxPush(mxObjectPrototype);
+	slot = fxLastProperty(the, fxNewObjectInstance(the));
+	slot= fxNextBooleanProperty(the, slot, 1, mxID(_configurable), XS_NO_FLAG);
+	slot= fxNextBooleanProperty(the, slot, 1, mxID(_enumerable), XS_NO_FLAG);
+	slot= fxNextBooleanProperty(the, slot, 1, mxID(_writable), XS_NO_FLAG);
+	slot= fxNextSlotProperty(the, slot, value, mxID(_value), XS_NO_FLAG);
+	fxDefineProperty(the, instance, id, the->stack);
 	the->stack++;
 }
 
-void fxDefineProperty(txMachine* the, txSlot* theInstance, txInteger theID, txSlot* theDescriptor)
+void fxDefineProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property)
 {
-	txSlot* configurable = C_NULL;
-	txSlot* enumerable = C_NULL;
-	txSlot* get = C_NULL;
-	txSlot* set = C_NULL;
-	txSlot* value = C_NULL;
-	txSlot* writable = C_NULL;
-	txSlot* getFunction = C_NULL;
-	txSlot* setFunction = C_NULL;
-	txSlot* property;
-	txFlag aFlag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
-
-	theDescriptor = fxGetInstance(the, theDescriptor);
-	if (theDescriptor) {
-		configurable = fxGetProperty(the, theDescriptor, mxID(_configurable));
-		enumerable = fxGetProperty(the, theDescriptor, mxID(_enumerable));
-		get = fxGetProperty(the, theDescriptor, mxID(_get));
-		set = fxGetProperty(the, theDescriptor, mxID(_set));
-		value = fxGetProperty(the, theDescriptor, mxID(_value));
-		writable = fxGetProperty(the, theDescriptor, mxID(_writable));
-	}
-	else
-		mxTypeError("no descriptor");
-	if (get) {
-		if (value)
-			mxTypeError("get and value");
-		if (writable)
-			mxTypeError("get and writable");
-		if (get->kind != XS_UNDEFINED_KIND) {
-			getFunction = fxGetInstance(the, get);
-			if (!getFunction || !mxIsFunction(getFunction))
-				mxTypeError("get is no function");
-		}
-	}
-	if (set) {
-		if (value)
-			mxTypeError("set and value");
-		if (writable)
-			mxTypeError("set and writable");
-		if (set->kind != XS_UNDEFINED_KIND) {
-			setFunction = fxGetInstance(the, set);
-			if (!setFunction || !mxIsFunction(setFunction))
-				mxTypeError("set is no function");
-		}
-	}
-	property = fxGetOwnProperty(the, theInstance, theID);
-	if (property) {
-		if (property->flag & XS_DONT_DELETE_FLAG) {
-			if (configurable && fxToBoolean(the, configurable)) {
-				goto not_configurable;
-			}
-			if (enumerable && fxToBoolean(the, enumerable)) {
-				if (property->flag & XS_DONT_ENUM_FLAG)
-					goto not_configurable;
-			}
-			else {
-				if (!(property->flag & XS_DONT_ENUM_FLAG))
-					goto not_configurable;
-			}
-			if (get || set) {
-				if (property->kind != XS_ACCESSOR_KIND)
-					goto not_configurable;
-				if (get) {
-					if (property->value.accessor.getter != getFunction) 
-						goto not_configurable;
-				}
-				if (set) {
-					if (property->value.accessor.setter != setFunction)
-						goto not_configurable;
-				}	
-			}
-			else if (value || writable) {
-				if (property->kind == XS_ACCESSOR_KIND)
-					goto not_configurable;
-				if (property->flag & XS_DONT_SET_FLAG) {
-					if (writable && fxToBoolean(the, writable))
-						goto not_configurable; 
-					if (value) {
-						if (!fxIsSameSlot(the, property, value))
-							goto not_configurable;
-					}
-				}
-			}
-		}
-	}
-	else {
-		property = fxSetProperty(the, theInstance, theID, &aFlag);
-		if (!property)
-			mxTypeError("instance is not extensible");
-		property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
-	}
-	if (configurable) {
-		if (fxToBoolean(the, configurable))
-			property->flag &= ~XS_DONT_DELETE_FLAG;
-		else
-			property->flag |= XS_DONT_DELETE_FLAG;
-	}
-	if (enumerable) {
-		if (fxToBoolean(the, enumerable))
-			property->flag &= ~XS_DONT_ENUM_FLAG;
-		else
-			property->flag |= XS_DONT_ENUM_FLAG;
-	}
-	if (get || set) {
-		if (property->kind != XS_ACCESSOR_KIND) {
-			property->kind = XS_ACCESSOR_KIND;
-			property->value.accessor.getter = C_NULL;
-			property->value.accessor.setter = C_NULL;
-		}
-		if (get)
-			property->value.accessor.getter = getFunction;
-		if (set)
-			property->value.accessor.setter = setFunction;
-	}
-	else if (value || writable) {
-		if (writable) {
-			if (fxToBoolean(the, writable))
-				property->flag &= ~XS_DONT_SET_FLAG;
-			else
-				property->flag |= XS_DONT_SET_FLAG;
-		}
-		if (value) {
-			property->kind = value->kind;
-			property->value = value->value;
-		}
-		else if (property->kind == XS_ACCESSOR_KIND) {
-			property->kind = XS_UNDEFINED_KIND;
-		}
-	}
-	return;
-not_configurable:
-	mxTypeError("property is not configurable");
-}
-
-void fxEnumPropertyKeys(txMachine* the, txSlot* theContext, txInteger theID, txSlot* theProperty) 
-{
-	txSlot* item = fxNewSlot(the);
-	if (theID < 0) {
-		txSlot* key = fxGetKey(the, (txID)theID);
-		if (key && (key->flag & XS_DONT_ENUM_FLAG)) {
-			if (key->kind == XS_KEY_KIND) {
-				item->kind = XS_STRING_KIND;
-				item->value.string = key->value.key.string;
-			}
-			else {
-				item->kind = XS_STRING_X_KIND;
-				item->value.string = key->value.key.string;
-			}
-		}
-		else {
-			item->kind = XS_SYMBOL_KIND;
-			item->value.ID = (txID)theID;
-		}
-	}
-	else {
-		char buffer[16];
-		fxCopyStringC(the, item, fxIntegerToString(the->dtoa, theID, buffer, sizeof(buffer)));
-	}
-	theContext->value.array.address->next = item;
-	theContext->value.array.address = item;
-	theContext->value.array.length++;
+	if (!fxDefineInstanceProperty(the, context, id, property))
+		mxTypeError("property is not configurable");
 }
 
 void fxFreezeProperty(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty)

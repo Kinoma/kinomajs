@@ -17,7 +17,11 @@
 #include "xs6All.h"
 
 static txSlot* fxNewGlobalInstance(txMachine* the);
+
 static void fx_Iterator_iterator(txMachine* the);
+static void fx_Enumerator(txMachine* the);
+static void fx_Enumerator_next(txMachine* the);
+
 static void fx_decodeURI(txMachine* the);
 static void fx_decodeURIComponent(txMachine* the);
 static void fx_encodeURI(txMachine* the);
@@ -121,6 +125,12 @@ void fxBuildGlobal(txMachine* the)
 	slot = fxNewObjectInstance(the);
 	slot = fxNextHostFunctionProperty(the, slot, fx_Iterator_iterator, 0, mxID(_Symbol_iterator), XS_DONT_ENUM_FLAG);
 	mxPull(mxIteratorPrototype);
+	
+	mxPush(mxIteratorPrototype);
+	slot = fxLastProperty(the, fxNewObjectInstance(the));
+	slot = fxNextHostFunctionProperty(the, slot, fx_Enumerator_next, 0, mxID(_next), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
+	fxNewHostConstructor(the, fx_Enumerator, 0, XS_NO_ID);
+	mxPull(mxEnumeratorFunction);
 }
 
 txSlot* fxNewGlobalInstance(txMachine* the)
@@ -199,6 +209,40 @@ txSlot* fxNewIteratorInstance(txMachine* the, txSlot* iterable)
 void fx_Iterator_iterator(txMachine* the)
 {
 	*mxResult = *mxThis;
+}
+
+void fx_Enumerator(txMachine* the)
+{
+	txSlot* iterator;
+	if (mxThis->kind == XS_REFERENCE_KIND)
+		fxEnumerateInstance(the, mxThis->value.reference);
+	else {
+		mxPushSlot(mxFunctionInstancePrototype(mxEnumeratorFunction.value.reference));
+		iterator = fxNewIteratorInstance(the, mxThis);
+		mxPullSlot(mxResult);
+		iterator->next->next->next = C_NULL;
+	}
+}
+
+void fx_Enumerator_next(txMachine* the)
+{
+	txSlot* iterator = fxGetInstance(the, mxThis);
+	txSlot* result = iterator->next;
+	txSlot* iterable = result->next;
+	txSlot* index = iterable->next;
+	txSlot* value = result->value.reference->next;
+	txSlot* done = value->next;
+	if (index) {
+		value->kind = index->kind;
+		value->value = index->value;
+		iterable->next = index->next;
+	}
+	else {
+		value->kind = XS_UNDEFINED_KIND;
+		done->value.boolean = 1;
+	}
+	mxResult->kind = result->kind;
+	mxResult->value = result->value;
 }
 
 void fx_decodeURI(txMachine* the)

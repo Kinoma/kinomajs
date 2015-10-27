@@ -42,6 +42,7 @@ if(CMAKE_VERSION VERSION_GREATER "3.0.99")
 else()
  set(CMAKE_SYSTEM_NAME Linux)
 endif()
+set(APPLE true CACHE BOOL "Host Build Type")
 
 set(CMAKE_SYSTEM_VERSION 1)
 

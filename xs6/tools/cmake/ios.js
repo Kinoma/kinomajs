@@ -95,7 +95,7 @@ endif()
 add_custom_command(
 	TARGET ${this.tree.application}
 	POST_BUILD
-	COMMAND codesign -f -v -s ${this.ios.identityHash} --entitlements \${TMP_DIR}/Entitlements.plist \${TMP_DIR}/\${CMAKE_CFG_INTDIR}/Balls.app
+	COMMAND codesign -f -v -s ${this.ios.identityHash} --entitlements \${TMP_DIR}/Entitlements.plist \${TMP_DIR}/\${CMAKE_CFG_INTDIR}/${this.tree.application}.app
 	COMMAND codesign -f -v -s ${this.ios.identityHash} --entitlements \${TMP_DIR}/Entitlements.plist \${APP_DIR}
 	COMMAND xcrun -sdk iphoneos PackageApplication \${APP_DIR} -o \${APP_IPA}
 	VERBATIM

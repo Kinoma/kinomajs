@@ -1086,7 +1086,7 @@ void fxStatement(txParser* parser, txBoolean blockIt)
 		}
 		else
 			fxReportParserError(parser, "missing identifier");
-		fxSemicolon(parser);
+		//fxSemicolon(parser);
 		break;
 	case XS_TOKEN_IF:
 		fxIfStatement(parser);
@@ -2162,7 +2162,7 @@ void fxGroupExpression(txParser* parser)
 	else {
 		if (aCount == 0)
 			fxReportParserError(parser, "missing expression");
-		else if (aCount > 1) {
+		else {
 			fxPushNodeList(parser, aCount);
 			fxPushNodeStruct(parser, 1, XS_TOKEN_EXPRESSIONS, aLine);
 		}
@@ -2573,6 +2573,7 @@ txNode* fxBindingFromExpression(txParser* parser, txNode* theNode, txToken theTo
 		((txBindingNode*)binding)->initializer = ((txAssignNode*)theNode)->value;
 		return binding;
 	}
+	
 	if (aToken == XS_TOKEN_ARRAY)
 		return fxArrayBindingFromExpression(parser, theNode, theToken);
 	if (aToken == XS_TOKEN_OBJECT)
@@ -2621,22 +2622,35 @@ txNode* fxArrayBindingFromExpression(txParser* parser, txNode* theNode, txToken 
 	txNode* binding;
 	while ((item = *address)) {
 		if (item->description->token == XS_TOKEN_SPREAD) {
-			if ((!(item->next)) && ((txSpreadNode*)item)->expression && (((txSpreadNode*)item)->expression->description->token == XS_TOKEN_ACCESS)) {
-				item->description = &gxTokenDescriptions[XS_TOKEN_REST_BINDING];
-				((txRestBindingNode*)item)->binding = fxBindingFromExpression(parser, ((txSpreadNode*)item)->expression, theToken);
-				break;
+			txNode* expression = ((txSpreadNode*)item)->expression;
+			if (item->next)
+				return NULL;
+			if (!expression)
+				return NULL;
+			if ((theToken == XS_TOKEN_BINDING) && ((expression->description->token == XS_TOKEN_MEMBER) || (expression->description->token == XS_TOKEN_MEMBER_AT)))
+				binding = expression;
+			else {			
+				binding = fxBindingFromExpression(parser, expression, theToken);
+				if (!binding)
+					return NULL;
 			}
-			return NULL;
+			item->description = &gxTokenDescriptions[XS_TOKEN_REST_BINDING];
+			((txRestBindingNode*)item)->binding = binding;
+			break;
 		}
 		if (item->description->token == XS_TOKEN_ELISION) {
 			item->description = &gxTokenDescriptions[XS_TOKEN_SKIP_BINDING];
 		}
 		else {
-			binding = fxBindingFromExpression(parser, item, theToken);
-			if (!binding)
-				return NULL;
-			binding->next = item->next;
-			item = *address = binding;
+			if ((theToken == XS_TOKEN_BINDING) && ((item->description->token== XS_TOKEN_MEMBER) || (item->description->token == XS_TOKEN_MEMBER_AT)))
+				binding = item;
+			else {			
+				binding = fxBindingFromExpression(parser, item, theToken);
+				if (!binding)
+					return NULL;
+				binding->next = item->next;
+				item = *address = binding;
+			}
 		}
 		address = &(item->next);
 	}
@@ -2843,16 +2857,20 @@ void fxCheckReference(txParser* parser, txToken theToken)
 	if (theToken == XS_TOKEN_ASSIGN) {
 		if (aToken == XS_TOKEN_ARRAY) {
 			txNode* binding = fxArrayBindingFromExpression(parser, node, XS_TOKEN_BINDING);
-			binding->next = node->next;
-			parser->root = binding;
-			return;
-		}
+            if (binding) {
+                binding->next = node->next;
+                parser->root = binding;
+                return;
+            }
+        }
 		if (aToken == XS_TOKEN_OBJECT) {
 			txNode* binding = fxObjectBindingFromExpression(parser, node, XS_TOKEN_BINDING);
-			binding->next = node->next;
-			parser->root = binding;
-			return;
-		}
+            if (binding) {
+                binding->next = node->next;
+                parser->root = binding;
+                return;
+            }
+        }
 	}
 	fxReportParserError(parser, "no reference");
 }

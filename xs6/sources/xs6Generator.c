@@ -42,7 +42,7 @@ void fxBuildGenerator(txMachine* the)
 	slot = fxLastProperty(the, fxNewHostConstructor(the, fx_Generator, 1, mxID(_Generator)));
 	slot = fxNextStringProperty(the, slot, "GeneratorFunction", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxGeneratorFunctionPrototype = *the->stack;
-	fxNewHostConstructor(the, fx_GeneratorFunction, 1, mxID(_GeneratorFunction));
+	slot = fxNewHostConstructor(the, fx_GeneratorFunction, 1, mxID(_GeneratorFunction));
 	the->stack++;
 }
 
@@ -150,7 +150,7 @@ txSlot* fxNewGeneratorFunctionInstance(txMachine* the, txID name)
 	txSlot* property;
 
 	instance = fxNewFunctionInstance(the, name);
-	property = instance->next->next->next;
+	property = mxFunctionInstancePrototype(instance);
 
 	mxPush(mxGeneratorPrototype);
 	fxNewInstanceOf(the);
@@ -193,10 +193,15 @@ void fx_GeneratorFunction(txMachine* the)
 	else {
 		txSlot* from = fxGetInstance(the, the->stack++);
 		txSlot* to = fxGetInstance(the, mxThis);
+		txSlot* fromProperty;
+		txSlot* toProperty;
         to->next->value.code = from->next->value.code;
-        to = mxFunctionInstanceInfo(to);
-        from = mxFunctionInstanceInfo(from);
-        to->value = from->value;
+        fromProperty = mxFunctionInstancePrototype(from);
+        toProperty = mxFunctionInstancePrototype(to);
+        *toProperty = *fromProperty;
+        fromProperty = mxFunctionInstanceInfo(from);
+        toProperty = mxFunctionInstanceInfo(to);
+        *toProperty = *fromProperty;
 	}
 }
 

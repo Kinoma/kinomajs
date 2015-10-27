@@ -68,13 +68,16 @@ typedef struct {
 	char base[PATH_MAX];
 } txArchive;
 
-typedef struct {
+typedef struct sxJob txJob;
+typedef void (*txJobCallback)(txJob*);
+struct sxJob {
+	txJob* next;
 	txMachine* the;
-	txID moduleID;
-#if mxMacOSX
-	CFRunLoopSourceRef source;
-#endif
-} txJob;
+	txNumber when;
+	txJobCallback callback;
+	txSlot function;
+	txSlot argument;
+};
 
 typedef void (*txLoader)(txMachine*, txString, txID);
 
@@ -85,15 +88,6 @@ struct sxModuleData {
 	txMachine* the;
 	char path[1];
 };
-
-typedef struct {
-	txMachine* the;
-	txSlot function;
-	txSlot argument;
-#if mxMacOSX
-	CFRunLoopTimerRef timer;
-#endif
-} txTimeoutData;
 
 mxExport void* fxMapArchive(txString path, txCallbackAt callbackAt);
 mxExport void fxRunLoop(txMachine* the);
@@ -116,13 +110,10 @@ static void fxLoadTextModule(txMachine* the, txString path, txID moduleID);
 static void fxLoadTextProgram(txMachine* the, txString path);
 #endif
 static txString fxMergePath(txString base, txString name, txString path);
-static void fxPerformJob(void* it);
+static void fxQueuePromiseJobsCallback(txJob* job);
 static void fxUnloadLibrary(void* it);
 static void fx_setTimeout(txMachine* the);
-#if mxMacOSX
-static void fx_setTimeoutCallback(CFRunLoopTimerRef timer, void *info);
-static void fx_setTimeoutRelease(const void *info);
-#endif
+static void fx_setTimeoutCallback(txJob* job);
 
 static txString gxExtensions[] = { 
 	".jsb", 
@@ -140,9 +131,6 @@ static txLoader gxLoaders[] = {
 #endif
 	C_NULL,
 };
-#if mxMacOSX
-CFStringRef gxRunLoopMode = CFSTR("xs6");
-#endif
 
 void* fxAllocateChunks(txMachine* the, txSize theSize)
 {
@@ -206,7 +194,6 @@ void fxBuildKeys(txMachine* the)
 				txString string = archive->symbols[i];
 				txID id = the->keyIndex;
 				txSlot* description = fxNewSlot(the);
-				description->flag = XS_DONT_ENUM_FLAG;
 				fxCopyStringC(the, description, string);
 				the->keyArray[id] = description;
 				the->keyIndex++;
@@ -223,7 +210,6 @@ void fxBuildKeys(txMachine* the)
 			for (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {
 				txID id = the->keyIndex;
 				txSlot* description = fxNewSlot(the);
-				description->flag = XS_DONT_ENUM_FLAG;
 				fxCopyStringC(the, description, gxIDStrings[i]);
 				the->keyArray[id] = description;
 				the->keyIndex++;
@@ -817,47 +803,53 @@ txScript* fxParseScript(txMachine* the, void* stream, txGetter getter, txUnsigne
 #endif
 }
 
-void fxPerformJob(void* it) 
+void fxQueuePromiseJobs(txMachine* the)
 {
-	txJob* job = it;
+	c_timeval tv;
+	txJob* job;
+	txJob** address = (txJob**)&(the->context);
+	while ((job = *address))
+		address = &(job->next);
+	job = *address = malloc(sizeof(txJob));
+    c_memset(job, 0, sizeof(txJob));
+    job->the = the;
+    job->callback = fxQueuePromiseJobsCallback;
+	c_gettimeofday(&tv, NULL);
+	job->when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0);
+}
+
+void fxQueuePromiseJobsCallback(txJob* job) 
+{
 	txMachine* the = job->the;
 	fxBeginHost(the);
 	{
 		fxRunPromiseJobs(the);
 	}
 	fxEndHost(the);
-#if mxMacOSX
-	CFRunLoopRemoveSource(CFRunLoopGetCurrent(), job->source, gxRunLoopMode);
-#endif
-	c_free(job);
-}
-
-void fxQueuePromiseJobs(txMachine* the)
-{
-#if mxMacOSX
-	CFRunLoopSourceContext context;
-#endif
-	txJob* job = malloc(sizeof(txJob));
-	job->the = the;
-	job->moduleID = XS_NO_ID;
-#if mxMacOSX
-	memset(&context, 0, sizeof(context));
-	context.info = job;
-	context.perform = fxPerformJob;
-    job->source = CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &context);
-	CFRunLoopAddSource(CFRunLoopGetCurrent(), job->source, gxRunLoopMode);
-	CFRunLoopSourceSignal(job->source);
-#endif
 }
 
 void fxRunLoop(txMachine* the)
 {
-#if mxMacOSX
-	SInt32 reason;
-	do {
-		reason = CFRunLoopRunInMode(gxRunLoopMode, 1, false);
-	} while (reason == kCFRunLoopRunTimedOut);
-#endif
+	c_timeval tv;
+	txNumber when;
+	txJob* job;
+	txJob** address;
+	for (;;) {
+		c_gettimeofday(&tv, NULL);
+		when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0);
+		address = (txJob**)&(the->context);;
+		if (!*address)
+			break;
+		while ((job = *address)) {
+			if (job->when <= when) {
+				(*job->callback)(job);	
+				*address = job->next;
+				c_free(job);
+			}
+			else
+				address = &(job->next);
+		}
+	}
 }
 
 void fxRunModule(txMachine* the, txString path)
@@ -950,58 +942,41 @@ void fxUnmapArchive(void* it)
 
 void fx_setTimeout(txMachine* the)
 {
-	txTimeoutData* data;
-#if mxMacOSX
-	CFRunLoopTimerContext context;
-#endif
-	txNumber duration = fxToNumber(the, mxArgv(1)) / 1000;
-	
-	data = c_malloc(sizeof(txTimeoutData));
-	mxElseError(data);
-	c_memset(data, 0, sizeof(txTimeoutData));
-	data->the = the;
-	data->function.kind = mxArgv(0)->kind;
-	data->function.value = mxArgv(0)->value;
-	fxRemember(the, &(data->function));
+	c_timeval tv;
+	txJob* job;
+	txJob** address = (txJob**)&(the->context);
+	while ((job = *address))
+		address = &(job->next);
+	job = *address = malloc(sizeof(txJob));
+	c_memset(job, 0, sizeof(txJob));
+	job->the = the;
+	job->callback = fx_setTimeoutCallback;
+	c_gettimeofday(&tv, NULL);
+	job->when = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec) / 1000.0) + fxToNumber(the, mxArgv(1));
+	job->function.kind = mxArgv(0)->kind;
+	job->function.value = mxArgv(0)->value;
+	fxRemember(the, &(job->function));
 	if (mxArgc > 2) {
-		data->argument.kind = mxArgv(2)->kind;
-		data->argument.value = mxArgv(2)->value;
+		job->argument.kind = mxArgv(2)->kind;
+		job->argument.value = mxArgv(2)->value;
 	}
-	fxRemember(the, &(data->argument));
-#if mxMacOSX
-	memset(&context, 0, sizeof(context));
-	context.info = data;
-	context.release = fx_setTimeoutRelease;
-	data->timer = CFRunLoopTimerCreate(kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + duration, 0, 0, 0, fx_setTimeoutCallback, &context);
-	CFRunLoopAddTimer(CFRunLoopGetCurrent(), data->timer, gxRunLoopMode);
-#endif
+	fxRemember(the, &(job->argument));
 }
 
-#if mxMacOSX
-void fx_setTimeoutCallback(CFRunLoopTimerRef timer, void *info)
+void fx_setTimeoutCallback(txJob* job)
 {
-	txTimeoutData* data = info;
-	txMachine* the = data->the;
+	txMachine* the = job->the;
 	fxBeginHost(the);
 	{
-		mxPush(data->argument);
+		mxPush(job->argument);
 		/* ARGC */
 		mxPushInteger(1);
 		/* THIS */
 		mxPushUndefined();
 		/* FUNCTION */
-		mxPush(data->function);
+		mxPush(job->function);
 		fxCall(the);
 		the->stack++;
 	}
 	fxEndHost(the);
 }
-
-void fx_setTimeoutRelease(const void *info)
-{
-	txTimeoutData* data = (txTimeoutData*)info;
-	fxForget(data->the, &(data->function));
-	fxForget(data->the, &(data->argument));
-	c_free(data);
-}
-#endif

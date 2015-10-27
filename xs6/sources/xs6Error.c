@@ -99,19 +99,16 @@ void fx_Error_aux(txMachine* the)
 
 void fx_Error_toString(txMachine* the)
 {
-	txSlot* anError;
-	txSlot* aProperty;
 	txInteger aLength;
 	
-	anError = fxGetInstance(the, mxThis);
-	aProperty = fxGetProperty(the, anError, mxID(_name));
-	mxPushSlot(aProperty);
+	mxPushSlot(mxThis);
+	fxGetID(the, mxID(_name));
 	if (the->stack->kind == XS_UNDEFINED_KIND) 
 		fxCopyStringC(the, the->stack, "Error");
 	else	
 		fxToString(the, the->stack);
-	aProperty = fxGetProperty(the, anError, mxID(_message));
-	mxPushSlot(aProperty);
+	mxPushSlot(mxThis);
+	fxGetID(the, mxID(_message));
 	if (the->stack->kind == XS_UNDEFINED_KIND) 
 		fxCopyStringC(the, the->stack, "");
 	else	

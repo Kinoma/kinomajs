@@ -1205,17 +1205,18 @@ void fx_Date_prototype_toISOString(txMachine* the)
 
 void fx_Date_prototype_toJSON(txMachine* the)
 {
-	char buffer[256]; int c;
-	txTimeDescription td;
-	txSlot* slot = fx_Date_prototype_getUTC_aux(the, &td);
-	if (slot) {
-		c_strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%S", &(td.tm));
-		c = c_strlen(buffer);
-		snprintf(buffer + c, sizeof(buffer) - c, ".%03dZ", td.ms);
+	fxToInstance(the, mxThis);
+	mxPushInteger(0);
+	mxPushSlot(mxThis);
+	fxToPrimitive(the, mxThis, XS_NUMBER_HINT);
+	if ((mxThis->kind == XS_NUMBER_KIND) && !c_isfinite(mxThis->value.number)) {
+		the->stack += 2;
+		mxResult->kind = XS_NULL_KIND;
 	}
-	else
-		c_strcpy(buffer, "Invalid Date");
-	fxCopyStringC(the, mxResult, buffer);
+	else {		
+		fxCallID(the, mxID(_toISOString));
+		mxPullSlot(mxResult);
+	}
 }
 
 void fx_Date_prototype_toPrimitive(txMachine* the)
