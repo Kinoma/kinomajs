@@ -1500,15 +1500,17 @@ XML_Parse(XML_Parser parser, const char *s, int len, int isFinal)
     else {
       switch (parsing) {
       case XML_SUSPENDED:
-        result = XML_STATUS_SUSPENDED;
+        result = (enum XML_Error)XML_STATUS_SUSPENDED;
         break;
       case XML_INITIALIZED:
       case XML_PARSING:
-        result = XML_STATUS_OK;
+        result = (enum XML_Error)XML_STATUS_OK;
         if (isFinal) {
           parsing = XML_FINISHED;
-          return result;
+          return (enum XML_Status)result;
         }
+	  case XML_FINISHED:
+		break;
       }
     }
 
@@ -1539,7 +1541,7 @@ XML_Parse(XML_Parser parser, const char *s, int len, int isFinal)
       bufferPtr = buffer;
       bufferEnd = buffer + nLeftOver;
     }
-    return result;
+    return (enum XML_Status)result;
   }
 #endif  /* not defined XML_CONTEXT_BYTES */
   else {
