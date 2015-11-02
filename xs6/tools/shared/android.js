@@ -86,7 +86,8 @@ export default class Android {
 		if (mapping) {
 			var buffer = FS.readFileSync(source).toString();
 			mapping.forEach(function(map) {
-				buffer = buffer.replace(map.key, map.value);
+				var regex = new RegExp(map.key, "g");
+				buffer = buffer.replace(regex, map.value);
 			});
 			FS.writeFileSync(destination, buffer);
 		}
@@ -110,7 +111,8 @@ export default class Android {
 		var destination = tmp + "/ndk" + path + "/" + name;
 		var buffer = FS.readFileSync(source).toString();
 		mapping.forEach(function(map) {
-			buffer = buffer.replace(map.key, map.value);
+			var regex = new RegExp(map.key, "g");
+			buffer = buffer.replace(regex, map.value);
 		});
 		var stop = "//#endif";
 		for (let permission of allPermissions) {
