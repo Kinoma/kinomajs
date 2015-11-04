@@ -1382,43 +1382,12 @@ txMachine* fxCreateMachine(txCreation* theCreation, void* theArchive, txString t
 				
 			fxAllocate(the, theCreation);
 
-			/* mxGlobal */
+			/* mxGLobal */
 			mxPushUndefined();
 			/* mxException */
 			mxPushUndefined();
-			/* mxObjectPrototype */
-			mxPushUndefined();
-			/* mxFunctionPrototype */
-			mxPushUndefined();
-			/* mxArrayPrototype */
-			mxPushUndefined();
-			/* mxStringPrototype */
-			mxPushUndefined();
-			/* mxBooleanPrototype */
-			mxPushUndefined();
-			/* mxNumberPrototype */
-			mxPushUndefined();
-			/* mxDatePrototype */
-			mxPushUndefined();
-			/* mxRegExpPrototype */
-			mxPushUndefined();
-			/* mxHostPrototype */
-			mxPushUndefined();
-			/* mxErrorPrototype */
-			mxPushUndefined();
-			/* mxEvalErrorPrototype */
-			mxPushUndefined();
-			/* mxRangeErrorPrototype */
-			mxPushUndefined();
-			/* mxReferenceErrorPrototype */
-			mxPushUndefined();
-			/* mxSyntaxErrorPrototype */
-			mxPushUndefined();
-			/* mxTypeErrorPrototype */
-			mxPushUndefined();
-			/* mxURIErrorPrototype */
-			mxPushUndefined();
-			
+			for (anIndex = mxObjectPrototypeStackIndex; anIndex < mxModulePathsStackIndex; anIndex++)
+				mxPushUndefined();
 			/* mxModulePaths */
 			mxPushUndefined();
 			/* mxImportingModules */

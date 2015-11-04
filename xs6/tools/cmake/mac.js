@@ -75,8 +75,8 @@ add_custom_command(
 	COMMAND \${CMAKE_COMMAND} -E copy \${ICNS} \${APP_DIR}/../Resources/fsk.icns
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${NIB} \${APP_DIR}/../Resources/English.lproj/fsk.nib
 	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR}/../Resources \${BUILD_APP_DIR}/../Resources
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \${BUILD_APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:${application}> \${APP_DIR}
+	COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \${BUILD_APP_DIR}
 	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE_DIR:${application}>/../Info.plist \${APP_DIR}/../
 	COMMAND \${CMAKE_COMMAND} -E echo "APPLTINY" > \${APP_DIR}/../PkgInfo
 	)

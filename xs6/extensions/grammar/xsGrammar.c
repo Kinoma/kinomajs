@@ -33,6 +33,27 @@ FskExport(FskErr) xsGrammar_fskUnload(FskLibrary it)
 }
 #endif
 
+void Grammar_assignValue(xsMachine* the)
+{
+	xsIntegerValue c, i;
+	xsIndex id;
+	c = xsToInteger(xsGet(xsArg(0), xsID_length));
+	if (c) {
+		xsResult = xsArg(1);
+        c--;
+		for (i = 0; i < c; i++) {
+			id = (xsIndex)xsToInteger(xsGet(xsArg(0), i));
+			xsResult = xsGet(xsResult, id);
+		}
+		id = (xsIndex)xsToInteger(xsGet(xsArg(0), i));
+		if (id < 0) {
+			if (id == -1)
+				id = (xsIndex)xsToInteger(xsGet(xsResult, xsID_length));
+			xsSet(xsResult, id, xsArg(2));
+		}
+	}
+}
+
 void Grammar_nameToID(xsMachine* the)
 {
 	char buffer[1024];
@@ -51,6 +72,7 @@ void patchGrammar(xsMachine* the)
 {
 	xsVars(1);
 	xsVar(0) = xsGet(xsGlobal, xsID_Grammar);
+	xsNewHostProperty(xsVar(0), xsID_assignValue, xsNewHostFunction(Grammar_assignValue, 1), xsDontEnum, xsDontScript);
 	xsNewHostProperty(xsVar(0), xsID_nameToID, xsNewHostFunction(Grammar_nameToID, 1), xsDontEnum, xsDontScript);
 	xsNewHostProperty(xsVar(0), xsID_parse, xsNewHostFunction(xs_parse, 1), xsDontEnum, xsDontScript);
 	xsNewHostProperty(xsVar(0), xsID_stringify, xsNewHostFunction(xs_serialize, 1), xsDontEnum, xsDontScript);

@@ -2122,14 +2122,13 @@ void fx_Array_prototype_unshift(txMachine* the)
 {
 	txIndex length;
 	txSlot* array = fxCoerceToArray(the, mxThis, &length);
-	txIndex c = mxArgc, i = length;
+	txIndex c = mxArgc;
 	if ((txIndex)(XS_MAX_INDEX - c) < length)
 		mxRangeError("array overflow");
 	if (array) {
 		if (c > 0) {
 			txSlot* address;
-			if ((txIndex)(XS_MAX_INDEX - c) < length)
-				mxRangeError("array overflow");
+            txIndex i = 0;
 			fxSetArrayLength(the, array, length + (txIndex)c);
 			address = array->value.array.address;
 			c_memmove(address + c, address, length * sizeof(txSlot));

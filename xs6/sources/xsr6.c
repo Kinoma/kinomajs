@@ -45,6 +45,7 @@ static char** gargv;
 static char** process_then_parameters = NULL;
 
 static int console_log_depth = 0;
+
 void console_log(xsMachine* the)
 {
 	xsIntegerValue c = xsToInteger(xsArgc), i;
@@ -127,6 +128,90 @@ void console_log(xsMachine* the)
 	console_log_depth--;
 	if (!console_log_depth)
 		fprintf(stderr,  "\n");
+}
+
+void console_log_xsbug(xsMachine* the)
+{
+	xsIntegerValue c = xsToInteger(xsArgc), i;
+	xsBooleanValue space = 0;
+	xsVars(4);
+	console_log_depth++;
+	for (i = 0; i < c; i++) {
+		if (space)
+			xsLog(" ");
+		else
+			space = 1;
+		switch (xsTypeOf(xsArg(i))) {
+		case xsUndefinedType:
+		case xsNullType:
+		case xsBooleanType:
+		case xsIntegerType:
+		case xsNumberType:
+			xsLog("%s", xsToString(xsArg(i)));
+			break;
+		case xsSymbolType:
+			xsResult = xsCall1(xsGlobal, xsID("String"), xsArg(i));
+			xsLog("%s", xsToString(xsResult));
+			break;
+		case xsStringType:
+		case xsStringXType:
+			if ((console_log_depth == 1) && (i == 0))
+				xsLog("%s", xsToString(xsArg(i)));
+			else
+				xsLog("'%s'", xsToString(xsArg(i)));
+			break;
+		case xsReferenceType:
+			if (console_log_depth < 3) {
+				xsBooleanValue comma = 0;
+				if (xsHas(xsArg(i), xsID("length"))) {
+					xsIntegerValue length = xsToInteger(xsGet(xsArg(i), xsID("length"))), index;
+					xsLog("[");
+					for (index = 0; index < length; index++) {
+						xsVar(1) = xsGet(xsArg(i), (xsIndex)index);
+						if (comma)
+							xsLog(",");
+						else
+							comma = 1;
+						xsLog(" ");
+						fxPush(xsVar(1));
+						fxPushCount(the, 1);
+						fxPush(xsThis);
+						fxPush(xsFunction);
+						fxCall(the);
+					}
+					xsLog(" ]");
+				}
+				else {
+					xsLog("{");
+					xsVar(0) = xsEnumerate(xsArg(i));
+					for (;;) {
+						xsVar(1) = xsCall0(xsVar(0), xsID("next"));
+						if (xsTest(xsGet(xsVar(1), xsID("done"))))
+							break;
+						xsVar(2) = xsGet(xsVar(1), xsID("value"));
+						xsVar(3) = xsGetAt(xsArg(i), xsVar(2));
+						if (comma)
+							xsLog(",");
+						else
+							comma = 1;
+						xsLog(" %s: ", xsToString(xsVar(2)));
+						fxPush(xsVar(3));
+						fxPushCount(the, 1);
+						fxPush(xsThis);
+						fxPush(xsFunction);
+						fxCall(the);
+					}
+					xsLog(" }");
+				}
+			}
+			else
+				xsLog("%s", xsToString(xsArg(i)));
+			break;
+		}
+	}
+	console_log_depth--;
+	if (!console_log_depth)
+		xsLog("\n");
 }
 
 void print(xsMachine* the)
@@ -221,6 +306,7 @@ int main(int argc, char* argv[])
 	int argi = 1;
 	void* archive = NULL;
 	xsBooleanValue program = 0;
+	xsBooleanValue xsbug = 0;
 	xsMachine* machine;
 	char path[PATH_MAX];
 	char modulePath[PATH_MAX];
@@ -251,11 +337,17 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-	if (argi < argc) {
+	while (argi < argc) {
 		if (!strcmp(argv[argi], "-p")) {
 			program = 1;
 			argi++;
 		}
+		else if (!strcmp(argv[argi], "-x")) {
+			xsbug = 1;
+			argi++;
+		}
+		else
+			break;
 	}
 	gargc = argc;
 	gargi = argi;
@@ -268,7 +360,10 @@ int main(int argc, char* argv[])
 		{
 			xsTry {
 				xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
-				xsVar(1) = xsNewHostFunction(console_log, 0);
+				if (xsbug)
+					xsVar(1) = xsNewHostFunction(console_log_xsbug, 0);
+				else
+					xsVar(1) = xsNewHostFunction(console_log, 0);
 				xsSet(xsVar(0), xsID("log"), xsVar(1));
 				xsSet(xsGlobal, xsID("console"), xsVar(0));
 

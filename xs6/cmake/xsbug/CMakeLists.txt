@@ -51,7 +51,7 @@ add_custom_target(
 	COMMAND ${CMAKE_COMMAND} -E make_directory ${BUILD_DIR}
 	COMMAND ${CMAKE_COMMAND} -E make_directory ${XS6_TOOLS_BIN}/xsbug
 	COMMAND ${CMAKE_COMMAND} -E echo ${KPRCONFIG} ${OPTIONS} ${KPRCONFIG_OPTIONS_${BUILD_TYPE}} -o ${XS6} ${XS6}/xsbug/manifest.json
-	COMMAND ${KPRCONFIG} ${OPTIONS} ${KPRCONFIG_OPTIONS_${BUILD_TYPE}} -o ${XS6} ${XS6}/xsbug/manifest.json
+	COMMAND ${XS6_TOOLS_BIN}/xsr6 -a ${XS6_MODULES_DIR}/tools.xsa kprconfig ${OPTIONS} ${KPRCONFIG_OPTIONS_${BUILD_TYPE}} -o ${XS6} ${XS6}/xsbug/manifest.json
 	COMMENT "Creating xsbug"
 	DEPENDS tools xsc xsl xsr
 	)

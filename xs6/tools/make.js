@@ -306,13 +306,14 @@ export class Manifest {
 			}
 			file.write('#endif\n');
 		}
-		var buildPropertiesPath = tool.homePath + "/kinoma/kpr/cmake/build.properties";
-		var buildProperties = FS.readFileSync(buildPropertiesPath);
-		if (!buildProperties)
-			xsTool.reportError(null, 0, "Unable to read " + buildPropertiesPath);
-		var coreVersion = buildProperties.match(/core\.version=([0-9.]*)/);
-		if (coreVersion[1])
-			this.tree.environment["CORE_VERSION"] = coreVersion[1];
+		var buildPropertiesPath = tool.homePath + "/build/properties.json";
+		if (FS.existsSync(buildPropertiesPath)) {
+			var buildProperties = JSON.parse(FS.readFileSync(buildPropertiesPath));
+			if (!buildProperties)
+				xsTool.reportError(null, 0, "Unable to read " + buildPropertiesPath);
+			if (buildProperties.version)
+				this.tree.environment["CORE_VERSION"] = buildProperties.version;
+		}
 
 		let environment = this.tree.environment;
 		for (var name in environment) {

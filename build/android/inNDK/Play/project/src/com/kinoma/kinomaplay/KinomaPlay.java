@@ -164,8 +164,8 @@ public class KinomaPlay extends Activity
 		final int ExpiryMonth = (7 - 1);	// starts at 0
 		final int ExpiryDay = 31;
 	final int DO_VERSION_CHECK = 1;
-		final int LatestVersionMaj = 5;
-		final int LatestVersionMin = 1;
+		final int LatestVersionMaj = 6;
+		final int LatestVersionMin = 0;
 
 	final int kJNIStartFsk = 1;
 	final int kJNIIdleFsk = 2;

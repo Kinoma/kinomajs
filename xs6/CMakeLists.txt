@@ -62,7 +62,15 @@ set(XS2JS ${XSR} ${XS6_MODULES} xs2js)
 set(XSC ${XS6_TOOLS_BIN}/xsc6)
 set(XSL ${XS6_TOOLS_BIN}/xsl6)
 
+option(MC "Build MC" OFF)
+if(NOT MC)
+	set(MC_FLAG EXCLUDE_FROM_ALL)
+endif()
+
 option(XSBUG "Build XSBug" OFF)
+if(NOT XSBUG)
+	set(XSBUG_FLAG EXCLUDE_FROM_ALL)
+endif()
 
 if(NOT WIN32)
 	add_subdirectory(${CMAKE_DIR}/kct)
@@ -73,6 +81,8 @@ add_subdirectory(${CMAKE_DIR}/xsc)
 add_subdirectory(${CMAKE_DIR}/xsl)
 add_subdirectory(${CMAKE_DIR}/xsr)
 
-if(XSBUG)
-	add_subdirectory(${CMAKE_DIR}/xsbug)
-endif()
+if (EXISTS ${CMAKE_DIR}/mc)
+	add_subdirectory(${CMAKE_DIR}/mc ${MC_FLAG})
+endif ()
+
+add_subdirectory(${CMAKE_DIR}/xsbug ${XSBUG_FLAG})

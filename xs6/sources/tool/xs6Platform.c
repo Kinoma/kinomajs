@@ -122,8 +122,6 @@ char *realpath(const char *path, char *resolved_path)
 
 #ifdef mxDebug
 
-static txBoolean fxGetBreakpointsPath(txMachine* the, char* thePath);
-
 void fxAddReadableCallback(txMachine* the)
 {
 }
@@ -287,31 +285,6 @@ txBoolean fxGetAutomatic(txMachine* the)
 	return 1;
 }
 
-txBoolean fxGetBreakpointsPath(txMachine* the, char* thePath)
-{
-#if mxWindows
-	char aDirectory[1024];
-
-	GetCurrentDirectory(1024, aDirectory);
-	strcpy(thePath, aDirectory);
-	strcat(thePath, "\\");
-#else
-	struct passwd* a_passwd;
-
-	a_passwd = getpwuid(getuid());
-	if (a_passwd == NULL)
-		return 0;
-	strcpy(thePath, a_passwd->pw_dir);
-	strcat(thePath, "/");
-#endif
-	if (the->name)
-		strcat(thePath, the->name);
-	else
-		strcat(thePath, "xslib");
-	strcat(thePath, ".breakpoints");
-	return 1;
-}
-
 txBoolean fxIsConnected(txMachine* the)
 {
 #if mxWindows
@@ -328,24 +301,6 @@ txBoolean fxIsReadable(txMachine* the)
 
 void fxReadBreakpoints(txMachine* the)
 {
-	char aPath[1024];
-	FILE* aFile;
-	char* aLine;
-
-	if (fxGetBreakpointsPath(the, aPath)) {
-		aFile = fopen(aPath, "r");
-		if (aFile) {
-			while (fgets(aPath, sizeof(aPath), aFile)) {
-				aLine = strrchr(aPath, '#');
-				if (aLine != NULL) {
-					*aLine = 0;
-					aLine++;
-					fxSetBreakpoint(the, aPath, aLine);
-				}
-			}
-			fclose(aFile);
-		}
-	}
 }
 
 void fxReceive(txMachine* the)
@@ -411,23 +366,6 @@ void fxSetAutomatic(txMachine* the, txBoolean theAutomatic)
 
 void fxWriteBreakpoints(txMachine* the)
 {
-	char aPath[1024];
-	FILE* aFile;
-	txSlot* aBreakpoint = C_NULL;
-	char aLine[32];
-
-	if (fxGetBreakpointsPath(the, aPath)) {
-		aFile = fopen(aPath, "w");
-		if (aFile) {
-			while ((aBreakpoint = fxGetNextBreakpoint(the, aBreakpoint, aPath, aLine))) {
-				fputs(aPath, aFile);
-				fputs("#", aFile);
-				fputs(aLine, aFile);
-				fputs("\n", aFile);
-			}
-			fclose(aFile);
-		}
-	}
 }
 
 #endif /* mxDebug */

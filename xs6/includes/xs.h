@@ -326,6 +326,16 @@ typedef txU4 xsUnsignedValue;
 #define xsSyntaxErrorPrototype (the->stackTop[prototypesStackIndex - 14])
 #define xsTypeErrorPrototype (the->stackTop[prototypesStackIndex - 15])
 #define xsURIErrorPrototype (the->stackTop[prototypesStackIndex - 16])
+#define xsSymbolPrototype (the->stackTop[prototypesStackIndex - 17])
+#define xsArrayBufferPrototype (the->stackTop[prototypesStackIndex - 18])
+#define xsDataViewPrototype (the->stackTop[prototypesStackIndex - 19])
+#define xsTypedArrayPrototype (the->stackTop[prototypesStackIndex - 20])
+#define xsMapPrototype (the->stackTop[prototypesStackIndex - 21])
+#define xsSetPrototype (the->stackTop[prototypesStackIndex - 22])
+#define xsWeakMapPrototype (the->stackTop[prototypesStackIndex - 23])
+#define xsWeakSetPrototype (the->stackTop[prototypesStackIndex - 24])
+#define xsPromisePrototype (the->stackTop[prototypesStackIndex - 25])
+#define xsProxyPrototype (the->stackTop[prototypesStackIndex - 26])
 
 #define xsNewInstanceOf(_PROTOTYPE) \
 	(xsOverflow(-1), \

@@ -20,7 +20,8 @@
 
 	<program>
 		class Grammar {
-			constructor() {
+			constructor(it = xs.infoset) {
+				this.infoset = it;
 				this.namespaces = new Map;
 				this.objects = new Map;
 				this.roots = new Map;
@@ -41,6 +42,13 @@
 						break;
 					result.value.linkProperty(Grammar.ruleSet, ["*"]); 
 				}
+			}
+			parse(buffer, path) {
+				var document = this.infoset.scan(buffer, path);
+				return Grammar.ruleSet.parseElement(document.element, null);
+			}
+			reportError(path, line, message) {
+				console.log(path + ":" + line + ":", message);
 			}
 			dump() {
 				Grammar.ruleSet.dump();
@@ -125,7 +133,7 @@
 				return new Grammar.Property(path, Grammar.ioString);
 			}
 		}
-		
+
 		Grammar.ioBoolean = {
 			parse(data) {
 				return (data == "true") ? true : false;
@@ -163,7 +171,7 @@
 				}
 			}
 		}
-	
+
 		Grammar.RuleSet = class {
 			constructor() {
 				this.dumped = false;
@@ -193,6 +201,55 @@
 			}
 			getPIRule(step) {
 				return this.getRule(this.piRules, step);
+			}
+			parseAttribute(attribute, instance) {
+				var rule = this.getRule(this.attributeRules, attribute);
+				if (!rule)
+					return;
+				Grammar.assignValue(rule, instance, rule.io.parse(attribute.value));
+			}
+			parseData(data, instance) {
+				var rule = this.dataRule;
+				if (!rule)
+					return;
+				Grammar.assignValue(rule, instance, rule.io.parse(data.value));
+			}
+			parseDefaults(instance) {
+				for (var rule of this.defaultRules)
+					Grammar.assignValue(rule, instance, Object.create(rule.io));
+			}
+			parseElement(element, instance) {
+				var rule = this.getRule(this.elementRules, element);
+				if (!rule)
+					return;
+				if (rule.io) {
+					var value = Object.create(rule.io);
+					value.__xs__path = element.path;
+					value.__xs__line = element.line;
+					Grammar.assignValue(rule, instance, value);
+					instance = value;
+				}
+				var ruleSet = rule.ruleSet;
+				if (ruleSet) {
+					ruleSet.parseDefaults(instance);
+					for (var attribute of element.attributes)
+						ruleSet.parseAttribute(attribute, instance);
+					for (var child of element.children) {
+						if (child.kind == 1)
+							ruleSet.parseElement(child, instance);
+						else if (child.kind == 3)
+							ruleSet.parseData(child, instance);
+						else if (child.kind == 5)
+							ruleSet.parsePI(child, instance);
+					}
+				}
+				return instance;
+			}
+			parsePI(pi, instance) {
+				var rule = this.getRule(this.piRules, pi);
+				if (!rule)
+					return;
+				Grammar.assignValue(rule, instance, rule.io.parse(pi.value));
 			}
 			putAttributeRule(step, rule) {
 				return this.putRule(this.attributeRules, step, rule);
@@ -237,7 +294,7 @@
 				});
 				console.log("ELEMENTS");
 				this.dumpRules(this.elementRules);
-		
+
 				for (var namespace in this.elementRules) {
 					var nameRules = this.elementRules[namespace];
 					for (var name in nameRules) {
@@ -259,13 +316,13 @@
 				}
 			}
 		}
-		
+
 		Grammar.ATTRIBUTE_FLAG = 1;
 		Grammar.DEFAULT_FLAG = 2;
 		Grammar.PI_FLAG = 4;
 		Grammar.ROOT_FLAG = 8;
 		Grammar.SKIP_FLAG = 16;
-		
+
 		Grammar.Step = class {
 			constructor(namespace, name, prefix) {
 				this.namespace = namespace;
@@ -285,7 +342,7 @@
 				var names, c, i, name, split, namespace, prefix;
 				var flags = 0;
 				var steps = [];
-		
+
 				if (pattern == "")
 					flags |= Grammar.SKIP_FLAG;
 				else if (pattern == ".") {
@@ -385,6 +442,8 @@
 			}
 			linkProperty(ruleSet, names) {
 				var path = this.path;
+				if (!path)
+					return;
 				if (path.flags & Grammar.SKIP_FLAG)
 					return;
 				var steps = path.steps;
@@ -426,7 +485,7 @@
 				}
 			}
 		}
-		
+
 		Grammar.Data = class extends Grammar.Property {
 			constructor(instance) {
 				super(null, null);
@@ -522,7 +581,7 @@
 				for (var name in properties) {
 					var property = properties[name];
 					property.linkProperty(ruleSet, names.concat(name));
-		
+
 				}
 			}
 			linkPropertyStep(ruleSet, names, step) {
@@ -547,7 +606,7 @@
 				}
 			}
 		}
-		
+
 		Grammar.ruleSet = new Grammar.RuleSet;
 	</program>
 	

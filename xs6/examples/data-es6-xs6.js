@@ -779,7 +779,38 @@ exports.tests = [
       },
     },
     {
-      name: 'lexical "super" binding',
+      name: 'lexical "super" binding in constructors',
+      exec: function(){
+        var received;
+
+        class B {
+          constructor (arg) {
+            received = arg;
+          }
+        }
+        class C extends B {
+          constructor () {
+            var callSuper = () => super('foo');
+            callSuper();
+          }
+        }
+        return new C instanceof C && received === 'foo'
+      },
+      res: {
+        tr:          true,
+        babel:       true,
+        closure:     true,
+        es6tr:       true,
+        jsx:         true,
+        typescript:  true,
+        edge12:      flag,
+        edge13:      true,
+        chrome45:    strict,
+        node4:       strict,
+      },
+    },
+    {
+      name: 'lexical "super" binding in methods',
       exec: function(){
         class B {
           qux() {
@@ -793,7 +824,7 @@ exports.tests = [
         }
         var arrow = new C().baz();
         return arrow() === "quux";
-     },
+      },
       res: {
         tr:          true,
         babel:       true,

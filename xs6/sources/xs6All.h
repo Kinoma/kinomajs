@@ -1175,6 +1175,16 @@ enum {
 	mxSyntaxErrorPrototypeStackIndex,
 	mxTypeErrorPrototypeStackIndex,
 	mxURIErrorPrototypeStackIndex,
+	mxSymbolPrototypeStackIndex,
+	mxArrayBufferPrototypeStackIndex,
+	mxDataViewPrototypeStackIndex,
+	mxTypedArrayPrototypeStackIndex,
+	mxMapPrototypeStackIndex,
+	mxSetPrototypeStackIndex,
+	mxWeakMapPrototypeStackIndex,
+	mxWeakSetPrototypeStackIndex,
+	mxPromisePrototypeStackIndex,
+	mxProxyPrototypeStackIndex,
 
 	mxModulePathsStackIndex,
 	mxImportingModulesStackIndex,
@@ -1213,24 +1223,14 @@ enum {
 	mxModuleConstructorStackIndex,
 	mxTransferPrototypeStackIndex,
 	mxTransferConstructorStackIndex,
-	mxPromisePrototypeStackIndex,
 	mxOnRejectedPromiseFunctionStackIndex,
 	mxOnResolvedPromiseFunctionStackIndex,
 	mxRejectPromiseFunctionStackIndex,
 	mxResolvePromiseFunctionStackIndex,
-	mxSymbolPrototypeStackIndex,
-	mxProxyPrototypeStackIndex,
 	mxProxyPropertyGetterStackIndex,
 	mxProxyPropertySetterStackIndex,
-	mxMapPrototypeStackIndex,
-	mxSetPrototypeStackIndex,
-	mxWeakMapPrototypeStackIndex,
-	mxWeakSetPrototypeStackIndex,
 	mxStringAccessorStackIndex,
 	mxUndefinedStackIndex,
-	mxArrayBufferPrototypeStackIndex,
-	mxDataViewPrototypeStackIndex,
-	mxTypedArrayPrototypeStackIndex,
 	
 	mxIteratorPrototypeStackIndex,
 	mxArrayEntriesIteratorPrototypeStackIndex,
@@ -1275,6 +1275,16 @@ enum {
 #define mxSyntaxErrorPrototype the->stackTop[-1 - mxSyntaxErrorPrototypeStackIndex]
 #define mxTypeErrorPrototype the->stackTop[-1 - mxTypeErrorPrototypeStackIndex]
 #define mxURIErrorPrototype the->stackTop[-1 - mxURIErrorPrototypeStackIndex]
+#define mxSymbolPrototype the->stackTop[-1 - mxSymbolPrototypeStackIndex]
+#define mxArrayBufferPrototype the->stackTop[-1 - mxArrayBufferPrototypeStackIndex]
+#define mxDataViewPrototype the->stackTop[-1 - mxDataViewPrototypeStackIndex]
+#define mxTypedArrayPrototype the->stackTop[-1 - mxTypedArrayPrototypeStackIndex]
+#define mxMapPrototype the->stackTop[-1 - mxMapPrototypeStackIndex]
+#define mxSetPrototype the->stackTop[-1 - mxSetPrototypeStackIndex]
+#define mxWeakMapPrototype the->stackTop[-1 - mxWeakMapPrototypeStackIndex]
+#define mxWeakSetPrototype the->stackTop[-1 - mxWeakSetPrototypeStackIndex]
+#define mxPromisePrototype the->stackTop[-1 - mxPromisePrototypeStackIndex]
+#define mxProxyPrototype the->stackTop[-1 - mxProxyPrototypeStackIndex]
 
 #define mxModulePaths the->stackTop[-1 - mxModulePathsStackIndex]
 #define mxImportingModules the->stackTop[-1 - mxImportingModulesStackIndex]
@@ -1313,24 +1323,14 @@ enum {
 #define mxModuleConstructor the->stackTop[-1 - mxModuleConstructorStackIndex]
 #define mxTransferPrototype the->stackTop[-1 - mxTransferPrototypeStackIndex]
 #define mxTransferConstructor the->stackTop[-1 - mxTransferConstructorStackIndex]
-#define mxPromisePrototype the->stackTop[-1 - mxPromisePrototypeStackIndex]
 #define mxOnRejectedPromiseFunction the->stackTop[-1 - mxOnRejectedPromiseFunctionStackIndex]
 #define mxOnResolvedPromiseFunction the->stackTop[-1 - mxOnResolvedPromiseFunctionStackIndex]
 #define mxRejectPromiseFunction the->stackTop[-1 - mxRejectPromiseFunctionStackIndex]
 #define mxResolvePromiseFunction the->stackTop[-1 - mxResolvePromiseFunctionStackIndex]
-#define mxSymbolPrototype the->stackTop[-1 - mxSymbolPrototypeStackIndex]
-#define mxProxyPrototype the->stackTop[-1 - mxProxyPrototypeStackIndex]
 #define mxProxyPropertyGetter the->stackTop[-1 - mxProxyPropertyGetterStackIndex]
 #define mxProxyPropertySetter the->stackTop[-1 - mxProxyPropertySetterStackIndex]
-#define mxMapPrototype the->stackTop[-1 - mxMapPrototypeStackIndex]
-#define mxSetPrototype the->stackTop[-1 - mxSetPrototypeStackIndex]
-#define mxWeakMapPrototype the->stackTop[-1 - mxWeakMapPrototypeStackIndex]
-#define mxWeakSetPrototype the->stackTop[-1 - mxWeakSetPrototypeStackIndex]
 #define mxStringAccessor the->stackTop[-1 - mxStringAccessorStackIndex]
 #define mxUndefined the->stackTop[-1 - mxUndefinedStackIndex]
-#define mxArrayBufferPrototype the->stackTop[-1 - mxArrayBufferPrototypeStackIndex]
-#define mxDataViewPrototype the->stackTop[-1 - mxDataViewPrototypeStackIndex]
-#define mxTypedArrayPrototype the->stackTop[-1 - mxTypedArrayPrototypeStackIndex]
 
 #define mxIteratorPrototype the->stackTop[-1 - mxIteratorPrototypeStackIndex]
 #define mxArrayEntriesIteratorPrototype the->stackTop[-1 - mxArrayEntriesIteratorPrototypeStackIndex]
