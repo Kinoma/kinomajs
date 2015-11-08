@@ -153,6 +153,7 @@ typedef enum {
 	kFskErrNotAccelerated		= -607,
 	kFskErrGraphicsContext		= -608,
 	kFskErrTextureTooLarge		= -609,
+	kFskErrNoFonts				= -610,
 
 	// Open GL, Open GL ES
 

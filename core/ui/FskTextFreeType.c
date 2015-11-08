@@ -303,7 +303,7 @@ typedef struct xFTLibRec
 FskInstrumentedSimpleType(FreeType, freetype);
 
 /********************************************************************************
- * sFskFTFindFont
+ * sFskFTFaceUpdateScaler
  ********************************************************************************/
 
 void sFskFTFaceUpdateScaler(FskFTFace fFace, UInt32 textSize) {
@@ -346,6 +346,10 @@ bail:
 	return ftSize;
 #endif
 }
+
+/********************************************************************************
+ * sFskFTFindFont
+ ********************************************************************************/
 
 static FskFTFace sFskFTFindFont(const char *familyName, UInt32 textStyle, UInt32 textSize, FskTextFormatCache formatCache) {
 #if USE_RECTS
@@ -943,6 +947,7 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 #endif /* ROUND_TEXTSIZE_DOWN */
 
 	BAIL_IF_ZERO(textLen, err, kFskErrNone);
+	BAIL_IF_FALSE(gFskFTMapping && gFskFTMapping->family, err, kFskErrNoFonts);
 
 	// combine bounds and clip to total clip
 	if (NULL == clipRect)
@@ -1434,32 +1439,22 @@ bail:
 
 FskErr freeTypeGetFontList(FskTextEngineState state, char **fontNames)
 {
-	FskFTFamily family;
-	FskMemPtr fontNameRet = NULL;
-	int entrySize, retSize, retLoc;
-	FskErr err;
+	FskFTFamily	family;
+	UInt32		listLength;
+	FskErr		err;
+	char		*s;
 
-	if (!gFskFTMapping)
-		return kFskErrOperationFailed;
-	retSize = 0;
-	retLoc = 0;
-	for (family = gFskFTMapping->family; family; family = family->next) {
-		entrySize = FskStrLen(family->name);
-		retSize += entrySize + 1;
-		err = FskMemPtrRealloc(retSize + 1, (FskMemPtr*)&fontNameRet);
-		if (err) {
-			FskMemPtrDisposeAt(&fontNameRet);
-			goto bail;
-		}
-		FskStrCopy((char*)(&fontNameRet[retLoc]), family->name);
-		FskFreeTypePrintfDebug("FONT - %s", family->name);
-		retLoc += entrySize + 1;
-	}
-	fontNameRet[retLoc] = '\0';	// terminate the list
+	*fontNames = NULL;
+	BAIL_IF_FALSE(gFskFTMapping && gFskFTMapping->family, err, kFskErrNoFonts);
+	for (family = gFskFTMapping->family, listLength = 1; family; family = family->next)	/* Count the number of needed characters for the whole list */
+		listLength += FskStrLen(family->name) + 1;
+	BAIL_IF_FALSE(listLength >= 3, err, kFskErrNoFonts);								/* There must be at least 3 characters for a nontrivial list */
+	BAIL_IF_ERR(err = FskMemPtrNew(listLength, fontNames));								/* Allocate the font list */
+	for (s = *fontNames, family = gFskFTMapping->family; family; s += FskStrLen(family->name) + 1, family = family->next)
+		FskStrCopy(s, family->name);
+	*s = 0;																				/* Append terminating 0 for font family list */
 
 bail:
-	*fontNames = (char*)fontNameRet;
-
 	return err;
 }
 
@@ -1794,7 +1789,7 @@ void FskFreeTypeTextFormatCacheInfoStringGet(FskTextFormatCache cache, char **pI
 		styleStr[0] = 'P';
 		styleStr[1] = 0;
 	}
-	asprintf(pInfoStr, "<TextFormatCache familyName=\"%.32s\" styleName=\"%.32s\" textSize=%g weight=%u style=\"%s\" path=\"%s\"/>",
+	(void)asprintf(pInfoStr, "<TextFormatCache familyName=\"%.32s\" styleName=\"%.32s\" textSize=%g weight=%u style=\"%s\" path=\"%s\"/>",
 		famName, styName, fFace->size / 65536., fFace->weight, styleStr, fFace->path);
 }
 #endif /* SUPPORT_INSTRUMENTATION */
@@ -2064,15 +2059,15 @@ void FskFTMappingXMLStopTag(void *data, const char *name)
 				}
 			}
 			else {
-					FskFTAlias language = parserData->language;
-					FskListAppend(&mapping->fallback, family);
-					if (language) {
-						language->family = family->family;
-						FskListAppend(&mapping->language, language);
-						parserData->language = NULL;
-					}
+				FskFTAlias language = parserData->language;
+				FskListAppend(&mapping->fallback, family);
+				if (language) {
+					language->family = family->family;
+					FskListAppend(&mapping->language, language);
+					parserData->language = NULL;
 				}
 			}
+		}
 		else {
 			FskMemPtrDispose(family->name);
 			FskMemPtrDispose(family);
@@ -2080,6 +2075,7 @@ void FskFTMappingXMLStopTag(void *data, const char *name)
 		if (parserData->language) {
 			FskMemPtrDispose(parserData->language->name);
 			FskMemPtrDispose(parserData->language);
+			parserData->language = NULL;
 		}
 		parserData->family = NULL;
 	}
