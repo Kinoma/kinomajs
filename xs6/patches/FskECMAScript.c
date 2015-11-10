@@ -260,6 +260,10 @@ FskErr FskTextFreeTypeInstallFonts(char* fontsPath, char* defaultFont)
 	if (gAndroidCallbacks->getModelInfoCB) {
 		char* osVersion;
 		gAndroidCallbacks->getModelInfoCB(NULL, &osVersion, NULL, NULL, NULL);
+		if ((FskStrStr(osVersion, "android.6") == osVersion) // for KPR applications
+			|| (FskStrStr(osVersion, "6.") == osVersion)) {  // for tests
+			BAIL_IF_ERR(err = FskFTAddMapping("/system/etc/fonts.xml"));
+		}
 		if ((FskStrStr(osVersion, "android.5") == osVersion) // for KPR applications
 			|| (FskStrStr(osVersion, "5.") == osVersion)) {  // for tests
 			BAIL_IF_ERR(err = FskFTAddMapping("/system/etc/fonts.xml"));
