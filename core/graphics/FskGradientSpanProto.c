@@ -46,7 +46,7 @@ FskName2(RampFillSpan,DstPixelKind)(FskSpan *span)
 		for (p = (UInt8*)(span->p); span->dx-- > 0; gd->r += gd->dr, gd->g += gd->dg, gd->b += gd->db, span->p = p += FskName3(fsk,DstPixelKind,Bytes)) {
 			#if FskName3(fsk,DstPixelKind,Bytes) != 3
 				FskName2(fskConvertFixed,DstPixelKind)(gd->r, gd->g, gd->b, kRampFillBits, pix);
-				*((FskName3(Fsk,DstPixelKind,Type)*)(void*)(&span->fillColor)) = (FskName3(Fsk,DstPixelKind,Type))pix;
+				span->fillColor.FskName2(p, FskName3(fsk,DstPixelKind,Bytes)) = (FskName3(Fsk,DstPixelKind,Type))pix;
 			#else					/* 3 byte pixels */
 				FskName2(fskConvertFixed,DstPixelKind)(gd->r, gd->g, gd->b, kRampFillBits, span->fillColor);
 			#endif					/* 3 byte pixels */
@@ -135,7 +135,7 @@ FskName2(SetSpanPixel,DstPixelKind)(FskSpan *span)
 		FskPixelType saveColor = span->fillColor;
 		#if FskName3(fsk,DstPixelKind,Bytes) != 3
 			FskName2(fskConvert24RGB,DstPixelKind)(gd->red, pix);
-			*((FskName3(Fsk,DstPixelKind,Type)*)(void*)(&span->fillColor)) = (FskName3(Fsk,DstPixelKind,Type))pix;
+			span->fillColor.FskName2(p, FskName3(fsk,DstPixelKind,Bytes)) = (FskName3(Fsk,DstPixelKind,Type))pix;
 		#else						/* 3 byte pixels */
 			FskName2(fskConvert24RGB,DstPixelKind)(gd->red, span->fillColor.p24);
 		#endif						/* 3 byte pixels */
@@ -173,7 +173,7 @@ FskName2(BlendSpanPixel,DstPixelKind)(FskSpan *span)
 		FskPixelType saveColor = span->fillColor;
 		#if FskName3(fsk,DstPixelKind,Bytes) != 3
 			FskName2(fskConvert24RGB,DstPixelKind)(gd->red, pix);
-			*((FskName3(Fsk,DstPixelKind,Type)*)(void*)(&span->fillColor)) = (FskName3(Fsk,DstPixelKind,Type))pix;
+			span->fillColor.FskName2(p, FskName3(fsk,DstPixelKind,Bytes)) = (FskName3(Fsk,DstPixelKind,Type))pix;
 		#else						/* 3 byte pixels */
 			FskName2(fskConvert24RGB,DstPixelKind)(gd->red, span->fillColor);
 		#endif						/* 3 byte pixels */

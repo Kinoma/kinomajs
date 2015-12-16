@@ -40,6 +40,8 @@
 			<function name="get behavior" c="SSDP_get_behavior"/>
 			<function name="get type" c="SSDP_get_type"/>
 			<function name="set behavior" params="it" c="SSDP_set_behavior"/>
+			<function name="remove" params="uuid" c="SSDP_client_remove"/>
+			<function name="search" c="SSDP_client_search"/>
 			<function name="start" c="SSDP_client_start"/>
 			<function name="stop" c="SSDP_client_stop"/>
 			<!-- ids for callbacks to the behavior -->
@@ -49,3 +51,4 @@
 		<function name="Client" params="type" prototype="SSDP.client" c="SSDP_Client"/>
 	</object>
 </package>
+

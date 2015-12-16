@@ -286,7 +286,7 @@ void KprLibrarySessionRedirectCallback(KprMessage message, void* it)
 	session->data.size = message->response.size;
 	message->response.body = NULL;
 	message->response.size = 0;
-	FskThreadPostCallback(request->http->owner, FskHTTPServerRequestResume, request, NULL, NULL, NULL);
+	FskThreadPostCallback(request->http->owner, (FskThreadCallback)FskHTTPServerRequestResume, request, NULL, NULL, NULL);
 }
 
 FskErr KprFunctionTargetNew(KprFunctionTarget* it, xsMachine* the, xsSlot* slot)

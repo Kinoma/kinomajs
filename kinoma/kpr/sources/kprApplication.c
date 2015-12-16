@@ -247,7 +247,7 @@ void KPR_host_set_breakOnException(xsMachine* the)
 	Boolean flag = xsToBoolean(xsArg(0));
 	xsBeginHost(application->the);
 	{
-		(void)xsCall1(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(flag));
+		xsCall1_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(flag));
 	}
 	xsEndHost(application->the);
 #endif
@@ -261,7 +261,7 @@ void KPR_host_set_debugging(xsMachine* the)
 	Boolean flag = xsToBoolean(xsArg(0));
 	xsBeginHost(application->the);
 	{
-		(void)xsCall1(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setConnected"), xsBoolean(flag));
+		xsCall1_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setConnected"), xsBoolean(flag));
 	}
 	xsEndHost(application->the);
 #endif
@@ -281,7 +281,7 @@ void KPR_host_set_profilingDirectory(xsMachine* the)
 			xsResult = xsString(directory);
 			FskMemPtrDispose(directory);
 		}
-		(void)xsCall1(xsGet(xsGlobal, xsID("xs")), xsID("setProfilingDirectory"), xsResult);
+		xsCall1_noResult(xsGet(xsGlobal, xsID("xs")), xsID("setProfilingDirectory"), xsResult);
 	}
 	xsEndHost(application->the);
 }
@@ -294,9 +294,9 @@ void KPR_host_set_profiling(xsMachine* the)
 	xsBeginHost(application->the);
 	{
 		if (flag)
-			(void)xsCall0(xsGet(xsGlobal, xsID("xs")), xsID("startProfiling"));
+			xsCall0_noResult(xsGet(xsGlobal, xsID("xs")), xsID("startProfiling"));
 		else
-			(void)xsCall0(xsGet(xsGlobal, xsID("xs")), xsID("stopProfiling"));
+			xsCall0_noResult(xsGet(xsGlobal, xsID("xs")), xsID("stopProfiling"));
 	}
 	xsEndHost(application->the);
 }
@@ -339,7 +339,7 @@ void KPR_host_clearAllBreakpoints(xsMachine* the)
 	KprApplication application = (KprApplication)self->first;
 	xsBeginHost(application->the);
 	{
-		(void)xsCall0(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("clearAllBreakpoints"));
+		xsCall0_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("clearAllBreakpoints"));
 	}
 	xsEndHost(application->the);
 #endif
@@ -496,8 +496,14 @@ FskErr KprApplicationNew(KprApplication* it, char* url, char* id, Boolean breakO
 	if (id) {
 		self->id = FskStrDoCopy(id);	
 		bailIfNULL(self->id);
+		self->title = FskStrDoCat("xkpr://", id);	
+		bailIfNULL(self->title);
 	}
-	self->the = xsAliasMachine(&allocation, gShell->root, self->url, self);
+	else {
+		self->title = FskStrDoCopy(self->url);	
+		bailIfNULL(self->title);
+	}
+	self->the = xsAliasMachine(&allocation, gShell->root, self->title, self);
 	if (!self->the) 
 		BAIL(kFskErrMemFull);
 	FskInstrumentedItemSendMessageNormal(self, kprInstrumentedContentCreateMachine, self);
@@ -505,25 +511,15 @@ FskErr KprApplicationNew(KprApplication* it, char* url, char* id, Boolean breakO
 	xsResult = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID("KPR")), xsID("application")));
 	self->slot = xsResult;
 	xsSetHostData(xsResult, self);
-	(void)xsCall1(xsGet(xsGlobal, xsID("Object")), xsID("seal"), xsResult);
+	xsCall1_noResult(xsGet(xsGlobal, xsID("Object")), xsID("seal"), xsResult);
 	xsNewHostProperty(xsGlobal, xsID("application"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsGlobal, xsID("shell"), xsNull, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 #ifdef mxDebug
-	(void)xsCall1(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(breakOnExceptions));
+	xsCall1_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(breakOnExceptions));
 #endif
 	if (breakOnStart)
 		xsDebugger();
-#ifdef XS6	
-	(void)xsCall1(xsGlobal, xsID("require"), xsString(self->url));
-#else
-	xsResult = xsNewHostFunction(KPR_include, 1);
-	xsSet(xsResult, xsID("uri"), xsString(self->url));
-	xsNewHostProperty(xsGlobal, xsID("include"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-	xsResult = xsNewHostFunction(KPR_require, 1);
-	xsSet(xsResult, xsID("uri"), xsString(self->url));
-	xsNewHostProperty(xsGlobal, xsID("require"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-	(void)xsCall1(xsGlobal, xsID("include"), xsString(self->url));
-#endif
+	xsCall1_noResult(xsGlobal, xsID("require"), xsString(self->url));
 	xsEndHost(self->the);
 	KprContentChainPrepend(&gShell->applicationChain, self, 0, NULL);
 bail:
@@ -538,6 +534,7 @@ void KprApplicationDispose(void* it)
 	KprContentChainRemove(&gShell->applicationChain, self);
 	KprContextDisposeHandlers((KprContext)self);
 	FskMemPtrDispose(self->id);
+	FskMemPtrDispose(self->title);
 	FskMemPtrDispose(self->url);
 	KprContextPurge(self, true);
 	KprContainerDispose(it);

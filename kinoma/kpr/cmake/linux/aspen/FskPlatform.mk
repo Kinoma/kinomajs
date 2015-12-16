@@ -24,7 +24,7 @@
 	<input name="$(F_HOME)/core/network"/>
 	<input name="$(F_HOME)/core/ui"/>
 	<input name="$(F_HOME)/extensions/crypt/sources"/>
-	<input name="$(F_HOME)/xs/includes"/>
+	<input name="$(F_HOME)/xs6/includes"/>
 	<input name="$(F_HOME)/libraries/QTReader"/>
 
 	<input name="$(F_HOME)/libraries/freetype/include"/>
@@ -60,7 +60,7 @@
 	<source name="FskYUV420iCopy-arm.gas"/>
 	<source name="yuv420torgb-arm.wmmx"/>
 
-	<library name="-Wl,-rpath,$(FSK_SYSROOT_LIB)/usr/lib,-z,muldefs"/>
+	<library name="-Wl,-rpath,$(FSK_SYSROOT_LIB)/usr/lib,-z,muldefs,-rpath,.,-rpath,'$ORIGIN/lib'"/>
 	<library name="-L$(FSK_SYSROOT_LIB)/usr/lib"/>
 	<library name="-lasound"/>
 	<library name="-ldl"/>

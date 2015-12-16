@@ -496,6 +496,26 @@ FskAPI(FskErr)	FskGrowableArrayGetConstPointerToLastItem(FskConstGrowableArray a
 #define kFskGrowableBlobArrayUnassignedID	0xFFFFFFFF	/**< Indicates that no ID is assigned to the blob. */
 
 
+/** Public blob record.
+ * This is used in sorting, searching and query procs.
+ */
+struct FskBlobRecord {
+	UInt32	id;									/**< The ID of the blob. */
+	UInt32	size;								/**< The size of the blob. */
+	void	*data;								/**< The variable-sized data for the blob. */
+	void	*dir;								/**< The fixed-sized portion (directory) of the blob.*/
+};
+typedef struct FskBlobRecord FskBlobRecord;		/**< Public blob record. */
+
+
+/** Comparison function used for blobs.
+ *	\param[in]	blob1	pointer to blob 1.
+ *	\param[in]	blob2	pointer to blob 2.
+ *	\return		{-1, 0, +1} if item 1 is { < , ==,  > } item 2.
+ */
+typedef int (*FskGrowableBlobCompare)(const FskBlobRecord *blob1, const FskBlobRecord *blob2);
+
+
 				/* Constructor and destructor */
 
 
@@ -509,6 +529,31 @@ FskAPI(FskErr)	FskGrowableArrayGetConstPointerToLastItem(FskConstGrowableArray a
  *	\return			kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayNew(UInt32 blobSize, UInt32 maxBlobs, UInt32 dirDataSize, FskGrowableBlobArray *pArray);
+
+
+/**	Allocate a new growable blob array from a string.
+ *	The string is partitioned using the specified delimiter character into separate blobs
+ *	\param[in]	str			the string.
+ *	\param[in]	strSize		the length of the string, or 0 to use FskStrLen() to find the length.
+ *	\param[in]	delim		the character used to separate records,typically '\n' for typical strings and '\0' for string lists.
+ *	\param[in]	makeCopy	if true, copy the string data to the blob array;
+ *							if false, use the string itself as data storage,so it will be disposed when the blob array is disposed.
+ *	\param[in]	dirDataSize	the amount of storage to be used in the directory for each record.
+ *	\param[out]	pArray		a place to store the new growable blob array.
+ *	\return		kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableBlobArrayNewFromString(char *str, UInt32 strSize, char delim, Boolean makeCopy, UInt32 dirDataSize, FskGrowableBlobArray *pArray);
+
+
+/**	Allocate a new growable blob array from a string list.
+ *	\param[in]	str			the string.
+ *	\param[in]	makeCopy	if true, copy the string data to the blob array;
+ *							if false, use the string itself as data storage, so it will be disposed when the blob array is disposed.
+ *	\param[in]	dirDataSize	the amount of storage to be used in the directory for each record.
+ *	\param[out]	pArray		a place to store the new growable blob array.
+ *	\return		kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableBlobArrayNewFromStringList(char *str, Boolean makeCopy, UInt32 dirDataSize, FskGrowableBlobArray *pArray);
 
 
 /** Dispose of a growable blob array.
@@ -563,7 +608,7 @@ FskAPI(FskErr)	FskGrowableBlobArraySetSizeOfItem(     FskGrowableBlobArray array
  *	\param[in,out]	array	the array to be queried.
  *	\return			the size of the each directory entry.
  **/
-FskAPI(UInt32)	FskGrowableBlobArrayGetDirectoryDataSize(FskGrowableBlobArray array);
+FskAPI(UInt32)	FskGrowableBlobArrayGetDirectoryDataSize(FskConstGrowableBlobArray array);
 
 
 /** Set the size of each directory entry in the growable blob array.
@@ -747,15 +792,16 @@ FskAPI(FskErr)	FskGrowableBlobArrayReplaceItem(FskGrowableBlobArray array, UInt3
 FskAPI(FskErr)	FskGrowableBlobArraySwapItems(FskGrowableBlobArray array, UInt32 index0, UInt32 index1);
 
 
-/** Append data to the blob of an item in the growable blob array.
+/** Edit the data in a blob of an item in the growable blob array.
  *	\param[in,out]	array			the array to be modified.
- *	\param[in]		index			the index of the item.
- *	\param[in]		data			the data to be appended to the blob.
- *	\param[in]		size			the size of the data to be appended to the blob.
- *	\param[out]		offsetInBlob	the offset in the blob where the new data was appended. Can be NULL.
+ *	\param[in]		index			the index of the item to be modified.
+ *	\param[in]		offset			the offset to where the data is to be replaced.
+ *	\param[in]		delBytes		the number of bytes to be deleted at the specified offset.
+ *	\param[in]		repl			the replBytes bytes of data to replace the delBytes bytes removed at offset.
+ *	\param[in]		replBytes		the number of bytes to replace the delBytes deleted at offset.
  *	\return			kFskErrNone	if the operation was successful.
  **/
-FskAPI(FskErr)	FskGrowableBlobArrayAppendDataToBlob(FskGrowableBlobArray array, UInt32 index, void *data, UInt32 size, UInt32 *offsetInBlob);
+FskAPI(FskErr)	FskGrowableBlobArrayEditItem(FskGrowableBlobArray array, UInt32 index, UInt32 offset, UInt32 delBytes, const void *repl, UInt32 replBytes);
 
 
 				/* Sort and search */
@@ -768,23 +814,95 @@ FskAPI(FskErr)	FskGrowableBlobArrayAppendDataToBlob(FskGrowableBlobArray array, 
 FskAPI(FskErr)	FskGrowableBlobArraySortItemsByID(FskGrowableBlobArray array);
 
 
-/** Sort the array by an arbitrary criterion.
+/** Set the blob comparison function. This is used in both FskGrowableBlobArraySortItems() and FskGrowableBlobArrayBSearchItems().
  *	\param[in,out]	array			the array to be sorted.
  *	\param[in]		comp			the comparison function to be used for sorting.
  *	\return			kFskErrNone	if the operation was successful.
  **/
-FskAPI(FskErr)	FskGrowableBlobArraySortItems(FskGrowableBlobArray array, FskCompareFunction comp);
+FskAPI(FskErr)	FskGrowableBlobArraySetCompareFunction(FskGrowableBlobArray array, FskGrowableBlobCompare comp);
+
+
+/** Sort the array by the method previously set with FskGrowableBlobArraySetCompareFunction().
+ *	\param[in,out]	array			the array to be sorted.
+ *	\return			kFskErrNone					if the sort was completed successfully.
+ *	\return			kFskErrNotDirectory			if array==NULL.
+ *	\return			kFskErrExtensionNotFound	if the sort function was not previously set with FskGrowableBlobArraySetSortFunction().
+ **/
+FskAPI(FskErr)	FskGrowableBlobArraySortItems(FskGrowableBlobArray array);
 
 
 /** Binary search for an item in the array.
- *	\param[in]	array		the array to be searched.
- *	\param[in]	key			the key to search for.
- *	\param[in]	comp		the comparison function to be used for searching.
- *	\return		a pointer to the item	if the item was found.
- *	\return		NULL					if the item was not found.
+ *	\param[in]	array			the array to be searched.
+ *	\param[in]	key				pointer to a FskBlobRecord that describes the key.
+ *	\param[out]	pIndex			a place to store the index of the matched item.
+ *	\return		kFskErrNone					if the item was found.
+ *	\return		kFskErrItemNotFound			if the item was not found.
+ *	\return		kFskErrNotDirectory			if array==NULL.
+ *	\return		kFskErrExtensionNotFound	if the sort function was not previously set with FskGrowableBlobArraySetSortFunction().
  **/
-FskAPI(void)*	FskGrowableBlobArrayBSearchItems(FskConstGrowableBlobArray array, const void *key, FskCompareFunction comp);
+FskAPI(FskErr)	FskGrowableBlobArrayBSearchItems(FskConstGrowableBlobArray array, const FskBlobRecord *key, UInt32 *pIndex);
 
+
+struct FskBlobQueryResultRecord;								/**< The result of a query. */
+typedef struct FskBlobQueryResultRecord *FskBlobQueryResult;	/**< The result of a query. */
+
+
+/** Query that returns multiple items.
+ *	\param[in]	array			the array to be queried.
+ *	\param[in]	query			the query procedure that returns 0 if the item is to be appended to the query result.
+ *	\param[in]	queryData		a pointer that gets passed to the query procedure.
+ *	\param[out]	pResult			a place to store the result of the query.
+ *	\note		do not dispose of the query result, because it is an ephemeral part of the blob array.
+ *	\note		any modifications to the blob array will corrupt this query.
+ *	\return		kFskErrNone			if the query returned at least one match.
+ *	\return		kFskErrItemNotFound	if no items were returned by the query. NULL is returned in *pResult in this case.
+ **/
+FskAPI(FskErr)	FskGrowableBlobArrayQuery(FskConstGrowableBlobArray array, FskGrowableBlobCompare query, const FskBlobRecord *queryData, FskBlobQueryResult *pResult);
+
+
+/** Refine a previous query.
+ *	\param[in]		array			the array to be queried.
+ *	\param[in]		query			the query procedure that returns 0 if the item is to be appended to the query result.
+ *	\param[in]		queryData		a pointer that gets passed to the query procedure.
+ *	\param[in,out]	pResult			on input, a location that holds the previous query.
+ *									on output, a location where the refined query is stored.
+ *	\note		do not dispose of the query result, because it is an ephemeral part of the blob array.
+ *	\note		any modifications to the blob array will corrupt this query.
+ *	\return		kFskErrNone			if the query returned at least one match.
+ *	\return		kFskErrItemNotFound	if no items were returned by the query. If another refinement is desired, call
+ *									FskGrowableBlobArrayQueryUnrefine() then FskGrowableBlobArrayQueryRefine().
+ *	\return		kFskErrBadState		if the previous query has been corrupted.
+ **/
+FskAPI(FskErr)	FskGrowableBlobArrayQueryRefine(FskConstGrowableBlobArray array, FskGrowableBlobCompare query, const FskBlobRecord *queryData, FskBlobQueryResult *pResult);
+
+
+/** Unrefine a previous query.
+ *	\param[in,out]	pResult			on input, a location that holds the previous query.
+ *									on output, a location where the query prior tothe previous query is stored.
+ *	\note		do not dispose of the query result, because it is an ephemeral part of the blob array.
+ *	\note		any modifications to the blob array will corrupt this query.
+ *	\return		kFskErrNone			if the query returned at least one match.
+ *	\return		kFskErrItemNotFound	if no items were returned by the query.
+ *	\return		kFskErrBadState		if the previous query has been corrupted.
+ **/
+FskAPI(FskErr)	FskGrowableBlobArrayQueryUnrefine(FskBlobQueryResult *pResult);
+
+
+/** Count the number of matches in the query.
+ *	\param[in]	result			the query result to be measured.
+ *	\return		the number of matches in the query.
+ **/
+FskAPI(UInt32)	FskGrowableBlobArrayQueryCount(FskBlobQueryResult result);
+
+
+/** Access the query matches.
+ *	\param[in]		result			the query result to be accessed.
+ *	\param[in]		queryIndex		the index of the query match to be retrieved.
+ *	\param[out]		blobIndex		a place to store the index of the specified query match.
+ *	\return			kFskErrNone			if the specified query result was retrieved successfully.
+ *	\return			kFskErrOutOfRange	if the specified index is greater than the number of matches in the query result.
+ **/
+FskAPI(FskErr)	FskGrowableBlobArrayQueryGet(FskBlobQueryResult result, UInt32 queryIndex, UInt32 *blobIndex);
 
 				/* Tidying up */
 
@@ -794,6 +912,244 @@ FskAPI(void)*	FskGrowableBlobArrayBSearchItems(FskConstGrowableBlobArray array, 
  *	\return		kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayCompact(FskConstGrowableBlobArray array);
+
+
+
+
+/********************************************************************************
+ ********************************************************************************
+ *****		Equivalence Class Collection - a bag of bags of elements		*****
+ *****				A specialization of Growable Blob array.				*****
+ ********************************************************************************
+ ********************************************************************************/
+
+/* This is a collection of equivalence classes, each of which contains multiple elements.
+ * Each class can have an arbitrary number of elements (including the degenerate 0),
+ * and there is no requirement that any class have the same number elements as any other class.
+ *
+ * The equivalence classes are usually considered to be unordered, although their order does not change
+ * unless some sorting functions are called. The elements of the classes are always ordered,
+ * as there is no sorting function available for elements within a class,
+ * and arduous editing methods must be used in order to reorder the elements.
+ * Typically, the first element is special, perhaps the "representative element" or the "key" or the "name".
+ * Each class has an associated ID, which can be specified upon creation, or assigned automatically.
+ * The class ID is persistent for the life of the class, and does not change when resorted.
+ * There is no requirement that the class IDs be unique, though it is usually advantageous to be unique;
+ * A possible use of non-unique IDs is to give the class as a particular type, e.g. string, integer, bitmap, etc.
+ * If more properties need to be associated with each class, use the Growable Blob Array directly.
+ *
+ * The primary functions are to:
+ *	- build the collection of equivalence classes, and
+ *	- determine which equivalence class a particular specimen belongs to.
+ *
+ * We provide convenience macros to access Blob Arrays in a way that is more friendly to an Equivalence Class Collection.
+ * Of course, all of the Blob Array functions are available, since FskGrowableEquivalences is a subclass of FskGrowableBlobArray.
+ *
+ * The elements of the classes can be anything that can be stored flat at a single memory location of a particular size.
+ * Be aware that elements are copied into the equivalence class using a shallow copy,
+ * so that any references contained within must be persistent for the life of the element within the equivalence class.
+ * Frequently, the elements are C strings, but they can be anything that can be bracketed with a pointer and size.
+ *
+ * We do provide 4 new functions that are frequently used in Equivalence Class Collections:
+ *
+ *		FskGrowableEquivalencesAppendMultipleElementClass()		- to build an entire equivalence class in one call
+ *		FskGrowableEquivalencesAppendElementToClass()			- to add a new element to an existing class
+ *		FskGrowableEquivalencesFindIndexOfElement()				- to search for an element anywhere in any of the classes
+ *		FskGrowableEquivalencesFindIndexOfElementInPosition()	- to search for an element in a particular position (e.g. key position = 0)
+ *
+ * To iterate through all elements of all classes:
+ *
+ *		UInt32 classIndex, numClasses, classID, classSize, elementIndex;
+ *		for (classIndex = 0, numClasses = FskGrowableEquivalencesGetClassCount(coll); classIndex < numClasses; ++classIndex) {
+ *			const FskEquivalenceBlob *blob;
+ *			(void)FskGrowableEquivalencesGetConstPointerToClass(coll, classIndex, (const void**)(&blob), &classSize);
+ *			(void)FskGrowableBlobArrayGetIDOfItem(coll, classIndex, &classID);
+ *			for (elementIndex = 0; elementIndex < blob->numElements; ++elementIndex) {
+ *				const void	*elPtr	= FskEquivalenceElementGetPointer(blob, elementIndex);
+ *				UInt32		elSize	= FskEquivalenceElementGetSize(   blob, elementIndex);
+ *				(*visitProc)(elPtr, elSize, classID, classSize, classIndex, elementIndex, userData);
+ *			}
+ *		}
+ */
+
+typedef       struct FskGrowableBlobArrayRecord	*FskGrowableEquivalences;							/**< Pointer to a            record that represents a set of growable equivalence classes. */
+typedef const struct FskGrowableBlobArrayRecord	*FskConstGrowableEquivalences;						/**< Pointer to an immutable record that represents a set of growable equivalence classes. */
+typedef struct FskEquivalenceElementLocation { UInt32 offset, size; } FskEquivalenceElementLocation;						/**< Location and size for an element in the class. */
+typedef struct FskEquivalenceBlob { UInt32	numElements; FskEquivalenceElementLocation element[1]; } FskEquivalenceBlob;	/**< Directory for the elements in the class. */
+typedef FskGrowableBlobCompare	FskEquivalenceElementCompare;										/**< Equivalences share the same kind of comparison function as blobs. */
+
+
+/** Determine the size of a blob.
+ *	\param[in]	numElements		the number of elements in the class.
+ *	\param[in]	elementBytes	the total number of bytes needed so store all of the elements in the class.
+ *	\return		the number of bytes needed to store the directory and the element sin th eblob.
+ */
+#define FskEquivalenceBlobSize(numElements, elementBytes)	(sizeof(FskEquivalenceBlob) + ((numElements)-1) * sizeof(FskEquivalenceElementLocation) + (elementBytes))
+
+/** Get the pointer of an equivalence element.
+ *	\param[in]	blobPtr	the pointer to the blob.
+ *	\param[in]	index	the index of the element to be accessed from the blob.
+ *	\return		the pointer to the element.
+ */
+#define FskEquivalenceElementGetPointer(blobPtr, index)		(void*)(((FskEquivalenceBlob*)(blobPtr))->element[index].offset + (char*)(blobPtr))
+
+/** Get the size of an equivalence element.
+ *	\param[in]	blobPtr	the pointer to the blob.
+ *	\param[in]	index	the index of the element to be accessed from the blob.
+ *	\return		the size of the element.
+ */
+#define FskEquivalenceElementGetSize(blobPtr, index)		(((FskEquivalenceBlob*)(blobPtr))->element[index].size)
+
+/** Append a new equivalence class with the specified number of elements, zero or more.
+ *	\param[in]		coll		The collection to be modified.
+ *	\param[in,out]	id			the id of the class.
+ *								On input, the desired ID, or kFskGrowableBlobArrayUnassignedID or NULL to have the id assigned automatically.
+ *								On output, the assigned ID.
+ *	\param[in]		extraBytes	The amount of extra zero-padding at the end. This can be used for null termination or reserving space for later use.
+ *	\param[in]		numElements	The number of elements (zero or greater) to be gathered into this class.
+ *	\param[in]		ptr			The element to be appended. Can be repeated in (ptr, size) pairs. Can be NULL if size != 0.
+ *	\param[in]		size		The size of the element to be appended. Can be repeated in (ptr, size) pairs.
+ *								Can be 0 if ptr != 0 implying a C-string, whose size if determined with size=FskStrLen(ptr)+1.
+ *	\note			This procedure can be used for arbitrary types of elements, though strings may be the most common.
+ *					It is not necessary to null-terminate each string as C does, because its length is stored separately, as is the case with Pascal and C++ strings.
+ *					The most flexible would be to null-terminate each string and null-terminate each class (i.e. doubly-terminate the last string),
+ *					so that it can be treated as a StringList; this is afforded with extraBytes=1.
+ *	\return			kFskErrNone	if the operation was completed successfully.
+ */
+FskAPI(FskErr)	 FskGrowableEquivalencesAppendMultipleElementClass(FskGrowableEquivalences coll, UInt32 *id, UInt32 extraBytes, UInt32 numElements, /* const void *ptr, UInt32 size, */ ...);
+
+/** Append a new element to the specified class.
+ *	\param[in]		coll		The collection to be appended.
+ *	\param[in]		index		The index of the class to be augmented.
+ *	\param[in]		ptr			The element to be appended.
+ *	\param[in]		size		The size of the element to be appended. 0 implies a C-string, whose size if determined with FskStrLen().
+ *	\param[in]		extraBytes	The amount of extra zero-padding at the end. This can be used for null termination or reserving space for later use.
+ *	\return			kFskErrNone	if the operation was completed successfully.
+ */
+FskAPI(FskErr)	FskGrowableEquivalencesAppendElementToClass(FskGrowableEquivalences coll, UInt32 index, const void *ptr, UInt32 size, UInt32 extraBytes);
+
+/** Find the index of the equivalence class that contains the given element.
+ *	The classes are iterated in ascending index, and the elements within each class are iterated in ascending order;
+ *	if the comparison function matches multiple elements, this procedure will return the first one encountered in its iteration.
+ *	\param[in]		coll		The collection to be searched.
+ *	\param[in,out]	key			Structure containing the pointer to the key element and its size.
+ *								If the size is 0, it implies a C-string, and it will be modified with the results of a call to  FskStrLen().
+ *								The other fields (id and dir) will be preserved and communicated to the comparison function call.
+ *	\param[in]		compare		A function to be used for comparison; NULL matches size and content.
+ *	\param[out]		pIndex		A location to store the index of the matched element.
+ *	\return			kFskErrNone	if the operation was completed successfully.
+ */
+FskAPI(FskErr)	FskGrowableEquivalencesFindClassIndexOfElement(FskConstGrowableEquivalences coll, FskBlobRecord *key, FskEquivalenceElementCompare compare, UInt32 *pIndex);
+
+/** Find the index of the equivalence class that contains the given element in the specified position.
+ *	The classes are iterated in ascending index, and the elements within each class are iterated in ascending order;
+ *	if the comparison function matches multiple elements, this procedure will return the first one encountered in its iteration.
+ *	\param[in]		coll		The collection to be searched.
+ *	\param[in,out]	key			Structure containing the pointer to the key element and its size.
+ *								If the size is 0, it implies a C-string, and it will be modified with the results of a call to  FskStrLen().
+ *								The other fields (id and dir) will be preserved and communicated to the comparison function call.
+ *	\param[in]		position	Position of the element in the class.
+ *	\param[in]		compare		The comparison function to use for the search.
+ *	\param[out]		pIndex		A location to store the index of the matched element.
+ *	\bug			There is no way to fetch multiple matches with this call.
+ *					However, see the "To iterate through all elements of all classes" section above.
+ *	\return			kFskErrNone			if the operation was completed successfully.
+ *	\return			kFskErrItemNotFound	if the element could not be found in the specified position of any class.
+ */
+FskAPI(FskErr)	FskGrowableEquivalencesFindClassIndexOfElementInPosition(FskConstGrowableEquivalences coll, FskBlobRecord *key, UInt32 position, FskEquivalenceElementCompare compare, UInt32 *pIndex);
+
+/** Constructor for a Growable Equivalence Class Collection.
+ *	This allocates a data structure with zero classes, but preallocates storage for the expected number.
+ *	\param[in]	classBytes	the expected number of bytes to be used per class, for pre-allocation.
+ *	\param[out]	maxClasses	the expected number of classes of average size classBytes, for pre-allocation.
+ *	\param[out]	pColl		a place to store the new growable equivalence class collection.
+ **/
+FskErr		FskGrowableEquivalencesNew(UInt32 classBytes, UInt32 maxClasses, FskGrowableBlobArray *pColl);
+#define		FskGrowableEquivalencesNew(classBytes, maxClasses, pColl)	FskGrowableBlobArrayNew(classBytes, maxClasses, 0, pColl)
+
+/** Destructor for a Growable Equivalence Class Collection.
+ *	\param[in]	coll		the equivalence class collection to be disposed.
+ **/
+void		FskGrowableEquivalencesDispose(FskGrowableEquivalences coll);
+#define		FskGrowableEquivalencesDispose(coll)	FskGrowableBlobArrayDispose(coll)
+
+/** Get the number of equivalence classes in the collection.
+ *	\param[in]	coll		the dictionary to be queried.
+ *	\return		the number of items in the dictionary.
+ **/
+UInt32		FskGrowableEquivalencesGetClassCount(FskConstGrowableEquivalences coll);
+#define		FskGrowableEquivalencesGetClassCount(coll)	FskGrowableBlobArrayGetItemCount(coll)
+
+/** Set the number of classes in the collection.
+ *	\param[in]	coll		the collection to be queried.
+ *	\param[in]	numClasses	the desired number of classes in the collection.
+ *	\return		kFskErrNone	if the operation was successful.
+ **/
+FskErr		FskGrowableEquivalencesSetClassCount(FskGrowableEquivalences coll, UInt32 numClasses);
+#define		FskGrowableEquivalencesSetClassCount(coll, numClasses)	FskGrowableBlobArraySetItemCount(coll, numClasses)
+
+/** Remove an item from the growable collection.
+ *	\param[in,out]	coll		the array to be modified.
+ *	\param[in]		index		the index of the item to be removed.
+ **/
+void		FskGrowableEquivalencesRemoveClass(FskGrowableEquivalences coll, UInt32 index);
+#define		FskGrowableEquivalencesRemoveClass(coll, index)	FskGrowableBlobArrayRemoveItem(coll, index)
+
+/** Minimize and arrange storage.
+ *	\param[in]	coll		the collection to be compacted.
+ *	\return		kFskErrNone	if the operation was successful.
+ **/
+FskErr		FskGrowableEquivalencesCompact(FskConstGrowableEquivalences coll);
+#define		FskGrowableEquivalencesCompact(coll)	FskGrowableBlobArrayCompact(coll)
+
+/** Append a new class with the specified amount of storage at the end of the growable storage, and return pointers thereto.
+ *	\param[in,out]	coll		The collection to be modified.
+ *	\param[in]		classBytes	the size of the storage to be allocated for the new class.
+ *	\param[in,out]	id			the id of the class.
+ *								On input, the desired ID, or kFskGrowableBlobArrayUnassignedID or NULL to have the id assigned automatically.
+ *								On output, the assigned ID.
+ *	\param[out]		ptr			a location to store a pointer to the storage for the class.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskErr		FskGrowableEquivalencesGetPointerToNewEndClass(FskGrowableEquivalences coll, UInt32 classBytes, UInt32 *id, void **ptr);
+#define		FskGrowableEquivalencesGetPointerToNewEndClass(coll, classBytes, id, ptr)	FskGrowableBlobArrayGetPointerToNewEndItem(coll, classBytes, id, ptr, NULL)
+
+/**	Get a mutable pointer to the class storage in a growable collection.
+ *	\param[in]		coll		The collection to be accessed.
+ *	\param[in]		index		the index of the desired item in the collection.
+ *	\param[out]		ptr			A place to store a pointer to the class storage.
+ *	\param[out]		size		A place to store the total number of bytes allocated for the class.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskErr		FskGrowableEquivalencesGetPointerToClass(FskGrowableEquivalences coll, UInt32 index, void **ptr, UInt32 *size);
+#define		FskGrowableEquivalencesGetPointerToClass(coll, index, ptr, size)	FskGrowableBlobArrayGetPointerToItem(coll, index, ptr, size, NULL)
+
+/**	Get immutable pointers to the strings of an item in a growable collection.
+ *	\param[in]		coll		The collection to be accessed.
+ *	\param[in]		index		the index of the desired item in the collection.
+ *	\param[out]		ptr			a location to store a pointer to the storage for the class.
+ *	\param[out]		size		A place to store the total number of bytes allocated for the class.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskErr		FskGrowableEquivalencesGetConstPointerToClass(FskConstGrowableEquivalences coll, UInt32 index, const void **ptr, UInt32 *size);
+#define		FskGrowableEquivalencesGetConstPointerToClass(coll, index, ptr, size)	FskGrowableBlobArrayGetConstPointerToItem(coll, index, ptr, size, NULL)
+
+/** Find the ID of the equivalence class that contains the given element.
+ *	The classes are iterated in ascending index, and the elements within each class are iterated in ascending order;
+ *	if the comparison function matches multiple elements, this procedure will return the first one encountered in its iteration.
+ *	\param[in]		coll		The collection to be searched.
+ *	\param[in,out]	key			Structure containing the pointer to the key element and its size.
+ *								If the size is 0, it implies a C-string, and it will be modified with the results of a call to  FskStrLen().
+ *								The other fields (id and dir) will be preserved and communicated to the comparison function call.
+ *	\param[in]		compare		A function to be used for comparison; NULL matches size and content. The key is supplied as the first blob.
+ *	\param[out]		pID			A location to store the ID of the matched element.
+ *	\bug			There is no way to fetch multiple matches with this call.
+ *					However, see the "To iterate through all elements of all classes" section above.
+ *	\return			kFskErrNone	if the operation was completed successfully.
+ */
+FskErr	FskGrowableEquivalencesFindClassIDOfElement(FskConstGrowableEquivalences coll, FskBlobRecord *key, FskEquivalenceElementCompare compare, UInt32 *pID);
+#define FskGrowableEquivalencesFindClassIDOfElement(coll, key, compare, pID)	((kFskErrNone == (err = FskGrowableEquivalencesFindClassIndexOfElement(coll, key, compare, pID))) \
+																					? FskGrowableBlobArrayGetIDOfItem(coll, *pID, pID) : err)
 
 
 #ifdef __cplusplus

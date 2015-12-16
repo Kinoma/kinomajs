@@ -200,6 +200,8 @@ int FskHardwarePinsMux(int physicalPinNum, FskHardwarePinFunction function){
 	case kFskHardwarePinUARTTX:
 		value = pins[physicalPinNum].uartTX;
 		break;
+	case kFskHardwarePinDevice:
+		break;
 	}
 
 	if (value != MAXPIN){

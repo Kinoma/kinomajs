@@ -19,6 +19,7 @@
 static void fx_Symbol(txMachine* the);
 static void fx_Symbol_for(txMachine* the);
 static void fx_Symbol_keyFor(txMachine* the);
+static void fx_Symbol_prototype_toPrimitive(txMachine* the);
 static void fx_Symbol_prototype_toString(txMachine* the);
 static void fx_Symbol_prototype_valueOf(txMachine* the);
 static txSlot* fxCheckSymbol(txMachine* the, txSlot* it);
@@ -41,9 +42,10 @@ void fxBuildSymbol(txMachine* the)
 	slot = fxLastProperty(the, fxNewSymbolInstance(the));
 	for (builder = gx_Symbol_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
+	slot = fxNextHostFunctionProperty(the, slot, fx_Symbol_prototype_toPrimitive, 1, mxID(_Symbol_toPrimitive), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	slot = fxNextStringProperty(the, slot, "Symbol", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxSymbolPrototype = *the->stack;
-	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Symbol, 0, mxID(_Symbol), XS_GET_ONLY));
+	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Symbol, 0, mxID(_Symbol), XS_DONT_ENUM_FLAG));
 	for (builder = gx_Symbol_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	slot = fxNextSymbolProperty(the, slot, mxID(_Symbol_hasInstance), mxID(_hasInstance), XS_GET_ONLY);
@@ -149,6 +151,14 @@ void fx_Symbol_keyFor(txMachine* the)
 	}
 }
 
+void fx_Symbol_prototype_toPrimitive(txMachine* the)
+{
+	txSlot* slot = fxCheckSymbol(the, mxThis);
+	if (!slot) mxTypeError("this is no symbol");
+	mxResult->kind = slot->kind;
+	mxResult->value = slot->value;
+}
+
 void fx_Symbol_prototype_toString(txMachine* the)
 {
 	txSlot* slot = fxCheckSymbol(the, mxThis);
@@ -172,12 +182,10 @@ txSlot* fxCheckSymbol(txMachine* the, txSlot* it)
 	if (it->kind == XS_SYMBOL_KIND)
 		result = it;
 	else if (it->kind == XS_REFERENCE_KIND) {
-		it = it->value.reference;
-		if (it->flag & XS_VALUE_FLAG) {
-			it = it->next;
-			if (it->kind == XS_SYMBOL_KIND)
-				result = it;
-		}
+		txSlot* instance = it->value.reference;
+		it = instance->next;
+		if ((instance->flag & XS_VALUE_FLAG) && (it->kind == XS_SYMBOL_KIND) && (instance != mxSymbolPrototype.value.reference))
+			result = it;
 	}
 	return result;
 }

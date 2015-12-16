@@ -115,10 +115,10 @@ Boolean KprInsrumentationFormatMessage(FskInstrumentedType dispatch UNUSED, UInt
 		return true;
 
 	case kprInstrumentedAssetBind:
-		snprintf(buffer, bufferSize, "bind %ld (the: %p)", ((KprAsset)msgData)->usage, ((KprAsset)msgData)->the);
+		snprintf(buffer, bufferSize, "bind %d (the: %p)", (int) ((KprAsset)msgData)->usage, ((KprAsset)msgData)->the);
 		return true;
 	case kprInstrumentedAssetUnbind:
-		snprintf(buffer, bufferSize, "unbind %ld (the: %p)", ((KprAsset)msgData)->usage, ((KprAsset)msgData)->the);
+		snprintf(buffer, bufferSize, "unbind %d (the: %p)", (int) ((KprAsset)msgData)->usage, ((KprAsset)msgData)->the);
 		return true;
 	case kprInstrumentedImageCacheGet:
 		snprintf(buffer, bufferSize, "get %p %s", msgData, ((KprImageEntry)msgData)->url);
@@ -146,7 +146,7 @@ Boolean KprInsrumentationFormatMessage(FskInstrumentedType dispatch UNUSED, UInt
 	case kprInstrumentedTextDumpBlock:
 		{
 			KprTextBlock block = msgData;
-			snprintf(buffer, bufferSize, "Block offset: %ld style %p count: %ld", block->offset, block->style, block->count);
+			snprintf(buffer, bufferSize, "Block offset: %d style %p count: %d", (int) block->offset, block->style, (int) block->count);
 		}
 		return true;
 	case kprInstrumentedTextDumpLine:
@@ -160,100 +160,100 @@ Boolean KprInsrumentationFormatMessage(FskInstrumentedType dispatch UNUSED, UInt
 			void** params = msgData;
 			KprTextRun run = params[0];
 			if (run->span.length >= 0)
-				snprintf(buffer, bufferSize, "    Span offset: %ld length: %ld style %p link %p \"%s\"", run->span.offset, run->span.length, run->span.style, run->span.link, (char*)params[1]);
+				snprintf(buffer, bufferSize, "    Span offset: %d length: %d style %p link %p \"%s\"", (int) run->span.offset, (int) run->span.length, run->span.style, run->span.link, (char*)params[1]);
 			else
-				snprintf(buffer, bufferSize, "    Item offset: %ld x: %ld y: %ld width: %ld height: %ld adjustment: %d", run->item.offset, run->item.content->bounds.x, run->item.content->bounds.y, run->item.content->bounds.width, run->item.content->bounds.height, run->item.adjustment);
+				snprintf(buffer, bufferSize, "    Item offset: %d x: %d y: %d width: %d height: %d adjustment: %d", (int) run->item.offset, (int) run->item.content->bounds.x, (int) run->item.content->bounds.y, (int) run->item.content->bounds.width, (int) run->item.content->bounds.height, run->item.adjustment);
 		}
 		return true;
 
 	case kprInstrumentedWindowInvalidated:
-		snprintf(buffer, bufferSize, "invalidated %ld %ld %ld %ld", ((FskRectangle)msgData)->x, ((FskRectangle)msgData)->y, ((FskRectangle)msgData)->width, ((FskRectangle)msgData)->height);
+		snprintf(buffer, bufferSize, "invalidated %d %d %d %d", (int) ((FskRectangle)msgData)->x, (int) ((FskRectangle)msgData)->y, (int) ((FskRectangle)msgData)->width, (int) ((FskRectangle)msgData)->height);
 		return true;
 
 	case kprInstrumentedMessageCancel:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "cancel %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "cancel %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageComplete:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "complete %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "complete %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageConstruct:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "construct %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "construct %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageDestruct:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "destruct %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "destruct %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageInvoke:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "invoke %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "invoke %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageNotify:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "notify %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "notify %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageRedirect:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "redirect %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "redirect %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageResume:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "resume %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "resume %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageSuspend:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "suspend %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "suspend %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 
 	case kprInstrumentedMessageHTTPBegin:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "HTTP begin %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "HTTP begin %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageHTTPContinue:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "HTTP continue %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "HTTP continue %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageHTTPEnd:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "HTTP end %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "HTTP end %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 
 	case kprInstrumentedMessageLibraryBegin:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "Library begin %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "Library begin %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 	case kprInstrumentedMessageLibraryEnd:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "Library end %ld \"%.64s\"", self->usage, self->url);
+			snprintf(buffer, bufferSize, "Library end %d \"%.64s\"", (int) self->usage, self->url);
 		}
 		return true;
 
@@ -269,7 +269,7 @@ Boolean KprInsrumentationFormatMessage(FskInstrumentedType dispatch UNUSED, UInt
 	case kprInstrumentedHTTPConnectionComplete:
 		{
 			KprMessage self = msgData;
-			snprintf(buffer, bufferSize, "complete %ld %ld %ld %s", self->status, (long)self->error, self->response.size, self->url);
+			snprintf(buffer, bufferSize, "complete %d %d %d %s", (int) self->status, (int) self->error, (int) self->response.size, self->url);
 		}
 		return true;
 	case kprInstrumentedHTTPConnectionFinished:
@@ -658,8 +658,10 @@ do_6:
 	}
 
 #if SUPPORT_XS_DEBUG
-    if (the)
-        xsTraceDiagnostic("invalid color specified: %s", s);
+    if (the) {
+        xsTraceDiagnostic("invalid color specified: %s\n", s);
+        xsDebugger();
+    }
 #endif
 
 	return 0;
@@ -783,7 +785,7 @@ FskErr KprMemPtrNew_(UInt32 size, FskMemPtr *newMemory, char* file, int line)
 {
 	FskErr err = FskMemPtrNew(size, newMemory);
 	gMemoryCount++;
-	fprintf(stderr, "MMM %08x + FskMemPtrNew (%lu): %ld - %lu [%s:%d]\n", (unsigned int)*newMemory, size, err, gMemoryCount, file, line);
+	fprintf(stderr, "MMM %08x + FskMemPtrNew (%u): %d - %u [%s:%d]\n", (unsigned int)*newMemory, (unsigned) size, (int) err, (unsigned) gMemoryCount, file, line);
 	return err;
 }
 
@@ -791,7 +793,7 @@ FskErr KprMemPtrNewClear_(UInt32 size, FskMemPtr *newMemory, char* file, int lin
 {
 	FskErr err = FskMemPtrNewClear(size, newMemory);
 	gMemoryCount++;
-	fprintf(stderr, "MMM %08x + FskMemPtrNewClear (%lu): %ld - %lu [%s:%d]\n", (unsigned int)*newMemory, size, err, gMemoryCount, file, line);
+	fprintf(stderr, "MMM %08x + FskMemPtrNewClear (%u): %d - %u [%s:%d]\n", (unsigned int)*newMemory, (unsigned) size, (int) err, (unsigned) gMemoryCount, file, line);
 	return err;
 }
 
@@ -799,7 +801,7 @@ FskErr KprMemPtrRealloc_(UInt32 size, FskMemPtr *newMemory, char* file, int line
 {
 	FskMemPtr ptr = *newMemory;
 	FskErr err = FskMemPtrRealloc(size, newMemory);
-	fprintf(stderr, "MMM %08x <- %08x + FskMemPtrRealloc (%lu): %ld - %lu [%s:%d]\n", (unsigned int)*newMemory, (unsigned int)ptr, size, err, gMemoryCount, file, line);
+	fprintf(stderr, "MMM %08x <- %08x + FskMemPtrRealloc (%u): %d - %u [%s:%d]\n", (unsigned int)*newMemory, (unsigned int)ptr, (unsigned) size, (int) err, (unsigned) gMemoryCount, file, line);
 	return err;
 }
 
@@ -807,21 +809,21 @@ FskErr KprMemPtrNewFromData_(UInt32 size, const void *data, FskMemPtr *newMemory
 {
 	FskErr err = FskMemPtrNewFromData(size, data, newMemory);
 	gMemoryCount++;
-	fprintf(stderr, "MMM %08x <- %08x + FskMemPtrNewFromData (%lu): %ld - %lu [%s:%d]\n", (unsigned int)*newMemory, (unsigned int)data, size, err, gMemoryCount, file, line);
+	fprintf(stderr, "MMM %08x <- %08x + FskMemPtrNewFromData (%u): %d - %u [%s:%d]\n", (unsigned int)*newMemory, (unsigned int)data, (unsigned) size, (int) err, (unsigned) gMemoryCount, file, line);
 	return err;
 }
 
 void KprMemPtrDispose_(void *ptr, char* file, int line)
 {
 	if (ptr) gMemoryCount--;
-	fprintf(stderr, "MMM %08x - FskMemPtrDispose - %lu [%s:%d]\n", (unsigned int)ptr, gMemoryCount, file, line);
+	fprintf(stderr, "MMM %08x - FskMemPtrDispose - %u [%s:%d]\n", (unsigned int)ptr, (unsigned) gMemoryCount, file, line);
 	FskMemPtrDispose(ptr);
 }
 
 void KprMemPtrDisposeAt_(void **ptr, char* file, int line)
 {
 	if (*ptr) gMemoryCount--;
-	fprintf(stderr, "MMM %08x - FskMemPtrDisposeAt - %lu [%s:%d]\n", (unsigned int)*ptr, gMemoryCount, file, line);
+	fprintf(stderr, "MMM %08x - FskMemPtrDisposeAt - %u [%s:%d]\n", (unsigned int)*ptr, (unsigned) gMemoryCount, file, line);
 	FskMemPtrDisposeAt(ptr);
 }
 
@@ -829,7 +831,7 @@ char* KprStrDoCopy_(const char *str, char* file, int line)
 {
 	char* result = FskStrDoCopy(str);
 	if (str) gMemoryCount++;
-	fprintf(stderr, "MMM %08x <- %08x - FskStrDoCopy '%s' - %lu [%s:%d]\n", (unsigned int)result, (unsigned int)str, result, gMemoryCount, file, line);
+	fprintf(stderr, "MMM %08x <- %08x - FskStrDoCopy '%s' - %u [%s:%d]\n", (unsigned int)result, (unsigned int)str, result, (unsigned) gMemoryCount, file, line);
 	return result;
 }
 
@@ -2189,7 +2191,7 @@ FskErr KprSocketReaderReadDataFrom(KprSocketReader self, void *buffer, UInt32 *s
 	int ip, port, amt;
 
 	err = FskNetSocketRecvUDP(self->socket, buffer, *size, &amt, &ip, &port);
-//	FskDebugStr("READ DATAGRAM: size: %ld err: %d", amt, err);
+//	FskDebugStr("READ DATAGRAM: size: %d err: %d", amt, err);
 	if (err != kFskErrNone) return err;
 
 	*size = amt;
@@ -2238,7 +2240,7 @@ FskErr KprSocketReaderReadBytes(KprSocketReader self, void *buffer, size_t targe
 	}
 
 	err = FskNetSocketRecvTCP(self->socket, p, remains, &size);
-	FskDebugStr("READ: size: %ld offset: %ld read: %ld err: %d", targetSize, offset, size, err);
+	FskDebugStr("READ: size: %d offset: %d read: %d err: %d", (int) targetSize, (int) offset, (int) size, (int) err);
 	if (err != kFskErrNone) return err;
 
 	FskTimeGetNow(&self->lastDataArrived);
@@ -2538,16 +2540,20 @@ FskErr KprPortListenerNew(KprSocketServer server, UInt16 port, const char *inter
 
 	err = FskNetSocketNewTCP(&skt, true, server->debugName);
 	if (err) {
-		FskDebugStr("KprPortListenerNew -  creating socket failed: %ld", err);
+		FskDebugStr("KprPortListenerNew -  creating socket failed: %d", (int) err);
         err = kFskErrNoMoreSockets;
 		goto bail;
 	}
 	FskNetSocketReuseAddress(skt);
 	ifc = FskNetInterfaceFindByName(self->interfaceName);
-	if ((NULL == ifc) ||
-		(kFskErrNone != (err = FskNetSocketBind(skt, ifc->ip, port)))) {
-		FskNetSocketClose(skt);
-		FskDebugStr("KprPortListenerNew - bind failed: %ld port: %d", err, port);
+	if (NULL == ifc) {
+		FskDebugStr("KprPortListenerNew - FskNetInterfaceFindByName returned NULL");
+		err = kFskErrOperationFailed;
+		goto bail;
+	}
+	err = FskNetSocketBind(skt, ifc->ip, port);
+	if (kFskErrNone != err) {
+		FskDebugStr("KprPortListenerNew - bind failed: %d port: %u", (int) err, (unsigned) port);
 		goto bail;
 	}
 
@@ -2585,7 +2591,7 @@ FskErr KprPortListenerDispose(KprPortListener self)
 		KprMemPtrDispose(self->interfaceName);
 
 		KprMemPtrDispose(self);
-		FskDebugStr("KprPortListenerDispose - listener: %x", (int) self);
+		FskDebugStr("KprPortListenerDispose - listener: %p", self);
 	}
 	return kFskErrNone;
 }

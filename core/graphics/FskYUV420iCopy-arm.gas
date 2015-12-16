@@ -1,3 +1,4 @@
+#if (__arm__)
 @
 @     Copyright (C) 2010-2015 Marvell International Ltd.
 @     Copyright (C) 2002-2010 Kinoma, Inc.
@@ -14,7 +15,6 @@
 @     See the License for the specific language governing permissions and
 @     limitations under the License.
 @
-#if (__arm__)
 @ This file was automatically generated from
 @ C:/fsk-windows/bin/win32/Debug/../../..//kinoma/ADS2gas/files/FskYUV420iCopy.s
 @ on Fri, 27 Mar 2009 00:26:56 GMT

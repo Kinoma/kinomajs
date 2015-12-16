@@ -1727,7 +1727,7 @@ void fxClassNodeCode(void* it, void* param)
 		else
 			value = ((txPropertyAtNode*)item)->value;
 		fxNodeDispatchCode(value, param);
-		if ((value->flags & (mxArrowFlag | mxFunctionFlag | mxGeneratorFlag)) /*&& (value->flags & mxSuperFlag)*/) {
+		if (item->flags & (mxMethodFlag | mxGetterFlag | mxSetterFlag)) {
 			fxCoderAddByte(param, 1, XS_CODE_DUB);
 			fxCoderAddIndex(param, 1, XS_CODE_GET_LOCAL_1, (item->flags & mxStaticFlag) ? constructor : prototype);
 			fxCoderAddByte(param, 0, XS_CODE_SWAP);
@@ -2214,6 +2214,16 @@ void fxFunctionNodeCode(void* it, void* param)
 		fxScopeCodeStore(self->scope, param);
 		fxCoderAddByte(coder, -1, XS_CODE_POP);
 	}
+
+	if (!(self->flags & (mxArrowFlag | mxGeneratorFlag | mxMethodFlag | mxGetterFlag |  mxSetterFlag))) {
+		fxCoderAddByte(coder, 1, XS_CODE_DUB);
+		fxCoderAddByte(coder, 1, XS_CODE_OBJECT);
+		fxCoderAddByte(coder, 0, XS_CODE_SWAP);
+		fxCoderAddSymbol(coder, 1, XS_CODE_SYMBOL, coder->parser->prototypeSymbol);
+		fxCoderAddByte(coder, -1, XS_CODE_AT);
+		fxCoderAddFlag(coder, -1, XS_CODE_NEW_PROPERTY, XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
+		fxCoderAddSymbol(param, -1, XS_CODE_SET_PROPERTY, coder->parser->constructorSymbol);
+	}
 	
 	coder->returnTarget = returnTarget;
 	coder->firstContinueTarget = firstContinueTarget;
@@ -2667,7 +2677,7 @@ void fxObjectNodeCode(void* it, void* param)
 			else
 				value = ((txPropertyAtNode*)item)->value;
 			fxNodeDispatchCode(value, param);
-			if ((value->flags & (mxArrowFlag | mxFunctionFlag | mxGeneratorFlag)) && (value->flags & mxSuperFlag)) {
+			if (item->flags & (mxMethodFlag | mxGetterFlag | mxSetterFlag)) {
 				fxCoderAddByte(param, 1, XS_CODE_DUB);
 				fxCoderAddIndex(param, 1, XS_CODE_GET_LOCAL_1, object);
 				fxCoderAddByte(param, 0, XS_CODE_SWAP);

@@ -85,7 +85,7 @@ class Manifest extends CMAKE.Manifest {
 			
 			NAME: environment.NAME,
 			NAMESPACE: environment.NAMESPACE,
-			OBJECTBASE: environment.NAMESPACE.replace(".", "_"),
+			OBJECTBASE: info.base,
 			VERSION: environment.VERSION,
 
 			ANT_CONFIGURATION: FS.existsSync(process.getenv("HOME") + "/.android.keystore.info") ? "release" : "debug",
@@ -123,27 +123,34 @@ add_custom_command(
 	OUTPUT \${NDK_PROJECT_LIBRARIES}/libFsk.so
 	COMMAND KPR_TMP_DIR="\${TMP_DIR}" NDK_PROJECT_PATH="\${NDK_PROJECT_PATH}" ndk-build clean
 	COMMAND SUPPORT_XS_DEBUG=${xsdebug} KPR_TMP_DIR=\${TMP_DIR} NDK_PROJECT_PATH=\${NDK_PROJECT_PATH} NDK_TOOLCHAIN_VERSION=\${NDK_TOOLCHAIN_VERSION} ndk-build \${NDB_OPTIONS} V=1
-	DEPENDS copy
+	DEPENDS copy \${NDK_PROJECT_OBJECTS}/libfsk.a
 	WORKING_DIRECTORY \${NDK_PROJECT_PATH}
 	)
 add_custom_target(ndk DEPENDS \${NDK_PROJECT_LIBRARIES}/libFsk.so)
 
-add_custom_command(
-	OUTPUT \${NDK_PROJECT_PATH}/res/raw/kinoma.jet
+add_custom_target(
+	jet
 	COMMAND \${CMAKE_COMMAND} -E make_directory \${NDK_PROJECT_PATH}/res/raw
 	COMMAND \${CMAKE_COMMAND} -E remove \${NDK_PROJECT_PATH}/res/raw/kinoma.jet
 	COMMAND zip -8qrn .jpg:.png:.m4a \${NDK_PROJECT_PATH}/res/raw/kinoma.jet "*"
 	DEPENDS FskManifest.xsa
 	WORKING_DIRECTORY \${APP_DIR}
 	)
-add_custom_target(jet DEPENDS \${NDK_PROJECT_PATH}/res/raw/kinoma.jet)
+
+add_custom_command(
+	OUTPUT \${NDK_PROJECT_BIN}/runtime-\${ANT_CONFIGURATION}.apk
+	COMMAND android update project -p .
+	COMMAND ant -Dsdk.dir=\${ANDROID_SDK} \${ANT_CONFIGURATION}
+	DEPENDS ndk jet \${SEPARATE}
+	WORKING_DIRECTORY \${NDK_PROJECT_PATH}
+	)
+add_custom_target(ant DEPENDS \${NDK_PROJECT_BIN}/runtime-\${ANT_CONFIGURATION}.apk)
 
 add_custom_command(
 	OUTPUT \${BIN_DIR}/${application}.apk
 	COMMAND android update project -p .
-	COMMAND ant -Dsdk.dir=\${ANDROID_SDK} \${ANT_CONFIGURATION}
 	COMMAND \${CMAKE_COMMAND} -E copy \${NDK_PROJECT_BIN}/${application.toLowerCase()}-\${ANT_CONFIGURATION}.apk \${BIN_DIR}/${application}.apk
-	DEPENDS ndk jet \${SEPARATE}
+	DEPENDS ndk jet ant \${SEPARATE}
 	WORKING_DIRECTORY \${NDK_PROJECT_PATH}
 	)
 add_custom_target(apk ALL DEPENDS \${BIN_DIR}/${application}.apk)

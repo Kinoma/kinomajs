@@ -78,10 +78,23 @@ void xs_mediareader_canHandle(xsMachine *the)
 {
 	FskErr err;
 
-	if ((xsReferenceType == xsTypeOf(xsArg(0)) && (xsIsInstanceOf(xsArg(0), xsChunkPrototype)))) {
-		unsigned char *data = xsGetHostData(xsArg(0));
-		UInt32 dataSize = xsToInteger(xsGet(xsArg(0), xsID("length")));
+	if (xsReferenceType == xsTypeOf(xsArg(0))) {
+		unsigned char *data = NULL;
+		UInt32 dataSize;
 		char *mime, *uri = NULL;
+
+		if (xsIsInstanceOf(xsArg(0), xsChunkPrototype)) {
+			xsTrace("Calling MediaReader.canHandle with Chunk is deprecated. Pass ArrayBuffer.\n");
+			data = xsGetHostData(xsArg(0));
+			dataSize = xsToInteger(xsGet(xsArg(0), xsID("length")));
+		}
+		else if (xsIsInstanceOf(xsArg(0), xsArrayBufferPrototype)) {
+			data = xsToArrayBuffer(xsArg(0));
+			dataSize = xsGetArrayBufferLength(xsArg(0));
+		}
+		
+		if (!data)
+			return;
 
 		// could take http client instance as optional argument to extract headers
 
@@ -98,12 +111,11 @@ void xs_mediareader_canHandle(xsMachine *the)
 			xsResult = xsString(mime);
 			FskMemPtrDispose(mime);
 		}
-
-		return;
 	}
-
-	err = FskMediaReaderNew(NULL, xsToString(xsArg(0)), NULL, NULL, NULL, NULL);
-	xsResult = xsBoolean(kFskErrNone == err);
+	else {
+		err = FskMediaReaderNew(NULL, xsToString(xsArg(0)), NULL, NULL, NULL, NULL);
+		xsResult = xsBoolean(kFskErrNone == err);
+	}
 }
 
 #ifdef KPR_CONFIG
@@ -470,8 +482,9 @@ void xs_mediareader_extract(xsMachine *the)
 		}
 	}
 
-	xsMemPtrToChunk(the, &xsVar(0), data, dataSize, false);
-	xsSet(xsResult, xsID("chunk"), xsVar(0));
+	xsVar(2) = xsNew1(xsGlobal, xsID_ArrayBuffer, xsInteger(dataSize));
+	FskMemMove(xsToArrayBuffer(xsVar(2)), data, (SInt32)dataSize);
+	xsSet(xsResult, xsID("buffer"), xsVar(2));
 }
 
 void xs_mediareader_getMetadata(xsMachine *the)

@@ -724,9 +724,9 @@ void iscWriteLogLine(const char *line, UInt32 level)
 		if (gThreads && gTimes) {
 			FskTimeGetNow(&time);
 			if (thread && thread->name[0])
-				bufferLen = snprintf(buffer, sizeof(buffer), "%ld.%06ld [%s] ", time.seconds, time.useconds, thread->name);
+				bufferLen = snprintf(buffer, sizeof(buffer), "%d.%06d [%s] ", (int)time.seconds, (int)time.useconds, thread->name);
 			else
-				bufferLen = snprintf(buffer, sizeof(buffer), "%ld.%06ld [%p] ", time.seconds, time.useconds, thread);
+				bufferLen = snprintf(buffer, sizeof(buffer), "%d.%06d [%p] ", (int)time.seconds, (int)time.useconds, thread);
 		}
 		else
 		if (gThreads) {
@@ -737,7 +737,7 @@ void iscWriteLogLine(const char *line, UInt32 level)
 		}
 		else {
 			FskTimeGetNow(&time);
-			bufferLen = snprintf(buffer, sizeof(buffer), "%ld.%06ld ", time.seconds, time.useconds);
+			bufferLen = snprintf(buffer, sizeof(buffer), "%d.%06d ", (int)time.seconds, (int)time.useconds);
 		}
 
 		if (gTrace)
@@ -821,15 +821,15 @@ void FskInstrumentationSimpleClientDumpMemory(void)
 
 	for (debug = list; debug; debug = debug->next) {
 #if !FSK_EMBED
-		snprintf(buffer, sizeof(buffer), "address %p, size=%lu, seed=%lu\n", (debug + 1), debug->size, debug->seed);
+		snprintf(buffer, sizeof(buffer), "address %p, size=%u, seed=%u\n", (debug + 1), (unsigned)debug->size, (unsigned)debug->seed);
 #else
-		snprintf(buffer, sizeof(buffer), "address %p, size=%lu, seed=%lu, caller=%s @ line=%lu\n", (debug + 1), debug->size, debug->seed, debug->function, debug->line);
+		snprintf(buffer, sizeof(buffer), "address %p, size=%u, seed=%u, caller=%s @ line=%u\n", (debug + 1), (unsigned)debug->size, (unsigned)debug->seed, debug->function, (unsigned)debug->line);
 #endif
 		total += debug->size;
 		iscWriteLogLine(buffer, kFskInstrumentationLevelMinimal);
 	}
 
-	snprintf(buffer, sizeof(buffer), "\n** %lu total bytes leaked **\n", total);
+	snprintf(buffer, sizeof(buffer), "\n** %u total bytes leaked **\n", (unsigned)total);
 	iscWriteLogLine(buffer, kFskInstrumentationLevelMinimal);
 }
 #else
@@ -956,6 +956,7 @@ const char *FskInstrumentationGetErrorString(FskErr err)
 		LOOKUP_ENTRY(kFskErrNotAccelerated),
 		LOOKUP_ENTRY(kFskErrGraphicsContext),
 		LOOKUP_ENTRY(kFskErrTextureTooLarge),
+		LOOKUP_ENTRY(kFskErrNoFonts),
 		LOOKUP_ENTRY(kFskErrGLInvalidEnum),
 		LOOKUP_ENTRY(kFskErrGLInvalidValue),
 		LOOKUP_ENTRY(kFskErrGLInvalidOperation),

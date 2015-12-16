@@ -858,7 +858,7 @@ FskFramePolygon(
 		&&	(frameColor->type == kFskColorSourceTypeConstant)
 	) {
 		if (quality == 0) {
-			FskConstColorRGB frColor = (FskConstColorRGB)(void*)(&(((const FskColorSourceConstant*)(void*)frameColor)->color));
+			FskConstColorRGB frColor = &((const FskColorSourceUnion*)frameColor)->rgb.color;
 			err = FrameJaggyNarrowPolyLine(     nPts, pts,   1, frColor,              M, clipRect, dstBM);
 		} else {
 			frameFillColors[0] = frameColor;
@@ -957,7 +957,7 @@ FskFramePolyLine(
 		&&	(frameColor->type == kFskColorSourceTypeConstant)
 	) {
 		if (quality == 0) {
-			FskConstColorRGB frColor = (const FskConstColorRGB)(const void*)(&(((const FskColorSourceConstant*)(const void*)frameColor)->color));
+			FskConstColorRGB frColor = &((const FskColorSourceUnion*)frameColor)->rgb.color;
 			err = FrameJaggyNarrowPolyLine(nPts, pts, ((endCaps & kFskLineEndCapClosed) != 0), frColor, M, clipRect, dstBM);
 		}
 		else {

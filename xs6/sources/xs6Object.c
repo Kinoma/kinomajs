@@ -92,7 +92,7 @@ void fxBuildObject(txMachine* the)
 	slot = fxNextHostAccessorProperty(the, slot, fx_Object_prototype___proto__get, fx_Object_prototype___proto__set, mxID(___proto__), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	for (builder = gx_Object_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Object, 1, mxID(_Object), XS_GET_ONLY));
+	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Object, 1, mxID(_Object), XS_DONT_ENUM_FLAG));
 	for (builder = gx_Object_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	the->stack++;
@@ -213,38 +213,52 @@ void fx_Object_prototype_propertyIsScriptable(txMachine* the)
 void fx_Object_prototype_toPrimitive(txMachine* the)
 {
 	if (mxThis->kind == XS_REFERENCE_KIND) {
-		txInteger hint = ((mxArgc > 0) && (c_strcmp(fxToString(the, mxArgv(0)), "string") == 0)) ? XS_STRING_HINT : XS_NUMBER_HINT;
+		txInteger hint = XS_NO_HINT;
+		txInteger ids[2], i;
+		if (mxArgc > 0) {
+			txSlot* slot = mxArgv(0);
+			if ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND)) {
+				if (!c_strcmp(slot->value.string, "default"))
+					hint = XS_NUMBER_HINT;
+				else if (!c_strcmp(slot->value.string, "number"))
+					hint = XS_NUMBER_HINT;
+				else if (!c_strcmp(slot->value.string, "string"))
+					hint = XS_STRING_HINT;
+			}
+		}
 		if (hint == XS_STRING_HINT) {
+		 	ids[0] = mxID(_toString);
+		 	ids[1] = mxID(_valueOf);
+		}
+		else if (hint == XS_NUMBER_HINT) {
+		 	ids[0] = mxID(_valueOf);
+		 	ids[1] = mxID(_toString);
+		}
+ 		else
+     		mxTypeError("invalid hint");
+		for (i = 0; i < 2; i++) {
 			mxPushInteger(0);
 			mxPushSlot(mxThis);
-			fxCallID(the, mxID(_toString));
-			if (mxIsReference(the->stack)) {
-        		the->stack++;
-				mxPushInteger(0);
-				mxPushSlot(mxThis);
-				fxCallID(the, mxID(_valueOf));
-			}
-		}
-		else {
-			mxPushInteger(0);
 			mxPushSlot(mxThis);
-			fxCallID(the, mxID(_valueOf));
-			if (mxIsReference(the->stack)) {
-        		the->stack++;
-				mxPushInteger(0);
-				mxPushSlot(mxThis);
-				fxCallID(the, mxID(_toString));
+			fxGetID(the, ids[i]);
+			if (mxIsReference(the->stack) && mxIsFunction(the->stack->value.reference)) {
+				fxCall(the);
+				if (mxIsReference(the->stack))
+					the->stack++;
+				else {
+					mxResult->kind = the->stack->kind;
+					mxResult->value = the->stack->value;
+					the->stack++;
+					return;
+      			}
 			}
+			else
+				the->stack++;
 		}
-        if (mxIsReference(the->stack)) {
-            if (hint == XS_STRING_HINT)
-                mxTypeError("cannot coerce object to string");
-            else
-                mxTypeError("cannot coerce object to number");
-        }
-        mxResult->kind = the->stack->kind;
-        mxResult->value = the->stack->value;
-        the->stack++;
+		if (hint == XS_STRING_HINT)
+            mxTypeError("cannot coerce object to string");
+        else
+            mxTypeError("cannot coerce object to number");
 	}
 	else {
 		mxResult->kind = mxThis->kind;
@@ -254,46 +268,112 @@ void fx_Object_prototype_toPrimitive(txMachine* the)
 
 void fx_Object_prototype_toString(txMachine* the)
 {
+	txString tag = C_NULL;
 	txSlot* instance;
-	fxCopyStringC(the, mxResult, "[object ");
+	txSlot* slot;
 	switch (mxThis->kind) {
 	case XS_UNDEFINED_KIND:
-		fxConcatStringC(the, mxResult, "Undefined");
+		tag = "Undefined";
 		break;
 	case XS_NULL_KIND:
-		fxConcatStringC(the, mxResult, "Null");
+		tag = "Null";
 		break;
 	case XS_BOOLEAN_KIND:
-		fxConcatStringC(the, mxResult, "Boolean");
+		tag = "Boolean";
 		break;
 	case XS_INTEGER_KIND:
 	case XS_NUMBER_KIND:
-		fxConcatStringC(the, mxResult, "Number");
+		tag = "Number";
 		break;
 	case XS_STRING_KIND:
 	case XS_STRING_X_KIND:
-		fxConcatStringC(the, mxResult, "String");
+		tag = "String";
 		break;
 	case XS_SYMBOL_KIND:
-		fxConcatStringC(the, mxResult, "Symbol");
+		tag = "Symbol";
 		break;
 	case XS_REFERENCE_KIND:
+		instance = mxThis->value.reference;
+		if (instance->flag & XS_VALUE_FLAG) {
+			slot = instance->next;
+			switch (slot->kind) {
+			case XS_ARRAY_KIND:
+				tag = (instance != mxArrayPrototype.value.reference) ? "Array" : "Object";
+				break;
+			case XS_BOOLEAN_KIND:
+				tag = (instance != mxBooleanPrototype.value.reference) ? "Boolean" : "Object";
+				break;
+			case XS_CALLBACK_KIND:
+			case XS_CODE_KIND:
+			case XS_CODE_X_KIND:
+				tag = "Function";
+				break;
+			case XS_DATE_KIND:
+				tag = (instance != mxDatePrototype.value.reference) ? "Date" : "Object";
+				break;
+			case XS_GLOBAL_KIND:
+				tag = "global";
+				break;
+			case XS_NUMBER_KIND:
+				tag = (instance != mxNumberPrototype.value.reference) ? "Number" : "Object";
+				break;
+			case XS_PARAMETERS_KIND:
+				tag = "Arguments";
+				break;
+			case XS_REGEXP_KIND:
+				tag = (instance != mxRegExpPrototype.value.reference) ? "RegExp" : "Object";
+				break;
+			case XS_STRING_KIND:
+				tag = (instance != mxStringPrototype.value.reference) ? "String" : "Object";
+				break;
+			case XS_SYMBOL_KIND:
+				tag = (instance != mxSymbolPrototype.value.reference) ? "Symbol" : "Object";
+				break;
+            default:
+                tag = "Object";
+                break;
+            }
+		}
+		else if (instance == mxErrorPrototype.value.reference)
+        	tag = "Object";
+		else if (instance == mxEvalErrorPrototype.value.reference)
+        	tag = "Object";
+		else if (instance == mxRangeErrorPrototype.value.reference)
+        	tag = "Object";
+		else if (instance == mxReferenceErrorPrototype.value.reference)
+        	tag = "Object";
+		else if (instance == mxSyntaxErrorPrototype.value.reference)
+        	tag = "Object";
+		else if (instance == mxTypeErrorPrototype.value.reference)
+        	tag = "Object";
+		else if (instance == mxURIErrorPrototype.value.reference)
+        	tag = "Object";
+        else {
+        	txSlot* prototype = mxErrorPrototype.value.reference;
+        	instance = instance->value.instance.prototype;
+        	while (instance) {
+        		if (instance == prototype)
+        			break;
+        		instance = instance->value.instance.prototype;
+        	}
+            tag = (instance) ? "Error" : "Object";
+        }
+		break;
+	default:
+		tag = "Object";
+		break;
+	}
+	fxCopyStringC(the, mxResult, "[object ");
+	if (mxThis->kind == XS_REFERENCE_KIND) {
 		mxPushSlot(mxThis);
 		fxGetID(the, mxID(_Symbol_toStringTag));
 		if ((the->stack->kind == XS_STRING_KIND) || (the->stack->kind == XS_STRING_X_KIND))
 			fxConcatString(the, mxResult, the->stack);
-		else {
-			instance = mxThis->value.reference;
-			if ((instance->flag & XS_VALUE_FLAG) && (instance->next->kind == XS_GLOBAL_KIND))
-				fxConcatStringC(the, mxResult, "global");
-			else
-				fxConcatStringC(the, mxResult, "Object");
-		}
-		break;
-	default:
-		fxConcatStringC(the, mxResult, "Object");
-		break;
+		else
+			fxConcatStringC(the, mxResult, tag);
 	}
+	else
+		fxConcatStringC(the, mxResult, tag);
 	fxConcatStringC(the, mxResult, "]");
 }
 

@@ -507,15 +507,24 @@ void KPR_handler_uploadChunk(xsMachine* the)
 		KPR_handler_invokeAux(the, self, message);
 	}
 	if ((c > 1) && xsTest(xsArg(1))) {
-		char* crlf = "\r\n";
+		const char* crlf = "\r\n";
 		UInt32 offset;
 		char* data = NULL;
-		size = xsToInteger(xsGet(xsArg(1), xsID_length));
-		if (xsTypeOf(xsArg(1)) == xsStringType)
-			data = xsToString(xsArg(1));
-		else
-			data = xsGetHostData(xsArg(1));
-		snprintf(prefix, 32, "%lX", size);		//@@
+		xsType aType = xsTypeOf(xsArg(1));
+		if ((xsReferenceType == aType) && xsIsInstanceOf(xsArg(1), xsArrayBufferPrototype)) {
+			data = xsToArrayBuffer(xsArg(1));
+			size = xsGetArrayBufferLength(xsArg(1));
+		}
+		else {
+			size = xsToInteger(xsGet(xsArg(1), xsID_length));
+			if (aType == xsStringType)
+				data = xsToString(xsArg(1));
+			else {
+				data = xsGetHostData(xsArg(1));
+				xsTrace("Calling Handler.uploadChunk called with Chunk is deprecated. Pass ArrayBuffer.");
+			}
+		}
+		snprintf(prefix, 32, "%X", (unsigned int)size);		//@@
 		offset = FskStrLen(prefix);
 		chunkSize = size + offset + 4;
 		xsThrowIfFskErr(FskMemPtrNewClear(chunkSize, &chunkData));

@@ -1,19 +1,20 @@
 #
-#      Copyright (C) 2010-2015 Marvell International Ltd.
-#      Copyright (C) 2002-2010 Kinoma, Inc.
-# 
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
+#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2002-2010 Kinoma, Inc.
 #
-#       http://www.apache.org/licenses/LICENSE-2.0
-# 
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
 #
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+#
+set(ANDROID true)
 include (CMakeForceCompiler)
 
 set(ANDROID_NDK $ENV{ANDROID_NDK})
@@ -47,6 +48,7 @@ set(APPLE true CACHE BOOL "Host Build Type")
 set(CMAKE_SYSTEM_VERSION 1)
 
 set(CMAKE_SYSTEM_PROCESSOR "armv7-a")
+set(ANDROID_ABI "armeabi-v7a")
 
 set(TOOLCHAINS_PATH "${ANDROID_NDK}/toolchains")
 set(TOOLCHAIN_SUBPATH  "prebuilt/${HOST_SYSTEM_NAME}")
@@ -122,6 +124,8 @@ if(NOT RELEASE)
 endif()
 set(SEPARATE_LIBRARIES "${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}/libgcc.a -L${SYSROOT}/usr/lib -lc -lstdc++ -lm -ldl -llog -landroid")
 
+
+set(CMAKE_C_CREATE_SHARED_LIBRARY	"<CMAKE_C_COMPILER> -Wl,-soname,<TARGET_SONAME> <OBJECTS> ${SEPARATE_LINK_OPTIONS} <LINK_LIBRARIES> ${SEPARATE_LIBRARIES} -o <TARGET>")
 set(CMAKE_CXX_CREATE_SHARED_LIBRARY	"<CMAKE_CXX_COMPILER> -Wl,-soname,<TARGET_SONAME> <OBJECTS> ${SEPARATE_LINK_OPTIONS} <LINK_LIBRARIES> ${SEPARATE_LIBRARIES} -o <TARGET>")
 
 set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> cq <TARGET> <LINK_FLAGS> <OBJECTS>")

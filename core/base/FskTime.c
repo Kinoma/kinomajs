@@ -57,7 +57,7 @@
 #else /* !TARGET_OS_MAC */
 	#include <sys/time.h>
 #endif /* !TARGET_OS_MAC */
-    
+
 #if USE_POSIX_CLOCK
 FskTimeRecord sBasetime;
 #endif /* USE_POSIX_CLOCK */
@@ -74,7 +74,10 @@ FskTimeRecord sBasetime;
 	static void syncUiTimers(void);
 #endif /* TARGET_OS_WIN32 && SUPPORT_TIMER_THREAD */
 
-static Boolean gUiTimersActive = true;
+#if !TARGET_OS_KPL
+	static Boolean gUiTimersActive = true;
+
+#endif
 
 // ---------------------------------------------------------------------
 SInt32 FskTimeInSecs(FskTime time)
@@ -171,7 +174,7 @@ char *strptime(const char *buf, const char *fmt, struct tm *tm);
 #endif
 // Use this function to avoid members order of struct tm be modified in different toolchains and platforms
 static INLINE void CopyToFskTimeElementsCommon(struct tm *src, FskTimeElements dst){
-	dst->tm_sec		= (SInt32)src->tm_sec;  
+	dst->tm_sec		= (SInt32)src->tm_sec;
 	dst->tm_min		= (SInt32)src->tm_min;
 	dst->tm_hour	= (SInt32)src->tm_hour;
 	dst->tm_mday	= (SInt32)src->tm_mday;
@@ -182,7 +185,7 @@ static INLINE void CopyToFskTimeElementsCommon(struct tm *src, FskTimeElements d
 	dst->tm_isdst	= (SInt32)src->tm_isdst;
 }
 static INLINE void CopyFromFskTimeElementsCommon(FskTimeElements src, struct tm *dst){
-	dst->tm_sec		= (int)src->tm_sec;  
+	dst->tm_sec		= (int)src->tm_sec;
 	dst->tm_min		= (int)src->tm_min;
 	dst->tm_hour	= (int)src->tm_hour;
 	dst->tm_mday	= (int)src->tm_mday;
@@ -231,7 +234,7 @@ void FskTimeStrptime(const char *s, const char *format,  FskTimeElements fsktm, 
 	fsktm->tm_zone	= itm.tm_zone;
 	#else
 	fsktm->tm_gmtoff= 0;
-	fsktm->tm_zone  = NULL; 
+	fsktm->tm_zone  = NULL;
 	#endif
 #endif
 	if(endptr)
@@ -303,7 +306,7 @@ FskErr FskTimeLocaltime(const FskTime fsktime, FskTimeElements fsktm){
 		fsktm->tm_zone	= win32TzName;
 	}
 	#endif
-#endif	
+#endif
 	return err;
 }
 
@@ -323,7 +326,7 @@ void FskTimeMktime(const FskTimeElements fsktm, FskTime fsktime){
 
 	fsktime->seconds = (SInt32)tsec;
 	fsktime->useconds= 0;
-#endif	
+#endif
 	return;
 }
 
@@ -369,7 +372,7 @@ FskErr FskTimeGetZone(FskTime fsktime, SInt32 *tzoff, SInt32 *dst, const char **
 		time_t			tsec;
 
 		if(NULL == fsktime) {
-			struct timeval tv;	
+			struct timeval tv;
 			gettimeofday(&tv, NULL);
 			tsec = tv.tv_sec;
 		}
@@ -377,7 +380,7 @@ FskErr FskTimeGetZone(FskTime fsktime, SInt32 *tzoff, SInt32 *dst, const char **
 			tsec = fsktime->seconds;
 		}
 		localtime_r(&tsec, &itm);
-		
+
 		if(tzoff)
 			*tzoff = (SInt32)itm.tm_gmtoff;;
 		if(dst)
@@ -385,8 +388,8 @@ FskErr FskTimeGetZone(FskTime fsktime, SInt32 *tzoff, SInt32 *dst, const char **
 		if(tzName)
 			*tzName = itm.tm_zone;
 	#endif
-#endif	
-	return err;	
+#endif
+	return err;
 }
 
 FskErr FskTimeGetDisplayZone(char **tzName){
@@ -417,7 +420,7 @@ void FskTimeGetOSTime(FskTime time)
 {
 #if TARGET_OS_KPL
 	KplTimeGetOSTime((KplTime)time);
-#elif TARGET_OS_WIN32 
+#elif TARGET_OS_WIN32
 	{
     struct _timeb tb;
 	_ftime_s(&tb);
@@ -590,6 +593,7 @@ SInt32 FskTimeCompare(const FskTime time1, const FskTime time2)
 	#define rescheduleTimer(a)
 #endif /* !TARGET_OS_WIN32 && !TARGET_OS_MAC */
 
+#if !TARGET_OS_KPL
 static void sInsertInTime(FskTimeCallBack el)
 {
 	FskTimeCallBack cur, last = NULL;
@@ -637,6 +641,7 @@ done:
 	if (reschedule)
 		rescheduleTimer(thread);
 }
+#endif
 
 // ---------------------------------------------------------------------
 void FskTimeCallbackRemove(FskTimeCallBack ref)
@@ -688,19 +693,19 @@ void FskTimeCallbackRemove(FskTimeCallBack ref)
 					later = timer->trigger;
 					FskTimeSub(&now, &later);
 					if (FskTimeInMS(&later) <= 0)
-						snprintf(buffer, bufferSize, "[%s, %s/%ld] Schedule timer to fire now %lds:%ldms", thread->name, timer->schedulingFunctionName, timer->schedulingFunctionLine, now.seconds, now.useconds/1000);
+						snprintf(buffer, bufferSize, "[%s, %s/%u] Schedule timer to fire now %ds:%dms", thread->name, timer->schedulingFunctionName, (unsigned)timer->schedulingFunctionLine, (int)now.seconds, (int)now.useconds/1000);
 					else
-						snprintf(buffer, bufferSize, "[%s, %s/%ld] Schedule timer at head, fire in %lds:%ldms", thread->name, timer->schedulingFunctionName, timer->schedulingFunctionLine, later.seconds, later.useconds/1000);
+						snprintf(buffer, bufferSize, "[%s, %s/%u] Schedule timer at head, fire in %ds:%dms", thread->name, timer->schedulingFunctionName, (unsigned)timer->schedulingFunctionLine, (int)later.seconds, (int)later.useconds/1000);
 				}
 				else {
 					FskTimeSub(&((FskTimeCallBack)thread->timerCallbacks)->trigger, &now);
 					FskTimeSub(&timer->trigger, &later);
-					snprintf(buffer, bufferSize, "[%s, %s/%ld] Schedule timer %s, first in %lds:%ldms - this one in %lds:%ldms",
+					snprintf(buffer, bufferSize, "[%s, %s/%u] Schedule timer %s, first in %ds:%dms - this one in %ds:%dms",
 						thread->name,
-						timer->schedulingFunctionName, timer->schedulingFunctionLine,
+						timer->schedulingFunctionName, (unsigned)timer->schedulingFunctionLine,
 						msg == kFskTimeInstrMsgScheduleEnd ? "at end" : "in middle",
-						-now.seconds, now.useconds/1000,
-						-later.seconds, later.useconds/1000);
+						-(int)now.seconds, (int)now.useconds/1000,
+						-(int)later.seconds, (int)later.useconds/1000);
 				}
 				return true;
 			case kFskTimeInstrMsgTimerFire: {
@@ -708,7 +713,7 @@ void FskTimeCallbackRemove(FskTimeCallBack ref)
 				if (timer->next) {
 					FskTimeGetNow(&next);
 					FskTimeSub(&timer->next->trigger, &next);
-					snprintf(tmp, 63, "next in %ld:s%ldms", -next.seconds, next.useconds/1000);
+					snprintf(tmp, 63, "next in %d:s%dms", -(int)next.seconds, (int)next.useconds/1000);
 				}
 				else
 					tmp[0] = '\0';
@@ -716,11 +721,11 @@ void FskTimeCallbackRemove(FskTimeCallBack ref)
 				FskTimeSub(&timer->trigger, &later);
 				laterMS = FskTimeInMS(&later);
 				if (laterMS > 0)
-					snprintf(buffer, bufferSize, "[%s, %s/%ld] timer fired %lds:%ldms late - %s", thread->name, timer->schedulingFunctionName, timer->schedulingFunctionLine, later.seconds, later.useconds/1000, tmp);
+					snprintf(buffer, bufferSize, "[%s, %s/%u] timer fired %ds:%dms late - %s", thread->name, timer->schedulingFunctionName, (unsigned)timer->schedulingFunctionLine, (int)later.seconds, (int)later.useconds/1000, tmp);
 				else if (0 == laterMS)
-					snprintf(buffer, bufferSize, "[%s, %s/%ld] timer fired on time - %s", thread->name, timer->schedulingFunctionName, timer->schedulingFunctionLine, tmp);
+					snprintf(buffer, bufferSize, "[%s, %s/%u] timer fired on time - %s", thread->name, timer->schedulingFunctionName, (unsigned)timer->schedulingFunctionLine, tmp);
 				else
-					snprintf(buffer, bufferSize, "[%s, %s/%ld] timer fired %lds:%ldms early - %s", thread->name, timer->schedulingFunctionName, timer->schedulingFunctionLine, -later.seconds, later.useconds/1000, tmp);
+					snprintf(buffer, bufferSize, "[%s, %s/%u] timer fired %ds:%dms early - %s", thread->name, timer->schedulingFunctionName, (unsigned)timer->schedulingFunctionLine, -(int)later.seconds, (int)later.useconds/1000, tmp);
 				}
 				return true;
 			case kFskTimeInstrMsgDeleteFromWrongThread:

@@ -58,14 +58,14 @@ typedef struct {
 
 	FskErr (*doFormatCacheNew)(FskTextEngineState state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 	FskErr (*doFormatCacheDispose)(FskTextEngineState state, FskTextFormatCache cache);
-	FskErr (*doBox)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel,
+	FskErr (*doBox)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel,
 					UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-	FskErr (*doGetBounds)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache);
+	FskErr (*doGetBounds)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
 	FskErr (*doGetFontInfo)(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache formatCache);
 	FskErr (*doFitWidth)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags,
-						UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
+					UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
 	FskErr (*doGetLayout)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
-								UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
+					UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
 
 	// global functions
 	FskErr (*doAddFontFile)(FskTextEngineState state, const char *path);
@@ -159,7 +159,8 @@ FskAPI(FskErr) FskTextEngineGetProperty(FskTextEngine fte, UInt32 propertyID, Fs
  *	\param[in]	bits		a reference bitmap, which can be NULL but may be faster is one is supplied.
  *	\param[in]	text		the string of UTF-8 text.
  *	\param[in]	textLen		the number of bytes in the UTF-8 text.
- *	\param[in]	bounds		the rectangle into which the text is to be rendered.
+ *	\param[in]	dstRect		the rectangle into which the text is to be rendered.
+ *	\param[in]	dstRectFloa	the rectangle into which the text is to be rendered. May be null.
  *	\param[in]	clipRect	a rectangular clipping region (may be NULL).
  *	\param[in]	color		the desired color of the text.
  *	\param[in]	blendLevel	transparency of the text (255 is opaque, 0 is totally transparent).
@@ -171,7 +172,7 @@ FskAPI(FskErr) FskTextEngineGetProperty(FskTextEngine fte, UInt32 propertyID, Fs
  *	\param[in]	cache		the font cache.
  *	\return		kFskErrNone	if the text was rendered successfully.
  **/
-FskAPI(FskErr) FskTextBox(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangle clipRect, FskConstColorRGBA color,
+FskAPI(FskErr) FskTextBox(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color,
 							UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
 
 /** Get the rough bounds of a text string.
@@ -185,11 +186,12 @@ FskAPI(FskErr) FskTextBox(FskTextEngine fte, FskBitmap bits, const char *text, U
  * 							kFskTextStrike, kFskTextOutlineHeavy, kFskTextTruncateEnd, kFskTextTruncateCenter, from FskGraphics.h.
  *	\param[in]	fontName	the name of the font.
  *	\param[out]	bounds		the bounds of the text.
+ *	\param[out]	dimensions	the bounds of the text - optional.
  *	\param[in]	cache		the font cache.
  *	\return		kFskErrNone	if the bounds were retrieved successfully.
  **/
 FskAPI(FskErr) FskTextGetBounds(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
-								FskRectangle bounds, FskTextFormatCache cache);
+								FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
 
 /** Get the list of fonts available on this system.
  *	\param[in]	fte			reference to the font text engine.

@@ -1,18 +1,18 @@
 /*
- *    Copyright (C) 2010-2015 Marvell International Ltd.
- *    Copyright (C) 2002-2010 Kinoma, Inc.
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
  */
 /**
 	\file	FskCanvas.h
@@ -175,7 +175,7 @@ struct FskCanvasRecord;				typedef struct FskCanvasRecord				FskCanvasRecord,			
 struct FskCanvas2dContextRecord;	typedef struct FskCanvas2dContextRecord		FskCanvas2dContextRecord,	*FskCanvas2dContext;	typedef const struct FskCanvas2dContextRecord	*FskConstCanvas2dContext;
 struct FskVideoRecord;				typedef struct FskVideoRecord				FskVideoRecord,				*FskVideo;
 struct FskColorSource;
-struct FskGrowableStorageRecord;	typedef struct FskGrowableStorageRecord		FskCanvas2dPathRecord,		*FskCanvas2dPath;			typedef const struct FskGrowableStorageRecord	*FskConstCanvas2dPath;
+struct FskGrowableStorageRecord;	typedef struct FskGrowableStorageRecord		FskCanvas2dPathRecord,		*FskCanvas2dPath;		typedef const struct FskGrowableStorageRecord	*FskConstCanvas2dPath;
 
 
 /** The encapsulation of a double-precision floating-point 3x2 matrix. */
@@ -1039,7 +1039,6 @@ FskAPI(FskErr)	FskCanvas2dPathAppendPathString(FskCanvas2dContext ctx, FskCanvas
  *	\param[in]	dst		The destination path. NULL implies the path in the context.
  *	\param[in]	src		The path to be appended to the dst path.
  *	\param[in]	M		A transformation matrix. NULL implies the identity.
- *	\param[in]	pathStr	The path string.
  *	\return		kFskErrNone	If the operation was completed successfully.
  */
 FskAPI(FskErr)	FskCanvas2dPathAppendPath(FskCanvas2dContext ctx, FskCanvas2dPath dst, FskConstCanvas2dPath src, const FskCanvasMatrix3x2d *M);
@@ -1065,6 +1064,7 @@ FskAPI(FskErr)	FskCanvas2dPathFill(FskCanvas2dContext ctx, FskConstCanvas2dPath 
 
 /** Stroke the given path with the current stroke style.
  *	\param[in]	ctx		The Canvas 2d context. Cannot be NULL.
+ *	\param[in]	path	The path to be stroked. NULL implies the path in the context.
  *	\return		kFskErrNone	If the path was successfully stroked.
  */
 FskAPI(FskErr)	FskCanvas2dPathStroke(FskCanvas2dContext ctx, FskConstCanvas2dPath path);
@@ -1419,8 +1419,8 @@ FskAPI(FskErr)	FskCanvas2dSetLineDashOffset(FskCanvas2dContext ctx, double offse
 
 
 /** Get the line dash offset.
- *	\param[in,out]	ctx			the canvas 2D context.
- *	\param[in]		offset		the desired dash offset. It is typically positive, but should work if negative.
+ *	\param[in,out]	ctx	the canvas 2D context.
+ *	\return				the current dash offset.
  */
 FskAPI(double)	FskCanvas2dGetLineDashOffset(FskConstCanvas2dContext ctx);
 
@@ -1471,6 +1471,15 @@ FskAPI(FskErr)	FskCanvas2dPickHitRegion(FskCanvas2dContext ctx, double x, double
  *	\return		kFskErrNone	if the operation completed successfully.
  */
 FskAPI(FskErr)	FskCanvas2dPathClone(FskConstCanvas2dPath oldPath, FskCanvas2dPath *pPath);
+
+
+/** Query whether the accelerated implementation of Canvas is trustworthy.
+ * If one portion of the implementation on this platform is not trustworthy, it will return false,
+ * even through most of the implementation is trustworthy. For more details about which portions
+ * are not trustworthy, consult FskGLCanvasCaveats().
+ *	\return		true if trustworthy, false otherwise.
+ */
+FskAPI(Boolean)	FskCanvasAccelerationIsTrusty(void);
 
 
 #ifdef PUNT

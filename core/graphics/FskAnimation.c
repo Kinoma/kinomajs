@@ -62,15 +62,6 @@ typedef struct TimingKey {
  ********************************************************************************/
 
 
-
-/********************************************************************************
- * CopyCubicBezier2D
- ********************************************************************************/
-
-struct _bz4x2 {	FskFractPoint2D p[4];	};
-#define CopyCubicBezier2D(fr, to)	*((struct _bz4x2*)(void*)(&to[0])) = *((struct _bz4x2*)(void*)(&fr[0]))
-
-
 /********************************************************************************
  * FskEvaluateFractKeySplineSegment
  ********************************************************************************/
@@ -78,8 +69,10 @@ struct _bz4x2 {	FskFractPoint2D p[4];	};
 FskFract
 FskEvaluateFractKeySplineSegment(FskFract cx0, FskFract cy0, FskFract cx1, FskFract cy1, FskFract x)
 {
-	FskFractPoint2D	B[4], *b;
-	FskFract		t;
+	struct CubicBezier2D	{ FskFractPoint2D p[4]; };
+	struct CubicBezier2D	B;
+	FskFractPoint2D			*b;
+	FskFract				t;
 
 	if ((cx0 | cy0 | (cx1 ^ FRACT_ONE) | (cy1 ^ FRACT_ONE)) == 0)	return x;			/* control(0,0,1,1) --> default --> identity  */
 	if (x <= 0)														return 0;			/* 0 --> 0 */
@@ -87,41 +80,41 @@ FskEvaluateFractKeySplineSegment(FskFract cx0, FskFract cy0, FskFract cx1, FskFr
 
 	/* Solve by bisection (we should sometime try Newton) */
 	#ifndef BEZIER_BISECTION_CAN_OVERFLOW						/* No need to do this if AVOID_DECASTELJAU_OVERFLOW is #defined in FskFixedMath.c */
-		B[0].x = 0;				B[0].y = 0;
-		B[1].x = cx0;			B[1].y = cy0;
-		B[2].x = cx1;			B[2].y = cy1;
-		B[3].x = FRACT_ONE;		B[3].y = FRACT_ONE;
+		B.p[0].x = 0;			B.p[0].y = 0;
+		B.p[1].x = cx0;			B.p[1].y = cy0;
+		B.p[2].x = cx1;			B.p[2].y = cy1;
+		B.p[3].x = FRACT_ONE;	B.p[3].y = FRACT_ONE;
 	#else /* BEZIER_BISECTION_CAN_OVERFLOW */					/* Need to do this if AVOID_DECASTELJAU_OVERFLOW is not #defined in FskFixedMath.c */
-		B[0].x = 0         >> 1;	B[0].y = 0         >> 1;	/* Insert extra headroom to avoid bisection overflow */
-		B[1].x = cx0       >> 1;	B[1].y = cy0       >> 1;
-		B[2].x = cx1       >> 1;	B[2].y = cy1       >> 1;
-		B[3].x = FRACT_ONE >> 1;	B[3].y = FRACT_ONE >> 1;
+		B.p[0].x = 0         >> 1;	B.p[0].y = 0         >> 1;	/* Insert extra headroom to avoid bisection overflow */
+		B.p[1].x = cx0       >> 1;	B.p[1].y = cy0       >> 1;
+		B.p[2].x = cx1       >> 1;	B.p[2].y = cy1       >> 1;
+		B.p[3].x = FRACT_ONE >> 1;	B.p[3].y = FRACT_ONE >> 1;
 		x >>= 1;
 	#endif /* BEZIER_BISECTION_CAN_OVERFLOW */
 
-	while (FskFixedDeviationOfBezierControlPoints2D(B, 4) > ALMOST_FLAT) {	/* If not flat enough, split Bezier */
-		FskFractPoint2D L[4], R[4];
-		FskFixedBisectBezier(&B[0].x, 4, 2, &L[0].x, &R[0].x);				/* Bisect Bezier, diminishing variation quadratically */
-		if (x > R[0].x)	CopyCubicBezier2D(R, B);							/* Since the curve is monotonic, we can easily choose the proper half */
-		else			CopyCubicBezier2D(L, B);
+	while (FskFixedDeviationOfBezierControlPoints2D(B.p, 4) > ALMOST_FLAT) {	/* If not flat enough, split Bezier */
+		struct CubicBezier2D L, R;
+		FskFixedBisectBezier(&B.p[0].x, 4, 2, &L.p[0].x, &R.p[0].x);				/* Bisect Bezier, diminishing variation quadratically */
+		if (x > R.p[0].x)	B = R;												/* Since the curve is monotonic, we can easily choose the proper half */
+		else				B = L;
 	}
 
-	if (x >= B[1].x) {
-		if (x <= B[2].x)	b = &B[1];										/* The usual case: middle segment */
-		else				b = &B[2];										/* Last segment */
-	}	else				b = &B[0];										/* First segment */
+	if (x >= B.p[1].x) {
+		if (x <= B.p[2].x)	b = &B.p[1];										/* The usual case: middle segment */
+		else				b = &B.p[2];										/* Last segment */
+	}	else				b = &B.p[0];										/* First segment */
 
 	if ((t = b[1].x - b[0].x) > 0) {
 		#ifdef BEZIER_BISECTION_CAN_OVERFLOW
-			b[0].y <<= 1;	b[1].y <<= 1;									/* Remove computational headroom */
+			b[0].y <<= 1;	b[1].y <<= 1;										/* Remove computational headroom */
 		#endif /* BEZIER_BISECTION_CAN_OVERFLOW */
-		t = FskFixedRatio(b[1].y - b[0].y, x - b[0].x, t) + b[0].y;			/* Interpolate on non-null domain */
+		t = FskFixedRatio(b[1].y - b[0].y, x - b[0].x, t) + b[0].y;				/* Interpolate on non-null domain */
 	}
 	else {
 		#ifdef BEZIER_BISECTION_CAN_OVERFLOW
-			t = b[1].y + b[0].y;											/* Average on null domain, remembering that the values have already been halved */
+			t = b[1].y + b[0].y;												/* Average on null domain, remembering that the values have already been halved */
 		#else /* BEZIER_BISECTION_CAN_OVERFLOW */
-			t = ((b[1].y - b[0].y) >> 1) + b[0].y;							/* Average on null domain, avoiding overflow */
+			t = ((b[1].y - b[0].y) >> 1) + b[0].y;								/* Average on null domain, avoiding overflow */
 		#endif /* BEZIER_BISECTION_CAN_OVERFLOW */
 	}
 

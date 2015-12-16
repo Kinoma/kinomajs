@@ -1,3 +1,4 @@
+#if (__arm__)
 @
 @     Copyright (C) 2010-2015 Marvell International Ltd.
 @     Copyright (C) 2002-2010 Kinoma, Inc.
@@ -15,7 +16,6 @@
 @     limitations under the License.
 @
 #include "kinoma_macros.h"
-#if (__arm__)
 @ This file was automatically generated from
 @ /home/mkellner/fsk/kinoma/kinoma-ipp-lib/arm_asm/kinoma_avc_dec_reconstruction.s
 @ on Mon, 03 Nov 2008 11:47:28 GMT

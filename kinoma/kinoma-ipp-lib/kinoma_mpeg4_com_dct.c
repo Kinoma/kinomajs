@@ -31,6 +31,9 @@ IppStatus (__STDCALL *ippiDCT8x8Inv_2x2_16s8u_C1R_universal)	(const Ipp16s* pSrc
 IppStatus (__STDCALL *ippiDCT8x8Inv_DC_16s8u_C1R_universal)	(const Ipp16s* pSrc, Ipp8u* pDst, int dstStep)=NULL;
 
 #define KINOMA_DCT_C
+#if defined(__LP64__)
+#define HAVE_FAST_64BIT
+#endif
 //#define INTEL_DCT
 //#ifdef __KINOMA_IPP_ARM_V5__
 //#define KINOMA_DCT_ARM

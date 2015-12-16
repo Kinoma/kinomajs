@@ -43,10 +43,10 @@ void fxBeginFunction(txMachine* the, txSlot* aSlot)
 	aSlot = fxGetInstance(the, aSlot);
 	if (!mxIsFunction(aSlot))
 		return;
-	aSlot = mxFunctionInstanceInfo(aSlot);
-	if (aSlot->kind != XS_INFO_KIND)
+	aSlot = mxFunctionInstanceProfile(aSlot);
+	if (aSlot->kind != XS_INTEGER_KIND)
 		return;
-	fxRecordProfiling(the, 	XS_PROFILE_BEGIN, aSlot->value.info.profileID);
+	fxRecordProfiling(the, 	XS_PROFILE_BEGIN, aSlot->value.integer);
 }
 
 void fxBeginGC(txMachine* the)
@@ -65,10 +65,10 @@ void fxEndFunction(txMachine* the, txSlot* aSlot)
 	aSlot = fxGetInstance(the, aSlot);
 	if (!mxIsFunction(aSlot))
 		return;
-	aSlot = mxFunctionInstanceInfo(aSlot);
-	if (aSlot->kind != XS_INFO_KIND)
+	aSlot = mxFunctionInstanceProfile(aSlot);
+	if (aSlot->kind != XS_INTEGER_KIND)
 		return;
-	fxRecordProfiling(the, 	XS_PROFILE_END, aSlot->value.info.profileID);
+	fxRecordProfiling(the, 	XS_PROFILE_END, aSlot->value.integer);
 }
 
 void fxEndGC(txMachine* the)
@@ -76,6 +76,14 @@ void fxEndGC(txMachine* the)
 	if (!the->profileFile)
 		return;
 	fxRecordProfiling(the, 	XS_PROFILE_END, 0);
+}
+
+void fxJumpFrames(txMachine* the, txSlot* from, txSlot* to)
+{
+	while (from != to) {
+		fxEndFunction(the, from + 3);
+		from = from->next;
+	}
 }
 
 void fxRecordProfiling(txMachine* the, txInteger theFlag, txInteger theID)
@@ -242,15 +250,16 @@ void fxWriteProfileProperty(txMachine* the, txSlot* theProperty, txSlot* theList
 		switch (aProperty->kind) {
 		case XS_CALLBACK_KIND:
 		case XS_CODE_KIND:
-			aSlot = mxFunctionInstancePrototype(anInstance);
-			if (aSlot->kind == XS_REFERENCE_KIND) {
+			aSlot = fxGetProperty(the, anInstance, mxID(_prototype));
+			if (aSlot && (aSlot->kind == XS_REFERENCE_KIND)) {
 				aSlot->ID = mxID(_prototype);
 				fxWriteProfileProperty(the, aSlot, theList, -1);
 				aSlot->ID = XS_NO_ID;
 			}
-			aSlot = mxFunctionInstanceInfo(anInstance);
-			if (aSlot->kind == XS_INFO_KIND) {
-				txInteger id = aSlot->value.info.profileID;
+			aProperty = aSlot;
+			aSlot = mxFunctionInstanceProfile(anInstance);
+			if (aSlot->kind == XS_INTEGER_KIND) {
+				txInteger id = aSlot->value.integer;
 				fxWriteProfileFile(the, &id, sizeof(txInteger));
 				aSlot = theList->value.list.first;
 				while (aSlot) {
@@ -261,7 +270,6 @@ void fxWriteProfileProperty(txMachine* the, txSlot* theProperty, txSlot* theList
 				}
 				fxWriteProfileFile(the, &(aName[mxNameSize - 1]), sizeof(char));
 			}
-			aProperty = aProperty->next->next->next;
 			break;
 		case XS_ARRAY_KIND:
 			aSlot = aProperty->value.array.address;

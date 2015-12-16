@@ -29,6 +29,8 @@ static void fx_require_weak(txMachine* the);
 static void fx_Module(txMachine* the);
 static void fx_Module_prototype_get_id(txMachine* the);
 static void fx_Module_prototype_get_uri(txMachine* the);
+static void fx_Module_prototype_get___dirname(txMachine* the);
+static void fx_Module_prototype_get___filename(txMachine* the);
 
 static void fx_Transfer(txMachine* the);
 
@@ -59,6 +61,8 @@ void fxBuildModule(txMachine* the)
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostAccessorProperty(the, slot, fx_Module_prototype_get_id, C_NULL, mxID(_id), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
 	slot = fxNextHostAccessorProperty(the, slot, fx_Module_prototype_get_uri, C_NULL, mxID(_uri), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
+	slot = fxNextHostAccessorProperty(the, slot, fx_Module_prototype_get___dirname, C_NULL, mxID(___dirname), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
+	slot = fxNextHostAccessorProperty(the, slot, fx_Module_prototype_get___filename, C_NULL, mxID(___filename), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
 	mxModulePrototype = *the->stack;
 	fxNewHostConstructor(the, fx_Module, 1, XS_NO_ID);
 	mxPull(mxModuleConstructor);
@@ -125,21 +129,23 @@ void fxResolveModule(txMachine* the, txID moduleID, txScript* script, void* data
 	txSlot* slot;
 	txSlot* transfer;
 	txSlot* from;
-	while ((module = *toAddress))
-        toAddress = &(module->next);
 	while ((module = *fromAddress)) {
 		if (module->ID == moduleID) {
 			*fromAddress = module->next;
-			*toAddress = module;
 			module->next = C_NULL;
 			break;
 		}
         fromAddress = &(module->next);
 	}
+	mxPushClosure(module);
 	slot = mxModuleHost(module);
 	slot->value.host.data = data;
 	slot->value.host.variant.destructor = destructor;
 	fxRunScript(the, script, module, C_NULL, C_NULL, module);
+	the->stack++;
+	while ((module = *toAddress))
+        toAddress = &(module->next);
+	*toAddress = module = the->stack->value.closure;
 	the->stack++;
 	transfer = mxModuleTransfers(module)->value.reference->next;
 	while (transfer) {
@@ -294,6 +300,42 @@ void fx_Module_prototype_get_uri(txMachine* the)
 	mxResult->value.string = key->value.key.string;
 }
 
+void fx_Module_prototype_get___dirname(txMachine* the)
+{
+	txSlot* slot = mxModuleURI(mxThis);
+	txSlot* key = fxGetKey(the, slot->value.ID);
+	if (key->kind == XS_KEY_KIND)
+		mxResult->kind = XS_STRING_KIND;
+	else
+		mxResult->kind = XS_STRING_X_KIND;
+	mxResult->value.string = key->value.key.string;
+	mxPushInteger(7);
+	mxPushStringC("/");
+	mxPushInteger(1);
+	mxPushSlot(mxResult);
+	fxCallID(the, mxID(_lastIndexOf));
+	mxPushInteger(2);
+	mxPushSlot(mxResult);
+	fxCallID(the, mxID(_slice));
+	mxPullSlot(mxResult);
+}
+
+void fx_Module_prototype_get___filename(txMachine* the)
+{
+	txSlot* slot = mxModuleURI(mxThis);
+	txSlot* key = fxGetKey(the, slot->value.ID);
+	if (key->kind == XS_KEY_KIND)
+		mxResult->kind = XS_STRING_KIND;
+	else
+		mxResult->kind = XS_STRING_X_KIND;
+	mxResult->value.string = key->value.key.string;
+	mxPushInteger(7);
+	mxPushInteger(1);
+	mxPushSlot(mxResult);
+	fxCallID(the, mxID(_slice));
+	mxPullSlot(mxResult);
+}
+
 void fx_Transfer(txMachine* the)
 {
 	txInteger c = mxArgc, i;
@@ -330,7 +372,6 @@ void fx_Transfer(txMachine* the)
 txSlot* fxGetModule(txMachine* the, txID moduleID)
 {
 	txSlot* table = mxModules.value.reference->next;
-	txSlot* values = table->next;
 	txSlot* key = fxGetKey(the, moduleID);
 	txU4 sum = key->value.key.sum;
 	txU4 modulo = sum % table->value.table.length;
@@ -338,9 +379,9 @@ txSlot* fxGetModule(txMachine* the, txID moduleID)
 	txSlot* entry;
 	while ((entry = *address)) {
 		if (entry->value.entry.sum == sum) {
-			txSlot* value = values->value.array.address + entry->value.entry.index;
-			if (value->ID == moduleID)
-				return value;
+			txSlot* result = entry->value.entry.slot;
+			if (result->ID == moduleID)
+				return result;
 		}
 		address = &entry->next;
 	}
@@ -794,25 +835,25 @@ void fxRunModules(txMachine* the)
 void fxSetModule(txMachine* the, txID moduleID, txSlot* module)
 {
 	txSlot* table = mxModules.value.reference->next;
-	txSlot* values = table->next;
-	txIndex length = values->value.array.length;
 	txSlot* key = fxGetKey(the, moduleID);
 	txU4 sum = key->value.key.sum;
 	txU4 modulo = sum % table->value.table.length;
-	txSlot* value;
+	txSlot** address = &(table->value.table.address[modulo]);
+	txSlot* result;
 	txSlot* entry;
-	txSlot** address;
-	txSlot* slot;
-    value = fxSetArrayProperty(the, values, length);
-    value->ID = moduleID;
-    value->kind = module->kind;
-    value->value = module->value;
+    
+    result = fxNewSlot(the);
+    result->ID = moduleID;
+    result->kind = module->kind;
+    result->value = module->value;
+	mxPushClosure(result);    
+    
 	entry = fxNewSlot(the);
+	entry->next = *address;
 	entry->kind = XS_ENTRY_KIND;
-	entry->value.entry.index = length;
+	entry->value.entry.slot = result;
 	entry->value.entry.sum = sum;
-	address = &(table->value.table.address[modulo]);
-	while ((slot = *address))
-		address = &slot->next;
 	*address = entry;
+	
+	mxPop();
 }

@@ -101,6 +101,8 @@ FskErr KprEffectApply(KprEffect self, FskBitmap srcBits, FskPort port, FskBitmap
 	FskErr err = kFskErrNone;
 	FskRectangleRecord bounds;
 	FskBitmap dstBits = NULL;
+	FskBitmap tmp = NULL;
+
 	Boolean flag;
 
 	FskBitmapGetBounds(srcBits, &bounds);
@@ -121,7 +123,13 @@ FskErr KprEffectApply(KprEffect self, FskBitmap srcBits, FskPort port, FskBitmap
 	}
 	else {
 #endif
+		if (srcBits->pixelFormat != dstBits->pixelFormat) {
+			bailIfError(FskBitmapNew(bounds.width, bounds.height, kFskBitmapFormatDefaultAlpha, &tmp));
+			if (kFskErrNone == FskBitmapDraw(srcBits, NULL, dstBits, NULL, NULL, NULL, kFskGraphicsModeCopy, NULL))
+				srcBits = tmp;
+		}
 		err = FskEffectApply(self->compound, srcBits, &bounds, dstBits, NULL);
+		FskBitmapDispose(tmp);
 #if FSKBITMAP_OPENGL
 		FskBitmapSetOpenGLSourceAccelerated(dstBits, 1); // ... else make sure the result is accelerated.
 	}

@@ -77,7 +77,8 @@ FskExport(FskErr) FskAndroidJavaDecoder_fskLoad(FskLibrary library)
 		BAIL(kFskErrUnimplemented);
 	}
 
-    if( use_hardware_on_this_device( modelName, android_version, VIDEO_DECODER ) || stat("/sdcard/jmcV", &st) == 0 )
+//    if( use_hardware_on_this_device( modelName, android_version, VIDEO_DECODER ) || stat("/sdcard/jmcV", &st) == 0 )
+    if( 1 )
     {
         FskImageDecompressorInstall(&AndroidJavaVideoDecodeDecompressor);
     }

@@ -16,8 +16,6 @@
  */
 #include "xs6All.h"
 
-#define mxFunctionReferenceTypeDispatch(REFERENCE) ((REFERENCE)->value.reference->next->next->next->next->next->next->next)
-
 static txSlot* fxArgToInstance(txMachine* the, txInteger i);
 static txBoolean fxCheckLength(txMachine* the, txSlot* slot, txInteger* index);
 
@@ -34,8 +32,25 @@ static void fx_DataView(txMachine* the);
 static void fx_DataView_prototype_buffer_get(txMachine* the);
 static void fx_DataView_prototype_byteLength_get(txMachine* the);
 static void fx_DataView_prototype_byteOffset_get(txMachine* the);
-static void fx_DataView_prototype_get(txMachine* the);
-static void fx_DataView_prototype_set(txMachine* the);
+static void fx_DataView_prototype_get(txMachine* the, txInteger delta, txTypeCallback getter);
+static void fx_DataView_prototype_getFloat32(txMachine* the);
+static void fx_DataView_prototype_getFloat64(txMachine* the);
+static void fx_DataView_prototype_getInt8(txMachine* the);
+static void fx_DataView_prototype_getInt16(txMachine* the);
+static void fx_DataView_prototype_getInt32(txMachine* the);
+static void fx_DataView_prototype_getUint8(txMachine* the);
+static void fx_DataView_prototype_getUint16(txMachine* the);
+static void fx_DataView_prototype_getUint32(txMachine* the);
+static void fx_DataView_prototype_set(txMachine* the, txInteger delta, txTypeCallback setter);
+static void fx_DataView_prototype_setFloat32(txMachine* the);
+static void fx_DataView_prototype_setFloat64(txMachine* the);
+static void fx_DataView_prototype_setInt8(txMachine* the);
+static void fx_DataView_prototype_setInt16(txMachine* the);
+static void fx_DataView_prototype_setInt32(txMachine* the);
+static void fx_DataView_prototype_setUint8(txMachine* the);
+static void fx_DataView_prototype_setUint16(txMachine* the);
+static void fx_DataView_prototype_setUint32(txMachine* the);
+static void fx_DataView_prototype_setUint8Clamped(txMachine* the);
 
 static void fxCallTypedArrayItem(txMachine* the, txSlot* function, txSlot* dispatch, txSlot* view, txSlot* data, txInteger index, txSlot* item);
 static txSlot* fxCheckTypedArrayInstance(txMachine* the, txSlot* slot);
@@ -104,15 +119,15 @@ static void fxUint8ClampedSetter(txMachine* the, txSlot* data, txInteger offset,
 
 #define mxTypeDispatchCount 9
 const txTypeDispatch gTypeDispatches[mxTypeDispatchCount] = {
-	{ 4, fxFloat32Getter, fxFloat32Setter, fxFloat32Compare, _getFloat32, _setFloat32, _Float32Array },
-	{ 8, fxFloat64Getter, fxFloat64Setter, fxFloat64Compare, _getFloat64, _setFloat64, _Float64Array },
-	{ 1, fxInt8Getter, fxInt8Setter, fxInt8Compare, _getInt8, _setInt8, _Int8Array },
-	{ 2, fxInt16Getter, fxInt16Setter, fxInt16Compare, _getInt16, _setInt16, _Int16Array },
-	{ 4, fxInt32Getter, fxInt32Setter, fxInt32Compare, _getInt32, _setInt32, _Int32Array },
-	{ 1, fxUint8Getter, fxUint8Setter, fxUint8Compare, _getUint8, _setUint8, _Uint8Array },
-	{ 2, fxUint16Getter, fxUint16Setter, fxUint16Compare, _getUint16, _setUint16, _Uint16Array },
-	{ 4, fxUint32Getter, fxUint32Setter, fxUint32Compare, _getUint32, _setUint32, _Uint32Array },
-	{ 1, fxUint8Getter, fxUint8ClampedSetter, fxUint8Compare, _getUint8Clamped, _setUint8Clamped, _Uint8ClampedArray }
+	{ 4, fxFloat32Getter, fxFloat32Setter, fxFloat32Compare, fx_DataView_prototype_getFloat32, fx_DataView_prototype_setFloat32, _getFloat32, _setFloat32, _Float32Array },
+	{ 8, fxFloat64Getter, fxFloat64Setter, fxFloat64Compare, fx_DataView_prototype_getFloat64, fx_DataView_prototype_setFloat64, _getFloat64, _setFloat64, _Float64Array },
+	{ 1, fxInt8Getter, fxInt8Setter, fxInt8Compare, fx_DataView_prototype_getInt8, fx_DataView_prototype_setInt8, _getInt8, _setInt8, _Int8Array },
+	{ 2, fxInt16Getter, fxInt16Setter, fxInt16Compare, fx_DataView_prototype_getInt16, fx_DataView_prototype_setInt16, _getInt16, _setInt16, _Int16Array },
+	{ 4, fxInt32Getter, fxInt32Setter, fxInt32Compare, fx_DataView_prototype_getInt32, fx_DataView_prototype_setInt32, _getInt32, _setInt32, _Int32Array },
+	{ 1, fxUint8Getter, fxUint8Setter, fxUint8Compare, fx_DataView_prototype_getUint8, fx_DataView_prototype_setUint8, _getUint8, _setUint8, _Uint8Array },
+	{ 2, fxUint16Getter, fxUint16Setter, fxUint16Compare, fx_DataView_prototype_getUint16, fx_DataView_prototype_setUint16, _getUint16, _setUint16, _Uint16Array },
+	{ 4, fxUint32Getter, fxUint32Setter, fxUint32Compare, fx_DataView_prototype_getUint32, fx_DataView_prototype_setUint32, _getUint32, _setUint32, _Uint32Array },
+	{ 1, fxUint8Getter, fxUint8ClampedSetter, fxUint8Compare, fx_DataView_prototype_getUint8, fx_DataView_prototype_setUint8Clamped, _getUint8Clamped, _setUint8Clamped, _Uint8ClampedArray }
 };
 
 enum {
@@ -251,7 +266,7 @@ void fxBuildDataView(txMachine* the)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	slot = fxNextStringProperty(the, slot, "ArrayBuffer", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxArrayBufferPrototype = *the->stack;
-	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_ArrayBuffer, 1, mxID(_ArrayBuffer), XS_GET_ONLY));
+	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_ArrayBuffer, 1, mxID(_ArrayBuffer), XS_DONT_ENUM_FLAG));
 	slot = fxNextHostFunctionProperty(the, slot, fx_ArrayBuffer_fromString, 1, mxID(_fromString), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_ArrayBuffer_isView, 1, mxID(_isView), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostAccessorProperty(the, slot, fx_species_get, C_NULL, mxID(_Symbol_species), XS_DONT_ENUM_FLAG);
@@ -263,14 +278,12 @@ void fxBuildDataView(txMachine* the)
 	slot = fxNextHostAccessorProperty(the, slot, fx_DataView_prototype_byteLength_get, C_NULL, mxID(_byteLength), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
 	slot = fxNextHostAccessorProperty(the, slot, fx_DataView_prototype_byteOffset_get, C_NULL, mxID(_byteOffset), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
 	for (index = 0, dispatch = &gTypeDispatches[0]; index < mxTypeDispatchCount - 1; index++, dispatch++) {
-		slot = fxNextHostFunctionProperty(the, slot, fx_DataView_prototype_get, 1, mxID(dispatch->getID), XS_DONT_ENUM_FLAG);
-		fxNextTypeDispatchProperty(the, fxLastProperty(the, slot->value.reference), (txTypeDispatch *)dispatch, XS_NO_ID, XS_GET_ONLY);
-		slot = fxNextHostFunctionProperty(the, slot, fx_DataView_prototype_set, 2, mxID(dispatch->setID), XS_DONT_ENUM_FLAG);
-		fxNextTypeDispatchProperty(the, fxLastProperty(the, slot->value.reference), (txTypeDispatch *)dispatch, XS_NO_ID, XS_GET_ONLY);
+		slot = fxNextHostFunctionProperty(the, slot, dispatch->get, 1, mxID(dispatch->getID), XS_DONT_ENUM_FLAG);
+		slot = fxNextHostFunctionProperty(the, slot, dispatch->set, 2, mxID(dispatch->setID), XS_DONT_ENUM_FLAG);
 	}
 	slot = fxNextStringProperty(the, slot, "DataView", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxDataViewPrototype = *the->stack;
-	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_DataView, 1, mxID(_DataView), XS_GET_ONLY));
+	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_DataView, 1, mxID(_DataView), XS_DONT_ENUM_FLAG));
 	the->stack++;
 	
 	mxPush(mxObjectPrototype);
@@ -287,7 +300,7 @@ void fxBuildDataView(txMachine* the)
 		*(the->stack) = *(the->stack + 1);
 		slot = fxLastProperty(the, fxNewTypedArrayInstance(the, (txTypeDispatch *)dispatch));
 		slot = fxNextIntegerProperty(the, slot, dispatch->size, mxID(_BYTES_PER_ELEMENT), XS_GET_ONLY);
-		slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_TypedArray, 1, mxID(dispatch->constructorID), XS_GET_ONLY));
+		slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_TypedArray, 1, mxID(dispatch->constructorID), XS_DONT_ENUM_FLAG));
 		slot = fxNextIntegerProperty(the, slot, dispatch->size, mxID(_BYTES_PER_ELEMENT), XS_GET_ONLY);
 		slot = fxNextHostFunctionProperty(the, slot, fx_TypedArray_from, 1, mxID(_from), XS_DONT_ENUM_FLAG);
 		slot = fxNextHostFunctionProperty(the, slot, fx_TypedArray_of, 0, mxID(_of), XS_DONT_ENUM_FLAG);
@@ -507,10 +520,10 @@ void fx_DataView(txMachine* the)
 		if (slot && (slot->kind == XS_ARRAY_BUFFER_KIND))
 			arrayBuffer = slot;
 	}
-	if (arrayBuffer)
-		limit = arrayBuffer->value.arrayBuffer.length;
-	else
+	if (!arrayBuffer)
 		mxTypeError("buffer is no ArrayBuffer instance");
+
+	limit = arrayBuffer->value.arrayBuffer.length;
 	if (mxArgc > 1)
 		offset = fxToInteger(the, mxArgv(1));
 	else
@@ -554,13 +567,11 @@ void fx_DataView_prototype_byteOffset_get(txMachine* the)
 	mxResult->value.integer = view->value.dataView.offset;
 }
 
-void fx_DataView_prototype_get(txMachine* the)
+void fx_DataView_prototype_get(txMachine* the, txInteger delta, txTypeCallback getter)
 {
-	txSlot* dispatch = mxFunctionReferenceTypeDispatch(mxFunction);
 	txSlot* instance = fxCheckDataViewInstance(the, mxThis);
 	txSlot* view = instance->next;
 	txSlot* buffer = view->next;
-	txInteger delta = dispatch->value.typedArray->size;
 	txInteger offset;
 	int endian = EndianBig;
 	if ((mxArgc < 1) || !fxCheckLength(the, mxArgv(0), &offset))
@@ -570,16 +581,54 @@ void fx_DataView_prototype_get(txMachine* the)
 	if ((offset < 0) || (view->value.dataView.size < (offset + delta)))
 		mxRangeError("out of range byteOffset");
 	offset += view->value.dataView.offset;
-	(*dispatch->value.typedArray->getter)(the, buffer->value.reference->next, offset, mxResult, endian);
+	(*getter)(the, buffer->value.reference->next, offset, mxResult, endian);
 }
 
-void fx_DataView_prototype_set(txMachine* the)
+void fx_DataView_prototype_getFloat32(txMachine* the)
 {
-	txSlot* dispatch = mxFunctionReferenceTypeDispatch(mxFunction);
+	fx_DataView_prototype_get(the, 4, fxFloat32Getter);
+}
+
+void fx_DataView_prototype_getFloat64(txMachine* the)
+{
+	fx_DataView_prototype_get(the, 8, fxFloat64Getter);
+}
+
+void fx_DataView_prototype_getInt8(txMachine* the)
+{
+	fx_DataView_prototype_get(the, 1, fxInt8Getter);
+}
+
+void fx_DataView_prototype_getInt16(txMachine* the)
+{
+	fx_DataView_prototype_get(the, 2, fxInt16Getter);
+}
+
+void fx_DataView_prototype_getInt32(txMachine* the)
+{
+	fx_DataView_prototype_get(the, 4, fxInt32Getter);
+}
+
+void fx_DataView_prototype_getUint8(txMachine* the)
+{
+	fx_DataView_prototype_get(the, 1, fxUint8Getter);
+}
+
+void fx_DataView_prototype_getUint16(txMachine* the)
+{
+	fx_DataView_prototype_get(the, 2, fxUint16Getter);
+}
+
+void fx_DataView_prototype_getUint32(txMachine* the)
+{
+	fx_DataView_prototype_get(the, 4, fxUint32Getter);
+}
+
+void fx_DataView_prototype_set(txMachine* the, txInteger delta, txTypeCallback setter)
+{
 	txSlot* instance = fxCheckDataViewInstance(the, mxThis);
 	txSlot* view = instance->next;
 	txSlot* buffer = view->next;
-	txInteger delta = dispatch->value.typedArray->size;
 	txInteger offset;
 	int endian = EndianBig;
 	if ((mxArgc < 1) || !fxCheckLength(the, mxArgv(0), &offset))
@@ -589,7 +638,52 @@ void fx_DataView_prototype_set(txMachine* the)
 	if ((offset < 0) || (view->value.dataView.size < (offset + delta)))
 		mxRangeError("out of range byteOffset");
 	offset += view->value.dataView.offset;
-	(*dispatch->value.typedArray->setter)(the, buffer->value.reference->next, offset, (mxArgc < 2) ? &mxUndefined : mxArgv(1), endian);
+	(*setter)(the, buffer->value.reference->next, offset, (mxArgc < 2) ? &mxUndefined : mxArgv(1), endian);
+}
+
+void fx_DataView_prototype_setFloat32(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 4, fxFloat32Setter);
+}
+
+void fx_DataView_prototype_setFloat64(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 8, fxFloat64Setter);
+}
+
+void fx_DataView_prototype_setInt8(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 1, fxInt8Setter);
+}
+
+void fx_DataView_prototype_setInt16(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 2, fxInt16Setter);
+}
+
+void fx_DataView_prototype_setInt32(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 4, fxInt32Setter);
+}
+
+void fx_DataView_prototype_setUint8(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 1, fxUint8Setter);
+}
+
+void fx_DataView_prototype_setUint16(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 2, fxUint16Setter);
+}
+
+void fx_DataView_prototype_setUint32(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 4, fxUint32Setter);
+}
+
+void fx_DataView_prototype_setUint8Clamped(txMachine* the)
+{
+	fx_DataView_prototype_set(the, 1, fxUint8ClampedSetter);
 }
 
 #define mxTypedArrayDeclarations \
@@ -1588,7 +1682,7 @@ void fx_TypedArray_prototype_subarray(txMachine* the)
 	if (stop < start) 
 		stop = start;
 	mxPushSlot(buffer);
-	mxPushInteger(start * delta);
+	mxPushInteger(view->value.dataView.offset + (start * delta));
 	mxPushInteger(stop - start);
 	mxPushInteger(3);
 	mxPush(mxGlobal);

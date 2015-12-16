@@ -197,7 +197,7 @@ void androidGetScreenSize(SInt32 *x, SInt32 *y, SInt32 *xmax, SInt32 *ymax) {
 
 void WindowUpdateCallback(void *window, void *time, void *unused2, void *unused3)
 {
-    FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "inside WindowUpdateCallback(), window: %x", window);
+    FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "inside WindowUpdateCallback(), window: %p", window);
 
     FskWindow win = (FskWindow)window;
 
@@ -561,7 +561,7 @@ void myGetModelInfo(char **modelName, char **osVersion, int *hasTouch, int *butt
 
 jint xJNI_OnLoad(JavaVM *vm, void *reserved) {
 //	gJavaVM = vm;
-//FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "gJavaVM is %x", vm);
+//FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "gJavaVM is %p", vm);
 	return JNI_VERSION_1_4;
 }
 enum {
@@ -1257,7 +1257,7 @@ void androidCheckSizeChangeComplete() {
 				FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "fbGlobals->midSizeChange(%d) =--- lower to %d",  fbGlobals->midSizeChange, fbGlobals->midSizeChange - 1);
 				fbGlobals->midSizeChange--;
 				if (fbGlobals->midSizeChange == 0) {
-					FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, " - checkSizeChangeDone - size change reduced to 0 - copy from backing buffer %x to frame buffer %x", fbGlobals->backingBuffer, fbGlobals->frameBuffer);
+					FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, " - checkSizeChangeDone - size change reduced to 0 - copy from backing buffer %p to frame buffer %p", fbGlobals->backingBuffer, fbGlobals->frameBuffer);
 					if (pendingOrientation != -1) {
 						if ( ((myHWInfo.orientation == 1 || myHWInfo.orientation == 3) && pendingOrientation == 0)
 						  || ((pendingOrientation == 1 || pendingOrientation == 3) && myHWInfo.orientation == 0) ) {
@@ -1305,7 +1305,7 @@ int androidMidWindowResize() {
 /* called from VM thread */
 void androidAfterWindowResize() {
 	FskWindow win = FskWindowGetActive();
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "androidAfterWindowResize - about to sendWindowUpdate - win (%x)", win);
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "androidAfterWindowResize - about to sendWindowUpdate - win (%p)", win);
 
 	if (!win) return;
 
@@ -1358,7 +1358,7 @@ void doFskSurfaceChanged(void *a, void *b, void *c, void *d)
 
 	win = FskWindowGetActive();
 
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "doFskSurfaceChanged(%d, %d, *, *) (should main be blocked starting here) frameBuffer was %d %d : bits: %x", width, height, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height, fbGlobals->frameBuffer->bits);
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "doFskSurfaceChanged(%d, %d, *, *) (should main be blocked starting here) frameBuffer was %d %d : bits: %p", width, height, fbGlobals->frameBuffer->bounds.width, fbGlobals->frameBuffer->bounds.height, fbGlobals->frameBuffer->bits);
 
 	FskRectangleSet(&fbGlobals->frameBuffer->bounds, 0, 0, width, height);
 
@@ -1412,7 +1412,7 @@ bail:
 	}
 	else {	/* myPendingSurfaceChanged <= 0 */
 		if (myPendingSurfaceChanged < 0)
-			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tdoFskSurfaceChanged - MYPENDINGSURFACECHANGED IS NEGATIVE!!!! RESETTING to 0)", myPendingSurfaceChanged);
+			FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "\tdoFskSurfaceChanged - MYPENDINGSURFACECHANGED IS NEGATIVE (%d)!!!! RESETTING to 0)", myPendingSurfaceChanged);
 //		myPendingSurfaceChanged = 0;
 		pendingDoFskSurfaceChangedSize.x = 0;
 		pendingDoFskSurfaceChangedSize.y = 0;

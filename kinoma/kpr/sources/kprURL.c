@@ -307,6 +307,8 @@ FskErr KprURLToPath(char* url, char** result)
 #else
 	if (url[7] == '/')
 		url += 7;
+	else if (!FskStrCompareWithLength(url + 7, "localhost/", 10))
+		url += 16;
 	else
 		return kFskErrInvalidParameter;
 #endif

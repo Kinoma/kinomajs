@@ -979,8 +979,8 @@ static int mp3dec_JointStereo(MP3Dec *state, int gr)
 {
     const int mult = 1518500249; /* Q31 */
     int isPos[39], found[3];
-    int *width;
-    int *scalefPtr, *widthPtr;
+    const int *width, *widthPtr;
+    int *scalefPtr;
     int *ptrL, *ptrR;
     int li, ri;
     int k[2];

@@ -341,7 +341,7 @@ const float kFskCocoaViewCornerRadius = 8;
 	FskGLBlitContextDispose(blitContext);
 	[context release];
 #else
-	[[NSNotificationCenter defaultCenter] removeObserver:nil];
+	[[NSNotificationCenter defaultCenter] removeObserver:self];
 	[self setFskWindow:nil];
 	[self setWindowClipCGPath:nil];
 

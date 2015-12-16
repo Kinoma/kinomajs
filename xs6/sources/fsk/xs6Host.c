@@ -71,7 +71,6 @@ static void fxLoadModuleJSB(txMachine* the, txString path, txID moduleID);
 static FskErr fxLoadModuleJSBAtom(txMachine* the, FskFile fref, Atom* atom);
 static void fxLoadModuleXML(txMachine* the, txString path, txID moduleID);
 static void* fxMapAtom(void* p, Atom* atom);
-static txString fxMergePath(txString base, txString name, txString path);
 
 static txString gxExtensions[] = { 
 	".jsb", 
@@ -126,7 +125,6 @@ mxExport void fxSerialize(txMachine* the, void* theStream, txPutter thePutter);
 
 static void fx_get_sandbox(txMachine* the);
 static void fx_Object_prototype_get_sandbox(txMachine* the);
-static void fx_Object_prototype_patch(txMachine* the);
 
 static void fx_xs_execute(txMachine* the);
 static void fx_xs_isInstanceOf(txMachine* the);
@@ -701,32 +699,6 @@ void fxMarkHost(txMachine* the)
 {
 }
 
-txString fxMergePath(txString base, txString name, txString path)
-{
-	txSize baseLength, nameLength;
-	txString separator;
-#if mxWindows
-	separator = name;
-	while (*separator) {
-		if (*separator == '/')
-			*separator = mxSeparator;
-		separator++;
-	}
-#endif
-	separator = strrchr(base, mxSeparator);
-	if (separator) {
-		separator++;
-		baseLength = separator - base;
-	}
-	else
-		baseLength = 0;
-	nameLength = c_strlen(name);
-	if (baseLength)
-		c_memcpy(path, base, baseLength);
-	c_memcpy(path + baseLength, name, nameLength + 1);
-	return path;
-}
-
 void* fxNewParserChunk(txParser* parser, txSize size)
 {
 	txParserChunk* block = c_malloc(sizeof(txParserChunk) + size);
@@ -1046,14 +1018,6 @@ void fx_get_sandbox(txMachine* the)
 
 void fx_Object_prototype_get_sandbox(txMachine* the)
 {
-	*mxResult = *mxThis;
-}
-
-void fx_Object_prototype_patch(txMachine* the)
-{
-	mxPushSlot(mxThis);
-	mxPushSlot(mxArgv(0));
-	fxCopyObject(the);
 	*mxResult = *mxThis;
 }
 

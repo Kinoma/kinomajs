@@ -35,8 +35,8 @@ static FskErr macTextNew(FskTextEngineState *state);
 static FskErr macTextDispose(FskTextEngineState state);
 static FskErr macTextFormatCacheNew(FskTextEngineState state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 static FskErr macTextFormatCacheDispose(FskTextEngineState state, FskTextFormatCache cache);
-/*static*/ FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-static FskErr macTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache);
+static FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangleFloat boundsFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
+static FskErr macTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimension, FskTextFormatCache cache);
 static FskErr macTextGetFontInfo(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache formatCache);
 static FskErr macTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
 static FskErr macTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
@@ -112,7 +112,7 @@ FskErr macTextDispose(FskTextEngineState state)
  * FskTextBox
  ********************************************************************************/
 
-FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle r, FskConstRectangle clipRect, FskConstColorRGBA color,UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache)
+FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle r, FskConstRectangleFloat rFloat, FskConstRectangle clipRect, FskConstColorRGBA color,UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache)
 {
 	FskErr err = kFskErrNone;
 
@@ -127,9 +127,14 @@ FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UI
  * FskTextGetBounds
  ********************************************************************************/
 
-FskErr macTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache)
+FskErr macTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimension, FskTextFormatCache cache)
 {
-	FskCocoaTextGetBounds((void*)state, text, textLen, textSize, textStyle, fontName, bounds, cache);
+	if (dimension) {
+		FskCocoaTextGetBoundsSubpixel((void*)state, text, textLen, textSize, textStyle, fontName, dimension, cache);
+		FskRectangleSet(bounds, 0, 0, (SInt32)ceilf(dimension->width), (SInt32)roundf(dimension->height));
+	}
+	else
+		FskCocoaTextGetBounds((void*)state, text, textLen, textSize, textStyle, fontName, bounds, cache);
 
 	return kFskErrNone;
 }

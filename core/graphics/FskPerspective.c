@@ -117,14 +117,14 @@ static void LogProjectBitmap(
 ) {
 	LOGD("ProjectBitmap(srcBM=%p, srcRect=%p, dstBM=%p, dstClip=%p, M=%p, opColor=%p, mode=%s, modeParams=%p)",
 		srcBM, srcRect, dstBM, dstClip, M, opColor, ModeString(mode), modeParams);
-	LOGD("\tsrcBM: bounds(%ld, %ld, %ld, %ld), depth=%ld, format=%s, rowBytes=%ld, bits=%p, alpha=%d, premul=%d",
-		srcBM->bounds.x, srcBM->bounds.y, srcBM->bounds.width, srcBM->bounds.height, srcBM->depth,
-		FskBitmapFormatName(srcBM->pixelFormat), srcBM->rowBytes, srcBM->bits, srcBM->hasAlpha, srcBM->alphaIsPremultiplied);
-	if (srcRect) LOGD("\tsrcRect(%ld, %ld, %ld, %ld)", srcRect->x, srcRect->y, srcRect->width, srcRect->height);
-	LOGD("\tdstBM: bounds(%ld, %ld, %ld, %ld), depth=%ld, format=%s, rowBytes=%ld, bits=%p, alpha=%d, premul=%d",
-		dstBM->bounds.x, dstBM->bounds.y, dstBM->bounds.width, dstBM->bounds.height, dstBM->depth,
-		FskBitmapFormatName(dstBM->pixelFormat), dstBM->rowBytes, dstBM->bits, dstBM->hasAlpha, dstBM->alphaIsPremultiplied);
-	if (dstClip) LOGD("\tdstClip(%ld, %ld, %ld, %ld)", dstClip->x, dstClip->y, dstClip->width, dstClip->height);
+	LOGD("\tsrcBM: bounds(%d, %d, %d, %d), depth=%u, format=%s, rowBytes=%d, bits=%p, alpha=%d, premul=%d",
+		(int)srcBM->bounds.x, (int)srcBM->bounds.y, (int)srcBM->bounds.width, (int)srcBM->bounds.height, (unsigned)srcBM->depth,
+		FskBitmapFormatName(srcBM->pixelFormat), (int)srcBM->rowBytes, srcBM->bits, srcBM->hasAlpha, srcBM->alphaIsPremultiplied);
+	if (srcRect) LOGD("\tsrcRect(%d, %d, %d, %d)", (int)srcRect->x, (int)srcRect->y, (int)srcRect->width, (int)srcRect->height);
+	LOGD("\tdstBM: bounds(%d, %d, %d, %d), depth=%u, format=%s, rowBytes=%d, bits=%p, alpha=%d, premul=%d",
+		(int)dstBM->bounds.x, (int)dstBM->bounds.y, (int)dstBM->bounds.width, (int)dstBM->bounds.height, (unsigned)dstBM->depth,
+		FskBitmapFormatName(dstBM->pixelFormat), (int)dstBM->rowBytes, dstBM->bits, dstBM->hasAlpha, dstBM->alphaIsPremultiplied);
+	if (dstClip) LOGD("\tdstClip(%d, %d, %d, %d)", (int)dstClip->x, (int)dstClip->y, (int)dstClip->width, (int)dstClip->height);
 	if (M)	LOGD("\tM={ {%.3g %.3g %.3g}, {%.3g %.3g %.3g}, {%.3g %.3g %.3g} }",
 				M[0][0],	M[0][1],	M[0][2],
 				M[1][0],	M[1][1],	M[1][2],
@@ -132,11 +132,12 @@ static void LogProjectBitmap(
 	if (opColor) LOGD("\topColor(%d, %d, %d, %d)", opColor->r, opColor->g, opColor->b, opColor->a);
 	if (modeParams) {
 		if (modeParams->dataSize <= sizeof(FskGraphicsModeParametersRecord)) {
-			LOGD("\tmodeParams: dataSize=%lu, blendLevel=%ld", modeParams->dataSize, modeParams->blendLevel);
+			LOGD("\tmodeParams: dataSize=%u, blendLevel=%d", (unsigned)modeParams->dataSize, (int)modeParams->blendLevel);
 		} else {
 			FskGraphicsModeParametersVideo videoParams = (FskGraphicsModeParametersVideo)modeParams;
-			LOGD("\tmodeParams: dataSize=%lu, blendLevel=%ld, kind='%4s, contrast=%f, brightness=%f, sprites=%p",
-				videoParams->header.dataSize, videoParams->header.blendLevel, (char*)(&videoParams->kind), videoParams->contrast/65536.0, videoParams->brightness/65536.0, videoParams->sprites);
+			LOGD("\tmodeParams: dataSize=%u, blendLevel=%d, kind='%4s, contrast=%f, brightness=%f, sprites=%p",
+				(unsigned)videoParams->header.dataSize, (int)videoParams->header.blendLevel, (char*)(&videoParams->kind),
+				 videoParams->contrast/65536.0, videoParams->brightness/65536.0, videoParams->sprites);
 		}
 	}
 }

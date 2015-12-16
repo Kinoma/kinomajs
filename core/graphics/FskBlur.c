@@ -480,7 +480,7 @@ InitGaussianFilter(
 //		case kFskBitmapFormat32A16RGB565LE:	filter->numComponents = 4;	filter->loadLine = LoadG565LE;	filter->writeLine = WriteG565LE;	break;
 		default:							return kFskErrUnsupportedPixelType;
 	}
-	blurlog("test:width=%x,height=%x,sigmaX=%f,sigmaY=%f,",rect->width,rect->height,sigmaX,sigmaY);
+	blurlog("test:width=%x,height=%x,sigmaX=%f,sigmaY=%f,", (int)rect->width, (int)rect->height, sigmaX, sigmaY);
 	/* Determine storage needs.
 	 * If the same sigma is used for X and Y, we use the same table.
 	 */

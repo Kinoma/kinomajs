@@ -564,8 +564,10 @@
 			<function name="get path" c="KPR_message_get_path"/>
 			<function name="get priority" c="KPR_message_get_priority"/>
 			<function name="get query" c="KPR_message_get_query"/>
+			<function name="get requestBuffer" c="KPR_message_get_requestBuffer"/>
 			<function name="get requestChunk" c="KPR_message_get_requestChunk"/>
 			<function name="get requestText" c="KPR_message_get_requestText"/>
+			<function name="get responseBuffer" c="KPR_message_get_responseBuffer"/>
 			<function name="get responseChunk" c="KPR_message_get_responseChunk"/>
 			<function name="get responseText" c="KPR_message_get_responseText"/>
 			<function name="get scheme" c="KPR_message_get_scheme"/>
@@ -576,8 +578,10 @@
 			<function name="set error" c="KPR_message_set_error"/>
 			<function name="set method" c="KPR_message_set_method"/>
 			<function name="set priority" c="KPR_message_set_priority"/>
+			<function name="set requestBuffer" c="KPR_message_set_requestBuffer"/>
 			<function name="set requestChunk" c="KPR_message_set_requestChunk"/>
 			<function name="set requestText" c="KPR_message_set_requestText"/>
+			<function name="set responseBuffer" c="KPR_message_set_responseBuffer"/>
 			<function name="set responseChunk" c="KPR_message_set_responseChunk"/>
 			<function name="set responseText" c="KPR_message_set_responseText"/>
 			<function name="set status" params="status" c="KPR_message_set_status"/>
@@ -689,6 +693,7 @@
 	<!-- no application constructor -->
 
 	<function name="Message" params="url" prototype="KPR.message" c="KPR_Message"/>
+	<!-- Message.BUFFER -->
 	<!-- Message.CHUNK -->
 	<!-- Message.DOM -->
 	<!-- Message.JSON -->
@@ -701,7 +706,7 @@
 	<!-- Handler.put(handler) -->
 	<!-- Handler.remove(handler) -->
 	<program c="KPR_Handler_patch"/>
-	
+
 	<function name="decodeBase64" params="url" c="KPR_decodeBase64"/>
 	<function name="encodeBase64" params="url" c="KPR_encodeBase64"/>
 	<function name="encodeURIComponentRFC3986" params="url" c="KPR_encodeURIComponentRFC3986"/>
@@ -776,3 +781,4 @@
 	<program c="Math_patch"/>
 	<program c="Math3D_patch"/>
 </package>
+

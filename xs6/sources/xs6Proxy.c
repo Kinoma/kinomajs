@@ -74,10 +74,8 @@ void fxBuildProxy(txMachine* the)
 	fxNewProxyInstance(the);
 	mxProxyPrototype = *the->stack;
 	slot = fxNewHostFunctionGlobal(the, fx_Proxy, 1, mxID(_Proxy), XS_GET_ONLY);
-	slot = mxFunctionInstancePrototype(slot);
-	slot->kind = mxProxyPrototype.kind;
-	slot->value = mxProxyPrototype.value;
 	slot = fxLastProperty(the, slot);
+	slot = fxNextSlotProperty(the, slot, &mxProxyPrototype, mxID(_prototype), XS_GET_ONLY);
 	slot = fxNextHostFunctionProperty(the, slot, fx_Proxy_revocable, 2, mxID(_revocable), XS_DONT_ENUM_FLAG);
 	the->stack++;
 
@@ -648,7 +646,7 @@ bail:
 
 void fx_Reflect_apply(txMachine* the)
 {
-	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
+	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND) || !(mxIsFunction(mxArgv(0)->value.reference) || mxIsProxy(mxArgv(0)->value.reference)))
 		mxTypeError("target is no function");
 	if ((mxArgc < 3) || (mxArgv(2)->kind != XS_REFERENCE_KIND))
 		mxTypeError("argumentsList is no object");
@@ -657,8 +655,8 @@ void fx_Reflect_apply(txMachine* the)
 
 void fx_Reflect_construct(txMachine* the)
 {
-	txSlot* target;
-	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
+    txSlot* target;
+	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND) || !(mxIsFunction(mxArgv(0)->value.reference) || mxIsProxy(mxArgv(0)->value.reference)))
 		mxTypeError("target is no function");
 	if ((mxArgc < 2) || (mxArgv(1)->kind != XS_REFERENCE_KIND))
 		mxTypeError("argumentsList is no object");

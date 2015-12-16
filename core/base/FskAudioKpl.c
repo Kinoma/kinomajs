@@ -125,7 +125,7 @@ FskErr FskAudioKplSetProperty(FskAudioOut audioOut, UInt32 propertyID, FskMediaP
         KplPropertyRecord kpr;
         kpr.propertyType = kKplPropertyTypeBoolean;
         kpr.b = property->value.b;
-        err = KplAudioSetProperty(((FskAudioKpl)audioOut)->kplAudio, kKplPropertyAudioRealTime, &kpr);
+        err = KplAudioSetProperty(audio->kplAudio, kKplPropertyAudioRealTime, &kpr);
     }
     
     return err;

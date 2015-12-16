@@ -89,7 +89,7 @@ Boolean scanMP3FromCallback(DIDLMusicItem mi, scanMP3ReadProc readProc, void *re
 	Boolean valid = false, isOMA = false;
 	unsigned char *buffer, *id3Buffer = NULL, *firstFrame = NULL;
 	unsigned char *xingToc = NULL;
-	double xingDuration, fhgDuration;
+	double xingDuration = 0, fhgDuration = 0;
 	Boolean haveFHG = false;
 	UInt32 bytesToScan;
 	HeaderParserProc headerProc = NULL;

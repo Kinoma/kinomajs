@@ -17,8 +17,9 @@
 #define __FSKBITMAP_PRIV__	/* To get access to the FskBitmap data structure */
 
 #include "FskTransferAlphaBitmap.h"
-#include "FskRectBlitPatch.h"
+#include "FskMemory.h"
 #include "FskPixelOps.h"
+#include "FskRectBlitPatch.h"
 #if FSKBITMAP_OPENGL
 	#include "FskGLBlit.h"
 #endif /* FSKBITMAP_OPENGL */
@@ -133,39 +134,30 @@ static FskRectTransferProc procDispatch[NUM_DST_FORMATS] = {
  };
 
 
-#if defined(SUPPORT_NEON) || defined(SUPPORT_WMMX)
-/* For initialization */
-static char patchInstalled = 0;
-
-/* Forward declaration */
-static void InstallPatches(void);
-#endif
-
-
 #ifdef LOG_PARAMETERS
 static void LogBitmap(FskConstBitmap bm, const char *name) {
 	#if FSKBITMAP_OPENGL
 		if (!name) name = "BM";
 		if (bm->glPort)
 			LOGD("\t%s: bounds(%d, %d, %d, %d), depth=%d, format=%s, rowBytes=%d, bits=%p, alpha=%d, premul=%d, texture=#%d",
-				name, bm->bounds.x, bm->bounds.y, bm->bounds.width, bm->bounds.height, bm->depth,
-				FskBitmapFormatName(bm->pixelFormat), bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied,
+				name, (int)bm->bounds.x, (int)bm->bounds.y, (int)bm->bounds.width, (int)bm->bounds.height, (unsigned)bm->depth,
+				FskBitmapFormatName(bm->pixelFormat), (int)bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied,
 				FskGLPortSourceTexture(bm->glPort));
 		else
 	#endif /* FSKBITMAP_OPENGL */
 	LOGD("\t%s: bounds(%d, %d, %d, %d), depth=%d, format=%s, rowBytes=%d, bits=%p, alpha=%d, premul=%d",
-		name, bm->bounds.x, bm->bounds.y, bm->bounds.width, bm->bounds.height, bm->depth,
-		FskBitmapFormatName(bm->pixelFormat), bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied);
+		name, (int)bm->bounds.x, (int)bm->bounds.y, (int)bm->bounds.width, (int)bm->bounds.height, (unsigned)bm->depth,
+		FskBitmapFormatName(bm->pixelFormat), (int)bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied);
 }
 
 static void LogRect(FskConstRectangle r, const char *name) {
 	if (!name) name = "RECT";
-	if (r) LOGD("\t%s(%d, %d, %d, %d)", name, r->x, r->y, r->width, r->height);
+	if (r) LOGD("\t%s(%d, %d, %d, %d)", name, (int)r->x, (int)r->y, (int)r->width, (int)r->height);
 }
 
 static void LogPoint(FskConstPoint pt, const char *name) {
 	if (!name) name = "POINT";
-	if (pt) LOGD("\t%s(%d, %d)", name, pt->x, pt->y);
+	if (pt) LOGD("\t%s(%d, %d)", name, (int)pt->x, (int)pt->y);
 }
 
 static void LogColor(FskConstColorRGBA color, const char *name) {
@@ -176,11 +168,12 @@ static void LogColor(FskConstColorRGBA color, const char *name) {
 static void LogModeParams(FskConstGraphicsModeParameters modeParams) {
 	if (modeParams) {
 		if (modeParams->dataSize <= sizeof(FskGraphicsModeParametersRecord)) {
-			LOGD("\tmodeParams: dataSize=%d, blendLevel=%d", modeParams->dataSize, modeParams->blendLevel);
+			LOGD("\tmodeParams: dataSize=%u, blendLevel=%d", (unsigned)modeParams->dataSize, (int)modeParams->blendLevel);
 		} else {
 			FskGraphicsModeParametersVideo videoParams = (FskGraphicsModeParametersVideo)modeParams;
-			LOGD("\tmodeParams: dataSize=%d, blendLevel=%d, kind='%4s, contrast=%f, brightness=%f, sprites=%p",
-				videoParams->header.dataSize, videoParams->header.blendLevel, &videoParams->kind, videoParams->contrast, videoParams->brightness, videoParams->sprites);
+			LOGD("\tmodeParams: dataSize=%u, blendLevel=%d, kind='%.4s, contrast=%f, brightness=%f, sprites=%p",
+				(unsigned)videoParams->header.dataSize, (int)videoParams->header.blendLevel, (const char*)&videoParams->kind,
+				 videoParams->contrast/65536., videoParams->brightness/65536., videoParams->sprites);
 		}
 	}
 }
@@ -295,15 +288,6 @@ FskTransferAlphaBitmap(
 	p.srcHeight		= dRect.height;	/* This is redundant, but we set it to avoid confusion */
 	p.extension		= NULL;
 
-#if defined( SUPPORT_NEON ) ||  defined( SUPPORT_WMMX )
-	/* Initialize the dispatch table by patching in machine-specific blitters */
-	if (!patchInstalled)
-	{
-		InstallPatches();
-		patchInstalled = 1;
-	}
-#endif
-
 	/* Choose a blitter */
 	blitter = procDispatch[dstIndex];
 	BAIL_IF_NULL(blitter, err, kFskErrUnsupportedPixelType);
@@ -315,6 +299,238 @@ bail:
 	FskBitmapReadEnd((FskBitmap)srcBM);
 	FskBitmapWriteEnd(dstBM);
 
+	return err;
+}
+
+
+/****************************************************************************//**
+ * Transfer an Alpha Bitmap with Fixed-Point horizontal phase shift only and an opaque color.
+ *	\param[in]	srcBM	- the source bitmap.
+ *	\param[in]	srcRect	- the rectangle to be transferred; cannot be NULL.
+ *	\param[out]	dstBM	- the destination bitmap. 32, 24 and 16-bit formats are accommodated.
+ *	\param[in]	dstX	- the horizontal location to place the glyph (4 fractional bits, which must not be 0).
+ *	\param[in]	dstY	- the  vertical  location to place the glyph (4 fractional bits, which must     be 0).
+ *	\param[in]	fgColor	- the color to paint the glyph.
+ *	\return		kFskErrNone	- if the operation was completed successfully.
+ ********************************************************************************/
+
+static FskErr
+FskTransferAlphaBitmapFixedShiftHorizOpaqueColor(FskConstBitmap srcBM, FskConstRectangle srcRect, FskBitmap dstBM, FskFixed dstX, FskFixed dstY, FskConstColorRGBA fgColor)
+{
+	FskErr				err;
+	SInt32				w, h, srcRowBytes, srcBump, dstBump, dstPixBytes, midWidth, phase;
+	FskPixelType		*d, color;
+	const UInt8			*s;
+	int					alpha;
+	void				(*blend16)(UInt16 *d, UInt16 p, UInt8 opacity);
+
+	BAIL_IF_ERR(err = FskBitmapReadBegin((FskBitmap)srcBM, (const void**)(&s), &srcRowBytes, NULL));
+	BAIL_IF_ERR(err = FskBitmapWriteBegin(dstBM, (void**)(&d), &dstBump, NULL));
+	s += srcRect->y * srcRowBytes + srcRect->x;														/* 1 byte src */
+	dstPixBytes = dstBM->depth >> 3;
+	d = (FskPixelType*)((char*)d + (dstY >> 4) * dstBump + (dstX >> 4) * dstPixBytes);
+	phase = 16 - (dstX & 0xF);																		/* Convert from dst to src phase */
+	midWidth = srcRect->width - 1;																	/* Center portion */
+	srcBump  = srcRowBytes - midWidth;																/* Vertical src stride */
+	dstBump -= (midWidth + 2) * dstPixBytes;														/* Vertical dst stride */
+	(void)FskConvertColorRGBAToBitmapPixel(fgColor, dstBM->pixelFormat, &color);
+
+	switch (dstBM->pixelFormat) {
+		case kFskBitmapFormat32RGBA:
+		case kFskBitmapFormat32BGRA:
+		case kFskBitmapFormat32ABGR:
+		case kFskBitmapFormat32ARGB:
+			for (h = srcRect->height; h--; s += srcBump, d = (FskPixelType*)((char*)d + dstBump)) {
+				alpha = (s[0] * phase + (1 << (4-1))) >> 4;
+				if (alpha) {
+					if (255 == alpha)	d->p32 = color.p32;
+					else				FskBlend32((UInt32*)d, color.p32, (UInt8)alpha);
+				}
+				d = (FskPixelType*)((char*)d + fsk32RGBABytes);
+				for (w = midWidth; w--; ++s, d = (FskPixelType*)((char*)d + fsk32RGBABytes)) {
+					alpha = ((((int)s[1] - (int)s[0]) * phase + (1 << (4-1))) >> 4) + s[0];
+					if (alpha) {
+						if (255 == alpha)	d->p32 = color.p32;
+						else				FskBlend32((UInt32*)d, color.p32, (UInt8)alpha);
+					}
+				}
+				alpha = ((16 - phase) * s[0] + (1 << (4-1))) >> 4;
+				if (alpha) {
+					if (255 == alpha)	d->p32 = color.p32;
+					else				FskBlend32((UInt32*)d, color.p32, (UInt8)alpha);
+				}
+				d = (FskPixelType*)((char*)d + fsk32RGBABytes);
+			}
+			break;
+		case kFskBitmapFormat24BGR:
+		case kFskBitmapFormat24RGB:
+			for (h = srcRect->height; h--; s += srcBump, d = (FskPixelType*)((char*)d + dstBump)) {
+				alpha = (s[0] * phase + (1 << (4-1))) >> 4;
+				if (alpha) {
+					if (255 == alpha)	d->p24 = color.p24;
+					else				FskBlend24((Fsk24BitType*)d, color.p24, (UInt8)alpha);
+				}
+				d = (FskPixelType*)((char*)d + fsk24RGBBytes);
+				for (w = midWidth; w--; ++s, d = (FskPixelType*)((char*)d + fsk24RGBBytes)) {
+					alpha = ((((int)s[1] - (int)s[0]) * phase + (1 << (4-1))) >> 4) + s[0];
+					if (alpha) {
+						if (255 == alpha)	d->p24 = color.p24;
+						else				FskBlend24((Fsk24BitType*)d, color.p24, (UInt8)alpha);
+					}
+				}
+				alpha = ((16 - phase) * s[0] + (1 << (4-1))) >> 4;
+				if (alpha) {
+					if (255 == alpha)	d->p24 = color.p24;
+					else				FskBlend24((Fsk24BitType*)d, color.p24, (UInt8)alpha);
+				}
+				d = (FskPixelType*)((char*)d + fsk24RGBBytes);
+			}
+			break;
+		case kFskBitmapFormat16AG:			blend16 = FskBlend88;		goto do16;
+		case kFskBitmapFormat16RGBA4444LE:	blend16 = FskBlend4444;		goto do16;
+	#if TARGET_RT_LITTLE_ENDIAN
+		case kFskBitmapFormat16RGB565BE:	blend16 = FskBlend565DE;	goto do16;
+		case kFskBitmapFormat16RGB565LE:	blend16 = FskBlend565SE;	goto do16;
+		case kFskBitmapFormat16BGR565LE:	blend16 = FskBlend565SE;	goto do16;
+		case kFskBitmapFormat16RGB5515LE:	blend16 = FskBlend5515SE;	goto do16;
+	#else /* TARGET_RT_BIG_ENDIAN */
+		case kFskBitmapFormat16RGB565BE:	blend16 = FskBlend565SE;	goto do16;
+		case kFskBitmapFormat16RGB565LE:	blend16 = FskBlend565DE;	goto do16;
+		case kFskBitmapFormat16BGR565LE:	blend16 = FskBlend565DE;	goto do16;
+		case kFskBitmapFormat16RGB5515LE:	blend16 = FskBlend5515DE;	goto do16;
+	#endif /* TARGET_RT_XXX_ENDIAN */
+		do16:
+			for (h = srcRect->height; h--; s += srcBump, d = (FskPixelType*)((char*)d + dstBump)) {
+				alpha = (s[0] * phase + (1 << (4-1))) >> 4;
+				if (alpha) {
+					if (255 == alpha)	d->p16 = color.p16;
+					else				(*blend16)((UInt16*)d, color.p16, (UInt8)alpha);
+				}
+				d = (FskPixelType*)((char*)d + fsk16RGB565SEBytes);
+				for (w = midWidth; w--; ++s, d = (FskPixelType*)((char*)d + fsk16RGB565SEBytes)) {
+					alpha = ((((int)s[1] - (int)s[0]) * phase + (1 << (4-1))) >> 4) + s[0];
+					if (alpha) {
+						if (255 == alpha)	d->p16 = color.p16;
+						else				(*blend16)((UInt16*)d, color.p16, (UInt8)alpha);
+					}
+				}
+				alpha = ((16 - phase) * s[0] + (1 << (4-1))) >> 4;
+				if (alpha) {
+					if (255 == alpha)	d->p16 = color.p16;
+					else				(*blend16)((UInt16*)d, color.p16, (UInt8)alpha);
+				}
+				d = (FskPixelType*)((char*)d + fsk16RGB565SEBytes);
+			}
+			break;
+		default:
+			BAIL(kFskErrUnsupportedPixelType);
+	}
+
+bail:
+	FskBitmapWriteEnd(dstBM);
+	FskBitmapReadEnd((FskBitmap)srcBM);
+	return err;
+}
+
+
+/****************************************************************************//**
+ * Determine whether a FskTransferAlphaBitmapFixed() call will clip.
+ *	\param[in]	srcRect	the source rectangle; cannot be NULL.
+ *	\param[in]	dstBM	the destination bitmap.
+ *	\param[in]	dstX	the horizontal destination location.
+ *	\param[in]	dstY	the  vertical  destination location.
+ *	\param[in]	dstClip	the destination clip rectangle; NULL implies dstBM->bounds.
+ *	\return		true	if the transfer doesn't need to perform clipping;
+ *	\return		false	otherwise.
+ ********************************************************************************/
+
+static Boolean
+TransferAlphaWontClip(FskConstRectangle srcRect, FskConstBitmap dstBM, SInt32 dstX, SInt32 dstY, FskConstRectangle dstClip) {
+	FskRectangleRecord aRect, dClip;
+
+	FskRectangleSet(&aRect, dstX>>4, dstY>>4, srcRect->width + 1, srcRect->height + 1);
+	if (dstClip)	FskRectangleIntersect(dstClip, &dstBM->bounds, &dClip);
+	else			dClip = dstBM->bounds;
+	return FskRectangleContainsRectangle(&dClip, &aRect);
+}
+
+
+/********************************************************************************
+ * FskTransferAlphaBitmapFixed
+ ********************************************************************************/
+
+FskErr
+FskTransferAlphaBitmapFixed(
+	FskConstBitmap					srcBM,
+	FskConstRectangle				srcRect,
+	FskBitmap						dstBM,
+	FskFixed						dstX,
+	FskFixed						dstY,
+	FskConstRectangle				dstClip,
+	FskConstColorRGBA				fgColor,
+	FskConstGraphicsModeParameters	modeParams
+) {
+	FskBitmap			shfBM = NULL;
+	FskErr				err;
+	FskPointRecord		dstLoc;
+	UInt32				subX, subY;
+
+	BAIL_IF_FALSE(srcBM->depth == 8, err, kFskErrUnsupportedPixelType);
+
+	dstX = (dstX + (1 << (16 - 4 - 1))) >> (16 - 4);												/* Round from 16 to 4 fractional bits */
+	dstY = (dstY + (1 << (16 - 4 - 1))) >> (16 - 4);
+	subX = dstX & 0xF;																				/* Phase shift */
+	subY = dstY & 0xF;
+	if (!srcRect)	srcRect = &srcBM->bounds;
+
+	/* Special-case horizontal shift */
+	if (0 == subY && 0 != subX && fgColor->a == 255 && (!modeParams || modeParams->blendLevel == 255) && TransferAlphaWontClip(srcRect, dstBM, dstX, dstY, dstClip))
+		return FskTransferAlphaBitmapFixedShiftHorizOpaqueColor(srcBM, srcRect, dstBM, dstX, dstY, fgColor);
+
+	/* General case */
+	if (0 != (subX | subY)) {																		/* If there is some kind of phase shift */
+		SInt32				w, h, srcRowBytes, dstRowBytes, srcBump, dstBump;
+		const UInt8			*s;
+		UInt8				*d, *d0;
+		FskRectangleRecord	sRect;
+
+		BAIL_IF_ERR(err = FskBitmapNew(srcRect->width + 2, srcRect->height + 3, srcBM->pixelFormat, &shfBM));		/* Need a 1-frame of zeros for bilinear interpolation,plus an extra one on top */
+
+		BAIL_IF_ERR(err = FskBitmapWriteBegin(shfBM, (void**)(&d0), &dstRowBytes, NULL));
+		FskMemSet(d0, 0, shfBM->rowBytes * shfBM->bounds.height);									/* Transparent */
+
+		BAIL_IF_ERR(err = FskBitmapReadBegin((FskBitmap)srcBM, (const void**)(&s),  &srcRowBytes, NULL));
+		s = s  + srcRect->y * srcRowBytes + srcRect->x;												/* (x,y) */
+		d = d0 + 2 * dstRowBytes + 1;																/* (1,2) */
+		srcBump = srcRowBytes - srcRect->width;
+		dstBump = dstRowBytes - srcRect->width;
+		for (h = srcRect->height; h--; s += srcBump, d += dstBump)
+			for (w = srcRect->width; w--; ++s, ++d)
+				*d = *s;																			/* Copy to space framed by zeros */
+		FskBitmapReadEnd((FskBitmap)srcBM);
+
+		if (subX)	{ sRect.x = 0; sRect.width  = srcRect->width  + 1; subX = 16 - subX; }
+		else		{ sRect.x = 1; sRect.width  = srcRect->width;                        }
+		if (subY)	{ sRect.y = 0; sRect.height = srcRect->height + 1; subY = 16 - subY; }
+		else		{ sRect.y = 1; sRect.height = srcRect->height;                       }
+		s = d0 + (1 + sRect.y) * dstRowBytes + sRect.x;												/* (0,1) */
+		d = d0;																						/* (0,0) */
+		dstBump = dstRowBytes - sRect.width;
+		for (h = sRect.height; h--; s += dstBump, d += dstBump)
+			for (w = sRect.width; w--; ++s, ++d)
+				*d = FskBilerp8(subX, subY, s, dstRowBytes);										/* Shift phase */
+		FskBitmapWriteEnd(shfBM);
+		sRect.x = 0;
+		sRect.y = 0;
+		srcRect = &sRect;
+		srcBM   = shfBM;
+	}
+
+	FskPointSet(&dstLoc, dstX >> 4, dstY >> 4);
+	err = FskTransferAlphaBitmap(srcBM, srcRect, dstBM, &dstLoc, dstClip, fgColor, modeParams);
+
+bail:
+	FskBitmapDispose(shfBM);
 	return err;
 }
 
@@ -822,8 +1038,8 @@ static void FskUnityColorize8A32ARGB_wmmx(const FskRectBlitParams *p)
 #endif	//SUPPORT_WMMX
 
 
-static void
-InstallPatches(void)
+
+void FskBlitTransferAlphaBitmapPatch(void)
 {
 	int implementation = FskHardwareGetARMCPU_All();
 

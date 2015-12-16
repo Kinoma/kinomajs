@@ -25,7 +25,6 @@
          <!-- module support -->
          <variable name="modulePath" value="[applicationPath]/bin/modules/" />
    
-         <variable name="KDT_HOME" value="[F_HOME]/kinoma/kdt/" platform="build" />
          <variable name="extensions" value="[F_HOME]/extensions/" platform="build" />
          <variable name="kinomaExtensions" value="[F_HOME]/kinoma/" platform="build" />
          <variable name="fontsPath" value="[applicationPath]fonts/" platform="win"/>
@@ -57,6 +56,7 @@
          <variable name="hwpModulePath" value="simulator" />
          
          <variable name="cleanPathStart" value="/fsk/" />
+	<variable name="KDT_HOME" value="[kinomaExtensions]/kpr/projects/kdt" platform="build"/>
       </environment>
 
       <ui platform="win">
@@ -147,7 +147,8 @@
     <build:copy sourcePath="[KDT_HOME]/kpr/core/modules" destinationPath="bin/modules"/>
     <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Controls/src" destinationPath="bin/modules/kdt/simulator"/>
     <build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/MobileFramework/src" destinationPath="bin/modules/kdt/simulator"/>
-    
+	<build:copy sourcePath="[F_HOME]/kinoma/kpr/libraries/Pins/src" destinationPath="bin/modules/kdt/simulator"/>
+	
     <!-- copy fonts -->
     <build:copy sourcePath="[F_HOME]/data/fonts/FiraSans-Regular.ttf" destinationPath="fonts/FiraSans-Regular.ttf" />
     <build:copy sourcePath="[F_HOME]/data/fonts/FiraSans-Bold.ttf" destinationPath="fonts/FiraSans-Bold.ttf" />

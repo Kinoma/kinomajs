@@ -375,7 +375,7 @@ FskSocket FskNetSocketFindFskSocketByPlatformSocket(int skt);
 #endif
 
 #define FskNetMakeIP(a, b, c, d)	(((int)a & 0xff) << 24 | ((int)b & 0xff) << 16 | ((int)c & 0xff) << 8 | ((int)d & 0xff))
-#define intAs4Bytes(a)	((UInt32)a & 0xff000000) >> 24, (a & 0xff0000) >> 16, (a & 0xff00) >> 8, (a & 0xff)
+#define intAs4Bytes(a)	(int)(((UInt32)a & 0xff000000) >> 24), (int)((a & 0xff0000) >> 16), (int)((a & 0xff00) >> 8), (int)(a & 0xff)
 
 #define FskNetEnsureConnection(rr) (kFskErrNone)
 

@@ -216,7 +216,7 @@ Boolean doFormatMessageAudioDecompress(FskInstrumentedType dispatch, UInt32 msg,
 
 		case kFskAudioDecompressInstrDecompress: {
 			void **md = (void **)msgData;
-			snprintf(buffer, bufferSize, "decompress samplesOut=%ld, framesIn=%ld, dataSizeIn=%ld, data=%p, ms=%ld", (UInt32)md[3], (UInt32)md[2], (UInt32)md[1], md[0], (UInt32)md[4]);
+			snprintf(buffer, bufferSize, "decompress samplesOut=%d, framesIn=%d, dataSizeIn=%d, data=%p, ms=%d", (unsigned)md[3], (unsigned)md[2], (unsigned)md[1], md[0], (unsigned)md[4]);
 			}
 			return true;
 	}

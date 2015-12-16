@@ -65,12 +65,12 @@ void unpackAndroid() {
 		if (err) fprintf(stderr, "open %s failed %d\n", dst, err);
 		while (kFskErrNone == err) {
 			err = FskFileRead(srcFref, 4096, buf, &amt);
-			if (err) fprintf(stderr, "read %s (%lu bytes) failed %d\n", src, amt, err);
+			if (err) fprintf(stderr, "read %s (%u bytes) failed %d\n", src, amt, err);
 			if (0 >= amt)
 				break;
 			while (amt) {
 				err = FskFileWrite(dstFref, amt, buf, &amtWrt);
-				if (err) fprintf(stderr, "write %s (%lu bytes) failed %d\n", dst, amt, err);
+				if (err) fprintf(stderr, "write %s (%u bytes) failed %d\n", dst, amt, err);
 				amt -= amtWrt;
 			}
 		}

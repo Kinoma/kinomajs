@@ -122,9 +122,10 @@ FskAPI(double)	FskUnicodeStringGetWidth(
 
 				/* Opaque text context for efficient operation of low level routines */
 typedef struct	FskTextContextRecord *FskTextContext;
-FskAPI(FskErr)	FskTextContextFromFontAttributesNew(const FskFontAttributes *attributes, FskTextContext *FskTextContext);
+FskAPI(FskErr)	FskTextContextFromFontAttributesNew(const FskFontAttributes *attributes, FskTextContext *pTextContext);
 FskAPI(void)	FskTextContextDispose(FskTextContext textContext);
 FskAPI(FskErr)	FskTextContextClone(FskTextContext textContext, FskTextContext *newTextContext);
+FskAPI(FskErr)	FskTextContextGetFontFamily(FskTextContext textContext, char **family);
 
 				/* Append the path of the given glyph to the textContext */
 typedef UInt16	FskGlyphID;

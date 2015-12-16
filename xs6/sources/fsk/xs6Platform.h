@@ -26,6 +26,12 @@
 	#undef mxDebug
 #endif
 
+#if SUPPORT_XS_PROFILE
+	#define mxProfile 1
+#else
+	#undef mxProfile
+#endif
+
 #if TARGET_RT_BIG_ENDIAN
 	#define mxBigEndian 1
 	#define mxLittleEndian 0
@@ -45,9 +51,6 @@
 #if TARGET_OS_WIN32
 	#undef mxWindows
 	#define mxWindows 1
-	#ifdef mxDebug
-		#define mxProfile 1
-	#endif
 	#define mxExport extern __declspec( dllexport )
 	#define mxImport extern __declspec( dllimport )
 #elif TARGET_OS_MACOSX || TARGET_OS_MAC
@@ -57,9 +60,6 @@
 	#else
 		#undef mxMacOSX
 		#define mxMacOSX 1
-		#ifdef mxDebug
-			#define mxProfile 1
-		#endif
 	#endif
 	#define mxExport __attribute__ ((visibility("default")))
 	#define mxImport __attribute__ ((visibility("default")))

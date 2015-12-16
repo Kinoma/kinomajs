@@ -26,7 +26,7 @@ FskErr KplEnvironmentInitialize(FskAssociativeArray environment)
 	FskEnvironmentSet("OS", name.sysname);
 	FskEnvironmentSet("OSVersion", name.release);
 
-#if LINUX_PLATFORM || SUPPORT_LINUX_GTK || LINUX
+#if LINUX_PLATFORM || SUPPORT_LINUX_GTK || LINUX || defined(linux)
     FskEnvironmentSet("platform", "linux");
 #else
     #error "What is your platform?"

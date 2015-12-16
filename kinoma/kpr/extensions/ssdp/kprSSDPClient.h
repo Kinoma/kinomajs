@@ -32,6 +32,8 @@ struct KprSSDPClientStruct {
 FskErr KprSSDPClientNew(KprSSDPClient *it, const char* type);
 void KprSSDPClientDispose(KprSSDPClient self);
 #define KprSSDPClientAddService(self, service) KprSSDPCommonAddService((KprSSDP)(self), service)
+FskErr KprSSDPClientRemove(KprSSDPClient self, const char* uuid);
+FskErr KprSSDPClientSearch(KprSSDPClient self);
 FskErr KprSSDPClientStart(KprSSDPClient self);
 FskErr KprSSDPClientStop(KprSSDPClient self);
 

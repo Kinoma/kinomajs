@@ -75,6 +75,7 @@
 
 #define ALIGN_PIXEL_BYTES			64													/* Cache lines are 64 bytes */
 #define ALIGN_ROW_BYTES				4													/* Hardware likes blocks of 8 pixels, but can handle 1 pixel alignment */
+#define ALIGN_YUV_ROW_BYTES			(2*ALIGN_ROW_BYTES)									/* Since U&V are subsampled, this assures that they also have ALIGN_ROW_BYTES */
 #define BLOCKIFY(i, blockSize)		(((i) + ((blockSize) - 1)) & ~((blockSize) - 1))	/* Blocksize must be a power of 2 */
 #define ALIGNED_POINTER(ptr, align)	((void*)BLOCKIFY((long)(ptr), (align)))
 
@@ -262,7 +263,7 @@ FskErr FskBitmapNew(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat
 			case kFskBitmapFormatYUV420:								// Planar: Y[4n], U[n], V[n]
 				depth = 8;												// of Y
 				rowBytes = width;										// Row bytes of Y plane
-				rowBytes = BLOCKIFY(rowBytes, ALIGN_ROW_BYTES);			// Assure that rowbytes is a multiple of ALIGN_ROW_BYTES.
+				rowBytes = BLOCKIFY(rowBytes, ALIGN_YUV_ROW_BYTES);		// Assure that rowbytes is a multiple of ALIGN_ROW_BYTES.
 				pixelsSize = (rowBytes * height);						// Bytes of y plane
 				pixelsSize += (rowBytes * (height + (height & 1))) / 2;	// U & V planes
 				break;
@@ -271,7 +272,7 @@ FskErr FskBitmapNew(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat
 			case kFskBitmapFormatYUV420spvu:							// Semi-planar: Y[4n], VU[n]
 				depth = 8;												// of Y
 				rowBytes = width;										// Row bytes of Y plane, and the UV plane
-				rowBytes = BLOCKIFY(rowBytes, ALIGN_ROW_BYTES);			// Assure that rowbytes is a multiple of ALIGN_ROW_BYTES.
+				rowBytes = BLOCKIFY(rowBytes, ALIGN_YUV_ROW_BYTES);		// Assure that rowbytes is a multiple of ALIGN_ROW_BYTES.
 				pixelsSize = (rowBytes * height);						// Bytes of y plane
 				pixelsSize += rowBytes * ((height + 1) / 2);			// UV plane
 				break;
@@ -279,14 +280,14 @@ FskErr FskBitmapNew(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat
 			case kFskBitmapFormatYUV420i:								// Chunky: UVYYYY UVYYYY ...
 				depth = 8;												// of Y
 				rowBytes = width * 3;									// 2 scan lines (1.5 bytes per pixel)
-				rowBytes = BLOCKIFY(rowBytes, ALIGN_ROW_BYTES);			// Assure that rowbytes is a multiple of ALIGN_ROW_BYTES.
+				rowBytes = BLOCKIFY(rowBytes, ALIGN_YUV_ROW_BYTES);		// Assure that rowbytes is a multiple of ALIGN_ROW_BYTES.
 				pixelsSize = rowBytes * ((height + 1) >> 1);			// Since each row contains 2 scanlines, halve the [evenized] height
 				break;
 
 			case kFskBitmapFormatUYVY:									//< YUV 422 interleaved - uyvyuyvy...
 				depth = 16;												// of Y
 				rowBytes = width*2;
-				rowBytes = BLOCKIFY(rowBytes, ALIGN_ROW_BYTES);			// Assure that rowbytes is a multiple of ALIGN_ROW_BYTES.
+				rowBytes = BLOCKIFY(rowBytes, ALIGN_YUV_ROW_BYTES);		// Assure that rowbytes is a multiple of ALIGN_ROW_BYTES.
 				pixelsSize = rowBytes * height;
 				break;
 

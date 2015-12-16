@@ -785,7 +785,7 @@ void KprMessageScriptTargetGet(KprMessage self, xsMachine* the, xsSlot* slot)
 					*slot = xsNewInstanceOf(xsChunkPrototype);
 					xsSetHostData(*slot, data);
 					xsSetHostDestructor(*slot , NULL);
-					xsSet(*slot, xsID("length"), xsInteger(size));
+					xsSet(*slot, xsID("length"), xsInteger(size));		//@@jph
 				}
 			}
 		}
@@ -898,12 +898,25 @@ void KPR_message_get_query(xsMachine *the)
 	KPR_message_get_part(self->parts.query, self->parts.queryLength);
 }
 
+void KPR_message_get_requestBuffer(xsMachine *the)
+{
+	KprMessage self = xsGetHostData(xsThis);
+	void* data;
+	UInt32 size; 
+	KprMessageGetRequestBody(self, &data, &size);
+	if (data && size) {
+		xsResult = xsNew1(xsGlobal, xsID_ArrayBuffer, xsInteger(size));
+		FskMemMove(xsToArrayBuffer(xsResult), data, size);
+	}
+}
+
 void KPR_message_get_requestChunk(xsMachine *the)
 {
 	KprMessage self = xsGetHostData(xsThis);
 	void* data;
 	UInt32 size; 
 	KprMessageGetRequestBody(self, &data, &size);
+	xsTrace("message.requestChunk deprecated, use requestBuffer\n");
 	if (data && size) {
 		xsResult = xsNew1(xsGlobal, xsID_Chunk, xsInteger(size));
 		FskMemCopy(xsGetHostData(xsResult), data, size);
@@ -920,11 +933,24 @@ void KPR_message_get_requestText(xsMachine *the)
 		xsResult = xsStringBuffer(data, size);
 }
 
+void KPR_message_get_responseBuffer(xsMachine *the)
+{
+	KprMessage self = xsGetHostData(xsThis);
+	void* data;
+	UInt32 size; 
+	KprMessageGetResponseBody(self, &data, &size);
+	if (data && size) {
+		xsResult = xsNew1(xsGlobal, xsID_ArrayBuffer, xsInteger(size));
+		FskMemMove(xsToArrayBuffer(xsResult), data, size);
+	}
+}
+
 void KPR_message_get_responseChunk(xsMachine *the)
 {
 	KprMessage self = xsGetHostData(xsThis);
 	void* data;
 	UInt32 size; 
+	xsTrace("message.responseChunk deprecated, use responseBuffer\n");
 	KprMessageGetResponseBody(self, &data, &size);
 	if (data && size) {
 		xsResult = xsNew1(xsGlobal, xsID_Chunk, xsInteger(size));
@@ -987,9 +1013,22 @@ void KPR_message_set_priority(xsMachine *the)
 	KprMessageSetPriority(self, (SInt32)(4096 * xsToNumber(xsArg(0))));
 }
 
+void KPR_message_set_requestBuffer(xsMachine* the)
+{
+	KprMessage self = xsGetHostData(xsThis);
+	if (xsTest(xsArg(0))) {
+		void* data = xsToArrayBuffer(xsArg(0));
+		xsIntegerValue size = xsGetArrayBufferLength(xsArg(0));
+		xsThrowIfFskErr(KprMessageSetRequestBody(self, data, size));
+	}
+	else
+		xsThrowIfFskErr(KprMessageSetRequestBody(self, NULL, 0));
+}
+
 void KPR_message_set_requestChunk(xsMachine* the)
 {
 	KprMessage self = xsGetHostData(xsThis);
+	xsTrace("message.requestChunk deprecated, use requestBuffer\n");
 	if (xsTest(xsArg(0))) {
 		void* data = xsGetHostData(xsArg(0));
 		xsIntegerValue size = xsToInteger(xsGet(xsArg(0), xsID_length));
@@ -1010,9 +1049,22 @@ void KPR_message_set_requestText(xsMachine* the)
 		xsThrowIfFskErr(KprMessageSetRequestBody(self, NULL, 0));
 }
 
+void KPR_message_set_responseBuffer(xsMachine* the)
+{
+	KprMessage self = xsGetHostData(xsThis);
+	if (xsTest(xsArg(0))) {
+		void* data = xsToArrayBuffer(xsArg(0));
+		xsIntegerValue size = xsGetArrayBufferLength(xsArg(0));
+		xsThrowIfFskErr(KprMessageSetResponseBody(self, data, size));
+	}
+	else
+		xsThrowIfFskErr(KprMessageSetResponseBody(self, NULL, 0));
+}
+
 void KPR_message_set_responseChunk(xsMachine* the)
 {
 	KprMessage self = xsGetHostData(xsThis);
+	xsTrace("message.responseChunk deprecated, use responseBuffer\n");
 	if (xsTest(xsArg(0))) {
 		void* data = xsGetHostData(xsArg(0));
 		xsIntegerValue size = xsToInteger(xsGet(xsArg(0), xsID_length));
@@ -1142,6 +1194,7 @@ void KPR_Message_notify(xsMachine* the)
 void KPR_Message_patch(xsMachine* the)
 {
 	xsResult = xsGet(xsGlobal, xsID("Message"));
+	xsNewHostProperty(xsResult, xsID("BUFFER"), xsString("BUFFER"), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsResult, xsID("CHUNK"), xsString("CHUNK"), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsResult, xsID("DOM"), xsString("DOM"), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
 	xsNewHostProperty(xsResult, xsID("JSON"), xsString("JSON"), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
@@ -1150,8 +1203,6 @@ void KPR_Message_patch(xsMachine* the)
 	xsNewHostProperty(xsResult, xsID("cancelReferrer"), xsNewHostFunction(KPR_Message_cancelReferrer, 1), xsDefault, xsDontScript);
 	xsNewHostProperty(xsResult, xsID("notify"), xsNewHostFunction(KPR_Message_notify, 1), xsDefault, xsDontScript);
 }
-
-#ifdef XS6
 
 typedef struct {
 	xsMachine* the;
@@ -1222,7 +1273,6 @@ static void KPR_Message_invoke_executor(xsMachine* the)
 
 void KPR_message_invoke(xsMachine* the)
 {
-	xsIntegerValue c = xsToInteger(xsArgc);
 	KprMessage self = kprGetHostData(xsThis, this, message);
 	xsVars(1);
 	xsVar(0) = xsNewHostFunction(KPR_Message_invoke_executor, 2);
@@ -1231,26 +1281,3 @@ void KPR_message_invoke(xsMachine* the)
 		KprMessageScriptTargetSet(self, the, &xsArg(0));
 	xsResult = xsNew1(xsGlobal, xsID_Promise, xsVar(0));
 }
-
-#else
-
-void KPR_message_invoke(xsMachine* the)
-{
-	xsDebugger();
-}
-
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-

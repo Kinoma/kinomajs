@@ -79,9 +79,8 @@ void fxBuildNumber(txMachine* the)
 	slot = fxLastProperty(the, fxNewNumberInstance(the));
 	for (builder = gx_Number_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Number", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxNumberPrototype = *the->stack;
-	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Number, 1, mxID(_Number), XS_GET_ONLY));
+	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Number, 1, mxID(_Number), XS_DONT_ENUM_FLAG));
 	for (builder = gx_Number_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	slot = fxNextNumberProperty(the, slot, C_EPSILON, mxID(_EPSILON), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
@@ -376,21 +375,33 @@ void fx_Number_prototype_toString(txMachine* the)
 		txString string = buffer + sizeof(buffer);
 		txNumber value;
 		txBoolean minus;
-		*(--string) = 0;
 		value = mxResult->value.number;
-		if (value < 0) {
-			minus = 1;
-			value = -value;
-		} 
-		else
-			minus = 0;
-		do {
-			*(--string) = gxDigits[(txInteger)c_fmod(value, radix)];
-			value = value / radix;
-		} while (value >= 1);
-		if (minus)
-			*(--string) = '-';
-		fxCopyStringC(the, mxResult, string);
+		switch (c_fpclassify(value)) {
+		case C_FP_INFINITE:
+			if (value < 0)
+				fxCopyStringC(the, mxResult, "-Infinity");
+			else
+				fxCopyStringC(the, mxResult, "Infinity");
+			break;
+		case C_FP_NAN:
+			fxCopyStringC(the, mxResult, "NaN");
+			break;
+		default:
+			*(--string) = 0;
+			if (value < 0) {
+				minus = 1;
+				value = -value;
+			} 
+			else
+				minus = 0;
+			do {
+				*(--string) = gxDigits[(txInteger)c_fmod(value, radix)];
+				value = value / radix;
+			} while (value >= 1);
+			if (minus)
+				*(--string) = '-';
+			fxCopyStringC(the, mxResult, string);
+		}
 	}
 }
 
@@ -412,12 +423,10 @@ txSlot* fxCheckNumber(txMachine* the, txSlot* it)
 	else if (it->kind == XS_NUMBER_KIND)
 		result = it;
 	else if (it->kind == XS_REFERENCE_KIND) {
-		it = it->value.reference;
-		if (it->flag & XS_VALUE_FLAG) {
-			it = it->next;
-			if (it->kind == XS_NUMBER_KIND)
-				result = it;
-		}
+		txSlot* instance = it->value.reference;
+		it = instance->next;
+		if ((instance->flag & XS_VALUE_FLAG) && (it->kind == XS_NUMBER_KIND) && (instance != mxNumberPrototype.value.reference))
+			result = it;
 	}
 	return result;
 }

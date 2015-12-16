@@ -407,7 +407,7 @@ static FskErr KprXMPPConnectProxyCallback(FskSocket skt, void *refCon)
 	self->socket = skt;
 	size = sizeof(kProxyConnectTemplate) - 4 + FskStrLen(self->connectionHost) + 16 + 1;
 	bailIfError(FskMemPtrNewClear(size, &string));
-	snprintf(string, size, kProxyConnectTemplate, self->connectionHost, self->connectionPort );
+	snprintf(string, size, kProxyConnectTemplate, self->connectionHost, (unsigned long)self->connectionPort );
 	bailIfError(FskNetSocketSendTCP(self->socket, string, FskStrLen(string), &size));
 	if (self->proxyAuthentication) {
 		size = sizeof(kProxyConnectAuthenticationTemplate) - 2 + FskStrLen(self->proxyAuthentication) + 1;
@@ -1113,7 +1113,7 @@ static FskErr KprXMPPReceiveStanza(KprXMPP self, KprXMLElement element)
 		}
 	}
 	{
-		void* stanza;
+		void* stanza = NULL;
 		xsBeginHost(gXMPPService.machine);
 		xsVars(COUNT);
 		xsVar(ELEMENT_PROTOTYPE) = xsGet(xsGet(xsGlobal, xsID("DOM")), xsID("element"));	

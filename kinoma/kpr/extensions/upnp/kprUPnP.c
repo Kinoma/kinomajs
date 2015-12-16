@@ -4363,8 +4363,8 @@ void KprUPnPControllerParseMetadata(const char *variableValue)
 			metadata.artist = NULL;
 			metadata.creator = NULL;
 			metadata.genre = NULL;
-			metadata.track = NULL;
-			
+			metadata.track = 0;
+
 			for (element = item->element; element; element = element->next) {
 				if (KprXMLElementIsEqual(element, kUPnPMetadataUPnPNameSpace, "class")) {
 					metadata.upnpClass = KprXMLElementGetValue(element);

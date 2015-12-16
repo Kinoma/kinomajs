@@ -24,13 +24,6 @@ extern "C" {
 #endif
 
 //#define mxFrequency 1
-#ifdef mxDebug
-	#if !defined(mxProfile)
-		#define mxProfile 1
-	#elif !mxProfile
-		#undef mxProfile
-	#endif
-#endif
 #ifndef mxProxy
 	#define mxProxy 1
 #endif
@@ -67,6 +60,8 @@ typedef struct {
 	txTypeCallback getter;
 	txTypeCallback setter;
 	txTypeCompare compare;
+	txCallback get;
+	txCallback set;
 	txID getID;
 	txID setID;
 	txID constructorID;
@@ -103,8 +98,8 @@ typedef union {
 	txTypeDispatch* typedArray;
 	
 	struct { txSlot* getter; txSlot* setter; } accessor;
-	struct { txInteger index; txU4 sum; } entry;
-	struct { txID length; txID name; txInteger profileID; } info;
+	struct { txSlot* slot; txU4 sum; } entry;
+	struct { void* data; txInteger profileID; } info;
 	struct { txString string; txU4 sum; } key;
 	struct { txSlot* first; txSlot* last; } list;
 } txValue;
@@ -335,9 +330,9 @@ mxExport void fxVars(txMachine*, txInteger);
 mxExport txInteger fxCheckArg(txMachine*, txInteger);
 mxExport txInteger fxCheckVar(txMachine*, txInteger);
 mxExport void fxOverflow(txMachine*, txInteger, txString thePath, txInteger theLine);
-mxExport void fxThrow(txMachine* the, txString thePath, txInteger theLine) XS_FUNCTION_ANALYZER_NORETURN;
-mxExport void fxThrowMessage(txMachine* the, txString thePath, txInteger theLine, txError theError, txString theMessage, ...) XS_FUNCTION_ANALYZER_NORETURN;
-mxExport void fxError(txMachine* the, txString thePath, txInteger theLine, txInteger theCode) XS_FUNCTION_ANALYZER_NORETURN;
+mxExport void fxThrow(txMachine* the, txString thePath, txInteger theLine) XS_FUNCTION_NORETURN;
+mxExport void fxThrowMessage(txMachine* the, txString thePath, txInteger theLine, txError theError, txString theMessage, ...) XS_FUNCTION_NORETURN;
+mxExport void fxError(txMachine* the, txString thePath, txInteger theLine, txInteger theCode) XS_FUNCTION_NORETURN;
 mxExport void fxDebugger(txMachine* the, txString thePath, txInteger theLine);
 
 mxExport txMachine* fxCreateMachine(txCreation* theCreation, void* theArchive, txString theName, void* theContext);
@@ -401,8 +396,12 @@ extern void fxWriteProfileFile(txMachine* the, void* theBuffer, txInteger theSiz
 #endif
 
 /* xsAll.c */
+extern txString fxAdornStringC(txMachine* the, txString prefix, txSlot* string, txString suffix);
 extern txInteger fxArgToInteger(txMachine* the, txInteger i, txInteger value);
 extern txSlot* fxArgToCallback(txMachine* the, txInteger argi);
+extern void fxBufferFrameName(txMachine* the, txString buffer, txSize size, txSlot* frame, txString suffix);
+extern void fxBufferFunctionName(txMachine* the, txString buffer, txSize size, txSlot* function, txString suffix);
+extern void fxBufferObjectName(txMachine* the, txString buffer, txSize size, txSlot* object, txString suffix);
 extern txString fxConcatString(txMachine* the, txSlot* a, txSlot* b);
 extern txString fxConcatStringC(txMachine* the, txSlot* a, txString b);
 extern txString fxCopyString(txMachine* the, txSlot* a, txSlot* b);
@@ -410,7 +409,7 @@ extern txString fxCopyStringC(txMachine* the, txSlot* a, txString b);
 extern txString fxResizeString(txMachine* the, txSlot* a, txSize theSize);
 extern int fxStringGetter(void*);
 extern int fxStringCGetter(void*);
-extern void fxJump(txMachine*) XS_FUNCTION_ANALYZER_NORETURN;
+extern void fxJump(txMachine*) XS_FUNCTION_NORETURN;
 mxExport txInteger fxUnicodeCharacter(txString theString);
 mxExport txInteger fxUnicodeLength(txString theString);
 mxExport txInteger fxUnicodeToUTF8Offset(txString theString, txInteger theOffset);
@@ -513,6 +512,7 @@ extern void fxResolveModule(txMachine* the, txID moduleID, txScript* script, voi
 
 /* xsGlobal.c */
 extern void fxBuildGlobal(txMachine* the);
+extern txSlot* fxCheckIteratorInstance(txMachine* the, txSlot* slot);
 extern txSlot* fxNewIteratorInstance(txMachine* the, txSlot* iterable);
 extern txSlot* fxNewHostAccessorGlobal(txMachine* the, txCallback get, txCallback set, txID id, txFlag flag);
 extern txSlot* fxNewHostFunctionGlobal(txMachine* the, txCallback call, txInteger length, txID id, txFlag flag);
@@ -531,6 +531,7 @@ extern txSlot* fxCreateInstance(txMachine* the, txSlot* slot);
 extern void fxDefaultFunctionPrototype(txMachine* the, txSlot* function, txSlot* prototype);
 extern txBoolean fxIsBaseFunctionInstance(txMachine* the, txSlot* slot);
 extern txSlot* fxNewFunctionInstance(txMachine* the, txID name);
+extern void fxRenameFunction(txMachine* the, txSlot* function, txInteger id, txString former, txString prefix);
 
 /* xsSymbol.c */
 void fxBuildSymbol(txMachine* the);
@@ -666,6 +667,7 @@ extern void fxBeginFunction(txMachine* the, txSlot* function);
 extern void fxBeginGC(txMachine* the);
 extern void fxEndFunction(txMachine* the, txSlot* function);
 extern void fxEndGC(txMachine* the);
+extern void fxJumpFrames(txMachine* the, txSlot* from, txSlot* to);
 #endif
 mxExport txS1 fxIsProfiling(txMachine* the);
 mxExport void fxStartProfiling(txMachine* the);
@@ -798,14 +800,12 @@ enum {
 	XS_SET_KIND,
 	XS_STAR_KIND,
 	XS_TYPED_ARRAY_KIND,
-	XS_WEAK_ARRAY_KIND, // 30
-	XS_WEAK_MAP_KIND,
+	XS_WEAK_MAP_KIND,  // 30
 	XS_WEAK_SET_KIND,
 	XS_WITH_KIND,
 
 	XS_ACCESSOR_KIND,
 	XS_ENTRY_KIND,
-	XS_INFO_KIND,
 	XS_KEY_KIND,
 	XS_KEY_X_KIND,
 	XS_LIST_KIND,
@@ -961,6 +961,12 @@ enum {
 	the->stack->flag = XS_NO_FLAG, \
 	the->stack->kind = XS_BOOLEAN_KIND, \
 	the->stack->value.boolean = (THE_BOOLEAN))
+#define mxPushClosure(THE_SLOT) \
+	(fxOverflow(the, -1, C_NULL, 0), \
+	(--the->stack)->next = C_NULL, \
+	the->stack->flag = XS_NO_FLAG, \
+	the->stack->kind = XS_CLOSURE_KIND, \
+	the->stack->value.closure = (THE_SLOT))
 #define mxPushInteger(THE_NUMBER) \
 	(fxOverflow(the, -1, C_NULL, 0), \
 	(--the->stack)->next = C_NULL, \
@@ -1014,7 +1020,7 @@ enum {
 	(--the->stack)->next = C_NULL, \
 	the->stack->flag = XS_NO_FLAG, \
 	the->stack->kind = XS_UNDEFINED_KIND)
-#define mxPushUnitialized() \
+#define mxPushUninitialized() \
 	(fxOverflow(the, -1, C_NULL, 0), \
 	(--the->stack)->next = C_NULL, \
 	the->stack->flag = XS_NO_FLAG, \
@@ -1048,6 +1054,11 @@ enum {
 	the->stack->flag = XS_NO_FLAG, \
 	the->stack->kind = XS_BOOLEAN_KIND, \
 	the->stack->value.boolean = (THE_BOOLEAN))
+#define mxPushClosure(THE_SLOT) \
+	((--the->stack)->next = C_NULL, \
+	the->stack->flag = XS_NO_FLAG, \
+	the->stack->kind = XS_CLOSURE_KIND, \
+	the->stack->value.closure = (THE_SLOT))
 #define mxPushInteger(THE_NUMBER) \
 	((--the->stack)->next = C_NULL, \
 	the->stack->flag = XS_NO_FLAG, \
@@ -1089,7 +1100,7 @@ enum {
 	((--the->stack)->next = C_NULL, \
 	the->stack->flag = XS_NO_FLAG, \
 	the->stack->kind = XS_UNDEFINED_KIND)
-#define mxPushUnitialized() \
+#define mxPushUninitialized() \
 	((--the->stack)->next = C_NULL, \
 	the->stack->flag = XS_NO_FLAG, \
 	the->stack->kind = XS_UNINITIALIZED_KIND)
@@ -1125,13 +1136,16 @@ enum {
 #define mxVarc ((the->frame - 1)->value.integer)
 #define mxVarv(THE_INDEX) (the->frame -2 - THE_INDEX)
 
-#define mxFunctionReferenceCode(REFERENCE) ((REFERENCE)->value.reference->next->value.code)
-#define mxFunctionInstanceCode(INSTANCE) ((INSTANCE)->next)
-#define mxFunctionInstanceClosures(INSTANCE) ((INSTANCE)->next->next)
-#define mxFunctionInstancePrototype(INSTANCE) ((INSTANCE)->next->next->next)
-#define mxFunctionInstanceHome(INSTANCE) ((INSTANCE)->next->next->next->next)
-#define mxFunctionInstanceInfo(INSTANCE) ((INSTANCE)->next->next->next->next->next)
-#define mxFunctionInstanceModule(INSTANCE) ((INSTANCE)->next->next->next->next->next->next)
+#define mxFunctionInstanceCode(INSTANCE) 		((INSTANCE)->next)
+#define mxFunctionInstanceClosures(INSTANCE) 	((INSTANCE)->next->next)
+#define mxFunctionInstanceHome(INSTANCE) 		((INSTANCE)->next->next->next)
+#define mxFunctionInstanceModule(INSTANCE) 		((INSTANCE)->next->next->next->next)
+#ifdef mxProfile
+#define mxFunctionInstanceProfile(INSTANCE) 		((INSTANCE)->next->next->next->next->next)
+#define mxFunctionInstanceLength(INSTANCE)		((INSTANCE)->next->next->next->next->next->next)
+#else
+#define mxFunctionInstanceLength(INSTANCE)		((INSTANCE)->next->next->next->next->next)
+#endif
 
 #define mxModuleHost(MODULE) 		((MODULE)->value.reference->next)
 #define mxModuleFunction(MODULE) 	((MODULE)->value.reference->next->next)

@@ -249,6 +249,8 @@ int FskHeadersParseChunk(char *blob, int blobSize, UInt16 headerType, FskHeaders
 				if (blobPtr[i] & 0x80) {
 					headers->headersParsed = true;
 					consumedSize = consumed - leftoverSize;
+					if (consumedSize == 0)
+						consumedSize = -1;
 					goto bail;
 				}
 				if (':' == blobPtr[i])
@@ -382,7 +384,7 @@ void FskHeaderAddInteger(char *headerName, SInt32 headerVal, FskHeaders *headers
 {
 	char	foo[32];
 
-	snprintf(foo, 31, "%ld", headerVal);
+	FskStrNumToStr(headerVal, foo, sizeof(foo));
 	FskAssociativeArrayElementCatenateString(headers->theHeaders, headerName, foo, true);
 }
 

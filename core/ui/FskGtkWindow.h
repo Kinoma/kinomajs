@@ -37,7 +37,7 @@ struct FskGtkWindowRecord {
 	// Draw buffer
 	GdkPixbuf		*pixbuf;		// Pixel buffer for FSK
 	GdkPixbuf		*pixbufDraw;	// Pixel buffer for GTK draw --- so there is one COPY between pixbuf and pixbufDraw
-	FskMutex		bufMutex;		// Operation on pixbuf
+	FskMutex		bufMutex;		// Operations on pixbuf
 
 	// Widgets present queue
 	GAsyncQueue		*queue;
@@ -46,6 +46,8 @@ struct FskGtkWindowRecord {
 	GtkWidget		*menubar;		// GTK menu widget
 	GtkAccelGroup	*accelGroup;
 	FskList			menu;			// List for all menuItems, used when need clear menu
+	FskMutex		menuMutex;		// Operations on menu items
+	Boolean			menuStatus;		// False means menu are not complete, can not do any operation on it.
 
 	// Window position and size (Draw area only)
 	int				width;

@@ -262,8 +262,8 @@ static FskErr KprWebSocketEndpointSetupSocketReader(KprWebSocketEndpoint self, F
 		},
 	};
 	UInt32 stateCount = sizeof(states) / sizeof(KprSocketReaderState);
-	KprSocketReader reader;
-	KprSocketWriter writer;
+	KprSocketReader reader = NULL;
+	KprSocketWriter writer = NULL;
 
 	bailIfError(KprSocketReaderNew(&reader, skt, states, stateCount, self));
 	bailIfError(KprSocketWriterNew(&writer, skt, self));
@@ -291,7 +291,7 @@ static void KprWebSocketHandleError(KprWebSocketEndpoint self, FskErr err, UInt1
 {
 	switch (err) {
 		case kFskErrConnectionClosed:
-			code = 1001;
+//			code = 1001;
 			reason = "endpoint closed";
 			CALLBACK(errorCallback)(self, err, reason, self->refcon);
 			KprWebSocketEndpointDisconnect(self);
@@ -433,7 +433,7 @@ static FskErr KprWebSocketEndpointUpgradeConnection(KprWebSocketEndpoint self)
 	
 	bailIfError(FskHeaderStructNew(&request));
 	
-	port = (self->parts->port ? port = self->parts->port : 80);
+	port = self->parts->port ? self->parts->port : 80;
 	
 	if (port == 80) {
 		FskHeaderAddString("Host", self->parts->host, request);

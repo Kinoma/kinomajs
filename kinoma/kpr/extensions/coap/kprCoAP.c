@@ -1783,7 +1783,7 @@ static void KPR_CoAP_message_get_options(xsMachine *the, KprCoAPMessage self)
 
 		xsVar(0) = xsNewInstanceOf(xsArrayPrototype);
 
-		xsCall1(xsVar(0), xsID_push, xsString((char *) optionStr));
+		xsCall1_noResult(xsVar(0), xsID_push, xsString((char *) optionStr));
 
 		switch (optRec->format) {
 			case kKprCoAPMessageOptionFormatEmpty:
@@ -1809,9 +1809,9 @@ static void KPR_CoAP_message_get_options(xsMachine *the, KprCoAPMessage self)
 
 		}
 
-		xsCall1(xsVar(0), xsID_push, xsVar(1));
+		xsCall1_noResult(xsVar(0), xsID_push, xsVar(1));
 
-		xsCall1(xsResult, xsID_push, xsVar(0));
+		xsCall1_noResult(xsResult, xsID_push, xsVar(0));
 
 		optRec = optRec->next;
 	}
@@ -1851,10 +1851,11 @@ static void KPR_CoAP_message_addOption(xsMachine *the, KprCoAPMessage self)
 	switch (format) {
 		case kKprCoAPMessageOptionFormatEmpty:
 			if (argType != xsUndefinedType && argType != xsNullType) {
-				xsThrowIfFskErr(kFskErrInvalidParameter);
+				err = kFskErrInvalidParameter;
 			}
-
-			err = KprCoAPMessageAppendEmptyOption(self, option);
+			else {
+				err = KprCoAPMessageAppendEmptyOption(self, option);
+			}
 			break;
 
 		case kKprCoAPMessageOptionFormatOpaque:
@@ -1876,6 +1877,10 @@ static void KPR_CoAP_message_addOption(xsMachine *the, KprCoAPMessage self)
 		case kKprCoAPMessageOptionFormatString:
 			str = xsToString(xsArg(1));
 			err = KprCoAPMessageAppendStringOption(self, option, str);
+			break;
+
+		default:
+			err = kFskErrUnimplemented;
 			break;
 	}
 	xsThrowIfFskErr(err);

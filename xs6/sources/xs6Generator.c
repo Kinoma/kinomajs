@@ -16,6 +16,8 @@
  */
 #include "xs6All.h"
 
+static txSlot* fxCheckGeneratorInstance(txMachine* the, txSlot* slot);
+
 static void fx_Generator(txMachine* the);
 static void fx_Generator_prototype_aux(txMachine* the, txFlag status);
 static void fx_Generator_prototype_next(txMachine* the);
@@ -44,6 +46,17 @@ void fxBuildGenerator(txMachine* the)
 	mxGeneratorFunctionPrototype = *the->stack;
 	slot = fxNewHostConstructor(the, fx_GeneratorFunction, 1, mxID(_GeneratorFunction));
 	the->stack++;
+}
+
+txSlot* fxCheckGeneratorInstance(txMachine* the, txSlot* slot)
+{
+	if (slot->kind == XS_REFERENCE_KIND) {
+		slot = slot->value.reference;
+		if ((slot->flag & XS_VALUE_FLAG) && (slot->next->kind == XS_STACK_KIND))
+			return slot;
+	}
+	mxTypeError("this is no Generator instance");
+	return C_NULL;
 }
 
 txSlot* fxNewGeneratorInstance(txMachine* the)
@@ -107,7 +120,7 @@ void fx_Generator(txMachine* the)
 
 void fx_Generator_prototype_aux(txMachine* the, txFlag status)
 {
-	txSlot* generator = fxGetInstance(the, mxThis);
+	txSlot* generator = fxCheckGeneratorInstance(the, mxThis);
 	txSlot* slot = generator->next->next;
 	txSlot* result = slot->value.reference;
 	mxResult->kind = XS_REFERENCE_KIND;
@@ -150,13 +163,10 @@ txSlot* fxNewGeneratorFunctionInstance(txMachine* the, txID name)
 	txSlot* property;
 
 	instance = fxNewFunctionInstance(the, name);
-	property = mxFunctionInstancePrototype(instance);
-
+	property = fxLastProperty(the, instance);
 	mxPush(mxGeneratorPrototype);
 	fxNewInstanceOf(the);
-	property->flag |= XS_DONT_SET_FLAG;
-	property->kind = the->stack->kind;
-	property->value = the->stack->value;
+	fxNextSlotProperty(the, property, the->stack, mxID(_prototype), XS_GET_ONLY);
 	the->stack++;
 	
 	return instance;
@@ -191,17 +201,12 @@ void fx_GeneratorFunction(txMachine* the)
 	if (mxTarget->kind == XS_UNDEFINED_KIND)
 		mxPullSlot(mxResult);
 	else {
-		txSlot* from = fxGetInstance(the, the->stack++);
+		txSlot* from = fxGetInstance(the, the->stack);
 		txSlot* to = fxGetInstance(the, mxThis);
-		txSlot* fromProperty;
-		txSlot* toProperty;
-        to->next->value.code = from->next->value.code;
-        fromProperty = mxFunctionInstancePrototype(from);
-        toProperty = mxFunctionInstancePrototype(to);
-        *toProperty = *fromProperty;
-        fromProperty = mxFunctionInstanceInfo(from);
-        toProperty = mxFunctionInstanceInfo(to);
-        *toProperty = *fromProperty;
+		txSlot* slot = to->next;
+		to->next = from->next;
+		from->next = slot;
+		the->stack++;
 	}
 }
 

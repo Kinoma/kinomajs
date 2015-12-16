@@ -83,6 +83,24 @@ void KprSSDPClientCallback(char* authority, KprSSDPDiscoveryDescription descript
 	KprSSDPDiscoveryDescriptionDispose(description);
 }
 
+FskErr KprSSDPClientRemove(KprSSDPClient self, const char* uuid)
+{
+	FskErr err = kFskErrNone;
+	char* it = FskStrDoCopy(uuid);
+	bailIfNULL(it);
+	FskThreadPostCallback(KprHTTPGetThread(), (FskThreadCallback)KprSSDPRemoveDiscoveryByLocation, it, NULL, NULL, NULL);
+bail:
+	return err;
+}
+
+FskErr KprSSDPClientSearch(KprSSDPClient self)
+{
+	FskErr err = kFskErrNone;
+	FskThreadPostCallback(KprHTTPGetThread(), (FskThreadCallback)KprSSDPSearch, self, NULL, NULL, NULL);
+//bail:
+	return err;
+}
+
 FskErr KprSSDPClientStart(KprSSDPClient self)
 {
 	FskErr err = kFskErrNone;

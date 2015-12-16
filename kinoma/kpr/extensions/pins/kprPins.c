@@ -31,7 +31,6 @@ extern void KPR_require(xsMachine* the);
 static FskErr KprPinsNew(KprPins *it);
 static void KprPinsCancel(KprService service, KprMessage message);
 static void KprPinsDispose(KprPins self);
-static KprPinsPoller KprPinsFindPoller(KprPins self, KprMessage message);
 static void KprPinsInvoke(KprService service, KprMessage message);
 #ifdef DEVICE
 static void KprPinsLoop(void* theParameter);
@@ -546,11 +545,6 @@ FskErr KprPinsListenerNew(KprPinsListener *it, KprPins pins, KprMessage message)
 		xsResult = xsGet(xsGlobal, xsID("KPR"));
 		for (i = 0; i < kprsCount; i++)
 			xsDelete(xsResult, xsID(kprs[i]));
-#ifndef XS6
-		xsResult = xsNewHostFunction(KPR_require, 1);
-		xsSet(xsResult, xsID("uri"), xsString(gShell->url));
-		xsNewHostProperty(xsGlobal, xsID("require"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-#endif
 		self->pins = xsGet(xsGlobal, xsID("PINS"));
         xsCall1_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(gBreakOnException));
         if (gBreakOnLaunch)
@@ -717,7 +711,11 @@ void KprPinsPollerDispose(KprPinsPoller self)
 		FskMemPtrDispose(self->url);
 		FskTimeCallbackDispose(self->timeCallback);
 		if (xsTest(self->timer)) {
-			(void)xsCall1(self->timer, xsID("repeat"), xsNull);
+			xsTry {
+				(void)xsCall1(self->timer, xsID("repeat"), xsNull);
+			}
+			xsCatch {
+			}
 			xsForget(self->timer);
 		}
 		if (xsTest(self->parameters))

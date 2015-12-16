@@ -42,7 +42,10 @@ enum {
 	kFskExtensionCaptureTrack,
 	kFskExtensionNetDevice,
 	kFskExtensionMediaReader,
-	kFskExtensionTextEngine
+	kFskExtensionTextEngine,
+	kFskExtensionPinDigital,
+	kFskExtensionPinAnalog,
+	kFskExtensionPinI2C
 };
 
 

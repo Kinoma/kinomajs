@@ -355,6 +355,8 @@ static UInt32 KprCoAPMessageOptionLength(KprCoAPMessageOptionRecord *optRec)
 		case kKprCoAPMessageOptionFormatString:
 			return FskStrLen(optRec->value.string);
 	}
+
+	return 0;
 }
 
 static UInt32 KprCoAPMessageCalculateSerializedSize(KprCoAPMessage self)

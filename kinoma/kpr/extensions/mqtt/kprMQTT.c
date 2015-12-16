@@ -384,7 +384,7 @@ static void KPR_mqttclient_deferredSubscribe(void *a, void *b, void *c, void *d 
 {
 	KPR_MQTTClientRecord *self = a;
 	char *topic = (char *) b;
-	UInt8 qos = (UInt32) c;
+	UInt8 qos = (UInt8) c;
 
 	xsBeginHostSandboxCode(self->the, self->code);
 	xsVars(1);
@@ -422,7 +422,7 @@ static void KPR_mqttclient_deferredUnsubscribe(void *a, void *b, void *c UNUSED,
 static void KPR_mqttclient_deferredPublish(void *a, void *b, void *c UNUSED, void *d UNUSED)
 {
 	KPR_MQTTClientRecord *self = a;
-	UInt16 token = (char *) b;
+	UInt16 token = (UInt16) b;
 
 	xsBeginHostSandboxCode(self->the, self->code);
 	xsVars(1);
@@ -503,7 +503,7 @@ static void KPR_mqttclient_deferredError(void *a, void *b, void *c, void *d UNUS
 static void KPR_mqttclient_onConnect(KprMQTTClient client UNUSED, UInt8 returnCode, void *refcon)
 {
 	KPR_MQTTClientRecord *self = refcon;
-	DEFER1(KPR_mqttclient_deferredConnect, returnCode);
+	DEFER1(KPR_mqttclient_deferredConnect, (int) returnCode);
 }
 
 static void KPR_mqttclient_onSubscribe(KprMQTTClient client UNUSED, char *topic, UInt8 qos, void *refcon)
@@ -511,7 +511,7 @@ static void KPR_mqttclient_onSubscribe(KprMQTTClient client UNUSED, char *topic,
 	KPR_MQTTClientRecord *self = refcon;
 	char *topic2 = FskStrDoCopy(topic);
 	if (topic2) {
-		DEFER2(KPR_mqttclient_deferredSubscribe, topic2, qos);
+		DEFER2(KPR_mqttclient_deferredSubscribe, topic2, (int) qos);
 	}
 }
 
@@ -527,7 +527,7 @@ static void KPR_mqttclient_onUnsubscribe(KprMQTTClient client UNUSED, char *topi
 static void KPR_mqttclient_onPublish(KprMQTTClient client UNUSED, UInt16 token, void *refcon)
 {
 	KPR_MQTTClientRecord *self = refcon;
-	DEFER1(KPR_mqttclient_deferredPublish, token);
+	DEFER1(KPR_mqttclient_deferredPublish, (int) token);
 }
 
 static void KPR_mqttclient_onMessage(KprMQTTClient client UNUSED, char *topic, KprMemoryBuffer payload, void *refcon)
@@ -552,7 +552,7 @@ bail:
 static void KPR_mqttclient_onDisconnect(KprMQTTClient client UNUSED, Boolean cleanClose, void *refcon)
 {
 	KPR_MQTTClientRecord *self = refcon;
-	DEFER1(KPR_mqttclient_deferredDisconnect, cleanClose);
+	DEFER1(KPR_mqttclient_deferredDisconnect, (int) cleanClose);
 }
 
 static void KPR_mqttclient_onError(KprMQTTClient client UNUSED, FskErr err, char *reason, void *refcon)

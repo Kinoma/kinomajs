@@ -86,6 +86,34 @@
                 // restore the window state from the preferences
                 if( this.preferences.hasPreference( WINDOW_STATE ) )
                     shell.windowState = this.preferences.getPreference( WINDOW_STATE );
+                    
+                var width = getEnvironmentVariable( "width" );
+                var height = getEnvironmentVariable( "height" );
+                var application = getEnvironmentVariable( "application" );
+                
+                if( application || (width && height) )
+                {
+                     var launch = {};
+                  
+                     if( application )
+                     {
+                        launch.application = {
+                           path: application
+                        };
+                     }
+                     
+                     launch.device = {
+                        id: "custom"
+                     };
+                  
+                     if( width )
+                        launch.device.width = width;
+                        
+                     if( height )
+                        launch.device.height = height;
+                   
+                     this.handleLaunch( launch );
+                 }
             ]]>
         </method>
         
@@ -653,6 +681,12 @@
             <![CDATA[
                 if( this.selectedApplication != null )
                     this.setSelectedApplication( this.selectedApplication, true );
+            ]]>
+        </method>
+        
+        <method id="canAbout">
+            <![CDATA[
+               return true;
             ]]>
         </method>
         

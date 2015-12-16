@@ -70,13 +70,13 @@ C_OPTIONS += \
 <platform name="mac">
 	<source name="kprZeroconfApple.c"/>
 </platform>
-<platform name="linux/bg3cdp,linux/gtk">
+<platform name="linux/bg3cdp,linux/gtk,linux/headless">
 	<cmake name="mDNSResponder" build="$(F_HOME)/libraries/mDNSResponder/CMakeLists.txt" />
 	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
 	<!--library name="-ldns_sd"/-->
 	<source name="kprZeroconfApple.c"/>
 </platform>
-<platform name="linux/aspen">
+<platform name="linux/aspen,linux/poky">
 	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
 	<library name="-ldns_sd"/>
 	<source name="kprZeroconfApple.c"/>

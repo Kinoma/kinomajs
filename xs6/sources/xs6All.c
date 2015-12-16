@@ -16,6 +16,25 @@
  */
 #include "xs6All.h"
 
+txString fxAdornStringC(txMachine* the, txString prefix, txSlot* string, txString suffix)
+{
+	txSize stringSize = c_strlen(string->value.string);
+	txSize prefixSize = prefix ? c_strlen(prefix) : 0;
+	txSize suffixSize = suffix ? c_strlen(suffix) : 0;
+	txSize resultSize = stringSize + prefixSize + suffixSize + 1;
+	txString result = (txString)fxNewChunk(the, resultSize);
+	if (prefix && prefixSize)
+		c_memcpy(result, prefix, prefixSize);
+	if (stringSize)
+		c_memcpy(result + prefixSize, string->value.string, stringSize);
+	if (suffix && suffixSize)
+		c_memcpy(result + prefixSize + stringSize, suffix, suffixSize);
+	result[prefixSize + stringSize + suffixSize] = 0;
+	string->kind = XS_STRING_KIND;
+	string->value.string = result;
+	return result;
+}
+
 txSlot* fxArgToCallback(txMachine* the, txInteger argi)
 {
 	if (mxArgc > argi) {
@@ -35,6 +54,62 @@ txInteger fxArgToInteger(txMachine* the, txInteger i, txInteger value)
 	if (mxArgc > i)
 		return fxToInteger(the, mxArgv(i));
 	return value;
+}
+
+void fxBufferFrameName(txMachine* the, txString buffer, txSize size, txSlot* frame, txString suffix)
+{
+	txSlot* target = frame + 2; 
+	txSlot* function = frame + 3; 
+	txSlot* _this = frame + 4;
+	if (function->kind == XS_REFERENCE_KIND) {
+		function = function->value.reference;
+		if (mxIsFunction(function)) {
+			if (target->kind == XS_UNDEFINED_KIND) {
+				txSlot* home = mxFunctionInstanceHome(function);
+				if (home->kind == XS_REFERENCE_KIND) {
+					home = home->value.reference;
+					if (mxIsFunction(home)) {
+						fxBufferFunctionName(the, buffer, size, home, ".");
+					}
+					else {
+						txSlot* constructor = fxGetOwnProperty(the, home, mxID(_constructor));
+						if (constructor) {
+							if (constructor->kind == XS_REFERENCE_KIND) {
+								constructor = constructor->value.reference;
+								if (mxIsFunction(constructor))
+									fxBufferFunctionName(the, buffer, size, constructor, ".prototype.");
+							}
+						}
+						else if (_this->kind == XS_REFERENCE_KIND) {
+							fxBufferObjectName(the, buffer, size, _this->value.reference, ".");
+						}
+					}
+				}
+			}
+			fxBufferFunctionName(the, buffer, size, function, "");
+		}
+	}
+	else
+		c_strncat(buffer, "(host)", size - c_strlen(buffer) - 1);
+	c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
+}
+
+void fxBufferFunctionName(txMachine* the, txString buffer, txSize size, txSlot* function, txString suffix)
+{
+	txSlot* slot = fxGetProperty(the, function, mxID(_name));
+	if (slot && ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND))) {
+		c_strncat(buffer, slot->value.string, size - c_strlen(buffer) - 1);
+		c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
+	}
+}
+
+void fxBufferObjectName(txMachine* the, txString buffer, txSize size, txSlot* object, txString suffix)
+{
+	txSlot* slot = fxGetProperty(the, object, mxID(_Symbol_toStringTag));
+	if (slot && ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND))) {
+		c_strncat(buffer, slot->value.string, size - c_strlen(buffer) - 1);
+		c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
+	}
 }
 
 txString fxConcatString(txMachine* the, txSlot* a, txSlot* b)
@@ -130,6 +205,9 @@ int fxStringCGetter(void* theStream)
 void fxJump(txMachine* the)
 {
 	txJump* aJump = the->firstJump;
+#ifdef mxProfile
+	fxJumpFrames(the, the->frame, aJump->frame);
+#endif	
 	c_longjmp(aJump->buffer, 1);
 }
 

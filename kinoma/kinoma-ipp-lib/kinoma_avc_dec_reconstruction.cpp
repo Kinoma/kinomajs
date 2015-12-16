@@ -3182,16 +3182,16 @@ static void dquant_trans_recon_dc_c(  Ipp16s *coef, Ipp16u *dquant, int qp_per, 
 		int	t0;
 
 		t0 = (m[3]<<24)|(m[2]<<16)|(m[1]<<8)|(m[0]<<0);
-		*((long *)(dst)) = t0;		dst += pitch;
+		*((int *)(dst)) = t0;		dst += pitch;
 
 		t0 = (m[7]<<24)|(m[6]<<16)|(m[5]<<8)|(m[4]<<0);
-		*((long *)(dst)) = t0;		dst += pitch;
+		*((int *)(dst)) = t0;		dst += pitch;
 
 		t0 = (m[11]<<24)|(m[10]<<16)|(m[9]<<8)|(m[8]<<0);
-		*((long *)(dst)) = t0;		dst += pitch;
+		*((int *)(dst)) = t0;		dst += pitch;
 
 		t0 = (m[15]<<24)|(m[14]<<16)|(m[13]<<8)|(m[12]<<0);
-		*((long *)(dst)) = t0;	
+		*((int *)(dst)) = t0;	
 	}
 }
 
@@ -3330,16 +3330,16 @@ static void dquant_trans_recon_dc_lossy_c(  Ipp16s *coef, Ipp16u *dquant, int qp
 		int	t0;
 
 		t0 = (m[3]<<24)|(m[2]<<16)|(m[1]<<8)|(m[0]<<0);
-		*((long *)(dst)) = t0;		dst += pitch;
+		*((int *)(dst)) = t0;		dst += pitch;
 
 		t0 = (m[7]<<24)|(m[6]<<16)|(m[5]<<8)|(m[4]<<0);
-		*((long *)(dst)) = t0;		dst += pitch;
+		*((int *)(dst)) = t0;		dst += pitch;
 
 		t0 = (m[11]<<24)|(m[10]<<16)|(m[9]<<8)|(m[8]<<0);
-		*((long *)(dst)) = t0;		dst += pitch;
+		*((int *)(dst)) = t0;		dst += pitch;
 
 		t0 = (m[15]<<24)|(m[14]<<16)|(m[13]<<8)|(m[12]<<0);
-		*((long *)(dst)) = t0;	
+		*((int *)(dst)) = t0;	
 	}
 }
 
@@ -3631,10 +3631,10 @@ IppStatus __STDCALL ippiReconstructChromaInterMB_H264_16s8u_P2R_c(Ipp16s **ppSrc
 			Ipp16s *coef	=  *ppSrcCoeff;
 			
 			m0[0] = dcResultU[k];
-			*((long *)(pred+0))	 = *((long *)(p+0  ));
-			*((long *)(pred+4))  = *((long *)(p+pitch  ));
-			*((long *)(pred+8))  = *((long *)(p+pitch*2));
-			*((long *)(pred+12)) = *((long *)(p+pitch*3));
+			*((int *)(pred+0))	 = *((int *)(p+0  ));
+			*((int *)(pred+4))  = *((int *)(p+pitch  ));
+			*((int *)(pred+8))  = *((int *)(p+pitch*2));
+			*((int *)(pred+12)) = *((int *)(p+pitch*3));
 
 			dquant_trans_recon_dc_x_2(  coef, dquant, qp_per, m0, dst, pitch );
 			*ppSrcCoeff += 16;
@@ -3684,10 +3684,10 @@ IppStatus __STDCALL ippiReconstructChromaInterMB_H264_16s8u_P2R_c(Ipp16s **ppSrc
 			Ipp16s *coef	=  *ppSrcCoeff;
 			
 			m0[0] = dcResultV[k];
-			*((long *)(pred+0))	 = *((long *)(p+0  ));
-			*((long *)(pred+4))  = *((long *)(p+pitch  ));
-			*((long *)(pred+8))  = *((long *)(p+pitch*2));
-			*((long *)(pred+12)) = *((long *)(p+pitch*3));
+			*((int *)(pred+0))	 = *((int *)(p+0  ));
+			*((int *)(pred+4))  = *((int *)(p+pitch  ));
+			*((int *)(pred+8))  = *((int *)(p+pitch*2));
+			*((int *)(pred+12)) = *((int *)(p+pitch*3));
 
 			dquant_trans_recon_dc_x_2(  coef, dquant, qp_per, m0, dst, pitch );
 
@@ -3748,27 +3748,27 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 					Ipp8u *s = pSrcDstYPlane - pitch;
 					Ipp8u *d = pSrcDstYPlane;
 					
-					long t0 = *((long *)(s + 0 ));
-					long t1 = *((long *)(s + 4 ));
-					long t2 = *((long *)(s + 8 ));
-					long t3 = *((long *)(s + 12));
+					int t0 = *((int *)(s + 0 ));
+					int t1 = *((int *)(s + 4 ));
+					int t2 = *((int *)(s + 8 ));
+					int t3 = *((int *)(s + 12));
 					
-								*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch; *(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-					d += pitch;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
+								*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch; *(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+					d += pitch;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
 				}
 				break;
 			case 1:														// IPP_16X16_HOR
@@ -3776,22 +3776,22 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 					Ipp8u *s = pSrcDstYPlane - 1;
 					int	  t;
 
-								t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
-					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(s+1)=t;*(long *)(s+5)=t;*(long *)(s+9)=t;*(long *)(s+13)=t;
+								t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
+					s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(s+1)=t;*(int *)(s+5)=t;*(int *)(s+9)=t;*(int *)(s+13)=t;
 				}
 				break;
 
@@ -3843,22 +3843,22 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 
 					s = pSrcDstYPlane;
 					t =(t<<24)|(t<<16)|(t<<8)|(t<<0);
-								*(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
-					s += pitch; *(long *)(s+0)=t;*(long *)(s+4)=t;*(long *)(s+8)=t;*(long *)(s+12)=t;
+								*(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
+					s += pitch; *(int *)(s+0)=t;*(int *)(s+4)=t;*(int *)(s+8)=t;*(int *)(s+12)=t;
 				}
 				break;
 
@@ -3920,30 +3920,30 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 				Ipp8u *s = pSrcDstYPlane - pitch;
 				Ipp8u *d = prediction_array;
 				
-				long t0 = *((long *)(s + 0 ));
-				long t1 = *((long *)(s + 4 ));
-				long t2 = *((long *)(s + 8 ));
-				long t3 = *((long *)(s + 12));
+				int t0 = *((int *)(s + 0 ));
+				int t1 = *((int *)(s + 4 ));
+				int t2 = *((int *)(s + 8 ));
+				int t3 = *((int *)(s + 12));
 				
-							*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
+							*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
 
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
 
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
 
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
-				d += 16;	*(long *)(d+0)=t0;*(long *)(d+4)=t1;*(long *)(d+8)=t2;*(long *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
+				d += 16;	*(int *)(d+0)=t0;*(int *)(d+4)=t1;*(int *)(d+8)=t2;*(int *)(d+12)=t3;
 			}
 			break;
 		case 1:														// IPP_16X16_HOR
@@ -3952,22 +3952,22 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 				Ipp8u *d = prediction_array;
 				int	  t;
 
-								     t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
+								     t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; t = *s;	t =(t<<24)|(t<<16)|(t<<8)|(t<<0);*(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
 			}
 
 			break;
@@ -4021,22 +4021,22 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 
 				s = pSrcDstYPlane;
 				t =(t<<24)|(t<<16)|(t<<8)|(t<<0);
-									 *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
-				d += 16; s += pitch; *(long *)(d+0)=t;*(long *)(d+4)=t;*(long *)(d+8)=t;*(long *)(d+12)=t;
+									 *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
+				d += 16; s += pitch; *(int *)(d+0)=t;*(int *)(d+4)=t;*(int *)(d+8)=t;*(int *)(d+12)=t;
 			}
 			break;
 
@@ -4205,14 +4205,14 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 		//***
 		//count4++;
 
-		*((long *)(dcResult+ 0)) = 0;
-		*((long *)(dcResult+ 2)) = 0;
-		*((long *)(dcResult+ 4)) = 0;
-		*((long *)(dcResult+ 6)) = 0;
-		*((long *)(dcResult+ 8)) = 0;
-		*((long *)(dcResult+10)) = 0;
-		*((long *)(dcResult+12)) = 0;
-		*((long *)(dcResult+14)) = 0;
+		*((int *)(dcResult+ 0)) = 0;
+		*((int *)(dcResult+ 2)) = 0;
+		*((int *)(dcResult+ 4)) = 0;
+		*((int *)(dcResult+ 6)) = 0;
+		*((int *)(dcResult+ 8)) = 0;
+		*((int *)(dcResult+10)) = 0;
+		*((int *)(dcResult+12)) = 0;
+		*((int *)(dcResult+14)) = 0;
 		
 		//memset((short *) dcResult, 0, 32);
 	}
@@ -4242,22 +4242,22 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 				tmp = (s[ 0] + t0); Clip1(const_255, tmp );	t  = tmp<<0;
 				tmp = (s[ 1] + t0); Clip1(const_255, tmp );	t |= tmp<<8;
 				tmp = (s[ 2] + t0); Clip1(const_255, tmp );	t |= tmp<<16;
-				tmp = (s[ 3] + t0); Clip1(const_255, tmp );	t |= tmp<<24;	*((long *)(d +  0)) = t;
+				tmp = (s[ 3] + t0); Clip1(const_255, tmp );	t |= tmp<<24;	*((int *)(d +  0)) = t;
 
 				tmp = (s[ 4] + t1); Clip1(const_255, tmp );	t  = tmp<<0;
 				tmp = (s[ 5] + t1); Clip1(const_255, tmp );	t |= tmp<<8;
 				tmp = (s[ 6] + t1); Clip1(const_255, tmp );	t |= tmp<<16;
-				tmp = (s[ 7] + t1); Clip1(const_255, tmp );	t |= tmp<<24;	*((long *)(d +  4)) = t;
+				tmp = (s[ 7] + t1); Clip1(const_255, tmp );	t |= tmp<<24;	*((int *)(d +  4)) = t;
 
 				tmp = (s[ 8] + t2); Clip1(const_255, tmp );	t  = tmp<<0;
 				tmp = (s[ 9] + t2); Clip1(const_255, tmp );	t |= tmp<<8;
 				tmp = (s[10] + t2); Clip1(const_255, tmp );	t |= tmp<<16;
-				tmp = (s[11] + t2); Clip1(const_255, tmp );	t |= tmp<<24;	*((long *)(d +  8)) = t;
+				tmp = (s[11] + t2); Clip1(const_255, tmp );	t |= tmp<<24;	*((int *)(d +  8)) = t;
 										  
 				tmp = (s[12] + t3); Clip1(const_255, tmp );	t  = tmp<<0;
 				tmp = (s[13] + t3); Clip1(const_255, tmp );	t |= tmp<<8;
 				tmp = (s[14] + t3); Clip1(const_255, tmp );	t |= tmp<<16;
-				tmp = (s[15] + t3); Clip1(const_255, tmp );	t |= tmp<<24;	*((long *)(d + 12)) = t;
+				tmp = (s[15] + t3); Clip1(const_255, tmp );	t |= tmp<<24;	*((int *)(d + 12)) = t;
 
 				d += pitch;
 				s += 16;
@@ -4318,10 +4318,10 @@ IppStatus __STDCALL ippiReconstructLumaIntra16x16MB_H264_16s8u_C1R_c(Ipp16s **pp
 					Ipp16s *coef =  *ppSrcCoeff;
 
 					m0[0] = dcResult[dc_idx];
-					*((long *)(pred+0))	 = *((long *)(p+0  ));
-					*((long *)(pred+4))  = *((long *)(p+16  ));
-					*((long *)(pred+8))  = *((long *)(p+16*2));
-					*((long *)(pred+12)) = *((long *)(p+16*3));
+					*((int *)(pred+0))	 = *((int *)(p+0  ));
+					*((int *)(pred+4))  = *((int *)(p+16  ));
+					*((int *)(pred+8))  = *((int *)(p+16*2));
+					*((int *)(pred+12)) = *((int *)(p+16*3));
 
 					dquant_trans_recon_dc_x_2(  coef, dquant, qp_per, m0, d, pitch );
 					*ppSrcCoeff += 16;
@@ -4518,46 +4518,46 @@ IppStatus __STDCALL ippiReconstructChromaIntraMB_H264_16s8u_P2R_c
 				tmp4 = (jsu[1][1]<<24)|(jsu[1][1]<<16)|(jsu[1][1]<<8)|(jsu[1][1]<<0);			
 				
 				p = pred_u -4;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
 
-				p += 4; *(long *)p = tmp3;
-				p += 4; *(long *)p = tmp4;
-				p += 4; *(long *)p = tmp3;
-				p += 4; *(long *)p = tmp4;
-				p += 4; *(long *)p = tmp3;
-				p += 4; *(long *)p = tmp4;
-				p += 4; *(long *)p = tmp3;
-				p += 4; *(long *)p = tmp4;
+				p += 4; *(int *)p = tmp3;
+				p += 4; *(int *)p = tmp4;
+				p += 4; *(int *)p = tmp3;
+				p += 4; *(int *)p = tmp4;
+				p += 4; *(int *)p = tmp3;
+				p += 4; *(int *)p = tmp4;
+				p += 4; *(int *)p = tmp3;
+				p += 4; *(int *)p = tmp4;
 
 				tmp1 = (jsv[0][0]<<24)|(jsv[0][0]<<16)|(jsv[0][0]<<8)|(jsv[0][0]<<0);
 				tmp2 = (jsv[1][0]<<24)|(jsv[1][0]<<16)|(jsv[1][0]<<8)|(jsv[1][0]<<0);
 				tmp3 = (jsv[0][1]<<24)|(jsv[0][1]<<16)|(jsv[0][1]<<8)|(jsv[0][1]<<0);
 				tmp4 = (jsv[1][1]<<24)|(jsv[1][1]<<16)|(jsv[1][1]<<8)|(jsv[1][1]<<0);
 
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
 
-				p += 4; *(long *)p = tmp3;
-				p += 4; *(long *)p = tmp4;
-				p += 4; *(long *)p = tmp3;
-				p += 4; *(long *)p = tmp4;
-				p += 4; *(long *)p = tmp3;
-				p += 4; *(long *)p = tmp4;
-				p += 4; *(long *)p = tmp3;
-				p += 4; *(long *)p = tmp4;
+				p += 4; *(int *)p = tmp3;
+				p += 4; *(int *)p = tmp4;
+				p += 4; *(int *)p = tmp3;
+				p += 4; *(int *)p = tmp4;
+				p += 4; *(int *)p = tmp3;
+				p += 4; *(int *)p = tmp4;
+				p += 4; *(int *)p = tmp3;
+				p += 4; *(int *)p = tmp4;
 			}
 		break;
 		case 1:										// HOR_PRED_8
@@ -4571,85 +4571,85 @@ IppStatus __STDCALL ippiReconstructChromaIntraMB_H264_16s8u_P2R_c
 				
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				////
 				s   = dst_v - 1 - pitch;				
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 
 				s  += pitch;
 				tmp = (s[0]<<24)|(s[0]<<16)|(s[0]<<8)|(s[0]<<0);
-				p += 4; *(long *)p = tmp;
-				p += 4; *(long *)p = tmp;
+				p += 4; *(int *)p = tmp;
+				p += 4; *(int *)p = tmp;
 			}
 
 			break;
@@ -4661,46 +4661,46 @@ IppStatus __STDCALL ippiReconstructChromaIntraMB_H264_16s8u_P2R_c
 
 				s   = dst_u  - pitch;
 				p   = pred_u - 4;	
-				tmp1 = *(long *)s;
-				tmp2 = *(long *)(s+4);
+				tmp1 = *(int *)s;
+				tmp2 = *(int *)(s+4);
 				
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
 
 				s   = dst_v  - pitch;				
-				tmp1 = *(long *)s;
-				tmp2 = *(long *)(s+4);
+				tmp1 = *(int *)s;
+				tmp2 = *(int *)(s+4);
 				
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
-				p += 4; *(long *)p = tmp1;
-				p += 4; *(long *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
+				p += 4; *(int *)p = tmp1;
+				p += 4; *(int *)p = tmp2;
 			}
 		break;
 		case 3:										// PLANE_8
@@ -4817,26 +4817,26 @@ IppStatus __STDCALL ippiReconstructChromaIntraMB_H264_16s8u_P2R_c
 		d = dst_u - pitch;
 		s = pred_u - 8;
 
-		d += pitch; s += 8; *(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8; *(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
+		d += pitch; s += 8; *(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8; *(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
 
 		d = dst_v - pitch;
 		s = pred_v - 8;
 
-		d += pitch; s += 8; *(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8; *(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
-		d += pitch; s += 8;	*(long *)(d+0) = *(long *)(s+0); *(long *)(d+4) = *(long *)(s+4);
+		d += pitch; s += 8; *(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8; *(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
+		d += pitch; s += 8;	*(int *)(d+0) = *(int *)(s+0); *(int *)(d+4) = *(int *)(s+4);
 
 		goto bail;
 	}
@@ -4966,10 +4966,10 @@ IppStatus __STDCALL ippiReconstructChromaIntraMB_H264_16s8u_P2R_c
 			int		qp_per = qp_per_uv|0x8000;
 			
 			m0[0] = dcResultU[k];
-			*((long *)(pred+0))	 = *((long *)(p+0  ));
-			*((long *)(pred+4))  = *((long *)(p+8  ));
-			*((long *)(pred+8))  = *((long *)(p+8*2));
-			*((long *)(pred+12)) = *((long *)(p+8*3));
+			*((int *)(pred+0))	 = *((int *)(p+0  ));
+			*((int *)(pred+4))  = *((int *)(p+8  ));
+			*((int *)(pred+8))  = *((int *)(p+8*2));
+			*((int *)(pred+12)) = *((int *)(p+8*3));
 			//***
 			//dquant_trans_recon_dc_arm(  coef, dquant, qp_per, m0, dst, pitch );
 			dquant_trans_recon_dc_x_2(  coef, dquant, qp_per, m0, dst, pitch );
@@ -5028,10 +5028,10 @@ IppStatus __STDCALL ippiReconstructChromaIntraMB_H264_16s8u_P2R_c
 			int		qp_per = qp_per_uv|0x8000;
 			
 			m0[0] = dcResultV[k];
-			*((long *)(pred+0))	 = *((long *)(p+0  ));
-			*((long *)(pred+4))  = *((long *)(p+8  ));
-			*((long *)(pred+8))  = *((long *)(p+8*2));
-			*((long *)(pred+12)) = *((long *)(p+8*3));
+			*((int *)(pred+0))	 = *((int *)(p+0  ));
+			*((int *)(pred+4))  = *((int *)(p+8  ));
+			*((int *)(pred+8))  = *((int *)(p+8*2));
+			*((int *)(pred+12)) = *((int *)(p+8*3));
 			//***
 			//dquant_trans_recon_dc_arm(  coef, dquant, qp_per, m0, dst, pitch );
 			dquant_trans_recon_dc_x_2(  coef, dquant, qp_per, m0, dst, pitch );
@@ -5093,10 +5093,10 @@ IppStatus __STDCALL ippiReconstructLumaInterMB_H264_16s8u_C1R_c(Ipp16s **ppSrcCo
 		{
 			Ipp16s *coef =  *ppSrcCoeff;
 			
-			*((long *)(pred+0))	 = *((long *)(dst+0      ));
-			*((long *)(pred+4))  = *((long *)(dst+pitch  ));
-			*((long *)(pred+8))  = *((long *)(dst+pitch*2));
-			*((long *)(pred+12)) = *((long *)(dst+pitch*3));
+			*((int *)(pred+0))	 = *((int *)(dst+0      ));
+			*((int *)(pred+4))  = *((int *)(dst+pitch  ));
+			*((int *)(pred+8))  = *((int *)(dst+pitch*2));
+			*((int *)(pred+12)) = *((int *)(dst+pitch*3));
 			//dquant_trans_recon_arm(  coef, dquant, qp_per, m0, dst, pitch );
 			dquant_trans_recon_x_2(  coef, dquant, qp_per, m0, dst, pitch );
 		}
@@ -5203,12 +5203,12 @@ IppStatus __STDCALL ippiReconstructLumaIntraMB_H264_16s8u_C1R_c(Ipp16s **ppSrcCo
 				//i_count[0]++;
 				
 				{
-					long tmp_long = *((long *)(dst - srcdstYStep));
+					int tmp_long = *((int *)(dst - srcdstYStep));
 					
-					*(long *)(pred + 0 ) = tmp_long;
-					*(long *)(pred + 4 ) = tmp_long;
-					*(long *)(pred + 8 ) = tmp_long;
-					*(long *)(pred + 12) = tmp_long;
+					*(int *)(pred + 0 ) = tmp_long;
+					*(int *)(pred + 4 ) = tmp_long;
+					*(int *)(pred + 8 ) = tmp_long;
+					*(int *)(pred + 12) = tmp_long;
 				}
 				break;
 
@@ -5226,16 +5226,16 @@ IppStatus __STDCALL ippiReconstructLumaIntraMB_H264_16s8u_C1R_c(Ipp16s **ppSrcCo
 				}
 				
 				{
-					long tmp_long;
+					int tmp_long;
 					
 					tmp_long = (Y1<<24)|(Y1<<16)|(Y1<<8)|(Y1<<0);
-					*(long *)(pred + 0 ) = tmp_long;
+					*(int *)(pred + 0 ) = tmp_long;
 					tmp_long = (Y2<<24)|(Y2<<16)|(Y2<<8)|(Y2<<0);
-					*(long *)(pred + 4 ) = tmp_long;
+					*(int *)(pred + 4 ) = tmp_long;
 					tmp_long = (Y3<<24)|(Y3<<16)|(Y3<<8)|(Y3<<0);
-					*(long *)(pred + 8 ) = tmp_long;
+					*(int *)(pred + 8 ) = tmp_long;
 					tmp_long = (Y4<<24)|(Y4<<16)|(Y4<<8)|(Y4<<0);
-					*(long *)(pred + 12) = tmp_long;
+					*(int *)(pred + 12) = tmp_long;
 				}
 				break;
 
@@ -5292,11 +5292,11 @@ IppStatus __STDCALL ippiReconstructLumaIntraMB_H264_16s8u_C1R_c(Ipp16s **ppSrcCo
 					}
 
 					{
-						long tmp_long = (s0<<24)|(s0<<16)|(s0<<8)|(s0<<0);
-						*(long *)(pred + 0 ) = tmp_long;
-						*(long *)(pred + 4 ) = tmp_long;
-						*(long *)(pred + 8 ) = tmp_long;
-						*(long *)(pred + 12) = tmp_long;
+						int tmp_long = (s0<<24)|(s0<<16)|(s0<<8)|(s0<<0);
+						*(int *)(pred + 0 ) = tmp_long;
+						*(int *)(pred + 4 ) = tmp_long;
+						*(int *)(pred + 8 ) = tmp_long;
+						*(int *)(pred + 12) = tmp_long;
 					}
 				}
 				break;
@@ -5550,10 +5550,10 @@ IppStatus __STDCALL ippiReconstructLumaIntraMB_H264_16s8u_C1R_c(Ipp16s **ppSrcCo
 		else
 		{
 			// MUST SAVE this result to array for next prediction
-			*((long *)&dst[0])								= *((long *)&pred[0]);
-			*((long *)&dst[srcdstYStep])					= *((long *)&pred[4]);
-			*((long *)&dst[srcdstYStep<<1])					= *((long *)&pred[8]);
-			*((long *)&dst[(srcdstYStep<<1)+srcdstYStep])	= *((long *)&pred[12]);
+			*((int *)&dst[0])								= *((int *)&pred[0]);
+			*((int *)&dst[srcdstYStep])                     = *((int *)&pred[4]);
+			*((int *)&dst[srcdstYStep<<1])					= *((int *)&pred[8]);
+			*((int *)&dst[(srcdstYStep<<1)+srcdstYStep])	= *((int *)&pred[12]);
 		}
 	}
 

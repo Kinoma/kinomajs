@@ -394,7 +394,8 @@ FskErr FskMediaGetPropertyXSHelper(xsMachine *the, FskMediaPropertyValue propert
 			break;
 
 		case kFskMediaPropertyTypeData:
-			xsMemPtrToChunk(the, &xsResult, (FskMemPtr)property->value.data.data, property->value.data.dataSize, false);
+			xsResult = xsNew1(xsGlobal, xsID_ArrayBuffer, xsInteger(property->value.data.dataSize));
+			FskMemMove(xsToArrayBuffer(xsResult), property->value.data.data, (SInt32)property->value.data.dataSize);
 			property->value.data.data = NULL;
 			break;
 
@@ -1028,7 +1029,7 @@ void formatMediaPropertyValue(char *value, UInt32 valueSize, FskMediaPropertyVal
 {
     switch (property->type) {
         case kFskMediaPropertyTypeInteger:
-            snprintf(value, valueSize, "%ld", property->value.integer);
+            snprintf(value, valueSize, "%d", (int)property->value.integer);
             break;
 
         case kFskMediaPropertyTypeFloat:
@@ -1044,19 +1045,19 @@ void formatMediaPropertyValue(char *value, UInt32 valueSize, FskMediaPropertyVal
             break;
 
         case kFskMediaPropertyTypeDimension:
-            snprintf(value, valueSize, "%ld, %ld", property->value.dimension.width, property->value.dimension.height);
+            snprintf(value, valueSize, "%d, %d", (int)property->value.dimension.width, (int)property->value.dimension.height);
             break;
 
         case kFskMediaPropertyTypeRatio:
-            snprintf(value, valueSize, "%ld / %ld", property->value.ratio.numer, property->value.ratio.denom);
+            snprintf(value, valueSize, "%d / %d", (int)property->value.ratio.numer, (int)property->value.ratio.denom);
             break;
 
         case kFskMediaPropertyTypeData:
-            snprintf(value, valueSize, "%lu bytes", property->value.data.dataSize);
+            snprintf(value, valueSize, "%u bytes", (unsigned)property->value.data.dataSize);
             break;
 
         case kFskMediaPropertyTypeImage:
-            snprintf(value, valueSize, "mime %s, %lu bytes", (char*)(property->value.data.data), property->value.data.dataSize);
+            snprintf(value, valueSize, "mime %s, %u bytes", (char*)(property->value.data.data), (unsigned)property->value.data.dataSize);
             break;
 
         case kFskMediaPropertyTypeUndefined:

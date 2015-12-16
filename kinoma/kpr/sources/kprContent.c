@@ -2323,7 +2323,6 @@ void KprContainerUpdate(void* it, FskPort port, FskRectangle area)
 
 /* CONTAINER ECMASCRIPT */
 
-#ifdef XS6
 static void KPR_container_iterator(xsMachine *the)
 {
 	xsVars(3);
@@ -2353,11 +2352,9 @@ static void KPR_container_iterator_next(xsMachine *the)
 		xsSet(xsResult, xsID_done, xsTrue);
 	}
 }
-#endif
 
 void KPR_Container_patch(xsMachine *the)
 {
-#ifdef XS6
 	xsVars(5);
 	xsVar(0) = xsGet(xsGet(xsGlobal, xsID_KPR), xsID_container);
 	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_Symbol), xsID_iterator);
@@ -2367,7 +2364,6 @@ void KPR_Container_patch(xsMachine *the)
 	xsSet(xsVar(3), xsID_next, xsVar(4));
 	xsSet(xsVar(2), xsID_iterator, xsVar(3));
 	xsSetAt(xsVar(0), xsVar(1), xsVar(2));
-#endif
 }
 
 void KPR_Container(xsMachine *the)

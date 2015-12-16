@@ -723,6 +723,7 @@ public class KinomaPlay extends Activity
 		mSDKVersion = android.os.Build.VERSION.SDK_INT;
 
 //#ifdefined CAMERA
+		if (gMajorVersion >= 5)
         try{
             System.loadLibrary("FskCameraAndroid_java");
             Log.i("Kinoma", "load OS version FskCameraAndroid_java for J");
@@ -749,13 +750,13 @@ public class KinomaPlay extends Activity
             Log.i("Kinoma", "can't load FskAndroidJavaEncoder" + aje);
         }
 */
-
-        try {
-            System.loadLibrary("FskAndroidJavaDecoder");
-            Log.i("Kinoma", "load FskAndroidJavaDecoder");
-        } catch (UnsatisfiedLinkError ajd) {
-            Log.i("Kinoma", "can't load FskAndroidJavaDecoder" + ajd);
-        }
+		if (gMajorVersion >= 5)
+	        try {
+				System.loadLibrary("FskAndroidJavaDecoder");
+				Log.i("Kinoma", "load FskAndroidJavaDecoder");
+			} catch (UnsatisfiedLinkError ajd) {
+				Log.i("Kinoma", "can't load FskAndroidJavaDecoder" + ajd);
+			}
 
 		switch (mSDKVersion) {
 			case 17:
@@ -3427,6 +3428,17 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 
 
 	// /*******************************************************/
+	public class ResultRunnable implements Runnable {
+	private String result;
+		public ResultRunnable(String r) {
+			this.result = r;
+		}
+
+		public void run() {
+			webviewHandleEvaluationResult(this.result);
+		}
+	}
+
 
 	class WebViewJavaScriptInterface {
 		KinomaPlay mPlay;
@@ -3456,7 +3468,7 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 			if (mScript != null) {
 				mResult = result;
 				Log.i("Kinoma", String.format("result = %s", result));
-				mPlay.webviewHandleEvaluationResult(result);
+				mPlay.runOnUiThread(new ResultRunnable(result));
 				mScript = null;
 			}
 		}
@@ -3464,6 +3476,7 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 		public void handleError(ConsoleMessage consoleMessage) {
 			if (mScript != null) {
 				mPlay.webviewHandleEvaluationResult(null);
+				mPlay.mWakeMe.callback();
 				mScript = null;
 			}
 		}

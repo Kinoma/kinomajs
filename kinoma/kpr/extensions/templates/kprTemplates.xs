@@ -52,3 +52,4 @@
 	<program c="KPR_Thumbnail_patch"/>
 	<program c="KPR_Media_patch"/>
 </package>
+

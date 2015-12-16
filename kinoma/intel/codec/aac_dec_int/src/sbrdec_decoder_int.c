@@ -139,10 +139,7 @@ sSbrBlock *sbrInitDecoder( void )
 
 /* -------------------------------- malloc memory for general work buffer ---------------------------- */
 
-  if (status == ippStsNoErr)
-    return pSbr;        // OK
-  //else [dead codes]
-  //  return 0;
+  return (status == ippStsNoErr) ? pSbr : NULL;
 }
 
 /********************************************************************/

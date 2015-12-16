@@ -151,10 +151,26 @@ FskExport(FskErr) FskInstrumentedTypeSendMessage_(FskInstrumentedType type, UInt
 
 FskExport(FskErr) FskInstrumentedSystemSendMessage(UInt32 msg, const void *msgData, UInt32 level);
 
-FskExport(FskErr) FskInstrumentedItemPrintfForLevel(FskInstrumentedItem item, UInt32 level, const char *msg, ...);
-FskExport(FskErr) FskInstrumentedTypePrintfForLevel(FskInstrumentedType dispatch, UInt32 level, const char *msg, ...);
-FskExport(FskErr) FskInstrumentedTypePrintfForLevel_(FskInstrumentedType dispatch, UInt32 level, const char *msg, void *arguments);
-FskExport(FskErr) FskInstrumentedSystemPrintfForLevel(UInt32 level, const char *msg, ...);
+FskExport(FskErr) FskInstrumentedItemPrintfForLevel(FskInstrumentedItem item, UInt32 level, const char *msg, ...)
+					#if defined(__GNUC__)
+						__attribute__ ((format(printf, 3, 4)))
+					#endif
+;
+FskExport(FskErr) FskInstrumentedTypePrintfForLevel(FskInstrumentedType dispatch, UInt32 level, const char *msg, ...)
+					#if defined(__GNUC__)
+						__attribute__ ((format(printf, 3, 4)))
+					#endif
+;
+FskExport(FskErr) FskInstrumentedTypePrintfForLevel_(FskInstrumentedType dispatch, UInt32 level, const char *msg, void *arguments)
+					#if defined(__GNUC__)
+						__attribute__ ((format(printf, 3, 0)))
+					#endif
+;
+FskExport(FskErr) FskInstrumentedSystemPrintfForLevel(UInt32 level, const char *msg, ...)
+					#if defined(__GNUC__)
+						__attribute__ ((format(printf, 2, 3)))
+					#endif
+;
 
 #define FskInstrumentedItemDeclaration FskInstrumentedItemRecord _instrumented;
 #define FskInstrumentationOffset(a)	((char*)(&((a*)0)->_instrumented) - (char*)(0))		// offsetof

@@ -382,7 +382,7 @@ public:
                         +RefPicListResetCount(index,force);
 #else
                     size_t ret = (size_t) this;
-                    return ret + index;
+                    return (Ipp32s)(ret + index);
 
 #endif
                 }

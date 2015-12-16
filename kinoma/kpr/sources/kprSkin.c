@@ -464,15 +464,15 @@ void KprSkinFillTexture(KprSkin self, FskPort port, FskRectangle bounds, UInt32 
 	void (*scaleRect)(FskRectangle r);
 	if (scale == 131072) {
 		scaleRect = scaleRect2x;
-		scale = port->scale >> 1;
+		scale = FskPortScaleGet(port) >> 1;
 	}
 	else if (scale == 98304) {
 		scaleRect = scaleRect15x;
-		scale = UNSCALE15x(port->scale);
+		scale = UNSCALE15x(FskPortScaleGet(port));
 	}
 	else {
 		scaleRect = scaleRect1x;
-		scale = port->scale;
+		scale = FskPortScaleGet(port);
 	}
 	if (bitmap) {
 		SInt32 x, y, dx, dy, u, v, du, dv, dl, dt, dr, db;

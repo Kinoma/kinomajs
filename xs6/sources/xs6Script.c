@@ -68,6 +68,7 @@ void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSi
 	parser->uriSymbol = fxNewParserSymbol(parser, "uri");
 	parser->valueSymbol = fxNewParserSymbol(parser, "value");
 	parser->withSymbol = fxNewParserSymbol(parser, "with");
+	parser->yieldSymbol = fxNewParserSymbol(parser, "yield");
 }
 
 void* fxNewParserChunkClear(txParser* parser, txSize size)

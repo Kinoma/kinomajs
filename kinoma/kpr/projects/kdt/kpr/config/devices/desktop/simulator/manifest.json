@@ -34,6 +34,7 @@
 		"textureCacheSize":"2500000",
 		"displayFPS":"0",
 		"windowStyle":"0",
+		"fontsPath":"[applicationPath]fonts/",
 	},
 	"extensions":{
 		"fsZip":"$(F_EXTENSIONS)/fsZip/fsZip.mk",
@@ -80,6 +81,10 @@
 		"kprTouchd":"$(KPR_HOME)/extensions/touchd/kprTouchd.mk",
 		"puredata":"$(F_EXTENSIONS)/puredata/puredata.mk",
 	},
+	"fonts":{
+		"default": "Fira Sans",
+		"path": "[applicationPath]fonts/"
+	},
 	"resources":{
 		"~": [
 		],
@@ -96,6 +101,11 @@
 		"program":[
 			"$(KDT_HOME)/kpr/simulator/KinomaSimulator.xml",		
 		],
+		"fonts": [
+			"$(F_HOME)/data/fonts/FiraMono-Regular.ttf",
+			"$(F_HOME)/data/fonts/FiraSans-Bold.ttf",
+			"$(F_HOME)/data/fonts/FiraSans-Regular.ttf",
+		],
 	},
 	"platforms":{
 		"linux":{
@@ -103,14 +113,10 @@
 				"flvmuxer":null,
 				"kinomaaacipp":null,
 			},
-			"fonts":{
-				"default": "Fira Sans",
-				"path": "[applicationPath]fonts/"
-			},
 			"platforms":{
 				"gtk":{
 					"extensions":{
-						"kprZeroconf":null,
+						"kinomaaacipp":"$(F_KINOMA)/kinoma-aac-ipp/kinomaaacipp.mk",
 						"kinomaspeexdec":null,
 						"kinomaspeexenc":null,
 					},

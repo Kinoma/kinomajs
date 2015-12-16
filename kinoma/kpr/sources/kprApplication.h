@@ -36,6 +36,7 @@ typedef struct {
 	KprContentPart;
 	KprContainerPart;
 	KprContextPart;
+	char* title;
 } KprApplicationRecord, *KprApplication;
 
 FskAPI(FskErr) KprApplicationNew(KprApplication *it, char* url, char* id, Boolean breakOnStart, Boolean breakOnExceptions);

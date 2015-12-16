@@ -364,7 +364,7 @@ int SwapInQTMediaSample3(int spspps_only, int naluLengthSize, unsigned char *src
 			unsigned char *this_src		 = src+s;
 			unsigned char *this_dst		 = dst+d+4;
 
-			*(long *)dst = 0x80808080;	//***bnie: used to be 0x00000001 start code, 			
+			*(int *)dst = 0x80808080;	//***bnie: used to be 0x00000001 start code,
 #if 0
 			int			  src_bit_offset = (((int)(this_src))&0x03)<<3;
 			if( src_bit_offset != 0 && src_size >= 16 )

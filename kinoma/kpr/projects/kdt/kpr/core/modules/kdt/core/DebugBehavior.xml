@@ -1,17 +1,18 @@
 <!--
-  Copyright 2011-2014 Marvell Semiconductor, Inc.
-
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
+|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
 -->
 <module xmlns="http://www.kinoma.com/kpr/1">
     
@@ -214,7 +215,7 @@
         
         <method id="getStudioVersion">
             <![CDATA[
-                return "1.3.46";
+                return "1.3.49";
             ]]>
         </method>
         
@@ -625,43 +626,64 @@
                     {
                         var file = mergeURI( path, next.path );
                         var entry = file.substring( root.length );
-                        
-                        // if the compile option is set in the manifest
-                        // then js and xml programs and modules are saved
-                        // as jsb files in the application cache
-                        if( "compile" in manifest && manifest.compile == true )
-                        {
-                            var extensionIndex = entry.lastIndexOf( "." );
-                            var extension = entry.substring( extensionIndex + 1 ).toLowerCase();
-                            
-                            // if the file extensions is jsb then check to see if there is a 
-                            // corresponding jsb, js, or xml file in the manifest... otherwise 
-                            // delete the jsb file...
-                            if( extension == "jsb" )
-                            {
-                                var entry = entry.substring( 0, extensionIndex + 1 );
+                        var version = "version" in manifest ? manifest.version : 1;
 
-                                if( ((entry + "jsb") in manifest.checksums || (entry + "js") in manifest.checksums || (entry + "xml") in manifest.checksums) == false )
-                                    pendingDeleteFileList.push( file );
-                            }
-                            
-                            // if the file extension is js or xml and we are compiling, then
-                            // check if there is a corresponding jsb file... if there is a
-                            // jsb then assume that the js/xml file is obsolete...
-                            else if( extension == "js" || extension == "xml" )
-                            {
-                                var entry = mergeURI( root, entry.substring( 0, extensionIndex + 1 ) + "jsb" );
-                                
-                                if( Files.exists( entry ) == Files.fileType )
-                                    pendingDeleteFileList.push( file );
-                            }                 
-                        }
+                        if( version == 2 )
+                        {
+                           var remove = true;
                         
-                        // check to see if the file has an entry in the
-                        // manifest checksum map... if it doesn't then
-                        // we should remove it from the cache           
-                        else if( (entry in manifest.checksums) == false )
-                            pendingDeleteFileList.push( file );
+                           // check to see if the file is in the manifest, and if it is
+                           // not then add it to the pending delete list...
+                           for( var j = 0; j < manifest.files.length; j++ )
+                           {
+                              if( manifest.files[j].path == entry ) {
+                                 remove = false;
+                                 break;
+                              }
+                           }
+                           
+                           if( remove )
+                              pendingDeleteFileList.push( file );
+                        }
+                        else if( version == 1 )
+                        {
+                           // if the compile option is set in the manifest
+                           // then js and xml programs and modules are saved
+                           // as jsb files in the application cache
+                           if( "compile" in manifest && manifest.compile == true )
+                           {
+                               var extensionIndex = entry.lastIndexOf( "." );
+                               var extension = entry.substring( extensionIndex + 1 ).toLowerCase();
+                               
+                               // if the file extensions is jsb then check to see if there is a 
+                               // corresponding jsb, js, or xml file in the manifest... otherwise 
+                               // delete the jsb file...
+                               if( extension == "jsb" )
+                               {
+                                   var entry = entry.substring( 0, extensionIndex + 1 );
+   
+                                   if( ((entry + "jsb") in manifest.checksums || (entry + "js") in manifest.checksums || (entry + "xml") in manifest.checksums) == false )
+                                       pendingDeleteFileList.push( file );
+                               }
+                               
+                               // if the file extension is js or xml and we are compiling, then
+                               // check if there is a corresponding jsb file... if there is a
+                               // jsb then assume that the js/xml file is obsolete...
+                               else if( extension == "js" || extension == "xml" )
+                               {
+                                   var entry = mergeURI( root, entry.substring( 0, extensionIndex + 1 ) + "jsb" );
+                                   
+                                   if( Files.exists( entry ) == Files.fileType )
+                                       pendingDeleteFileList.push( file );
+                               }                 
+                           }
+                           
+                           // check to see if the file has an entry in the
+                           // manifest checksum map... if it doesn't then
+                           // we should remove it from the cache           
+                           else if( (entry in manifest.checksums) == false )
+                               pendingDeleteFileList.push( file );
+                        }
                     }
                         
                     next = it.getNext();

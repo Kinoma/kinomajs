@@ -218,8 +218,8 @@ FskErr		androidIntent_main(void *a, void *b, void *c, void *d);
 int			androidIntent(int what, char *action, char *uri, char *packageName, char *className);
 
 FskErr		androidIMECallback(void *a, void *b, void *c, void *d);
-int			doIsIMEEnabled();
-void		doIMEEnable(int enable);
+Boolean		doIsIMEEnabled();
+void		doIMEEnable(Boolean enable);
 
 char*		doFetchApps(int style);
 void		doLaunchApp(char *pkgName, char *actName);

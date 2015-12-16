@@ -616,11 +616,20 @@ void fxModule(txParser* parser)
 		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, aLine);
 		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, aLine);
 
+		fxPushSymbol(parser, parser->__dirnameSymbol);
+		fxPushNULL(parser);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, aLine);
+		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, aLine);
+		fxPushSymbol(parser, parser->__dirnameSymbol);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, aLine);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, aLine);
+
 		fxPushSymbol(parser, parser->__filenameSymbol);
 		fxPushNULL(parser);
 		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, aLine);
 		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, aLine);
-		fxPushSymbol(parser, parser->uriSymbol);
+		fxPushSymbol(parser, parser->__filenameSymbol);
 		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, aLine);
 		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, aLine);
 		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, aLine);
@@ -976,10 +985,8 @@ void fxBody(txParser* parser)
 {
 	fxGetNextToken2(parser);
 	while ((parser->token == XS_TOKEN_STRING) 
-			&& (parser->crlf 
-				|| (parser->token2 == XS_TOKEN_SEMICOLON)
-				|| (parser->token2 == XS_TOKEN_EOF)
-				|| (parser->token2 == XS_TOKEN_RIGHT_BRACE))) {
+			&& (parser->crlf2
+				|| (parser->token2 == XS_TOKEN_SEMICOLON))) {
 		if (!parser->escaped) {
 			if (c_strcmp(parser->string, "use strict") == 0)
 				parser->flags |= mxStrictFlag;
@@ -1446,6 +1453,12 @@ void fxVariableStatement(txParser* parser, txToken theToken)
 		}
 		else
 			break;
+	}
+	if (aCount == 0) {
+		fxPushNULL(parser);
+		fxPushNULL(parser);
+		fxPushNodeStruct(parser, 2, theToken, aLine);
+		fxReportParserError(parser, "missing identifier");
 	}
 	if (aCount > 1) {
 		fxPushNodeList(parser, aCount);
@@ -1919,7 +1932,7 @@ void fxArrowExpression(txParser* parser)
 {
 	txInteger aLine = parser->line;
 	txUnsigned flags = parser->flags;
-	parser->flags |= mxArrowFlag | mxStrictFlag;
+	parser->flags |= mxArrowFlag;
 	fxMatchToken(parser, XS_TOKEN_ARROW);
 	fxPushNULL(parser);
 	fxSwapNodes(parser);	
@@ -1932,9 +1945,12 @@ void fxArrowExpression(txParser* parser)
 	else {
 		fxAssignmentExpression(parser);
 		fxPushNodeStruct(parser, 1, XS_TOKEN_RETURN, aLine);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_BODY, aLine);
 	}
 	fxPushNodeStruct(parser, 3, XS_TOKEN_FUNCTION, aLine);
 	parser->root->flags = parser->flags & (mxStrictFlag | mxArrowFlag | mxSuperFlag);
+	if (!(flags & mxStrictFlag) && (parser->flags & mxStrictFlag))
+		fxCheckStrictFunction(parser, (txFunctionNode*)parser->root);
 	parser->flags = flags | (parser->flags & (mxArgumentsFlag | mxSuperFlag));
 }
 
@@ -2020,6 +2036,8 @@ void fxClassExpression(txParser* parser, txInteger theLine, txSymbol** theSymbol
 				parser->root->flags |= mxGetterFlag;
 			else if (aToken2 == XS_TOKEN_SETTER) 
 				parser->root->flags |= mxSetterFlag;
+			else
+				parser->root->flags |= mxMethodFlag;
 			aCount++;
 		}
 		fxSemicolon(parser);
@@ -2051,7 +2069,7 @@ void fxClassExpression(txParser* parser, txInteger theLine, txSymbol** theSymbol
 			fxPushNodeStruct(parser, 1, XS_TOKEN_BODY, aLine);
 			
 			fxPushNodeStruct(parser, 3, XS_TOKEN_FUNCTION, aLine);
-			parser->root->flags = mxStrictFlag | mxDerivedFlag | mxFunctionFlag | mxSuperFlag;
+			parser->root->flags = mxStrictFlag | mxDerivedFlag | mxMethodFlag | mxFunctionFlag | mxSuperFlag;
 		}
 		else {
 			fxPushNULL(parser);
@@ -2064,7 +2082,7 @@ void fxClassExpression(txParser* parser, txInteger theLine, txSymbol** theSymbol
 			fxPushNodeStruct(parser, 1, XS_TOKEN_BODY, aLine);
 			
 			fxPushNodeStruct(parser, 3, XS_TOKEN_FUNCTION, aLine);
-			parser->root->flags = mxStrictFlag | mxBaseFlag | mxFunctionFlag;
+			parser->root->flags = mxStrictFlag | mxBaseFlag | mxMethodFlag | mxFunctionFlag;
 		}
 	}
 	fxPushNodeStruct(parser, 4, XS_TOKEN_CLASS, aLine);
@@ -2157,6 +2175,7 @@ void fxGroupExpression(txParser* parser)
 		fxPushNodeStruct(parser, 1, XS_TOKEN_EXPRESSIONS, aLine);
 		if (!fxParametersBindingFromExpressions(parser, parser->root))
 			fxReportParserError(parser, "no parameters");
+		fxCheckStrictBinding(parser, parser->root);
 		fxArrowExpression(parser);
 	}
 	else {
@@ -2241,14 +2260,14 @@ void fxObjectExpression(txParser* parser)
 				fxReportParserError(parser, "missing (");
 		}
 		else if (aToken2 == XS_TOKEN_GENERATOR) {
-			flags |= mxShorthandFlag;
+			flags |= mxShorthandFlag | mxMethodFlag;
 			if (parser->token == XS_TOKEN_LEFT_PARENTHESIS)
 				fxGeneratorExpression(parser, aPropertyLine, C_NULL);
 			else
 				fxReportParserError(parser, "missing (");
 		}
 		else if (parser->token == XS_TOKEN_LEFT_PARENTHESIS) {
-			flags |= mxShorthandFlag;
+			flags |= mxShorthandFlag | mxMethodFlag;
 			fxFunctionExpression(parser, aPropertyLine, C_NULL);
 		}
 		else if (parser->token == XS_TOKEN_COLON) {
@@ -2322,11 +2341,11 @@ void fxYieldExpression(txParser* parser)
 		fxPushNodeStruct(parser, 1, XS_TOKEN_DELEGATE, aLine);
 	}
 	else {
-		if ((parser->crlf) || (gxTokenFlags[parser->token] & XS_TOKEN_END_STATEMENT)) {
-			fxPushNodeStruct(parser, 0, XS_TOKEN_UNDEFINED, aLine);
+		if ((!parser->crlf) && (gxTokenFlags[parser->token] & XS_TOKEN_BEGIN_EXPRESSION)) {
+			fxAssignmentExpression(parser);
 		}
 		else {
-			fxAssignmentExpression(parser);
+			fxPushNodeStruct(parser, 0, XS_TOKEN_UNDEFINED, aLine);
 		}
 		fxPushNodeStruct(parser, 1, XS_TOKEN_YIELD, aLine);
 	}
@@ -2817,6 +2836,10 @@ txNode* fxParametersBindingFromExpressions(txParser* parser, txNode* theNode)
 			}
 			return NULL;
 		}
+		if (item->description->token == XS_TOKEN_REST_BINDING) {
+			((txRestBindingNode*)item)->binding->description = &gxTokenDescriptions[XS_TOKEN_ARG];
+			break;
+		}
 		binding = fxBindingFromExpression(parser, item, XS_TOKEN_ARG);
 		if (!binding)
 			return NULL;
@@ -2922,6 +2945,8 @@ void fxCheckStrictSymbol(txParser* parser, txSymbol* symbol)
 			fxReportParserError(parser, "invalid arguments (strict mode)");
 		else if (symbol == parser->evalSymbol)
 			fxReportParserError(parser, "invalid eval (strict mode)");
+		else if (symbol == parser->yieldSymbol)
+			fxReportParserError(parser, "invalid yield (strict mode)");
 	}
 }
 

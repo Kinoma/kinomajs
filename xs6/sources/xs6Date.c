@@ -104,22 +104,22 @@ void fxBuildDate(txMachine* the)
 		{ fx_Date_prototype_getUTCFullYear, 0, _getUTCFullYear },
 		{ fx_Date_prototype_valueOf, 0, _getTime },
 		{ fx_Date_prototype_getTimezoneOffset, 0, _getTimezoneOffset },
-		{ fx_Date_prototype_setMilliseconds, 1, _setMilliseconds },
-		{ fx_Date_prototype_setSeconds, 1, _setSeconds },
-		{ fx_Date_prototype_setMinutes, 1, _setMinutes },
-		{ fx_Date_prototype_setHours, 1, _setHours },
 		{ fx_Date_prototype_setDate, 1, _setDate },
-		{ fx_Date_prototype_setMonth, 1, _setMonth },
-		{ fx_Date_prototype_setYear, 1, _setYear },
-		{ fx_Date_prototype_setFullYear, 1, _setFullYear },
+		{ fx_Date_prototype_setFullYear, 3, _setFullYear },
+		{ fx_Date_prototype_setHours, 4, _setHours },
+		{ fx_Date_prototype_setMilliseconds, 1, _setMilliseconds },
+		{ fx_Date_prototype_setMinutes, 3, _setMinutes },
+		{ fx_Date_prototype_setMonth, 2, _setMonth },
+		{ fx_Date_prototype_setSeconds, 2, _setSeconds },
 		{ fx_Date_prototype_setTime, 1, _setTime },
-		{ fx_Date_prototype_setUTCMilliseconds, 1, _setUTCMilliseconds },
-		{ fx_Date_prototype_setUTCSeconds, 1, _setUTCSeconds },
-		{ fx_Date_prototype_setUTCMinutes, 1, _setUTCMinutes },
-		{ fx_Date_prototype_setUTCHours, 1, _setUTCHours },
+		{ fx_Date_prototype_setYear, 1, _setYear },
 		{ fx_Date_prototype_setUTCDate, 1, _setUTCDate },
-		{ fx_Date_prototype_setUTCMonth, 1, _setUTCMonth },
-		{ fx_Date_prototype_setUTCFullYear, 1, _setUTCFullYear },
+		{ fx_Date_prototype_setUTCFullYear, 3, _setUTCFullYear },
+		{ fx_Date_prototype_setUTCHours, 4, _setUTCHours },
+		{ fx_Date_prototype_setUTCMilliseconds, 1, _setUTCMilliseconds },
+		{ fx_Date_prototype_setUTCMinutes, 3, _setUTCMinutes },
+		{ fx_Date_prototype_setUTCMonth, 2, _setUTCMonth },
+		{ fx_Date_prototype_setUTCSeconds, 2, _setUTCSeconds },
 		{ fx_Date_prototype_toDateString, 0, _toDateString },
 		{ fx_Date_prototype_toUTCString, 0, _toGMTString },
 		{ fx_Date_prototype_toISOString, 0, _toISOString },
@@ -127,7 +127,6 @@ void fxBuildDate(txMachine* the)
 		{ fx_Date_prototype_toDateString, 0, _toLocaleDateString },
 		{ fx_Date_prototype_toString, 0, _toLocaleString },
 		{ fx_Date_prototype_toTimeString, 0, _toLocaleTimeString },
-		{ fx_Date_prototype_toPrimitive, 0, _Symbol_toPrimitive },
 		{ fx_Date_prototype_toString, 0, _toString },
 		{ fx_Date_prototype_toTimeString, 0, _toTimeString },
 		{ fx_Date_prototype_toUTCString, 0, _toUTCString },
@@ -137,7 +136,7 @@ void fxBuildDate(txMachine* the)
     static const txHostFunctionBuilder gx_Date_builders[] = {
 		{ fx_Date_now, 0, _now },
 		{ fx_Date_parse, 1, _parse },
-		{ fx_Date_UTC, 2, _UTC },
+		{ fx_Date_UTC, 7, _UTC },
 		{ C_NULL, 0, 0 },
     };
     const txHostFunctionBuilder* builder;
@@ -147,9 +146,9 @@ void fxBuildDate(txMachine* the)
 	slot = fxLastProperty(the, fxNewDateInstance(the));
 	for (builder = gx_Date_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Date", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextHostFunctionProperty(the, slot, fx_Date_prototype_toPrimitive, 1, mxID(_Symbol_toPrimitive), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxDatePrototype = *the->stack;
-	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Date, 1, mxID(_Date), XS_GET_ONLY));
+	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Date, 7, mxID(_Date), XS_DONT_ENUM_FLAG));
 	for (builder = gx_Date_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	the->stack++;
@@ -180,57 +179,70 @@ void fx_Date(txMachine* the)
 	char buffer[256];
 	c_time_t time;
 	txNumber number;
-
-	if ((mxThis->kind == XS_REFERENCE_KIND) && ((mxThis->value.reference->flag & XS_SHARED_FLAG) == 0)) {
-		txSlot* anInstance = mxThis->value.reference;
-        if (mxIsDate(anInstance)) {
-            if (mxArgc > 1) {
-                td.tm.tm_year = fxToInteger(the, mxArgv(0));
-                if ((td.tm.tm_year < 0) || (99 < td.tm.tm_year))
-                    td.tm.tm_year -= 1900;
-                td.tm.tm_mon = fxToInteger(the, mxArgv(1));
-                if (mxArgc > 2)
-                    td.tm.tm_mday = fxToInteger(the, mxArgv(2));
-                else
-                    td.tm.tm_mday = 1;
-                if (mxArgc > 3)
-                    td.tm.tm_hour = fxToInteger(the, mxArgv(3));
-                else
-                    td.tm.tm_hour = 0;
-                if (mxArgc > 4)
-                    td.tm.tm_min = fxToInteger(the, mxArgv(4));
-                else
-                    td.tm.tm_min = 0;
-                if (mxArgc > 5)
-                    td.tm.tm_sec = fxToInteger(the, mxArgv(5));
-                else
-                    td.tm.tm_sec = 0;
-                if (mxArgc > 6)
-                    td.ms = fxToInteger(the, mxArgv(6));
-                else
-                    td.ms = 0;
-                td.tm.tm_isdst = -1;
-                time = c_mktime(&(td.tm));	
-                if (time == -1)
-                    number = NAN;
-                else
-                    number = (time * 1000.0) + td.ms;
-            }
-            else if (mxArgc > 0) {
-                number = fxToNumber(the, mxArgv(0));
-            }
-            else {
-                c_gettimeofday(&tv, NULL);
-                // According to 15.9.1.1, time precision in JS is milliseconds
-                number = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec / 1000));
-            }
-            anInstance->next->value.number = number;
-            *mxResult = *mxThis;
-        }
-        return;
+	
+	if (mxTarget->kind != XS_UNDEFINED_KIND) {
+		if (mxArgc > 1) {
+			td.tm.tm_year = fxToInteger(the, mxArgv(0));
+			if ((td.tm.tm_year < 0) || (99 < td.tm.tm_year))
+				td.tm.tm_year -= 1900;
+			td.tm.tm_mon = fxToInteger(the, mxArgv(1));
+			if (mxArgc > 2)
+				td.tm.tm_mday = fxToInteger(the, mxArgv(2));
+			else
+				td.tm.tm_mday = 1;
+			if (mxArgc > 3)
+				td.tm.tm_hour = fxToInteger(the, mxArgv(3));
+			else
+				td.tm.tm_hour = 0;
+			if (mxArgc > 4)
+				td.tm.tm_min = fxToInteger(the, mxArgv(4));
+			else
+				td.tm.tm_min = 0;
+			if (mxArgc > 5)
+				td.tm.tm_sec = fxToInteger(the, mxArgv(5));
+			else
+				td.tm.tm_sec = 0;
+			if (mxArgc > 6)
+				td.ms = fxToInteger(the, mxArgv(6));
+			else
+				td.ms = 0;
+			td.tm.tm_isdst = -1;
+			time = c_mktime(&(td.tm));	
+			if (time == -1)
+				number = NAN;
+			else
+				number = (time * 1000.0) + td.ms;
+			mxThis->value.reference->next->value.number = number;
+			return;
+		}
+		if (mxArgc > 0) {
+			txSlot* slot = mxArgv(0);
+			if (slot->kind == XS_REFERENCE_KIND) {
+				txSlot* instance = slot->value.reference;;
+				if ((instance->flag & XS_VALUE_FLAG) && (instance->next->kind == XS_DATE_KIND) && (instance != mxDatePrototype.value.reference)) {
+					mxThis->value.reference->next->value.number = instance->next->value.number;
+					return;
+				}
+			}
+			fxToPrimitive(the, slot, XS_NO_HINT);
+			if (slot->kind == XS_STRING_KIND) {
+				mxPushSlot(slot);
+				mxPushInteger(1);
+				mxPushSlot(mxFunction);
+				fxCallID(the, mxID(_parse));
+				mxThis->value.reference->next->value.number = the->stack->value.number;
+				the->stack++;
+			}
+			mxThis->value.reference->next->value.number = fxToNumber(the, slot);
+			return;
+		}
+		c_gettimeofday(&tv, NULL);
+		// According to 15.9.1.1, time precision in JS is milliseconds
+		number = ((txNumber)(tv.tv_sec) * 1000.0) + ((txNumber)(tv.tv_usec / 1000));
+		mxThis->value.reference->next->value.number = number;
+		return;
     }
-
-    {
+	{
 		c_time_t sec;
 
 		c_gettimeofday(&tv, NULL);
@@ -1222,42 +1234,55 @@ void fx_Date_prototype_toJSON(txMachine* the)
 void fx_Date_prototype_toPrimitive(txMachine* the)
 {
 	if (mxThis->kind == XS_REFERENCE_KIND) {
-		txInteger hint = ((mxArgc > 0) && (c_strcmp(fxToString(the, mxArgv(0)), "number") == 0)) ? XS_NUMBER_HINT : XS_STRING_HINT;
+		txInteger hint = XS_NO_HINT;
+		txInteger ids[2], i;
+		if (mxArgc > 0) {
+			txSlot* slot = mxArgv(0);
+			if ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND)) {
+				if (!c_strcmp(slot->value.string, "default"))
+					hint = XS_STRING_HINT;
+				else if (!c_strcmp(slot->value.string, "number"))
+					hint = XS_NUMBER_HINT;
+				else if (!c_strcmp(slot->value.string, "string"))
+					hint = XS_STRING_HINT;
+			}
+		}
 		if (hint == XS_STRING_HINT) {
+		 	ids[0] = mxID(_toString);
+		 	ids[1] = mxID(_valueOf);
+		}
+		else if (hint == XS_NUMBER_HINT) {
+		 	ids[0] = mxID(_valueOf);
+		 	ids[1] = mxID(_toString);
+		}
+ 		else
+     		mxTypeError("invalid hint");
+		for (i = 0; i < 2; i++) {
 			mxPushInteger(0);
 			mxPushSlot(mxThis);
-			fxCallID(the, mxID(_toString));
-			if (mxIsReference(the->stack)) {
-        		the->stack++;
-				mxPushInteger(0);
-				mxPushSlot(mxThis);
-				fxCallID(the, mxID(_valueOf));
-			}
-		}
-		else {
-			mxPushInteger(0);
 			mxPushSlot(mxThis);
-			fxCallID(the, mxID(_valueOf));
-			if (mxIsReference(the->stack)) {
-        		the->stack++;
-				mxPushInteger(0);
-				mxPushSlot(mxThis);
-				fxCallID(the, mxID(_toString));
+			fxGetID(the, ids[i]);
+			if (mxIsReference(the->stack) && mxIsFunction(the->stack->value.reference)) {
+				fxCall(the);
+				if (mxIsReference(the->stack))
+					the->stack++;
+				else {
+					mxResult->kind = the->stack->kind;
+					mxResult->value = the->stack->value;
+					the->stack++;
+					return;
+      			}
 			}
+			else
+				the->stack++;
 		}
-        if (mxIsReference(the->stack)) {
-            if (hint == XS_STRING_HINT)
-                mxTypeError("Cannot coerce object to string");
-            else
-                mxTypeError("Cannot coerce object to number");
-        }
-        mxResult->kind = the->stack->kind;
-        mxResult->value = the->stack->value;
-        the->stack++;
+		if (hint == XS_STRING_HINT)
+            mxTypeError("cannot coerce object to string");
+        else
+            mxTypeError("cannot coerce object to number");
 	}
 	else {
-		mxResult->kind = mxThis->kind;
-		mxResult->value = mxThis->value;
+        mxTypeError("invalid this");
 	}
 }
 
@@ -1309,12 +1334,10 @@ txSlot* fxCheckDate(txMachine* the, txSlot* it)
 {
 	txSlot* result = C_NULL;
 	if (it->kind == XS_REFERENCE_KIND) {
-		it = it->value.reference;
-		if (it->flag & XS_VALUE_FLAG) {
-			it = it->next;
-			if (it->kind == XS_DATE_KIND)
-				result = it;
-		}
+		txSlot* instance = it->value.reference;
+		it = instance->next;
+		if ((instance->flag & XS_VALUE_FLAG) && (it->kind == XS_DATE_KIND) && (instance != mxDatePrototype.value.reference))
+			result = it;
 	}
 	return result;
 }

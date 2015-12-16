@@ -117,6 +117,7 @@ typedef struct GPIOstruct{  //GPIO
 	int pinNum;
 	int realPin;
 	GPIOdirection direction;
+	Boolean canInterrupt;
 
 	void *platform;
 
@@ -131,6 +132,7 @@ FskErr FskGPIOPlatformGetDirection(FskGPIO gpio, GPIOdirection *direction);  // 
 FskErr FskGPIOPlatformWrite(FskGPIO gpio, GPIOvalue value);  //Write a value to the GPIO
 GPIOvalue FskGPIOPlatformRead(FskGPIO gpio);	//Read a value from the GPIO
 FskErr FskGPIOPlatformDispose(FskGPIO gpio);	//Dispose of platform-specific gpio elements.  If used, deallocate gpio->platform here.
+int FskGPIOPlatformGetFD(FskGPIO sio);
 
 #endif
 
@@ -161,7 +163,16 @@ typedef struct serialStruct {  //Serial IO
 	void                *platform;
 
     KprPinsPoller       poller;
-	FskTimeCallBack     pollerCallback;
+	FskThread			pollerThread;
+	FskThread			pinsThread;
+	FskMutex			mutex;
+	int					eventfd;
+
+	Boolean				killed;
+
+	unsigned char		*data;
+	UInt32				dataCount;	// data bytes available
+	UInt32				dataAllocated;	// size of data
 
 	char                path[1];
 } FskSerialIORecord, *FskSerialIO;
@@ -176,6 +187,7 @@ FskErr FskSerialIOPlatformRead(FskSerialIO sio, char** str, int* count, int maxC
 FskErr FskSerialIOPlatformReadBlocking(FskSerialIO sio, UInt32 bytesToRead, void *buffer, UInt32 *bytesRead);
 FskErr FskSerialIOPlatformGetByteCount(FskSerialIO sio, int* count);
 FskErr FskSerialIOPlatformClearBuffer(FskSerialIO sio);
+int FskSerialIOPlatformGetFD(FskSerialIO sio);
 
 #endif
 

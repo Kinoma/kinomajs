@@ -190,6 +190,7 @@ class Tool extends TOOL {
 		_package.crossReference(this, null, "", false);
 		if (this.errorCount)
 			throw new Error("" + this.errorCount + " error(s)!");
+		_package.patch(this);
 		parts.directory = this.outputDirectory;
 		parts.extension = ".js";
 		path = this.joinPath(parts);

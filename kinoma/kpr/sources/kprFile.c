@@ -362,7 +362,7 @@ typedef struct {
 	xsSlot slot;
 } KprDirectoryChangeNotifierRecord, *KprDirectoryChangeNotifier;
 
-static void KPR_Files_DirectoryNotifier_callback(UInt32 flags, const char *path, void *it);
+static FskErr KPR_Files_DirectoryNotifier_callback(UInt32 flags, const char *path, void *it);
 
 void KPR_Files_DirectoryNotifier(xsMachine* the)
 {
@@ -382,14 +382,22 @@ bail:
 	xsThrowIfFskErr(err);
 }
 
-void KPR_Files_DirectoryNotifier_callback(UInt32 flags, const char *path, void *it)
+FskErr KPR_Files_DirectoryNotifier_callback(UInt32 flags, const char *path, void *it)
 {
+	FskErr err = kFskErrNone;
 	KprDirectoryChangeNotifier self = (KprDirectoryChangeNotifier)it;
+	char* url = NULL;
+	if (path) {
+		bailIfError(KprPathToURL((char*)path, &url));
+	}	
 	xsBeginHost(self->the);
 	xsThis = self->slot;
 	xsResult = xsGet(xsThis, xsID_callback);
-	(void)xsCallFunction2(xsResult, xsThis, path ? xsString(path) : xsNull, xsInteger(flags));
+	(void)xsCallFunction2(xsResult, xsThis, url ? xsString(url) : xsNull, xsInteger(flags));
 	xsEndHost(self->the);
+bail:
+	FskMemPtrDispose(url);
+	return err;
 }
 
 void KPR_Files_directoryNotifier(void *data)
@@ -433,6 +441,23 @@ bail:
 	xsThrowIfFskErr(err);
 }
 
+void KPR_Files_readBuffer(xsMachine* the)
+{
+	FskErr err = kFskErrNone;
+	char* path = NULL;
+	FskFileMapping map = NULL;
+	unsigned char *data;
+	FskInt64 size;
+	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
+	bailIfError(FskFileMap(path, &data, &size, 0, &map));
+	xsResult = xsNew1(xsGlobal, xsID_ArrayBuffer, xsInteger(size));
+	FskMemMove(xsToArrayBuffer(xsResult), data, (SInt32)size);
+bail:
+	FskFileDisposeMap(map);
+	FskMemPtrDispose(path);
+	xsThrowIfFskErr(err);
+}
+
 void KPR_Files_readChunk(xsMachine* the)
 {
 	FskErr err = kFskErrNone;
@@ -440,6 +465,7 @@ void KPR_Files_readChunk(xsMachine* the)
 	FskFileMapping map = NULL;
 	unsigned char *data;
 	FskInt64 size;
+	xsTrace("Files.readChunk deprecated, use Files.readBuffer");
 	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
 	bailIfError(FskFileMap(path, &data, &size, 0, &map));
 	xsResult = xsNew1(xsGlobal, xsID_Chunk, xsInteger(size));
@@ -512,6 +538,31 @@ bail:
 	xsThrowIfFskErr(err);
 }
 
+void KPR_Files_writeBuffer(xsMachine* the)
+{
+	FskErr err = kFskErrNone;
+	char* path = NULL;
+	FskFile file = NULL;
+	void* data = xsToArrayBuffer(xsArg(1));
+	xsIntegerValue size = xsGetArrayBufferLength(xsArg(1));
+	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
+	err = FskFileOpen(path, kFskFilePermissionReadWrite, &file);
+	if (kFskErrFileNotFound == err) {
+		bailIfError(FskFileCreate(path));
+		err = FskFileOpen(path, kFskFilePermissionReadWrite, &file);
+	}
+	else {
+		FskInt64 zero = 0;
+		err = FskFileSetSize(file, &zero);
+	}
+	bailIfError(err);
+	bailIfError(FskFileWrite(file, size, data, NULL));
+bail:
+	FskFileClose(file);
+	FskMemPtrDispose(path);
+	xsThrowIfFskErr(err);
+}
+
 void KPR_Files_writeChunk(xsMachine* the)
 {
 	FskErr err = kFskErrNone;
@@ -519,6 +570,7 @@ void KPR_Files_writeChunk(xsMachine* the)
 	FskFile file = NULL;
 	void* data = xsGetHostData(xsArg(1));
 	xsIntegerValue size = xsToInteger(xsGet(xsArg(1), xsID_length));
+	xsTrace("Files.writeChunk deprecated, use Files.writeBuffer");
 	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
 	err = FskFileOpen(path, kFskFilePermissionReadWrite, &file);
 	if (kFskErrFileNotFound == err) {
@@ -606,6 +658,32 @@ bail:
 	xsThrowIfFskErr(err);
 }		
 
+void KPR_Files_appendBuffer(xsMachine* the)
+{
+	FskErr err = kFskErrNone;
+	char* path = NULL;
+	FskFile file = NULL;
+	void* data = xsToArrayBuffer(xsArg(1));
+	xsIntegerValue size = xsGetArrayBufferLength(xsArg(1));
+	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
+	err = FskFileOpen(path, kFskFilePermissionReadWrite, &file);
+	if (kFskErrFileNotFound == err) {
+		bailIfError(FskFileCreate(path));
+		err = FskFileOpen(path, kFskFilePermissionReadWrite, &file);
+	}
+	else {
+		FskInt64 fileSize;
+		bailIfError(FskFileGetSize(file, &fileSize));
+		bailIfError(FskFileSetPosition(file, &fileSize));
+	}
+	bailIfError(err);
+	bailIfError(FskFileWrite(file, size, data, NULL));
+bail:
+	FskFileClose(file);
+	FskMemPtrDispose(path);
+	xsThrowIfFskErr(err);
+}
+
 void KPR_Files_appendChunk(xsMachine* the)
 {
 	FskErr err = kFskErrNone;
@@ -613,6 +691,7 @@ void KPR_Files_appendChunk(xsMachine* the)
 	FskFile file = NULL;
 	void* data = xsGetHostData(xsArg(1));
 	xsIntegerValue size = xsToInteger(xsGet(xsArg(1), xsID_length));
+	xsTrace("Files.appendChunk deprecated, use Files.appendBuffer");
 	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
 	err = FskFileOpen(path, kFskFilePermissionReadWrite, &file);
 	if (kFskErrFileNotFound == err) {

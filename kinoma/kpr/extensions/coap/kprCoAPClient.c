@@ -69,7 +69,7 @@ FskErr KprCoAPClientNew(KprCoAPClient *it, KprCoAPClientCallbacks *callbacks, vo
 	self->refcon = refcon;
 
 	*it = self;
-	FskDebugStr("CoAP Client created: %x", (int) self);
+	FskDebugStr("CoAP Client created: %p", self);
 
 bail:
 	if (err) {
@@ -111,11 +111,11 @@ FskErr KprCoAPClientDispose(KprCoAPClient self)
 		}
 
 		KprMemoryChunkDispose(self->recycleTokens);
-		
+
 		KprCoAPReceiverDispose(self->receiver);
 		FskNetSocketClose(self->socket);
 		KprMemPtrDispose(self);
-		FskDebugStr("CoAP Client disposed: %x", (int) self);
+		FskDebugStr("CoAP Client disposed: %p", self);
 	}
 	return err;
 }
@@ -323,7 +323,7 @@ static FskErr KprCoAPClientNextAutoToken(KprCoAPClient self, KprMemoryChunk *tok
 
 	if (self->recycleTokens) {
 		*token = FskListRemoveFirst(&self->recycleTokens);
-		KprRetain(*token);
+		(void)KprRetain(*token);
 		return kFskErrNone;
 	}
 
@@ -347,7 +347,7 @@ static FskErr KprCoAPClientNextAutoToken(KprCoAPClient self, KprMemoryChunk *tok
 		default:
 			return kFskErrMemFull;
 	}
-	
+
 	value = self->nextTokenId;
 	value = FskEndianU32_NtoL(value);
 
@@ -376,7 +376,7 @@ FskErr KprCoAPClientStartRequest(KprCoAPClient self, UInt32 ipaddr, UInt16 port,
 		message->token = KprRetain(generatedToken);
 		KprMemoryChunkDispose(generatedToken);
 	}
-	
+
 	bailIfError(KprCoAPClientGetEndpoint(self, ipaddr, port, &endpoint));
 
 	bailIfError(KprCoAPClientRequestNew(&request, self, message, endpoint));
@@ -439,6 +439,10 @@ static void KprCoAPClient_deliveryErrorCallback(KprCoAPEndpoint endpoint, KprCoA
 
 		case kKprCoAPEndpointDeliveryFailureReset:
 			reason = "reset by peer";
+			break;
+
+		default:
+			reason = "unknown";
 			break;
 
 	}

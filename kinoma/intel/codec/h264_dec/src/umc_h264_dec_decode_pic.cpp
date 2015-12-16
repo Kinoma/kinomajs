@@ -1637,7 +1637,7 @@ void H264VideoDecoder::DecodePictureOrderCount()
 Status
 H264VideoDecoder::ForceDPBSize(long dpbSize)
 {
-	m_dpbSize = dpbSize;
+	m_dpbSize = (Ipp32s)dpbSize;
 	
 	return UMC_OK;
 }

@@ -259,7 +259,7 @@ var xsCommon = {
 		var results = [];
 		var c, separators;
 
-		separators = text.split(/^\$\(TMP_DIR\)\/.*(\.gas)?\.o: *\$\(F_HOME\).*\.gas$/gm);
+		separators = text.split(/^\$\(TMP_DIR\)\/.*(\.gas)?\.o: *\$\(F_HOME\).*\.gas$/m);
 		c = separators.length;
 		if (c > 1) {
 			var temp = text;
@@ -267,7 +267,7 @@ var xsCommon = {
 				temp = temp.replace(separators[i], ",");
 			results = results.concat(temp.split(","));
 		}
-		separators = text.split(/^\$\(TMP_DIR\)\/.*(\.gas7)?\.o: *\$\(F_HOME\).*\.gas7$/gm);
+		separators = text.split(/^\$\(TMP_DIR\)\/.*(\.gas7)?\.o: *\$\(F_HOME\).*\.gas7$/m);
 		c = separators.length;
 		if (c > 1) {
 			var temp = text;
@@ -275,7 +275,7 @@ var xsCommon = {
 				temp = temp.replace(separators[i], ",");
 			results = results.concat(temp.split(","));
 		}
-		separators = text.split(/^\$\(TMP_DIR\)\/.*(\.wmmx)?\.o: *\$\(F_HOME\).*\.wmmx$/gm);
+		separators = text.split(/^\$\(TMP_DIR\)\/.*(\.wmmx)?\.o: *\$\(F_HOME\).*\.wmmx$/m);
 		c = separators.length;
 		if (c > 1) {
 			var temp = text;

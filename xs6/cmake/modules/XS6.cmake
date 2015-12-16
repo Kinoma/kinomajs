@@ -1,18 +1,18 @@
 #
-#      Copyright (C) 2010-2015 Marvell International Ltd.
-#      Copyright (C) 2002-2010 Kinoma, Inc.
-# 
-#      Licensed under the Apache License, Version 2.0 (the "License");
-#      you may not use this file except in compliance with the License.
-#      You may obtain a copy of the License at
+#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2002-2010 Kinoma, Inc.
 #
-#       http://www.apache.org/licenses/LICENSE-2.0
-# 
-#      Unless required by applicable law or agreed to in writing, software
-#      distributed under the License is distributed on an "AS IS" BASIS,
-#      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#      See the License for the specific language governing permissions and
-#      limitations under the License.
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
 #
 include(CMakeParseArguments)
 include(Kinoma)
@@ -63,7 +63,7 @@ macro(XSC)
 		set(OUTDIR ${LOCAL_DESTINATION})
 	else()
 		get_filename_component(NAME ${LOCAL_SOURCE} NAME_WE)
-		get_filename_component(BASE ${LOCAL_SOURCE} DIRECTORY)
+		get_filename_component(BASE ${LOCAL_SOURCE} PATH)
 		set(SOURCE_FILE ${LOCAL_SOURCE_DIR}/${LOCAL_SOURCE}.js)
 		set(OUTDIR ${LOCAL_DESTINATION}/${BASE})
 	endif()
@@ -128,6 +128,7 @@ endmacro()
 
 macro(KPR2JS)
 	set(oneValueArgs SOURCE DESTINATION)
+	set(multiValueArgs DEPENDS)
 	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 	get_filename_component(NAME ${LOCAL_SOURCE} NAME_WE)
 	set(OUTPUT ${LOCAL_DESTINATION}/${NAME}.js)
@@ -138,6 +139,6 @@ macro(KPR2JS)
 		OUTPUT ${OUTPUT}
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${LOCAL_DESTINATION}
 		COMMAND ${KPR2JS} ${LOCAL_SOURCE} -o ${LOCAL_DESTINATION}
-		DEPENDS ${LOCAL_SOURCE} ${DEPENDS}
+		DEPENDS ${LOCAL_SOURCE} ${LOCAL_DEPENDS} ${DEPENDS}
 		)
 endmacro()

@@ -78,6 +78,10 @@ var xsdebug = {
 	enabled: false,
 };
 
+var xsprofile = {
+	enabled: false,
+};
+
 var instrument = {
 	log: "",
 	syslog: "",
@@ -360,7 +364,8 @@ var manifest = {
 			vm.configure(tool, tree);
 		for (var action of this.actions)
 			action.configure(tool, tree);
-		tree.xsdebug = this.xsdebug? this.xsdebug : xsdebug;
+		tree.xsdebug = this.xsdebug ? this.xsdebug : xsdebug;
+		tree.xsprofile = this.xsprofile ? this.xsprofile : xsprofile;
 	}
 };
 
@@ -394,6 +399,9 @@ g.object(kind, "xs0:kind", {
 	flags: g.number("@flags")
 });
 g.object(xsdebug, "xs0:xsdebug", {
+	enabled: g.boolean("@enabled"),
+});
+g.object(xsprofile, "xs0:xsprofile", {
 	enabled: g.boolean("@enabled"),
 });
 g.object(instrument, "xs0:instrument", {
@@ -512,6 +520,7 @@ g.object(manifest, "/xs0:fsk", {
 	actions: g.array(".", action),
 	cOptions: g.array(".", cOption),
 	xsdebug: g.reference(".", xsdebug),
+	xsprofile: g.reference(".", xsprofile),
 });
 g.link();
 export default g;

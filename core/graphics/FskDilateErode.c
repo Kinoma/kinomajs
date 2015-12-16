@@ -105,7 +105,7 @@ Filter(HFilterProc hFilter, VFilterProc vFilter, int radius, FskConstBitmap srcB
 		+ (sRect.y - srcBM->bounds.y) * srcBM->rowBytes
 		+ (sRect.x - srcBM->bounds.x) * (srcBM->depth >> 3);
 
-	/* Clip src rects and acquire src pointer */
+	/* Clip dst rects and acquire dst pointer */
 	if (dstLoc) {
 		dRect.x = (dstLoc->x >= dstBM->bounds.x) ? dstLoc->x : dstBM->bounds.x;
 		dRect.y = (dstLoc->y >= dstBM->bounds.y) ? dstLoc->y : dstBM->bounds.y;

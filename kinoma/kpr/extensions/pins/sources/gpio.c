@@ -21,14 +21,25 @@
 #include "FskMemory.h"
 #include "FskThread.h"
 
+#include <poll.h>
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/eventfd.h>
+
 // ideally these would be protected with a mutex because they are accessed across threads
-static FskGPIO gGPIOPollers;
-static FskTimeCallBack gGPIOPoller;
+static FskListMutex gGPIOPollers;		// use a mutex list here...
+static int gGPIOPollersSeed = 0;
+static int gGPIOEventFD = -1;
+static FskThread gGPIOThread;
+static Boolean gGPIOThreadQuit = false;
 
 static FskErr FskGPIONew(FskGPIO *gpioOut, int pin, char *pinName, GPIOdirection direction);
-static void gpioPoller(FskTimeCallBack callback, const FskTime time, void *param);
 static void gpioPollerThreadCallback(void *a0, void *a1, void *a2, void *a3);
 static GPIOdirection stringToDirection(xsMachine *the, const char *direction, FskGPIO gpio);
+
+static void gpioThreadQuit(void);
+static void gpioThread(void *param);
 
 static FskErr FskGPIONew(FskGPIO *gpioOut, int pin, char *pinName, GPIOdirection direction)
 {
@@ -67,11 +78,15 @@ bail:
 void xs_gpio(void *gpio)
 {
     if (gpio) {
-        FskListRemove(&gGPIOPollers, gpio);
-        if ((NULL == gGPIOPollers) && (NULL != gGPIOPoller)) {
-            FskTimeCallbackDispose(gGPIOPoller);
-            gGPIOPoller = NULL;
-        }
+        FskListMutexRemove(gGPIOPollers, gpio);
+		gGPIOPollersSeed++;
+		if (gGPIOThread) {
+			uint64_t one = 1;
+			UInt32 count = FskListMutexCount(gGPIOPollers);
+			write(gGPIOEventFD, &one, sizeof(one));
+			if (0 == count)
+				gpioThreadQuit();
+		}
 
         FskGPIOPlatformDispose(gpio);
         FskMemPtrDispose(gpio);
@@ -85,6 +100,11 @@ void xs_gpio_init(xsMachine* the)
     SInt32 pin = 0;
 	GPIOdirection dir;
     char *pinName = NULL;
+
+	if (NULL == gGPIOPollers) {
+		err = FskListMutexNew(&gGPIOPollers, "gpio read thread");
+		xsThrowIfFskErr(err);
+	}
 
     xsVars(1);
 
@@ -119,7 +139,11 @@ void xs_gpio_read(xsMachine* the)
 {
     FskGPIO gpio = xsGetHostData(xsThis);
     if (gpio) {
-    	int value = FskGPIOPlatformRead(gpio);
+		int value;
+		if (gpio->poller && (-1 != gpio->pollerValue))
+			value = gpio->pollerValue;
+		else
+			value = FskGPIOPlatformRead(gpio);
         if ((0 == value) || (1 == value))
             xsResult = xsInteger(value);
         else
@@ -132,26 +156,40 @@ void xs_gpio_repeat(xsMachine* the)
     FskGPIO gpio = xsGetHostData(xsThis);
 
     if (gpio) {
+		UInt32 count;
+
         if (in != gpio->direction)
             xsThrowDiagnosticIfFskErr(kFskErrUnimplemented, "Digital pin %d cannot repeat on output pin", (int)gpio->pinNum);
 
-        if (gpio->poller)
-            FskListRemove(&gGPIOPollers, gpio);
-        
+        if (gpio->poller) {
+            FskListMutexRemove(gGPIOPollers, gpio);
+			gGPIOPollersSeed++;
+		}
+
         gpio->poller = (xsTest(xsArg(0))) ? xsGetHostData(xsArg(0)) : NULL;
 
         if (gpio->poller) {
-            FskListAppend(&gGPIOPollers, gpio);
             gpio->pollerValue = -1;     // won't match
-            if (NULL == gGPIOPoller) {
-                FskTimeCallbackNew(&gGPIOPoller);
-                FskTimeCallbackScheduleNextRun(gGPIOPoller, gpioPoller, NULL);
-            }
+            FskListMutexAppend(gGPIOPollers, gpio);
+			gGPIOPollersSeed++;
         }
-        else if ((NULL == gGPIOPollers) && (NULL != gGPIOPoller)) {
-            FskTimeCallbackDispose(gGPIOPoller);
-            gGPIOPoller = NULL;
-        }
+
+		count = gGPIOPollers ? FskListMutexCount(gGPIOPollers) : 0;
+		if (0 == count) {
+			if (gGPIOThread)
+				gpioThreadQuit();
+		}
+		else {
+			if (NULL == gGPIOThread) {
+				gGPIOEventFD = eventfd(0, EFD_NONBLOCK);
+				if (gGPIOEventFD >= 0)
+					FskThreadCreate(&gGPIOThread, gpioThread, kFskThreadFlagsDefault, NULL, "gpio thread");
+			}
+			else {
+				uint64_t one = 1;
+				write(gGPIOEventFD, &one, sizeof(one));
+			}
+		}
     }
 }
 
@@ -186,27 +224,6 @@ void xs_gpio_close(xsMachine* the)
     xsSetHostData(xsThis, NULL);
 }
 
-static void gpioPoller(FskTimeCallBack callback, const FskTime time, void *param)
-{
-    FskGPIO walker;
-    FskThread thread = FskThreadGetCurrent();
-
-    for (walker = gGPIOPollers; NULL != walker; walker = walker->next) {
-        int value = FskGPIOPlatformRead(walker);
-        if (value == walker->pollerValue)
-            continue;
-
-        walker->pollerValue = value;
-
-        if (thread == walker->thread)
-            KprPinsPollerRun(walker->poller);
-        else
-            FskThreadPostCallback(walker->thread, gpioPollerThreadCallback, walker, NULL, NULL, NULL);
-    }
-
-    FskTimeCallbackScheduleFuture(gGPIOPoller, 0, 33, gpioPoller, NULL);
-}
-
 static void gpioPollerThreadCallback(void *a0, void *a1, void *a2, void *a3)
 {
     FskGPIO gpio = a0;
@@ -222,7 +239,96 @@ GPIOdirection stringToDirection(xsMachine *the, const char *direction, FskGPIO g
 	else if (0 == FskStrCompare(direction, "undefined"))
 		return undefined;
 
-    xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "Digital pin %d must specify direction", (int)gpio->pinNum);
+    xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "Digital pin %d must specify direction as input / output / undefined, not %s", (int)gpio->pinNum, direction);
+
+	return undefined;		// never reach here, but compiler wants to see a return.
 }
+
+void gpioThreadQuit(void)
+{
+	uint64_t one = 1;
+
+	gGPIOThreadQuit = true;
+	write(gGPIOEventFD, &one, sizeof(one));
+	FskThreadJoin(gGPIOThread);
+	gGPIOThread = NULL;
+	gGPIOThreadQuit = false;
+	close(gGPIOEventFD);
+	gGPIOEventFD = -1;
+}
+
+void gpioThread(void *param)
+{
+	int seed = -1;
+	struct pollfd *fds = NULL;
+	int fdsInUse = 0;
+	int pollersCount = 0;
+
+	while (!gGPIOThreadQuit) {
+		int result;
+		FskGPIO walker;
+
+		FskMutexAcquire(gGPIOPollers->mutex);
+			if (seed != gGPIOPollersSeed) {
+				FskErr err;
+
+				pollersCount = (int)FskListMutexCount(gGPIOPollers);
+				err = FskMemPtrRealloc((pollersCount + 1) * sizeof(struct pollfd), &fds);
+				if (err) {
+					FskMutexRelease(gGPIOPollers->mutex);
+					break;
+				}
+				seed = gGPIOPollersSeed;
+				
+				fds[0].fd = gGPIOEventFD;
+				fds[0].events = POLLIN | POLLERR | POLLHUP;
+				fdsInUse = 1;
+
+				for (walker = (FskGPIO)gGPIOPollers->list; NULL != walker; walker = walker->next) {
+					if (walker->canInterrupt) {
+						fds[fdsInUse].fd = FskGPIOPlatformGetFD(walker);
+						fds[fdsInUse].events = POLLPRI;
+						fdsInUse += 1;
+					}
+				}
+			}
+		FskMutexRelease(gGPIOPollers->mutex);
+
+		result = poll(fds, fdsInUse, (fdsInUse == (pollersCount + 1)) ? -1 : 33);
+
+		if (fds[0].revents & POLLIN) {
+			uint64_t ignore;
+			read(gGPIOEventFD, &ignore, sizeof(ignore));
+		}
+
+		for (walker = (FskGPIO)gGPIOPollers->list; NULL != walker; walker = walker->next) {
+			Boolean doUpdate = false;
+
+			if (walker->canInterrupt) {
+				int i, fd = FskGPIOPlatformGetFD(walker);
+				struct pollfd *fdp = &fds[1];
+				for (i = 1; i < fdsInUse; i++, fdp++) {
+					if ((fdp->fd == fd) && (fdp->revents & POLLPRI)){
+						doUpdate = true;
+						break;
+					}
+				}
+			}
+			else
+				doUpdate = true;
+
+			if (doUpdate) {
+				GPIOvalue value = FskGPIOPlatformRead(walker);
+				if (value == walker->pollerValue)
+					continue;
+				walker->pollerValue = value;
+				FskThreadPostCallback(walker->thread, gpioPollerThreadCallback, walker, NULL, NULL, NULL);
+			}
+		}
+	}
+
+	FskMemPtrDispose(fds);
+}
+
 
 #endif /* USEGPIO */

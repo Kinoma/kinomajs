@@ -17,7 +17,7 @@
 -->
 <makefile>
 	<input name="$(F_HOME)/kinoma/kpr/patches"/>
-	<input name="$(F_HOME)/xs/includes"/>
+	<input name="$(F_HOME)/xs6/includes"/>
 	<input name="$(F_HOME)/core/base"/>
 	<input name="$(F_HOME)/core/graphics"/>
 	<input name="$(F_HOME)/core/managers"/>

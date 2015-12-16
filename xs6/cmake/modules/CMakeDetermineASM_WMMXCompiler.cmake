@@ -16,12 +16,12 @@
 # determine the compiler to use for ASM using AT&T syntax, e.g. GNU as
 
 set(ASM_DIALECT "_WMMX")
-if(${PLATFORM} STREQUAL "android")
+if(ANDROID)
 	set(CMAKE_ASM${ASM_DIALECT}_COMPILER ${F_HOME}/tools/wmmx/arm-marvell-eabi-as)
 else()
-	if(${SUBPLATFORM} STREQUAL "aspen")
+	if(ASPEN OR POKY)
 		set(CMAKE_ASM${ASM_DIALECT}_COMPILER ${TOOLCHAIN_BIN}/${TOOL_PREFIX}as)
-	elseif(${SUBPLATFORM} STREQUAL "gtk")
+	elseif(GTK)
 		SET(CMAKE_ASM${ASM_DIALECT}_COMPILER ${CMAKE_ASM_COMPILER})
 	else()
 		set(CMAKE_ASM${ASM_DIALECT}_COMPILER ${TOOL_PREFIX}as)

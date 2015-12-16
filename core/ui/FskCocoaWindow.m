@@ -273,6 +273,31 @@ bail:
 	[self hideCursor];
 }
 
+- (BOOL)windowShouldClose:(id)sender
+{
+	BOOL result = YES;
+	NSWindow					*frontWindow;
+	FskWindow					fskWindow;
+	FskEvent 					fskEvent;
+	UInt32						commandID = 0;
+	
+	frontWindow = [NSApp keyWindow];
+
+	if (frontWindow)
+	{
+		fskWindow = [(FskCocoaWindow *)frontWindow fskWindow];
+
+		// send Fsk quit event
+		if (kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuCommand, NULL, kFskEventModifierNotSet))
+		{
+			FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(commandID), &commandID);
+			FskWindowEventQueue(fskWindow, fskEvent);
+			result = NO;
+		}
+	}
+    return result;
+}
+
 - (void)close
 {
 	[[NSNotificationCenter defaultCenter] removeObserver:self];

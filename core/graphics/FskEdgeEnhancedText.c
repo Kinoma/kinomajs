@@ -65,24 +65,16 @@
 #endif /*  PRAGMA_MARK_SUPPORTED */
 
 
-typedef union ColorBuddy {
-	UInt8	p1;
-	UInt16	p2;
-	UInt8	p3[3];
-	UInt32	p4;
-} ColorBuddy;
-
-
 typedef struct Span {
-	UInt32		width;
-	UInt32		xOffset;
-	SInt32		topBorder;
-	SInt32		bottomBorder;
-	SInt32		leftBorder;
-	SInt32		rightBorder;
-	ColorBuddy	edgeColor;
-	ColorBuddy	textColor;
-	SInt32		blendLevel;
+	UInt32			width;
+	UInt32			xOffset;
+	SInt32			topBorder;
+	SInt32			bottomBorder;
+	SInt32			leftBorder;
+	SInt32			rightBorder;
+	FskPixelType	edgeColor;
+	FskPixelType	textColor;
+	SInt32			blendLevel;
 } Span;
 
 typedef struct MyBounds {	SInt32	x0, y0, x1, y1;		} MyBounds;
@@ -313,22 +305,22 @@ BilevelSetSpan24(const Span *span, const UInt8 *smr, const UInt8 *src, void *vDs
 		if ((xOffset == 0)	? (smr[-1] & BIT_MASK(7))					/* ... and the previous smeared bit is set (previous byte ... */
 							: (smr[ 0] & BIT_MASK(xOffset-1))			/* ... or current byte) ... */
 		) {
-			dst[0] = span->edgeColor.p3[0];	dst[1] = span->edgeColor.p3[1];	dst[2] = span->edgeColor.p3[2];
+			dst[0] = span->edgeColor.p3.c[0];	dst[1] = span->edgeColor.p3.c[1];	dst[2] = span->edgeColor.p3.c[2];
 		}
 		dst += 3;														/* In any case, advance to the next pixel */
 	}
 
 	for (width = span->width ; width--; dst += 3) {
 		if (*smr & BIT_MASK(xOffset)) {		/* Set middle pixels to the text color if the src bit is set, or the edge color if it is not */
-			if (*src & BIT_MASK(xOffset)) {	dst[0] = span->textColor.p3[0];	dst[1] = span->textColor.p3[1];	dst[2] = span->textColor.p3[2];	}
-			else {							dst[0] = span->edgeColor.p3[0];	dst[1] = span->edgeColor.p3[1];	dst[2] = span->edgeColor.p3[2];	}
+			if (*src & BIT_MASK(xOffset)) {	dst[0] = span->textColor.p3.c[0];	dst[1] = span->textColor.p3.c[1];	dst[2] = span->textColor.p3.c[2];	}
+			else {							dst[0] = span->edgeColor.p3.c[0];	dst[1] = span->edgeColor.p3.c[1];	dst[2] = span->edgeColor.p3.c[2];	}
 		}
 		if (++xOffset == 8) {	xOffset = 0;	smr++;		src++; }	/* Advance bit counter and advance smear and text pointers if it overflows */
 	}
 
 	if (	(span->rightBorder > 0)										/* If the right edge isn't clipped ... */
 		&&	(*smr & BIT_MASK(xOffset))									/* ... and the smeared bit is set ... */
-	) {	dst[0] = span->edgeColor.p3[0];	dst[1] = span->edgeColor.p3[1];	dst[2] = span->edgeColor.p3[2];	}
+	) {	dst[0] = span->edgeColor.p3.c[0];	dst[1] = span->edgeColor.p3.c[1];	dst[2] = span->edgeColor.p3.c[2];	}
 
 }
 
@@ -460,12 +452,12 @@ FskEdgeEnhancedBilevelText(
 				span.textColor.p4 = *((const UInt32*)textColor);
 				break;
 		case 3:	setSpan = BilevelSetSpan24;								/* 24 bit color */
-				span.edgeColor.p3[0] = ((const UInt8*)edgeColor)[0];
-				span.edgeColor.p3[1] = ((const UInt8*)edgeColor)[1];
-				span.edgeColor.p3[2] = ((const UInt8*)edgeColor)[2];
-				span.textColor.p3[0] = ((const UInt8*)textColor)[0];
-				span.textColor.p3[1] = ((const UInt8*)textColor)[1];
-				span.textColor.p3[2] = ((const UInt8*)textColor)[2];
+				span.edgeColor.p3.c[0] = ((const UInt8*)edgeColor)[0];
+				span.edgeColor.p3.c[1] = ((const UInt8*)edgeColor)[1];
+				span.edgeColor.p3.c[2] = ((const UInt8*)edgeColor)[2];
+				span.textColor.p3.c[0] = ((const UInt8*)textColor)[0];
+				span.textColor.p3.c[1] = ((const UInt8*)textColor)[1];
+				span.textColor.p3.c[2] = ((const UInt8*)textColor)[2];
 				break;
 		default:
 			BAIL(kFskErrUnsupportedPixelType);
@@ -557,12 +549,13 @@ bail:
  * GrayscaleSetSpan prototype
  ********************************************************************************/
 
+
 #define MakeGrayScaleSetSpan(PixelKind)		static void																	\
 GrayscaleSetSpan##PixelKind(const Span *span, const UInt8 *smr, const UInt8 *src, void *vDst) {							\
 	UInt32	width;	UInt8	alfa, beta;																					\
 	FskName3(Fsk,PixelKind,Type)	*dst		= (FskName3(Fsk,PixelKind,Type)*)vDst,									\
-									textColor	= *((FskName3(Fsk,PixelKind,Type)*)(void*)(&span->textColor)),			\
-									edgeColor	= *((FskName3(Fsk,PixelKind,Type)*)(void*)(&span->edgeColor));			\
+									textColor	= span->textColor.FskName2(p, FskName3(fsk,PixelKind,Bytes)),			\
+									edgeColor	= span->edgeColor.FskName2(p, FskName3(fsk,PixelKind,Bytes));			\
 	if (span->leftBorder > 0) {												/* If the left edge isn't clipped ... */	\
 		beta = (UInt8)((smr[-1] * span->blendLevel) >> 8);																\
 		if (beta != 0)														/* ... and there is some edge ... */		\
@@ -726,12 +719,12 @@ FskEdgeEnhancedGrayscaleText(
 		case kFskBitmapFormat24RGB:
 			setSpan = GrayscaleSetSpan24RGB;							/* 24 bit color */
 			dstPixelBytes = 3;
-			span.edgeColor.p3[0] = ((const UInt8*)edgeColor)[0];
-			span.edgeColor.p3[1] = ((const UInt8*)edgeColor)[1];
-			span.edgeColor.p3[2] = ((const UInt8*)edgeColor)[2];
-			span.textColor.p3[0] = ((const UInt8*)textColor)[0];
-			span.textColor.p3[1] = ((const UInt8*)textColor)[1];
-			span.textColor.p3[2] = ((const UInt8*)textColor)[2];
+			span.edgeColor.p3.c[0] = ((const UInt8*)edgeColor)[0];
+			span.edgeColor.p3.c[1] = ((const UInt8*)edgeColor)[1];
+			span.edgeColor.p3.c[2] = ((const UInt8*)edgeColor)[2];
+			span.textColor.p3.c[0] = ((const UInt8*)textColor)[0];
+			span.textColor.p3.c[1] = ((const UInt8*)textColor)[1];
+			span.textColor.p3.c[2] = ((const UInt8*)textColor)[2];
 			break;
 
 		case kFskBitmapFormat32ARGB:									/* 32 bit AXXX color */
@@ -889,8 +882,8 @@ bail:
 DoubleGrayscaleSetSpan##PixelKind(const Span *span, const UInt8 *smr, const UInt8 *src, void *vDst) {					\
 	UInt32	width;	UInt8	alfa, beta;																					\
 	FskName3(Fsk,PixelKind,Type)	*dst		= (FskName3(Fsk,PixelKind,Type)*)vDst,									\
-									textColor	= *((FskName3(Fsk,PixelKind,Type)*)(void*)(&span->textColor)),			\
-									edgeColor	= *((FskName3(Fsk,PixelKind,Type)*)(void*)(&span->edgeColor));			\
+									textColor	= span->textColor.FskName2(p, FskName3(fsk,PixelKind,Bytes)),			\
+									edgeColor	= span->edgeColor.FskName2(p, FskName3(fsk,PixelKind,Bytes));			\
 	if (span->leftBorder == 2) {																						\
 		beta = (UInt8)((smr[-2] * span->blendLevel) >> 8);																\
 		if (beta != 0)														/* ... and there is some edge ... */		\
@@ -1298,12 +1291,12 @@ FskEdgeEnhancedDoubleGrayscaleText(
 		case kFskBitmapFormat24RGB:
 			setSpan = DoubleGrayscaleSetSpan24RGB;					/* 24 bit color */
 			dstPixelBytes = 3;
-			span.edgeColor.p3[0] = ((const UInt8*)edgeColor)[0];
-			span.edgeColor.p3[1] = ((const UInt8*)edgeColor)[1];
-			span.edgeColor.p3[2] = ((const UInt8*)edgeColor)[2];
-			span.textColor.p3[0] = ((const UInt8*)textColor)[0];
-			span.textColor.p3[1] = ((const UInt8*)textColor)[1];
-			span.textColor.p3[2] = ((const UInt8*)textColor)[2];
+			span.edgeColor.p3.c[0] = ((const UInt8*)edgeColor)[0];
+			span.edgeColor.p3.c[1] = ((const UInt8*)edgeColor)[1];
+			span.edgeColor.p3.c[2] = ((const UInt8*)edgeColor)[2];
+			span.textColor.p3.c[0] = ((const UInt8*)textColor)[0];
+			span.textColor.p3.c[1] = ((const UInt8*)textColor)[1];
+			span.textColor.p3.c[2] = ((const UInt8*)textColor)[2];
 			break;
 
 		case kFskBitmapFormat32ARGB:								/* 32 bit AXXX color */

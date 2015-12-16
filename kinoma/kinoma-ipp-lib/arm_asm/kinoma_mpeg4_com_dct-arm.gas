@@ -1,3 +1,4 @@
+#if (__arm__)
 @
 @     Copyright (C) 2010-2015 Marvell International Ltd.
 @     Copyright (C) 2002-2010 Kinoma, Inc.
@@ -14,7 +15,6 @@
 @     See the License for the specific language governing permissions and
 @     limitations under the License.
 @
-#if (__arm__)
 @ This file was automatically generated from
 @ /home/mkellner/fsk/kinoma/kinoma-ipp-lib/arm_asm/kinoma_mpeg4_com_dct.s
 @ on Sat, 29 Nov 2008 17:49:28 GMT

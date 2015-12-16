@@ -201,6 +201,11 @@ typedef struct FskColorSourceProcedure {
 	void					*userData;			/**< The shader-specific data. */
 } FskColorSourceProcedure;
 
+typedef struct FskColorSourceConstantRGB {
+	FskColorSource			colorSource;		/**< Type = kFskColorSourceTypeConstant. */
+	FskColorRGBRecord		color;				/**< Constant color specification. */
+} FskColorSourceConstantRGB;
+
 
 typedef union FskColorSourceUnion {
 	FskColorSource						so;
@@ -209,6 +214,7 @@ typedef union FskColorSourceUnion {
 	FskColorSourceRadialGradient		rg;
 	FskColorSourceTexture				tx;
 	FskColorSourceProcedure				pr;
+	FskColorSourceConstantRGB			rgb;
 } FskColorSourceUnion;
 
 

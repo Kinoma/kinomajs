@@ -21,40 +21,23 @@
 #include "FskEvent.h"
 #include "FskThread.h"
 
-#if defined(__FSKWINDOW_PRIV__)
-#if SUPPORT_EXTERNAL_SCREEN
-FskAPI(void) FskExtScreenHandleConnected(int identifier, FskDimension size);
-FskAPI(void) FskExtScreenHandleDisconnected(int identifier);
-FskAPI(void) FskExtScreenHandleChanged(int identifier, FskDimension newSize);
-#endif	/* SUPPORT_EXTERNAL_SCREEN */
-#endif	/* __FSKWINDOW_PRIV__ */
-
-#if defined(__FSKWINDOW_PRIV__) || SUPPORT_INSTRUMENTATION
-	// implementation headers
-	#if TARGET_OS_WIN32
+#if TARGET_OS_WIN32
+	#if defined(__FSKWINDOW_PRIV__) || SUPPORT_INSTRUMENTATION
 		#include <Windows.h>
-		#if TRY_WINCE_DD
-			#include "ddraw.h"
-		#endif /* TRY_WINCE_DD */
-	#endif /* TARGET_OS_MAC */
-#endif /* __FSKWINDOW_PRIV__ */
+	#endif
+	typedef long (*FskWindowHookProc)(HWND hwnd, UINT msg, UINT wParam, LONG lParam, void *refcon);
+#endif
 
 #ifdef __cplusplus
 extern "C" {
-#endif /* __cplusplus */
+#endif
 
 typedef struct FskWindowRecord FskWindowRecord;
 typedef struct FskWindowRecord *FskWindow;
-typedef const struct FskWindowRecord *FskConstWindow;
 
-typedef Boolean (*FskWindowEventHandler)(FskEvent event, UInt32 eventCode,
-							FskWindow window, void *refcon);
-#if TARGET_OS_WIN32
-	typedef long (*FskWindowHookProc)(HWND hwnd, UINT msg, UINT wParam, LONG lParam, void *refcon);
-#endif /* TARGET_OS_WIN32 */
+typedef Boolean (*FskWindowEventHandler)(FskEvent event, UInt32 eventCode, FskWindow window, void *refcon);
 
-#if !defined(__FSKWINDOW_PRIV__) && !SUPPORT_INSTRUMENTATION
-#else /* __FSKWINDOW_PRIV__ */
+#if defined(__FSKWINDOW_PRIV__) || SUPPORT_INSTRUMENTATION
 	#if TARGET_OS_WIN32
 		typedef struct FskWindowHookRecord FskWindowHookRecord;
 		typedef struct FskWindowHookRecord *FskWindowHook;
@@ -65,7 +48,7 @@ typedef Boolean (*FskWindowEventHandler)(FskEvent event, UInt32 eventCode,
 			UInt32							flags;
 			void							*refcon;
 		};
-	#endif /* TARGET_OS_WIN32 */
+	#endif
 
 	struct FskWindowRecord {
 		struct FskWindowRecord		*next;
@@ -111,16 +94,6 @@ typedef Boolean (*FskWindowEventHandler)(FskEvent event, UInt32 eventCode,
 		UInt32						updateSeed;
 		Boolean						ignoreDeactivate;
 
-		#if TRY_WINCE_DD
-			LPDIRECTDRAW				lpDD;
-			LPDIRECTDRAWSURFACE			lpFrontBuffer;
-			LPDIRECTDRAWSURFACE			lpBackBuffer;
-			DWORD						ddWidth;
-			DWORD						ddHeight;
-			FskRectangleRecord			previousInvalidArea;
-			Boolean						bSingleBuffer;
-		#endif /* TRY_WINCE_DD */
-
 	#elif TARGET_OS_MAC
 		#if TARGET_OS_IPHONE
 			void						*uiWindow;
@@ -144,7 +117,7 @@ typedef Boolean (*FskWindowEventHandler)(FskEvent event, UInt32 eventCode,
 		//TODO: this should be valid for all platforms except iphone?
 		FskMutex					drawPumpMutex;
 		UInt32						drawPumpCnt;	//redraw request in thread event Q
-	#endif /* TARGET_OS_ANDROID */
+	#endif
 
 		FskRectangleRecord			invalidArea;
 
@@ -181,7 +154,7 @@ typedef Boolean (*FskWindowEventHandler)(FskEvent event, UInt32 eventCode,
 		Boolean						updateSuspended;
 		Boolean						useFrameBufferUpdate;
 	};
-#endif /* __FSKWINDOW_PRIV__ */
+#endif
 
 enum {
 	kFskWindowDefault = 0,
@@ -212,19 +185,14 @@ FskAPI(FskErr) FskWindowGetSizeConstraints(FskWindow window, UInt32 *minWidth, U
 
 FskAPI(FskPort) FskWindowGetPort(FskWindow window);
 FskAPI(FskErr) FskWindowGetCursor(FskWindow window, FskPoint pt);
-#if TARGET_OS_LINUX
-	FskAPI(FskErr) FskWindowSetCursor(FskWindow window, FskPoint pt);
-#endif /* TARGET_OS_LINUX */
+FskAPI(FskErr) FskWindowMoveCursor(FskWindow window, SInt32 x, SInt32 y);
 FskAPI(FskErr) FskWindowShowCursor(FskWindow window);
 FskAPI(FskErr) FskWindowHideCursor(FskWindow window);
 FskAPI(Boolean) FskWindowCursorIsVisible(FskWindow window);
-FskAPI(FskErr) FskWindowMoveCursor(FskWindow window, SInt32 x, SInt32 y);
 
 FskAPI(void) *FskWindowGetNativeWindow(FskWindow window);
 
 FskAPI(FskWindow) FskWindowGetInd(UInt32 index, FskThread inThread);
-
-FskAPI(FskErr) FskWindowGetDPI(FskWindow window, FskPoint pt);
 
 FskAPI(FskErr) FskWindowCopyToBitmap(FskWindow window, const FskRectangle src, Boolean forExport, FskBitmap *bits);
 
@@ -238,16 +206,10 @@ FskAPI(FskErr) FskWindowCopyToBitmap(FskWindow window, const FskRectangle src, B
 	FskErr FskWindowBeginDrawing(FskWindow window, const FskRectangle bounds);
 	FskErr FskWindowEndDrawing(FskWindow window, const FskRectangle bounds);
 
-	#if TARGET_OS_ANDROID || TARGET_OS_WIN32 || TARGET_OS_MAC || (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
-		#define FskWindowScaleGet(w) ((w)->windowScale)
-		#define FskWindowUIScaleGet(w) ((w)->scale)
-		#define FskWindowRotateGet(w) ((w)->rotation)
-	#else
-		#define FskWindowScaleGet(w) (1)
-		#define FskWindowUIScaleGet(w) (1)
-		#define FskWindowRotateGet(w) (0)
-	#endif
-#endif /* __FSKWINDOW_PRIV__ */
+	#define FskWindowScaleGet(w) ((w)->windowScale)
+	#define FskWindowUIScaleGet(w) ((w)->scale)
+	#define FskWindowRotateGet(w) ((w)->rotation)
+#endif
 
 FskAPI(FskErr) FskWindowEventSend(FskWindow window, FskEvent event);
 FskAPI(FskErr) FskWindowEventQueue(FskWindow window, FskEvent event);
@@ -270,7 +232,6 @@ FskAPI(FskErr) FskWindowSetUpdates(FskWindow window, const Boolean *before, cons
 
 void FskWindowGetNextEventTime(FskThread thread, FskTime nextEventTime);
 
-
 enum {
 	kFskWindowRotationDisable = -1,
 	kFskWindowRotationEnable = -2,
@@ -287,7 +248,7 @@ FskAPI(FskErr) FskWindowSetRotation(FskWindow window, SInt32 rotation);
 		kFskWindowKeyboardModeNumeric,
 		kFskWindowKeyboardModePassword
 	};
-#endif /* TARGET_OS_ANDROID */
+#endif
 
 enum {
 	kFskCursorArrow = 0,
@@ -321,19 +282,17 @@ void FskWindowCheckUpdate(void);
 	Boolean FskWindowCheckEvents(void);
 #endif
 
-#ifdef __FSKWINDOW_PRIV__
-	#if TARGET_OS_MAC
-		#define kEventClassFsk 'FSK '
-		#define kEventFskProcessEvent 'FEVT'
-		#define kEventParamWindow 'FWIN'
+#if defined(__FSKWINDOW_PRIV__) && TARGET_OS_MAC
+	#define kEventClassFsk 'FSK '
+	#define kEventFskProcessEvent 'FEVT'
+	#define kEventParamWindow 'FWIN'
 
-        #define kEventCloseWindowEvent 			'CWIN'
-        #define kEventWakeupMainRunloopEvent	'WAKE'
+	#define kEventCloseWindowEvent 			'CWIN'
+	#define kEventWakeupMainRunloopEvent	'WAKE'
 
-        void FskWindowCocoaSizeChanged(FskWindow win);
-        void FskWindowCocoaClose(FskWindow win);
-	#endif /* TARGET_OS_MAC */
-#endif /* __FSKWINDOW_PRIV__ */
+	void FskWindowCocoaSizeChanged(FskWindow win);
+	void FskWindowCocoaClose(FskWindow win);
+#endif
 
 #if TARGET_OS_WIN32
 	enum {
@@ -342,15 +301,52 @@ void FskWindowCheckUpdate(void);
 	};
 	FskAPI(FskErr) FskWindowHookAdd(FskWindow window, FskWindowHookProc proc, UInt32 flags, void *refcon);
 	FskAPI(FskErr) FskWindowHookRemove(FskWindow window, FskWindowHookProc proc, UInt32 flags, void *refcon);
+#endif
 
-	void FskWindowBlueToothAVCRP(UInt32 opID);
-#endif /* TARGET_OS_WIN32 */
-
-#if (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
+#if TARGET_OS_KPL && SUPPORT_LINUX_GTK
 	void FskWindowGtkClose(FskWindow win);
 	void FskWindowGtkSizeChanged(FskWindow win);
 #endif
 	
+#if TARGET_OS_ANDROID
+	void WindowUpdateCallback(void *win, void *unused1, void *unused2, void *unused3);
+#endif
+
+#if SUPPORT_EXTERNAL_SCREEN
+	enum {
+		kFskExtScreenStatusRemoved = 0,
+		kFskExtScreenStatusNew,
+		kFskExtScreenStatusChanged
+	};
+
+	FskDeclarePrivateType(FskExtScreen);
+	typedef void (*FskExtScreenChangedCallback)(UInt32 status, int identifier, FskDimension size, void *param);
+
+	#if defined(__FSKWINDOW_PRIV__)
+		FskAPI(void) FskExtScreenHandleConnected(int identifier, FskDimension size);
+		FskAPI(void) FskExtScreenHandleDisconnected(int identifier);
+		FskAPI(void) FskExtScreenHandleChanged(int identifier, FskDimension newSize);
+
+		FskDeclarePrivateType(FskExtScreenNotifier)
+	#endif
+
+	#ifndef __FSKWINDOW_PRIV__
+		typedef struct FskExtScreenNotifierRecord {
+			struct FskExtScreenNotifierRecord *next;
+			FskExtScreenChangedCallback callback;
+			void *param;
+			FskThread thread;
+
+			FskInstrumentedItemDeclaration
+
+			char name[1];		// must be last
+		} FskExtScreenNotifierRecord, *FskExtScreenNotifier;
+	#endif
+
+	FskAPI(FskExtScreenNotifier) FskExtScreenAddNotifier(FskExtScreenChangedCallback callback, void *param, char *name);
+	FskAPI(void) FskExtScreenRemoveNotifier(FskExtScreenNotifier callbackRef);
+#endif
+
 #if SUPPORT_INSTRUMENTATION
 	enum {
 		kFskWindowInstrMsgDispatchEvent = kFskInstrumentedItemFirstCustomMessage,
@@ -364,42 +360,10 @@ void FskWindowCheckUpdate(void);
 		kFskWindowInstrWindowsMessage,
 		kFskWindowInstrQueueEvent
 	};
-#endif /* SUPPORT_INSTRUMENTATION*/
-
-#if TARGET_OS_ANDROID
-void WindowUpdateCallback(void *win, void *unused1, void *unused2, void *unused3);
 #endif
 
-#if SUPPORT_EXTERNAL_SCREEN
-	enum {
-		kFskExtScreenStatusRemoved = 0,
-		kFskExtScreenStatusNew,
-		kFskExtScreenStatusChanged
-	};
-
-	FskDeclarePrivateType(FskExtScreen);
-	typedef void (*FskExtScreenChangedCallback)(UInt32 status, int identifier, FskDimension size, void *param);
-
-#ifndef __FSKWINDOW_PRIV__
-	FskDeclarePrivateType(FskExtScreenNotifier)
-#else
-	typedef struct FskExtScreenNotifierRecord {
-		struct FskExtScreenNotifierRecord *next;
-		FskExtScreenChangedCallback callback;
-		void *param;
-		FskThread thread;
-
-		FskInstrumentedItemDeclaration
-
-		char name[1];		// must be last
-	} FskExtScreenNotifierRecord, *FskExtScreenNotifier;
-#endif
-
-	FskAPI(FskExtScreenNotifier) FskExtScreenAddNotifier(FskExtScreenChangedCallback callback, void *param, char *name);
-	FskAPI(void) FskExtScreenRemoveNotifier(FskExtScreenNotifier callbackRef);
-#endif	/* SUPPORT_EXTERNAL_SCREEN */
 #ifdef __cplusplus
 }
-#endif /* __cplusplus */
+#endif
 
-#endif /* __FSKWINDOW__ */
+#endif

@@ -22,7 +22,6 @@ enum {
 	XS_JSON_TOKEN_COMMA,
 	XS_JSON_TOKEN_EOF,
 	XS_JSON_TOKEN_FALSE,
-	XS_JSON_TOKEN_IDENTIFIER,
 	XS_JSON_TOKEN_INTEGER,
 	XS_JSON_TOKEN_LEFT_BRACE,
 	XS_JSON_TOKEN_LEFT_BRACKET,
@@ -41,34 +40,14 @@ typedef struct {
 
 typedef struct {
 	txSlot* reviver;
-	void* stream;
-	txGetter getter;
-	txSlot* path;
-	int character;
-
-	int line;
-	int crlf;
-	int escaped;
-	txSlot* flags;
+	txSlot* slot;
+	txString data;
+	txSize offset;
+	txSize size;
 	txInteger integer;
 	txNumber number;
 	txSlot* string;
-	txSlot* symbol;
 	txInteger token;
-
-	int line2;
-	int crlf2;
-	int escaped2;
-	txSlot* flags2;
-	txInteger integer2;
-	txNumber number2;
-	txSlot* string2;
-	txSlot* symbol2;
-	txInteger token2;
-	
-	int errorCount;
-	
-	char buffer[32 * 1024];			// must be last
 } txJSONParser;
 
 typedef struct {
@@ -82,9 +61,6 @@ typedef struct {
 } txJSONSerializer;
 
 static void fx_JSON_parse(txMachine* the);
-static void fxGetNextJSONCharacter(txMachine* the, txJSONParser* theParser);
-static void fxGetNextJSONKeyword(txMachine* the, txJSONParser* theParser);
-static void fxGetNextJSONNumber(txMachine* the, txJSONParser* theParser, int parseDot);
 static void fxGetNextJSONToken(txMachine* the, txJSONParser* theParser);
 static void fxParseJSON(txMachine* the, txJSONParser* theParser);
 static void fxParseJSONValue(txMachine* the, txJSONParser* theParser);
@@ -102,13 +78,6 @@ static void fxSerializeJSONNumber(txMachine* the, txJSONSerializer* theSerialize
 static void fxSerializeJSONOwnProperty(txMachine* the, txSlot* theContext, txInteger theID, txSlot* theProperty);
 static void fxSerializeJSONProperty(txMachine* the, txJSONSerializer* theSerializer, txInteger* theFlag);
 static void fxSerializeJSONString(txMachine* the, txJSONSerializer* theStream, txString theString);
-
-#define XS_JSON_KEYWORD_COUNT 3
-static const txJSONKeyword gxJSONKeywords[XS_JSON_KEYWORD_COUNT] = {
-	{ "false", XS_JSON_TOKEN_FALSE },
-	{ "null", XS_JSON_TOKEN_NULL },
-	{ "true", XS_JSON_TOKEN_TRUE }
-};
 
 void fxBuildJSON(txMachine* the)
 {
@@ -135,8 +104,6 @@ void fx_JSON_parse(txMachine* the)
 {
 	volatile txJSONParser* aParser = C_NULL;
 	txSlot* slot;
-	txStringCStream aCStream;
-	txStringStream aStream;
 
 	mxTry(the) {
 		if (mxArgc < 1)
@@ -144,7 +111,7 @@ void fx_JSON_parse(txMachine* the)
 		aParser = c_malloc(sizeof(txJSONParser));
 		if (NULL == aParser)
 			mxUnknownError("out of memory");
-		c_memset((txJSONParser*)aParser, 0, sizeof(txJSONParser) - sizeof(aParser->buffer));
+		c_memset((txJSONParser*)aParser, 0, sizeof(txJSONParser));
 		if (mxArgc > 1) {
 			slot = mxArgv(1);
 			if (slot->kind == XS_REFERENCE_KIND) {
@@ -159,23 +126,19 @@ void fx_JSON_parse(txMachine* the)
 			if (slot->flag & XS_VALUE_FLAG) {
 				slot = slot->next;
 				if (slot->kind == XS_HOST_KIND) {
-					aCStream.buffer = slot->value.host.data;
+					aParser->data = slot->value.host.data;
+					aParser->offset = 0;
 					mxPushSlot(mxArgv(0));
 					fxGetID(the, mxID(_length));
-					aCStream.size = fxToInteger(the, the->stack++);
-					aCStream.offset = 0;
-					aParser->stream = &aCStream;
-					aParser->getter = fxStringCGetter;
+					aParser->size = fxToInteger(the, the->stack++);
 				}
 			}
 		}
-		if (!aParser->stream) {
+		if (!aParser->data) {
 			fxToString(the, mxArgv(0));
-			aStream.slot = mxArgv(0);
-			aStream.size = c_strlen(aStream.slot->value.string);
-			aStream.offset = 0;
-			aParser->stream = &aStream;
-			aParser->getter = fxStringGetter;
+			aParser->slot = mxArgv(0);
+			aParser->offset = 0;
+			aParser->size = c_strlen(aParser->slot->value.string);
 		}
 		fxParseJSON(the, (txJSONParser*)aParser);
 		mxPullSlot(mxResult);
@@ -189,207 +152,43 @@ void fx_JSON_parse(txMachine* the)
 	}
 }
 
-void fxGetNextJSONCharacter(txMachine* the, txJSONParser* theParser)
-{
-	txU4 aResult;
-	const txUTF8Sequence *aSequence = NULL;
-	txInteger aSize;
-
-	aResult = (txU4)(*(theParser->getter))(theParser->stream);
-	if (aResult & 0x80) {  // According to UTF-8, aResult should be 1xxx xxxx when it is not a ASCII
-	if (aResult != (txU4)C_EOF) {
-		for (aSequence = gxUTF8Sequences; aSequence->size; aSequence++) {
-			if ((aResult & aSequence->cmask) == aSequence->cval)
-				break;
-		}
-		if (aSequence->size == 0) {
-			mxSyntaxError("invalid UTF-8 character %d", aResult);
-			aResult = C_EOF;
-		}
-		else {
-			aSize = aSequence->size - 1;
-			while (aSize) {
-				aSize--;
-				aResult = (aResult << 6) | ((*(theParser->getter))(theParser->stream) & 0x3F);
-			}
-			aResult &= aSequence->lmask;
-		}
-	}
-	}
-	theParser->character = aResult;
-#ifdef mxColor
-	theParser->offset += theParser->size;
-	if (aSequence)
-		theParser->size = aSequence->size;
-	else
-		theParser->size = (aResult != C_EOF)? 1 : 0 /* C_EOF */;
-#endif
-}
-
-void fxGetNextJSONKeyword(txMachine* the, txJSONParser* theParser)
-{
-	int low, high, anIndex, aDelta;
-	
-	for (low = 0, high = XS_JSON_KEYWORD_COUNT; high > low;
-			(aDelta < 0) ? (low = anIndex + 1) : (high = anIndex)) {
-		anIndex = low + ((high - low) / 2);
-		aDelta = c_strcmp(gxJSONKeywords[anIndex].text, theParser->buffer);
-		if (aDelta == 0) {
-			theParser->token2 = gxJSONKeywords[anIndex].token;
-			return;
-		}
-	}
-	theParser->symbol2 = fxNewNameC(the, theParser->buffer);
-	theParser->token2 = XS_JSON_TOKEN_IDENTIFIER;
-}
-
-void fxGetNextJSONNumber(txMachine* the, txJSONParser* theParser, int parseDot)
-{
-	txNumber aNumber;
-	txString p = theParser->buffer;
-	if (theParser->character == '-') {
-		*p++ = theParser->character;
-		fxGetNextJSONCharacter(the, theParser);
-	}
-	if (!parseDot)
-		*p++ = '.';
-	while (('0' <= theParser->character) && (theParser->character <= '9')) {
-		*p++ = theParser->character;
-		fxGetNextJSONCharacter(the, theParser);
-	}
-	if (parseDot) {
-		if (theParser->character == '.') {
-			*p++ = theParser->character;
-			fxGetNextJSONCharacter(the, theParser);
-			while (('0' <= theParser->character) && (theParser->character <= '9')) {
-				*p++ = theParser->character;
-				fxGetNextJSONCharacter(the, theParser);
-			}
-		}
-		else
-			*p++ = '.';
-	}
-	if ((theParser->character == 'e') || (theParser->character == 'E')) {
-		*p++ = '0';
-		*p++ = theParser->character;
-		fxGetNextJSONCharacter(the, theParser);
-		if ((theParser->character == '+') || (theParser->character == '-')) {
-			*p++ = theParser->character;
-			fxGetNextJSONCharacter(the, theParser);
-		}
-		while (('0' <= theParser->character) && (theParser->character <= '9')) {
-			*p++ = theParser->character;
-			fxGetNextJSONCharacter(the, theParser);
-		}
-	}
-	*p++ = 0;
-	theParser->number2 = fxStringToNumber(the->dtoa, theParser->buffer, 1);
-	theParser->integer2 = (txInteger)theParser->number2;
-	aNumber = theParser->integer2;
-	if (theParser->number2 == aNumber)
-		theParser->token2 = XS_JSON_TOKEN_INTEGER;
-	else
-		theParser->token2 = XS_JSON_TOKEN_NUMBER;
-}
-
 void fxGetNextJSONToken(txMachine* the, txJSONParser* theParser)
 {
-	int c;
 	txString p;
 	txString q;
 	txString r;
 	txString s;
-	txU4 t = 0;
-	txNumber aNumber;
+	char c;
+	txInteger i;
+	txBoolean escaped;
+	txNumber number;
+	txU4 size;
+	txU4 value;
+	const txUTF8Sequence* sequence;
+	txString string;
 
-	theParser->line = theParser->line2;
-
-	theParser->crlf = theParser->crlf2;
-	theParser->escaped = theParser->escaped2;
-	theParser->flags->value.string = theParser->flags2->value.string;
-	theParser->integer = theParser->integer2;
-	theParser->number = theParser->number2;
-	theParser->string->value.string = theParser->string2->value.string;
-	theParser->symbol = theParser->symbol2;
-	theParser->token = theParser->token2;
-	
-	theParser->crlf2 = 0;
-	theParser->escaped2 = 0;
-	theParser->flags2->value.string = mxEmptyString.value.string;
-	theParser->integer2 = 0;
-	theParser->number2 = 0;
-	theParser->string2->value.string = mxEmptyString.value.string;
-	theParser->symbol2 = C_NULL;
-	theParser->token2 = XS_NO_JSON_TOKEN;
-	while (theParser->token2 == XS_NO_JSON_TOKEN) {
-		switch (theParser->character) {
-		case C_EOF:
-			theParser->token2 = XS_JSON_TOKEN_EOF;
+	theParser->integer = 0;
+	theParser->number = 0;
+	theParser->string->value.string = mxEmptyString.value.string;
+	theParser->token = XS_NO_JSON_TOKEN;
+	r = (theParser->data) ? theParser->data : theParser->slot->value.string;
+	p = r + theParser->offset;
+	q = r + theParser->size;
+	c = (p < q) ? *p : 0;
+	while (theParser->token == XS_NO_JSON_TOKEN) {
+		switch (c) {
+		case 0:
+			theParser->token = XS_JSON_TOKEN_EOF;
 			break;
-		case 10:	
-			theParser->line2++;
-			fxGetNextJSONCharacter(the, theParser);
-			theParser->crlf2 = 1;
-			break;
-		case 13:	
-			theParser->line2++;
-			fxGetNextJSONCharacter(the, theParser);
-			if (theParser->character == 10)
-				fxGetNextJSONCharacter(the, theParser);
-			theParser->crlf2 = 1;
-			break;
-			
+		case '\n':	
+		case '\r':	
 		case '\t':
 		case ' ':
-			fxGetNextJSONCharacter(the, theParser);
+			c = (++p < q) ? *p : 0;
 			break;
 			
+		case '-':
 		case '0':
-			fxGetNextJSONCharacter(the, theParser);
-			c = theParser->character;
-			if (c == '.') {
-				fxGetNextJSONCharacter(the, theParser);
-				c = theParser->character;
-				if ((('0' <= c) && (c <= '9')) || (c == 'e') || (c == 'E'))
-					fxGetNextJSONNumber(the, theParser, 0);
-				else {
-					theParser->number2 = 0;
-					theParser->token2 = XS_JSON_TOKEN_NUMBER;
-				}
-			}
-			else if ((c == 'e') || (c == 'E')) {
-				fxGetNextJSONNumber(the, theParser, 0);
-			}
-			else if ((c == 'x') || (c == 'X')) {
-				p = theParser->buffer;
-				*p++ = '0';
-				*p++ = 'x';
-				for (;;) {
-					fxGetNextJSONCharacter(the, theParser);
-					c = theParser->character;
-					if (('0' <= c) && (c <= '9'))
-						*p++ = c;
-					else if (('A' <= c) && (c <= 'Z'))
-						*p++ = c;
-					else if (('a' <= c) && (c <= 'z'))
-						*p++ = c;
-					else
-						break;
-				}
-				*p = 0;
-				theParser->number2 = fxStringToNumber(the->dtoa, theParser->buffer, 1);
-				theParser->integer2 = (txInteger)theParser->number2;
-				aNumber = theParser->integer2;
-				if (theParser->number2 == aNumber)
-					theParser->token2 = XS_JSON_TOKEN_INTEGER;
-				else
-					theParser->token2 = XS_JSON_TOKEN_NUMBER;
-			}
-			else {
-				theParser->integer2 = 0;
-				theParser->token2 = XS_JSON_TOKEN_INTEGER;
-			}
-			break;
 		case '1':
 		case '2':
 		case '3':
@@ -399,193 +198,225 @@ void fxGetNextJSONToken(txMachine* the, txJSONParser* theParser)
 		case '7':
 		case '8':
 		case '9':
-		case '-':	
-			fxGetNextJSONNumber(the, theParser, 1);
+			s = p;
+			if (c == '-')
+				c = (++p < q) ? *p : 0;
+			if (('0' <= c) && (c <= '9')) {
+				if (c == '0') {
+					c = (++p < q) ? *p : 0;
+				}
+				else {
+					c = (++p < q) ? *p : 0;
+					while (('0' <= c) && (c <= '9')) {
+						c = (++p < q) ? *p : 0;
+					}
+				}
+				if (c == '.') {
+					c = (++p < q) ? *p : 0;
+					if (('0' <= c) && (c <= '9')) {
+						c = (++p < q) ? *p : 0;
+						while (('0' <= c) && (c <= '9')) {
+							c = (++p < q) ? *p : 0;
+						}
+					}
+					else
+						mxSyntaxError("invalid character in number");
+				}
+				if ((c == 'e') || (c == 'E')) {
+					c = (++p < q) ? *p : 0;
+					if ((c== '+') || (c == '-')) {
+						c = (++p < q) ? *p : 0;
+					}
+					if (('0' <= c) && (c <= '9')) {
+						c = (++p < q) ? *p : 0;
+						while (('0' <= c) && (c <= '9')) {
+							c = (++p < q) ? *p : 0;
+						}
+					}
+					else
+						mxSyntaxError("invalid character in number");
+				}
+				size = p - s;
+				if ((size + 1) > sizeof(the->nameBuffer))
+					mxSyntaxError("number overflow");
+				c_memcpy(the->nameBuffer, s, size);
+				the->nameBuffer[size] = 0;
+				theParser->number = fxStringToNumber(the->dtoa, the->nameBuffer, 0);
+				theParser->integer = (txInteger)theParser->number;
+				number = theParser->integer;
+				if (theParser->number == number)
+					theParser->token = XS_JSON_TOKEN_INTEGER;
+				else
+					theParser->token = XS_JSON_TOKEN_NUMBER;
+			}
+			else
+				mxSyntaxError("invalid character in number");
 			break;
 		case ',':
-			theParser->token2 = XS_JSON_TOKEN_COMMA;
-			fxGetNextJSONCharacter(the, theParser);
+			p++;
+			theParser->token = XS_JSON_TOKEN_COMMA;
 			break;	
 		case ':':
-			theParser->token2 = XS_JSON_TOKEN_COLON;
-			fxGetNextJSONCharacter(the, theParser);
+			p++;
+			theParser->token = XS_JSON_TOKEN_COLON;
 			break;	
 		case '[':
-			theParser->token2 = XS_JSON_TOKEN_LEFT_BRACKET;
-			fxGetNextJSONCharacter(the, theParser);
+			p++;
+			theParser->token = XS_JSON_TOKEN_LEFT_BRACKET;
 			break;	
 		case ']':
-			theParser->token2 = XS_JSON_TOKEN_RIGHT_BRACKET;
-			fxGetNextJSONCharacter(the, theParser);
+			p++;
+			theParser->token = XS_JSON_TOKEN_RIGHT_BRACKET;
 			break;	
 		case '{':
-			theParser->token2 = XS_JSON_TOKEN_LEFT_BRACE;
-			fxGetNextJSONCharacter(the, theParser);
+			p++;
+			theParser->token = XS_JSON_TOKEN_LEFT_BRACE;
 			break;	
 		case '}':
-			theParser->token2 = XS_JSON_TOKEN_RIGHT_BRACE;
-			fxGetNextJSONCharacter(the, theParser);
+			p++;
+			theParser->token = XS_JSON_TOKEN_RIGHT_BRACE;
 			break;	
 		case '"':
-			p = theParser->buffer;
-			q = p + sizeof(theParser->buffer) - 1;
-			r = C_NULL;
-			fxGetNextJSONCharacter(the, theParser);
+			c = (++p < q) ? *p : 0;
+			s = p;
+			escaped = 0;
+			size = 0;
 			for (;;) {
-				if (theParser->character == C_EOF) {
-					mxSyntaxError("end of file in string");			
+				if ((0 <= c) && (c < 32)) {
+					mxSyntaxError("invalid character in string");				
 					break;
 				}
-				else if ((theParser->character == 10) || (theParser->character == 13)) {
-					mxSyntaxError("end of line in string");			
+				else if (c == '"') {
 					break;
 				}
-				else if ((0 <= theParser->character) && (theParser->character < 32)) {
-					mxSyntaxError("invalid character in string");			
-					break;
-				}
-				else if (theParser->character == '"') {
-					fxGetNextJSONCharacter(the, theParser);
-					break;
-				}
-				else if (theParser->character == '"') {
-					fxGetNextJSONCharacter(the, theParser);
-					break;
-				}
-				else if (theParser->character == '\\') {
-					theParser->escaped2 = 1;
-					r = C_NULL;
-					fxGetNextJSONCharacter(the, theParser);
-					switch (theParser->character) {
-					case 10:
-						theParser->line2++;
-						fxGetNextJSONCharacter(the, theParser);
-						break;
-					case 13:
-						theParser->line2++;
-						fxGetNextJSONCharacter(the, theParser);
-						if (theParser->character == 10)
-							fxGetNextJSONCharacter(the, theParser);
-						break;
-					case '\'':
-						if (p < q) *p++ = '\'';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
+				else if (c == '\\') {
+					escaped = 1;
+					c = (++p < q) ? *p : 0;
+					switch (c) {
 					case '"':
-						if (p < q) *p++ = '"';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
 					case '\\':
-						if (p < q) *p++ = '\\';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
-					case '0':
-						if (p < q) *p++ = 0;
-						fxGetNextJSONCharacter(the, theParser);
-						break;
 					case 'b':
-						if (p < q) *p++ = '\b';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
 					case 'f':
-						if (p < q) *p++ = '\f';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
 					case 'n':
-						if (p < q) *p++ = '\n';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
 					case 'r':
-						if (p < q) *p++ = '\r';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
 					case 't':
-						if (p < q) *p++ = '\t';
-						fxGetNextJSONCharacter(the, theParser);
+						size++;
+						c = (++p < q) ? *p : 0;
 						break;
 					case 'u':
-						r = p;
-						t = 5;
-						if (p < q) *p++ = 'u';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
-					case 'v':
-						if (p < q) *p++ = '\v';
-						fxGetNextJSONCharacter(the, theParser);
-						break;
-					case 'x':
-						r = p;
-						t = 3;
-						if (p < q) *p++ = 'x';
-						fxGetNextJSONCharacter(the, theParser);
+						value = 0;
+						for (i = 0; i < 4; i++) {
+							c = (++p < q) ? *p : 0;
+							if (('0' <= c) && (c <= '9'))
+								value = (value * 16) + (c - '0');
+							else if (('a' <= c) && (c <= 'f'))
+								value = (value * 16) + (10 + c - 'a');
+							else if (('A' <= c) && (c <= 'F'))
+								value = (value * 16) + (10 + c - 'A');
+							else
+								mxSyntaxError("invalid character in string");
+						}
+						// surrogate pair?
+						for (sequence = gxUTF8Sequences; sequence->size; sequence++)
+							if (value <= sequence->lmask)
+								break;
+						size += sequence->size;
+						c = (++p < q) ? *p : 0;
 						break;
 					default:
-						p = (txString)fsX2UTF8(theParser->character, (txU1*)p, q - p);
-						fxGetNextJSONCharacter(the, theParser);
+						mxSyntaxError("invalid character in string");
 						break;
 					}
 				}
 				else {
-					p = (txString)fsX2UTF8(theParser->character, (txU1*)p, q - p);
-					if (r) {
-						if ((txU4)(p - r) > t)
-							r = C_NULL;
-						else if (((txU4)(p - r) == t) && (p < q)) {
-							*p = 0;
-							t = c_strtoul(r + 1, &s, 16);
-							if (!*s)
-								p = (txString)fsX2UTF8(t, (txU1*)r, q - r);
-							r = C_NULL;
+					size++;
+					c = (++p < q) ? *p : 0;
+				}
+			}
+			{
+				txSize after = p - r;
+				txSize before = s - r;
+				string = theParser->string->value.string = (txString)fxNewChunk(the, size + 1);
+				r = (theParser->data) ? theParser->data : theParser->slot->value.string;
+				p = r + after;
+				q = r + theParser->size;
+				s = r + before;
+			}
+			if (escaped) {
+				p = s;
+				c = *p;
+				for (;;) {
+					if (c == '"') {
+						break;
+					}
+					else if (c == '\\') {
+						p++; c = *p;
+						switch (c) {
+						case '"':
+						case 'b':
+						case 'f':
+						case 'n':
+						case 'r':
+						case 't':
+							*string++ = c;
+							p++; c = *p;
+							break;
+						case 'u':
+							value = 0;
+							for (i = 0; i < 4; i++) {
+								p++; c = *p;
+								if (('0' <= c) && (c <= '9'))
+									value = (value * 16) + (c - '0');
+								else if (('a' <= c) && (c <= 'f'))
+									value = (value * 16) + (10 + c - 'a');
+								else
+									value = (value * 16) + (10 + c - 'A');
+							}
+							// surrogate pair?
+							string = (txString)fsX2UTF8(value, (txU1*)string, size);
+							p++; c = *p;
+							break;
 						}
 					}
-					fxGetNextJSONCharacter(the, theParser);
-				}
-			}
-			*p = 0;
-			if (p == q)
-				mxSyntaxError("string overflow");			
-			fxCopyStringC(the, theParser->string2, theParser->buffer);
-			theParser->token2 = XS_JSON_TOKEN_STRING;
-			break;
-		default:
-			if (fxIsIdentifierFirst(theParser->character)) {
-				p = theParser->buffer;
-				q = p + sizeof(theParser->buffer) - 1;
-				for (;;) {
-					if (p == q) {
-						mxSyntaxError("identifier overflow");			
-						break;
+					else {
+						*string++ = c;
+						p++; c = *p;
 					}
-					*p++ = theParser->character;
-					fxGetNextJSONCharacter(the, theParser);
-					if (!fxIsIdentifierNext(theParser->character))
-						break;
 				}
-				*p = 0;
-				fxGetNextJSONKeyword(the, theParser);
+				*string = 0;
 			}
 			else {
-				mxSyntaxError("invalid character %d", theParser->character);
-				fxGetNextJSONCharacter(the, theParser);
+				c_memcpy(string, s, size);
+				string[size] = 0;
 			}
+			p++;
+			theParser->token = XS_JSON_TOKEN_STRING;
+			break;
+		default:
+			if ((q - p >= 5) && (!c_strncmp(p, "false", 5))) {
+				p += 5;
+				theParser->token = XS_JSON_TOKEN_FALSE;
+			}
+			else if ((q - p >= 4) && (!c_strncmp(p, "null", 4))) {
+				p += 4;
+				theParser->token = XS_JSON_TOKEN_NULL;
+			}
+			else if ((q - p >= 4) && (!c_strncmp(p, "true", 4))) {
+				p += 4;
+				theParser->token = XS_JSON_TOKEN_TRUE;
+			}
+			else
+				mxSyntaxError("invalid character");	
 			break;
 		}
 	}
+	theParser->offset = p - r;
 }
 
 void fxParseJSON(txMachine* the, txJSONParser* theParser)
 {
-	theParser->line2 = 0;
-	mxPush(mxEmptyString);
-	theParser->flags = the->stack;
 	mxPush(mxEmptyString);
 	theParser->string = the->stack;
-	mxPush(mxEmptyString);
-	theParser->flags2 = the->stack;
-	mxPush(mxEmptyString);
-	theParser->string2 = the->stack;
-	fxGetNextJSONCharacter(the, theParser);
-	fxGetNextJSONToken(the, theParser);
 	fxGetNextJSONToken(the, theParser);
 	fxParseJSONValue(the, theParser);
 	if (theParser->token != XS_JSON_TOKEN_EOF)
@@ -654,7 +485,7 @@ void fxParseJSONObject(txMachine* the, txJSONParser* theParser)
 			the->stack++;
 		fxGetNextJSONToken(the, theParser);
 		if (theParser->token != XS_JSON_TOKEN_COLON) {
-			mxSyntaxError("%ld: missing :", theParser->line);
+			mxSyntaxError("missing :");
 			break;
 		}
 		fxGetNextJSONToken(the, theParser);

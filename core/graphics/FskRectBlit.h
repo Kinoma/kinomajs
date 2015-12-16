@@ -167,6 +167,12 @@ FskTileBitmap(
 );
 
 
+#if defined(SUPPORT_NEON) || defined(SUPPORT_WMMX)
+	void FskBlitPatch(void);
+#else
+	#define FskBlitPatch()
+#endif
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

@@ -352,7 +352,7 @@ void xs_chunk_toString(xsMachine* the)
 	static char base64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 	xsIntegerValue length = xsToInteger(xsGet(xsThis, xsID("length")));
 	txU1* src = xsGetHostData(xsThis);
-	txU1* dst;
+	char* dst;
 	txU1 byte0, byte1, byte2;
 	xsResult = xsStringBuffer(C_NULL, (((length + 2) / 3) * 4) + 1);
 	dst = xsToString(xsResult);

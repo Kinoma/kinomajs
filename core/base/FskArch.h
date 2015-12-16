@@ -37,6 +37,9 @@
 #define ANDROID_JELLY3		43
 #define ANDROID_KITKAT		44
 #define ANDROID_LOLLIPOP	50
+#define ANDROID_LOLLIPOP1	51
+#define ANDROID_LOLLIPOP2	52
+#define ANDROID_MARSHMALLOW	60 
 
 #define SUPPORT_STAGEFRIGHT(android_version)	(android_version >= ANDROID_FROYO)
 
@@ -114,6 +117,21 @@ if( modelName == NULL || osVersion == NULL || android_version == 0 )								\
         {																							\
             android_version = ANDROID_LOLLIPOP;														\
             dlog("android version detected: ANDROID_LOLLIPOP\n" );									\
+        }																							\
+        else if( ver_hi==5 && ver_lo==1  )															\
+        {																							\
+            android_version = ANDROID_LOLLIPOP1;													\
+            dlog("android version detected: ANDROID_LOLLIPOP1\n" );									\
+        }																							\
+        else if( ver_hi==5 && ver_lo==2  )															\
+        {																							\
+            android_version = ANDROID_LOLLIPOP2;													\
+            dlog("android version detected: ANDROID_LOLLIPOP2\n" );									\
+        }																							\
+        else if( ver_hi==6 && ver_lo==0  )															\
+        {																							\
+            android_version = ANDROID_MARSHMALLOW;													\
+            dlog("android version detected: ANDROID_MARSHMALLOW\n" );									\
         }																							\
 		else																						\
 		{																							\

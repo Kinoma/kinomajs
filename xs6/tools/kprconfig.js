@@ -57,6 +57,8 @@ class Tool extends TOOL {
 			F_HOME: this.homePath,
 		};
 
+		this.m32 = false;
+		this.m64 = false;
 		this.application = null;
 		this.binPath = null;
 		this.clean = false;
@@ -64,8 +66,11 @@ class Tool extends TOOL {
 		this.cmake = false;
 		this.cmakeGenerator = null;
 		this.cmakeGenerate = true;
+		this.cmakeFlags = [];
 		this.debug = false;
 		this.errorCount = 0;		
+		this.help = false;
+		this.helpItems = {};
 		this.ide = false;
 		this.identityName = null;
 		this.instrument = false;
@@ -86,11 +91,52 @@ class Tool extends TOOL {
 		this.slash = this.windows ? "\\" : "/";
 		
 		this.inputDirectories = null;
+
+		this.helpItems.nameMapping = {
+			"buildOptions": "Build Options",
+			"debugOptions": "Debug Options",
+			"generalOptions": "General Options",
+			"iosOptions": "iOS Options",
+			"outputOptions": "Output Options"
+		};
+
+		this.appendHelpItems("buildOptions", "-64", "64-bit build on supported platforms");
+		this.appendHelpItems("buildOptions", "-32", "32-bit build on supported platforms");
+		this.appendHelpItems("generalOptions", "-a", "application name");
+		this.appendHelpItems("outputOptions", "-b", "bin directory");
+		this.appendHelpItems("debugOptions", "-c", "debug or release configuration");
+		this.appendHelpItems("buildOptions", "-clean", "clean the current project and platform");
+		this.appendHelpItems("buildOptions", "-cleanall", "clean all projects");
+		this.appendHelpItems("iosOptions", "-csi", "code signing identity to use on iOS");
+		this.appendHelpItems("debugOptions", "-d", "debug build (same as \"-c debug\")");
+		this.appendHelpItems("buildOptions", "-g", "sets CMake generator (build tool used)");
+		this.appendHelpItems("generalOptions", "-h", "display this message");
+		this.appendHelpItems("debugOptions", "-i", "enable instrumentation");
+		this.appendHelpItems("buildOptions", "-I", "use the CMake generated IDE (sets -x)");
+		this.appendHelpItems("debugOptions", "-l", "debug memory leaks");
+		this.appendHelpItems("buildOptions", "-m", "build the application after generating the make files");
+		this.appendHelpItems("buildOptions", "-ng", "Create CMakeLists.txt but do not generate a project");
+		this.appendHelpItems("outputOptions", "-o", "output directory to place default bin and tmp directories");
+		this.appendHelpItems("generalOptions", "-p", "platform name");
+		this.appendHelpItems("iosOptions", "-pp", "provisioning profile for iOS");
+		this.appendHelpItems("outputOptions", "-t", "tmp directory");
+		this.appendHelpItems("outputOptions", "-v", "verbose");
+		this.appendHelpItems("buildOptions", "-x", "use CMake build");
+		this.appendHelpItems("debugOptions", "-X", "support xsdebug");
 		
 		var name, path;
 		var argc = argv.length;
+		if (argc == 1)
+			this.help = true;
 		for (var argi = 1; argi < argc; argi++) {
-			switch (argv[argi]) {
+			var option = argv[argi];
+			switch (option) {
+			case '-32':
+				this.m32 = true;
+				break;
+			case '-64':
+				this.m64 = true;
+				break;
 			case "-a":
 				argi++;	
 				if (argi >= argc)
@@ -135,11 +181,26 @@ class Tool extends TOOL {
 			case "-d":
 				this.debug = true;
 				break;
+			case "-D":
+				argi++;
+				if (argi >= argc)
+					throw new Error("-D: No option given!");
+				this.cmakeFlags.push(argv[argi]);
+				break;
 			case "-g":
 				argi++;
 				if (argi >= argc)
 					throw new Error("-g: no generator!");
 				this.cmakeGenerator = argv[argi];
+				break;
+			case "-h":
+				this.help = true;
+				break;
+			case "-help":
+				this.help = true;
+				break;
+			case "--help":
+				this.help = true;
 				break;
 			case "-i":
 				this.instrument = true;
@@ -227,7 +288,7 @@ class Tool extends TOOL {
 				path = this.resolveFilePath("manifest.xml");
 				if (path)
 					this.manifestPath = path;
-				else if (!this.cleanall)
+				else if (!this.cleanall && !this.help)
 					throw new Error("no manifest!");
 			}
 		}
@@ -338,8 +399,12 @@ class Tool extends TOOL {
 			manifest.resources = {};
 		if (!("separate" in manifest))
 			manifest.separate = {};
+		if (!("sources" in manifest))
+			manifest.sources = [];
 		if (!("xsdebug" in manifest))
 			manifest.xsdebug = {enabled: false};
+		if (!("xsprofile" in manifest))
+			manifest.xsprofile = {enabled: false};
 		if ("platforms" in manifest) {
 			let platforms = manifest.platforms;
 			for (let name in platforms) {
@@ -392,6 +457,7 @@ class Tool extends TOOL {
 		this.resolveProperties(manifest.extensions);
 		this.resolveProperties(manifest.resources);
 		this.resolveProperties(manifest.separate);
+		this.resolveProperties(manifest.sources);
 	}
 	filterPlatform(manifest, platform) {
 		this.filterProperties(manifest, platform, "build");
@@ -401,6 +467,16 @@ class Tool extends TOOL {
 		this.filterProperties(manifest, platform, "info");
 		this.filterProperties(manifest, platform, "resources");
 		this.filterProperties(manifest, platform, "separate");
+		this.filterArray(manifest, platform, "sources");
+		this.filterProperties(manifest, platform, "xsdebug");
+		this.filterProperties(manifest, platform, "xsprofile");
+	}
+	filterArray(manifest, platform, name) {
+		if (name in platform) {
+			let targets = manifest[name];
+			let sources = platform[name];
+			manifest[name] = targets.concat(sources);
+		}
 	}
 	filterProperties(manifest, platform, name) {
 		if (name in platform) {
@@ -523,31 +599,39 @@ class Tool extends TOOL {
 				destinationPath = parts.name;
 			else
 				destinationPath += this.slash + parts.name;
-			switch (parts.extension) {
-			case ".xml":
-				if (this.isKPR(sourcePath))
-					tree.xmlPaths.push({
-						sourcePath: sourcePath,
-						destinationPath: destinationPath,
-					});
-				else
-					tree.otherPaths.push({
-						sourcePath: sourcePath,
-						destinationPath: destinationPath + parts.extension,
-					});
-				break;
-			case ".js":
-				tree.jsPaths.push({
-					sourcePath: sourcePath,
-					destinationPath: destinationPath,
-				});
-				break;
-			default:
+			if (tree.sources.find(path => path == sourcePath)) {
 				tree.otherPaths.push({
 					sourcePath: sourcePath,
 					destinationPath: destinationPath + parts.extension,
 				});
-				break;
+			}
+			else {
+				switch (parts.extension) {
+				case ".xml":
+					if (this.isKPR(sourcePath))
+						tree.xmlPaths.push({
+							sourcePath: sourcePath,
+							destinationPath: destinationPath,
+						});
+					else
+						tree.otherPaths.push({
+							sourcePath: sourcePath,
+							destinationPath: destinationPath + parts.extension,
+						});
+					break;
+				case ".js":
+					tree.jsPaths.push({
+						sourcePath: sourcePath,
+						destinationPath: destinationPath,
+					});
+					break;
+				default:
+					tree.otherPaths.push({
+						sourcePath: sourcePath,
+						destinationPath: destinationPath + parts.extension,
+					});
+					break;
+				}
 			}
 		}
 	}
@@ -643,6 +727,10 @@ class Tool extends TOOL {
 		});
 	}
 	run() {
+		if (this.help) {
+			this.displayHelp(tool);
+			return;
+		}
 		if (this.cleanall) {
 			this.deleteDirectory(this.outputPath + this.slash + "bin");
 			this.deleteDirectory(this.outputPath + this.slash + "tmp");
@@ -667,6 +755,7 @@ class Tool extends TOOL {
 				info: {},
 				resources: {},
 				separate: {},
+				sources: [],
 			}
 			manifest.configure(this, manifestTree);
 			if (this.errorCount)
@@ -826,6 +915,31 @@ class Tool extends TOOL {
 		} else {
 			FS.deleteFile(path);
 		}
+	}
+	appendHelpItems(array, option, message) {
+		if (!this.helpItems.commands)
+			this.helpItems.commands = {};
+		if (!this.helpItems.commands[array])
+			this.helpItems.commands[array] = [];
+		this.helpItems.commands[array].push([option, message]);
+	}
+	displayHelp(tool) {
+		tool.report(`\nusage: kprconfig6 [options] [manifest]\n`);
+		for (let name in this.helpItems.nameMapping) {
+			let array = this.helpItems.commands[name];
+			if (array) {
+				tool.report(this.helpItems.nameMapping[name] + ":");
+				for (let item of array) {
+					let width = 12
+						let command = item[0];
+					for (let i = 0; i < width - item[0].length; i++)
+						command += " ";
+					command += item[1];
+					tool.report(`  ${command}`);
+				}
+			}
+		}
+		tool.report("");
 	}
 }
 

@@ -203,7 +203,7 @@ FskErr FskThreadCreate(FskThread *threadOut, FskThreadProc procedure, UInt32 fla
 
 	if (!(flags & kFskThreadFlagsTransientWorker))
 		thread->pthread = pthread;	/* thread should be still alive */
-        
+
 	pthread_attr_destroy(&attr);
 
 	BAIL_IF_ERR(err);
@@ -461,7 +461,7 @@ void FskThreadRemoveDataHandler(FskThreadDataHandler *handler) {
 			*handler = NULL;
 		}
 		else {
-			FskInstrumentedTypePrintfDebug(&gThreadTypeInstrumentation, " - RemoveDataHandler - (%x) disposing", *handler);
+			FskInstrumentedTypePrintfDebug(&gThreadTypeInstrumentation, " - RemoveDataHandler - (%p) disposing", *handler);
 			FskMemPtrDisposeAt((void **)handler);
 		}
 	}
@@ -979,7 +979,7 @@ FskErr FskThreadRunloopCycle(SInt32 msec) {
 			if (!FskListMutexIsEmpty(thread->eventQueue))
 				needsTime = true;
 	} while (needsTime);
-	
+
     // runloop
     if (needsTime)
         msec = 0;
@@ -1558,7 +1558,7 @@ void *threadProc(void *refcon)
 
 	pthread_setspecific(gThreadStructKey, thread);
 
-    if (thread->name)
+    if (thread->name[0])
         pthread_setname_np(thread->name);
 
 	FskRandomInit();		// random needs to be seeded per-thread
@@ -1616,7 +1616,7 @@ Boolean LinuxHandleThreadEvents(void) {
 void MacThreadGotSocketData() {
 	FskThread thread;
 	FskThreadDataHandler cur, next;
-	
+
 	thread = FskThreadGetCurrent();
 	cur = FskListGetNext(thread->dataHandlers, NULL);
 	while (cur) {
@@ -1933,7 +1933,7 @@ FskErr FskThreadCreateMain(FskThread *threadOut)
 	FskThread thread;
 	KplThread kplThread = NULL;
 
-	err = FskListMutexNew(&gThreads, "gThreads"); 
+	err = FskListMutexNew(&gThreads, "gThreads");
 	BAIL_IF_ERR(err);
 
 	err = FskMemPtrNewClear(sizeof(FskThreadRecord) + 4, (FskMemPtr *)&thread);
@@ -2214,7 +2214,7 @@ FskErr FskConditionTimedWait(FskCondition condition, FskMutex mutex, FskTime tim
 
 	FskMutexAcquire(mutex);
 #elif TARGET_OS_KPL
-	KplConditionTimedWait(condition->kplCond, mutex->kplMutex, timeout);
+	KplConditionTimedWait(condition->kplCond, mutex->kplMutex, (KplTime)timeout);		//@@ cast FskTime to KplTime isn't robust
 #endif
 
 	return kFskErrNone;

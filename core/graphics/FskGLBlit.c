@@ -367,15 +367,6 @@ typedef GLint GLInternalFormat;		/**< The type used for internal format in glTex
 typedef GLenum GLFormat;			/**< The type used for external format in GL. */
 typedef GLenum GLType;				/**< The type used for external type in GL. */
 
-typedef struct {
-	float x, y;
-} FskFloatPoint;
-
-typedef struct {
-	float x, y, width, height;
-} FskFloatRectangle;
-
-
 #if 0
 #pragma mark ======== FskGLPort ========
 #endif
@@ -3808,10 +3799,10 @@ FskErr FskKplGLContextInitialize() {
 	fWin = FskWindowGetActive();
 	if (NULL == fWin)
 		fWin = FskWindowGetInd(0, NULL);
-	if (NULL == fWin) {
-		err = kFskErrOutOfSequence;
-		goto bail;
-	}
+	//if (NULL == fWin) {
+		//err = kFskErrOutOfSequence;
+		//goto bail;
+	//}
 
 #if USE_FRAMEBUFFER_VECTORS
 	err = FskFrameBufferGetEGLContext((void**)&display, (void**)&surface, (void**)&context, (void**)&nativeWindow);
@@ -8500,7 +8491,7 @@ static void FskTextGetUnicodeRangeStrikeBounds(FskConstGLTypeFace typeFace, UInt
 
 	for (cp = firstCodePoint; ; cp++) {
 		UnicodeCharToUTF8(cp, encodedText, &textBytes);
-		FskTextGetBounds(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &r, typeFace->cache);
+		FskTextGetBounds(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &r, NULL, typeFace->cache);
 		if (bounds->width  < r.width)
 			bounds->width  = r.width;
 		if (bounds->height < r.height)
@@ -8534,7 +8525,7 @@ static FskErr StrikeGlyph(FskConstGLTypeFace typeFace, FskGlyphStrike strike, Fs
 
 #if !USE_GLYPH
 	UnicodeCharToUTF8(strike->codePoint, encodedText, &textBytes);
-	err = FskTextGetBounds(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &bounds, typeFace->cache);
+	err = FskTextGetBounds(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &bounds, NULL, typeFace->cache);
 #else /* USE_GLYPH */
 	err = FskTextGlyphGetBounds(typeFace->fte, NULL, &strike->codePoint, 1, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &bounds, typeFace->cache);
 	strike->xoffset = FskFixedToFloat(bounds.x);
@@ -8568,7 +8559,7 @@ static FskErr StrikeGlyph(FskConstGLTypeFace typeFace, FskGlyphStrike strike, Fs
 	err = FskTextGlyphBox(typeFace->fte, bm, &strike->codePoint, 1, &bounds, NULL, &color, 255, typeFace->textSize, typeFace->textStyle,
 					kFskTextAlignLeft, kFskTextAlignTop, typeFace->fontName, typeFace->cache);	/* Strike glyph into cell */
 #else /* !USE_GLYPH */
-	err = FskTextBox(typeFace->fte, bm, encodedText, textBytes, &bounds, NULL, &color, 255, typeFace->textSize, typeFace->textStyle,
+	err = FskTextBox(typeFace->fte, bm, encodedText, textBytes, &bounds, NULL, NULL, &color, 255, typeFace->textSize, typeFace->textStyle,
 					kFskTextAlignLeft, kFskTextAlignTop, typeFace->fontName, typeFace->cache);	/* Strike glyph into cell */
 #endif /* !USE_GLYPH */
 bail:
@@ -9229,6 +9220,8 @@ FskErr FskGLTypeFaceNew(const char *fontName, UInt32 textSize, UInt32 textStyle,
 		LOGD("GLTypeFaceNew(fontName=\"%s\" textSize=%g textStyle=$%03X fte=%p cache=%p)", fontName, FloatTextSize(textSize), (int)textStyle, fte, cache);
 	#endif /* LOG_TEXT */
 
+	BAIL_IF_ZERO(textSize, err, kFskErrSingular);
+
 	textStyle &=	kFskTextPlain			|	/* Strip off truncation bits */
 					kFskTextBold			|
 					kFskTextItalic			|
@@ -9380,7 +9373,7 @@ FskErr FskGLTypeFaceNext(FskConstGLTypeFace *pTypeFace, const char **pFontName, 
  *							The contents of these 6 locations are set to polygons of the source.
  ********************************************************************************/
 
-static void MeshAGlyph(FskConstGlyphStrike strike, const float texNorm[2], FskFloatPoint *loc, int stride, float **pxy, float **puv) {
+static void MeshAGlyph(FskConstGlyphStrike strike, const float texNorm[2], FskPointFloat loc, int stride, float **pxy, float **puv) {
 	float	x0 = (float)(loc->x),
 			x1 = (float)(loc->x + strike->width),
 			y0 = (float)(loc->y),
@@ -9435,20 +9428,20 @@ static void MeshAGlyph(FskConstGlyphStrike strike, const float texNorm[2], FskFl
  *	\return			the last X-coordinate.
  ********************************************************************************/
 
-static int TruncateTextMesh(UInt32 truncateStyle, FskGLTypeFace typeFace, FskConstRectangle dstRect,
+static int TruncateTextMesh(UInt32 truncateStyle, FskGLTypeFace typeFace, float dstWidth,
 	int stride, const float texNorm[2], UInt32 *numPtsPtr, float *xy, float *uv
 ) {
-	const int		glyphStride	= stride     * POINTS_PER_GLYPH;						/* The stride from one glyph to the next. */
-	int				numGlyphs	= *numPtsPtr / POINTS_PER_GLYPH;						/* The number of glyphs represented by this mesh */
-	float			right		= 0;
-	int				i;
-	FskGlyphStrike	strike;
-	FskFloatPoint	loc;
+	const int			glyphStride	= stride     * POINTS_PER_GLYPH;						/* The stride from one glyph to the next. */
+	int					numGlyphs	= *numPtsPtr / POINTS_PER_GLYPH;						/* The number of glyphs represented by this mesh */
+	float				right		= 0;
+	int					i;
+	FskGlyphStrike		strike;
+	FskPointFloatRecord	loc;
 
 	if (numGlyphs == 0)																	/* If there is no text ... */
 		goto bail;																		/* ... we are done */
 	right = MESHGLYPH_RIGHT(numGlyphs - 1);												/* This is the rightmost point in the mesh */
-	if (right <= dstRect->width)														/* If the string fits in the box ... */
+	if (right <= dstWidth)																/* If the string fits in the box ... */
 		goto bail;																		/* ... we are done */
 
 #if USE_GLYPH
@@ -9466,7 +9459,7 @@ static int TruncateTextMesh(UInt32 truncateStyle, FskGLTypeFace typeFace, FskCon
 #endif /* !USE_GLYPH */
 
 	if (truncateStyle & kFskTextTruncateEnd) {
-		int lastRight = (int)(MESHGLYPH_LEFT(0) + dstRect->width - strike->width);		/* There will be enough room for the ellipsis if the previous character is no further than this */
+		int lastRight = (int)(MESHGLYPH_LEFT(0) + dstWidth - strike->width);			/* There will be enough room for the ellipsis if the previous character is no further than this */
 		for (i = 0; i < numGlyphs; ++i)
 			if (MESHGLYPH_RIGHT(i) > lastRight)
 				break;
@@ -9486,11 +9479,11 @@ static int TruncateTextMesh(UInt32 truncateStyle, FskGLTypeFace typeFace, FskCon
 	else if (truncateStyle & kFskTextTruncateCenter) {
 		float	mid;
 		int		midLeft, midRight, n;
-		mid		= MESHGLYPH_LEFT(0) + (dstRect->width - strike->width) * .5f;			/* Middle of the dstRect */
+		mid		= MESHGLYPH_LEFT(0) + (dstWidth - strike->width) * .5f;					/* Middle of the dstRect */
 		for (midLeft = 0; MESHGLYPH_RIGHT(midLeft) <= mid;)								/* Find ... */
 			++midLeft;																	/* ... the ... */
 		--midLeft;																		/* ... last glyph before the ellipsis */
-		mid = right - (dstRect->width - strike->width) * .5f;							/* Half of the dstRect left of the right of the mesh */
+		mid = right - (dstWidth - strike->width) * .5f;									/* Half of the dstRect left of the right of the mesh */
 		for (midRight = numGlyphs -1; MESHGLYPH_LEFT(midRight) >= mid;)					/* Find ... */
 			--midRight;																	/* ... the ... */
 		++midRight;																		/* ... first glyph after the ellipsis */
@@ -9586,7 +9579,10 @@ static FskErr NewTextMesh(
 	UInt32				textLen,
 	FskGLTypeFace		typeFace,
 	GLTextureRecord		*glyphTexture,
-	FskConstRectangle	dstRect,
+	float				dstX,
+	float				dstY,
+	float				dstWidth,
+	float				dstHeight,
 	UInt32              textHeight,
 	int					stride,
 	UInt16				hAlign,
@@ -9599,14 +9595,14 @@ static FskErr NewTextMesh(
 	FskErr		err				= kFskErrNone;
 	float		*xy				= 0,
 				*uv				= 0;
-	UInt32				numQuads, numPts, numBytes, i;
-	FskFloatPoint		loc;
+	UInt32					numQuads, numPts, numBytes, i;
+	FskPointFloatRecord		loc;
 #if USE_GLYPH
-	FskFloatRectangle	textBounds;
+	FskRectangleFloatRecord	textBounds;
 #else
-	FskRectangleRecord	textBounds;
+	FskRectangleRecord		textBounds;
 #endif
-	float				texNorm[2];
+	float					texNorm[2];
 
 	#if USE_GLYPH
 		UInt16		*glyphs = NULL;
@@ -9682,38 +9678,40 @@ static FskErr NewTextMesh(
 	if (textHeight) {}	/* Remove unused parameter messages */
 #endif /* USE_GLYPH */
 	/* Insert an ellipsis if one of the truncate methods is requested, and the text is too wide; otherwise clip pixelwise */
-	if ((0 != (style & (kFskTextTruncateEnd | kFskTextTruncateCenter))) && ceilf(textBounds.width) > dstRect->width) {
-		loc.x  = (float)TruncateTextMesh(style, typeFace, dstRect, stride, texNorm, numPtsPtr, *xyPtr, *uvPtr);
+	if ((0 != (style & (kFskTextTruncateEnd | kFskTextTruncateCenter))) && ceilf(textBounds.width) > dstWidth) {
+		loc.x  = (float)TruncateTextMesh(style, typeFace, dstWidth, stride, texNorm, numPtsPtr, *xyPtr, *uvPtr);
 		numPts = *numPtsPtr;
 		textBounds.width = (SInt32)loc.x;
 	}
 
 	/* Determine the upper left of the text based on the specified alignment */
-	textBounds.x = dstRect->x;
-	textBounds.y = dstRect->y;
+	textBounds.x = dstX;
+	textBounds.y = dstY;
 	switch (hAlign) {
 		default:
 	#if TARGET_OS_WIN32
-		case kFskTextAlignCenter:	textBounds.x += (dstRect->width - ((textBounds.width + 1) & ~1)) >> 1;	break;
-		case kFskTextAlignRight:	textBounds.x +=  dstRect->width -   textBounds.width;					break;
+		case kFskTextAlignCenter:	textBounds.x += (dstWidth - ((textBounds.width + 1) & ~1)) >> 1;		break;
+		case kFskTextAlignRight:	textBounds.x +=  dstWidth -   textBounds.width;							break;
 		case kFskTextAlignLeft:		textBounds.x +=  0;														break;
 	#else
-		case kFskTextAlignCenter:	textBounds.x +=    (dstRect->width - textBounds.width) / 2;				break;
-		case kFskTextAlignRight:	textBounds.x +=     dstRect->width - textBounds.width;					break;
+		case kFskTextAlignCenter:	textBounds.x +=    (dstWidth - textBounds.width) / 2;					break;
+		case kFskTextAlignRight:	textBounds.x +=     dstWidth - textBounds.width;						break;
 		case kFskTextAlignLeft:		textBounds.x +=  0;														break;
 	#endif
 	}
 	switch (vAlign) {
 		default:
 		case kFskTextAlignTop:		textBounds.y +=  0;														break;
-		case kFskTextAlignCenter:	textBounds.y +=      (dstRect->height - textBounds.height) / 2;			break;
-		case kFskTextAlignBottom:	textBounds.y +=       dstRect->height - textBounds.height;				break;
+		case kFskTextAlignCenter:	textBounds.y +=      (dstHeight - textBounds.height) / 2;				break;
+		case kFskTextAlignBottom:	textBounds.y +=       dstHeight - textBounds.height;					break;
 	}
 
 	/* Translate mesh coordinates to the desired location */
 	{
 #if USE_GLYPH
-		float dx = (float)roundf(textBounds.x);		/* Move to the nearest integer to align with the native API */
+//@@jph
+//@@		float dx = (float)roundf(textBounds.x);		/* Move to the nearest integer to align with the native API */
+		float dx = textBounds.x;
 #else
 		float dx = (float)textBounds.x;
 #endif
@@ -9731,11 +9729,11 @@ static FskErr NewTextMesh(
 
 bail:
 	#if USE_GLYPH
-		if (glyphs)			FskMemPtrDispose(glyphs);
-		if (layout)			FskMemPtrDispose(layout);
+		FskMemPtrDispose(glyphs);
+		FskMemPtrDispose(layout);
 	#elif USE_LAYOUT
-		if (unicodeText)	FskMemPtrDispose(unicodeText);
-		if (layout)			FskMemPtrDispose(layout);
+		FskMemPtrDispose(unicodeText);
+		FskMemPtrDispose(layout);
 	#endif /* USE_LAYOUT */
 	PRINT_IF_ERROR(err, __LINE__, "NewTextMesh");
 	return err;
@@ -13150,6 +13148,7 @@ FskErr FskGLTextBox(
 	const char						*text,
 	UInt32							textLen,
 	FskConstRectangle				dstRect,
+	FskConstRectangleFloat			dstRectFloat,
 	FskConstRectangle				dstClip,
 	FskConstColorRGBA				color,
 	UInt32							blendLevel,
@@ -13255,7 +13254,12 @@ FskErr FskGLTextBox(
 	CHANGE_BLEND_FUNC_SEPARATE(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA, GL_ONE);
 	modeParams.blendLevel = blendLevel;
 
-	BAIL_IF_ERR(err = NewTextMesh(text, textLen, typeFace, tx, dstRect, bounds.height, TEXVERTEX_STRIDE, hAlign, vAlign, textStyle, &numPts, &xy, &uv));
+	if (dstRectFloat) {
+		BAIL_IF_ERR(err = NewTextMesh(text, textLen, typeFace, tx, dstRectFloat->x, dstRectFloat->y, dstRectFloat->width, dstRectFloat->height, bounds.height, TEXVERTEX_STRIDE, hAlign, vAlign, textStyle, &numPts, &xy, &uv));
+	}
+	else {
+		BAIL_IF_ERR(err = NewTextMesh(text, textLen, typeFace, tx, (float)dstRect->x, (float)dstRect->y, (float)dstRect->width, (float)dstRect->height, bounds.height, TEXVERTEX_STRIDE, hAlign, vAlign, textStyle, &numPts, &xy, &uv));
+	}
 
 	BAIL_IF_ZERO(numPts, err, kFskErrNothingRendered);
 	#ifdef MESH_WITH_TRIANGLES

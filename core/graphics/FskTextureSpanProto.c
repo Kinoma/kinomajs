@@ -99,7 +99,7 @@ static void FskName4(TexFillSpan,SrcPixelKind,DstPixelKind,Q0)(FskSpan *span) {
 				#else																						/* !24 -> !24 */
 					ui = (int)(UInt32)(*s);
 					FskName3(fskConvert,SrcPixelKind,DstPixelKind)(ui);
-					*((FskName3(Fsk,DstPixelKind,Type)*)(&span->fillColor)) = (FskName3(Fsk,DstPixelKind,Type))ui;
+					span->fillColor.FskName2(p, FskName3(fsk,DstPixelKind,Bytes)) = (FskName3(Fsk,DstPixelKind,Type))ui;
 				#endif
 
 			#elif FskName3(fsk,SrcPixelKind,PixelPacking) == fskPlanarPixelPacking
@@ -114,7 +114,7 @@ static void FskName4(TexFillSpan,SrcPixelKind,DstPixelKind,Q0)(FskSpan *span) {
 				s  = (const UInt8*)(td->texPixels) + cbOffset + vi * td->texRowBytes + ui;
 				cb = s[0];																					/* Fetch Cb */
 				cr = s[crOffset];																			/* Fetch Cr */
-				*((FskName3(Fsk,DstPixelKind,Type)*)(&span->fillColor)) = FskName2(FskConvertYUV420,DstPixelKind)(y, cb, cr);
+				span->fillColor.FskName2(p, FskName3(fsk,DstPixelKind,Bytes)) = FskName2(FskConvertYUV420,DstPixelKind)(y, cb, cr);
 
 			#else
 				#error Unsupported pixel packing
@@ -238,7 +238,7 @@ static void FskName4(TexFillSpan,SrcPixelKind,DstPixelKind,Q1)(FskSpan *span) {
 				#else																						/* !24, 5515, 32 -> !24 */
 					ui = FskName2(FskBilerp,SrcPixelKind)(uf, vf, s, td->texRowBytes);
 					FskName3(fskConvert,SrcPixelKind,DstPixelKind)(ui);
-					*((FskName3(Fsk,DstPixelKind,Type)*)(&span->fillColor)) = (FskName3(Fsk,DstPixelKind,Type))ui;
+					span->fillColor.FskName2(p, FskName3(fsk,DstPixelKind,Bytes)) = (FskName3(Fsk,DstPixelKind,Type))ui;
 				#endif
 
 			#elif FskName3(fsk,SrcPixelKind,PixelPacking) == fskPlanarPixelPacking
@@ -260,7 +260,7 @@ static void FskName4(TexFillSpan,SrcPixelKind,DstPixelKind,Q1)(FskSpan *span) {
 				s  = (const UInt8*)(td->texPixels) + cbOffset + vi * td->texRowBytes + ui;
 				cb  = FskBilerp8(uf, vf, s + 0,        chrRowBytes);
 				cr  = FskBilerp8(uf, vf, s + crOffset, chrRowBytes);
-				*((FskName3(Fsk,DstPixelKind,Type)*)(&span->fillColor)) = FskName2(FskConvertYUV420,DstPixelKind)(y, cb, cr);
+				span->fillColor.FskName2(p, FskName3(fsk,DstPixelKind,Bytes)) = FskName2(FskConvertYUV420,DstPixelKind)(y, cb, cr);
 
 			#else
 				#error Unsupported pixel packing

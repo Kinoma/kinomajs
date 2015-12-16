@@ -426,6 +426,7 @@ FskErr macAudioInNew(FskAudioIn audioIn)
 #else
 	AudioDeviceID deviceID = 0;
 	Float64 sampleRate;
+	char silence;
 	
 	// get the default input device
 	AudioObjectPropertyAddress addr;
@@ -434,7 +435,7 @@ FskErr macAudioInNew(FskAudioIn audioIn)
 	addr.mScope = kAudioObjectPropertyScopeGlobal;
 	addr.mElement = 0;
 	size = sizeof(AudioDeviceID);
-	err = AudioHardwareServiceGetPropertyData(kAudioObjectSystemObject, &addr, 0, NULL, &size, &deviceID);
+	err = AudioHardwareServiceGetPropertyData(kAudioObjectSystemObject, &addr, 0, &silence, &size, &deviceID);
 	if (err) return kFskErrOperationFailed;
 
 	// get its sample rate
@@ -442,7 +443,7 @@ FskErr macAudioInNew(FskAudioIn audioIn)
 	addr.mScope = kAudioObjectPropertyScopeGlobal;
 	addr.mElement = 0;
 	size = sizeof(sampleRate);
-	err = AudioHardwareServiceGetPropertyData(deviceID, &addr, 0, NULL, &size, &sampleRate);
+	err = AudioHardwareServiceGetPropertyData(deviceID, &addr, 0, &silence, &size, &sampleRate);
 	if (err) return kFskErrOperationFailed;
 #endif
 	

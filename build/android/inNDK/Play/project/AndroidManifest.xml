@@ -15,6 +15,8 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
+THIS FILE IS NO LONGER USED
+ - USE THE ONE IN kinoma/kpr/cmake/android/ndk/project
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
       package="com.kinoma.kinomaplay"
@@ -118,7 +120,7 @@
                   android:theme="@style/Theme.NoBackground"
                   android:configChanges="keyboard|keyboardHidden|navigation|orientation|locale|screenLayout|fontScale|uiMode|screenSize|smallestScreenSize"
                   android:screenOrientation="sensor"  
-				  android:windowSoftInputMode="adjustPan|stateHidden"
+				  android:windowSoftInputMode=""
 				  android:alwaysRetainTaskState="true"
                   android:launchMode="singleTask">
      			<!--  android:theme="@android:style/Theme.NoTitleBar.Fullscreen" -->

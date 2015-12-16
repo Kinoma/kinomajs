@@ -1017,7 +1017,7 @@ static Boolean sNotifyNetworkInterfacesChanged()
 
 #if SUPPORT_INSTRUMENTATION
 	FskThread thread = FskThreadGetCurrent();
-	FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "NotifyNetworkInterfacesChanged -- thread is: %x - %s", thread, thread->name);
+	FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "NotifyNetworkInterfacesChanged -- thread is: %p - %s", thread, thread->name);
 #endif /* SUPPORT_INSTRUMENTATION */
 
 	// If we fail to enumerate interfaces, assume there are no interfaces available now and
@@ -1128,7 +1128,7 @@ FskNetInterfaceNotifier FskNetInterfaceAddNotifier(FskNetInterfaceChangedCallbac
 	UInt32 nameLen = debugName ? FskStrLen(debugName) + 1 : 0;
 
 	if (kFskErrNone == FskMemPtrNewClear(sizeof(FskNetInterfaceNotifierRec) + nameLen, &notRef)) {
-		FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "NetInterfaceNotifier NEW -- %x", notRef);
+		FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "NetInterfaceNotifier NEW -- %p", notRef);
 		notRef->callback = callback;
 		notRef->param = param;
 
@@ -1148,7 +1148,7 @@ void FskNetInterfaceRemoveNotifier(FskNetInterfaceNotifier callbackRef)
 
 //	FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "NetInterfaceNotifier REMOVE -- %x", callbackRef);
 	if (NULL != callbackRef) {
-		FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "NetInterface REMOVE -- %x %s", callbackRef, callbackRef->name);
+		FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "NetInterface REMOVE -- %p %s", callbackRef, callbackRef->name);
 		FskListMutexRemove(interfaceChangeCBList, callbackRef);
 		FskInstrumentedItemDispose(callbackRef);
 		FskMemPtrDispose(callbackRef);
@@ -1161,7 +1161,7 @@ void FskNetInterfaceRemoveNotifier(FskNetInterfaceNotifier callbackRef)
 static void sFskHandleNetworkInterfacesChanged() {
 #if SUPPORT_INSTRUMENTATION
 	FskThread thread = FskThreadGetCurrent();
-	FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "Interfaces changed -- thread is: %x - %s", thread, thread->name);
+	FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "Interfaces changed -- thread is: %p - %s", thread, thread->name);
 #endif /* SUPPORT_INSTRUMENTATION */
 
 	if (sHaveNetworkInterfacesChanged()) {
@@ -1303,7 +1303,7 @@ static Boolean doFormatMessageFskNetInterfaceNotifier(FskInstrumentedType dispat
 				action = "changed";
 			else
 				action = "unknown";
-			snprintf(buffer, bufferSize, "Notify (%s) interface [%s] [%s, %ld.%d.%d.%d %ld.%d.%d.%d (%s)]",
+			snprintf(buffer, bufferSize, "Notify (%s) interface [%s] [%s, %d.%d.%d.%d %d.%d.%d.%d (%s)]",
 				data->notf->name, action, data->ifc->name,
 				intAs4Bytes(data->ifc->ip), intAs4Bytes(data->ifc->netmask), data->ifc->status ? "up" : "down");
 			return true;

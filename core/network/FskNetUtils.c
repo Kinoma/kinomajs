@@ -302,7 +302,7 @@ FskErr FskNetNotificationNew(int what, FskNetNotificationCallback callback, void
 	notify->owner = FskThreadGetCurrent();
 	notify->useCount = 1;
 	notify->disposed = false;
-	FskInstrumentedTypePrintfDebug(&gFskSocketTypeInstrumentation, "adding a notification with callback (%x) and refcon (%x)\n", callback, refcon);
+	FskInstrumentedTypePrintfDebug(&gFskSocketTypeInstrumentation, "adding a notification with callback (%p) and refcon (%p)\n", callback, refcon);
 
 	FskListMutexPrepend(sNetNotifications, notify);
 
@@ -322,7 +322,7 @@ FskErr FskNetNotificationDispose(FskNetNotificationCallback callback, void *refc
 	notify = (FskNetNotification)sNetNotifications->list;
 	while (notify) {
 		if (notify->callback == callback && notify->refcon == refcon) {
-			FskInstrumentedTypePrintfDebug(&gFskSocketTypeInstrumentation, "disposing a notification with callback (%x) and refcon (%x)\n", callback, refcon);
+			FskInstrumentedTypePrintfDebug(&gFskSocketTypeInstrumentation, "disposing a notification with callback (%p) and refcon (%p)\n", callback, refcon);
 			FskListRemove(&sNetNotifications->list, notify);
 
 			notify->disposed = true;
@@ -347,7 +347,7 @@ void FskNetNotificationNotify(int what, int message) {
 	notify = (FskNetNotification)sNetNotifications->list;
 	while (notify) {
 		if ((what == notify->what) && !notify->disposed) {
-			FskInstrumentedTypePrintfDebug(&gFskSocketTypeInstrumentation, " - posting callback what(%d) message(%d) to %d\n", what, message, notify->owner->name);
+			FskInstrumentedTypePrintfDebug(&gFskSocketTypeInstrumentation, " - posting callback what(%d) message(%d) to %s\n", what, message, notify->owner->name);
 			notify->useCount += 1;
 			FskThreadPostCallback(notify->owner, doNotifyCallback, (void *)what, (void *)message, notify, NULL);
 		}
@@ -1452,15 +1452,13 @@ FskErr FskNetSocketMulticastJoin(FskSocket skt, int multicastAddr, int interface
 }
 
 FskErr FskNetSocketMulticastLoop(FskSocket skt, char val) {
-	int err;
 #if !TARGET_OS_KPL
-	{
+	int err;
 	err = setsockopt(skt->platSkt, IPPROTO_IP, IP_MULTICAST_LOOP, (char*)&val, sizeof(val));
 	if (err == 0)
 		skt->lastErr = kFskErrNone;
 	else {
 		skt->lastErr = sConvertErrorToFskErr(skt, FskGetErrno());
-	}
 	}
 #else
 	skt->lastErr = KplSocketMulticastLoop((KplSocket)skt->platSkt, val);
@@ -1788,7 +1786,7 @@ failed:
 static void sConnectResolved(FskResolver rr) {
 	FskSocket skt = (FskSocket)rr->ref;
 
-	FskInstrumentedTypePrintfDebug(&gFskSocketTypeInstrumentation, "[%s] ConnectResolved IP: %d, err: %d (skt lastErr was %d)\n", threadTag(FskThreadGetCurrent()), rr->resolvedIP, rr->err, skt->lastErr);
+	FskInstrumentedTypePrintfDebug(&gFskSocketTypeInstrumentation, "[%s] ConnectResolved IP: %u, err: %d (skt lastErr was %d)\n", threadTag(FskThreadGetCurrent()), (unsigned)rr->resolvedIP, rr->err, skt->lastErr);
 	if (rr->err)
 		skt->lastErr = rr->err;
 	skt->ipaddrRemote = rr->resolvedIP;
@@ -2228,15 +2226,15 @@ static Boolean doFormatMessageFskSocket(FskInstrumentedType dispatch, UInt32 msg
 #endif
 			return true;
     	case kFskSocketInstrMsgTCPListen:
-			snprintf(buffer, bufferSize, "[%s] TCP Listen to %ld.%d.%d.%d:%d",
+			snprintf(buffer, bufferSize, "[%s] TCP Listen to %d.%d.%d.%d:%d",
 				skt->debugName, intAs4Bytes(skt->ipaddrLocal), skt->portLocal);
 			return true;
     	case kFskSocketInstrMsgTCPAccepting:
-			snprintf(buffer, bufferSize, "[%s] TCP Accepting on %ld.%d.%d.%d:%d",
+			snprintf(buffer, bufferSize, "[%s] TCP Accepting on %d.%d.%d.%d:%d",
 				skt->debugName, intAs4Bytes(skt->ipaddrLocal), skt->portLocal);
 			return true;
     	case kFskSocketInstrMsgTCPAccepted:
-			snprintf(buffer, bufferSize, "[%s] TCP Accepted from %ld.%d.%d.%d:%d",
+			snprintf(buffer, bufferSize, "[%s] TCP Accepted from %d.%d.%d.%d:%d",
 				skt->debugName, intAs4Bytes(skt->ipaddrRemote), skt->portRemote);
 			return true;
     	case kFskSocketInstrMsgTCPBeginConnect:
@@ -2244,7 +2242,7 @@ static Boolean doFormatMessageFskSocket(FskInstrumentedType dispatch, UInt32 msg
 				skt->debugName, skt->hostname, skt->portRemote);
 			return true;
     	case kFskSocketInstrMsgTCPConnect:
-    		snprintf(buffer, bufferSize, "[%s] attempting connect to %ld.%d.%d.%d:%d",
+    		snprintf(buffer, bufferSize, "[%s] attempting connect to %d.%d.%d.%d:%d",
 				skt->debugName, intAs4Bytes(skt->ipaddrRemote), skt->portRemote);
 			return true;
     	case kFskSocketInstrMsgTCPConnected:
@@ -2292,17 +2290,17 @@ static Boolean doFormatMessageFskSocket(FskInstrumentedType dispatch, UInt32 msg
 				misc->sktLevel, misc->sktOption, misc->val);
 			return true;
     	case kFskSocketInstrMsgBind:
-    		snprintf(buffer, bufferSize, "[%s] bind: %ld.%d.%d.%d : %d", misc->skt->debugName,
+    		snprintf(buffer, bufferSize, "[%s] bind: %d.%d.%d.%d : %d", misc->skt->debugName,
 				intAs4Bytes(misc->addr), misc->port);
 			return true;
     	case kFskSocketInstrMsgMulticastJoin:
-    		snprintf(buffer, bufferSize, "[%s] Multicast Join: addr: %ld.%d.%d.%d, interface: %ld.%d.%d.%d, ttl: %d",
+    		snprintf(buffer, bufferSize, "[%s] Multicast Join: addr: %d.%d.%d.%d, interface: %d.%d.%d.%d, ttl: %d",
 				misc->skt->debugName,
 				intAs4Bytes(misc->multicastAddr), intAs4Bytes(misc->interfaceAddr),
 				misc->ttl);
 			return true;
 		case kFskSocketInstrMsgSetOutgoingInterface:
-			snprintf(buffer, bufferSize, "[%s] Multicast SetOutgoingInterface: %ld.%d.%d.%d",
+			snprintf(buffer, bufferSize, "[%s] Multicast SetOutgoingInterface: %d.%d.%d.%d",
 				misc->skt->debugName,
 				intAs4Bytes(misc->interfaceAddr) );
 			return true;

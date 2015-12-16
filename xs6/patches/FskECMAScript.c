@@ -160,7 +160,7 @@ FskErr FskECMAScriptLoadLibrary(const char *name)
 		(kFskErrNone == FskLibraryGetSymbolAddress(library, "fskLoad", &libLoad))) {
 
 		err = (libLoad)(library);
-		FskDebugStr(" - symbolName: %x -> %d", libLoad, err);
+		FskDebugStr(" - symbolName: %p -> %d", libLoad, err);
 		if (err)
 			goto bail;
 

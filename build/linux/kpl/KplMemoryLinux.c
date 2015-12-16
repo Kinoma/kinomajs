@@ -32,9 +32,7 @@ FskInstrumentedSimpleType(KplMemory, KplMemory);
 // http://www.i-scream.org
 
 #undef USE_OVERCOMMIT_RATIO
-#if BG3CDP
-#define USE_OVERCOMMIT_RATIO 0
-#else
+#if MARVELL_SOC_PXA168
 #define USE_OVERCOMMIT_RATIO 1
 #endif
 
@@ -45,11 +43,6 @@ FskInstrumentedSimpleType(KplMemory, KplMemory);
 #undef TEST_FILL_MEMORY
 #define TEST_FILL_MEMORY 0
 
-
-#if SUPPORT_LINUX_GTK
-#undef USE_OVERCOMMIT_RATIO
-#undef USE_MEMORY_MONITOR_THREAD
-#endif
 
 // The TEST_FILL_MEMORY code can be enabled to verify that the FSK low memory callback fires.  The test allocates memory continually until the system isn't able to.
 

@@ -154,18 +154,24 @@ txSlot* fxToInstance(txMachine* the, txSlot* theSlot)
 		mxPush(mxBooleanPrototype);
 		anInstance = fxNewBooleanInstance(the);
 		anInstance->next->value.boolean = theSlot->value.boolean;
+		if (the->frame->flag & XS_STRICT_FLAG)
+			anInstance->flag |= XS_DONT_PATCH_FLAG;
 		mxPullSlot(theSlot);
 		break;
 	case XS_INTEGER_KIND:
 		mxPush(mxNumberPrototype);
 		anInstance = fxNewNumberInstance(the);
 		anInstance->next->value.number = theSlot->value.integer;
+		if (the->frame->flag & XS_STRICT_FLAG)
+			anInstance->flag |= XS_DONT_PATCH_FLAG;
 		mxPullSlot(theSlot);
 		break;
 	case XS_NUMBER_KIND:
 		mxPush(mxNumberPrototype);
 		anInstance = fxNewNumberInstance(the);
 		anInstance->next->value.number = theSlot->value.number;
+		if (the->frame->flag & XS_STRICT_FLAG)
+			anInstance->flag |= XS_DONT_PATCH_FLAG;
 		mxPullSlot(theSlot);
 		break;
 	case XS_STRING_KIND:
@@ -174,12 +180,16 @@ txSlot* fxToInstance(txMachine* the, txSlot* theSlot)
 		anInstance = fxNewStringInstance(the);
 		anInstance->next->value.string = theSlot->value.string;
 		anInstance->next->next->next->value.integer = fxUnicodeLength(theSlot->value.string);
+		if (the->frame->flag & XS_STRICT_FLAG)
+			anInstance->flag |= XS_DONT_PATCH_FLAG;
 		mxPullSlot(theSlot);
 		break;
 	case XS_SYMBOL_KIND:
 		mxPush(mxSymbolPrototype);
 		anInstance = fxNewSymbolInstance(the);
 		anInstance->next->value.ID = theSlot->value.ID;
+		if (the->frame->flag & XS_STRICT_FLAG)
+			anInstance->flag |= XS_DONT_PATCH_FLAG;
 		mxPullSlot(theSlot);
 		break;
 	case XS_REFERENCE_KIND:
@@ -250,7 +260,7 @@ void fxConstructObject(txMachine* the, txSlot* instance, txSlot* arguments, txSl
 	if (fxIsBaseFunctionInstance(the, instance))
 		fxCreateInstance(the, target->value.reference);
 	else
-		mxPushUnitialized();
+		mxPushUninitialized();
 	/* FUNCTION */
 	mxPushReference(instance);
 	/* TARGET */
@@ -380,35 +390,31 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id,
 			property->flag |= XS_DONT_ENUM_FLAG;
 	}
 	if (get || set) {
-		if (property->kind != XS_ACCESSOR_KIND) {
-			property->kind = XS_ACCESSOR_KIND;
-			property->value.accessor.getter = C_NULL;
-			property->value.accessor.setter = C_NULL;
-		}
+		property->kind = XS_ACCESSOR_KIND;
+		property->value.accessor.getter = C_NULL;
+		property->value.accessor.setter = C_NULL;
 		if (get) {
 			property->value.accessor.getter = getFunction;
 			if (mxIsFunction(getFunction)) {
-				value = mxFunctionInstanceInfo(getFunction);
-				if (value->value.info.name == mxID(_get))
-					value->value.info.name = (txID)id; // @@ get id
 				value = mxFunctionInstanceHome(getFunction);
 				if (value->kind == XS_NULL_KIND) {
 					value->kind = XS_REFERENCE_KIND;
 					value->value.reference = instance;
 				}
+				value = fxGetProperty(the, getFunction, mxID(_name));
+				fxRenameFunction(the, value, id, "get", "get ");
 			}
 		}
 		if (set) {
 			property->value.accessor.setter = setFunction;
 			if (mxIsFunction(setFunction)) {
-				value = mxFunctionInstanceInfo(setFunction);
-				if (value->value.info.name == mxID(_set))
-					value->value.info.name = (txID)id; // @@ set id
 				value = mxFunctionInstanceHome(setFunction);
 				if (value->kind == XS_NULL_KIND) {
 					value->kind = XS_REFERENCE_KIND;
 					value->value.reference = instance;
 				}
+				value = fxGetProperty(the, setFunction, mxID(_name));
+				fxRenameFunction(the, value, id, "set", "set ");
 			}
 		}
 	}
@@ -425,14 +431,13 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id,
 			if (value->kind == XS_REFERENCE_KIND) {
 				value = value->value.reference;
 				if (mxIsFunction(value)) {
-					property = mxFunctionInstanceInfo(value);
-					if (property->value.info.name == mxID(_value))
-						property->value.info.name = (txID)id;
 					property = mxFunctionInstanceHome(value);
 					if (property->kind == XS_NULL_KIND) {
 						property->kind = XS_REFERENCE_KIND;
 						property->value.reference = instance;
 					}
+					property = fxGetProperty(the, value, mxID(_name));
+					fxRenameFunction(the, property, id, "value", C_NULL);
 				}
 			}
 		}
@@ -526,7 +531,8 @@ void fxEnumerateObject(txMachine* the, txSlot* instance)
 	txSlot aContext;
 	txSlot* slot;
 
-	mxPushSlot(mxFunctionInstancePrototype(mxEnumeratorFunction.value.reference));
+	mxPush(mxEnumeratorFunction);
+	fxGetID(the, mxID(_prototype));
 	iterator = fxNewObjectInstance(the);
 	mxPush(mxObjectPrototype);
 	result = fxNewObjectInstance(the);
@@ -610,18 +616,6 @@ txSlot* fxGetObjectOwnProperty(txMachine* the, txSlot* instance, txInteger id)
 		case XS_CALLBACK_KIND:
 		case XS_CODE_KIND:
 		case XS_CODE_X_KIND:
-			if (id == mxID(_length)) {
-				mxPushReference(instance);
-				fxGetID(the, id);
-				the->stack->flag = XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
-				return the->stack;
-			}
-			if (id == mxID(_name)) {
-				mxPushReference(instance);
-				fxGetID(the, id);
-				the->stack->flag = XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
-				return the->stack;
-			}
 			if (id == mxID(_prototype)) {
 				mxPushReference(instance);
 				fxGetID(the, id);
@@ -659,12 +653,20 @@ void fxPreventObjectExtensions(txMachine* the, txSlot* instance)
 	instance->flag |= XS_DONT_PATCH_FLAG;
 }
 
-void fxSetObjectPrototype(txMachine* the, txSlot* instance, txSlot* prototype)
+void fxSetObjectPrototype(txMachine* the, txSlot* instance, txSlot* slot)
 {
-	if (prototype->kind == XS_NULL_KIND)
-		instance->value.instance.prototype = C_NULL;
-	else
-		instance->value.instance.prototype = prototype->value.reference;
+	txSlot* prototype = (slot->kind == XS_NULL_KIND) ? C_NULL : slot->value.reference;
+	if (instance->value.instance.prototype != slot) {
+		if (instance->flag & XS_DONT_PATCH_FLAG)
+			mxTypeError("not extensible");
+		slot = prototype;
+		while (slot) {
+			if (instance == slot) 
+				mxTypeError("no cycle");
+			slot = slot->value.instance.prototype;
+		}
+		instance->value.instance.prototype = prototype;
+	}
 }
 
 void fxStepObjectProperty(txMachine* the, txSlot* target, txFlag flag, txStep step, txSlot* context, txInteger id, txSlot* property)

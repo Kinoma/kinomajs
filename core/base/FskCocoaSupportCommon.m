@@ -1142,43 +1142,47 @@ void FskCocoaTextFormatCacheDispose(void *state, FskTextFormatCache cache)
 
 void FskCocoaTextGetFontList(void *state, char **fontList)
 {
-	CTFontCollectionRef collection = NULL;
-	CFArrayRef colArray = NULL;
-	CFIndex colCount;
-	CTFontDescriptorRef fontDesc;
-	NSString *fontName;
-	char *fontNameString;
-	UInt32	fontNameStringLength, fontListLength = 0;
-	CFIndex i;
-	FskErr err;
+	CFArrayRef	famArray = NULL;
+	CFIndex		famCount, famStrLen, i, listLength;
+	CFRange		range;
+	CFStringRef	famName;
+	FskErr		err;
+	UInt8		*s;
 
 	if (fontList == NULL) return;
+
 	*fontList = NULL;
+	#if !TARGET_OS_IPHONE
+		famArray = CTFontManagerCopyAvailableFontFamilyNames();
+	#else /* TARGET_OS_IPHONE */
+		famArray = (CFArrayRef)[[UIFont familyNames] retain];
+	#endif /* TARGET_OS_IPHONE */
+	famCount = CFArrayGetCount(famArray);
+	range.location = 0;
 
-	collection = CTFontCollectionCreateFromAvailableFonts(NULL);
-	colArray = CTFontCollectionCreateMatchingFontDescriptors(collection);
-	colCount = CFArrayGetCount(colArray);
-	for (i = 0; i < colCount; i++)
-	{
-		fontDesc = CFArrayGetValueAtIndex(colArray, i);
-		fontName = (NSString*)CTFontDescriptorCopyAttribute(fontDesc, kCTFontNameAttribute);
-
-		fontNameString = (char *)[fontName UTF8String];
-		fontNameStringLength = FskStrLen(fontNameString);
-
-		err = FskMemPtrRealloc(fontListLength + fontNameStringLength + 2, fontList);
-		if (!err)
-			FskStrCopy(*fontList + fontListLength, fontNameString);
-		[fontName release];
-		BAIL_IF_ERR(err);
-
-		fontListLength += fontNameStringLength + 1;
-		(*fontList)[fontListLength] = 0;
+	for (i = 0, listLength = 1; i < famCount; ++i) {													/* Count the number of needed characters for the whole list */
+		famName = CFArrayGetValueAtIndex(famArray, i);
+		range.length = CFStringGetLength(famName);
+		(void)CFStringGetBytes(famName, range, kCFStringEncodingUTF8, 0, false, NULL, 0, &famStrLen);	/* Ask how many bytes are needed for each family */
+		listLength += famStrLen + 1;																	/* Tally them up, with an extra 0 terminator */
 	}
 
+	if (listLength < 2) listLength = 2;
+	BAIL_IF_ERR(err = FskMemPtrNew(listLength, fontList));												/* Allocate the font list */
+	s = (UInt8*)(*fontList);
+	s[0] = 0; s[1] = 0;																					/* In case there are no fonts */
+
+	for (i = 0; i < famCount; ++i) {
+		famName = CFArrayGetValueAtIndex(famArray, i);
+		range.length = CFStringGetLength(famName);
+		(void)CFStringGetBytes(famName, range, kCFStringEncodingUTF8, 0, false, s, listLength, &famStrLen);	/* Copy font family name into list */
+		s += famStrLen;																					/* Advance list pointer */
+		*s++ = 0;																						/* Append terminating 0 for font name */
+		listLength -= famStrLen + 1;
+	}
+	*s = 0;																								/* Append terminating 0 for font family list */
 bail:
-	CFRelease(colArray);
-	CFRelease(collection);
+	CFRelease(famArray);
 
 	return;
 }
@@ -1199,6 +1203,20 @@ void FskCocoaTextGetBounds(void *state, const char *text, UInt32 textLength, UIn
 
 bail:
 	FskRectangleSet(bounds, 0, 0, ceilf(size.width), roundf(size.height));
+}
+
+void FskCocoaTextGetBoundsSubpixel(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, FskDimensionFloat dimension, FskTextFormatCache cache)
+{
+	SizeInfoRecord size;
+
+	size.width = 0.0;
+	size.height = 0.0;
+
+	if (text && textLength)
+		createLine(state, text, textLength, NULL, 0, textSize, textStyle, fontName, cache, CGFLOAT_MAX, NULL, &size, NULL, NULL);
+
+	dimension->width = size.width;
+	dimension->height = size.height;
 }
 
 static void MyTextGetLayout(Boolean useGlyph, void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **codePtr, UInt32 *codeLenPtr, FskFixed **layoutPtr, float *widthPtr, float *heightPtr, FskTextFormatCache cache)

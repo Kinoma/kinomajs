@@ -819,27 +819,27 @@ Boolean doFormatMessageFile(FskInstrumentedType dispatch, UInt32 msg, void *msgD
 		case kFskFileInstrMsgRead: {
 			FskFileInstrMsgReadRecord *d = (FskFileInstrMsgReadRecord *)msgData;
 			if (kFskErrNone == d->err)
-				snprintf(buffer, bufferSize, "read %lu", d->bytesToRead);
+				snprintf(buffer, bufferSize, "read %u", (unsigned)d->bytesToRead);
 			else
-				snprintf(buffer, bufferSize, "read %lu failed, err=%s", d->bytesToRead, FskInstrumentationGetErrorString(d->err));
+				snprintf(buffer, bufferSize, "read %u failed, err=%s", (unsigned)d->bytesToRead, FskInstrumentationGetErrorString(d->err));
 			}
 		   return true;
 
 		case kFskFileInstrMsgWrite: {
 			FskFileInstrMsgWriteRecord *d = (FskFileInstrMsgWriteRecord *)msgData;
 			if (kFskErrNone == d->err)
-				snprintf(buffer, bufferSize, "write %lu", d->bytesToWrite);
+				snprintf(buffer, bufferSize, "write %u", (unsigned)d->bytesToWrite);
 			else
-				snprintf(buffer, bufferSize, "write %lu failed, err=%s", d->bytesToWrite, FskInstrumentationGetErrorString(d->err));
+				snprintf(buffer, bufferSize, "write %u failed, err=%s", (unsigned)d->bytesToWrite, FskInstrumentationGetErrorString(d->err));
 			}
 		   return true;
 
 		case kFskFileInstrMsgSetPosition:
-			snprintf(buffer, bufferSize, "setposition %lu", (UInt32)*(FskInt64 *)msgData);
+			snprintf(buffer, bufferSize, "setposition %llu", *((FskInt64*)msgData));
 			return true;
 
 		case kFskFileInstrMsgSetSize:
-			snprintf(buffer, bufferSize, "setsize %lu", (UInt32)*(FskInt64 *)msgData);
+			snprintf(buffer, bufferSize, "setsize %llu", *((FskInt64*)msgData));
 			return true;
 
 		case kFskFileInstrMsgFileDelete:
@@ -894,7 +894,7 @@ static Boolean doFormatMessageDirectoryChange(FskInstrumentedType dispatch, UInt
 		case kFskDirectoryChangeInstrMsgChanged: {
 			FskDirectoryChangeInstrMsgChangeRecord *change = msgData;
 
-			snprintf(buffer, bufferSize, "change, flags=%lu, path=%s", change->flags, change->path);
+			snprintf(buffer, bufferSize, "change, flags=%u, path=%s", (unsigned)change->flags, change->path);
 			}
 			return true;
 	}

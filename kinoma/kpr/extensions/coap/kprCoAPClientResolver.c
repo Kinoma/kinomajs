@@ -55,7 +55,7 @@ FskErr KprCoAPClientResolverDispose(KprCoAPClientResolver self)
 {
 	FskErr err = kFskErrNone;
 	if (self) {
-		FskDebugStr("CoAP ClientDestination Disposed: %x", (int) self);
+		FskDebugStr("CoAP ClientDestination Disposed: %p", self);
 
 		KprMemPtrDispose((char *) self->host);
 

@@ -508,11 +508,11 @@ static Boolean doFormatMessageFskResolver(FskInstrumentedType dispatch, UInt32 m
 			snprintf(buffer, bufferSize, "resolver canceled for %s", rr->name);
 			return true;
 		case kFskResolverInstrMsgResolved:
-			snprintf(buffer, bufferSize, "name resolved %s - %ld.%ld.%ld.%ld", rr->name,
-				(rr->resolvedIP & 0xff000000) >> 24,
-				(rr->resolvedIP & 0x00ff0000) >> 16,
-				(rr->resolvedIP & 0x0000ff00) >> 8,
-				(rr->resolvedIP & 0x000000ff)
+			snprintf(buffer, bufferSize, "name resolved %s - %u.%u.%u.%u", rr->name,
+				((unsigned)(rr->resolvedIP) & 0xff000000) >> 24,
+				((unsigned)(rr->resolvedIP) & 0x00ff0000) >> 16,
+				((unsigned)(rr->resolvedIP) & 0x0000ff00) >> 8,
+				((unsigned)(rr->resolvedIP) & 0x000000ff)
 			);
 			return true;
 	}

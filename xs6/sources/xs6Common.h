@@ -300,6 +300,7 @@ enum {
 	mxDefineNodeCodedFlag = 1 << 23,
 	
 	mxTailRecursionFlag = 1 << 24,
+	mxMethodFlag = 1 << 25,
 };
 
 extern const txString gxCodeNames[XS_CODE_COUNT];
@@ -330,19 +331,19 @@ extern txNumber fxStringToNumber(void* dtoa, txString theString, txFlag whole);
 
 #if mxLittleEndian
 #define mxDecode2(THE_CODE, THE_VALUE)	{ \
-	txS1* src = (THE_CODE); \
+	txS1* src = (txS1*)(THE_CODE); \
 	txS1* dst = (txS1*)&(THE_VALUE) + 1; \
 	*dst-- = *src++; \
 	*dst = *src++; \
-	(THE_CODE) = src; \
+	(THE_CODE) = (void *)src; \
 	}
 #else
 #define mxDecode2(THE_CODE, THE_VALUE)	{ \
-	txS1* src = (THE_CODE); \
+	txS1* src = (txS1*)(THE_CODE); \
 	txS1* dst = (txS1*)&(THE_VALUE); \
 	*dst++ = *src++; \
 	*dst = *src++; \
-	(THE_CODE) = src; \
+	(THE_CODE) = (void *)src; \
 	}
 #endif
 
@@ -835,6 +836,9 @@ enum {
 	_values,
 	_weak,
 	_writable,
+	___dirname,
+	___filename,
+	_new_target,
 	XS_ID_COUNT
 };
 #define XS_SYMBOL_ID_COUNT ___proto__

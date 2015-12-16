@@ -64,6 +64,7 @@ int RECT_HEIGHT = 24;
 #define FT_CEIL_TO_INT(x)		CEIL_OFF_BITS((x), FT_FRACTIONAL_BITS)		/**< Truncate after adding 1 - epsilon. */
 #define FT_AA_AURA				(0x10 << (FT_FRACTIONAL_BITS - 4))			/**< Freetype antialiasing aura. We assume that it is 1.0 pixels. */
 #define INT_TO_FT(x)			((x) << FT_FRACTIONAL_BITS)					/**< Convert an integer to 26.6 fixed point, as used by FreeType. */
+#define FLOAT_TO_FT(x)			((int)(x * (1 << FT_FRACTIONAL_BITS)))
 #define OBLIQUE_SKEW			0x6000L										/**< 0.375 = 3/8 */
 #define FIXED_HALF				(1 << (16 - 1))								/**< One-half in fixed point. */
 
@@ -71,8 +72,8 @@ static FskErr freeTypeNew(FskTextEngineState *state);
 static FskErr freeTypeDispose(FskTextEngineState state);
 static FskErr freeTypeFormatCacheNew(FskTextEngineState state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 static FskErr freeTypeFormatCacheDispose(FskTextEngineState state, FskTextFormatCache cache);
-static FskErr freeTypeBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-static FskErr freeTypeGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache);
+static FskErr freeTypeBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
+static FskErr freeTypeGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
 static FskErr freeTypeGetFontInfo(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache formatCache);
 static FskErr freeTypeFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
 static FskErr freeTypeAddFontFile(FskTextEngineState state, const char *path);
@@ -127,10 +128,10 @@ void FskTextFreeTypeUninitialize(void);
 #endif
 
 #define gForceAntiAliasFont (true)
-#define kBoldRepeatFactor	17
 
 typedef struct  {
 	FT_Fixed		zoom;
+	FskBitmap		wrapper;
 } FskTextEngineFreeTypeRecord, *FskTextEngineFreeType;
 
 typedef struct FskFTParserDataStruct FskFTParserDataRecord, *FskFTParserData;
@@ -495,8 +496,7 @@ FskErr freeTypeAddFontFile(FskTextEngineState state, const char *fontFullPath)
 			// initialize face FTC_ImageTypeRec structure
 			fFace->font.face_id = (FTC_FaceID)fFace;
             fFace->font.width = fFace->font.height = 0;
-			fFace->font.flags = gForceAntiAliasFont ? FT_LOAD_DEFAULT : FT_LOAD_TARGET_MONO;
-			fFace->font.flags |= FT_LOAD_NO_HINTING /* FT_LOAD_FORCE_AUTOHINT */;
+			fFace->font.flags = gForceAntiAliasFont ? FT_LOAD_TARGET_NORMAL : FT_LOAD_TARGET_MONO;
 
 			fFace->scaler.face_id = (FTC_FaceID)fFace;
 			fFace->scaler.pixel = 0;
@@ -611,72 +611,63 @@ static UInt32 convertToUnicode(UInt32 *uc, char *in, UInt32 maxIn)
  * sFTGetStrikeBBox
  ********************************************************************************/
 
-void sFTGetStrikeBBox(FskTextEngineFreeType state, FskFTFace fFace, FskFTGlyph strike, FskRectangle bounds)
+static void sFTGetStrikeBBox(FskTextEngineFreeType state, FskFTFace fFace, FskFTGlyph strike, UInt32 *widthOut, UInt32 *heightOut)
 {
 	FskFTGlyph glyph;
-	FT_Size ftSize = NULL;
-
-	ftSize = sFskFTFaceGetSize(fFace);
-
-	bounds->x = 0;
-	bounds->y = 0;
-	bounds->width = 0;
-	bounds->height = ftSize->metrics.ascender - ftSize->metrics.descender;
+	FT_Size ftSize = sFskFTFaceGetSize(fFace);
+	UInt32 width = 0;
 
 	for (glyph = strike; glyph->index >= 0; glyph++)
-		bounds->width += glyph->advance;
+		width += glyph->advance;
 
-	bounds->width = FT_ROUND_TO_INT(bounds->width);
-	bounds->height = FT_ROUND_TO_INT(FT_MulFix(bounds->height, state->zoom)) + HEIGHT_ADJUST_PX;
+	*widthOut = width;
+	*heightOut = FT_MulFix(ftSize->metrics.ascender - ftSize->metrics.descender, state->zoom) + INT_TO_FT(HEIGHT_ADJUST_PX);
 }
 
 /********************************************************************************
  * sFTStrikeGetGlyphBitmap
  ********************************************************************************/
 
-FskErr sFTStrikeGetGlyphBitmap(FskFTGlyph theGlyph, FskPoint thePoint, FskBitmap theBitmap)
+Boolean sFTStrikeGetGlyphBitmap(FskFTGlyph theGlyph, FskPoint thePoint, FskBitmap theBitmap)
 {
 #if USE_RECTS
-	return kFskErrNone;
+	return false;
 #else
-	FskErr err = kFskErrNone;
-	long found = false;
-
 	if (theGlyph->image == NULL) {
+		FTC_SBit  aSBit;
 
-		FTC_SBit  aSBit = NULL;
+		if (FTC_SBitCache_LookupScaler(gFTSbitsCache, &theGlyph->face->scaler, FT_LOAD_DEFAULT, theGlyph->index, &aSBit, NULL))
+			return false;
 
-		BAIL_IF_ERR(err = FTC_SBitCache_Lookup(gFTSbitsCache, &theGlyph->face->font, theGlyph->index, &aSBit, NULL));
+		thePoint->x += aSBit->left;
+		thePoint->y -= aSBit->top;
 
-		found = aSBit->buffer != 0;
-		if (found) {
+		theBitmap->bounds.width = aSBit->width;
+		theBitmap->bounds.height = aSBit->height;
 
-			found = aSBit->width && aSBit->height;
-			thePoint->x += aSBit->left;
-			thePoint->y -= aSBit->top;
-			theBitmap->bounds.width = aSBit->width;
-			theBitmap->bounds.height = aSBit->height;
-			theBitmap->rowBytes = aSBit->pitch;
-			theBitmap->bits = aSBit->buffer;
-		}
+		theBitmap->rowBytes = aSBit->pitch;
+		theBitmap->bits = aSBit->buffer;
+
+		return true;
 	}
 	else {
-		FT_BitmapGlyph aBitmap;
-		FT_Bitmap* aSource;
+		FT_BitmapGlyph aBitmap = (FT_BitmapGlyph)theGlyph->image;
+		FT_Bitmap *aSource = &aBitmap->bitmap;
 
-		aBitmap = (FT_BitmapGlyph)theGlyph->image;
-		aSource = &aBitmap->bitmap;
-		found = aSource->width && aSource->rows;
+		if (!aSource->width || !aSource->rows)
+			return false;
+
 		thePoint->x += aBitmap->left;
 		thePoint->y -= aBitmap->top;
+
 		theBitmap->bounds.width = aSource->width;
 		theBitmap->bounds.height = aSource->rows;
+
 		theBitmap->rowBytes = aSource->pitch;
 		theBitmap->bits = aSource->buffer;
+
+		return true;
 	}
-	return found;
-bail:
-	return false;
 #endif
 }
 
@@ -689,59 +680,55 @@ FskErr sFTStrikeGetGlyphInfo(FskFTGlyph theGlyph, Boolean needImage, Boolean doO
 #if USE_RECTS
 	return kFskErrNone;
 #else
-	FskErr err = kFskErrNone;
-	long found = false;
+	FskErr err;
 	Boolean zoomed = 0x010000L != zoom;
 	FskFTFace fFace = theGlyph->face;
+	FT_Glyph aGlyph;
 
 	theGlyph->image = NULL;
 	if ((fFace->font.width  < 48) &&
 		(fFace->font.height < 48) &&
 		(false == doOblique) &&
 		(false == zoomed)) {
-		FTC_SBit  aSBit = NULL;
+		FTC_SBit  aSBit;
 
-		BAIL_IF_ERR(err = FTC_SBitCache_Lookup(gFTSbitsCache, &fFace->font, theGlyph->index, &aSBit, NULL));
-
-		found = aSBit->buffer != 0;
-		if (found)
-			theGlyph->advance = aSBit->xadvance << FT_FRACTIONAL_BITS;		// this works because apparently we aren't getting fractional metrics _ever_ from FreeType...
-	}
-
-	if (!found) {
-		FT_Glyph aGlyph;
-
-		// FskFreeTypePrintfDebug("prior to ImageCache Lookup");
-		BAIL_IF_ERR(err = FTC_ImageCache_Lookup(gFTImageCache, &fFace->font, theGlyph->index, &aGlyph, NULL));
-
-		if (false == zoomed)
-			theGlyph->advance = ROUND_OFF_BITS(aGlyph->advance.x, 16-FT_FRACTIONAL_BITS);					/* 16 to 6 fracbits */
-		else
-			theGlyph->advance = ROUND_OFF_BITS(FT_MulFix(zoom, aGlyph->advance.x), 16-FT_FRACTIONAL_BITS);	/* 16 to 6 fracbits */
-
-		if (needImage) {
-			if (aGlyph->format != FT_GLYPH_FORMAT_BITMAP) {
-				BAIL_IF_ERR(err = FT_Glyph_Copy(aGlyph, &aGlyph));
-
-				if (doOblique || zoomed) {
-					FT_Matrix transform;
-
-					transform.xx = zoom;
-					transform.yx = 0;
-					transform.xy = doOblique ? OBLIQUE_SKEW : 0;						/* 0x6000 ~ 0.375 = 3/8 skew */
-					transform.yy = zoom;
-					FT_Glyph_Transform(aGlyph, &transform, NULL);						/* NOTE bbox is enlarged by height * 3/8 */
-				}
-				// FskFreeTypePrintfDebug("prior to Glyph To Bitmap");
-				BAIL_IF_ERR(err = FT_Glyph_To_Bitmap(&aGlyph, FT_RENDER_MODE_NORMAL, NULL, 1));
-				theGlyph->discard = true;
-			}
-			theGlyph->image = aGlyph;
-
-			if (aGlyph->format != FT_GLYPH_FORMAT_BITMAP)
-				BAIL(FT_Err_Invalid_Glyph_Format);
+		if (0 == FTC_SBitCache_LookupScaler(gFTSbitsCache, &fFace->scaler, FT_LOAD_DEFAULT, theGlyph->index, &aSBit, NULL)) {
+			theGlyph->advance = aSBit->xadvance << FT_FRACTIONAL_BITS;		// SBit cache is integer only metrics
+			return kFskErrNone;
 		}
 	}
+
+	// FskFreeTypePrintfDebug("prior to ImageCache Lookup");
+	BAIL_IF_ERR(err = FTC_ImageCache_Lookup(gFTImageCache, &fFace->font, theGlyph->index, &aGlyph, NULL));
+
+	if (false == zoomed)
+		theGlyph->advance = ROUND_OFF_BITS(aGlyph->advance.x, 16-FT_FRACTIONAL_BITS);					/* 16 to 6 fracbits */
+	else
+		theGlyph->advance = ROUND_OFF_BITS(FT_MulFix(zoom, aGlyph->advance.x), 16-FT_FRACTIONAL_BITS);	/* 16 to 6 fracbits */
+
+	if (needImage) {
+		if (aGlyph->format != FT_GLYPH_FORMAT_BITMAP) {
+			BAIL_IF_ERR(err = FT_Glyph_Copy(aGlyph, &aGlyph));
+
+			if (doOblique || zoomed) {
+				FT_Matrix transform;
+
+				transform.xx = zoom;
+				transform.yx = 0;
+				transform.xy = doOblique ? OBLIQUE_SKEW : 0;						/* 0x6000 ~ 0.375 = 3/8 skew */
+				transform.yy = zoom;
+				FT_Glyph_Transform(aGlyph, &transform, NULL);						/* NOTE bbox is enlarged by height * 3/8 */
+			}
+			// FskFreeTypePrintfDebug("prior to Glyph To Bitmap");
+			BAIL_IF_ERR(err = FT_Glyph_To_Bitmap(&aGlyph, FT_RENDER_MODE_NORMAL, NULL, 1));
+			theGlyph->discard = true;
+		}
+		theGlyph->image = aGlyph;
+
+		if (aGlyph->format != FT_GLYPH_FORMAT_BITMAP)
+			BAIL(FT_Err_Invalid_Glyph_Format);
+	}
+
 bail:
 	if (err) {
 		FskFreeTypePrintfDebug("sFTStrikeGetGlyphInfo - fail %d - index: %d uc: %u", theGlyph->index, err, (unsigned)theGlyph->uc);
@@ -923,19 +910,19 @@ bail:
  * FskTextBox
  ********************************************************************************/
 
-FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle r, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache formatCacheIn)
+FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache formatCacheIn)
 {
 	FskErr							err				= kFskErrNone;
-	FskBitmap						freetypeBitmap	= NULL;
+	FskTextEngineFreeType			state			= (FskTextEngineFreeType)stateIn;
+	FskBitmap						freetypeBitmap	= state->wrapper;
 	FskFTFaceRecord					*fFace			= NULL;
 	FskGraphicsModeParametersRecord	modeParams		= { sizeof(FskGraphicsModeParametersRecord), blendLevel};
-	FskTextEngineFreeType			state			= (FskTextEngineFreeType)stateIn;
 	FskTextFormatCacheFT			formatCache		= (FskTextFormatCacheFT)formatCacheIn;
 	FskFTGlyph						strike			= NULL;
 	SInt32							underlinestartx	= 0;
 	int								horizRepeat		= 1;
-	FskPointRecord		where;
 	FskRectangleRecord	bounds, clip;
+	UInt32				strikeWidth, strikeHeight;
 	FskFTGlyph			glyph;
 	int					pen_x, pen_y, repeat, ascent, descent;
 	FT_Size ftSize;
@@ -951,22 +938,10 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 
 	// combine bounds and clip to total clip
 	if (NULL == clipRect)
-		clip = *r;
+		clip = *dstRect;
 	else
-		BAIL_IF_FALSE(FskRectangleIntersect(clipRect, r, &clip), err, kFskErrNone/*kFskErrNothingRendered*/);
+		BAIL_IF_FALSE(FskRectangleIntersect(clipRect, dstRect, &clip), err, kFskErrNone/*kFskErrNothingRendered*/);
 	BAIL_IF_FALSE(FskRectangleIntersect(&bits->bounds, &clip, &clip), err, kFskErrNone/*kFskErrNothingRendered*/);
-
-#if !USE_RECTS
-	fFace = sFskFTFindFont(fontName, textStyle, textSize, formatCacheIn);
-	BAIL_IF_NULL(fFace, err, kFskErrNotFound/*was kFskErrParameterError*/);
-
-	if (textStyle & kFskTextBold) {
-		if (!(fFace->style & kFskTextBold)) {
-			horizRepeat = 1;
-			FskFreeTypePrintfDebug("freeTypeBox synthetic Bold");
-		}
-	}
-#endif /* !USE_RECTS */
 
 #if USE_RECTS
 	{	int i;
@@ -977,22 +952,40 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 		for (i = 0; i < textLen; i++) {
 			bounds.width += RECT_WIDTH;		/* = ((RECT_WIDTH << FT_FRACTIONAL_BITS) + (1 << (FT_FRACTIONAL_BITS-1))) >> FT_FRACTIONAL_BITS */
 		}
+
+		ascent = FT_CEIL_TO_INT(FT_MulFix(INT_TO_FT(RECT_HEIGHT), state->zoom) + FT_AA_AURA);
 	}
 #else /* !USE_RECTS */
+	fFace = sFskFTFindFont(fontName, textStyle, textSize, formatCacheIn);
+	BAIL_IF_NULL(fFace, err, kFskErrNotFound/*was kFskErrParameterError*/);
 
-	BAIL_IF_ERR(err = sFTStrikeNew((FskTextEngineFreeType)state, &strike, fFace, text, textLen, textStyle, true, kFskFreeTypeNoMaxWidth));
-	sFTGetStrikeBBox(state, fFace, strike, &bounds);
+	if (textStyle & kFskTextBold) {
+		if (!(fFace->style & kFskTextBold)) {
+			horizRepeat = 1;
+			FskFreeTypePrintfDebug("freeTypeBox synthetic Bold");
+		}
+	}
+
+	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, true, kFskFreeTypeNoMaxWidth));
+	sFTGetStrikeBBox(state, fFace, strike, &strikeWidth, &strikeHeight);
+	bounds.x = bounds.y = 0;
+	bounds.width = FT_ROUND_TO_INT(strikeWidth);
+	bounds.height = FT_ROUND_TO_INT(strikeHeight);
+
+	ftSize = sFskFTFaceGetSize(fFace);
+	ascent  = FT_CEIL_TO_INT(+FT_AA_AURA + FT_MulFix(ftSize->metrics.ascender,  state->zoom));
+	descent = FT_CEIL_TO_INT(-FT_AA_AURA - FT_MulFix(ftSize->metrics.descender, state->zoom));
 
 	// truncate if necessary
-	if (((kFskTextTruncateEnd | kFskTextTruncateCenter) & textStyle) && (bounds.width > r->width)) {
+	if (((kFskTextTruncateEnd | kFskTextTruncateCenter) & textStyle) && (bounds.width > dstRect->width)) {
 		FskFTGlyph tStrike, g;
-		SInt32 width = INT_TO_FT(bounds.width);
+		SInt32 width = strikeWidth;
 		SInt32 targetWidth;
 
 		if (!formatCache || (false == formatCache->haveEllipsisWidth)) {
 			const char utf8Ellipsis[] = {0xe2, 0x80, 0xa6, 0};
 			// make a strike containing the truncation character
-			BAIL_IF_ERR(err = sFTStrikeNew((FskTextEngineFreeType)state, &tStrike, fFace, utf8Ellipsis, sizeof(utf8Ellipsis), textStyle, true, kFskFreeTypeNoMaxWidth));
+			BAIL_IF_ERR(err = sFTStrikeNew(state, &tStrike, fFace, utf8Ellipsis, sizeof(utf8Ellipsis), textStyle, true, kFskFreeTypeNoMaxWidth));
 
 			if (formatCache) {
 				tStrike->discard = false;
@@ -1006,7 +999,7 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 		}
 
 		// calculate available space including truncation character
-		targetWidth = INT_TO_FT(r->width) - tStrike->advance;
+		targetWidth = INT_TO_FT(dstRect->width) - tStrike->advance;
 
 		// find last glyph
 		for (glyph = strike; glyph->index >= 0; glyph++)
@@ -1027,7 +1020,8 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 					FT_Done_Glyph(g->image);
 			glyph[0] = *tStrike;
 			glyph[1].index = -1;
-			bounds.width = FT_ROUND_TO_INT(width + glyph->advance);
+			strikeWidth = width + glyph->advance;
+			bounds.width = FT_ROUND_TO_INT(strikeWidth);
 		}
 		else {
 			Boolean phase = true;		// start towards the end
@@ -1058,7 +1052,8 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 			FskMemMove(&strike[truncBegin + 1], &strike[truncEnd], ((glyphCount - truncEnd) + 1) * sizeof(FskFTGlyphRecord));
 			strike[truncBegin] = *tStrike;
 
-			bounds.width = FT_ROUND_TO_INT(width + tStrike->advance);
+			strikeWidth = width + tStrike->advance;
+			bounds.width = FT_ROUND_TO_INT(strikeWidth);
 		}
 
 		if (!formatCache || !formatCache->haveEllipsisWidth)
@@ -1066,6 +1061,7 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 	}
 #endif /* !USE_RECTS */
 
+	//@@ center and right calculations are incorrect when dstRectFloat is non-NULL
 	switch (hAlign) {
 		case kFskTextAlignLeft:
 		default:
@@ -1073,21 +1069,13 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 			break;
 
 		case kFskTextAlignCenter:
-			pen_x = (r->width - bounds.width) >> 1;
+			pen_x = INT_TO_FT(dstRect->width - bounds.width) >> 1;
 			break;
 
 		case kFskTextAlignRight:
-			pen_x = r->width - bounds.width;
+			pen_x = INT_TO_FT(dstRect->width - bounds.width);
 			break;
 	}
-
-#if USE_RECTS
-	ascent = FT_CEIL_TO_INT(FT_MulFix(INT_TO_FT(RECT_HEIGHT), state->zoom) + FT_AA_AURA);
-#else /* !USE_RECTS */
-	ftSize = sFskFTFaceGetSize(fFace);
-	ascent  = FT_CEIL_TO_INT(+FT_AA_AURA + FT_MulFix(ftSize->metrics.ascender,  state->zoom));
-	descent = FT_CEIL_TO_INT(-FT_AA_AURA - FT_MulFix(ftSize->metrics.descender, state->zoom));
-#endif /* !USE_RECTS */
 
 	switch (vAlign) {
 		case kFskTextAlignTop:
@@ -1096,11 +1084,11 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 			break;
 
 		case kFskTextAlignCenter:
-			pen_y = ((r->height - bounds.height) >> 1) + ascent;
+			pen_y = ((dstRect->height - bounds.height) >> 1) + ascent;
 			break;
 
 		case kFskTextAlignBottom:
-			pen_y = r->height - bounds.height + ascent;
+			pen_y = dstRect->height - bounds.height + ascent;
 			break;
 	}
 
@@ -1109,8 +1097,8 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 	 * We have determined that the vertical uncertainty is on the order of half of the text size (using 18 and 54 points).
 	 * The horizontal bounds are much tighter, based on the glyph advances.
 	 */
-	bounds.x += pen_x + r->x;
-	bounds.y += pen_y + r->y - ascent;
+	bounds.x += FT_ROUND_TO_INT(pen_x + INT_TO_FT(dstRect->x));
+	bounds.y += pen_y + dstRect->y - ascent;
 	bounds.y += descent;
 
 	{	int boundsUncertainty = ((textSize > FIXED_HALF) ? (textSize >> 17) : (textSize>> 1)) + 2;
@@ -1128,9 +1116,11 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 
 	advance = INT_TO_FT(RECT_WIDTH );
 
-	for (i = 0, pen_x <<= FT_FRACTIONAL_BITS; i < textLen; i++, pen_x += advance) {
-		where.x = r->x + FT_TRUNC_TO_INT(pen_x);
-		where.y = r->y + pen_y - RECT_HEIGHT;
+	for (i = 0; i < textLen; i++, pen_x += advance) {
+		FskPointRecord where;
+
+		where.x = dstRect->x + FT_TRUNC_TO_INT(pen_x);
+		where.y = dstRect->y + pen_y - RECT_HEIGHT;
 
 		// glyph level horizontal clipping
 		if ((where.x + (SInt32)(FT_TRUNC_TO_INT(advance) + 1)) <= clip.x)
@@ -1148,19 +1138,17 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 }
 #else /* !USE_RECTS */
 
-	// allocate the wrapper
-	BAIL_IF_ERR(err = FskBitmapNewWrapper(2, 1, kFskBitmapFormat8A, 8, NULL, 2, &freetypeBitmap));
-
-	for (glyph = strike, pen_x <<= FT_FRACTIONAL_BITS; glyph->index >= 0; pen_x += glyph->advance, glyph++) {
-		where.x = r->x + FT_ROUND_TO_INT(pen_x);
-		where.y = r->y + pen_y;
-		// default value
-		if (glyph == strike)
-			underlinestartx = where.x;
+	underlinestartx = pen_x;
+	for (glyph = strike, pen_x += dstRectFloat ? FLOAT_TO_FT(dstRectFloat->x) : INT_TO_FT(dstRect->x); glyph->index >= 0; pen_x += glyph->advance, glyph++) {
+		FskPointRecord where;
 
 		// glyph level horizontal clipping
-		if ((where.x + (SInt32)(FT_TRUNC_TO_INT(glyph->advance) + 1)) <= clip.x)
+		if (FT_ROUND_TO_INT(pen_x + glyph->advance + INT_TO_FT(1)) <= clip.x)
 			continue;   // before left edge
+
+		where.x = FT_ROUND_TO_INT(pen_x);
+		where.y = dstRect->y + pen_y;
+
 		if (where.x > (clip.x + clip.width))
 			break;		// after right edge
 
@@ -1172,27 +1160,38 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
             r.y = r.y - r.height + 2;
 			if (FskRectangleIntersect(&clip, &r, &r))
 				FskRectangleFill(bits, &r, color, kFskGraphicsModeCopy, NULL);
-		}
-		else if (32 == glyph->uc) {
 			continue;
 		}
-		else if (sFTStrikeGetGlyphBitmap(glyph, &where, freetypeBitmap)) {
-			UInt32 glyphAscent = 0, glyphDescent = 0;
+
+		if (32 == glyph->uc)
+			continue;
+
+		if (dstRectFloat)
+			where.x = FT_TRUNC_TO_INT(pen_x);		// fraction added when rendering
+		if (sFTStrikeGetGlyphBitmap(glyph, &where, freetypeBitmap)) {
 			// updated value
 			if (glyph == strike)
-				underlinestartx = where.x;
-#if USE_RECTS
-#else /* !USE_RECTS */
+				underlinestartx = pen_x;
+
 			if (glyph->face != fFace) {
+				UInt32 glyphAscent, glyphDescent;
 				ftSize = sFskFTFaceGetSize(fFace);
 				glyphAscent  = FT_CEIL_TO_INT(+FT_AA_AURA + FT_MulFix(ftSize->metrics.ascender,  state->zoom));
 				glyphDescent = FT_CEIL_TO_INT(-FT_AA_AURA - FT_MulFix(ftSize->metrics.descender, state->zoom));
 				where.y += glyphAscent - glyphDescent - ascent + descent;
 			}
-#endif /* !USE_RECTS */
+
 			for (repeat = 0; repeat < horizRepeat; repeat++) {
 				if (!(kFskTextOutline & textStyle)) {
-					err = FskTransferAlphaBitmap(freetypeBitmap, NULL, bits, &where, &clip, color, (blendLevel >= 255) ? NULL : &modeParams);
+					if (dstRectFloat) {
+						int pen_x_f = (where.x << 16) + ((pen_x & 0x01f) << (16 - FT_FRACTIONAL_BITS));
+						if (pen_x & (1 << (FT_FRACTIONAL_BITS - 1)))
+							pen_x_f |= 0x1f;
+						err = FskTransferAlphaBitmapFixed(freetypeBitmap, NULL, bits, pen_x_f, where.y << 16, &clip, color, (blendLevel >= 255) ? NULL : &modeParams);
+					}
+					else {
+						err = FskTransferAlphaBitmap(freetypeBitmap, NULL, bits, &where, &clip, color, (blendLevel >= 255) ? NULL : &modeParams);
+					}
 				}
 				else {
 					FskColorRGBARecord edgeColor;
@@ -1202,35 +1201,30 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 					edgeColor.a = color->a;
 					err = FskTransferEdgeEnhancedGrayscaleText(freetypeBitmap, &freetypeBitmap->bounds, bits, &where, &clip, color, &edgeColor, blendLevel);
 				}
-				if (err == kFskErrNothingRendered)
-					err = kFskErrNone;
-				BAIL_IF_ERR(err);
-				where.x += 1;
-				if (where.x >= (clip.x + clip.width))	/* If we are already past the right edge, ... */
-					goto strikes;						/* ... we need not consider any more glyphs. TODO: not true with right-to-left scripts */
+				if (err) {
+					if (kFskErrNothingRendered == err)
+						err = kFskErrNone;
+					else
+						goto bail;
+				}
 			}
-#if USE_RECTS
-#else /* !USE_RECTS */
-			if (glyph->face != fFace) {
-				where.y -= glyphAscent - glyphDescent - ascent + descent;
-			}
-#endif /* !USE_RECTS */
 		}
 	}
-strikes:
+
+	underlinestartx = FT_ROUND_TO_INT(underlinestartx);
 	if (underlinestartx < clip.x)
 		underlinestartx = clip.x;
 	if (textStyle & kFskTextUnderline) {
 		FskRectangleRecord ul;
 		int underlineThickness;
 		SInt32 underliney;
-		SInt32 underlineendx = r->x + FT_ROUND_TO_INT(pen_x);
+		SInt32 underlineendx = dstRect->x + FT_ROUND_TO_INT(pen_x);
 
 		ftSize = sFskFTFaceGetSize(fFace);
 		if (fFace->ftFace->underline_position == 0)
-			underliney = r->y + pen_y - (FT_MulFix(state->zoom, FT_MulFix(fFace->ftFace->descender, ftSize->metrics.y_scale)) >> 7);
+			underliney = dstRect->y + pen_y - (FT_MulFix(state->zoom, FT_MulFix(fFace->ftFace->descender, ftSize->metrics.y_scale)) >> 7);
 		else
-			underliney = r->y + pen_y - FT_TRUNC_TO_INT(FT_MulFix(state->zoom, FT_MulFix(fFace->ftFace->underline_position, ftSize->metrics.y_scale)));
+			underliney = dstRect->y + pen_y - FT_TRUNC_TO_INT(FT_MulFix(state->zoom, FT_MulFix(fFace->ftFace->underline_position, ftSize->metrics.y_scale)));
 
 		if (fFace->ftFace->underline_thickness == 0)
 			underlineThickness = -(FT_MulFix(fFace->ftFace->descender, ftSize->metrics.y_scale) >> 8);
@@ -1253,7 +1247,7 @@ strikes:
 	if (textStyle & kFskTextStrike) {
 		FskRectangleRecord str;
 
-		str.width = r->x + FT_ROUND_TO_INT(pen_x) - underlinestartx;
+		str.width = dstRect->x + FT_ROUND_TO_INT(pen_x) - underlinestartx;
 		if (fFace->ftFace->underline_thickness == 0)
 			str.height = -(FT_MulFix(fFace->ftFace->descender, ftSize->metrics.y_scale) >> 8);
 		else
@@ -1261,7 +1255,7 @@ strikes:
 		if (str.height < 1)
 			str.height = 1;
 		str.x = underlinestartx;
-		str.y = pen_y + r->y - (ascent / 3) - (str.height / 2);
+		str.y = pen_y + dstRect->y - (ascent / 3) - (str.height / 2);
 
 		if (blendLevel)
 			err = FskRectangleFill(bits, &str, color, kFskGraphicsModeAlpha, &modeParams);
@@ -1271,7 +1265,6 @@ strikes:
 	}
 
 bail:
-	FskBitmapDispose(freetypeBitmap);
 	sFTStrikeDispose(strike);
 
 	FskMutexRelease(gFTMutex);
@@ -1287,7 +1280,7 @@ bail:
  * FskTextGetBounds
  ********************************************************************************/
 
-FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache formatCache)
+FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache formatCache)
 {
 #if USE_RECTS
 	int i;
@@ -1303,18 +1296,14 @@ FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char 
 	FskTextEngineFreeType state = (FskTextEngineFreeType)stateIn;
 	FskErr			err;
 	FskFTFace		fFace;
-	FskFTGlyph strike;
+	FskFTGlyph		strike;
+	UInt32			strikeWidth = 0, strikeHeight = 0;
 
 #if ROUND_TEXTSIZE_DOWN
 	UInt32 newTextSize;
 	newTextSize = (textSize >> 1) << 1;
 	textSize = newTextSize;
 #endif
-
-	bounds->x = 0;
-	bounds->y = 0;
-	bounds->width = 0;
-	bounds->height = 0;
 
 	if (textLen == 0) {
 		return kFskErrNone;
@@ -1325,13 +1314,13 @@ FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char 
 	if (NULL == fFace)
 		return kFskErrParameterError;
 
-	BAIL_IF_ERR(err = sFTStrikeNew((FskTextEngineFreeType)state, &strike, fFace, text, textLen, textStyle, false, kFskFreeTypeNoMaxWidth));
-	sFTGetStrikeBBox(state, fFace, strike, bounds);
+	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, false, kFskFreeTypeNoMaxWidth));
+	sFTGetStrikeBBox(state, fFace, strike, &strikeWidth, &strikeHeight);
 
 	if ((textStyle & kFskTextItalic) && !(fFace->style & kFskTextItalic)) {	/* If we had to oblique a plain font, we need to adjust the width */
-		FskFreeTypePrintfDebug("freeTypeGetBounds adjusting bbox from %dx%d to %dx%d due to obliquing",
-			bounds->width, bounds->height, bounds->width + ((bounds->height * (OBLIQUE_SKEW >> (16 - 3))) >> 3), bounds->height);
-		bounds->width += (bounds->height * (OBLIQUE_SKEW >> (16 - 3))) >> 3;		/* Add the fraction of the height that translates to skew, quantized to eighths (3/8) */
+//		FskFreeTypePrintfDebug("freeTypeGetBounds adjusting bbox from %dx%d to %dx%d due to obliquing",
+//			bounds->width, bounds->height, bounds->width + ((bounds->height * (OBLIQUE_SKEW >> (16 - 3))) >> 3), bounds->height);
+			strikeWidth += FskFixMul(strikeHeight, OBLIQUE_SKEW);										/* Add the fraction of the height that translates to skew, quantized to eighths (3/8) */
 	}
 	if (textStyle & kFskTextUnderline) {
 		FT_Size ftSize = sFskFTFaceGetSize(fFace);
@@ -1360,14 +1349,22 @@ FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char 
 		underliney += underlineThickness;																/* Pull underliney down by the underline thickness */
 		underliney -= descender;																		/* See whether the underline exceeds the descender */
 		if (underliney > 0)																				/* If it does, ... */
-			bounds->height += underliney;																/* ... increase the height */
+			strikeHeight += INT_TO_FT(underliney);														/* ... increase the height */
 	}
-
 
 bail:
 	sFTStrikeDispose(strike);
 
 	FskMutexRelease(gFTMutex);
+
+	bounds->x = bounds->y = 0;
+	bounds->width = FT_ROUND_TO_INT(strikeWidth);
+	bounds->height = FT_ROUND_TO_INT(strikeHeight);
+
+	if (dimensions) {
+		dimensions->width = ((float)strikeWidth) / (1 << FT_FRACTIONAL_BITS);
+		dimensions->height = ((float)strikeHeight) / (1 << FT_FRACTIONAL_BITS);
+	}
 
 	return err;
 #endif
@@ -1398,7 +1395,7 @@ FskErr freeTypeGetLayout(FskTextEngineState stateIn, FskBitmap bits, const char 
 	if (NULL == fFace)
 		return kFskErrParameterError;
 
-	BAIL_IF_ERR(err = sFTStrikeNew((FskTextEngineFreeType)state, &strike, fFace, text, textLen, textStyle, false, kFskFreeTypeNoMaxWidth));
+	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, false, kFskFreeTypeNoMaxWidth));
 
 	for (glyph = strike, numGlyphs = 0; glyph->index >= 0; ++glyph)
 		++numGlyphs;
@@ -1824,16 +1821,22 @@ FskErr freeTypeNew(FskTextEngineState *stateOut)
 
 	state->zoom = 0x00010000L;
 
+	BAIL_IF_ERR(err = FskBitmapNewWrapper(2, 1, kFskBitmapFormat8A, 8, NULL, 2, &state->wrapper));
+
 bail:
 	*stateOut = (FskTextEngineState)state;
-
 
 	return err;
 }
 
-FskErr freeTypeDispose(FskTextEngineState state)
+FskErr freeTypeDispose(FskTextEngineState stateIn)
 {
-	FskMemPtrDispose(state);
+	FskTextEngineFreeType state = (FskTextEngineFreeType)stateIn;
+
+	if (state) {
+		FskBitmapDispose(state->wrapper);
+		FskMemPtrDispose(state);
+	}
 	return kFskErrNone;
 }
 

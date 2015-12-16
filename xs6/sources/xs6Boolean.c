@@ -35,9 +35,8 @@ void fxBuildBoolean(txMachine* the)
 	slot = fxLastProperty(the, fxNewBooleanInstance(the));
 	for (builder = gx_Boolean_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Boolean", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxBooleanPrototype = *the->stack;
-	fxNewHostConstructorGlobal(the, fx_Boolean, 1, mxID(_Boolean), XS_GET_ONLY);
+	fxNewHostConstructorGlobal(the, fx_Boolean, 1, mxID(_Boolean), XS_DONT_ENUM_FLAG);
 	the->stack++;
 }
 
@@ -88,12 +87,10 @@ txSlot* fxCheckBoolean(txMachine* the, txSlot* it)
 	if (it->kind == XS_BOOLEAN_KIND)
 		result = it;
 	else if (it->kind == XS_REFERENCE_KIND) {
-		it = it->value.reference;
-		if (it->flag & XS_VALUE_FLAG) {
-			it = it->next;
-			if (it->kind == XS_BOOLEAN_KIND)
-				result = it;
-		}
+		txSlot* instance = it->value.reference;
+		it = instance->next;
+		if ((instance->flag & XS_VALUE_FLAG) && (it->kind == XS_BOOLEAN_KIND) && (instance != mxBooleanPrototype.value.reference))
+			result = it;
 	}
 	return result;
 }

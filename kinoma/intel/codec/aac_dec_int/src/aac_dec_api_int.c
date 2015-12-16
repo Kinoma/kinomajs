@@ -260,7 +260,7 @@ AACStatus aacdecGetFrame(Ipp8u *inPointer,
   int     scaleFactorAAC;
   int     errSBRParser = 0;
 
-  s_tns_data tns_data0 = {0};
+  s_tns_data tns_data0;
   int     i, j, m_channel_number;
 
   if (!inPointer || !outPointer)
@@ -526,6 +526,7 @@ AACStatus aacdecGetFrame(Ipp8u *inPointer,
       deinterlieve(&(state_com->m_cce).stream,
         state->m_spectrum_data[CH_MAX + ncch]);
 
+      memset(&tns_data0, 0, sizeof(tns_data0));
       ics_calc_tns_data(&(state_com->m_cce).stream, &tns_data0);
 
       if (AOT_AAC_LTP == state_com->m_audio_object_type) {

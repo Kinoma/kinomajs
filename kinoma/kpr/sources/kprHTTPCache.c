@@ -105,11 +105,11 @@ void KprHTTPCacheClear(KprHTTPCache self)
 void KprHTTPCacheDump(KprHTTPCache self)
 {
 	KprHTTPCacheValue cached;
-	fprintf(stderr, "HTTP CACHE (%lu items)\n", self->table->count);
-	fprintf(stderr, "  DISK (%lu bytes)\n", self->diskSize);
+	fprintf(stderr, "HTTP CACHE (%u items)\n", (unsigned int)self->table->count);
+	fprintf(stderr, "  DISK (%u bytes)\n", (unsigned int)self->diskSize);
 	cached = self->disk;
 	while (cached) {
-		fprintf(stderr, "  - %08x %s (%lu bytes)\n", (unsigned int)cached, cached->entry->key, cached->size);
+		fprintf(stderr, "  - %08x %s (%u bytes)\n", (unsigned int)cached, cached->entry->key, (unsigned int)cached->size);
 		cached = cached->next;
 	}
 }

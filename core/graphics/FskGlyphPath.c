@@ -32,6 +32,7 @@
 #endif /* USE_CORE_TEXT */
 
 #include "FskGlyphPath.h"
+#include "FskText.h"
 
 
 //#define TEST_LINUX_ON_MAC
@@ -78,17 +79,25 @@ FskInstrumentedSimpleType(GlyphPath, glyphpath);												/**< This declares t
 #ifndef     LOGE
 	#define LOGE(...)	do {} while(0)															/**< Don't print error logs. */
 #endif   	/* LOGE */
-#define LOGD_ENABLED()	FskInstrumentedTypeEnabled(GlyphPath, kFskInstrumentationLevelDebug)		/**< Whether LOGD() will print anything. */
+#define LOGD_ENABLED()	FskInstrumentedTypeEnabled(GlyphPath, kFskInstrumentationLevelDebug)	/**< Whether LOGD() will print anything. */
 #define LOGI_ENABLED()	FskInstrumentedTypeEnabled(GlyphPath, kFskInstrumentationLevelVerbose)	/**< Whether LOGI() will print anything. */
 #define LOGE_ENABLED()	FskInstrumentedTypeEnabled(GlyphPath, kFskInstrumentationLevelMinimal)	/**< Whether LOGE() will print anything. */
 
 
+//#undef LOGD		// For debugging on Windows, since building with instrumentation forces a debug build, which doesn't work.
+//#define LOGD(...)	 do { printf(__VA_ARGS__); printf("\n"); } while(0)
+//#undef LOGD_ENABLED
+//#define LOGD_ENABLED()	1
 
 #define UNUSED(x)	((void)(x))
 
 #define USE_UNHINTED_OUTLINES
 
-#if TARGET_OS_MAC || TARGET_OS_WIN32
+#if 1//!defined(MARVELL_SOC_PXA168)
+	#define USE_GENERIC_FONT_MAPPING
+#endif /* TARGET_OS */
+
+#if (TARGET_OS_MAC && !defined(USE_GENERIC_FONT_MAPPING)) || TARGET_OS_WIN32
 static const char	*gDefaultFontNames[] = {
 	"Helvetica",
 	"Arial",
@@ -103,9 +112,10 @@ static const char	*gDefaultFontNames[] = {
 #include "FskTextConvert.h"
 
 static void LogAttributes(const FskFontAttributes *a) {
-	static const char *anchor[]		= { "start", "middle", "end" };
-	static const char *style[]		= { "normal", "italic", "oblique" };
-	static const char *stretch[]	= { NULL, "UltraCondensed" "ExtraCondensed" "Condensed" "SemiCondensed" "Normal" "SemiExpanded" "Expanded" "ExtraExpanded" "UltraExpanded" };
+	static const char *anchor[3]	= {	"start",		"middle",			"end" };
+	static const char *style[3]		= {	"normal",		"italic",			"oblique" };
+	static const char *stretch[10]	= {	NULL,			"UltraCondensed",	"ExtraCondensed",	"Condensed",		"SemiCondensed",
+										"Normal",		"SemiExpanded",		"Expanded",			"ExtraExpanded",	"UltraExpanded" };
 
 	if (!a)
 		return;
@@ -130,65 +140,522 @@ static void LogGrowablePathFromUnicodeStringNew(
 	LogAttributes(attributes);
 }
 
+static void LogEquivalenceClasses(FskConstGrowableEquivalences coll, const char *name) {
+	FskGrowableStorage msg;
+	UInt32 classIndex, numClasses, elementIndex;
+
+	if (!(LOGD_ENABLED()))
+		return;
+	if (kFskErrNone != FskGrowableStorageNew(0, &msg))
+		return;
+	if (name) LOGD("%s:", name);
+	for (classIndex = 0, numClasses = FskGrowableEquivalencesGetClassCount(coll); classIndex < numClasses; ++classIndex) {
+		const FskEquivalenceBlob *blob;
+		(void)FskGrowableEquivalencesGetConstPointerToClass(coll, classIndex, (const void**)(&blob), NULL);
+		FskGrowableStorageSetSize(msg, 0);
+		FskGrowableStorageAppendF(msg, "{");
+		for (elementIndex = 0; elementIndex < blob->numElements; ++elementIndex)
+			FskGrowableStorageAppendF(msg, " \"%s\"", (const char*)(FskEquivalenceElementGetPointer(blob, elementIndex)));
+		FskGrowableStorageAppendF(msg, " }");
+		LOGD("fontClass[%u] = %s", (unsigned)classIndex, FskGrowableStorageGetPointerToCString(msg));
+	}
+	FskGrowableStorageDispose(msg);
+}
 #endif /* GLYPH_DEBUG */
 
+
+#ifndef USE_GENERIC_FONT_MAPPING
 
 /********************************************************************************
  * GetNextTokenInCommaSeparatedList
  ********************************************************************************/
 
 static int
-GetNextTokenInCommaSeparatedList(const char **inStrP, char *outStr, int maxChars)
+GetNextTokenInCommaSeparatedList(const char **inStrP, char *outStr, UInt32 maxChars)
 {
-	const char *inStr	= *inStrP;
-	int			quoted	= 0;
-	int			gotOne	= 0;
-	char		c;
+	const char	*s0, *s1;
+	UInt32		n;
 
-	/* Skip initial spaces and look for quotes */
-	for ( ;  ; inStr++) {
-		c = *inStr;
-		if ((c == ' ') || (c == '\t') || (c == '\n') || (c == '\r'))	continue;
-		if ((c == '\'') || (c == '"'))									quoted = *inStr++;
-		break;
+	s0 = *inStrP;
+	if (0 == *s0)
+		return 0;
+
+	if (NULL == (s1 = FskStrChr(s0, ','))) {	/* No more commas: last string */
+		n = FskStrLen(s0);
+		*inStrP = s0 + n;						/* Advance pointer to the terminating 0 character */
 	}
-
-	/* Look to see if we gobbled everything up */
-	if (*inStr == 0)	goto done;		/* End of list */
-
-	/* The first character is now a non-space */
-	gotOne = 1;
-	for (maxChars-- ; (maxChars > 0) && ((*outStr = c = *inStr++) != 0); outStr++, maxChars--) {					/* Gather characters of token */
-		if (quoted) {
-			if (c != quoted)	continue;											/* Transfer all characters until a matching quote is found */
-
-			/* End of quote */
-			for ( ; ((c = *inStr) == ' ') || (c == '\t') || (c == '\n') || (c == '\r'); inStr++)	continue;		/* Gobble up spaces */
-			if (c == ',')	inStr++;																				/* Gobble up the comma */
-			break;																									/* End of token */
-		}
-		else {	/* Not quoted */
-			#ifdef SPACES_TERMINATE_TOKENS	/* @@@ Why was this put in again??? */
-			if ((c ==' ') || (c == '\t') || (c == '\n') || (c == '\r')) {											/* Spaces terminate a token */
-				for ( ; ((c = *inStr) == ' ') || (c == '\t') || (c == '\n') || (c == '\r'); inStr++)	continue;	/* Gobble up additional spaces */
-				if ((c = *inStr) == ',')	inStr++;																/* Gobble up a comma if it exists */
-				break;																								/* End of token */
-			}
-			#endif /* SPACES_TERMINATE_TOKENS */
-			if (c == ',')	{	inStr++;	break;	}																/* Gobble up the comma */
-		}
+	else {
+		n = s1 - s0;
+		*inStrP = s1 + 1;						/* Advance pointer to the character after the comma */
 	}
-
-	/* Trim trailing spaces */
-	while (((c = outStr[-1]) == ' ') || (c == '\t') || (c == '\n') || (c == '\r'))
-		outStr--;
-
-done:
-	*outStr++ = 0;	/* Double-terminate for Freetype, because it expects a list of strings. */
-	*outStr   = 0;
-	*inStrP = inStr;
-	return gotOne;
+	if (n >= maxChars)
+		n = maxChars - 1;						/* Truncate if the name is too long to fit in the buffer */
+	FskMemCopy(outStr, s0, n);
+	outStr[n] = 0;
+	return 1;
 }
+
+#endif /* !USE_GENERIC_FONT_MAPPING */
+
+
+#ifdef USE_GENERIC_FONT_MAPPING	/* This might be better located in FskText.c */
+
+/********************************************************************************
+ * Equivalence class strings
+ ********************************************************************************/
+
+/* These are the generic names for the font equivalence classes */
+static const char	gSansSerifStr[]	= "sans-serif";
+static const char	gSerifStr[]		= "serif";
+static const char	gCursiveStr[]	= "cursive";
+static const char	gMonospaceStr[]	= "monospace";
+static const char	gFantasyStr[]	= "fantasy";
+
+/* These strings are known to be in a particular class */
+static const char	*gSansSerifCandidates[]	= { "Helvetica",	"Arial",			"Roboto",			"Fira Sans",	"Futura",		"Verdana" };
+static const char	*gSerifCandidates[]		= { "Times",		"Times New Roman",	"Droid Serif",		"Georgia" };
+static const char	*gCursiveCandidates[]	= { "Zapfino",		"Apple Chancery",	"Corsiva",			"Segoe Script",	"Savoye"	 };
+static const char	*gMonoSpaceCandidates[]	= { "Courier New",	"Courier",			"Droid Sans Mono",	"Consolas"	};
+static const char	*gFantasyCandidates[]	= { "Herculanum",	"Comic Sans",		"Choco cooky",		"Marker Felt",	"Tekton Pro",	"Hobo" };
+
+/* These strings are sometimes found in the given class */
+static const char	*gSansSerifSubStrings[]	= { "Sans-Comic",	"Gothic",	"Grotesk",	"Grotesque",	"Web" 	};
+static const char	*gSerifSubStrings[]		= { "Serif-Sans",	"Roman",	"Slab",		"Book",			"Livre"	 };
+static const char	*gCursiveSubStrings[]	= { "Script",		"Brush",	"Hand",		"Swing",		"Roundhand"	 };
+static const char	*gMonospaceSubStrings[]	= { "Mono-Monotype",	"Typewriter",	"Console"	 };
+static const char	*gFantasySubStrings[]	= { "Fantasy" };	/* "Fantasy" is here because Microsoft compiler cannot handle a null set */
+
+
+/***************************************************************************//**
+ * Find the location of a substring in another string.
+ * This is like FskStrStr or strstr, except it works with size-delimited strings,
+ * rather than NULL-terminated C strings. However, you could use it for C strings thusly:
+ *		MyMemMem(cstr1, FskStrLen(cstr1), cstr2, FskStrLen(cstr2));
+ *	\param[in]	big
+ *	\param[in]	big_len
+ *	\param[in]	little
+ *	\param[in]	little_len
+ *	\return		a pointer to the location of the little string in the big string;
+ *	\return		NULL, if the little string was not found.
+ *	\todo		This should probably be in FskMemory.h as FskMemMem().
+ *******************************************************************************/
+
+static const void* MyMemMem(const void *big, UInt32 big_len, const void *little, UInt32 little_len) {
+	const char *b0, *b1, *b, *l0, *l;
+	size_t n;
+
+	if (big_len < little_len)
+		return NULL;
+
+	l0 = (const char*)little;
+	b0 = (const char*)big;
+	b1 = b0 + big_len - little_len;
+	for (; b0 <= b1; b0++) {
+		if (*b0 == *l0) {
+			for (b = b0 + 1, l = l0 + 1, n = little_len - 1; n--; ++b, ++l)
+				if (*b != *l)
+					goto move_on;
+			return b0;
+		}
+	move_on:
+		continue;
+	}
+	return NULL;
+}
+
+
+/***************************************************************************//**
+ * Compare two memory strings lexicographically.
+ *	\param[in]	v1	pointer to the left  chunk of memory.
+ *	\param[in]	v2	pointer to the right chunk of memory.
+ *	\param[in]	n	the number of bytes to compare.
+ *	\return		the difference between the first two differing bytes, treated as unsigned character values,
+ *				so that MemCompareLexicographically("\0\0", "\0\200", 2) returns -0200 = -128.
+ *				Identical and zero-length strings return 0.
+ * \note	Using MemCompareLexicographically() to sort the 4-character strings
+ *				{ "alfa", "beta", "gama", "dlta" }
+ *			yields
+ *				{ "alfa", "beta", "dlta", "gama" }.
+ *			This is consistent with memcmp(), strncmp(), and FskStrCompareWithLength().
+ *			This is the opposite, though, of FskMemCompare(), which would instead produce
+ *				{ "gama", "dlta", "beta", "alfa" }.
+ *******************************************************************************/
+
+static SInt32 MemCompareLexicographically(const void *v1, const void *v2, UInt32 n) {
+	const UInt8	*p1		= (const UInt8*)v1,
+				*p2 	= (const UInt8*)v2;
+	SInt32		result	= 0;
+	while (n--)
+		if (0 != (result = *p1++ - *p2++))
+			break;
+	return result;
+}
+
+
+/*******************************************************************************
+ * Queries
+ *******************************************************************************/
+
+static int CompareBlobStrings(const FskBlobRecord *b0, const FskBlobRecord *b1) {
+	int result;
+	if (0 == (result = (int)(b0->size) - (int)(b1->size)))
+		result = MemCompareLexicographically(b0->data, b1->data, b0->size);
+	return result;
+}
+
+static int CompareSubstring(const FskBlobRecord *queryData, const FskBlobRecord *blob) {
+	return NULL == MyMemMem(blob->data, blob->size, (const char*)(queryData->data), queryData->size);
+}
+
+static int CompareWithWithoutSubstring(const FskBlobRecord *queryData, const FskBlobRecord *blob) {
+	return	((NULL != MyMemMem(blob->data, blob->size, queryData->data, queryData->size   ))	&&	/* Contains "with" string */
+			 (NULL == MyMemMem(blob->data, blob->size, queryData->dir,  queryData->id))) ? 0 : -1;	/* Avoids "without" string */
+}
+
+
+/***************************************************************************//**
+ * Compare a key with a blob.
+ * The ordering induced is alphabetical within equal sized strings, with the small strings first.
+ * I know - who does that? But is is fast to compute and works as well as anything else to do a binary search.
+ * But we only use it to check for equality.
+ *	\param[in]	key		a comma-delimited set of strings, punctuated by a null character and also delimited by size.
+ *	\param[in]	str		a single string, size-delimited.
+ *	\return		0		if the string matches one of the substrings in the key.
+ *	\return		!0		otherwise.
+ *******************************************************************************/
+
+static int CompareCommaKeyWithString(const FskBlobRecord *key, const FskBlobRecord *bStr) {
+	int			result	= 1;
+	const char	*str	= (const char*)(bStr->data);
+	const char	*s0		= (const char*)(key->data);
+	const char	*s1;
+
+	for (s1 = FskStrChr(s0, ','); s1; s1 = FskStrChr(s0 = s1 + 1, ',')) {
+		if ((0 == (result = s1 - s0 - (int)bStr->size)) && (0 == (result = MemCompareLexicographically(s0, str, bStr->size))))
+			goto done;
+	}
+	if (0 == (result = FskStrLen(s0) - bStr->size))
+		result = MemCompareLexicographically(s0, str, bStr->size);
+done:
+	#if GLYPH_DEBUG
+		if (0 == result) {
+			((FskBlobRecord*)key)->dir = (void*)s0;		/* Return the string that we matched */
+			((FskBlobRecord*)key)->id  = bStr->size;
+		}
+	#endif /* GLYPH_DEBUG*/
+	return result;
+}
+
+
+/********************************************************************************
+ * FindShortestStringInQuery
+ ********************************************************************************/
+
+static const char* FindShortestStringInQuery(FskBlobQueryResult q, FskGrowableBlobArray fontArray) {
+	const UInt32	numMatches	= FskGrowableBlobArrayQueryCount(q);
+	UInt32			bestSize	= 0xFFFFFFFF;
+	const char		*bestMatch	= NULL;
+	const char		*aMatch;
+	UInt32			i, aSize, matchIndex;
+
+	for (i = 0; i < numMatches; ++i) {
+		FskGrowableBlobArrayQueryGet(q, i, &matchIndex);
+		(void)FskGrowableBlobArrayGetConstPointerToItem(fontArray, matchIndex, (const void**)(&aMatch), &aSize, NULL);
+		if (bestSize > aSize) {
+			bestSize  = aSize;
+			bestMatch = aMatch;
+		}
+	}
+	return bestMatch;
+}
+
+
+FskGrowableBlobArray	gFontFamilies			= NULL;	/* The font families reported by FskTextGetFontList(), but organized for search */
+FskGrowableEquivalences	gFontEquivalenceClasses = NULL;	/* Equivalence classes for generic fonts (and then some) */
+
+
+/****************************************************************************//**
+ * Find a suitable font to use as a generic font.
+ *	\param[in]	str		a list of known fonts that belong to a particular class.
+ *	\param[in]	numStr	the number of fonts in the above list.
+ *	\param[in]	subStr	a list of substrings that are sometimes found in this particular class.
+ *	\param[in]	numStr	the number of substrings in the above list.
+ *	\return		the font that best matches the criteria, or NULL if nothing suitable was found.
+ ********************************************************************************/
+
+static const char* FindSuitableGenericFont(const char **str, UInt32 numStr, const char **subStr, UInt32 numSubStr) {
+	FskBlobQueryResult	q;
+	FskErr				err;
+	UInt32				i;
+	const char			*bestMatch;
+	FskBlobRecord		key;
+
+	/* Look for an exact match */
+	for (i = 0; i < numStr; ++i) {
+		key.data = (void*)str[i];
+		key.size = FskStrLen((const char*)(key.data));
+		if (kFskErrNone == (err = FskGrowableBlobArrayQuery(gFontFamilies, &CompareCommaKeyWithString, &key, &q))) {
+			return str[i];
+		}
+	}
+
+	/* Look for a font that contains the font as a substring */
+	for (i = 0; i < numStr; ++i) {
+		key.data = (void*)str[i];
+		key.size = FskStrLen((const char*)(key.data));
+		if (kFskErrNone == FskGrowableBlobArrayQuery(gFontFamilies, &CompareSubstring, &key, &q)) {
+			return FindShortestStringInQuery(q, gFontFamilies);
+		}
+	}
+
+	for (i = 0; i < numSubStr; ++i) {
+		key.data = (void*)subStr[i];
+		if (NULL != (key.dir = (void*)FskStrChr(subStr[i], '-'))) {
+			if (0 == (key.size = (const char*)key.dir - subStr[i]))
+				continue;																				/* Don't query without */
+			key.dir = (void*)((char*)(key.dir) + 1);													/* Advance after '-' to "without" string */
+			key.id  = FskStrLen((char*)(key.dir));														/* Store the size of the without string */
+			err = FskGrowableBlobArrayQuery(gFontFamilies, &CompareWithWithoutSubstring, &key, &q);		/* Query with/without */
+		} else {
+			key.size = FskStrLen((const char*)(key.data));
+			err = FskGrowableBlobArrayQuery(gFontFamilies, &CompareSubstring, &key, &q);				/* Query with */
+		}
+		if (kFskErrNone != err)
+			continue;
+		FskGrowableBlobArrayQueryGet(q, 0, &i); (void)FskGrowableBlobArrayGetConstPointerToItem(gFontFamilies, i, (const void**)(&bestMatch), NULL, NULL);	return bestMatch;
+		//return FindShortestStringInQuery(q, gFontFamilies);
+	}
+
+	return NULL;
+}
+
+
+/********************************************************************************
+ * InitializeFontEquivalenceClasses
+ ********************************************************************************/
+
+static FskErr InitializeFontEquivalenceClasses() {
+	FskErr		err;
+	const char	*f, *fallbackFont;
+
+	LOGD("InitializeFontEquivalenceClasses:");
+	if (!gFontFamilies) {
+		char			*fontList	= NULL;
+		FskTextEngine	fte			= NULL;
+		BAIL_IF_ERR(err = FskTextEngineNew(&fte, kFskTextDefaultEngine));
+		BAIL_IF_ERR(err = FskTextGetFontList(fte, &fontList));
+		FskTextEngineDispose(fte);
+		BAIL_IF_ERR(err = FskGrowableBlobArrayNewFromStringList(fontList, false, 0, &gFontFamilies));
+	}
+	BAIL_IF_ERR(err = FskGrowableEquivalencesNew(25, 5, &gFontEquivalenceClasses));	/* sans-serif, serif, cursive, fantasy, monospace */
+
+
+	f = FindSuitableGenericFont(gSansSerifCandidates, sizeof(gSansSerifCandidates)/sizeof(gSansSerifCandidates[0]),
+								gSansSerifSubStrings, sizeof(gSansSerifSubStrings)/sizeof(gSansSerifSubStrings[0]));	/* sans-serif equivalence class */
+	BAIL_IF_NULL(f, err, kFskErrBadState);
+	BAIL_IF_ERR(err = FskGrowableEquivalencesAppendMultipleElementClass(gFontEquivalenceClasses, NULL, 1, 2, f, 0, gSansSerifStr, 0));
+	fallbackFont = f;						/* We use the sans-serif font as the fallback font */
+
+	f = FindSuitableGenericFont(gSerifCandidates, sizeof(gSerifCandidates)/sizeof(gSerifCandidates[0]),
+								gSerifSubStrings, sizeof(gSerifSubStrings)/sizeof(gSerifSubStrings[0]));				/* serif equivalence class */
+	if (!f)	f = fallbackFont;
+	BAIL_IF_ERR(err = FskGrowableEquivalencesAppendMultipleElementClass(gFontEquivalenceClasses, NULL, 1, 2, f, 0, gSerifStr, 0));
+
+	f = FindSuitableGenericFont(gCursiveCandidates, sizeof(gCursiveCandidates)/sizeof(gCursiveCandidates[0]),
+								gCursiveSubStrings, sizeof(gCursiveSubStrings)/sizeof(gCursiveSubStrings[0]));			/* cursive equivalence class */
+	if (!f)	f = fallbackFont;
+	BAIL_IF_ERR(err = FskGrowableEquivalencesAppendMultipleElementClass(gFontEquivalenceClasses, NULL, 1, 2, f, 0, gCursiveStr, 0));
+
+	f = FindSuitableGenericFont(gMonoSpaceCandidates, sizeof(gMonoSpaceCandidates)/sizeof(gMonoSpaceCandidates[0]),
+								gMonospaceSubStrings, sizeof(gMonospaceSubStrings)/sizeof(gMonospaceSubStrings[0]));	/* monospace equivalence class */
+	if (!f)	f = fallbackFont;
+	BAIL_IF_ERR(err = FskGrowableEquivalencesAppendMultipleElementClass(gFontEquivalenceClasses, NULL, 1, 2, f, 0, gMonospaceStr, 0));
+
+	f = FindSuitableGenericFont(gFantasyCandidates, sizeof(gFantasyCandidates)/sizeof(gFantasyCandidates[0]),
+								gFantasySubStrings, sizeof(gFantasySubStrings)/sizeof(gFantasySubStrings[0]));			/* fantasy equivalence class */
+	if (!f)	f = fallbackFont;
+	BAIL_IF_ERR(err = FskGrowableEquivalencesAppendMultipleElementClass(gFontEquivalenceClasses, NULL, 1, 2, f, 0, gFantasyStr, 0));
+
+	#if SUPPORT_INSTRUMENTATION
+		LogEquivalenceClasses(gFontEquivalenceClasses, NULL);
+	#endif /* SUPPORT_INSTRUMENTATION */
+bail:
+	return err;
+}
+
+
+/****************************************************************************//**
+ * Look for a font that contains a particular substring but does not contain another one.
+ *	\param[in]	font		the font name to be evaluated.
+ *	\param[in]	withWithout	a string that contains one string or two hyphen-separated strings,
+ *							e.g. "Serif-Sans" specifies that a match would contain the string "Serif",
+ *							but does not contain the string "Sans".
+ *	\return		true	if the string matches the criteria,
+ *				false	otherwise.
+ ********************************************************************************/
+
+static Boolean FontMatchesWithWithoutString(const char *font, const char *withWithout) {
+	UInt32		fontSize;
+	const char	*without;
+
+	if (NULL == (without = FskStrChr(withWithout, '-')))						/* No without-string */
+		return (NULL != FskStrStr(font, withWithout));							/* Check with-string match */
+	fontSize = FskStrLen(font);
+	if (NULL == MyMemMem(font, fontSize, withWithout, without++ - withWithout))	/* If no with-string match, ... */
+		return false;															/* ... no match */
+	return (NULL == MyMemMem(font, fontSize, without, FskStrLen(without)));		/* Check without-string non-match */
+}
+
+
+/****************************************************************************//**
+ * Try to categorize a font into an equivalence class.
+ * Look for a font that contains one of the given with-without substrings.
+ * If successful, the font is added to the equivalence class that includes the specified generic font,
+ * and the representative member of that class is returned.
+ *	\param[in]	font	the desired font.
+ *	\param[in]	generic	the generic name for the font equivalence class that is being evaluated.
+ *	\param[in]	subStr	the list of with-without substrings to be matched with the font.
+ *	\param[in]	numSubStr	the number of substrings in the above list.
+ *	\return		the representative member of the font equivalence class, or
+ *				NULL, if it does not meet the criteria.
+ ********************************************************************************/
+
+static const char* FindRelatedFontWithSubstring(const char *font, const char *generic, const char **subStr, UInt32 numSubStr) {
+	FskBlobRecord				key;
+	UInt32						index;
+	const FskEquivalenceBlob	*equiv;
+
+	for (; numSubStr--; ++subStr) {
+		if (!FontMatchesWithWithoutString(font, *subStr))
+			continue;
+		key.data = (void*)generic;
+		key.size = FskStrLen(generic);
+		if (kFskErrNone != FskGrowableEquivalencesFindClassIndexOfElement(gFontEquivalenceClasses, &key, NULL, &index))		/* Find the generic index */
+			continue;	/* This shouldn't happen because the generic should be in the list */
+		(void)FskGrowableEquivalencesAppendElementToClass(gFontEquivalenceClasses, index, font, 0, 1);						/* Add this font to the equivalence class */
+		(void)FskGrowableEquivalencesGetConstPointerToClass(gFontEquivalenceClasses, index, (const void**)(&equiv), NULL);	/* Get the equivalence class */
+		return FskEquivalenceElementGetPointer(equiv, 0);																	/* Get the representative element of the class */
+	}
+	return NULL;
+}
+
+
+/****************************************************************************//**
+ ********************************************************************************/
+
+ static Boolean LoadBlobWithNextTokenInCommaSeparatedList(const char **pstr, FskBlobRecord *br) {
+	const char	*s0, *s1;
+
+	br->data = (void*)(s0 = *pstr);
+	if (0 == *s0) {
+		br->size = 0;
+		return 0;
+	}
+	if (NULL == (s1 = FskStrChr(s0, ','))) {	/* No more commas: last string */
+		br->size = FskStrLen(s0);
+		*pstr = s0 + br->size;					/* Advance pointer to the terminating 0 character */
+	}
+	else {
+		br->size = s1 - s0;
+		*pstr = s1 + 1;							/* Advance pointer to the character after the comma */
+	}
+	return 1;
+ }
+
+
+/****************************************************************************//**
+ * Find The Best Font from those available on the system, using a series of heuristics.
+ *	\todo	Add a fifth step to recognize "Adobe Garamond", "Garamond MT" and the like when given "Garamond".
+ *	\param[in]	font	a comma-separated list of font family names.
+ *	\return				the font that we feel matches the specified font to the best of out limited knowledge.
+ *						It should never return NULL.
+ ********************************************************************************/
+
+static FskErr FindTheBestFont(const char *font, const char **bestFont) {
+	FskErr					err			= kFskErrNone;
+	const char				*nextStr	= NULL;
+	FskBlobQueryResult		q;
+	FskBlobRecord			key;
+	UInt32					index;
+	const FskEquivalenceBlob *equiv;
+
+	if (!gFontEquivalenceClasses)
+		BAIL_IF_ERR(err = InitializeFontEquivalenceClasses());
+
+
+	/* (1) Look for the exact font name. If it is here, it returns quickly.
+	 * We search for each string in the font list sequentially, to respect the preferences of the caller.
+	 */
+	for (nextStr = font; LoadBlobWithNextTokenInCommaSeparatedList(&nextStr, &key);) {
+		if (kFskErrNone == FskGrowableBlobArrayQuery(gFontFamilies, &CompareBlobStrings, &key, &q)) {
+			FskGrowableBlobArrayQueryGet(q, 0, &index);
+			(void)FskGrowableBlobArrayGetConstPointerToItem(gFontFamilies, index, (const void**)(&nextStr), NULL, NULL);
+			//LOGD("\"%s\" resides on this system as \"%s\"", font, nextStr);
+			goto bail;
+		}
+	}
+
+	/* (2) Look for the complete font list itself in the equivalence classes. If the list has been seen before,
+	 * it will appear here so we can find it quickly and easily, and assure consistent behavior.
+	 */
+	key.data = (void*)font;
+	key.size = FskStrLen(font);
+	if (kFskErrNone == FskGrowableEquivalencesFindClassIndexOfElement(gFontEquivalenceClasses, &key, NULL, &index)) {
+		(void)FskGrowableEquivalencesGetConstPointerToClass(gFontEquivalenceClasses, index, (const void**)(&equiv), NULL);
+		nextStr =  FskEquivalenceElementGetPointer(equiv, 0);
+		LOGD("\"%s\" found in class %u --> \"%s\"", font, (unsigned)index, nextStr);
+		goto bail;
+	}
+
+	/* (3) Look in the equivalence classes for each font in the font list.
+	 * If the font list only has one font, it was already searched above, so we do not repeat that here.
+	 */
+	if (NULL != FskStrChr(font, ',')) for (nextStr = font; LoadBlobWithNextTokenInCommaSeparatedList(&nextStr, &key);) {
+		if (kFskErrNone == FskGrowableEquivalencesFindClassIndexOfElement(gFontEquivalenceClasses, &key, NULL, &index)) {
+			(void)FskGrowableEquivalencesGetConstPointerToClass(gFontEquivalenceClasses, index, (const void**)(&equiv), NULL);
+			nextStr =  FskEquivalenceElementGetPointer(equiv, 0);
+			LOGD("\"%s\" found in class %u --> \"%s\"", font, (unsigned)index, nextStr);
+			goto bail;
+		}
+	}
+
+	/* (4) Look for special substrings, and if found, add to the appropriate equivalence class, so that next time the search will be fast. */
+	if (NULL != (nextStr = FindRelatedFontWithSubstring(font, gSansSerifStr, gSansSerifSubStrings, sizeof(gSansSerifSubStrings)/sizeof(gSansSerifSubStrings[0])))) {
+		LOGD("\"%s\" --> \"%s\" --> \"%s\"", font, gSansSerifStr, nextStr);
+		goto bail;
+	}
+	if (NULL != (nextStr = FindRelatedFontWithSubstring(font, gSerifStr,     gSerifSubStrings,     sizeof(gSerifSubStrings)    /sizeof(gSerifSubStrings[0])))) {
+		LOGD("\"%s\" --> \"%s\" --> \"%s\"", font, gSerifStr, nextStr);
+		goto bail;
+	}
+	if (NULL != (nextStr = FindRelatedFontWithSubstring(font, gCursiveStr,   gCursiveSubStrings,   sizeof(gCursiveSubStrings)  /sizeof(gCursiveSubStrings[0])))) {
+		LOGD("\"%s\" --> \"%s\" --> \"%s\"", font, gCursiveStr, nextStr);
+		goto bail;
+	}
+	if (NULL != (nextStr = FindRelatedFontWithSubstring(font, gMonospaceStr, gMonospaceSubStrings, sizeof(gMonospaceSubStrings)/sizeof(gMonospaceSubStrings[0])))) {
+		LOGD("\"%s\" --> \"%s\" --> \"%s\"", font, gMonospaceStr, nextStr);
+		goto bail;
+	}
+	if (NULL != (nextStr = FindRelatedFontWithSubstring(font, gFantasyStr,   gFantasySubStrings,   sizeof(gFantasySubStrings)  /sizeof(gFantasySubStrings[0])))) {
+		LOGD("\"%s\" --> \"%s\" --> \"%s\"", font, gFantasyStr, nextStr);
+		goto bail;
+	}
+
+	/* (5) No luck. Map this one to sans-serif, so the next time we encounter it, it will be fast */
+	key.data = (void*)gSansSerifStr;
+	key.size = sizeof(gSansSerifStr) - 1;
+	(void)FskGrowableEquivalencesFindClassIndexOfElement(gFontEquivalenceClasses, &key, NULL, &index);
+	(void)FskGrowableEquivalencesAppendElementToClass(gFontEquivalenceClasses, index, font, 0, 1);		/* Add this font list to the equivalence class */
+	(void)FskGrowableEquivalencesGetConstPointerToClass(gFontEquivalenceClasses, index, (const void**)(&equiv), NULL);
+	nextStr =  FskEquivalenceElementGetPointer(equiv, 0);												/* Get the representative element of the class */
+	LOGD("\"%s\" defies categorization; using \"%s\" instead", font, nextStr);
+	goto bail;
+
+bail:
+	*bestFont = nextStr;
+	return err;
+}
+#endif /* USE_GENERIC_FONT_MAPPING */
 
 
 #if 0
@@ -225,6 +692,7 @@ GetFontWithCString(const char *name, const FskFontAttributes *at)
 	CTFontSymbolicTraits symbolicTraits = 0;
 	FskErr err = kFskErrNone;
 
+#ifndef USE_GENERIC_FONT_MAPPING
 	if (FskStrCompare(name, "sans-serif") == 0)
 	{
 #if TARGET_OS_IPHONE
@@ -254,6 +722,10 @@ GetFontWithCString(const char *name, const FskFontAttributes *at)
 		name = "Courier New";
 		genericFamilyName = true;
 	}
+#else /* USE_GENERIC_FONT_MAPPING */
+	BAIL_IF_ERR(err = FindTheBestFont(name, &name));
+#endif /* USE_GENERIC_FONT_MAPPING */
+
 
 	nameString = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingUTF8);
 	BAIL_IF_NULL(nameString, err, kFskErrOperationFailed);
@@ -359,6 +831,7 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 	textContext = *pTextContext;
 
 	/* Determine the font family, or one similar to it */
+#ifndef USE_GENERIC_FONT_MAPPING
 	if (at->family != NULL) {		/* Parse the font family */
 		const char *fs;
 		char fontName[256];
@@ -380,6 +853,12 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 			LOGD("Failed    getting text context from default \"%s\"", *fl);
 		}
 	}
+#else /* USE_GENERIC_FONT_MAPPING */
+	if (at->family != NULL) {
+		font = GetFontWithCString(at->family, at);		/* This is "guaranteed" to return an available font */
+		LOGD("%s getting text context from \"%s\"", (font ? "Succeeded" : "Failed   "), at->family);
+	}
+#endif /* USE_GENERIC_FONT_MAPPING */
 
 	BAIL_IF_NULL(font, err, kFskErrNotFound);
 
@@ -394,6 +873,57 @@ bail:
 		*pTextContext = NULL;
 	}
 	return err;
+}
+
+
+/********************************************************************************
+ * NewCStringFromCFString
+ ********************************************************************************/
+
+FskErr
+NewCStringFromCFString(CFStringRef cfStr, char **cStr)
+{
+	CFRange	range;
+	CFIndex	numBytes;
+	FskErr	err;
+
+	*cStr = NULL;
+	range.location	= 0;
+	range.length	= CFStringGetLength(cfStr);
+	(void)CFStringGetBytes(cfStr, range, kCFStringEncodingUTF8, 0, false, NULL, 0, &numBytes);
+	++numBytes;
+	BAIL_IF_ERR(err = FskMemPtrNew(numBytes, cStr));
+	(void)CFStringGetBytes(cfStr, range, kCFStringEncodingUTF8, 0, false, (UInt8*)(*cStr), numBytes, NULL);
+	(*cStr)[--numBytes] = 0;
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskTextContextGetFontFamily
+ ********************************************************************************/
+
+FskErr
+FskTextContextGetFontFamily(FskTextContext textContext, char **family)
+{
+#if !TARGET_OS_IPHONE
+	CFStringRef			cfFamily		= NULL;
+	CTFontDescriptorRef	cfDescriptor	= NULL;
+	FskErr				err;
+
+	cfDescriptor = CTFontCopyFontDescriptor(textContext->font);
+	cfFamily = CTFontDescriptorCopyAttribute(cfDescriptor, kCTFontFamilyNameAttribute);
+	err = NewCStringFromCFString(cfFamily, family);
+
+	if (cfFamily)		CFRelease(cfFamily);
+	if (cfDescriptor)	CFRelease(cfDescriptor);
+	return err;
+#else /* TARGET_OS_IPHONE */
+	/* CFArrayRef famArray = (CFArrayRef) [[UIFont familyNames] retain]; */
+	*family = NULL;
+	return kFskErrUnimplemented;
+#endif /* TARGET_OS_IPHONE */
 }
 
 
@@ -855,6 +1385,7 @@ NewStyleFromFontAttributes(const FskFontAttributes *attr, ATSUStyle *atsuStyle)
 	//BAIL_IF_ERR(err = ATSUClearStyle(atsuStyle);	// Probably not necessary
 
 	/* Determine the font family, or one similar to it */
+#ifndef USE_GENERIC_FONT_MAPPING
 	if (attr->family != NULL) {						/* Parse the font family */
 		const char	*fs;
 		char		fontName[256];
@@ -876,6 +1407,15 @@ NewStyleFromFontAttributes(const FskFontAttributes *attr, ATSUStyle *atsuStyle)
 			LOGD("Failed    getting text context from default \"%s\"", *fl);
 		}
 	}
+#else /* USE_GENERIC_FONT_MAPPING */
+	if (at->family != NULL) {
+		const char *fontName;
+		BAIL_IF_ERR(err = FindTheBestFont(attributes->family, &fontName));
+		fmFontFamily = GetFMFontFamilyFromFontName(fontName);
+		if (!fmFontFamily)
+			LOGD("GetFMFontFamilyFromFontName(\"%s\" --> \"%s\") failed", at->family, fontName);
+	}
+#endif /* USE_GENERIC_FONT_MAPPING */
 
 	/* Set the style to select the closest member of the font family */
 	fmStyle = 0;
@@ -968,6 +1508,18 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *attributes, FskText
 
 bail:
 	return err;
+}
+
+
+/********************************************************************************
+ * FskTextContextGetFontFamily
+ ********************************************************************************/
+
+FskErr
+FskTextContextGetFontFamily(FskTextContext textContext, char **family)
+{
+	*family = NULL;
+	return kFskErrUnimplemented;
 }
 
 
@@ -1327,6 +1879,7 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 	textContext->hWnd = GetForegroundWindow();	//NULL;
 	textContext->hdc = GetDC(textContext->hWnd);
 
+#ifndef USE_GENERIC_FONT_MAPPING
 	/* Make sure we have the list of font names, because Windows gives us a font even with a bogus name */
 	err = FskGetSystemFontFaceNameList(&faceNames, textContext->hdc);
 
@@ -1339,12 +1892,19 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 			if (	((fn = FskGrowableArrayBSearchItems(faceNames, fontName, MyCompareFontNamesProc)) != NULL)
 				&&	CreateFontFromFontName(at, fn, textContext)
 			) {
-				LOGD("Succeeded getting text context from \"%s\"", fontName);
+				LOGD("Succeeded creating font from \"%s\"", fontName);
 				break;
 			}
-			LOGD("Failed    getting text context from \"%s\"", fontName);
+			LOGD("Failed    creating font from \"%s\"", fontName);
 		}
 	}
+#else /* USE_GENERIC_FONT_MAPPING */
+	if (at->family != NULL) {
+		const char *fontName;
+		BAIL_IF_ERR(err = FindTheBestFont(at->family, &fontName));
+		(void)CreateFontFromFontName(at, fontName, textContext);
+	}
+#endif /* USE_GENERIC_FONT_MAPPING */
 
 	/* Couldn't find any fonts: look through our default list */
 	if (textContext->hFont == NULL) {
@@ -1359,6 +1919,7 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 	}
 	BAIL_IF_NULL(textContext->hFont, err, kFskErrNotFound);
 
+
 	textContext->oldFont = SelectObject(textContext->hdc, textContext->hFont);
 
 bail:
@@ -1366,6 +1927,25 @@ bail:
 		FskTextContextDispose(textContext);
 		*pTextContext = NULL;
 	}
+	return err;
+}
+
+
+/********************************************************************************
+ * FskTextContextGetFontFamily
+ ********************************************************************************/
+
+FskErr
+FskTextContextGetFontFamily(FskTextContext textContext, char **family)
+{
+	FskErr	err;
+	int		strSize;
+
+	strSize = GetTextFaceA(textContext->hdc, 0, NULL);
+	BAIL_IF_ERR(err = FskMemPtrNew(strSize, family));
+	(void)GetTextFaceA(textContext->hdc, strSize, *family);
+
+bail:
 	return err;
 }
 
@@ -1737,7 +2317,7 @@ bail:
 
 #if 0
 #pragma mark -
-#pragma mark WinCE
+#pragma mark iPhone
 #endif
 /********************************************************************************
  ********************************************************************************
@@ -1760,6 +2340,18 @@ FskErr
 FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext *pTextContext)
 {
 	*pTextContext = NULL;
+	return kFskErrUnimplemented;
+}
+
+
+/********************************************************************************
+ * FskTextContextGetFontFamily
+ ********************************************************************************/
+
+FskErr
+FskTextContextGetFontFamily(FskTextContext textContext, char **family)
+{
+	*family = NULL;
 	return kFskErrUnimplemented;
 }
 
@@ -2020,6 +2612,7 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *attributes, FskText
 	textContext->face = NULL;
 	/* Determine the font family, or one similar to it */
 	if (attributes->family != NULL) {						/* Parse the font family */
+#ifndef USE_GENERIC_FONT_MAPPING
 		const char	*fs;
 		char		fontName[256];
 		for (fs = attributes->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName)); ) {
@@ -2029,6 +2622,11 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *attributes, FskText
 			}
 			LOGD("Failed    getting text context from \"%s\"", fontName);
 		}
+#else /* USE_GENERIC_FONT_MAPPING */
+		const char *fontName;
+		BAIL_IF_ERR(err = FindTheBestFont(attributes->family, &fontName));
+		textContext->face = FskFTFindFont(fontName, textStyle, attributes->size);
+#endif /* USE_GENERIC_FONT_MAPPING */
 	}
 	if (textContext->face == NULL) {		/* Couldn't find the fonts - choose one from our default list */
 		BAIL_IF_NULL((textContext->face = FskFTFindFont(NULL, textStyle, attributes->size)), err, kFskErrNotFound);
@@ -2042,6 +2640,18 @@ bail:
 	}
 
 	return err;
+}
+
+
+/********************************************************************************
+ * FskTextContextGetFontFamily
+ ********************************************************************************/
+
+FskErr
+FskTextContextGetFontFamily(FskTextContext textContext, char **family)
+{
+	*family = FskStrDoCopy(textContext->face->family_name);
+	return kFskErrNone;
 }
 
 
@@ -2278,6 +2888,18 @@ FskErr
 FskTextContextFromFontAttributesNew(const FskFontAttributes *attributes, FskTextContext *pTextContext)
 {
 	pTextContext = NULL;
+	return kFskErrUnimplemented;
+}
+
+
+/********************************************************************************
+ * FskTextContextGetFontFamily
+ ********************************************************************************/
+
+FskErr
+FskTextContextGetFontFamily(FskTextContext textContext, char **family)
+{
+	if (family) *family = NULL;
 	return kFskErrUnimplemented;
 }
 

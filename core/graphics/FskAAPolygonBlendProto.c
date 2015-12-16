@@ -34,7 +34,7 @@ FskName2(BlendFillColor,DstPixelKind)(FskSpan *span, UInt8 alpha)
 #else
 	FskName2(FskBlend,DstPixelKind)(
 		(FskName3(Fsk,DstPixelKind,Type)*)(span->p),					/* Cast the pointer to the appropriate type */
-		*((FskName3(Fsk,DstPixelKind,Type)*)(void*)(&span->fillColor)),	/* Get the fill color in the appropriate format */
+		span->fillColor.FskName2(p, FskName3(fsk,DstPixelKind,Bytes)),	/* Get the fill color in the appropriate format */
 		alpha															/* Alpha */
 	);
 #endif

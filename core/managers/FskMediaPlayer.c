@@ -675,13 +675,13 @@ Boolean doFormatMessageMediaPlayer(FskInstrumentedType dispatch, UInt32 msg, voi
 
 		case kFskMediaPlayerInstrMsgSetTime: {
 			FskMediaPlayerInstrMsgSetTimeRecord *d = (FskMediaPlayerInstrMsgSetTimeRecord *)msgData;
-			snprintf(buffer, bufferSize, "set time %ld, scale=%lf", (UInt32)d->time, d->scale);
+			snprintf(buffer, bufferSize, "set time %d, scale=%lf", (UInt32)d->time, d->scale);
 			}
 			return true;
 
 		case kFskMediaPlayerInstrMsgStateChange: {
 			void **md = (void **)msgData;
-			snprintf(buffer, bufferSize, "state change from %ld to %ld", (UInt32)md[1], (UInt32)md[0]);
+			snprintf(buffer, bufferSize, "state change from %d to %d", (UInt32)md[1], (UInt32)md[0]);
 			}
 			return true;
 
@@ -694,7 +694,7 @@ Boolean doFormatMessageMediaPlayer(FskInstrumentedType dispatch, UInt32 msg, voi
 			return true;
 
 		case kFskMediaPlayerInstrMsgGetTime:
-			snprintf(buffer, bufferSize, "got time %ld", (UInt32)(*(FskSampleTime *)msgData));
+			snprintf(buffer, bufferSize, "got time %d", (unsigned)(*(FskSampleTime *)msgData));
 			return true;
 	}
 

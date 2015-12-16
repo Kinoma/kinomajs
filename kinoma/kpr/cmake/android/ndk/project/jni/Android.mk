@@ -39,7 +39,7 @@ LOCAL_CFLAGS :=							\
 	-I$(F_HOME)/core/misc	\
 	-I$(F_HOME)/core/network	\
 	-I$(F_HOME)/core/ui	\
-	-I$(F_HOME)/xs/includes
+	-I$(F_HOME)/xs6/includes
 
 LOCAL_LDLIBS := -lEGL -lGLESv2 -ldl -llog -landroid -lOpenSLES -L$(F_HOME)/build/android/OSS/lib/ -Wl,--allow-multiple-definition -Wl,--whole-archive $(NDK_PROJECT_PATH)/obj/local/armeabi/libfsk.a -Wl,--no-whole-archive
 #LOCAL_LDLIBS := -lEGL -lGLESv2 -ldl -llog -L$(F_HOME)/build/android/OSS/lib/ --whole-archive $(NDK_PROJECT_PATH)/obj/local/armeabi/libfsk.a

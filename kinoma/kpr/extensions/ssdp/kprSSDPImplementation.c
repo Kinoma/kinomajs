@@ -753,6 +753,21 @@ FskErr KprSSDPForgetServer(char* authority, char* id)
 	return err;
 }
 
+FskErr KprSSDPSearch(void* refcon) {
+	FskErr err = kFskErrNone;
+	KprSSDP self = gSSDP;
+	KprSSDPFilter filter = NULL;
+	if (!self) return err;
+	for (filter = self->filters; filter; filter = filter->next) {
+		if (filter->refcon == refcon) {
+			bailIfError(KprSSDPSearchDevices(self, NULL, filter));
+			break;
+		}
+	}
+bail:
+	return err;
+}
+
 // Device
 
 FskErr KprSSDPAddDevice(KprSSDPDevice device)
@@ -2301,8 +2316,8 @@ FskErr KprSSDPPacketAddAliveMessage(KprSSDPPacket self, KprSSDP ssdp, KprSSDPDev
 		"%s"
 		"%s"
 		"\r\n",
-		device->expire,
-		device->scheme, device->port, device->path,
+		(unsigned long)device->expire,
+		device->scheme, (unsigned long)device->port, device->path,
 		KprSSDPPacketGetLineNT(ssdp, device, service, lines[0], 128, variant),
 		device->userAgent,
 		KprSSDPPacketGetLineUSN(ssdp, device, service, lines[1], 128, variant),
@@ -2351,7 +2366,7 @@ FskErr KprSSDPPacketAddSearchMessage(KprSSDPPacket self, KprSSDP ssdp, char* typ
 		"ST: %s\r\n"
 		"SERVER: %s\r\n"
 		"\r\n",
-		ssdp->mx,
+		(unsigned long)ssdp->mx,
 		type ? type : "ssdp:all",
 		ssdp->userAgent
 	);
@@ -2381,9 +2396,9 @@ FskErr KprSSDPPacketAddResponseMessage(KprSSDPPacket self, KprSSDP ssdp, KprSSDP
 		"%s"
 		"%s"
 		"\r\n",
-		device->expire,
+		(unsigned long)device->expire,
 		date,
-		device->scheme, device->port, device->path,
+		device->scheme, (unsigned long)device->port, device->path,
 		device->userAgent,
 		KprSSDPPacketGetLineNT(ssdp, device, service, lines[0], 128, variant),
 		KprSSDPPacketGetLineUSN(ssdp, device, service, lines[1], 128, variant),
@@ -2426,13 +2441,13 @@ bail:
 
 char* KprSSDPPacketGetLineBootId(KprSSDP self UNUSED, KprSSDPDevice device, char* buffer, UInt32 size)
 {
-	(device->configId >= 0) ? snprintf(buffer, size, "BOOTID.UPNP.ORG: %lu\r\n", self->bootId) : (buffer[0] = 0);
+	(device->configId >= 0) ? snprintf(buffer, size, "BOOTID.UPNP.ORG: %lu\r\n", (unsigned long)self->bootId) : (buffer[0] = 0);
 	return buffer;
 }
 
 char* KprSSDPPacketGetLineConfigId(KprSSDP self UNUSED, KprSSDPDevice device, char* buffer, UInt32 size)
 {
-	(device->configId >= 0) ? snprintf(buffer, size, "CONFIGID.UPNP.ORG: %ld\r\n", device->configId) : (buffer[0] = 0);
+	(device->configId >= 0) ? snprintf(buffer, size, "CONFIGID.UPNP.ORG: %ld\r\n", (unsigned long)device->configId) : (buffer[0] = 0);
 	return buffer;
 }
 
@@ -2463,7 +2478,7 @@ char* KprSSDPPacketGetLineNT(KprSSDP self UNUSED, KprSSDPDevice device, KprSSDPS
 
 char* KprSSDPPacketGetLineSearchPort(KprSSDP self UNUSED, KprSSDPDevice device, char* buffer, UInt32 size)
 {
-	(device->searchPort != 1900) ? snprintf(buffer, size, "SEARCHPORT.UPNP.ORG: %lu\r\n", device->searchPort) : (buffer[0] = 0);
+	(device->searchPort != 1900) ? snprintf(buffer, size, "SEARCHPORT.UPNP.ORG: %lu\r\n", (unsigned long)device->searchPort) : (buffer[0] = 0);
 	return buffer;
 }
 

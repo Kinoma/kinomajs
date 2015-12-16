@@ -449,7 +449,7 @@ void fxDefineNodeHoist(void* it, void* param)
 	txHoister* hoister = param;
 	txDeclareNode* node;
 	if (self->flags & mxStrictFlag) {
-		if ((self->symbol == hoister->parser->argumentsSymbol) || (self->symbol == hoister->parser->evalSymbol))
+		if ((self->symbol == hoister->parser->argumentsSymbol) || (self->symbol == hoister->parser->evalSymbol) || (self->symbol == hoister->parser->yieldSymbol))
 			fxReportLineError(hoister->parser, self->line, "invalid definition %s", self->symbol->string);
 		if (hoister->scope == hoister->bodyScope) {
 			node = fxScopeGetDeclareNode(hoister->bodyScope, self->symbol);
@@ -705,7 +705,7 @@ void fxAssignNodeBind(void* it, void* param)
 			if (!node->symbol)
 				node->symbol = ((txDeclareNode*)self->reference)->symbol;
 		}
-		else if ((valueToken == XS_TOKEN_FUNCTION) || (valueToken == XS_TOKEN_HOST)) {
+		else if ((valueToken == XS_TOKEN_FUNCTION) || (valueToken == XS_TOKEN_GENERATOR) || (valueToken == XS_TOKEN_HOST)) {
 			txFunctionNode* node = (txFunctionNode*)self->value;
 			if (!node->symbol)
 				node->symbol = ((txDeclareNode*)self->reference)->symbol;
@@ -758,20 +758,15 @@ void fxClassNodeBind(void* it, void* param)
 	fxNodeDispatchBind(self->constructor, param);
 	while (item) {
 		txNode* value;
-		txSymbol* symbol;
 		if (item->description->token == XS_TOKEN_PROPERTY) {
 			value = ((txPropertyNode*)item)->value;
-			symbol = ((txPropertyNode*)item)->symbol;
 		}
 		else {
 			value = ((txPropertyAtNode*)item)->value;
-			symbol = C_NULL;
 		}
-		if ((value->description->token == XS_TOKEN_FUNCTION) || (value->description->token == XS_TOKEN_HOST)) {
+		if ((value->description->token == XS_TOKEN_FUNCTION) || (value->description->token == XS_TOKEN_GENERATOR) || (value->description->token == XS_TOKEN_HOST)) {
 			txFunctionNode* node = (txFunctionNode*)value;
-			if (!node->symbol)
-				node->symbol = symbol;
-			node->flags |= item->flags & (mxGetterFlag | mxSetterFlag | mxStaticFlag);
+			node->flags |= item->flags & (mxMethodFlag | mxGetterFlag | mxSetterFlag);
 		}
 		fxNodeDispatchBind(item, param);
 		item = item->next;
@@ -954,25 +949,18 @@ void fxObjectNodeBind(void* it, void* param)
 	fxBinderPushVariables(param, 1);
 	while (item) {
 		txNode* value;
-		txSymbol* symbol;
 		if (item->description->token == XS_TOKEN_PROPERTY) {
 			value = ((txPropertyNode*)item)->value;
-			symbol = ((txPropertyNode*)item)->symbol;
 		}
 		else {
 			value = ((txPropertyAtNode*)item)->value;
-			symbol = C_NULL;
 		}
-		if ((value->description->token == XS_TOKEN_FUNCTION) || (value->description->token == XS_TOKEN_HOST)) {
+		if ((value->description->token == XS_TOKEN_FUNCTION) || (value->description->token == XS_TOKEN_GENERATOR) || (value->description->token == XS_TOKEN_HOST)) {
 			txFunctionNode* node = (txFunctionNode*)value;
-			if (!node->symbol)
-				node->symbol = symbol;
-			node->flags |= (item->flags & (mxGetterFlag | mxSetterFlag)) | mxStaticFlag;
+			node->flags |= item->flags & (mxMethodFlag | mxGetterFlag | mxSetterFlag);
 		}
 		else if (value->description->token == XS_TOKEN_CLASS) {
 			txFunctionNode* node = (txFunctionNode*)(((txClassNode*)value)->constructor);
-			if (!node->symbol)
-				node->symbol = symbol;
 		}
 		fxNodeDispatchBind(item, param);
 		item = item->next;

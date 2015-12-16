@@ -55,6 +55,8 @@ FskAPI(FskErr) KprSSDPDiscoverServer(char* authority, char* id);
 FskAPI(FskErr) KprSSDPForget(void* refcon);
 FskAPI(FskErr) KprSSDPForgetDevice(char* authority, char* type, char* service[]);
 FskAPI(FskErr) KprSSDPForgetServer(char* authority, char* id);
+FskAPI(FskErr) KprSSDPSearch(void* refcon);
+
 // Device
 FskAPI(FskErr) KprSSDPAddDevice(KprSSDPDevice device);
 FskAPI(KprSSDPDevice) KprSSDPGetDevice(char* uuid);

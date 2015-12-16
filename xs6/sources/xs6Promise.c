@@ -72,7 +72,7 @@ void fxBuildPromise(txMachine* the)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	slot = fxNextStringProperty(the, slot, "Promise", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxPromisePrototype = *the->stack;
-	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Promise, 2, mxID(_Promise), XS_GET_ONLY));
+	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Promise, 2, mxID(_Promise), XS_DONT_ENUM_FLAG));
 	for (builder = gx_Promise_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostAccessorProperty(the, slot, fx_species_get, C_NULL, mxID(_Symbol_species), XS_DONT_ENUM_FLAG);
@@ -448,6 +448,7 @@ void fx_Promise(txMachine* the)
 void fx_Promise_all(txMachine* the)
 {
 	txSlot* promise;
+	txSlot* stack;
 	txSlot* array;
 	txInteger index;
 	txSlot* count;
@@ -463,6 +464,7 @@ void fx_Promise_all(txMachine* the)
 	fxGetID(the, mxID(_Symbol_species));
 	fxGetID(the, mxID(_prototype));
 	promise = fxNewPromiseInstance(the);
+	stack = the->stack;	
     slot = mxPromiseStatus(promise);
     slot->value.integer = mxPendingStatus;
 	already = fxNewPromiseAlready(the);
@@ -489,16 +491,12 @@ void fx_Promise_all(txMachine* the)
 		mxPushSlot(iterator);
 		fxCallID(the, mxID(_next));
 		result = the->stack;
-		slot = fxGetProperty(the,result->value.reference, mxID(_done));
-		if (!slot)
-			mxTypeError("iterable.next() returns no done");
-		if (slot->value.boolean)
+		mxPushSlot(result);
+		fxGetID(the, mxID(_done));	
+		if (fxToBoolean(the, the->stack))
 			break;
-		argument = fxGetProperty(the, result->value.reference, mxID(_value));
-		if (!argument)
-			mxTypeError("iterable.next() returns no value");
-		the->stack->kind = argument->kind;
-		the->stack->value = argument->value;
+		mxPushSlot(result);
+		fxGetID(the, mxID(_value));	
 		mxPushInteger(1);
 		mxPushSlot(mxThis);
 		fxCallID(the, mxID(_resolve));
@@ -509,17 +507,18 @@ void fx_Promise_all(txMachine* the)
 		mxPushInteger(2);
 		mxPushSlot(argument);
 		fxCallID(the, mxID(_then));
-		the->stack += 3;
+		the->stack = iterator;
 		index++;
 	}
 	count->value.integer += index;
-	the->stack += 7;
+	the->stack = stack;
 	mxPullSlot(mxResult);
 }
 
 void fx_Promise_race(txMachine* the)
 {
 	txSlot* promise;
+	txSlot* stack;
 	txSlot* slot;
 	txSlot* already;
 	txSlot* resolveFunction;
@@ -533,7 +532,8 @@ void fx_Promise_race(txMachine* the)
 	fxGetID(the, mxID(_Symbol_species));
 	fxGetID(the, mxID(_prototype));
 	promise = fxNewPromiseInstance(the);
-    slot = mxPromiseStatus(promise);
+ 	stack = the->stack;	
+   	slot = mxPromiseStatus(promise);
     slot->value.integer = mxPendingStatus;
 	already = fxNewPromiseAlready(the);
 	resolveFunction = fxNewPromiseFunction(the, already, promise, mxResolvePromiseFunction.value.reference);
@@ -547,16 +547,12 @@ void fx_Promise_race(txMachine* the)
 		mxPushSlot(iterator);
 		fxCallID(the, mxID(_next));
 		result = the->stack;
-		slot = fxGetProperty(the, result->value.reference, mxID(_done));
-		if (!slot)
-			mxTypeError("iterable.next() returns no done");
-		if (slot->value.boolean)
+		mxPushSlot(result);
+		fxGetID(the, mxID(_done));	
+		if (fxToBoolean(the, the->stack))
 			break;
-		argument = fxGetProperty(the, result->value.reference, mxID(_value));
-		if (!argument)
-			mxTypeError("iterable.next() returns no value");
-		the->stack->kind = argument->kind;
-		the->stack->value = argument->value;
+		mxPushSlot(result);
+		fxGetID(the, mxID(_value));	
 		mxPushInteger(1);
 		mxPushSlot(mxThis);
 		fxCallID(the, mxID(_resolve));
@@ -566,9 +562,9 @@ void fx_Promise_race(txMachine* the)
 		mxPushInteger(2);
 		mxPushSlot(argument);
 		fxCallID(the, mxID(_then));
-		the->stack += 2;
+		the->stack = iterator;
 	}
-	the->stack += 5;
+	the->stack = stack;
 	mxPullSlot(mxResult);
 }
 

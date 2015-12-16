@@ -17,6 +17,8 @@
 #define __FSKBITMAP_PRIV__
 
 #include "FskBlit.h"
+#include "FskRectBlit.h"
+#include "FskTransferAlphaBitmap.h"
 #include "FskBitmap.h"
 #include "FskEndian.h"
 #include "FskPixelOps.h"
@@ -72,26 +74,24 @@ void FskBlitInitialize(void)
 	int implementation = FskHardwareGetARMCPU_All();
 #endif
 
-#ifdef SUPPORT_NEON
+	gFillColor16Proc = fillColor16;
+	gFillColor32Proc = fillColor32;
+
+#if defined(SUPPORT_NEON)
 	if (FSK_ARCH_ARM_V7 == implementation) {
 		gFillColor16Proc = fillColor16_arm_v7;
 		gFillColor32Proc = fillColor32_arm_v7;
-		return;
 	}
-#endif
-
-#ifdef SUPPORT_WMMX
+#elif defined(SUPPORT_WMMX)
 	if (FSK_ARCH_XSCALE == implementation) {
 		gFillColor16Proc = fillColor16_arm_wmmx;
 		gFillColor32Proc = fillColor32_arm_wmmx;
-		return;
 	}
 #endif
 
-	gFillColor16Proc = fillColor16;
-	gFillColor32Proc = fillColor32;
+	FskBlitPatch();
+	FskBlitTransferAlphaBitmapPatch();
 }
-
 
 FskErr FskRectangleFill(FskBitmap dst, FskConstRectangle r, FskConstColorRGBA color, UInt32 mode, FskConstGraphicsModeParameters modeParams)
 {

@@ -903,7 +903,7 @@ void KPR_layer_capture(xsMachine *the)
 	FskRectangleRecord bounds, crop;
 	xsAssert(self->first == NULL);
 	xsAssert(content->container != NULL);
-	self->flags |= kprNoAcceleration;
+	//self->flags |= kprNoAcceleration;
 	KprLayerAttach(self, content);
 	bounds = self->bounds;
 	if (c == 5) {

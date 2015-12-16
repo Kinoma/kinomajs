@@ -749,18 +749,19 @@ FskAPI(FskErr)	FskGLTransferAlphaBitmap(
  **/
 FskAPI(FskErr)	FskGLTextBox(
 	struct FskTextEngineRecord	*fte,
-	FskBitmap			dstBM,
-	const char			*text,
-	UInt32				textLen,
-	FskConstRectangle	dstRect,
-	FskConstRectangle	clipRect,
-	FskConstColorRGBA	color,
-	UInt32				blendLevel,
-	UInt32				textSize,
-	UInt32				textStyle,
-	UInt16				hAlign,
-	UInt16				vAlign,
-	const char			*fontName,
+	FskBitmap					dstBM,
+	const char					*text,
+	UInt32						textLen,
+	FskConstRectangle			dstRect,
+	FskConstRectangleFloat		dstRectFloat,
+	FskConstRectangle			clipRect,
+	FskConstColorRGBA			color,
+	UInt32						blendLevel,
+	UInt32						textSize,
+	UInt32						textStyle,
+	UInt16						hAlign,
+	UInt16						vAlign,
+	const char					*fontName,
 	struct FskTextFormatCacheRecord	*cache
 );
 

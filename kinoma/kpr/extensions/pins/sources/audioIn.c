@@ -112,9 +112,7 @@ void xs_audio_read(xsMachine* the)
 {
     xsAudio a = xsGetHostData(xsThis);
     if (a) {
-        xsResult = xsNew1(xsGlobal, xsID("Chunk"), xsInteger(a->samplesSize));
-        FskMemMove(xsGetHostData(xsResult), a->samples, a->samplesSize);
-
+		xsResult = xsArrayBuffer(a->samples, a->samplesSize);
         FskMemPtrDisposeAt(&a->samples);
         a->samplesSize = 0;
     }
@@ -156,10 +154,12 @@ void xs_audio_write(xsMachine* the)
     xsAudio a = xsGetHostData(xsThis);
     if (a) {
 		FskErr err;
-        void *data = xsGetHostData(xsArg(0)), *scratch;
-        SInt32 dataSize = xsToInteger(xsGet(xsArg(0), xsID("length")));
-        FskMemPtrNewFromData(dataSize, data, &scratch);
-        err = FskSndChannelEnqueue(a->sndChan, scratch, dataSize, dataSize / a->sampleSize, 1, scratch, NULL);
+        void *data = xsToArrayBuffer(xsArg(0));
+        SInt32 dataSize = xsGetArrayBufferLength(xsArg(0));
+
+        err = FskMemPtrNewFromData(dataSize, data, &data);
+		if (kFskErrNone == err)
+			err = FskSndChannelEnqueue(a->sndChan, data, dataSize, dataSize / a->sampleSize, 1, data, NULL);
         xsThrowDiagnosticIfFskErr(err, "Audio write failed with error %s", FskInstrumentationGetErrorString(err));
     }
 }
@@ -167,11 +167,12 @@ void xs_audio_write(xsMachine* the)
 void xs_audio_start(xsMachine *the)
 {
     xsAudio a = xsGetHostData(xsThis);
-    if (a)
+    if (a) {
         if (a->sndChan)
             FskSndChannelStart(a->sndChan, 0);
         if (a->audioIn)
             FskAudioInStart(a->audioIn);
+	}
 }
 
 void xs_audio_stop(xsMachine *the)

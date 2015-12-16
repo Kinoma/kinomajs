@@ -34,12 +34,12 @@ extern "C" {
  *	\param[in]	srcBM		the source bitmap. Must be pixel format 8G or 8A.
  *	\param[in]	srcRect		portion of the source bitmap to be transferred (may be NULL).
  *	\param[in]	dstBM		the proxy destination bitmap.
- *	\param[in]	dstLocation	the location where the src is to be copied
+ *	\param[in]	dstLocation	the location where the src is to be copied.
  *	\param[in]	dstClip		the destination clipping rectangle (may be NULL).
  *	\param[in]	fgColor		the color that is given to the source pixels with full value.
  *	\param[in]	modeParams	additional mode parameters.
  *	\return		kFskErrNone	if the operation was successful.
-**/
+ **/
 FskAPI(FskErr)
 FskTransferAlphaBitmap(
 	FskConstBitmap					srcBM,
@@ -52,6 +52,39 @@ FskTransferAlphaBitmap(
 );
 
 
+/** Use the given alpha map to modulate the color and apply to the destination.
+ *	Unlike the previous API, this can shift the phase of the source by subpixel amounts.
+ *	\param[in]	srcBM		the source bitmap. Must be pixel format 8G or 8A.
+ *	\param[in]	srcRect		portion of the source bitmap to be transferred (may be NULL).
+ *	\param[in]	dstBM		the proxy destination bitmap.
+ *	\param[in]	dstX		the X-location where the src is to be copied.
+ *	\param[in]	dstY		the Y-location where the src is to be copied.
+ *	\param[in]	dstClip		the destination clipping rectangle (may be NULL).
+ *	\param[in]	fgColor		the color that is given to the source pixels with full value.
+ *	\param[in]	modeParams	additional mode parameters.
+ *	\return		kFskErrNone					if the operation was successful.
+ *	\return		kFskErrUnsupportedPixelType	if the wrong pixel format was supplied.
+ *	\return		kFskErrUnimplemented		if this function has not yet been implemented for this platform.
+ **/
+
+FskAPI(FskErr)
+FskTransferAlphaBitmapFixed(
+	FskConstBitmap					srcBM,
+	FskConstRectangle				srcRect,
+	FskBitmap						dstBM,
+	FskFixed						dstX,
+	FskFixed						dstY,
+	FskConstRectangle				dstClip,
+	FskConstColorRGBA				fgColor,
+	FskConstGraphicsModeParameters	modeParams
+);
+
+
+#if defined(SUPPORT_NEON) || defined(SUPPORT_WMMX)
+	void FskBlitTransferAlphaBitmapPatch(void);
+#else
+	#define FskBlitTransferAlphaBitmapPatch()
+#endif
 
 #ifdef __cplusplus
 }

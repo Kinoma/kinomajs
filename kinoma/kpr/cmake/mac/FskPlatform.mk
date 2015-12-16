@@ -24,7 +24,7 @@
 	<input name="$(F_HOME)/core/network"/>
 	<input name="$(F_HOME)/core/ui"/>
 	<input name="$(F_HOME)/extensions/crypt/sources"/>
-	<input name="$(F_HOME)/xs/includes"/>
+	<input name="$(F_HOME)/xs6/includes"/>
 	<input name="$(F_HOME)/libraries/QTReader"/>
 
 	<import name="GCCPlatform.mk" />

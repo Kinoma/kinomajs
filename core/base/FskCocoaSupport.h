@@ -125,10 +125,12 @@ extern "C" {
 	Boolean FskCocoaWordGetAttributes(char *filePath, FskMediaPropertyValue name, FskMediaPropertyValue author, FskMediaPropertyValue subject);
 	Boolean FskCocoaWordConvertRTF(char *sourcePath, char *destinationPath, char *format);
 
+#if 0
 	// html
 	char *FskCocoaHTMLVersion(void);
 	Boolean FskCocoaHTMLGetAttributes(char *filePath, FskMediaPropertyValue name, FskMediaPropertyValue author, FskMediaPropertyValue subject);
 	Boolean FskCocoaHTMLConvertRTF(char *sourcePath, char *destinationPath, char *format);
+#endif
 
 	// open
 	Boolean FskCocoaOpenURL(const char *url);

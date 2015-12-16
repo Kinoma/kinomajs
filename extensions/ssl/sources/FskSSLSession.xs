@@ -462,7 +462,12 @@
 					}
 					else {
 						this.startTrace("unpacketize[init]");
-						FskSSL.recordProtocol.unpacketize(this, s);
+						try {
+							FskSSL.recordProtocol.unpacketize(this, s);
+						} catch(e) {
+							var err = (e instanceof FskSSL.Error) ? e.code : -9999;
+							s.allDone(err);
+						}
 					}
 				}
 			</function>
@@ -511,10 +516,10 @@
 					var c;
 					while (c = tmps.readChunk(FskSSL.maxFragmentSize)) {
 						this.startTrace("packetize");
+						ret += c.length;
 						var fragment = new FskSSL.ChunkStream(c);
 						var cipher = FskSSL.recordProtocol.packetize(this, FskSSL.recordProtocol.application_data, fragment);
 						fragment.close();
-						ret += c.length;
 						if (cipher.bytesAvailable <= s.bytesWritable) {
 							s.writeChunk(cipher.getChunk());
 							cipher.close();

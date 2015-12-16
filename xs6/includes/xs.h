@@ -29,6 +29,12 @@
 			#undef mxDebug
 		#endif
 
+		#if SUPPORT_XS_PROFILE
+			#define mxProfile 1
+		#else
+			#undef mxProfile
+		#endif
+
 		#if TARGET_RT_BIG_ENDIAN
 			#define mxBigEndian 1
 			#define mxLittleEndian 0
@@ -44,10 +50,6 @@
 		#define mxAndroid 0
 		#define mxKpl 0
 		#define mxFsk 1x
-
-		#ifdef mxDebug
-			#define mxProfile 1
-		#endif
 
 		#if TARGET_OS_WIN32
 			#undef mxWindows
@@ -74,9 +76,6 @@
 		#define mxExport extern    
 		#define mxImport extern
 		
-		#define XS_FUNCTION_NORETURN FSK_FUNCTION_NORETURN
-		#define XS_FUNCTION_ANALYZER_NORETURN FSK_FUNCTION_ANALYZER_NORETURN
-
 		typedef SInt8 txS1;
 		typedef UInt8 txU1;
 		typedef SInt16 txS2;
@@ -129,26 +128,11 @@
 					#define mxExport __attribute__ ((visibility("default")))
 					#define mxImport __attribute__ ((visibility("default")))
 				#endif
-				#define XS_FUNCTION_NORETURN __attribute__((noreturn))
-				#define XS_FUNCTION_ANALYZER_NORETURN
-				#if defined(__clang__)
-					#if __has_feature(attribute_analyzer_noreturn)
-						#undef XS_FUNCTION_ANALYZER_NORETURN
-						#define XS_FUNCTION_ANALYZER_NORETURN __attribute__((analyzer_noreturn))
-					#endif
-				#endif
-			#else 
+			#else
 				#error unknown GNU compiler
 			#endif
 		#else 
 			#error unknown compiler
-		#endif
-
-		#ifndef XS_FUNCTION_NORETURN
-			#define XS_FUNCTION_NORETURN
-		#endif
-		#ifndef XS_FUNCTION_ANALYZER_NORETURN
-			#define XS_FUNCTION_ANALYZER_NORETURN
 		#endif
 
 		typedef signed char txS1;
@@ -172,6 +156,22 @@
 
 	#endif /* !__FSK_LAYER__ */
 
+	#ifdef __GNUC__
+		#define XS_FUNCTION_NORETURN __attribute__((noreturn))
+		#define XS_FUNCTION_ANALYZER_NORETURN
+		#if defined(__clang__)
+			#if __has_feature(attribute_analyzer_noreturn)
+				#undef XS_FUNCTION_ANALYZER_NORETURN
+				#define XS_FUNCTION_ANALYZER_NORETURN __attribute__((analyzer_noreturn))
+			#endif
+		#endif
+	#endif
+	#ifndef XS_FUNCTION_NORETURN
+		#define XS_FUNCTION_NORETURN
+	#endif
+	#ifndef XS_FUNCTION_ANALYZER_NORETURN
+		#define XS_FUNCTION_ANALYZER_NORETURN
+	#endif
 #endif /* !__XSPLATFORM__ */
 
 #include <setjmp.h>
@@ -1191,10 +1191,10 @@ mxImport xsIntegerValue fxCheckArg(xsMachine*, xsIntegerValue);
 mxImport xsIntegerValue fxCheckVar(xsMachine*, xsIntegerValue);
 mxImport void fxOverflow(xsMachine*, xsIntegerValue, xsStringValue, xsIntegerValue);
 
-mxImport void fxThrow(xsMachine*, xsStringValue, xsIntegerValue) XS_FUNCTION_ANALYZER_NORETURN;
-mxImport void fxThrowMessage(xsMachine* the, xsStringValue thePath, xsIntegerValue theLine, xsIntegerValue theError, xsStringValue theMessage, ...) XS_FUNCTION_ANALYZER_NORETURN;
+mxImport void fxThrow(xsMachine*, xsStringValue, xsIntegerValue) XS_FUNCTION_NORETURN;
+mxImport void fxThrowMessage(xsMachine* the, xsStringValue thePath, xsIntegerValue theLine, xsIntegerValue theError, xsStringValue theMessage, ...) XS_FUNCTION_NORETURN;
 
-mxImport void fxError(xsMachine*, xsStringValue, xsIntegerValue, xsIntegerValue) XS_FUNCTION_ANALYZER_NORETURN;
+mxImport void fxError(xsMachine*, xsStringValue, xsIntegerValue, xsIntegerValue) XS_FUNCTION_NORETURN;
 
 mxImport void fxDebugger(xsMachine*, xsStringValue, xsIntegerValue);
 mxImport void fxReport(xsMachine*, xsStringValue, ...);

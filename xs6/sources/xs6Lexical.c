@@ -68,7 +68,7 @@ static const txKeyword gxKeywords[XS_KEYWORD_COUNT] = {
 	{ "with", XS_TOKEN_WITH }
 };
 
-#define XS_STRICT_KEYWORD_COUNT 9
+#define XS_STRICT_KEYWORD_COUNT 8
 static const txKeyword gxStrictKeywords[XS_STRICT_KEYWORD_COUNT] = {
 	{ "implements", XS_TOKEN_IMPLEMENTS },
 	{ "interface", XS_TOKEN_INTERFACE },
@@ -77,8 +77,7 @@ static const txKeyword gxStrictKeywords[XS_STRICT_KEYWORD_COUNT] = {
 	{ "private", XS_TOKEN_PRIVATE },
 	{ "protected", XS_TOKEN_PROTECTED },
 	{ "public", XS_TOKEN_PUBLIC },
-	{ "static", XS_TOKEN_STATIC },
-	{ "yield", XS_TOKEN_YIELD }
+	{ "static", XS_TOKEN_STATIC }
 };
 
 void fxGetNextCharacter(txParser* parser)
@@ -137,10 +136,13 @@ void fxGetNextKeyword(txParser* parser)
 				}
 			}
 		}
-		if ((parser->flags & mxGeneratorFlag)) {
-			if (c_strcmp("yield", parser->buffer) == 0) {
+		if (c_strcmp("yield", parser->buffer) == 0) {
+			if ((parser->flags & mxGeneratorFlag) ){
 				parser->token2 = XS_TOKEN_YIELD;
 				return;
+			}
+			if ((parser->flags & mxStrictFlag)) {
+				fxReportParserError(parser, "invalid yield (strict mode)");
 			}
 		}	
 	}	

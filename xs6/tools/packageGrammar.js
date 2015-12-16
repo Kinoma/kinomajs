@@ -223,24 +223,17 @@ var xsPatch = {
 		var c = this.items.length;
 		for (var i = 0; i< c; i++) {
 			var anItem = this.items[i];
-			if (anItem.isAccessor(theFlag, theName))
+			if (anItem.isAccessor(theFlag, theName)) {
+				anItem.object = this;
 				return anItem;
+			}
 		}
+		return this.prototype.getAccessor(theFlag, theName);
 	},
 	patch(tool) {
-		var prototype = this.prototype;
-		var prototypeItems = prototype.items;
-		var patchItems = this.items;
 		var c = this.items.length;
-		for (var i = 0; i < c; i++) {
-			var item = this.items[i];
-			var j = prototype.findItemIndex(item.name);
-			if (j >= 0)
-				prototypeItems[j] = item;
-			else
-				prototypeItems.push(item);
-		}
-		this.items = [];
+		for (var i = 0; i < c; i++)
+			this.items[i].patch(tool, this);
 	},
 	print(theFile) {
 		var c = this.items.length;
@@ -640,8 +633,7 @@ var xsFunction = {
 	pattern: "",
 	prototype: "",
 	value: "",
-	skip: false,
-	object: null,
+	other: null,
 	crossReference(tool, thePackage, theQualifiedName, patchIt) {
 		var result = xsProperty.crossReference.call(this, tool, thePackage, theQualifiedName, patchIt);
 		if (this.name.match(/^set .+/)) {
@@ -680,19 +672,36 @@ var xsFunction = {
 	isAccessor(theFlag, theName) {
 		return (this.flags & theFlag) && (this.name == theName);
 	},
+	patch(tool, theObject) {
+		var other;
+		if ((this.flags & xsGetterFlag) && (this.other == null) && theObject) {
+			other = theObject.getAccessor(xsSetterFlag, this.name);
+			if (other) {
+				this.other = other
+				if (other.object == theObject)
+					other.other = this;
+			}
+		}
+		else if ((this.flags & xsSetterFlag) && (this.other == null) && theObject) {
+			other = theObject.getAccessor(xsGetterFlag, this.name);
+			if (other) {
+				this.other = other
+				if (other.object == theObject)
+					other.other = this;
+			}
+		}
+	},
 	print(theFile, theObject) {
-		if (this.skip)
-			return;
 		var getter, setter;
 		if (this.flags & xsGetterFlag) {
 			getter = this;
-			setter = theObject ? theObject.getAccessor(xsSetterFlag, this.name) : undefined;
-			if (setter) setter.skip = true;
+			setter = this.other;
 		}
 		else if (this.flags & xsSetterFlag) {
+			getter = this.other;
 			setter = this;
-			getter = theObject ? theObject.getAccessor(xsGetterFlag, this.name) : undefined;
-			if (getter) getter.skip = true;
+			if (getter && (getter.other == this))
+				return;
 		}
 		if ((getter || setter)) {
 			theFile.CR(0);
@@ -807,10 +816,11 @@ var xsFunction = {
 	},
 	printConstructor(theFile) {
 		theFile.CR(0);
+		theFile.write("Object.defineProperties(");
 		theFile.write(this.qualifiedName);
-		theFile.write(".prototype = ");
+		theFile.write(", { prototype: { value: ");
 		theFile.write(this.prototype.qualifiedName);
-		theFile.write(";");
+		theFile.write(", writable:true }});");
 	},
 	printValue(theFile) {
 		if (this.c) {
@@ -1034,9 +1044,18 @@ var xsObject = {
 		var c = this.items.length;
 		for (var i = 0; i< c; i++) {
 			var anItem = this.items[i];
-			if (anItem.isAccessor(theFlag, theName))
+			if (anItem.isAccessor(theFlag, theName)) {
+				anItem.object = this;
 				return anItem;
+			}
 		}
+		if (this.prototype)
+			return this.prototype.getAccessor(theFlag, theName);
+	},
+	patch(tool) {
+		var c = this.items.length;
+		for (var i = 0; i < c; i++)
+			this.items[i].patch(tool, this);
 	},
 	printGrammar(theFile, theObject) {
 		if (theObject) {

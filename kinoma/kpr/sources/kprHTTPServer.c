@@ -508,7 +508,7 @@ void KprHTTPTargetMessagePrepareDownload(KprMessage message, KprHTTPTargetFile f
 			char etag[48];
 			UInt32 date = 0;
 			
-			snprintf(etag, 47, "\"%lX%lX%lX%lX%lX\"", (UInt32)((file->info.fileNode) >> 32), (UInt32)(file->info.fileNode), file->info.fileModificationDate, (UInt32)((file->info.filesize) >> 32), (UInt32)(file->info.filesize));
+			snprintf(etag, 47, "\"%X%X%X%X%X\"", (unsigned int)((file->info.fileNode) >> 32), (unsigned int)(file->info.fileNode), (unsigned int)file->info.fileModificationDate, (unsigned int)((file->info.filesize) >> 32), (unsigned int)(file->info.filesize));
 			
 			if (modified)
 				if (kFskErrNone != KprDateFromHTTP(modified, &date))

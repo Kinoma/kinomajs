@@ -97,6 +97,7 @@ struct FskPortVectorsRecord gRenderPort = {
     renderBitmapDrawSubpixel,
     renderBitmapTile,
     renderTextDraw,
+	renderTextDrawSubpixel,
     renderPicSaveAdd,
     renderEffectApply,
     nopSetOrigin,
@@ -555,6 +556,21 @@ void FskPortTextDraw(FskPort port, const char *text, UInt32 textLen, FskConstRec
     (port->vector.doTextDraw)(port, text, textLen, bounds);
 }
 
+void FskPortTextDrawSubpixel(FskPort port, const char *text, UInt32 textLen, double x, double y, double width, double height)
+{
+#if SUPPORT_INSTRUMENTATION
+	if (FskInstrumentedItemHasListenersForLevel(port, kFskInstrumentationLevelVerbose)) {
+		void *p[2];
+
+		p[0] = (void*)text;
+//		p[1] = (void*)bounds;
+		FskInstrumentedItemSendMessageForLevel(port, kFskPortInstrMsgTextDrawSubpixel, p, kFskInstrumentationLevelVerbose);
+	}
+#endif
+
+    (port->vector.doTextDrawSubpixel)(port, text, textLen, x, y, width, height);
+}
+
 void FskPortStringDraw(FskPort port, const char *text, FskConstRectangle bounds)
 {
 	FskPortTextDraw(port, text, FskStrLen(text), bounds);
@@ -566,7 +582,7 @@ void FskPortTextGetBounds(FskPort port, const char *text, UInt32 textLen, FskRec
 		if (kFskErrNone == FskTextFormatCacheNew(port->textEngine, &port->textFormatCache, port->bits, FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName))
             port->textFromFormat = false;
 	}
-	FskTextGetBounds(port->textEngine, port->bits, text, textLen, FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName, bounds, port->textFormatCache);
+	FskTextGetBounds(port->textEngine, port->bits, text, textLen, FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName, bounds, NULL, port->textFormatCache);
 	FskPortRectUnscale(port, bounds);
 
 #if SUPPORT_INSTRUMENTATION
@@ -575,6 +591,40 @@ void FskPortTextGetBounds(FskPort port, const char *text, UInt32 textLen, FskRec
 		temp[0] = (void *)text;
 		temp[1] = (void *)textLen;
 		temp[2] = (void *)bounds;
+		FskInstrumentedItemSendMessageVerbose(port, kFskPortInstrMsgTextGetBounds, (void *)temp);
+	}
+#endif
+}
+
+void FskPortTextGetBoundsSubpixel(FskPort port, const char *text, UInt32 textLen, double *width, double *height)
+{
+	FskRectangleRecord bounds;
+	FskDimensionFloatRecord dimensions = {-1, -1};
+
+	if (NULL == port->textFormatCache) {
+		if (kFskErrNone == FskTextFormatCacheNew(port->textEngine, &port->textFormatCache, port->bits, FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName))
+            port->textFromFormat = false;
+	}
+
+	FskTextGetBounds(port->textEngine, port->bits, text, textLen, FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName, &bounds, &dimensions, port->textFormatCache);
+	if (-1 != dimensions.width) {
+		*width = FskPortDoubleUnscale(port, dimensions.width);
+		*height = FskPortDoubleUnscale(port, dimensions.height);
+	}
+	else {
+		FskPortRectUnscale(port, &bounds);
+		*width = (double)bounds.width;
+		*height = (double)bounds.height;
+	}
+
+#if SUPPORT_INSTRUMENTATION
+	if (FskInstrumentedItemHasListenersForLevel(port, kFskInstrumentationLevelVerbose)) {
+		void *temp[3];
+		FskRectangleRecord bounds;
+		FskRectangleSet(&bounds, 0, 0, (SInt32)*width, (SInt32)*height);
+		temp[0] = (void *)text;
+		temp[1] = (void *)textLen;
+		temp[2] = (void *)&bounds;
 		FskInstrumentedItemSendMessageVerbose(port, kFskPortInstrMsgTextGetBounds, (void *)temp);
 	}
 #endif
@@ -1379,6 +1429,10 @@ void nopTextDraw(FskPort port, const char *text, UInt32 textLen, FskConstRectang
 {
 }
 
+void nopTextDrawSubpixel(FskPort port, const char *text, UInt32 textLen, double x, double y, double width, double height)
+{
+}
+
 FskErr nopPicSaveAdd(FskPort port, FskPortPicRenderItem render, FskPortPicPrepareItem prepare, void *params, UInt32 paramsSize)
 {
     return kFskErrNone;
@@ -1688,6 +1742,14 @@ typedef union {
         char                    *text;
 	} textDraw;
 	struct {
+		double					x;
+		double					y;
+		double					width;
+		double					height;
+		UInt32					textLen;
+        char                    *text;
+	} textDrawSubpixel;
+	struct {
 		FskRectangleRecord		clip;
 		Boolean					hasClip;
 	} clip;
@@ -1743,6 +1805,7 @@ typedef enum {
 	kFskPortOpBitmapDrawSubpixel,
 	kFskPortOpBitmapTile,
 	kFskPortOpTextDraw,
+	kFskPortOpTextDrawSubpixel,
 	kFskPortOpClip,
 	kFskPortOpPenColor,
 	kFskPortOpTextFormatApply,
@@ -1925,7 +1988,18 @@ FskErr picSaveEndDrawing(FskPort port)
                     flushTextGlyphs = true;
                     item = item->next;
                     break;
-                case kFskPortOpTextFont:
+                case kFskPortOpTextDrawSubpixel:
+                    if (NULL == port->textFormatCache) {
+                        if (kFskErrNone == FskTextFormatCacheNew(port->textEngine, &port->textFormatCache, port->bits, FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName))
+                            port->textFromFormat = false;
+                    }
+                    FskGLTextGlyphsLoad(port->textEngine, item->parameters.textDraw.text, item->parameters.textDraw.textLen,
+                                            FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName,
+                                            port->textFormatCache);
+                    flushTextGlyphs = true;
+                    item = item->next;
+                    break;
+             	case kFskPortOpTextFont:
                     (port->vector.doSetTextFont)(port, (const char*)item->parameters.textFont.name);
                     item = item->next;
                     break;
@@ -2026,6 +2100,11 @@ FskErr picSaveEndDrawing(FskPort port)
 
                 case kFskPortOpTextDraw:
                     (port->vector.doTextDraw)(port, item->parameters.textDraw.text, item->parameters.textDraw.textLen, &item->parameters.textDraw.bounds);
+                    item = item->next;
+                    break;
+                    
+                case kFskPortOpTextDrawSubpixel:
+                    (port->vector.doTextDrawSubpixel)(port, item->parameters.textDrawSubpixel.text, item->parameters.textDrawSubpixel.textLen, item->parameters.textDrawSubpixel.x, item->parameters.textDrawSubpixel.y, item->parameters.textDrawSubpixel.width, item->parameters.textDrawSubpixel.height);
                     item = item->next;
                     break;
 
@@ -2272,6 +2351,22 @@ void picSaveTextDraw(FskPort port, const char *text, UInt32 textLen, FskConstRec
     item->parameters.textDraw.bounds = *bounds;
     item->parameters.textDraw.text = (char *)(item + 1);
     FskMemMove(item->parameters.textDraw.text, text, textLen);
+
+    port->picSaveNext = item->next = (FskPortPicItem)(textLen + (4 - (textLen % 4)) + (char *)(item + 1));
+}
+
+void picSaveTextDrawSubpixel(FskPort port, const char *text, UInt32 textLen, double x, double y, double width, double height)
+{
+    FskPortPicItem item = picSaveFlushDeferredState(port);
+
+    item->operation = kFskPortOpTextDrawSubpixel;
+    item->parameters.textDrawSubpixel.x = x;
+    item->parameters.textDrawSubpixel.y = y;
+    item->parameters.textDrawSubpixel.width = width;
+    item->parameters.textDrawSubpixel.height = height;
+    item->parameters.textDrawSubpixel.textLen = textLen;
+    item->parameters.textDrawSubpixel.text = (char *)(item + 1);
+    FskMemMove(item->parameters.textDrawSubpixel.text, text, textLen);
 
     port->picSaveNext = item->next = (FskPortPicItem)(textLen + (4 - (textLen % 4)) + (char *)(item + 1));
 }
@@ -2864,7 +2959,32 @@ void renderTextDraw(FskPort port, const char *text, UInt32 textLen, FskConstRect
 		}
 
 		FskPortRectScale(port, &r);
-		FskTextBox(port->textEngine, port->bits, text, textLen, &r, &port->aggregateClipScaled, &port->penColor,
+		FskTextBox(port->textEngine, port->bits, text, textLen, &r, NULL, &port->aggregateClipScaled, &port->penColor,
+			port->graphicsModeParameters ? port->graphicsModeParameters->blendLevel : 255,
+			FskPortUInt32Scale(port, port->textSize), port->textStyle, port->textHAlign, port->textVAlign, port->fontName, port->textFormatCache);
+	}
+}
+
+void renderTextDrawSubpixel(FskPort port, const char *text, UInt32 textLen, double x, double y, double width, double height)
+{
+	FskRectangleRecord r;
+	FskRectangleFloatRecord rf;
+
+	x += port->origin.x;
+	y += port->origin.y;
+
+	FskRectangleSet(&r, (SInt32)(x - 0.5), (SInt32)(y - 0.5), (SInt32)(width + 1), (SInt32)(height + 1));
+	if (FskPortAccumulateChange(port, &r)) {
+		if (NULL == port->textFormatCache) {
+			if (kFskErrNone == FskTextFormatCacheNew(port->textEngine, &port->textFormatCache, port->bits, FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName))
+                port->textFromFormat = false;
+		}
+
+		rf.x = FskPortDoubleScale(port, x);
+		rf.y = FskPortDoubleScale(port, y);
+		rf.width = FskPortDoubleScale(port, width);
+		rf.height = FskPortDoubleScale(port, height);
+		FskTextBox(port->textEngine, port->bits, text, textLen, &r, &rf, &port->aggregateClipScaled, &port->penColor,
 			port->graphicsModeParameters ? port->graphicsModeParameters->blendLevel : 255,
 			FskPortUInt32Scale(port, port->textSize), port->textStyle, port->textHAlign, port->textVAlign, port->fontName, port->textFormatCache);
 	}
@@ -2937,10 +3057,10 @@ Boolean doFormatMessagePort(FskInstrumentedType dispatch, UInt32 msg, void *msgD
 
 	switch (msg) {
 		case kFskPortInstrMsgSetGraphicsMode:
-			amt = snprintf(buffer, bufferSize, "set graphics mode %ld", (SInt32)((void **)msgData)[0]);
+			amt = snprintf(buffer, bufferSize, "set graphics mode %d", (int)((void **)msgData)[0]);
 			if (NULL != ((void **)msgData)[1]) {
 				if ((void *)-1 != ((void **)msgData)[1])
-					snprintf(buffer + amt, bufferSize - amt, ", blendLevel=%ld", ((FskGraphicsModeParameters)((void **)msgData)[1])->blendLevel);
+					snprintf(buffer + amt, bufferSize - amt, ", blendLevel=%d", (int)((FskGraphicsModeParameters)((void **)msgData)[1])->blendLevel);
 			}
 			else {
 				SInt32 sl = FskStrLen(buffer);
@@ -2960,15 +3080,15 @@ Boolean doFormatMessagePort(FskInstrumentedType dispatch, UInt32 msg, void *msgD
 			return true;
 
 		case kFskPortInstrMsgSetTextAlignment:
-			snprintf(buffer, bufferSize, "set text alignment hAlign = %ld, vAlign = %ld", (SInt32)((UInt32)msgData >> 16), (SInt32)((UInt32)msgData & 0x0ffff));
+			snprintf(buffer, bufferSize, "set text alignment hAlign = %d, vAlign = %d", (int)((UInt32)msgData >> 16), (int)((UInt32)msgData & 0x0ffff));
 			return true;
 
 		case kFskPortInstrMsgSetTextSize:
-			snprintf(buffer, bufferSize, "set text size %ld", (SInt32)msgData);
+			snprintf(buffer, bufferSize, "set text size %d", (int)msgData);
 			return true;
 
 		case kFskPortInstrMsgSetTextStyle:
-			snprintf(buffer, bufferSize, "set text style %ld", (SInt32)msgData);
+			snprintf(buffer, bufferSize, "set text style %d", (int)msgData);
 			return true;
 
 		case kFskPortInstrMsgSetTextFont:
@@ -3043,13 +3163,18 @@ Boolean doFormatMessagePort(FskInstrumentedType dispatch, UInt32 msg, void *msgD
 			goto doRectangle;
 			}
 
+		case kFskPortInstrMsgTextDrawSubpixel: {
+			snprintf(buffer, bufferSize, "text draw subpixel'%s',", ((char **)msgData)[0]);
+			return true;
+			}
+
 		case kFskPortInstrMsgTextGetBounds: {
 			FskRectangle bounds = ((FskRectangle *)msgData)[2];
 			char *s = ((char **)msgData)[0];
 			SInt32 textLen = ((SInt32 *)msgData)[1];
 			if (0 == textLen)
 				s = "(0 length string)";
-			snprintf(buffer, bufferSize, "get text bounds '%s', width=%ld, height=%ld", s, bounds->width, bounds->height);
+			snprintf(buffer, bufferSize, "get text bounds '%s', width=%d, height=%d", s, (int)bounds->width, (int)bounds->height);
 			}
 			return true;
 
@@ -3061,11 +3186,11 @@ Boolean doFormatMessagePort(FskInstrumentedType dispatch, UInt32 msg, void *msgD
 			if (0 == textLen)
 				s = "(0 length string)";
 			if (fitBytes && fitChars)
-				snprintf(buffer, bufferSize, "text fit width '%s', fitBytes=%ld, fitChars=%ld", s, *fitBytes, *fitChars);
+				snprintf(buffer, bufferSize, "text fit width '%s', fitBytes=%d, fitChars=%d", s, (int)(*fitBytes), (int)(*fitChars));
 			else if (fitBytes)
-				snprintf(buffer, bufferSize, "text fit width '%s', fitBytes=%ld", s, *fitBytes);
+				snprintf(buffer, bufferSize, "text fit width '%s', fitBytes=%d", s, (int)(*fitBytes));
 			else if (fitChars)
-				snprintf(buffer, bufferSize, "text fit width '%s', fitChars=%ld", s, *fitChars);
+				snprintf(buffer, bufferSize, "text fit width '%s', fitChars=%d", s, (int)(*fitChars));
 			else
 				snprintf(buffer, bufferSize, "text fit width '%s'", s);
 			}
@@ -3214,7 +3339,7 @@ Boolean doFormatMessagePort(FskInstrumentedType dispatch, UInt32 msg, void *msgD
 doRectangle:
 	if (NULL != msgData) {
 		FskRectangle r = (FskRectangle)msgData;
-		snprintf(buffer, bufferSize, "%s x=%ld, y=%ld, width=%ld, height=%ld, area=%lld", s, r->x, r->y, r->width, r->height, (FskInt64)r->width * r->height);
+		snprintf(buffer, bufferSize, "%s x=%d, y=%d, width=%d, height=%d, area=%lld", s, (int)r->x, (int)r->y, (int)r->width, (int)r->height, (FskInt64)r->width * r->height);
 	}
 	else
 		snprintf(buffer, bufferSize, "%s (NULL rectangle)", s);

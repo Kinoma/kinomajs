@@ -1,18 +1,18 @@
 /*
- *    Copyright (C) 2010-2015 Marvell International Ltd.
- *    Copyright (C) 2002-2010 Kinoma, Inc.
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
- *    Licensed under the Apache License, Version 2.0 (the "License");
- *    you may not use this file except in compliance with the License.
- *    You may obtain a copy of the License at
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
  *
  *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *    Unless required by applicable law or agreed to in writing, software
- *    distributed under the License is distributed on an "AS IS" BASIS,
- *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *    See the License for the specific language governing permissions and
- *    limitations under the License.
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
  */
 /**
 	\file	FskCanvas.c
@@ -115,7 +115,7 @@ FskInstrumentedSimpleType(Canvas, canvas);													/**< This declares the ty
 #define MAX_RECT_SIZE				((SInt32)0x7FFFFFFF)							/**< +2147483647, the maximum size (width or height) representable in FskRectangleRecord. */
 #define MIN_RECT_COORD				((SInt32)0xC0000000)							/**< -1073741824, the minimum coordinate representable in FskRectangleRecord. */
 #define MAX_RECT_COORD				((SInt32)0x3FFFFFFF)							/**< +1073741823, the maximum coordinate representable in FskRectangleRecord. */
-#define BLOCKIFY(sz, bk)			(((sz) + (bk) - 1) & (-(bk)))					/**< Blockify. \param[in] sz the size. \param[in] the block size. \return sz bumped up to a multiple of bk. */
+#define BLOCKIFY(sz, bk)			(((sz) + (bk) - 1) & (-(bk)))					/**< Blockify. \param[in] sz the size. \param[in] bk the block size. \return sz bumped up to a multiple of bk. */
 
 #ifdef _MSC_VER																		/**< Microsoft compatibility macros */
 	#define __FLT_EVAL_METHOD__ 2													/**< All computation is done in long double */
@@ -446,7 +446,7 @@ static void FixUpCanvasContextPointers(FskCanvas2dContext ctx) {
 
 /****************************************************************************//**
  * Get the Canvas State From the Canvas Context.
- *	\param[in,out]	the Canvas context.
+ *	\param[in,out]	ctx	the Canvas context.
  *	\return			the equivalent Canvas2d context state.
  ********************************************************************************/
 
@@ -459,7 +459,7 @@ FskCanvas2dContextState* FskCanvasGetStateFromContext(FskCanvas2dContext ctx) {
 
 /****************************************************************************//**
  * Get an immutable Canvas State From the Canvas Context.
- *	\param[in,out]	the Canvas context.
+ *	\param[in,out]	ctx	the Canvas context.
  *	\return			the equivalent Canvas2d context state.
  ********************************************************************************/
 
@@ -1633,7 +1633,7 @@ bail:
 
 /****************************************************************************//**
  * Determine whether the State Matrix Is the Identity.
- *	\param[in]	the Canvas context state.
+ *	\param[in]	st		the Canvas context state.
  *	\return		true,	if the state matrix is the identity.
  *	\return		false,	otherwise.
  ********************************************************************************/
@@ -3431,7 +3431,7 @@ FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fi
 	if (!path) path = ctx->path;
 	st = FskCanvasGetStateFromContext(ctx);
 
-	#define OPTIMIZE_RECTANGLE_CLIPPING
+	#define OPTIMIZE_RECTANGLE_CLIPPING	/**< Since rectangle clipping is so common and is significantly faster than general path clipping, treat it specially. */
 	#ifdef OPTIMIZE_RECTANGLE_CLIPPING
 		if (st->clipBM == NULL && FskPathIsAxisAlignedIntegralRectangle(FskGrowablePathGetConstPath(path), &st->fixedTransform, &pathRect)) {
 			FskRectangleIntersect(&st->clipRect, &pathRect, &st->clipRect);
@@ -3992,6 +3992,21 @@ FskCanvas2dSetOpenGLSourceAccelerated(FskCanvas cnv, Boolean accelerated)
         err = FskBitmapSetOpenGLSourceAccelerated(cnv->bm, true);
 
     return err;
+}
+
+
+/********************************************************************************
+ * FskCanvasAccelerationIsTrusty
+ ********************************************************************************/
+
+Boolean
+FskCanvasAccelerationIsTrusty(void)
+{
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		return (kFskGLCanvasCaveatNone == FskGLCanvasCaveats());
+	#else /* !FSKBITMAP_OPENGL */
+		return 0;
+	#endif /* !FSKBITMAP_OPENGL */
 }
 
 

@@ -270,3 +270,9 @@ FskErr FskSerialIOPlatformReadBlocking(FskSerialIO sio, UInt32 bytesToRead, void
 
 	return kFskErrNone;
 }
+
+int FskSerialIOPlatformGetFD(FskSerialIO sio)
+{
+	return ((FskTTYSerialIO)sio->platform)->ttyFile;
+}
+

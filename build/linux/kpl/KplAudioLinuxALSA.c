@@ -24,9 +24,8 @@
 
 #include <alsa/asoundlib.h>
 
-#define alsaIfError(X) { (err = (X));\
-if (err < 0) goto bail; \
-else err = kFskErrNone; }
+#define alsaIfError(X) { (status = (X));\
+if (status < 0) goto bail; }
 
 #define bailIfError(X) { (err = (X));\
 if (err != kFskErrNone) goto bail; }
@@ -55,8 +54,6 @@ struct KplAudioRecord {
 	KplAudioDoneCallback doneCB;
 	void* doneRefCon;
 	
-	Boolean playing;
-	Boolean silence;
 	Boolean ending;
 	Boolean stopping;
 	UInt32 bufferSize;
@@ -88,7 +85,6 @@ static FskErr KplAudioOutBlockAdd(KplAudio audio, const char* data, UInt32 size,
 static FskErr KplAudioOutBlockFill(KplAudio audio);
 static FskErr KplAudioOutBlockGetSize(KplAudio audio, UInt32* queued);
 static FskErr KplAudioOutBlockRead(KplAudio audio, char* data, UInt32 size);
-static FskErr KplAudioOutBlockReadSilence(KplAudio audio, char* data, UInt32 size);
 static FskErr KplAudioOutBlockRemove(KplAudio audio, KplAudioOutBlock buffer);
 static FskErr KplAudioOutBlockRemoveAll(KplAudio audio);
 
@@ -115,7 +111,7 @@ FskErr KplAudioDispose(KplAudio audio)
 	}
 	KplMutexDispose(audio->mutex);
 	audio->mutex = NULL;
-	FskMemPtrDisposeAt(&audio->data);
+	FskMemPtrDispose(audio->data);
 	FskMemPtrDispose(audio);
 bail:
 	return err;
@@ -153,8 +149,6 @@ FskErr KplAudioSetFormat(KplAudio audio, const char *format, UInt32 channels, do
 	audio->channels = channels;
 	audio->bufferMin = audio->channels * 2 * audio->rate; // 1 second buffer
 
-	audio->silence = true;
-
 	return err;
 }
 
@@ -191,7 +185,6 @@ FskErr KplAudioStart(KplAudio audio)
 {
 	FskErr err = kFskErrNone;
 	
-	audio->playing = true;
 	audio->played = 0;
 	
 	bailIfError(FskThreadCreate(&audio->thread, KplAudioThread, kFskThreadFlagsJoinable | kFskThreadFlagsWaitForInit, audio, "KplAudioThread"));
@@ -395,8 +388,7 @@ static FskErr KplAudioOutBlockRead(KplAudio audio, char* data, UInt32 size)
 	SInt16* p = (SInt16*)data;
 	UInt32 samples = size >> 1;
 	Boolean silence = !volL && !volR;
-	
-	audio->silence = false;
+
 	while ((buffer = audio->buffer)) {
 		available = buffer->size - buffer->offset;
 		if (available > size)
@@ -418,6 +410,7 @@ static FskErr KplAudioOutBlockRead(KplAudio audio, char* data, UInt32 size)
 		memset(data, 0, size); // fill with silence
 		err = kFskErrOperationFailed;
 	}
+
 	// adjust volume
 	if (!silence && ((volL < 256) || (volR < 256))) {
 		if (audio->channels == 1) {
@@ -442,17 +435,7 @@ static FskErr KplAudioOutBlockRead(KplAudio audio, char* data, UInt32 size)
 			}
 		}
 	}
-	return err;
-}
 
-static FskErr KplAudioOutBlockReadSilence(KplAudio audio, char* data, UInt32 size)
-{
-	FskErr err = kFskErrNone;
-	
-	if (!audio->silence) {
-		memset(data, 0, size); // fill with silence
-		audio->silence = true;
-	}
 	return err;
 }
 
@@ -499,8 +482,7 @@ static void KplAudioThread(void* refCon)
 	unsigned int bufferPeriod = bufferTime / 4;
 	unsigned int rate = audio->rate;
     int status;
-	FskErr err = kFskErrNone;
-	
+
     /*
         Thread is alive
     */
@@ -526,7 +508,7 @@ static void KplAudioThread(void* refCon)
 	alsaIfError(snd_pcm_hw_params_set_format(pcm, hw_params, audio->format));
 	alsaIfError(snd_pcm_hw_params_set_channels(pcm, hw_params, audio->channels));
 	alsaIfError(snd_pcm_hw_params_set_rate_near(pcm, hw_params, &rate, NULL));
-	bailIfError(rate != audio->rate);
+	if (rate != audio->rate) goto bail;
 	alsaIfError(snd_pcm_hw_params_set_period_time_near(pcm, hw_params, &bufferPeriod, 0));
 	alsaIfError(snd_pcm_hw_params_set_buffer_time_near(pcm, hw_params, &bufferTime, 0));
 	alsaIfError(snd_pcm_hw_params(pcm, hw_params));
@@ -541,26 +523,23 @@ static void KplAudioThread(void* refCon)
 	alsaIfError(snd_pcm_sw_params_set_start_threshold(pcm, sw_params, (audio->frames / audio->period) * audio->period));
 	alsaIfError(snd_pcm_sw_params(pcm, sw_params));
 	audio->dataSize = audio->channels * audio->period * snd_pcm_format_physical_width(audio->format) / 8;
-	FskMemPtrDispose(audio->data);
-	bailIfError(FskMemPtrNewClear(audio->dataSize, (FskMemPtr *)&audio->data));
+	FskMemPtrDisposeAt(&audio->data);
+	if (kFskErrNone != FskMemPtrNew(audio->dataSize, (FskMemPtr *)&audio->data))
+		goto bail;
 
     /*
         Play
     */
-
 	snd_pcm_prepare(pcm);
 	while (!audio->stopping) {
-		if (audio->playing) {
-			KplMutexAcquire(audio->mutex);
-			KplAudioOutBlockFill(audio);
-			KplAudioOutBlockRead(audio, audio->data, audio->dataSize);
-			KplMutexRelease(audio->mutex);
-		}
-		else {
-	 		KplAudioOutBlockReadSilence(audio, audio->data, audio->dataSize);
-		}
-		if ((frames = snd_pcm_writei(pcm, audio->data, audio->period)) < 0)
+		KplMutexAcquire(audio->mutex);
+		KplAudioOutBlockFill(audio);
+		KplAudioOutBlockRead(audio, audio->data, audio->dataSize);
+		KplMutexRelease(audio->mutex);
+
+		if ((frames = snd_pcm_writei(pcm, audio->data, audio->period)) < 0) {
 			snd_pcm_recover(pcm, frames, 0);
+		}
 		else
 			audio->played += frames;
 	}
@@ -568,7 +547,6 @@ static void KplAudioThread(void* refCon)
     /*
         Finish
     */
-
     if (snd_pcm_state(pcm) == SND_PCM_STATE_RUNNING)
         snd_pcm_drop(pcm);
 
@@ -583,8 +561,8 @@ bail:
     /*
         Disconnect
     */
-
 	snd_pcm_close(pcm);
+    KplAudioOutBlockRemoveAll(audio);
 
     /*
         Reset
@@ -593,5 +571,4 @@ bail:
     audio->stopping = false;
     audio->ending = false;
 
-    KplAudioOutBlockRemoveAll(audio);
 }

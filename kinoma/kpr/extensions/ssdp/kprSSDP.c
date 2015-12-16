@@ -348,6 +348,18 @@ void SSDP_client_removeServerCallback(KprSSDPClient self, KprSSDPDiscoveryDescri
 	SSDP_client_callback(self, "onSSDPServerDown", description);
 }
 
+void SSDP_client_remove(xsMachine *the)
+{
+	KprSSDPClient self = xsGetHostData(xsThis);
+	xsThrowIfFskErr(KprSSDPClientRemove(self, xsToString(xsArg(0))));
+}
+
+void SSDP_client_search(xsMachine *the)
+{
+	KprSSDPClient self = xsGetHostData(xsThis);
+	xsThrowIfFskErr(KprSSDPClientSearch(self));
+}
+
 void SSDP_client_start(xsMachine *the)
 {
 	KprSSDPClient self = xsGetHostData(xsThis);

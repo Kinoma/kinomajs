@@ -683,7 +683,9 @@ FskErr FskPortGetTempEffectBitmap(FskPort port, SInt32 width, SInt32 height, Fsk
 
 #if SUPPORT_INSTRUMENTATION
 static void LogDstBitmap(FskBitmap dstBM, const char *name) {
+#if FSKBITMAP_OPENGL
 	FskRectangleRecord	portRect;
+#endif /* FSKBITMAP_OPENGL */
 	if (!dstBM)
 		return;
 	if (!name)
@@ -694,16 +696,16 @@ static void LogDstBitmap(FskBitmap dstBM, const char *name) {
 		int			glIntFormat;
 		if (texName)	FskGLPortTexFormatGet(dstBM->glPort, &glIntFormat);
 		else			glIntFormat = 0;
-		FskInstrumentedTypePrintfDebug(&gPortTypeInstrumentation, "\t%s: bounds(%ld %ld %ld %ld) depth=%lu format=%s rowBytes=%ld bits=%p alpha=%d premul=%d glDstPort(#%u w=%lu h=%lu %#x), useCount=%d",
-			name, dstBM->bounds.x, dstBM->bounds.y, dstBM->bounds.width, dstBM->bounds.height, dstBM->depth,
-			FskBitmapFormatName(dstBM->pixelFormat), dstBM->rowBytes, dstBM->bits, dstBM->hasAlpha, dstBM->alphaIsPremultiplied,
-			texName, portRect.width, portRect.height, (glIntFormat), dstBM->useCount);
+		FskInstrumentedTypePrintfDebug(&gPortTypeInstrumentation, "\t%s: bounds(%d %d %d %d) depth=%u format=%s rowBytes=%d bits=%p alpha=%d premul=%d glDstPort(#%u w=%u h=%u %#x), useCount=%d",
+			name, (int)dstBM->bounds.x, (int)dstBM->bounds.y, (int)dstBM->bounds.width, (int)dstBM->bounds.height, (unsigned)dstBM->depth,
+			FskBitmapFormatName(dstBM->pixelFormat), (int)dstBM->rowBytes, dstBM->bits, dstBM->hasAlpha, dstBM->alphaIsPremultiplied,
+			texName, (unsigned)portRect.width, (unsigned)portRect.height, glIntFormat, (int)dstBM->useCount);
 	} else
 #endif /* FSKBITMAP_OPENGL */
 	{
-		FskInstrumentedTypePrintfDebug(&gPortTypeInstrumentation, "\t%s: bounds(%ld %ld %ld %ld) depth=%lu format=%s rowBytes=%ld bits=%p alpha=%d premul=%d, useCount=%d",
-			name, dstBM->bounds.x, dstBM->bounds.y, dstBM->bounds.width, dstBM->bounds.height, dstBM->depth,
-			FskBitmapFormatName(dstBM->pixelFormat), dstBM->rowBytes, dstBM->bits, dstBM->hasAlpha, dstBM->alphaIsPremultiplied, dstBM->useCount);
+		FskInstrumentedTypePrintfDebug(&gPortTypeInstrumentation, "\t%s: bounds(%d %d %d %d) depth=%u format=%s rowBytes=%d bits=%p alpha=%d premul=%d, useCount=%d",
+			name, (int)dstBM->bounds.x, (int)dstBM->bounds.y, (int)dstBM->bounds.width, (int)dstBM->bounds.height, (unsigned)dstBM->depth,
+			FskBitmapFormatName(dstBM->pixelFormat), (int)dstBM->rowBytes, dstBM->bits, dstBM->hasAlpha, dstBM->alphaIsPremultiplied, (int)dstBM->useCount);
 	}
 }
 #endif /* SUPPORT_INSTRUMENTATION */

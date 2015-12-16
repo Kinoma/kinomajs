@@ -1072,7 +1072,12 @@ void KPR_picture_load(xsMachine *the)
 			xsStringValue base = xsToString(xsModuleURL);
 			bailIfError(KprURLMerge(base, reference, &url));
 		}
+		else if (xsIsInstanceOf(xsArg(0), xsArrayBufferPrototype)) {
+			data = xsToArrayBuffer(xsArg(0));
+			size = xsGetArrayBufferLength(xsArg(0));
+		}
 		else {
+			xsTrace("Picture.load with Chunk deprecated, use Buffer.");
 			data = xsGetHostData(xsArg(0));
 			size = xsToInteger(xsGet(xsArg(0), xsID_length));
 		}
@@ -1080,8 +1085,15 @@ void KPR_picture_load(xsMachine *the)
 	if ((c > 1) && xsTest(xsArg(1)))
 		mime = xsToString(xsArg(1));
 	if ((c > 2) && xsTest(xsArg(2))) {
-		info = xsGetHostData(xsArg(2));
-		infoSize = xsToInteger(xsGet(xsArg(2), xsID_length));
+		if (xsIsInstanceOf(xsArg(2), xsArrayBufferPrototype)) {
+			info = xsToArrayBuffer(xsArg(2));
+			infoSize = xsGetArrayBufferLength(xsArg(2));
+		}
+		else {
+			xsTrace("Picture.load with Chunk for info deprecated, use Buffer.");
+			info = xsGetHostData(xsArg(2));
+			infoSize = xsToInteger(xsGet(xsArg(2), xsID_length));
+		}
 	}
 	if (url) {
 		KprPictureSetURL(self, url, mime);

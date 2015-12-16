@@ -208,7 +208,7 @@ static FskErr parseStatusResults(char *response, char **parsed)
 		*walker++ = 0;
 		value = walker;
 		if (0 == FskStrCompare(name, "id"))
-			snprintf(lineBuffer, sizeof(lineBuffer), "\"id\":%ld", FskStrToNum(value));
+			snprintf(lineBuffer, sizeof(lineBuffer), "\"id\":%ld", (unsigned long)FskStrToNum(value));
 		else
 			snprintf(lineBuffer, sizeof(lineBuffer), "\"%s\":\"%s\"", name, value);
 		bailIfError(FskMemPtrRealloc(FskStrLen(json) + FskStrLen(lineBuffer) + 4, &json));
@@ -259,7 +259,7 @@ static FskErr parseListNetworksResults(char *response, char **parsed)
 		*walker++ = 0;
 		flags = walker;
 		id = FskStrToNum(network_id);
-		snprintf(lineBuffer, sizeof(lineBuffer), kListNetworksResultsTemplate, id, ssid, bssid, flags);
+		snprintf(lineBuffer, sizeof(lineBuffer), kListNetworksResultsTemplate, (unsigned long)id, ssid, bssid, flags);
 		bailIfError(FskMemPtrRealloc(FskStrLen(json) + FskStrLen(lineBuffer) + 4, &json));
 		if (1 != i)
 			FskStrCat(json, ",");
@@ -309,7 +309,7 @@ static FskErr parseScanResults(char *response, char **parsed)
 			++walker;
 		*walker++ = 0;
 		ssid = walker;
-		snprintf(lineBuffer, sizeof(lineBuffer), kScanResultsTemplate, bssid, FskStrToNum(frequency), FskStrToNum(signal_level), flags, ssid);
+		snprintf(lineBuffer, sizeof(lineBuffer), kScanResultsTemplate, bssid, (unsigned long)FskStrToNum(frequency), (unsigned long)FskStrToNum(signal_level), flags, ssid);
 		bailIfError(FskMemPtrRealloc(FskStrLen(json) + FskStrLen(lineBuffer) + 4, &json));
 		if (1 != i)
 			FskStrCat(json, ",");
@@ -386,7 +386,7 @@ FskErr KprWiFiLevel(char* request, char* response, UInt32 responseSize, UInt32 *
                 level[0] = 0;
                 sscanf(linePtr, "%s %s %s %s %s", interface, status, link, level, noise);
                 if (FskStrLen(level)) {
-                    snprintf(response, responseSize, "{\"signal_level\": %ld}", FskStrToNum(level));
+                    snprintf(response, responseSize, "{\"signal_level\": %ld}", (unsigned long)FskStrToNum(level));
                     FskKprWiFiPrintfDebug("LEVEL %s", response);
                     *responseLength = FskStrLen(response);
                     err = kFskErrNone;
@@ -403,7 +403,7 @@ FskErr KprWiFiLevel(char* request, char* response, UInt32 responseSize, UInt32 *
                 char *linePtr = FskStrStripHeadSpace(line);
                 sscanf(linePtr, "signal: %s dBm", level);
                 if (FskStrLen(level)){
-                    snprintf(response, responseSize, "{\"signal_level\": %ld}", FskStrToNum(level));
+                    snprintf(response, responseSize, "{\"signal_level\": %ld}", (unsigned long)FskStrToNum(level));
                     FskKprWiFiPrintfDebug("LEVEL %s", response);
                     *responseLength = FskStrLen(response);
                     err = kFskErrNone;
@@ -489,7 +489,7 @@ FskErr KprWPAConfigure(FskAssociativeArray query, char* request, UInt32 requestS
 	char* adhoc = NULL;
 	char* hidden = NULL;
 	UInt32 length;
-	SInt32 index = -1;
+	long index = -1;
 	UInt32 scan = 1;
 	
 	reset = FskAssociativeArrayElementGetString(query, "reset");
@@ -497,13 +497,13 @@ FskErr KprWPAConfigure(FskAssociativeArray query, char* request, UInt32 requestS
 		char* ptr;
 		bailIfError(KprWPACommand("LIST_NETWORKS", response, responseSize, &length));
 		for (ptr = FskStrStr(response, "\"network_id\":"); ptr; ptr = FskStrStr(ptr + 13, "\"network_id\":")) {
-			snprintf(request, requestSize, "REMOVE_NETWORK %ld", FskStrToNum(ptr + 13));
+			snprintf(request, requestSize, "REMOVE_NETWORK %ld", (unsigned long)FskStrToNum(ptr + 13));
 			bailIfError(KprWPACommand(request, response, responseSize, &length));
 			bailIfError(FskStrCompareWithLength(response, "OK", 2));
 		}
 	}
 	bailIfError(KprWPACommand("ADD_NETWORK", response, responseSize, &length));
-	index = FskStrToNum(response);
+	index = (long)FskStrToNum(response);
 
 	snprintf(request, requestSize, "DISABLE_NETWORK %ld", index);
 	bailIfError(KprWPACommand(request, response, responseSize, &length));
@@ -573,7 +573,7 @@ FskErr KprWPAConfigure(FskAssociativeArray query, char* request, UInt32 requestS
 		bailIfError(FskStrCompareWithLength(response, "OK", 2));
 	}
 	
-	snprintf(request, requestSize, "AP_SCAN %lu", scan);
+	snprintf(request, requestSize, "AP_SCAN %lu", (unsigned long)scan);
 	bailIfError(KprWPACommand(request, response, responseSize, &length));
 	bailIfError(FskStrCompareWithLength(response, "OK", 2));
 	snprintf(request, requestSize, "SELECT_NETWORK %ld", index);

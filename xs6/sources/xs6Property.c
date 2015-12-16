@@ -33,17 +33,29 @@ txSlot* fxLastProperty(txMachine* the, txSlot* slot)
 txSlot* fxNextHostAccessorProperty(txMachine* the, txSlot* property, txCallback get, txCallback set, txID id, txFlag flag)
 {
 	txSlot *getter = NULL, *setter = NULL, *home = the->stack, *slot;
-	if (get) {
-		getter = fxNewHostFunction(the, get, 0, id);
+	if (get == set) {
+		getter = setter = fxNewHostFunction(the, get, 0, XS_NO_ID);
 		slot = mxFunctionInstanceHome(getter);
 		slot->kind = home->kind;
 		slot->value = home->value;
 	}
-	if (set) {
-		setter = fxNewHostFunction(the, set, 1, id);
-		slot = mxFunctionInstanceHome(setter);
-		slot->kind = home->kind;
-		slot->value = home->value;
+	else {
+		if (get) {
+			getter = fxNewHostFunction(the, get, 0, XS_NO_ID);
+			slot = mxFunctionInstanceHome(getter);
+			slot->kind = home->kind;
+			slot->value = home->value;
+			slot = fxGetProperty(the, getter, mxID(_name));
+			fxRenameFunction(the, slot, id, "", "get ");
+		}
+		if (set) {
+			setter = fxNewHostFunction(the, set, 1, XS_NO_ID);
+			slot = mxFunctionInstanceHome(setter);
+			slot->kind = home->kind;
+			slot->value = home->value;
+			slot = fxGetProperty(the, setter, mxID(_name));
+			fxRenameFunction(the, slot, id, "", "set ");
+		}
 	}
 	property = property->next = fxNewSlot(the);
 	property->flag = flag;
@@ -51,10 +63,15 @@ txSlot* fxNextHostAccessorProperty(txMachine* the, txSlot* property, txCallback 
 	property->kind = XS_ACCESSOR_KIND;
 	property->value.accessor.getter = getter;
 	property->value.accessor.setter = setter;
-	if (set)
+	if (get == set) {
 		the->stack++;
-	if (get)
-		the->stack++;
+	}
+	else {
+		if (set)
+			the->stack++;
+		if (get)
+			the->stack++;
+	}
 	return property;
 }
 
@@ -377,10 +394,6 @@ txBoolean fxRemoveProperty(txMachine* the, txSlot* theInstance, txInteger theID)
 			if (theID == mxID(_length)) {
                 if (theInstance->next->kind == XS_ARRAY_KIND)
                     return 0;
-                if (theInstance->next->kind == XS_CALLBACK_KIND)
-                    return 0;
-                if (theInstance->next->kind == XS_CODE_KIND)
-                    return 0;
 				if (theInstance->next->kind == XS_HOST_KIND)
 					return 0;
                 if (theInstance->next->kind == XS_STRING_KIND)
@@ -390,6 +403,8 @@ txBoolean fxRemoveProperty(txMachine* the, txSlot* theInstance, txInteger theID)
                 if (theInstance->next->kind == XS_CALLBACK_KIND)
                     return 0;
                 if (theInstance->next->kind == XS_CODE_KIND)
+                    return 0;
+                if (theInstance->next->kind == XS_CODE_X_KIND)
                     return 0;
 			}
 		}
@@ -455,14 +470,13 @@ txBoolean fxNewProperty(txMachine* the, txSlot* instance, txInteger ID, txFlag f
 			array->value.array.length = 0;
 		}
 		property = fxSetArrayProperty(the, array, ID);
-		property->kind = slot->kind;
-		property->value = slot->value;
-		return 1;
 	}
-	while ((property = *address)) {
-		if (property->ID == ID)
-			break;
-		address = &(property->next);
+	else {
+		while ((property = *address)) {
+			if (property->ID == ID)
+				break;
+			address = &(property->next);
+		}
 	}
 	if (property) {
 		if (property->flag & XS_DONT_DELETE_FLAG) {
@@ -507,12 +521,21 @@ txBoolean fxNewProperty(txMachine* the, txSlot* instance, txInteger ID, txFlag f
 			property->value.accessor.setter = C_NULL;
 		}
 		property->flag = flag & ~XS_ACCESSOR_FLAG;
-		if (flag & XS_GETTER_FLAG)
-			property->value.accessor.getter = slot->value.reference;
-		else
-			property->value.accessor.setter = slot->value.reference;
-		slot = mxFunctionInstancePrototype(slot->value.reference);
-		slot->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+		slot = slot->value.reference;
+		if (flag & XS_GETTER_FLAG) {
+			property->value.accessor.getter = slot;
+			if (mxIsFunction(slot)) {
+				property = fxGetProperty(the, slot, mxID(_name));
+				fxRenameFunction(the, property, ID, "", "get ");
+			}
+		}
+		else {
+			property->value.accessor.setter = slot;
+			if (mxIsFunction(slot)) {
+				property = fxGetProperty(the, slot, mxID(_name));
+				fxRenameFunction(the, property, ID, "", "set ");
+			}
+		}
 	}
 	else {
 		property->flag = flag;
@@ -521,9 +544,8 @@ txBoolean fxNewProperty(txMachine* the, txSlot* instance, txInteger ID, txFlag f
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
 			if (mxIsFunction(slot)) {
-				property = mxFunctionInstanceInfo(slot);
-				if (property->value.info.name == XS_NO_ID)
-					property->value.info.name = (txID)ID;
+				property = fxGetProperty(the, slot, mxID(_name));
+				fxRenameFunction(the, property, ID, "", C_NULL);
 			}
 		}
 	}
@@ -611,6 +633,8 @@ txSlot* fxSetProperty(txMachine* the, txSlot* theInstance, txInteger theID, txFl
 				break;
 			instanceAddress = &(aProperty->next);
 		}
+		if (theInstance->flag & XS_DONT_PATCH_FLAG)
+			return C_NULL;
 		*instanceAddress = result = fxNewSlot(the);
 		result->next = aProperty;
 		result->kind = XS_ARRAY_KIND;

@@ -482,7 +482,7 @@ FskErr KplScreenGetDisplayCopy(void *state, void *obj, UInt32 propertyID, FskMed
 
         err = FskMemPtrNewFromData(gKplScreen->width * gKplScreen->height * 2, gKplScreen->baseAddr[ONSCREEN_PAGE(gKplScreen)], &bits);
         if (kFskErrNone == err) {
-            FskBitmapNewWrapper(gKplScreen->width, gKplScreen->height, kFskBitmapFormat16RGB565LE, 16, bits, gKplScreen->width * 2, &property->value.bitmap);
+            FskBitmapNewWrapper(gKplScreen->width, gKplScreen->height, kFskBitmapFormat16RGB565LE, 16, bits, gKplScreen->width * 2, (FskBitmap *)&property->value.bitmap);
             property->type = kFskMediaPropertyTypeBitmap;
         }
     }
@@ -548,23 +548,21 @@ FskErr KplScreenUnlockBitmap(KplBitmap bitmap)
 
 FskErr KplScreenLockBitmap(KplBitmap bitmap)
 {
-	FskErr err = kFskErrNone;
-
 	if (bitmap != gKplScreen->bitmap)
 		return kFskErrOperationFailed;
 
 	FskInstrumentedTypePrintfDebug(&gKplScreenK4TypeInstrumentation, "** Locking surface **");
 
-    if (2 == gKplScreen->bitmapsReady) {
-        while (2 == gKplScreen->bitmapsReady)
-            FskDelay(1);
-    }
+	while (2 == gKplScreen->bitmapsReady)
+		FskDelay(1);
 
-	gKplScreen->bitmap->baseAddress = gKplScreen->bitmaps[1 & gKplScreen->bitmapsFlagWrite]->bits;
-	gKplScreen->bitmap->rowBytes = gKplScreen->rowBytes;
-    gKplScreen->bitmapsFlagWrite += 1;
+    FskMutexAcquire(gKplScreen->withCare);
+		gKplScreen->bitmap->baseAddress = gKplScreen->bitmaps[1 & gKplScreen->bitmapsFlagWrite]->bits;
+		gKplScreen->bitmap->rowBytes = gKplScreen->rowBytes;
+		gKplScreen->bitmapsFlagWrite += 1;
+    FskMutexRelease(gKplScreen->withCare);
 	
-	return err;
+	return kFskErrNone;
 }
 
 #if !SUPPORT_FLIP_THREAD
@@ -593,10 +591,10 @@ FskErr KplScreenUnlockBitmap(KplBitmap bitmap)
 
     FskMutexAcquire(gKplScreen->withCare);
         gKplScreen->bitmapsReady += 1;
+		gKplScreen->unlocked = true;
     FskMutexRelease(gKplScreen->withCare);
 
     FskSemaphoreRelease(gKplScreen->flipSemaphore);
-	gKplScreen->unlocked = true;
 
 	return kFskErrNone;
 }
@@ -822,7 +820,7 @@ UInt16 mapKeyCode(struct input_event *event, int mod) {
 
 
 
-inputDevice devInputAddDevice(char *dev) {
+inputDevice devInputAddDevice(const char *dev) {
 	inputDevice newInput = NULL;
 	FskErr err;
 
@@ -853,7 +851,7 @@ newFailed:
 	return NULL;
 }
 
-void devInputRemoveDevice(char *dev) {
+void devInputRemoveDevice(const char *dev) {
 	inputDevice scan = inputDevices;
 
 	MLOG("remove InputDevice - %s\n", dev);
@@ -870,9 +868,7 @@ void devInputRemoveDevice(char *dev) {
 
 
 FskErr devInputNotifierCallback(UInt32 whatChanged, const char *path, void *refCon) {
-	FskMemPtr str;
-
-	str = FskStrDoCat(kInputDevicePath, path);
+	char *str = FskStrDoCat(kInputDevicePath, path);
 
 	MLOG("devInputNotifierCallback - what: %d, path: %s, ref: %x\n", whatChanged, path, refCon);
 	switch (whatChanged) {
@@ -882,10 +878,8 @@ FskErr devInputNotifierCallback(UInt32 whatChanged, const char *path, void *refC
 			devInputAddDevice(path);
 			break;
 		case kKplDirectoryChangeFileCreated:
-			{
-				MLOG("file %s created\n", path);
-				devInputAddDevice(path);
-			}
+			MLOG("file %s created\n", path);
+			devInputAddDevice(path);
 			break;
 		case kKplDirectoryChangeFileDeleted:
 			MLOG("file %s deleted\n", path);
@@ -930,7 +924,6 @@ void ScanDevInput(char *dir) {
 	FskErr err = kFskErrNone;
 	char *dirEntry, fullPath[PATH_MAX];
 	UInt32 entryType;
-	Boolean gotOne = false;
 
 	MLOG("scanDevInput %s\n", dir);
 	BAIL_IF_ERR(err = FskDirectoryIteratorNew(dir, &dirIt, 0));
@@ -940,21 +933,20 @@ void ScanDevInput(char *dir) {
 			MLOG("-- got a subdirectory. Do we care? Skip.\n");
 		}
 		else if (kFskDirectoryItemIsFile == entryType) {
+			Boolean gotOne = false;
 			FskStrCopy(fullPath, dir);
 			FskStrCat(fullPath, dirEntry);
 			inputIterator = inputDevices;
-			gotOne = false;
 			while (inputIterator) {
 				if (0 == FskStrCompare(inputIterator->fullPath, fullPath))
 					gotOne = true;
 				inputIterator = inputIterator->next;
 			}
 
-			if (gotOne)
-				continue;
-
-			devInputAddDevice(dirEntry);
+			if (!gotOne)
+				devInputAddDevice(dirEntry);
 		}
+		FskMemPtrDispose(dirEntry);
 	}
 
 bail:
@@ -1303,8 +1295,6 @@ static void inputHandler(struct input_event *event, inputDevice dev)
 
 
 		if (cod == kFskEventMouseDown) {
-            FskBitmap replace;
-
 			mod = kFskEventModifierMouseButton;
 			clicks = 1;
 			if (!touchMovedTimer) {
@@ -1316,25 +1306,19 @@ static void inputHandler(struct input_event *event, inputDevice dev)
 			// touchScale = FskPortScaleGet(win->port);
 
             /*
-                cache current screen for potential screen capture
+                copy current screen for potential screen capture
             */
+            if (NULL == gKplScreen->touchDown)
+				FskBitmapNew(gKplScreen->width, gKplScreen->height, kFskBitmapFormat16RGB565LE, &gKplScreen->touchDown);
+
             if (gKplScreen->touchDown) {
-                FskBitmapDispose(gKplScreen->touchDown);
-                gKplScreen->touchDown = NULL;
-            }
-
-            if (kFskErrNone == FskBitmapNew(gKplScreen->width, gKplScreen->height, kFskBitmapFormat16RGB565LE, &replace)) {
                 int page;
-                
-                FskBitmapWriteBegin(replace, NULL, NULL, NULL);
 
-                FskMutexAcquire(gKplScreen->withCare);
-                    page = 1 & (gKplScreen->bitmapsFlagRead - 1);
-
-                    gKplScreen->touchDown = gKplScreen->bitmaps[page];
-                    gKplScreen->bitmaps[page] = replace;
-                FskMutexRelease(gKplScreen->withCare);
-
+                FskBitmapWriteBegin(gKplScreen->touchDown, NULL, NULL, NULL);
+					FskMutexAcquire(gKplScreen->withCare);
+						page = 1 & (gKplScreen->bitmapsFlagRead - 1);
+						FskMemMove(gKplScreen->touchDown->bits, gKplScreen->bitmaps[page]->bits, gKplScreen->width * gKplScreen->height * 2);
+					FskMutexRelease(gKplScreen->withCare);
                 FskBitmapWriteEnd(gKplScreen->touchDown);
             }
 		}

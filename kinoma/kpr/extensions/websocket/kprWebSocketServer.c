@@ -295,10 +295,6 @@ static FskErr KprWebSocketServerSendResponseHeader(KprWebSocketServerRequest req
 }
 
 static void KprWebSocketServerPrepareResponseHeaders(KprWebSocketServerRequest request) {
-	int		requestProtocolVersion;
-
-	requestProtocolVersion = FskHeaderHTTPVersion(request->requestHeaders);
-
 	if (NULL == FskHeaderFind(kFskStrServer, request->responseHeaders))
 		FskHeaderAddString(kFskStrServer, kWebSocketServerIdentifier, request->responseHeaders);
 

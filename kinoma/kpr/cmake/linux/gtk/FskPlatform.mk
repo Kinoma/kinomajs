@@ -24,12 +24,13 @@
 	<input name="$(F_HOME)/core/network"/>
 	<input name="$(F_HOME)/core/ui"/>
 	<input name="$(F_HOME)/extensions/crypt/sources"/>
-	<input name="$(F_HOME)/xs/includes"/>
+	<input name="$(F_HOME)/xs6/includes"/>
 	<input name="$(F_HOME)/libraries/QTReader"/>
 
 	<input name="$(F_HOME)/build/linux/kpl"/>
 	<input name="$(F_HOME)/core/kpl"/>
 	<input name="$(F_HOME)/libraries/libjpeg"/>
+	<input name="$(F_HOME)/libraries/zlib"/>
 
 	<header name="FskPlatform.h"/>
 	<header name="FskGtkWindow.h"/>
@@ -46,6 +47,7 @@
 	<library name="-lresolv"/>
 	<library name="-lX11"/>
 	<library name="-lm"/>
+	<library name="-Wl,-rpath,.,-rpath,'$ORIGIN/lib'"/>
 	
 	<c option="-I/usr/include/directfb"/>
 	<c option="-I/usr/include/freetype2"/>
@@ -70,9 +72,11 @@
 	<c option="-D_LARGEFILE_SOURCE"/>
 	<c option="-D_REENTRANT"/>
 	<c option="-D__FSK_LAYER__=1"/>
+	<c option="-DUSE_INOTIFY=1"/>
 	<c option="-fsigned-char"/>
 	<c option="-Wall"/>
 	<c option="-Werror-implicit-function-declaration"/>
+	<c option="-Wno-deprecated-declarations"/>
 	<c option="-Wno-multichar"/>
 	
 	<version name="debug">

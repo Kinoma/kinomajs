@@ -56,7 +56,6 @@ static void *kplThreadProc(void *refcon);
 static void LinuxThreadWaitForData(KplThread self, SInt32 msec);
 
 FskListMutex gKplThreads = NULL;
-static int sFifoPort = 5678;
 
 static pthread_key_t gThreadStructKey;
 
@@ -86,7 +85,7 @@ static void threadCheckForEvents(FskThreadDataHandler handler, FskThreadDataSour
     }
 }
 
-FskErr KplThreadCreate(KplThread *threadOut, KplThreadProc procedure, void *refcon, UInt32 flags, char *name)
+FskErr KplThreadCreate(KplThread *threadOut, KplThreadProc procedure, void *refcon, UInt32 flags, const char *name)
 {
 	FskErr			err;
 	KplThread	thread = NULL;
@@ -251,8 +250,6 @@ void *kplThreadProc(void *refcon)
 {
     KplThread thread = refcon;
     sigset_t    set;
-    Boolean     wrapped = false;
-    FskErr      err;
 	FskEvent 	event;
 
     sigemptyset(&set);
@@ -277,7 +274,6 @@ void *kplThreadProc(void *refcon)
     // get it running
     (thread->clientProc)(thread->clientRefCon);
 
-fail:
     // shut it down
     if (thread->eventfd >= 0)
         close(thread->eventfd);
@@ -373,7 +369,7 @@ FskErr KplThreadRunloopCycle(SInt32 msec)
 
 #if SUPPORT_INSTRUMENTATION
 	if (event)
-		FskInstrumentedTypePrintfDebug(&gKplThreadTypeInstrumentation, "There are %ld events in the queue", FskListCount(event));
+		FskInstrumentedTypePrintfDebug(&gKplThreadTypeInstrumentation, "There are %u events in the queue", (unsigned)FskListCount(event));
 #endif
 
 	while (NULL != event) {

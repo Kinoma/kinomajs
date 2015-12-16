@@ -93,7 +93,7 @@ FskErr KprZeroconfServiceNewAuthority(char* type, char** it)
 {
 #define kKPRZeroconfKinomaServe "_%s._tcp."
 	FskErr err = kFskErrNone;
-	char* authority = type + 1;
+	char* authority;
 	char* dot = FskStrChr(type, '.');
 	char* ptr;
 	bailIfNULL(dot);
@@ -143,7 +143,7 @@ bail:
  	bailIfError(KprZeroconfServiceNewAuthority(service->type, &authority));
 	if (alive) {
 		snprintf(url, sizeof(url), kKPRZeroconfKinomaDiscoverURL, self->authority);
-		snprintf(json, sizeof(json), kKPRZeroconfKinomaDiscoverJSON, authority, service->name, service->ip, service->port);
+		snprintf(json, sizeof(json), kKPRZeroconfKinomaDiscoverJSON, authority, service->name, service->ip, (unsigned long)service->port);
 	}
 	else {
 		snprintf(url, sizeof(url), kKPRZeroconfKinomaForgetURL, self->authority);
@@ -489,16 +489,17 @@ void Zeroconf_browser_callback(KprZeroconfBrowser self, char* function, KprZeroc
 	}
 bail:
 	xsEndHostSandboxCode();
+	KprZeroconfServiceInfoDispose(service);
 }
 
 void Zeroconf_browser_serviceUpCallback(KprZeroconfBrowser self, KprZeroconfServiceInfo service)
 {
-	Zeroconf_browser_callback(self, "onZeroconfServiceUp", service);
+	FskThreadPostCallback(FskThreadGetCurrent(), (FskThreadCallback)Zeroconf_browser_callback, self, "onZeroconfServiceUp", service, NULL);
 }
 
 void Zeroconf_browser_serviceDownCallback(KprZeroconfBrowser self, KprZeroconfServiceInfo service)
 {
-	Zeroconf_browser_callback(self, "onZeroconfServiceDown", service);
+	FskThreadPostCallback(FskThreadGetCurrent(), (FskThreadCallback)Zeroconf_browser_callback, self, "onZeroconfServiceDown", service, NULL);
 }
 
 void Zeroconf_browser_start(xsMachine *the)

@@ -394,23 +394,26 @@ void Math_exponentialEaseInOut(xsMachine* the)
 
 void Math_backEaseIn(xsMachine* the)
 {
+	xsIntegerValue c = xsToInteger(xsArgc);
 	double fraction = xsToNumber(xsArg(0));
-	double s = xsTest(xsArg(1)) ? xsToNumber(xsArg(1)) : 1.70158;
+	double s = (c > 1) ? xsToNumber(xsArg(1)) : 1.70158;
 	xsResult = xsNumber(fraction * fraction * ((s + 1) * fraction - s));
 }
 
 void Math_backEaseOut(xsMachine* the)
 {
+	xsIntegerValue c = xsToInteger(xsArgc);
 	double fraction = xsToNumber(xsArg(0));
-	double s = xsTest(xsArg(1)) ? xsToNumber(xsArg(1)) : 1.70158;
+	double s = (c > 1) ? xsToNumber(xsArg(1)) : 1.70158;
 	fraction -= 1;
 	xsResult = xsNumber(fraction * fraction * ((s + 1) * fraction + s) + 1);
 }
 
 void Math_backEaseInOut(xsMachine* the)
 {
+	xsIntegerValue c = xsToInteger(xsArgc);
 	double fraction = xsToNumber(xsArg(0));
-	double s = xsTest(xsArg(1)) ? xsToNumber(xsArg(1)) : 1.70158;
+	double s = (c > 1) ? xsToNumber(xsArg(1)) : 1.70158;
 	s *= 1.525;
 	fraction *= 2;
 	if (fraction < 1)

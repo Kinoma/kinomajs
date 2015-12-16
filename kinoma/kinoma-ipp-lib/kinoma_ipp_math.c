@@ -1139,7 +1139,7 @@ static long double  __inline float_part(Ipp64s remainder, Ipp64s root)
 #ifdef BUILT_4_MC
 	while (my_fabs(froot - ftmp) > limit);
 #else
-	while (fabs(froot - ftmp) > limit);
+	while (fabsl(froot - ftmp) > limit);
 #endif
 
 	return froot;

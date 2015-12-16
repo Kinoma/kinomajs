@@ -851,7 +851,7 @@ Boolean doFormatMessageMemory(FskInstrumentedType dispatch, UInt32 msg, void *ms
 		case kFskFileInstrMsgAllocate: {
 			const char *op = mmr->clear ? "calloc" : "malloc";
 #if !SUPPORT_MEMORY_DEBUG
-			snprintf(buffer, bufferSize, "%s %p, size=%lu", op, mmr->data, mmr->size);
+			snprintf(buffer, bufferSize, "%s %p, size=%u", op, mmr->data, (unsigned)mmr->size);
 #else
 			FskMemoryDebug debug = (FskMemoryDebug)(((char *)mmr->data) - sizeof(FskMemoryDebugRecord));
 			if (debug->function)
@@ -864,18 +864,18 @@ Boolean doFormatMessageMemory(FskInstrumentedType dispatch, UInt32 msg, void *ms
 
 		case kFskFileInstrMsgAllocateFailed:
 			if (mmr->clear)
-				snprintf(buffer, bufferSize, "calloc failed size=%lu", mmr->size);
+				snprintf(buffer, bufferSize, "calloc failed size=%u", (unsigned)mmr->size);
 			else
-				snprintf(buffer, bufferSize, "alloc failed size=%lu", mmr->size);
+				snprintf(buffer, bufferSize, "alloc failed size=%u", (unsigned)mmr->size);
 			return true;
 
 		case kFskFileInstrMsgReallocate: {
 #if !SUPPORT_MEMORY_DEBUG
-			snprintf(buffer, bufferSize, "realloc %p, size=%lu, original=%p", mmr->data, mmr->size, mmr->originalData);
+			snprintf(buffer, bufferSize, "realloc %p, size=%u, original=%p", mmr->data, (unsigned)mmr->size, mmr->originalData);
 #else
 			FskMemoryDebug debug = (FskMemoryDebug)(((char *)mmr->data) - sizeof(FskMemoryDebugRecord));
 			if (debug->function)
-				snprintf(buffer, bufferSize, "realloc %p, size=%lu, original=%p, caller=%s @ line=%lu", mmr->data, mmr->size, mmr->originalData, debug->function, debug->line);
+				snprintf(buffer, bufferSize, "realloc %p, size=%u, original=%p, caller=%s @ line=%lu", mmr->data, (unsigned)mmr->size, mmr->originalData, debug->function, debug->line);
 			else
 				snprintf(buffer, bufferSize, "realloc %p, size=%lu, original=%p", mmr->data, mmr->size, mmr->originalData);
 #endif
@@ -883,7 +883,7 @@ Boolean doFormatMessageMemory(FskInstrumentedType dispatch, UInt32 msg, void *ms
 			return true;
 
 		case kFskFileInstrMsgReallocateFailed:
-			snprintf(buffer, bufferSize, "realloc failed size=%lu, original=%p", mmr->size, mmr->originalData);
+			snprintf(buffer, bufferSize, "realloc failed size=%u, original=%p", (unsigned)mmr->size, mmr->originalData);
 			return true;
 
 		case kFskFileInstrMsgFree:

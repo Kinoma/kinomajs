@@ -560,7 +560,7 @@ void xs_i2c_readBlockDataSMB(xsMachine* the)
 {
     xsI2C i2c = xsGetHostData(xsThis);
 	char* formatString;
-	int format = 0, i, dataSize = 0;
+	int format = 2, i, dataSize = 0;
     uint8_t reg = (uint8_t)xsToInteger(xsArg(0));
     uint8_t data[34]; //needs to be 34 because we're using I2C_SMBUS_I2C_BLOCK_BROKEN in i2cdev.c
     SInt32 length = (SInt32)xsToInteger(xsArg(1));
@@ -574,14 +574,18 @@ void xs_i2c_readBlockDataSMB(xsMachine* the)
 	FskI2CSetSlave(i2c->bus, i2c->address);
 
     formatString = xsToString(xsArg(2));
-    if (!FskStrCompare(formatString, "Chunk")) format = 0;
+    if (!FskStrCompare(formatString, "Buffer")) format = 2;
+    else if (!FskStrCompare(formatString, "Chunk")) format = 0;
     else if (!FskStrCompare(formatString, "Array")) format = 1;
 
     dataSize = FskI2CReadBlockDataSMB(i2c->bus, reg, length, data);
     if (dataSize <= 0)
         xsThrowDiagnosticIfFskErr(kFskErrBadData, "I2C readBlockDataSMB register %d failed %s.", (int)reg, i2c->diagnosticID);
 
-    if (0 == format) {
+    if (2 == format) {
+		xsResult = xsArrayBuffer(data, dataSize);
+	}
+    else if (0 == format) {
         xsResult = xsNew1(xsGlobal, xsID("Chunk"), xsInteger(dataSize));
         FskMemMove(xsGetHostData(xsResult), data, dataSize);
     }
@@ -597,7 +601,7 @@ void xs_i2c_readBlock(xsMachine *the)
 	FskErr err;
 	xsI2C i2c = xsGetHostData(xsThis);
 	int argc = xsToInteger(xsArgc), i;
-	int format = 0;
+	int format = 2;
     SInt32 dataSize = xsToInteger(xsArg(0));
     unsigned char *data = NULL;
     
@@ -617,14 +621,19 @@ void xs_i2c_readBlock(xsMachine *the)
             format = xsToInteger(xsArg(1));
         else {
             char *formatString = xsToString(xsArg(1));
-            if (0 == FskStrCompare(formatString, "Chunk"))
+            if (0 == FskStrCompare(formatString, "Buffer"))
+                format = 2;
+            else if (0 == FskStrCompare(formatString, "Chunk"))
                 format = 0;
             else if (0 == FskStrCompare(formatString, "Array"))
                 format = 1;
         }
     }
     
-    if (0 == format) {
+    if (2 == format) {
+        xsResult = xsArrayBuffer(data, dataSize);
+    }
+    else if (0 == format) {
         xsResult = xsNew1(xsGlobal, xsID("Chunk"), xsInteger(dataSize));
         FskMemMove(xsGetHostData(xsResult), data, dataSize);
     }
@@ -712,7 +721,15 @@ unsigned char *writeOne(xsMachine *the, xsI2C i2c, xsSlot *slot, unsigned char *
             break;
 
         case xsReferenceType:
-            if (xsIsInstanceOf(*slot, xsChunkPrototype)) {
+            if (xsIsInstanceOf(*slot, xsArrayBufferPrototype)) {
+                char *data = xsToArrayBuffer(*slot);
+                SInt32 dataSize = xsGetArrayBufferLength(*slot);
+                if ((bufEnd - bufPtr) < dataSize)
+                    xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "I2C write 32 byte write max %s.", i2c->diagnosticID);
+                FskMemMove(bufPtr, data, dataSize);
+                bufPtr += dataSize;
+            }
+            else if (xsIsInstanceOf(*slot, xsChunkPrototype)) {
                 char *data = xsGetHostData(*slot);
                 SInt32 dataSize = xsToInteger(xsGet(*slot, xsID("length")));
                 if ((bufEnd - bufPtr) < dataSize)

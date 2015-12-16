@@ -156,7 +156,7 @@ void fs_mkdirSync(xsMachine* the)
 #if mxWindows
 	result = _mkdir(path);
 #else
-	result = mkdir(path, 0744);
+	result = mkdir(path, 0755);
 #endif
 	if (result) {
 		switch (errno) {

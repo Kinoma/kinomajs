@@ -1288,15 +1288,9 @@ bail:
 
 
 #ifdef USE_INOTIFY
-#if BG3CDP || MINITV
 #define INOTIFY_CHANGE_FILE_MASK (IN_CLOSE_WRITE)
 #define INOTIFY_DELETE_FILE_MASK (IN_MOVED_FROM | IN_DELETE)
 #define INOTIFY_CREATE_FILE_MASK (IN_MOVED_TO | IN_CREATE)
-#else
-#define INOTIFY_CHANGE_FILE_MASK (IN_CLOSE_WRITE)
-#define INOTIFY_DELETE_FILE_MASK (IN_MOVED_FROM | IN_DELETE_SUBDIR | IN_DELETE_FILE)
-#define INOTIFY_CREATE_FILE_MASK (IN_MOVED_TO | IN_CREATE_SUBDIR | IN_CREATE_FILE)
-#endif
 
 extern FskFileDispatchTableRecord gFSDispatch;
 
@@ -1366,7 +1360,7 @@ static void dirChangeHandler(FskThreadDataHandler handler, FskThreadDataSource s
 			}
 			buffer = FskStrDoCopy(ev->name);
 			walker->count += 1;
-			FskThreadPostCallback(walker->thread, doChangesCallback, walker, buffer, ev->mask, NULL);
+			FskThreadPostCallback(walker->thread, doChangesCallback, walker, buffer, (void *)ev->mask, NULL);
 		}
 	}
 	FskMutexRelease(gDirChangeNotifiersMutex);
@@ -1377,11 +1371,7 @@ FskErr KplDirectoryChangeNotifierNew(const char *path, UInt32 flags, KplDirector
 {
 	FskErr err;
 	FskFSDirectoryChangeNotifier dirNot = NULL;
-#if MINITV
 	int mask;
-#else
-	struct inotify_watch_request ireq;
-#endif
 
 	*dirChangeNtf = NULL;
 
@@ -1389,11 +1379,7 @@ FskErr KplDirectoryChangeNotifierNew(const char *path, UInt32 flags, KplDirector
 		err = FskMutexNew(&gDirChangeNotifiersMutex, "KplDirChangeNotifiers");
 		if (err) return err;
 
-#if MINITV
 		iNotifyFD = inotify_init();
-#else
-		iNotifyFD = open("/dev/inotify", O_RDONLY);
-#endif
 		if (iNotifyFD < 0) {
 			err = kFskErrOperationFailed;
 			goto bail;
@@ -1423,15 +1409,8 @@ FskErr KplDirectoryChangeNotifierNew(const char *path, UInt32 flags, KplDirector
 		goto bail;
 	}
 
-#if MINITV
 	mask = INOTIFY_CHANGE_FILE_MASK | INOTIFY_DELETE_FILE_MASK | INOTIFY_CREATE_FILE_MASK;
 	dirNot->wd = inotify_add_watch(iNotifyFD, path, mask);
-#else
-	ireq.name = path;
-	ireq.mask = INOTIFY_CHANGE_FILE_MASK | INOTIFY_DELETE_FILE_MASK | INOTIFY_CREATE_FILE_MASK;
-
-	dirNot->wd = ioctl(iNotifyFD, INOTIFY_WATCH, &ireq);
-#endif
 	if (dirNot->wd == -1) {
 		err = kFskErrOperationFailed;
 		goto bail;
@@ -1444,7 +1423,7 @@ bail:
 		KplDirectoryChangeNotifierDispose((KplDirectoryChangeNotifier)dirNot);
 		dirNot = NULL;
 	}
-	*dirChangeNtf = (FskDirectoryChangeNotifier)dirNot;
+	*dirChangeNtf = (KplDirectoryChangeNotifier)dirNot;
 
 	return err;
 }
@@ -1465,11 +1444,7 @@ FskErr KplDirectoryChangeNotifierDispose(KplDirectoryChangeNotifier dirChangeNtf
 	FskMutexAcquire(gDirChangeNotifiersMutex);
 	FskListRemove((FskList*)&gDirectoryChangeNotifiers, dirNot);
 	if (dirNot->wd != -1) {
-#if MINITV
 		inotify_rm_watch(iNotifyFD, dirNot->wd);
-#else
-		ioctl(iNotifyFD, INOTIFY_IGNORE, dirNot->wd);
-#endif
 	}
 	FskMutexRelease(gDirChangeNotifiersMutex);
 	FskMemPtrDispose(dirNot);
@@ -1552,7 +1527,6 @@ void watchSDMounts() {
 
 FskErr KplFileInitialize()
 {
-	FskErr err;
 //	err = KplVolumeEject("/mnt/SD1", 0);
 //	fprintf(stderr, "error %d trying to eject /mnt/SD1\n", err);
 //	watchSDMounts();
@@ -1561,7 +1535,7 @@ FskErr KplFileInitialize()
 	KplVolumeIterator vit;
 	char *path, *name;
 	UInt32 id;
-	err = KplVolumeIteratorNew(&vit);
+	FskErr err = KplVolumeIteratorNew(&vit);
 	while (!err) {
 		err = KplVolumeIteratorGetNext(vit, &id, &path, &name);
 		if (!err)

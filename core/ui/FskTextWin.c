@@ -48,9 +48,9 @@ static FskErr winTextNew(FskTextEngineState *stateOut);
 static FskErr winTextDispose(FskTextEngineState state);
 static FskErr winTextFormatCacheNew(FskTextEngineState state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 static FskErr winTextFormatCacheDispose(FskTextEngineState state, FskTextFormatCache cache);
-static FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel,
+static FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangleFloat boundsFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel,
 							UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-static FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache);
+static FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
 static FskErr winTextGetFontInfo(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache formatCache);
 static FskErr winTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags,
 								UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
@@ -161,7 +161,7 @@ bail:
  * winTextBox
  ********************************************************************************/
 
-FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache formatCacheIn)
+FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangleFloat boundsFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache formatCacheIn)
 {
 	FskTextFormatCacheGDI formatCache = (FskTextFormatCacheGDI)formatCacheIn;
 	RECT r;
@@ -202,7 +202,7 @@ FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UI
 		else {
 			FskRectangleRecord b;
 
-			err = winTextGetBounds(state, bits, text, textLen, textSize, textStyle, fontName, &b, formatCacheIn);
+			err = winTextGetBounds(state, bits, text, textLen, textSize, textStyle, fontName, &b, NULL, formatCacheIn);
 			if (err) return err;
 
 			err = FskBitmapNew(-b.width, b.height, kFskTextOffscreenFormat, &scratchBits);
@@ -482,7 +482,7 @@ done:
  * winTextGetBounds
  ********************************************************************************/
 
-FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache formatCacheIn)
+FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache formatCacheIn)
 {
 	FskTextFormatCacheGDI formatCache = (FskTextFormatCacheGDI)formatCacheIn;
 	SIZE sz;

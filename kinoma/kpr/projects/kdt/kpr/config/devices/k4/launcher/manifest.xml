@@ -102,6 +102,9 @@
         <extension href="FskMediaReaderMP4" build:from="[kinomaExtensions]mediareader/readers/mp4/FskMediaReaderMP4.mk" build:embed="true" />
         <extension href="FskMediaReaderFLV" build:from="[kinomaExtensions]mediareader/readers/flv/FskMediaReaderFLV.mk" build:embed="true" />
         <extension href="FskMediaReaderPCM" build:from="[kinomaExtensions]mediareader/readers/pcm/FskMediaReaderPCM.mk" build:embed="true" />
+		<!--
+		<extension href="FskMediaReaderBlueZ" build:from="[kinomaExtensions]mediareader/readers/bluez/FskMediaReaderBlueZ.mk" platform="linux/aspen" build:embed="true"/>
+		-->
 
         <extension href="kinomaamrnb" build:from="[kinomaExtensions]kinoma-amr-nb/kinomaamrnb.mk" build:embed="true" />
 
@@ -111,6 +114,8 @@
         <extension href="kinomaavcdecipp" build:from="[kinomaExtensions]kinoma-avc-dec-ipp/kinomaavcdecipp.mk" build:embed="true" />
 
         <extension href="KplFrameBuffer" build:from="[kplPath]framebuffer/KplFrameBuffer.mk" build:embed="true" />
+
+        <extension href="puredata" build:from="[extensions]puredata/puredata.mk" build:style="nonembed" />
 
         <extension href="kpr" build:from="[kinomaExtensions]kpr/kpr.mk" build:embed="true"/>
         <extension href="kprSSDP" build:from="[kinomaExtensions]kpr/extensions/ssdp/kprSSDP.mk"/>
@@ -122,6 +127,7 @@
         <extension href="kprMQTT" build:from="[kinomaExtensions]kpr/extensions/mqtt/kprMQTT.mk"/>
 		<extension href="kprK4" build:from="[kinomaExtensions]kpr/extensions/k4/kprK4.mk"/>
         <extension href="k4validation" build:from="[kinomaExtensions]kpr/extensions/k4validation/k4validation.mk"/>
+        <!--<extension href="kprBluetooth" build:from="[kinomaExtensions]kpr/extensions/bluetooth/kprBluetooth.mk"/>-->
 		<extension href="kprBrowser" build:from="[kinomaExtensions]kpr/extensions/browser/kprBrowser.mk" platform="mac,iphone,android"/>
         <extension href="kprXMPP" build:from="[kinomaExtensions]kpr/extensions/xmpp/kprXMPP.mk"/>
 		<extension href="kprTouchd" build:from="[kinomaExtensions]kpr/extensions/touchd/kprTouchd.mk"/>
@@ -145,6 +151,9 @@
     
     <!--  validation test modules -->    
     <build:copy sourcePath="[KDT_HOME]/kpr/sdk/libraries/Hardwarepins/src" destinationPath="bin/modules"/>
+    
+    <!--  Factory Test Stimulus Modules & App. Uncomment to build. Also comment out BT and touchD -->
+    <!-- build:copy sourcePath="[F_HOME]/build/devices/k4/factoryTests/" destinationPath="apps"/-->
     
     <!-- copy the icon -->
     <build:copy sourcePath="[KDT_HOME]/kpr/config/devices/k4/launcher/icon.png" destinationPath="bin"/>

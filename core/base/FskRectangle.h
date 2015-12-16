@@ -47,6 +47,26 @@ typedef struct {
 } FskRectangleRecord, *FskRectangle;
 typedef const FskRectangleRecord *FskConstRectangle;
 
+typedef struct {
+	float		width;
+	float		height;
+} FskDimensionFloatRecord, *FskDimensionFloat;
+typedef const FskDimensionFloatRecord *FskConstDimensionFloat;
+
+typedef struct {
+	float		x;
+	float		y;
+} FskPointFloatRecord, *FskPointFloat;
+typedef const FskPointFloatRecord *FskConstPointFloat;
+
+typedef struct {
+	float		x;
+	float		y;
+	float		width;
+	float		height;
+} FskRectangleFloatRecord, *FskRectangleFloat;
+typedef const FskRectangleFloatRecord *FskConstRectangleFloat;
+
 FskAPI(Boolean)	FskRectanglesDoIntersect(FskConstRectangle r0, FskConstRectangle r1);
 FskAPI(Boolean)	FskRectangleIntersect(FskConstRectangle r1, FskConstRectangle r2, FskRectangle ri);
 FskAPI(void)	FskRectangleUnion(FskConstRectangle r1, FskConstRectangle r2, FskRectangle ri);

@@ -81,7 +81,8 @@ void KprZeroconfBrowserServiceUp(KprZeroconfBrowser self, KprZeroconfServiceInfo
 	FskInstrumentedItemPrintfDebug(self, "%p - KprZeroconfBrowserServiceUp %s %s - %p %p", self, service->type, service->name, KprShellGetThread(gShell), FskThreadGetCurrent());
 	if (self->serviceUpCallback)
 		(*self->serviceUpCallback)(self, service);
-	KprZeroconfServiceInfoDispose(service);
+	else
+		KprZeroconfServiceInfoDispose(service);
 }
 
 void KprZeroconfBrowserServiceDown(KprZeroconfBrowser self, KprZeroconfServiceInfo service)
@@ -91,7 +92,8 @@ void KprZeroconfBrowserServiceDown(KprZeroconfBrowser self, KprZeroconfServiceIn
 	FskInstrumentedItemPrintfDebug(self, "%p - KprZeroconfBrowserServiceDown %s %s - %p %p", self, service->type, service->name, KprShellGetThread(gShell), FskThreadGetCurrent());
 	if (self->serviceDownCallback)
 		(*self->serviceDownCallback)(self, service);
-	KprZeroconfServiceInfoDispose(service);
+	else
+		KprZeroconfServiceInfoDispose(service);
 }
 
 FskErr KprZeroconfBrowserStart(KprZeroconfBrowser self)

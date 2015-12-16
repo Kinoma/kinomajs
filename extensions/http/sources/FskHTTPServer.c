@@ -80,7 +80,7 @@ void sFskHTTPServerRequestUpUse(FskHTTPServerRequest request) {
 }
 
 void sFskHTTPServerRequestDownUse(FskHTTPServerRequest request) {
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "%x ServerRequestDownUse to %d\n", request, request ? request->useCount : 0);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "%p ServerRequestDownUse to %d\n", request, request ? request->useCount : 0);
 	if (NULL != request) {
 		request->useCount--;
 		if (request->useCount == 0) {
@@ -91,11 +91,11 @@ void sFskHTTPServerRequestDownUse(FskHTTPServerRequest request) {
 
 void sFskHTTPServerUpUse(FskHTTPServer http) {
 	http->useCount++;
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "%x ServerUpUse to %d\n", http, http->useCount);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "%p ServerUpUse to %d\n", http, http->useCount);
 }
 
 void sFskHTTPServerDownUse(FskHTTPServer http) {
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "%x ServerDownUse to %d\n", http, http ? http->useCount : 0);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "%p ServerDownUse to %d\n", http, http ? http->useCount : 0);
 	if (NULL != http) {
 		http->useCount--;
 		if (http->useCount == 0) {
@@ -167,7 +167,7 @@ bail:
 static FskErr sHTTPServerGotSocket(struct FskSocketRecord *skt, void *refCon) {
 	FskHTTPServerListener listener = (FskHTTPServerListener)refCon;
 	listener->handshaking = false;
-	if (listener->http)
+	if (listener->http && FskNetSocketGetLastError(skt) == kFskErrNone)
 		return httpServerListenerStart(listener, skt);
 	else {
 		FskHTTPServerListenerDispose(listener);
@@ -182,6 +182,7 @@ static FskErr httpServerListenerAcceptNewConnection(FskThreadDataHandler handler
 
 	err = FskNetAcceptConnection((FskSocket)source, &skt, "HTTP Acceptor");
 	if (err != kFskErrNone) return err;
+	FskNetSocketMakeNonblocking(skt);
 #if CLOSED_SSL
 	if (listener->http->ssl) {
 		void *ssl;
@@ -256,12 +257,12 @@ bail:
 }
 
 FskErr FskHTTPServerListenerDispose(FskHTTPServerListener listener) {
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerListenerDispose - listener: %x\n", listener);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerListenerDispose - listener: %p\n", listener);
 	if (listener) {
 		if (listener->http && listener->http->listeners)
 			FskListRemove((FskList*)&listener->http->listeners, listener);
 		if (listener->handshaking) {
-			FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerListenerDispose - listener: %x - wait for handshaking\n", listener);
+			FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerListenerDispose - listener: %p - wait for handshaking\n", listener);
 			listener->http = NULL;
 		}
 		else {
@@ -295,7 +296,7 @@ FskErr FskHTTPServerListenerAdd(FskHTTPServer http, int port, char *ifcName, Fsk
 void httpServerInterfaceDown(FskHTTPServer http, char *ifcName) {
 	FskHTTPServerListener cur = http->listeners, next = NULL;
 
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceDown - ifcName: %x\n", ifcName);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceDown - ifcName: %p\n", ifcName);
 	if (ifcName == NULL) return;
 
 	while (cur) {
@@ -320,33 +321,33 @@ int httpServerInterfaceChanged(FskNetInterfaceRecord *ifc, UInt32 status, void *
 	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - status: %d\n", status);
 	if (status == kFskNetInterfaceStatusChanged) {
 		newIface = FskNetInterfaceFindByName(ifc->name);
-		FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - newIface is: %x\n", newIface);
+		FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - newIface is: %p\n", newIface);
 	}
 
 	switch (status) {
 		case kFskNetInterfaceStatusChanged:
 			err = doCallCondition(http->callbacks->serverCondition, http, kFskHTTPConditionInterfaceChanged, ifc->name);
 			if (kFskErrUnimplemented == err || kFskErrNone == err) {
-				FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - about to call httpServerInterfaceDown - %x: %x\n", http, ifc);
+				FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - about to call httpServerInterfaceDown - %p: %p\n", http, ifc);
 				httpServerInterfaceDown(http, ifc->name);
 				if (newIface->status == 1) {
-					FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - about to call httpServerInterfaceUp - %x: %x\n", http, newIface);
+					FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - about to call httpServerInterfaceUp - %p: %p\n", http, newIface);
 					httpServerInterfaceUp(http, newIface->name);
 				}
 				FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - done\n");
 			}
 			break;
     	case kFskNetInterfaceStatusRemoved:
-			FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - InterfaceRemoved %x: %x\n", http, ifc);
+			FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - InterfaceRemoved %p: %p\n", http, ifc);
 			err = doCallCondition(http->callbacks->serverCondition, http, kFskHTTPConditionInterfaceRemoved, ifc->name);
 			if (kFskErrUnimplemented == err || kFskErrNone == err) {
-				FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - about to call httpServerInterfaceDown - %x: %x\n", http, ifc);
+				FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - about to call httpServerInterfaceDown - %p: %p\n", http, ifc);
 				httpServerInterfaceDown(http, ifc->name);
 				FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged -  done\n");
 			}
 			break;
 		case kFskNetInterfaceStatusNew:
-			FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - InterfaceNew %x: %x\n", http, ifc);
+			FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - InterfaceNew %p: %p\n", http, ifc);
 			err = doCallCondition(http->callbacks->serverCondition, http, kFskHTTPConditionInterfaceAdded, ifc->name);
 			if (ifc->status == 0) {
 				FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, " -- new interface is down\n");
@@ -354,7 +355,7 @@ int httpServerInterfaceChanged(FskNetInterfaceRecord *ifc, UInt32 status, void *
 			else
 			if (kFskErrUnimplemented == err || kFskErrNone == err) {
 				if (http->all) {
-					FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - about to call httpServerInterfaceUp - %x: %x\n", http, ifc);
+					FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - about to call httpServerInterfaceUp - %p: %p\n", http, ifc);
 					httpServerInterfaceUp(http, ifc->name);
 				}
 			}
@@ -418,7 +419,7 @@ bail:
 }
 
 FskErr FskHTTPServerDispose(FskHTTPServer http) {
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "FskHTTPServerDispose %x  - useCount: %d\n", http, http ? http->useCount : 0);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "FskHTTPServerDispose %p  - useCount: %d\n", http, http ? http->useCount : 0);
 	if (http) {
 		// remove existing requests
 		while (http->activeRequests) {
@@ -580,7 +581,7 @@ FskErr FskHTTPServerRequestGetLocalAddress(FskHTTPServerRequest request, int *ad
 }
 
 void FskHTTPServerRequestDispose(FskHTTPServerRequest request) {
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "FskHTTPServerRequestDispose %x  - useCount: %d\n", request, request ? request->useCount : 0);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "FskHTTPServerRequestDispose %p  - useCount: %d\n", request, request ? request->useCount : 0);
 	if (request) {
 		FskTimeCallbackDispose(request->timer);
 		FskListRemove((FskList*)&request->http->activeRequests, request);
@@ -600,7 +601,7 @@ void FskHTTPServerRequestCycle(FskHTTPServerRequest request) {
 }
 
 void sFskHTTPServerRequestDispose(FskHTTPServerRequest request) {
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "sFskHTTPServerRequestDispose %x  - useCount: %d\n", request, request ? request->useCount : 0);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "sFskHTTPServerRequestDispose %p  - useCount: %d\n", request, request ? request->useCount : 0);
 	if (!request)
 		return;
 
@@ -790,7 +791,7 @@ static void httpServerTimeCycle(FskTimeCallBack cb, const FskTime when, void *pa
 }
 
 static void httpServerEngineCycle(void *param) {
-	FskErr err, retVal = kFskErrNeedMoreTime;
+	FskErr err = kFskErrNone, retVal = kFskErrNeedMoreTime;
 	FskHTTPServerRequest request = (FskHTTPServerRequest)param;
 	int amt, ret, chunkSize = 0;
 	UInt32 chunkSizeL;
@@ -855,8 +856,11 @@ static void httpServerEngineCycle(void *param) {
 			amt = request->in.max - request->in.pos;
 			if (amt) {
 				ret = FskHeadersParseChunk(&request->in.buf[request->in.pos], amt, kFskHeaderTypeRequest, request->requestHeaders);
-				if (ret < 0)
-					goto requestError;
+				if (ret < 0) {
+					err = kFskErrBadData;
+					request->state = kHTTPSocketError;
+					break;
+				}
 				request->in.pos += ret;
 				
 				if (request->requestHeaders->headersParsed) {
@@ -1015,7 +1019,6 @@ static void httpServerEngineCycle(void *param) {
 
 		case kHTTPPrepareResponse:
 			FskInstrumentedItemSendMessage(request, kFskHTTPInstrMsgRequestState, request);
-requestError:
 			request->state = kHTTPProcessResponse;
 			err = doCallCondition(request->http->callbacks->requestCondition, request, kFskHTTPConditionRequestGenerateResponseHeaders, request->refCon);
 			if (err == kFskErrNeedMoreTime)
@@ -1379,9 +1382,9 @@ static Boolean doFormatMessageHTTPServer(FskInstrumentedType dispatch, UInt32 ms
 			tmp[0] = data->buffer[s];
 			data->buffer[s] = '\0';
 			if (msg == kFskHTTPInstrMsgRequestSendData)
-				snprintf(buffer, bufferSize, "send data (%ld bytes): %s%c", data->amt, data->buffer, tmp[0]);
+				snprintf(buffer, bufferSize, "send data (%u bytes): %s%c", (unsigned)data->amt, data->buffer, tmp[0]);
 			else
-				snprintf(buffer, bufferSize, "recv data (%ld bytes): %s%c", data->amt, data->buffer, tmp[0]);
+				snprintf(buffer, bufferSize, "recv data (%u bytes): %s%c", (unsigned)data->amt, data->buffer, tmp[0]);
 			data->buffer[s] = tmp[0];
 			return true;
 		default:

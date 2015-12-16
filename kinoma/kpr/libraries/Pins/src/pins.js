@@ -1,20 +1,20 @@
 //@module
-//
-//     Copyright (C) 2010-2015 Marvell International Ltd.
-//     Copyright (C) 2002-2010 Kinoma, Inc.
-//
-//     Licensed under the Apache License, Version 2.0 (the "License");
-//     you may not use this file except in compliance with the License.
-//     You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-//     Unless required by applicable law or agreed to in writing, software
-//     distributed under the License is distributed on an "AS IS" BASIS,
-//     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//     See the License for the specific language governing permissions and
-//     limitations under the License.
-//
+/*
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 
 // Pins should be a constructor... or at least contain some:
 //		Local & remote pins (different URL scheme)
@@ -196,17 +196,6 @@ exports.close = function() {
 }
 
 
-//@@ still not dealing with connection settings.... how will this work for PubNub is the big question...
-/*exports.connect = function(connectionDescription)
-{
-	if (typeof connectionDescription == "string")
-		connectionDescription = {connections: [connectionDescription]};
-
-	//	var url = connectionDescription.connections[connectionDescription.connections.length - 1];
-	var url = JSON.stringify(connectionDescription.connections[0]);
-	var protocol = url.substring(0, url.indexOf(":"));		//@@ choose preferred protocol!
-	return require("pins_connect_" + protocol).instantiate(exports, {url: url}, connectionDescription);		//@@ ugly hack
-}*/
 exports.connect = function(connectionDescription, settings)
 {
 	if (typeof connectionDescription == "string") {
@@ -275,19 +264,27 @@ exports.share = function(shares, advertise)
 	}
 
 	shared = shares;
-
 	return shares;
 }
 
-exports.discover = function(onFound, onLost)
+exports.discover = function(bllNames, onFound, onLost)
 {
+	if (typeof bllNames == "function") {
+		onLost = onFound;
+		onFound = bllNames;
+		bllNames = undefined;
+	} else if (typeof bllNames == "string") {
+		bllNames = [bllNames];
+	}
 	this.services = [];
 	this.zeroconfBrowse = new Zeroconf.Browser("_kinoma_pins._tcp.");
 	this.zeroconfBrowse.behavior = Behavior(zeroconfBrowse);
 	this.zeroconfBrowse.behavior.discover = this;
+	this.bllNames = bllNames;
 	this.onFound = onFound ? onFound : function() {};
 	this.onLost = onLost ? onLost : function() {};
 	this.zeroconfBrowse.start();
+	
 }
 
 exports.discover.prototype = {
@@ -351,18 +348,27 @@ zeroconfBrowse = {
 				}
 				this.discover.services.push(connectionDescription);
 			}
-			else
+			else {
 				connectionDescription = this.discover.services[i];
-
+			}
 			for (var property in service.txt) {
 				if (property.charAt(0) != "_") continue;
 				var url = service.txt[property].replace("*", service.ip);
 				if (-1 == connectionDescription.connections.indexOf(url))
 					connectionDescription.connections.push(url);
 			}
-
-			if (undefined === i)
-				this.discover.onFound.call(this.discover, connectionDescription);
+			if (undefined === i) {
+				if (!(undefined === this.discover.bllNames)) {
+					for (var i in this.discover.bllNames) {
+						if (connectionDescription.bll.indexOf(this.discover.bllNames[i]) > -1) {
+							this.discover.onFound.call(this.discover, connectionDescription);
+							break;
+						}
+					}
+				} else {
+					this.discover.onFound.call(this.discover, connectionDescription);
+				}
+			}
 		}
 		catch (e) {
 		}

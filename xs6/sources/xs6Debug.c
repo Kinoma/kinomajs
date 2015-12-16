@@ -68,9 +68,9 @@ void fxAbort(txMachine* the)
 void fxCheck(txMachine* the, txString thePath, txInteger theLine)
 {
 #if mxWindows
-	fprintf(stdout, "%s(%ld): fatal!\n", thePath, theLine);
+	fprintf(stdout, "%s(%ld): fatal!\n", thePath, (int)theLine);
 #else
-	fprintf(stdout, "%s:%ld: fatal!\n", thePath, theLine);
+	fprintf(stdout, "%s:%d: fatal!\n", thePath, (int)theLine);
 #endif
 	c_exit(0);
 }
@@ -188,6 +188,7 @@ void fxDebugFile(txMachine* the, txSlot* theKey)
 	}
 	aFile = fxNewSlot(the);
 	aFile->next = mxFiles.value.list.first;
+	aFile->kind = XS_SYMBOL_KIND;
 	aFile->ID = XS_NO_ID;
 	aFile->value.reference = theKey;
 	mxFiles.value.list.first = aFile;
@@ -540,53 +541,9 @@ void fxEchoFrame(txMachine* the, txSlot* theFrame, txSlot* theList)
 
 void fxEchoFrameName(txMachine* the, txSlot* theFrame)
 {
-	txSlot* target = theFrame + 2;
-	txSlot* function = theFrame + 3;
-	txSlot* _this = theFrame + 4;
-	txSlot* info;
-	if (function->kind == XS_REFERENCE_KIND) {
-		function = function->value.reference;
-		if ((function->flag & XS_VALUE_FLAG) && ((function->next->kind == XS_CALLBACK_KIND) || (function->next->kind == XS_CODE_KIND) || (function->next->kind == XS_CODE_X_KIND))) {
-			if (target->kind == XS_UNDEFINED_KIND) {
-				txSlot* home = mxFunctionInstanceHome(function);
-				if (home->kind == XS_REFERENCE_KIND) {
-					home = home->value.reference;
-					if (home == mxFunctionPrototype.value.reference) {
-						fxEcho(the, "Function.prototype.");
-					}
-					else if ((home->flag & XS_VALUE_FLAG) && ((home->next->kind == XS_CALLBACK_KIND) || (home->next->kind == XS_CODE_KIND) || (home->next->kind == XS_CODE_X_KIND))) {
-						info = mxFunctionInstanceInfo(home);
-						fxEchoID(the, info->value.info.name);
-						fxEcho(the, ".");
-					}
-					else {
-						txSlot* constructor = fxGetOwnProperty(the, home, mxID(_constructor));
-						if (constructor) {
-							if (constructor->kind == XS_REFERENCE_KIND) {
-								constructor = constructor->value.reference;
-								if ((constructor->flag & XS_VALUE_FLAG) && ((constructor->next->kind == XS_CALLBACK_KIND) || (constructor->next->kind == XS_CODE_KIND) || (constructor->next->kind == XS_CODE_X_KIND))) {
-									info = mxFunctionInstanceInfo(constructor);
-									fxEchoID(the, info->value.info.name);
-									fxEcho(the, ".prototype.");
-								}
-							}
-						}
-						else if (_this->kind == XS_REFERENCE_KIND) {
-							txSlot* tag = fxGetProperty(the, _this->value.reference, mxID(_Symbol_toStringTag));
-							if (tag && ((tag->kind == XS_STRING_KIND) || (tag->kind == XS_STRING_X_KIND))) {
-								fxEcho(the, tag->value.string);
-								fxEcho(the, ".");
-							}
-						}
-					}
-				}
-			}
-            info = mxFunctionInstanceInfo(function);
-            fxEchoID(the, info->value.info.name);
-		}
-	}
-	else
-		fxEcho(the, "(host)");
+	char buffer[128] = "";
+	fxBufferFrameName(the, buffer, sizeof(buffer), theFrame, "");
+	fxEcho(the, buffer);
 }
 
 void fxEchoFramePathLine(txMachine* the, txSlot* theFrame)
@@ -756,22 +713,6 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 	if (theInstance->flag & XS_VALUE_FLAG) {
 		switch (aProperty->kind) {
 		case XS_CALLBACK_KIND:
-			fxEchoProperty(the, aProperty, theList, "(C function)", -1, C_NULL);
-			aProperty = aProperty->next;
-			if (aProperty->kind != XS_NULL_KIND)
-				fxEchoProperty(the, aProperty, theList, "(closure)", -1, C_NULL);
-			aProperty = aProperty->next;
-			if (aProperty->kind != XS_NULL_KIND)
-				fxEchoProperty(the, aProperty, theList, "(prototype)", -1, C_NULL);
-			aProperty = aProperty->next;
-			if (aProperty->kind != XS_NULL_KIND)
-				fxEchoProperty(the, aProperty, theList, "(home)", -1, C_NULL);
-			aProperty = aProperty->next;
-			fxEchoProperty(the, aProperty, theList, "(name)", -1, C_NULL);
-			aProperty = aProperty->next;
-			if (aProperty->kind != XS_NULL_KIND)
-				fxEchoProperty(the, aProperty, theList, "(module)", -1, C_NULL);
-			break;
 		case XS_CODE_KIND:
 		case XS_CODE_X_KIND:
 			fxEchoProperty(the, aProperty, theList, "(function)", -1, C_NULL);
@@ -780,15 +721,14 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 				fxEchoProperty(the, aProperty, theList, "(closure)", -1, C_NULL);
 			aProperty = aProperty->next;
 			if (aProperty->kind != XS_NULL_KIND)
-				fxEchoProperty(the, aProperty, theList, "(prototype)", -1, C_NULL);
-			aProperty = aProperty->next;
-			if (aProperty->kind != XS_NULL_KIND)
 				fxEchoProperty(the, aProperty, theList, "(home)", -1, C_NULL);
-			aProperty = aProperty->next;
-			fxEchoProperty(the, aProperty, theList, "(name)", -1, C_NULL);
 			aProperty = aProperty->next;
 			if (aProperty->kind != XS_NULL_KIND)
 				fxEchoProperty(the, aProperty, theList, "(module)", -1, C_NULL);
+			aProperty = aProperty->next;
+		#ifdef mxProfile
+			aProperty = aProperty->next;
+		#endif
 			break;
 		case XS_ARRAY_KIND:
 			fxEchoProperty(the, aProperty, theList, "(array)", -1, C_NULL);
@@ -839,24 +779,16 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 			aProperty = aProperty->next;
 			break;
 		case XS_MAP_KIND:
-			fxEchoProperty(the, aProperty, theList, "(map)", -1, C_NULL);
 			aProperty = aProperty->next;
-			fxEchoProperty(the, aProperty, theList, "(values)", -1, C_NULL);
-			aSlot = aProperty->value.array.address;
-			aCount = aProperty->value.array.length;
-			for (anIndex = 0; anIndex < aCount; anIndex++) {
-				if (!(aSlot->flag & XS_DONT_ENUM_FLAG))
-					fxEchoProperty(the, aSlot, theList, "[", anIndex, "]");
-				aSlot++;
-			}
-			aProperty = aProperty->next;
-			fxEchoProperty(the, aProperty, theList, "(keys)", -1, C_NULL);
-			aSlot = aProperty->value.array.address;
-			aCount = aProperty->value.array.length;
-			for (anIndex = 0; anIndex < aCount; anIndex++) {
-				if (!(aSlot->flag & XS_DONT_ENUM_FLAG))
-					fxEchoProperty(the, aSlot, theList, "[", anIndex, "]");
-				aSlot++;
+			anIndex = 0;
+			aSlot = aProperty->value.list.first;
+			while (aSlot) {
+				if (!(aSlot->flag & XS_DONT_ENUM_FLAG)) {
+					fxEchoProperty(the, aSlot, theList, "(.", anIndex, ")");
+					fxEchoProperty(the, aSlot->next, theList, "(..", anIndex, ")");
+				}
+				anIndex++;
+				aSlot = aSlot->next->next;
 			}
 			aProperty = aProperty->next;
 			break;
@@ -870,15 +802,14 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 			aProperty = aProperty->next;
 			break;
 		case XS_SET_KIND:
-			fxEchoProperty(the, aProperty, theList, "(set)", -1, C_NULL);
 			aProperty = aProperty->next;
-			fxEchoProperty(the, aProperty, theList, "(values)", -1, C_NULL);
-			aSlot = aProperty->value.array.address;
-			aCount = aProperty->value.array.length;
-			for (anIndex = 0; anIndex < aCount; anIndex++) {
+			anIndex = 0;
+			aSlot = aProperty->value.list.first;
+			while (aSlot) {
 				if (!(aSlot->flag & XS_DONT_ENUM_FLAG))
-					fxEchoProperty(the, aSlot, theList, "[", anIndex, "]");
-				aSlot++;
+					fxEchoProperty(the, aSlot, theList, "(.", anIndex, ")");
+				anIndex++;
+				aSlot = aSlot->next;
 			}
 			aProperty = aProperty->next;
 			break;
@@ -1171,15 +1102,11 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 		break;
 
 	case XS_CALLBACK_KIND:
-		fxEcho(the, " value=\"");
-		fxEchoInteger(the, theProperty->next->next->next->next->value.info.length);
-		fxEcho(the, " arguments\"/>");
+		fxEcho(the, " value=\"(C code)\"/>");
 		break;
 	case XS_CODE_KIND:
 	case XS_CODE_X_KIND:
-		fxEcho(the, " value=\"");
-		fxEchoInteger(the, *(theProperty->value.code + 1));
-		fxEcho(the, " arguments\"/>");
+		fxEcho(the, " value=\"(byte code)\"/>");
 		break;
 	case XS_ARRAY_KIND:
 		fxEcho(the, " value=\"");
@@ -1230,12 +1157,6 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 	case XS_KEY_X_KIND:
 		fxEcho(the, " value=\"'");
 		fxEchoString(the, theProperty->value.key.string);
-		fxEcho(the, "'\"/>");
-		break;
-	case XS_INFO_KIND:
-		fxEcho(the, " value=\"'");
-		fxIDToString(the, theProperty->value.info.name, aName, sizeof(aName));
-		fxEcho(the, aName);
 		fxEcho(the, "'\"/>");
 		break;
 	case XS_SYMBOL_KIND:
@@ -1492,9 +1413,9 @@ void fxListModules(txMachine* the)
 	txSlot aList;
 	txSlot aKey;
 	txSlot* table = mxModules.value.reference->next;
-	txSlot* modules = table->next;
-	txSlot* module = modules->value.array.address;
-	txInteger index = modules->value.array.length;
+	txSlot** address = table->value.table.address;
+	txInteger modulo = table->value.table.length;
+
 	txSlot* slot;
 	txSlot* key;
 	txInteger c;
@@ -1508,8 +1429,12 @@ void fxListModules(txMachine* the)
 	aList.value.list.first = &aKey;
 	aList.value.list.last = &aKey;
 	fxEcho(the, "<grammar>");
-	while (index) {
-		if (module->kind == XS_REFERENCE_KIND) {	
+	
+	while (modulo) {
+		txSlot* entry = *address;
+		while (entry) {
+			txSlot* module = entry->value.entry.slot;
+			
 			fxEcho(the, "<node");
 			fxEcho(the, " flags=\"");
 			if (module->flag & XS_DEBUG_FLAG)
@@ -1644,11 +1569,12 @@ void fxListModules(txMachine* the)
 			}
 			else
 				fxEcho(the, "/>");
+				
+			entry = entry->next;
 		}
-		module++;
-		index--;
+		address++;
+		modulo--;
 	}
-	
 	fxEcho(the, "</grammar>");
 }
 
@@ -1739,6 +1665,7 @@ void fxSetBreakpoint(txMachine* the, txString thePath, txString theLine)
 	if (!aBreakpoint) {
 		aBreakpoint = fxNewSlot(the);
 		aBreakpoint->next = mxBreakpoints.value.list.first;
+		aBreakpoint->kind = XS_SYMBOL_KIND;
 		aBreakpoint->ID = (txID)aLine;
 		aBreakpoint->value.reference = aKey;
 		mxBreakpoints.value.list.first = aBreakpoint;

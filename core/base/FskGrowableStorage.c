@@ -31,7 +31,7 @@
  ********************************************************************************/
 
 #undef FskAssert		/* Why is this on for release builds? */
-#define FskAssert(x)
+#define FskAssert(x)	/**< This turns off assertions for \param[in] x the condition to be asserted. */
 
 /** The record used for Growable Storage. */
 struct FskGrowableStorageRecord {
@@ -50,10 +50,11 @@ struct FskGrowableArrayRecord {
 
 /** The record used for Growable Blob Arrays. */
 struct FskGrowableBlobArrayRecord {
-	FskGrowableArray	directory;			/**< The storage used for the fixed-sized portion of the storage. */
-	FskGrowableStorage	data;				/**< The storage used for the variable-sized portion of the  storage. */
-	UInt32				lastID;				/**< The counter used for assigning IDs automatically. */
-	UInt32				flags;				/**< Boolean flags indicating the state of this blob array. */
+	FskGrowableArray		directory;		/**< The storage used for the fixed-sized portion of the storage. */
+	FskGrowableStorage		data;			/**< The storage used for the variable-sized portion of the  storage. */
+	UInt32					lastID;			/**< The counter used for assigning IDs automatically. */
+	UInt32					flags;			/**< Boolean flags indicating the state of this blob array. */
+	FskGrowableBlobCompare	compare;		/**< The comparison function to be used for sorting. */
 };
 
 #define BLOB_DIR_IDSORTED		1			/**< A flag in the FskGrowableBlobArrayRecord indicating that it has been sorted by ID. */
@@ -66,6 +67,10 @@ struct BlobEntry {
 };											/**< A part of the directory entry for blobs. */
 typedef struct BlobEntry BlobEntry;			/**< A part of the directory entry for blobs. */
 
+typedef union BlobEntryPtr      {       struct BlobEntry *be;       void *vd;       char *ch; } BlobEntryPtr;
+typedef union ConstBlobEntryPtr { const struct BlobEntry *be; const void *vd; const char *ch; } ConstBlobEntryPtr;
+typedef union BlobQueryPtr      {      FskBlobQueryResult rs;       void *vd;      UInt8 *u8; } BlobQueryPtr;
+typedef union BlobDataPtr       {                   char *ch;       void *vd;                 } BlobDataPtr;
 
 #define BLOCK_SIZE						(1 << 9)										/**< The quantum used for memory allocation. */
 #define BLOB_ALIGN						4												/**< The alignment of blobs. Must be a power of 2 */
@@ -439,17 +444,17 @@ bail:
 
 FskErr
 FskGrowableStorageVAppendF(FskGrowableStorage storage, const char *fmt, va_list ap) {
-	FskErr	err;
-	UInt32	n0, n1;
-	char	*str;
-	va_list	ap2;
+	FskErr		err;
+	UInt32		n0, n1;
+	BlobDataPtr	str;
+	va_list		ap2;
 
 	n0 = FskGrowableStorageGetSize(storage);
 	(void)FskGrowableStorageSetSize(storage, n0 + 1);
-	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(storage, n0, (void**)&str));
+	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(storage, n0, &str.vd));
 #if !TARGET_OS_WIN32
 	va_copy(ap2, ap);
-	n1 = vsnprintf(str, 1, fmt, ap2) + 1;
+	n1 = vsnprintf(str.ch, 1, fmt, ap2) + 1;
 #else /* TARGET_OS_WIN32 */
 	ap2 = ap;
 	n1 = _vscprintf(fmt, ap2) + 1;
@@ -457,11 +462,11 @@ FskGrowableStorageVAppendF(FskGrowableStorage storage, const char *fmt, va_list 
 	va_end(ap2);
 	(void)FskGrowableStorageSetSize(storage, n0 + n1 + 1);
 
-	(void)FskGrowableStorageGetPointerToItem(storage, n0, (void**)&str);
+	(void)FskGrowableStorageGetPointerToItem(storage, n0, &str.vd);
 #if !TARGET_OS_WIN32
-	n1 = vsnprintf(str, n1 + 1, fmt, ap);
+	n1 = vsnprintf(str.ch, n1 + 1, fmt, ap);
 #else /* TARGET_OS_WIN32 */
-	n1 = vsnprintf_s(str, n1 + 1, _TRUNCATE, fmt, ap);
+	n1 = vsnprintf_s(str.ch, n1 + 1, _TRUNCATE, fmt, ap);
 #endif /* TARGET_OS_WIN32 */
 	err = FskGrowableStorageSetSize(storage, n0 + n1);
 	va_end(ap);
@@ -511,7 +516,6 @@ FskGrowableStorageGetPointerToCString(FskGrowableStorage storage) {
  *****							Fixed Sized Items							*****
  ********************************************************************************
  ********************************************************************************/
-
 
 
 /********************************************************************************
@@ -879,6 +883,31 @@ FskGrowableArrayGetPointerToLastItem(FskGrowableArray array, void **pPtr)
 
 #define NONEXISTENT_OFFSET	(-1)	/**< Indicates that there is no variable sized portion of the object. */
 
+
+/****************************************************************************//**
+ * Compare blob strings first by size then lexicographically.
+ * This will be the default comparison function for blobs. E.g. sorting
+ * { "alpha", "alfa", "beta", "gamma", "gama", "delta", "dlta" } produces
+ * { "alfa", "beta", "dlta", "gama", "alpha", "delta", "gamma" }.
+ *	\param[in]	b0	the left  blob.
+ *	\param[in]	b1	the right blob.
+ *	\return		0	if the blobs are identical
+ *	\return		<0	if the left blob is "less"    than the right blob.
+ *	\return		>0	if the left blob is "greater" than the right blob.
+ ********************************************************************************/
+
+static int CompareBlobStringsBySize(const FskBlobRecord *b0, const FskBlobRecord *b1) {
+	const UInt8	*p1, *p2;
+	UInt32		n;
+	int			result;
+	if (0 == (result = (int)(b0->size) - (int)(b1->size)))							/* Indicate the smaller string */
+		for (n = b0->size, p1 = (const UInt8*)(b0->data), p2 = (const UInt8*)(b1->data); n--;)
+			if (0 != (result = *p1++ - *p2++))										/* or the one that is lexicographically smaller */
+				break;
+	return result;
+}
+
+
 /********************************************************************************
  * FskGrowableBlobArrayNew
  ********************************************************************************/
@@ -894,6 +923,7 @@ FskGrowableBlobArrayNew(UInt32 blobSize, UInt32 maxBlobs, UInt32 dirDataSize, Fs
 	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(struct FskGrowableBlobArrayRecord), (FskMemPtr*)(void*)(&array)));
 	BAIL_IF_ERR(err = FskGrowableArrayNew(dirDataSize, maxBlobs, &array->directory));
 	BAIL_IF_ERR(err = FskGrowableStorageNew(maxBlobs * blobSize, &array->data));
+	array->compare = CompareBlobStringsBySize;
 
 bail:
 	if (err != kFskErrNone) {
@@ -902,6 +932,90 @@ bail:
 	}
 
 	*pArray = array;
+	return err;
+}
+
+/********************************************************************************
+ * FskGrowableBlobArrayNewFromString
+ ********************************************************************************/
+
+FskErr
+FskGrowableBlobArrayNewFromString(char *str, UInt32 strSize, char delim, Boolean makeCopy, UInt32 dirDataSize, FskGrowableBlobArray *pArray)
+{
+	FskGrowableBlobArray	array	 = NULL;
+	BlobEntry				*dirPtr;
+	FskErr					err;
+	UInt32					numRecords, i, maxSize;
+	char					*s, *s0, *s1;
+
+	BAIL_IF_NULL(str, err, kFskErrEmpty);
+	if (!strSize)	maxSize = (strSize = FskStrLen(str)) + 1;
+	else			maxSize = strSize;
+	dirDataSize = ALIGN_BLOB_SIZE(sizeof(BlobEntry) + dirDataSize);	/* Bump up to a multiple of 4 */
+	for (numRecords = 0, s = str, i = strSize; i--; ++s)
+		if (*s == delim)
+			++numRecords;
+	if (s[-1] != delim) {
+		++numRecords;
+		maxSize = strSize;
+	}
+
+	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(struct FskGrowableBlobArrayRecord), (FskMemPtr*)(void*)(&array)));
+	BAIL_IF_ERR(err = FskGrowableArrayNew(dirDataSize, numRecords, &array->directory));
+	BAIL_IF_ERR(err = FskGrowableArraySetItemCount(array->directory, numRecords));
+	if (makeCopy) {
+		BAIL_IF_ERR(err = FskGrowableStorageNew(strSize, &array->data));
+		BAIL_IF_ERR(err = FskGrowableStorageSetSize(array->data, strSize));
+		FskMemCopy(array->data->storage, str, strSize);
+	}
+	else {
+		BAIL_IF_ERR(err = FskMemPtrNew(sizeof(struct FskGrowableStorageRecord), (FskMemPtr*)(void*)(&array->data)));
+		array->data->storage = (UInt8*)str;
+		array->data->maxSize = maxSize;
+		array->data->size    = strSize;
+	}
+	dirDataSize = array->directory->itemSize;
+	dirPtr = (BlobEntry*)(array->directory->storage.storage);
+	s1 = (s0 = (char*)(array->data->storage)) + strSize;
+
+	for (i = 0, s = s0; i < numRecords; ++i, dirPtr = (BlobEntry*)((char*)dirPtr + dirDataSize)) {
+		dirPtr->id = ++(array->lastID);
+		dirPtr->offset = s - s0;
+		for (; s < s1 && *s != delim; ++s) {}
+		dirPtr->size = s++ - s0 - dirPtr->offset;
+	}
+	array->compare = CompareBlobStringsBySize;
+
+bail:
+	if (err != kFskErrNone) {
+		FskGrowableBlobArrayDispose(array);
+		array = NULL;
+	}
+
+	*pArray = array;
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGrowableBlobArrayNewFromStringList
+ ********************************************************************************/
+
+FskErr
+FskGrowableBlobArrayNewFromStringList(char *str, Boolean makeCopy, UInt32 dirDataSize, FskGrowableBlobArray *pArray) {
+	FskErr	err;
+	UInt32	strSize;
+	char	*t;
+
+	BAIL_IF_NULL(str, err, kFskErrEmpty);
+	t = str;
+	do {						/* Compute the length of the String List, including the second terminating zero */
+		while (*t++) {}
+	} while (*t++);				/* Look for two zeros in a row */
+	strSize = t - str;			/* Length of the string list */
+	BAIL_IF_ERR(err = FskGrowableBlobArrayNewFromString(str, strSize, 0, makeCopy, dirDataSize, pArray));
+	FskGrowableBlobArraySetItemCount(*pArray, FskGrowableBlobArrayGetItemCount(*pArray) - 1);
+bail:
 	return err;
 }
 
@@ -938,7 +1052,7 @@ FskGrowableBlobArraySetDirectoryDataSize(FskGrowableBlobArray array, UInt32 dirD
  ********************************************************************************/
 
 UInt32
-FskGrowableBlobArrayGetDirectoryDataSize(FskGrowableBlobArray array)
+FskGrowableBlobArrayGetDirectoryDataSize(FskConstGrowableBlobArray array)
 {
 	return FskGrowableArrayGetItemSize(array->directory) - sizeof(BlobEntry);
 }
@@ -952,7 +1066,7 @@ FskErr
 FskGrowableBlobArraySetItemCount(FskGrowableBlobArray array, UInt32 numItems)
 {
 	FskErr	err		= kFskErrNone;
-	UInt32	oldNum	= FskGrowableArrayGetItemCount(array->directory);
+	UInt32	oldNum;
 
 	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
 	oldNum = FskGrowableArrayGetItemCount(array->directory);
@@ -1085,18 +1199,18 @@ bail:
 FskErr
 FskGrowableBlobArrayGetPointerToItem(FskGrowableBlobArray array, UInt32 index, void **blob, UInt32 *size, void **dirData)
 {
-	FskErr		err;
-	BlobEntry	*dirPtr	= NULL;
-	void		*myPtr	= NULL;
+	FskErr			err;
+	BlobEntryPtr	dirPtr	= { NULL };
+	void			*myPtr	= NULL;
 
 	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
-	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, (void**)(void*)(&dirPtr)));
-	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, dirPtr->offset, &myPtr));
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, &dirPtr.vd));
+	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, dirPtr.be->offset, &myPtr));
 
 bail:
 	if (blob    != NULL)	*blob		= (err == kFskErrNone) ? myPtr			: NULL;
-	if (dirData != NULL)	*dirData	= (err == kFskErrNone) ? (dirPtr + 1)	: NULL;
-	if (size    != NULL)	*size		= (err == kFskErrNone) ? dirPtr->size	: 0;
+	if (dirData != NULL)	*dirData	= (err == kFskErrNone) ? (dirPtr.be + 1)	: NULL;
+	if (size    != NULL)	*size		= (err == kFskErrNone) ? dirPtr.be->size	: 0;
 	return err;
 }
 
@@ -1108,18 +1222,18 @@ bail:
 FskErr
 FskGrowableBlobArrayGetConstPointerToItem(FskConstGrowableBlobArray array, UInt32 index, const void **blob, UInt32 *size, const void **dirData)
 {
-	FskErr			err;
-	const BlobEntry *dirPtr	= NULL;
-	const void		*myPtr	= NULL;
+	FskErr				err;
+	ConstBlobEntryPtr	dirPtr	= { NULL };
+	const void			*myPtr	= NULL;
 
 	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
-	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, index, (const void**)(const void*)(&dirPtr)));
-	BAIL_IF_ERR(err = FskGrowableStorageGetConstPointerToItem(array->data, dirPtr->offset, &myPtr));
+	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, index, &dirPtr.vd));
+	BAIL_IF_ERR(err = FskGrowableStorageGetConstPointerToItem(array->data, dirPtr.be->offset, &myPtr));
 
 bail:
 	if (blob    != NULL)	*blob		= (err == kFskErrNone) ? myPtr			: NULL;
-	if (dirData != NULL)	*dirData	= (err == kFskErrNone) ? (dirPtr + 1)	: NULL;
-	if (size    != NULL)	*size		= (err == kFskErrNone) ? dirPtr->size	: 0;
+	if (dirData != NULL)	*dirData	= (err == kFskErrNone) ? (dirPtr.be + 1)	: NULL;
+	if (size    != NULL)	*size		= (err == kFskErrNone) ? dirPtr.be->size	: 0;
 	return err;
 }
 
@@ -1131,13 +1245,13 @@ bail:
 UInt32
 FskGrowableBlobArrayGetSizeOfItem(FskConstGrowableBlobArray array, UInt32 index)
 {
-	FskErr			err;
-	const BlobEntry	*dirPtr;
-	UInt32			size	= 0;
+	FskErr				err;
+	ConstBlobEntryPtr	dirPtr;
+	UInt32				size	= 0;
 
 	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
-	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, index, (const void**)(const void*)(&dirPtr)));
-	size = dirPtr->size;
+	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, index, &dirPtr.vd));
+	size = dirPtr.be->size;
 
 bail:
 	return size;
@@ -1151,16 +1265,16 @@ bail:
 FskErr
 FskGrowableBlobArraySetSizeOfItem(FskGrowableBlobArray array, UInt32 index, UInt32 size)
 {
-	FskErr		err;
-	BlobEntry	*dirPtr;
+	FskErr			err;
+	BlobEntryPtr	dirPtr;
 
 	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
-	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, (void**)(void*)(&dirPtr)));
-	if (size > dirPtr->size) {
-		dirPtr->offset = FskGrowableStorageGetSize(array->data);										/* Waste old memory, if not at then end */
-		BAIL_IF_ERR(FskGrowableStorageSetSize(array->data, dirPtr->offset + ALIGN_BLOB_SIZE(size)));	/* We could try compaction upon failure */
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, &dirPtr.vd));
+	if (size > dirPtr.be->size) {
+		dirPtr.be->offset = FskGrowableStorageGetSize(array->data);										/* Waste old memory, if not at then end */
+		BAIL_IF_ERR(FskGrowableStorageSetSize(array->data, dirPtr.be->offset + ALIGN_BLOB_SIZE(size)));	/* We could try compaction upon failure */
 	}
-	dirPtr->size = size;
+	dirPtr.be->size = size;
 
 bail:
 	return err;
@@ -1168,27 +1282,35 @@ bail:
 
 
 /********************************************************************************
- * FskGrowableBlobArrayAppendDataToBlob
+ * FskGrowableBlobArrayEditItem
  ********************************************************************************/
 
 FskErr
-FskGrowableBlobArrayAppendDataToBlob(FskGrowableBlobArray array, UInt32 index, void *data, UInt32 size, UInt32 *offsetInBlob)
+FskGrowableBlobArrayEditItem(FskGrowableBlobArray array, UInt32 index, UInt32 offset, UInt32 delBytes, const void *repl, UInt32 replBytes)
 {
-	FskErr		err		= kFskErrNone;
-	void		*blob;
-	UInt32		offset;
+	BlobDataPtr		newBlob	= { NULL };
+	BlobEntryPtr	dirPtr;
+	FskErr			err;
+	SInt32			tailSize;
+	UInt32			tailOffset, newSize;
+	BlobDataPtr		oldBlob;
 
-	BAIL_IF_ZERO(size, offset, NONEXISTENT_OFFSET);												/* If zero size, return NONEXISTENT_OFFSET */
-	offset = FskGrowableBlobArrayGetSizeOfItem(array, index);									/* Get old size */
-	BAIL_IF_ERR(err = FskGrowableBlobArraySetSizeOfItem(array, index, offset + size));			/* Set new size */
-	BAIL_IF_ERR(err = FskGrowableBlobArrayGetPointerToItem(array, index, &blob, NULL, NULL));	/* Get pointer to blob */
-	blob = (void*)((char*)blob + offset);														/* Get pointer to new data in blob */
-	if (data != NULL)	FskMemCopy(blob, data, size);											/* Copy data to blob */
-	else				FskMemSet(blob, 0, size);												/* Clear new part of blob */
-
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, &dirPtr.vd));
+	tailOffset = offset + delBytes;
+	tailSize = dirPtr.be->size - tailOffset;
+	BAIL_IF_NEGATIVE(tailSize, err, kFskErrTooMany);
+	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, dirPtr.be->offset, &oldBlob.vd));
+	newSize = offset + replBytes + tailSize;
+	BAIL_IF_ERR(err = FskMemPtrNew(newSize, &newBlob.vd));
+	if (offset)		FskMemCopy(newBlob.ch,						oldBlob.ch,					offset);
+	if (replBytes)	FskMemCopy(newBlob.ch + offset,				repl,						replBytes);
+	if (tailSize)	FskMemCopy(newBlob.ch + offset + replBytes,	oldBlob.ch + tailOffset,	tailSize);
+	BAIL_IF_ERR(err = FskGrowableBlobArraySetSizeOfItem(array, index, newSize));
+	(void)FskGrowableBlobArrayGetPointerToItem(array, index, &oldBlob.vd, NULL, &dirPtr.vd);
+	FskMemCopy(oldBlob.vd, newBlob.vd, newSize);
 bail:
-	if (offsetInBlob != NULL)	*offsetInBlob = offset;
-
+	FskMemPtrDispose(newBlob.vd);
 	return err;
 }
 
@@ -1274,18 +1396,18 @@ FskGrowableBlobArrayReplaceItem(FskGrowableBlobArray array, UInt32 index, const 
 FskErr
 FskGrowableBlobArraySwapItems(FskGrowableBlobArray array, UInt32 index0, UInt32 index1)
 {
-	FskErr		err;
-	BlobEntry	*d0, *d1;
-	UInt32	t;																					/* The id's and indices stay the same */
+	FskErr			err;
+	BlobEntryPtr	d0, d1;
+	UInt32			t;																			/* The id's and indices stay the same */
 
 	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
-	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index0, (void**)(void*)(&d0)));
-	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index1, (void**)(void*)(&d1)));
-	t = d0->offset;		d0->offset = d1->offset;	d1->offset = t;								/* Swap offsets */
-	t = d0->size;		d0->size   = d1->size;		d1->size   = t;								/* Swap sizes */
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index0, &d0.vd));
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index1, &d1.vd));
+	t = d0.be->offset;	d0.be->offset = d1.be->offset;	d1.be->offset = t;						/* Swap offsets */
+	t = d0.be->size;	d0.be->size   = d1.be->size;	d1.be->size   = t;						/* Swap sizes */
 	if ((t = array->directory->itemSize - sizeof(BlobEntry)) > 0) {								/* Swap extra directory information */
 		UInt32	*p0, *p1, i;
-		for (i = t / sizeof(UInt32), p0 = (UInt32*)(d0 + 1), p1 = (UInt32*)(d1 + 1); i--; ) {
+		for (i = t / sizeof(UInt32), p0 = (UInt32*)(d0.be + 1), p1 = (UInt32*)(d1.be + 1); i--; ) {
 			t     = *p0;
 			*p0++ = *p1;
 			*p1++ = t;
@@ -1294,17 +1416,6 @@ FskGrowableBlobArraySwapItems(FskGrowableBlobArray array, UInt32 index0, UInt32 
 
 bail:
 	return err;
-}
-
-
-/********************************************************************************
- * FskGrowableBlobArraySortItems
- ********************************************************************************/
-
-FskErr
-FskGrowableBlobArraySortItems(FskGrowableBlobArray array, FskCompareFunction comp)
-{
-	return array ? FskGrowableArraySortItems(array->directory, comp) : kFskErrNotDirectory;
 }
 
 
@@ -1343,19 +1454,113 @@ bail:
 
 
 /********************************************************************************
+ * FskGrowableBlobArraySort globals
+ ********************************************************************************/
+
+static FskConstGrowableBlobArray gBlobArray;
+
+
+/********************************************************************************
+ * CompareBlobs
+ ********************************************************************************/
+
+static int CompareBlobs(const void *vb1, const void* vb2) {
+	const BlobEntry	*b1	= (const BlobEntry*)vb1,
+					*b2	= (const BlobEntry*)vb2;
+	const char		*b0	= (const char*)(gBlobArray->data->storage);
+	FskBlobRecord	s1, s2;
+
+	s1.id	= b1->id;
+	s1.size	= b1->size;
+	s1.data	= (void*)(b1->offset + b0);
+	s1.dir	= (void*)(b1 + 1);
+	s2.id	= b2->id;
+	s2.size	= b2->size;
+	s2.data	= (void*)(b2->offset + b0);
+	s2.dir	= (void*)(b2 + 1);
+	return (*gBlobArray->compare)(&s1, &s2);
+}
+
+
+/********************************************************************************
+ * CompareKeyBlob
+ ********************************************************************************/
+
+static int CompareKeyBlob(const void *vk1, const void* vb2) {
+	const BlobEntry	*b2	= (const BlobEntry*)vb2;
+	FskBlobRecord	s2;
+
+	s2.id	= b2->id;
+	s2.size	= b2->size;
+	s2.data	= b2->offset + gBlobArray->data->storage;
+	s2.dir	= (void*)(b2 + 1);
+	return (*gBlobArray->compare)((const FskBlobRecord*)vk1, &s2);
+}
+
+
+/********************************************************************************
+ * FskGrowableBlobArraySetCompareFunction
+ ********************************************************************************/
+
+FskErr
+FskGrowableBlobArraySetCompareFunction(FskGrowableBlobArray array, FskGrowableBlobCompare comp) {
+	if (!array)
+		return kFskErrNotDirectory;
+	array->compare = comp;
+	return kFskErrNone;
+}
+
+
+/********************************************************************************
+ * FskGrowableBlobArraySortItems
+ ********************************************************************************/
+
+FskErr
+FskGrowableBlobArraySortItems(FskGrowableBlobArray array)
+{
+	FskErr	err	= kFskErrNone;
+
+	if (!array) {
+		err = kFskErrNotDirectory;							/* Not unusual to be called with a NULL array */
+		goto bail;
+	}
+	BAIL_IF_NULL(array->compare, err, kFskErrExtensionNotFound);
+
+	gBlobArray = array;
+	FskQSort(array->directory->storage.storage, array->directory->numItems, array->directory->itemSize, &CompareBlobs);
+
+bail:
+	return err;
+}
+
+
+/********************************************************************************
  * FskGrowableBlobArrayBSearchItems
  ********************************************************************************/
 
-void*
-FskGrowableBlobArrayBSearchItems(FskConstGrowableBlobArray array, const void *key, FskCompareFunction comp)
+FskErr
+FskGrowableBlobArrayBSearchItems(FskConstGrowableBlobArray array, const FskBlobRecord *key, UInt32 *pIndex)
 {
-	BlobEntry	*dirPtr;
-	void		*p			= NULL;
+	FskErr				err		= kFskErrItemNotFound;
+	FskGrowableArray	directory;
+	const BlobEntry		*dirPtr;
 
-	if ((dirPtr = FskGrowableArrayBSearchItems(array->directory, key, comp)) != NULL)
-		(void)FskGrowableStorageGetPointerToItem(array->data, dirPtr->offset, &p);
+	*pIndex = -1;
+	if (!array) {
+		err = kFskErrNotDirectory;							/* Not unusual to be called with a NULL array */
+		goto bail;
+	}
+	BAIL_IF_NULL(array->compare, err, kFskErrExtensionNotFound);
 
-	return p;
+	gBlobArray = array;
+	directory = array->directory;
+	if (NULL != (dirPtr = FskBSearch(key, directory->storage.storage, directory->numItems, directory->itemSize, &CompareKeyBlob))) {
+		*pIndex = ((const UInt8*)dirPtr - directory->storage.storage) / directory->itemSize;
+		err = kFskErrNone;
+	}
+
+bail:
+	return err;
 }
 
 
@@ -1366,11 +1571,11 @@ FskGrowableBlobArrayBSearchItems(FskConstGrowableBlobArray array, const void *ke
 FskErr
 FskGrowableBlobArrayCompact(FskConstGrowableBlobArray array)
 {
-	FskErr		err;
-	BlobEntry	*dirPtr;
-	UInt8		*data;
-	UInt8		*tmp	= NULL;
-	UInt32		z, n, dirSize;
+	UInt8			*tmp	= NULL;
+	FskErr			err;
+	BlobEntryPtr	dirPtr;
+	UInt8			*data;
+	UInt32			z, n, dirSize;
 
 	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
 	z = FskGrowableStorageGetSize(array->data);	/* The current size of the data is always larger that the final result */
@@ -1378,12 +1583,12 @@ FskGrowableBlobArrayCompact(FskConstGrowableBlobArray array)
 	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, 0, (void**)(void*)(&data)));		/* Get data ptr */
 	FskMemCopy(tmp, data, z);																			/* Copy data to tmp */
 
-	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, 0, (void**)(void*)(&dirPtr)));
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, 0, &dirPtr.vd));
 	n = FskGrowableArrayGetItemCount(array->directory);
 	dirSize	= array->directory->itemSize;
-	for (z = 0; n--; z += ALIGN_BLOB_SIZE(dirPtr->size), dirPtr = (BlobEntry*)((char*)dirPtr + dirSize)) {
-		FskMemCopy(data + z, tmp + dirPtr->offset, dirPtr->size);
-		dirPtr->offset = z;
+	for (z = 0; n--; z += ALIGN_BLOB_SIZE(dirPtr.be->size), dirPtr.ch += dirSize) {
+		FskMemCopy(data + z, tmp + dirPtr.be->offset, dirPtr.be->size);
+		dirPtr.be->offset = z;
 	}
 	FskGrowableStorageSetSize(array->data, z);
 
@@ -1463,13 +1668,13 @@ GetConstDirectoryEntryFromIdOfItemInGrowableBlobArray(FskConstGrowableBlobArray 
 FskErr
 FskGrowableBlobArrayGetIndexFromIDOfItem(FskConstGrowableBlobArray array, UInt32 id, UInt32 *index)
 {
-	FskErr			err;
-	const BlobEntry	*dirPtr, *dir0;
+	FskErr				err;
+	ConstBlobEntryPtr	dirPtr, dir0;
 
 	*index = kFskGrowableBlobArrayUnassignedID;
-	BAIL_IF_NULL((dirPtr = GetConstDirectoryEntryFromIdOfItemInGrowableBlobArray(array, id)), err, kFskErrItemNotFound);
-	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, 0, (const void**)(const void*)(&dir0)));
-	*index = (UInt32)(((const char*)dirPtr - (const char*)dir0) / array->directory->itemSize);
+	BAIL_IF_NULL((dirPtr.be = GetConstDirectoryEntryFromIdOfItemInGrowableBlobArray(array, id)), err, kFskErrItemNotFound);
+	BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, 0, &dir0.vd));
+	*index = (UInt32)((dirPtr.ch - dir0.ch) / array->directory->itemSize);
 
 bail:
 	return err;
@@ -1483,14 +1688,14 @@ bail:
 FskErr
 FskGrowableBlobArrayGetIDOfItem(FskConstGrowableBlobArray array, UInt32 index, UInt32 *id)
 {
-	FskErr			err;
-	const BlobEntry	*dirPtr;
+	FskErr				err;
+	ConstBlobEntryPtr	dirPtr;
 
 	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
-	err = FskGrowableArrayGetConstPointerToItem(array->directory, index, (const void**)(const void*)(&dirPtr));
+	err = FskGrowableArrayGetConstPointerToItem(array->directory, index, &dirPtr.vd);
 
 bail:
-	*id = (err == kFskErrNone) ? dirPtr->id : 0;	/* Returns 0 if error, since 0 is an invalid id */
+	*id = (err == kFskErrNone) ? dirPtr.be->id : 0;	/* Returns 0 if error, since 0 is an invalid id */
 	return err;
 }
 
@@ -1502,12 +1707,12 @@ bail:
 FskErr
 FskGrowableBlobArraySetIDOfItem(FskGrowableBlobArray array, UInt32 index, UInt32 id)
 {
-	FskErr		err			= kFskErrNone;
-	BlobEntry	*dirPtr;
+	FskErr			err		= kFskErrNone;
+	BlobEntryPtr	dirPtr;
 
 	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
-	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, (void**)(void*)(&dirPtr)));
-	dirPtr->id = id;
+	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(array->directory, index, &dirPtr.vd));
+	dirPtr.be->id = id;
 	array->flags &= ~BLOB_DIR_IDSORTED;		/* This will probably cause the data to be unsorted */
 
 bail:
@@ -1555,3 +1760,345 @@ FskGrowableBlobArrayGetConstPointerFromItemID(FskConstGrowableBlobArray array, U
 bail:
 	return err;
 }
+
+/****************************************************************************//**
+ * Fsk Blob Query Result Record.
+ * The result of a query.
+ ********************************************************************************/
+
+struct FskBlobQueryResultRecord {
+	UInt32	magic;		/**< a magic number to detect corruption of this ephemeral data structure. */
+	UInt32	unrefine;	/**< The number of bytes to roll back a refinement. */
+	UInt32	numItems;	/**< The number of items in this query result. */
+	UInt32	items[1];	/**< The indices of the items that match the query. */
+};
+
+
+#if TARGET_RT_LITTLE_ENDIAN
+	#define	QUERY_MAGIC	0x59525551	/**< "QURY" or 'YRUQ' */
+#else
+	#define QUERY_MAGIC	0x51555259	/**< "QURY" or 'QURY' */
+#endif
+
+/********************************************************************************
+ * FskGrowableBlobArrayQuery
+ ********************************************************************************/
+
+FskErr
+FskGrowableBlobArrayQuery(FskConstGrowableBlobArray array, FskGrowableBlobCompare query, const FskBlobRecord *queryData, FskBlobQueryResult *pResult)
+{
+	BlobQueryPtr		q;
+	FskBlobRecord		blobRec;
+	FskErr				err;
+	UInt32				dataSize, index, numItems, queryOffset;
+	ConstBlobEntryPtr	dirPtr;
+
+	*pResult = NULL;														/* Set result in case we don't find anything */
+	if (0 == (numItems = FskGrowableBlobArrayGetItemCount(array)))			/* If there is nothing in the array or the array does not exist, ... */
+		return kFskErrItemNotFound;											/* ... there is nothing to be found */
+	if (!query)	query = &CompareBlobStringsBySize;							/* Supply a generic query if none was provided */
+	dataSize	= FskGrowableStorageGetSize(&array->directory->storage),	/* Save the actual data size */
+	queryOffset	= (dataSize + 3) & (~3);									/* Bump it up to the next multiple of 4, to align the query result */
+
+	/* Allocate storage for an empty query */
+	*pResult = NULL;
+	BAIL_IF_ERR(err = FskGrowableStorageSetSize(&array->directory->storage, queryOffset + sizeof(*(q.rs)) - sizeof(q.rs->items)));	/* q is uninitialized, but its value shouldn't matter to sizeof */
+
+	for (index = 0; index < numItems; ++index) {
+		BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, index, &dirPtr.vd));
+		BAIL_IF_ERR(err = FskGrowableStorageGetConstPointerToItem(array->data, dirPtr.be->offset, (const void**)(&blobRec.data)));
+		blobRec.id   = dirPtr.be->id;
+		blobRec.size = dirPtr.be->size;
+		blobRec.dir  = (void*)(dirPtr.be + 1);
+		if (0 == (*query)(queryData, &blobRec))																		/* If the query yields a match, ... */
+			BAIL_IF_ERR(err = FskGrowableStorageAppendItem(&array->directory->storage, &index, sizeof(index)));		/* ... append another query result */
+	}
+	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(&array->directory->storage, queryOffset, &q.vd));	/* Get final pointer to query results */
+	q.rs->numItems	= (FskGrowableStorageGetSize(&array->directory->storage) - queryOffset - (sizeof(*(q.rs)) - sizeof(q.rs->items))) / sizeof(q.rs->items[0]);	/* Count query results */
+	if (q.rs->numItems) {
+		q.rs->unrefine	= 0;													/* Top of the refine stack */
+		q.rs->magic	= QUERY_MAGIC;											/* Since query results are ephemeral, this can detect when the blob array has been disrupted */
+		*pResult	= q.rs;
+	} else {
+		err = kFskErrItemNotFound;
+	}
+
+bail:
+	FskGrowableStorageSetSize(&array->directory->storage, dataSize);		/* Restore the original size */
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGrowableBlobArrayQueryRefine
+ ********************************************************************************/
+
+FskErr
+FskGrowableBlobArrayQueryRefine(FskConstGrowableBlobArray array, FskGrowableBlobCompare query, const FskBlobRecord *queryData, FskBlobQueryResult *pResult)
+{
+	FskErr				err			= kFskErrNone;
+	const UInt32		dataSize	= FskGrowableStorageGetSize(&array->directory->storage);
+	BlobQueryPtr		q;
+	FskBlobRecord		blobRec;
+	UInt32				currOffset, index, numMatches, prevOffset, prevSize, subDex;
+	ConstBlobEntryPtr	dirPtr;
+
+	BAIL_IF_NULL(array, err, kFskErrItemNotFound);
+	BAIL_IF_FALSE(NULL != (q.rs = *pResult) && q.rs->magic == QUERY_MAGIC, err, kFskErrBadState);
+
+	numMatches = q.rs->numItems;
+	prevOffset = q.u8                                - array->directory->storage.storage;		/* The offset of the previous query */
+	currOffset = (UInt8*)(&q.rs->items[q.rs->numItems]) - array->directory->storage.storage;	/* The offset of the current  query */
+	prevSize   = currOffset - prevOffset;														/* The  size  of the previous query */
+	BAIL_IF_ERR(err = FskGrowableStorageSetSize(&array->directory->storage, currOffset + sizeof(*(q.rs)) - sizeof(q.rs->items)));
+
+	for (index = 0; index < numMatches; ++index) {
+		subDex = q.rs->items[index];
+		BAIL_IF_ERR(err = FskGrowableArrayGetConstPointerToItem(array->directory, subDex, &dirPtr.vd));
+		BAIL_IF_ERR(err = FskGrowableStorageGetConstPointerToItem(array->data, dirPtr.be->offset, (const void**)(&blobRec.data)));
+		blobRec.id   = dirPtr.be->id;
+		blobRec.size = dirPtr.be->size;
+		blobRec.dir  = (void*)(dirPtr.be + 1);
+		if (0 == (*query)(queryData, &blobRec)) {
+			BAIL_IF_ERR(err = FskGrowableStorageAppendItem(&array->directory->storage, &subDex, sizeof(subDex)));	/* This can move memory, ... */
+			BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(&array->directory->storage, prevOffset, &q.vd));	/* ... so we reset the pointer */
+		}
+	}
+	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(&array->directory->storage, currOffset, &q.vd));
+	q.rs->numItems	= (FskGrowableStorageGetSize(&array->directory->storage) - currOffset - (sizeof(*(q.rs)) - sizeof(q.rs->items))) / sizeof(q.rs->items[0]);
+	q.rs->unrefine	= prevSize;
+	q.rs->magic	= QUERY_MAGIC;
+	*pResult	= q.rs;
+	if (!q.rs->numItems)
+		err = kFskErrItemNotFound;
+
+bail:
+	FskGrowableStorageSetSize(&array->directory->storage, dataSize);		/* Restore */
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGrowableBlobArrayQueryUnrefine
+ ********************************************************************************/
+
+FskErr
+FskGrowableBlobArrayQueryUnrefine(FskBlobQueryResult *pResult)
+{
+	FskErr				err		= kFskErrNone;
+	FskBlobQueryResult	result	= *pResult;
+
+	BAIL_IF_FALSE(result->magic == QUERY_MAGIC, err, kFskErrBadState);
+	BAIL_IF_ZERO(result->unrefine, err, kFskErrEmpty);
+	result = (FskBlobQueryResult)((char*)result - result->unrefine);
+	BAIL_IF_FALSE(result->magic == QUERY_MAGIC, err, kFskErrBadState);
+	*pResult = result;
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGrowableBlobArrayQueryCount
+ ********************************************************************************/
+
+UInt32
+FskGrowableBlobArrayQueryCount(FskBlobQueryResult result)
+{
+	return (result && result->magic == QUERY_MAGIC) ? result->numItems : 0;
+}
+
+
+/********************************************************************************
+ * FskGrowableBlobArrayQueryGet
+ ********************************************************************************/
+
+FskErr
+FskGrowableBlobArrayQueryGet(FskBlobQueryResult result, UInt32 queryIndex, UInt32 *blobIndex)
+{
+	FskErr	err	= kFskErrNone;
+	BAIL_IF_FALSE(result && result->magic == QUERY_MAGIC, err, kFskErrBadState);
+	BAIL_IF_FALSE(queryIndex < result->numItems, err, kFskErrOutOfRange);
+	*blobIndex = result->items[queryIndex];
+bail:
+	return err;
+}
+
+
+#if 0
+#pragma mark -
+#endif /* 0 */
+/********************************************************************************
+ ********************************************************************************
+ *****							Equivalence classes							*****
+ ********************************************************************************
+ ********************************************************************************/
+
+
+/********************************************************************************
+ * FskGrowableEquivalencesAppendMultipleElementClass
+ ********************************************************************************/
+
+FskErr FskGrowableEquivalencesAppendMultipleElementClass(FskGrowableEquivalences coll, UInt32 *id, UInt32 extraBytes, UInt32 numElements, /* const void *ptr, UInt32 size, */ ...) {
+	FskEquivalenceBlob	*blob;
+	FskErr				err;
+	UInt32				i, offset, size;
+	const void			*ptr;
+	va_list				ap;
+
+	va_start(ap, numElements);
+	for (i = 0, offset = 0; i < numElements; ++i) {
+		ptr  = va_arg(ap, const void*);
+		size = va_arg(ap, UInt32);
+		if (!size && ptr)	size = FskStrLen((const char*)ptr);
+		offset += size;																						/* Compute the size of storage for all of the elements */
+	}
+	if (extraBytes)
+		offset += extraBytes + numElements;
+	va_end(ap);
+	offset = FskEquivalenceBlobSize(numElements, offset);													/* Compute the size of storage for the directory and elements */
+	BAIL_IF_ERR(err = FskGrowableEquivalencesGetPointerToNewEndClass(coll, offset, id, (void**)(&blob)));	/* Allocate blob accordingly */
+	offset = (char*)(&blob->element[blob->numElements = numElements]) - (char*)blob;						/* Set the number of elements, and initialize offset to storage */
+	va_start(ap, numElements);
+	for (i = 0; i < numElements; ++i) {																		/* For each element, ... */
+		ptr  = va_arg(ap, const void*);
+		size = va_arg(ap, UInt32);
+		if (!size && ptr)	size = FskStrLen((const char*)ptr);
+		blob->element[i].offset = offset;																	/* ... determine where it will be stored, ... */
+		blob->element[i].size   = size;
+		if (ptr) FskMemCopy((char*)blob + offset, ptr, size);												/* ... and store it there */
+		offset += size;
+		if (extraBytes)
+			((char*)blob)[offset++] = 0;
+	}
+	va_end(ap);
+	if (extraBytes) {																						/* Clear padding at end, if specified */
+		if (1 == extraBytes)	((char*)blob)[offset] = 0;
+		else					FskMemSet((char*)blob + offset, 0, extraBytes);
+	}
+
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGrowableEquivalencesAppendElementToClass
+ ********************************************************************************/
+
+FskErr FskGrowableEquivalencesAppendElementToClass(FskGrowableEquivalences coll, UInt32 index, const void *ptr, UInt32 size, UInt32 extraBytes) {
+	FskEquivalenceBlob	*oBlob		= NULL;
+	FskEquivalenceBlob	*blob;
+	FskErr				err;
+	UInt32				oSize, nSize, i;
+
+	if (!size && ptr)
+		size = FskStrLen((const char*)ptr);
+
+	// TODO: Optimize if ((nSize <= oSize) && ((blob->element[blob->numElements-1].offset + blob->element[blob->numElements-1].size + size + 8) == nSize))
+	BAIL_IF_ERR(err = FskGrowableEquivalencesGetPointerToClass(coll, index, (void**)(&blob), &oSize));		/* Get existing class */
+	for (i = 0, nSize = size; i < blob->numElements; ++i)													/* Compute new size by adding size of new element, ... */
+		nSize += blob->element[i].size;																		/* ... size of the old elements, ... */
+	if (extraBytes)																							/* If using extra bytes, ... */
+		nSize += extraBytes + blob->numElements + 1;														/* also insert zeros between records */
+	nSize = FskEquivalenceBlobSize(blob->numElements + 1, nSize);												/* ... and size of the new directory */
+
+	BAIL_IF_ERR(err = FskMemPtrNewFromData(oSize, blob, &oBlob));											/* Copy existing class */
+	BAIL_IF_ERR(err = FskGrowableBlobArraySetSizeOfItem(coll, index, nSize));								/* Resize class storage to accommodate the new element */
+	BAIL_IF_ERR(err = FskGrowableEquivalencesGetPointerToClass(coll, index, (void**)(&blob), &nSize));		/* Get the resized class */
+	blob->numElements = oBlob->numElements + 1;
+	for (i = 0, nSize = (char*)(&blob->element[blob->numElements]) - (char*)blob; i < oBlob->numElements;) {
+		blob->element[i].offset = nSize;
+		blob->element[i].size   = oBlob->element[i].size;
+		FskMemCopy((char*)blob + nSize, (char*)oBlob + oBlob->element[i].offset, blob->element[i].size);	/* Copy old elements */
+		nSize += blob->element[i++].size;
+		if (extraBytes)
+			((char*)blob)[nSize++] = 0;
+	}
+	blob->element[i].offset = nSize;
+	blob->element[i].size   = size;
+	if (ptr)
+		FskMemCopy((char*)blob + nSize, ptr, size);															/* Append new element */
+	nSize += size;			/* Offset of the extra bytes */
+	if (extraBytes) {
+		if (1 == extraBytes)	{	((char*)blob)[nSize] = 0;	((char*)blob)[++nSize] = 0; }
+		else					{	FskMemSet((char*)blob + nSize, 0, 1 + extraBytes);		}
+	}
+
+bail:
+	FskMemPtrDispose(oBlob);
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGrowableEquivalencesFindClassIndexOfElement
+ ********************************************************************************/
+
+FskErr FskGrowableEquivalencesFindClassIndexOfElement(FskConstGrowableEquivalences coll, FskBlobRecord *key, FskEquivalenceElementCompare compare, UInt32 *pIndex) {
+	FskErr						err			= kFskErrItemNotFound;
+	UInt32						classIndex, numClasses, elemIndex;
+	const FskEquivalenceBlob	*equiv;
+	FskBlobRecord				elem;
+
+	if (!key->size)	key->size = FskStrLen((const char*)(key->data));
+
+	elem.id  = 0;
+	elem.dir = NULL;
+	for (classIndex = 0, numClasses = FskGrowableEquivalencesGetClassCount(coll); classIndex < numClasses; ++classIndex) {
+		(void)FskGrowableEquivalencesGetConstPointerToClass(coll, classIndex, (const void**)(&equiv), NULL);
+		for (elemIndex = 0; elemIndex < equiv->numElements; ++elemIndex) {
+			elem.data = FskEquivalenceElementGetPointer(equiv, elemIndex);
+			elem.size = FskEquivalenceElementGetSize(   equiv, elemIndex);
+			if (compare	? (0 == (*compare)(key, &elem))
+						: (key->size == elem.size && 0 == FskMemCompare(key->data, elem.data, elem.size))
+			) {
+				err = kFskErrNone;
+				goto bail;
+			}
+		}
+	}
+
+bail:
+	*pIndex = classIndex;
+	return err;
+}
+
+
+
+
+/********************************************************************************
+ * FskGrowableEquivalencesFindClassIndexOfElementInPosition
+ ********************************************************************************/
+
+FskErr FskGrowableEquivalencesFindClassIndexOfElementInPosition(FskConstGrowableEquivalences coll, FskBlobRecord *key, UInt32 position, FskEquivalenceElementCompare compare, UInt32 *pIndex) {
+	FskErr						err			= kFskErrItemNotFound;
+	UInt32						classIndex, numClasses;
+	const FskEquivalenceBlob	*equiv;
+	FskBlobRecord				elem;
+
+	if (!key->size)	key->size = FskStrLen((const char*)(key->data));
+
+	elem.id  = 0;
+	elem.dir = NULL;
+	for (classIndex = 0, numClasses = FskGrowableEquivalencesGetClassCount(coll); classIndex < numClasses; ++classIndex) {
+		(void)FskGrowableEquivalencesGetConstPointerToClass(coll, classIndex, (const void**)(&equiv), NULL);
+		if (position < equiv->numElements) {
+			elem.data = FskEquivalenceElementGetPointer(equiv, position);
+			elem.size = FskEquivalenceElementGetSize(   equiv, position);
+			if (compare	? (0 == (*compare)(key, &elem))
+						: (key->size == elem.size && 0 == FskMemCompare(key->data, elem.data, elem.size))
+			) {
+				err = kFskErrNone;
+				goto bail;
+			}
+		}
+	}
+
+bail:
+	*pIndex = classIndex;
+	return err;
+}
+
+
+

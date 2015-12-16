@@ -189,7 +189,7 @@ static FskErr coreAudioOutGetFormat(FskAudioOut audioOut, UInt32 *format, UInt16
 #if TARGET_OS_MAC && USE_AUDIO_QUEUE
 static FskErr coreAudioOutSetFormat(FskAudioOut audioOut, UInt32 format, UInt16 numChannels, double sampleRate, unsigned char *formatInfo, UInt32 formatInfoSize)
 {
-	FskInstrumentedItemPrintfDebug(audioOut, "setFormat format=%d, channels=%d, sampleRate=%f, formatInfo=%p", format, (int)numChannels, sampleRate, formatInfo);
+	FskInstrumentedItemPrintfDebug(audioOut, "setFormat format=%u, channels=%d, sampleRate=%f, formatInfo=%p", (unsigned)format, (int)numChannels, sampleRate, formatInfo);
     if (!FskCocoaAudioSetFormat(audioOut, format, numChannels, sampleRate, formatInfo, formatInfoSize)) {
         return kFskErrCodecNotFound;
     }
@@ -230,7 +230,7 @@ static FskErr coreAudioOutSetFormatStub(FskAudioOut audioOut, UInt32 format, UIn
 
 static FskErr coreAudioOutSetOutputBufferSize(FskAudioOut audioOut, UInt32 chunkSize, UInt32 bufferedSamplesTarget)
 {
-	FskInstrumentedItemPrintfDebug(audioOut, "setOutputBufferSize chunkSize=%d, bufferedSamplesTarget=%d", chunkSize, bufferedSamplesTarget);
+	FskInstrumentedItemPrintfDebug(audioOut, "setOutputBufferSize chunkSize=%u, bufferedSamplesTarget=%u", (unsigned)chunkSize, (unsigned)bufferedSamplesTarget);
 	audioOut->chunkRequestSize = chunkSize;
 	audioOut->bufferedSamplesTarget = bufferedSamplesTarget;
 	return kFskErrNone;
@@ -488,7 +488,7 @@ FskErr audioOutEnqueue(FskAudioOut audioOut, void *data, UInt32 dataSize, void *
 	FskErr err;
 	FskAudioOutBlock block;
 
-	FskInstrumentedItemPrintfDebug(audioOut, "enqueue data=%p, dataSize=%d, frameCount=%d, silence=%d", data, dataSize, frameCount, (int)silence);
+	FskInstrumentedItemPrintfDebug(audioOut, "enqueue data=%p, dataSize=%u, frameCount=%u, silence=%d", data, (unsigned)dataSize, (unsigned)frameCount, (int)silence);
 
 	err = FskMemPtrNewClear(sizeof(FskAudioOutBlockRecord) + ((frameCount && frameSizes) ? sizeof(UInt32) * frameCount : 0), (FskMemPtr*)(void*)(&block));
 	BAIL_IF_ERR(err);

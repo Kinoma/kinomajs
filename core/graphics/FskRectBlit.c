@@ -1147,14 +1147,6 @@ EnforceYUVRectConstraints(register FskRectangle r)
 	i = r->height & 1;		r->height += i;
 }
 
-
-/* For initialization */
-static char patchInstalled = 0;
-
-/* Forward declaration */
-static void InstallPatches(void);
-
-
 /****************************************************************************//**
  * SetParamOpColor will set the Rect Blit parameter color {p->red, p->green, p->blue, p->alpha}.
  *	\param[in,out]	p			pointer to the Rect Blit parameter block.
@@ -1231,20 +1223,20 @@ static void LogBitmap(FskConstBitmap bm, const char *name) {
 	#if FSKBITMAP_OPENGL
 		if (!name) name = "BM";
 		if (bm->glPort)
-			LOGD("\t%s: bounds(%d, %d, %d, %d), depth=%d, format=%s, rowBytes=%d, bits=%p, alpha=%d, premul=%d, texture=#%d",
-				name, bm->bounds.x, bm->bounds.y, bm->bounds.width, bm->bounds.height, bm->depth,
-				FskBitmapFormatName(bm->pixelFormat), bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied,
+			LOGD("\t%s: bounds(%d, %d, %d, %d), depth=%u, format=%s, rowBytes=%d, bits=%p, alpha=%d, premul=%d, texture=#%d",
+				name, (int)bm->bounds.x, (int)bm->bounds.y, (int)bm->bounds.width, (int)bm->bounds.height, (unsigned)bm->depth,
+				FskBitmapFormatName(bm->pixelFormat), (int)bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied,
 				FskGLPortSourceTexture(bm->glPort));
 		else
 	#endif /* FSKBITMAP_OPENGL */
 	LOGD("\t%s: bounds(%d, %d, %d, %d), depth=%d, format=%s, rowBytes=%d, bits=%p, alpha=%d, premul=%d",
-		name, bm->bounds.x, bm->bounds.y, bm->bounds.width, bm->bounds.height, bm->depth,
-		FskBitmapFormatName(bm->pixelFormat), bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied);
+		name, (int)bm->bounds.x, (int)bm->bounds.y, (int)bm->bounds.width, (int)bm->bounds.height, (unsigned)bm->depth,
+		FskBitmapFormatName(bm->pixelFormat), (int)bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied);
 }
 
 static void LogRect(FskConstRectangle r, const char *name) {
 	if (!name) name = "RECT";
-	if (r) LOGD("\t%s(%d, %d, %d, %d)", name, r->x, r->y, r->width, r->height);
+	if (r) LOGD("\t%s(%d, %d, %d, %d)", name, (int)r->x, (int)r->y, (int)r->width, (int)r->height);
 }
 
 static void LogColor(FskConstColorRGBA color, const char *name) {
@@ -1255,11 +1247,12 @@ static void LogColor(FskConstColorRGBA color, const char *name) {
 static void LogModeParams(FskConstGraphicsModeParameters modeParams) {
 	if (modeParams) {
 		if (modeParams->dataSize <= sizeof(FskGraphicsModeParametersRecord)) {
-			LOGD("\tmodeParams: dataSize=%d, blendLevel=%d", modeParams->dataSize, modeParams->blendLevel);
+			LOGD("\tmodeParams: dataSize=%u, blendLevel=%d", (unsigned)modeParams->dataSize, (int)modeParams->blendLevel);
 		} else {
 			FskGraphicsModeParametersVideo videoParams = (FskGraphicsModeParametersVideo)modeParams;
-			LOGD("\tmodeParams: dataSize=%d, blendLevel=%d, kind='%4s, contrast=%f, brightness=%f, sprites=%p",
-				videoParams->header.dataSize, videoParams->header.blendLevel, &videoParams->kind, videoParams->contrast, videoParams->brightness, videoParams->sprites);
+			LOGD("\tmodeParams: dataSize=%u, blendLevel=%d, kind='%.4s, contrast=%f, brightness=%f, sprites=%p",
+				(unsigned)videoParams->header.dataSize, (int)videoParams->header.blendLevel, (const char*)&videoParams->kind,
+				videoParams->contrast/65536., videoParams->brightness/65536., videoParams->sprites);
 		}
 	}
 }
@@ -1497,13 +1490,6 @@ ScaleOffsetBitmap(
 	opIndex		= ModeToProcTableOpIndex(mode & kFskGraphicsModeMask, p.alpha);
 	BAIL_IF_TRUE(((srcIndex < 0) || (dstIndex < 0)), err, kFskErrUnsupportedPixelType);
 	BAIL_IF_TRUE(( opIndex  < 0),                    err, kFskErrInvalidParameter);
-
-	/* Initialize the dispatch table by patching in machine-specific blitters */
-	/* Tests Force CPU to enable different arch implementation */
-	if (!patchInstalled) {
-		InstallPatches();
-		patchInstalled = 1;
-	}
 
 	quality = 0;																						/* Point-sampled or bilinear */
 	if ((mode & kFskGraphicsModeBilinear) && ((p.srcXInc != FWD_ONE) || (p.srcYInc != FWD_ONE) || ((p.srcX0 & FWD_FRAC_MASK) != 0) || ((p.srcY0 & FWD_FRAC_MASK) != 0)))
@@ -2895,9 +2881,9 @@ my_FskBilinearCopy32sameSrcDst_neon(const FskRectBlitParams *params)
 }
 #endif //defined(SUPPORT_NEON) || defined(SUPPORT_NEON_IOS)
 
+#if defined(SUPPORT_NEON) || defined(SUPPORT_WMMX)
 
-static void
-InstallPatches(void)
+void FskBlitPatch(void)
 {
 #if defined(SUPPORT_NEON) || defined(SUPPORT_NEON_IOS) || (defined(MY_YUV) && (SRC_YUV420i || SRC_YUV420))
 	int implementation = FskHardwareGetARMCPU_All();
@@ -3282,3 +3268,5 @@ InstallPatches(void)
 
 #endif	//MY_YUV
 }
+
+#endif

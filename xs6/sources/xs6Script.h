@@ -629,6 +629,7 @@ struct sxParser {
 	txSymbol* uriSymbol;
 	txSymbol* valueSymbol;
 	txSymbol* withSymbol;
+	txSymbol* yieldSymbol;
 	
 	char* buffer;
 	txSize bufferSize;

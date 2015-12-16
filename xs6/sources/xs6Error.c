@@ -36,43 +36,43 @@ void fxBuildError(txMachine* the)
 	slot = fxNextStringProperty(the, slot, "Error", mxID(_name), XS_DONT_ENUM_FLAG);
 	slot = fxNextStringProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
 	mxErrorPrototype = *the->stack;
-	fxNewHostConstructorGlobal(the, fx_Error, 0, mxID(_Error), XS_GET_ONLY);
+	fxNewHostConstructorGlobal(the, fx_Error, 1, mxID(_Error), XS_DONT_ENUM_FLAG);
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringProperty(the, slot, "EvalError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxEvalErrorPrototype = *the->stack;
-	fxNewHostConstructorGlobal(the, fx_EvalError, 1, mxID(_EvalError), XS_GET_ONLY);
+	fxNewHostConstructorGlobal(the, fx_EvalError, 1, mxID(_EvalError), XS_DONT_ENUM_FLAG);
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringProperty(the, slot, "RangeError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxRangeErrorPrototype = *the->stack;
-	fxNewHostConstructorGlobal(the, fx_RangeError, 1, mxID(_RangeError), XS_GET_ONLY);
+	fxNewHostConstructorGlobal(the, fx_RangeError, 1, mxID(_RangeError), XS_DONT_ENUM_FLAG);
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringProperty(the, slot, "ReferenceError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxReferenceErrorPrototype = *the->stack;
-	fxNewHostConstructorGlobal(the, fx_ReferenceError, 1, mxID(_ReferenceError), XS_GET_ONLY);
+	fxNewHostConstructorGlobal(the, fx_ReferenceError, 1, mxID(_ReferenceError), XS_DONT_ENUM_FLAG);
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringProperty(the, slot, "SyntaxError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxSyntaxErrorPrototype = *the->stack;
-	fxNewHostConstructorGlobal(the, fx_SyntaxError, 1, mxID(_SyntaxError), XS_GET_ONLY);
+	fxNewHostConstructorGlobal(the, fx_SyntaxError, 1, mxID(_SyntaxError), XS_DONT_ENUM_FLAG);
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringProperty(the, slot, "TypeError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxTypeErrorPrototype = *the->stack;
-	fxNewHostConstructorGlobal(the, fx_TypeError, 1, mxID(_TypeError), XS_GET_ONLY);
+	fxNewHostConstructorGlobal(the, fx_TypeError, 1, mxID(_TypeError), XS_DONT_ENUM_FLAG);
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringProperty(the, slot, "URIError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxURIErrorPrototype = *the->stack;
-	fxNewHostConstructorGlobal(the, fx_URIError, 1, mxID(_URIError), XS_GET_ONLY);
+	fxNewHostConstructorGlobal(the, fx_URIError, 1, mxID(_URIError), XS_DONT_ENUM_FLAG);
 	the->stack++;
 }
 
@@ -99,35 +99,32 @@ void fx_Error_aux(txMachine* the)
 
 void fx_Error_toString(txMachine* the)
 {
-	txInteger aLength;
-	
+	txSlot* name;
+	txSlot* message;
 	mxPushSlot(mxThis);
 	fxGetID(the, mxID(_name));
 	if (the->stack->kind == XS_UNDEFINED_KIND) 
 		fxCopyStringC(the, the->stack, "Error");
 	else	
 		fxToString(the, the->stack);
+	name = the->stack;
 	mxPushSlot(mxThis);
 	fxGetID(the, mxID(_message));
 	if (the->stack->kind == XS_UNDEFINED_KIND) 
 		fxCopyStringC(the, the->stack, "");
 	else	
 		fxToString(the, the->stack);
-	aLength = c_strlen(the->stack->value.string);
-	if (aLength) {
-		aLength += c_strlen((the->stack + 1)->value.string) + 2;
-		mxResult->value.string = (txString)fxNewChunk(the, aLength + 1);
-		mxResult->kind = XS_STRING_KIND;
-		c_strcpy(mxResult->value.string, (the->stack + 1)->value.string);
-		c_strcat(mxResult->value.string, ": ");
-		c_strcat(mxResult->value.string, the->stack->value.string);
-		the->stack++;
-		the->stack++;
-	}
+	message = the->stack;
+	if (!c_strlen(name->value.string))
+		*mxResult = *message;
+	else if (!c_strlen(message->value.string))
+		*mxResult = *name;
 	else {
-		the->stack++;
-		mxPullSlot(mxResult);
+		*mxResult = *name;
+		fxConcatStringC(the, mxResult, ": ");
+		fxConcatString(the, mxResult, message);
 	}
+	the->stack += 2;
 }
 
 void fx_EvalError(txMachine* the)

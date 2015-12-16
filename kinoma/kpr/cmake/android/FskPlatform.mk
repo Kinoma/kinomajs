@@ -26,7 +26,7 @@
 	<input name="$(F_HOME)/core/scripting"/>
 	<input name="$(F_HOME)/core/ui"/>
 	<input name="$(F_HOME)/extensions/crypt/sources"/>
-	<input name="$(F_HOME)/xs/includes"/>
+	<input name="$(F_HOME)/xs6/includes"/>
 	<input name="$(F_HOME)/libraries/QTReader"/>
 	<input name="$(F_HOME)/libraries/libjpeg"/>
 	<input name="$(F_HOME)/libraries/resolv"/>

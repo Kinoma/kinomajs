@@ -411,7 +411,7 @@ void androidDoWindowDeactivated() {
 	FskEvent event;
 	FskWindow win = FskWindowGetActive();
 
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "androidDoWindowDeactivated - activeWin: %x", win);
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "androidDoWindowDeactivated - activeWin: %p", win);
 
 	sendResidualMouseUps();	// to prevent hangs when sleeping and screen is touched
 
@@ -993,7 +993,7 @@ char *doNextContact(char **image) {
 		FskConditionWait(jniRespCond, jniRespMutex);
 		FskMutexRelease(jniRespMutex);
 	}
-	FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "doNextContact got %s icon: %x", resp, *image);
+	FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "doNextContact got %s icon: %p", resp, *image);
 	return resp;
 }
 
@@ -1006,7 +1006,7 @@ char *doIdxContact(int idx, char **image) {
 		FskConditionWait(jniRespCond, jniRespMutex);
 		FskMutexRelease(jniRespMutex);
 	}
-	FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "doIdxContact(%d) got %s - icon: %x", idx, resp, *image);
+	FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "doIdxContact(%d) got %s - icon: %p", idx, resp, *image);
 	return resp;
 }
 
@@ -1111,7 +1111,7 @@ FskErr androidFskLaunchCB(void *a, void *b, void *c, void *d) {
 }
 
 FskErr androidSetContinuousDrawingCB(void *a, void *b, void *c, void *d) {
-	Boolean continuousDrawing = (Boolean) a;
+	Boolean continuousDrawing = (a == 0 ? false : true);
 
 	(*gEnv)->CallVoidMethod(gEnv, gKinomaPlayObject, methodID_setContinuousDrawing, continuousDrawing);
 
@@ -1122,7 +1122,7 @@ FskErr androidSetContinuousDrawingCB(void *a, void *b, void *c, void *d) {
 void doSetContinuousDrawing(Boolean continuousDrawing) {
 
 	FskInstrumentedTypePrintfVerbose(&gAndroidGlueTypeInstrumentation, "SetContinuousDrawing - %d", continuousDrawing);
-	FskThreadPostCallback(FskThreadGetMain(), (void*)androidSetContinuousDrawingCB, (void*)continuousDrawing, NULL, NULL, NULL);
+	FskThreadPostCallback(FskThreadGetMain(), (void*)androidSetContinuousDrawingCB, (void*)(continuousDrawing ? 1 : 0), NULL, NULL, NULL);
 }
 
 void doGetContinuousDrawingUpdateInterval(UInt32 *interval) {
@@ -1176,7 +1176,7 @@ char *doFetchAppIcon(char *packageName, int iconNo) {
 		FskConditionWait(jniRespCond, jniRespMutex);
 		FskMutexRelease(jniRespMutex);
 	}
-	FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "doFetchAppIcon got %x", resp);
+	FskInstrumentedTypePrintfDebug(&gAndroidGlueTypeInstrumentation, "doFetchAppIcon got %p", resp);
 	return resp;
 }
 
@@ -1642,7 +1642,7 @@ FskErr androidIMECallback(void *a, void *b, void *c, void *d) {
 			break;
 		case 2:
 			FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "doIMEEnable %d", (int)b);
-			if (b < 2) {
+			if ((int)b < 2) {
 				gTESelectionStart = -1;
 				gTESelectionEnd = -1;
 			}
@@ -1658,7 +1658,7 @@ FskErr androidIMECallback(void *a, void *b, void *c, void *d) {
 			gTEIgnoreChanged = 1;
 			if (text) {
 				jstrText = (*gEnv)->NewStringUTF(gEnv, text);
-				FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "sending text %s %x (count %d) type: %d", text, text, textCount, keyboardType);
+				FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "sending text %s %p (count %d) type: %d", text, text, textCount, keyboardType);
 
 			}
 			else {
@@ -1667,7 +1667,7 @@ FskErr androidIMECallback(void *a, void *b, void *c, void *d) {
 				*mtString = '\0';
 				jstrText = (*gEnv)->NewStringUTF(gEnv, mtString);
 				FskMemPtrDispose(mtString);
-				FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "sending text '\0' (count %d) type: %d", 1, keyboardType);
+				FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "sending text '\\0' (count %d) type: %d", 1, keyboardType);
 				textCount = 1;
 			}
 
@@ -1675,7 +1675,7 @@ FskErr androidIMECallback(void *a, void *b, void *c, void *d) {
 			gTEIgnoreChanged = 0;
 
 			if (text) {
-				FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "disposing text %s %x (count %d)", text, text, textCount);
+				FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "disposing text %s %p (count %d)", text, text, textCount);
 				FskMemPtrDispose(text);
 			}
 
@@ -1728,8 +1728,8 @@ void JAVANAME(KinomaPlay_setIMEEnabled)(JNIEnv *env, jclass clazz, jint enabled)
 	gLastIME = enabled;
 }
 
-int doIsIMEEnabled() {
-	return gLastIME;
+Boolean doIsIMEEnabled() {
+	return gLastIME ? true : false;
 }
 
 int realdoIsIMEEnabled() {
@@ -1751,13 +1751,14 @@ int realdoIsIMEEnabled() {
 	return gLastIME;
 }
 
-void doIMEEnable(int enable) {
+void doIMEEnable(Boolean enable) {
+	int enabled = enable ? 1 : 0;
 	if (gLastIME == enable) {
 		fprintf(stderr, " ---- same - bail out\n");
 		return;
 	}
 
-	FskThreadPostCallback(FskThreadGetMain(), (void*)androidIMECallback, (void*)2, (void*)(enable), NULL, NULL);
+	FskThreadPostCallback(FskThreadGetMain(), (void*)androidIMECallback, (void*)2, (void*)(enabled), NULL, NULL);
 }
 
 int androidSystemBarHeight() {
@@ -1800,7 +1801,7 @@ void fskJNIControl_main(void *a, void *b, void *c, void *d) {
 	int what = (int)a;
 	int value = (int)b;
 
-	FskInstrumentedTypePrintfVerbose(&gAndroidJNITypeInstrumentation, "calling fskJNIControl (%d:%s, %d) gEnv=%p gKinomaPlayObject=%p methodID=%+d",
+	FskInstrumentedTypePrintfVerbose(&gAndroidJNITypeInstrumentation, "calling fskJNIControl (%d:%s, %d) gEnv=%p gKinomaPlayObject=%p methodID=%p",
 		what, selectorStr(JNI_CLASS_CONTROL, what), value, gEnv, gKinomaPlayObject, methodID_fskJNIControl);
 	(*gEnv)->CallVoidMethod(gEnv, gKinomaPlayObject, methodID_fskJNIControl, what, value);
 }
@@ -2204,7 +2205,7 @@ FskErr androidIntent_main(void *a, void *b, void *c, void *d) {
 			jaction = (*gEnv)->NewStringUTF(gEnv, intentData->action);
 			jpackage = (*gEnv)->NewStringUTF(gEnv, intentData->packageName);
 			jclass = (*gEnv)->NewStringUTF(gEnv, intentData->className);
-			FskInstrumentedTypePrintfVerbose(&gAndroidGlueTypeInstrumentation, "calling androidIntentClass %s %s", intentData->action, intentData->packageName, intentData->className);
+			FskInstrumentedTypePrintfVerbose(&gAndroidGlueTypeInstrumentation, "calling androidIntentClass %s %s %s", intentData->action, intentData->packageName, intentData->className);
 
 			ret = (*gEnv)->CallIntMethod(gEnv, gKinomaPlayObject, methodID_androidIntentClass, selector, jaction, jpackage, jclass);
 			*(int*)d = ret;
@@ -2452,8 +2453,8 @@ static void runThreadTaskSync(FskThreadCallback task, void *a, void *b, void *c,
 	LOG("start execute task");
 
 	FskMutexAcquire(jniRespMutex);
-	FskConditionSignal(jniRespCond);
 	task(a, b, c, NULL);
+	FskConditionSignal(jniRespCond);
 	FskMutexRelease(jniRespMutex);
 
 	LOG("end execute task");
@@ -2465,7 +2466,11 @@ static void _callOnThreadSync(FskThread thread, FskThreadCallback task, void *a,
 	LOG("aquire mutex");
 
 	FskMutexAcquire(jniRespMutex);
-	FskThreadPostCallback(thread, runThreadTaskSync, task, a, b, c);
+	FskThreadPostCallback(thread, runThreadTaskSync, (void*)task, a, b, c);
+
+	if (thread == FskThreadGetMain()) {
+		androidWakeMain();
+	}
 
 	LOG("wait mutex");
 	if (!gQuitting) {
@@ -2477,7 +2482,9 @@ static void _callOnThreadSync(FskThread thread, FskThreadCallback task, void *a,
 static void callOnMainThreadSync(FskThreadCallback task, void *a, void *b, void *c) {
 	FskThread thread = FskThreadGetMain();
 
-	if (sBrowserThread == NULL) sBrowserThread = thread;
+	if (sBrowserThread == NULL) {
+		sBrowserThread = FskThreadGetCurrent();
+	}
 
 	if (thread == NULL || thread == FskThreadGetCurrent()) {
 		task(a, b, c, NULL);
@@ -2497,6 +2504,7 @@ static void callOnMainThreadAsync(FskThreadCallback task, void *a, void *b, void
 		task(a, b, c, NULL);
 	} else {
 		FskThreadPostCallback(thread, task, a, b, c, NULL);
+		androidWakeMain();
 	}
 }
 
@@ -2619,21 +2627,21 @@ void androidWebViewCanForward_main(void *a, void *b, void *c, void *d) {
 	*result = (Boolean)(*gEnv)->CallIntMethod(gEnv, gKinomaPlayObject, methodID_webviewCanForward, webviewId);
 }
 
-void androidWebViewHandleLoading_main(void *a, void *b, void *c, void *d) {
+void androidWebViewHandleLoading_browser(void *a, void *b, void *c, void *d) {
 	FskBrowser browser = (FskBrowser)a;
 	if (browser->didStartLoadCallback) {
 		browser->didStartLoadCallback(browser, browser->refcon);
 	}
 }
 
-void androidWebViewHandleLoaded_main(void *a, void *b, void *c, void *d) {
+void androidWebViewHandleLoaded_browser(void *a, void *b, void *c, void *d) {
 	FskBrowser browser = (FskBrowser)a;
 	if (browser->didLoadCallback) {
 		browser->didLoadCallback(browser, browser->refcon);
 	}
 }
 
-void androidWebViewShouldHandleUrl_main(void *a, void *b, void *c, void *d) {
+void androidWebViewShouldHandleUrl_browser(void *a, void *b, void *c, void *d) {
 	FskBrowser browser = (FskBrowser)a;
 	char *url = (char *)b;
 	Boolean *handle = (Boolean *)c;
@@ -2719,12 +2727,12 @@ Boolean androidWebViewCanForward(FskBrowser browser) {
 
 void JAVANAME(KinomaPlay_webviewHandleLoading)(JNIEnv* env, jobject thiz, jint webviewId) {
 	FskBrowser browser = webviewIdToBrowser(webviewId);
-	callOnBrowserThreadAsync(androidWebViewHandleLoading_main, browser, NULL, NULL);
+	callOnBrowserThreadAsync(androidWebViewHandleLoading_browser, browser, NULL, NULL);
 }
 
 void JAVANAME(KinomaPlay_webviewHandleLoaded)(JNIEnv* env, jobject thiz, jint webviewId) {
 	FskBrowser browser = webviewIdToBrowser(webviewId);
-	callOnBrowserThreadAsync(androidWebViewHandleLoaded_main, browser, NULL, NULL);
+	callOnBrowserThreadAsync(androidWebViewHandleLoaded_browser, browser, NULL, NULL);
 }
 
 jboolean JAVANAME(KinomaPlay_webviewShouldHandleUrl)(JNIEnv* env, jobject thiz, jint webviewId, jstring j_url) {
@@ -2734,7 +2742,7 @@ jboolean JAVANAME(KinomaPlay_webviewShouldHandleUrl)(JNIEnv* env, jobject thiz, 
 	char *url;
 	Boolean handle;
 	GetJavaStringAsFskString(j_url, (FskMemPtr*)&url);
-	callOnBrowserThreadSync(androidWebViewShouldHandleUrl_main, browser, url, &handle);
+	callOnBrowserThreadSync(androidWebViewShouldHandleUrl_browser, browser, url, &handle);
 	return handle;
 }
 
@@ -2796,9 +2804,8 @@ void JAVANAME(KinomaPlay_webviewHandleEvaluationResult)(JNIEnv* env, jobject thi
 		GetJavaStringAsFskStringWithEnv(env, j_result, (FskMemPtr*)&sWebViewEvaluationResult);
 	}
 
-	// Don't use callOnMainThreadAsync() here because this in called from the web thread, which in unknow on fsk world.
-	// Those thread is treated as main thread and callOnMainThreadAsync() will be confused.
-	FskThreadPostCallback(FskThreadGetMain(), androidWebViewHandleEvaluationResult_main, NULL, NULL, NULL, NULL);
+	//Now this function should be called in the android main UI thread, just the same as browser thread
+	androidWebViewHandleEvaluationResult_main(NULL, NULL, NULL, NULL);
 }
 
 void androidWebViewHandleEvaluationResult_main(void *a, void *b, void *c, void *d)

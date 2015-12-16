@@ -55,12 +55,12 @@ jint JAVANAME(FskView_setFskSurface)(JNIEnv* env, jobject viewObj, jobject surfa
 	theNativeWindow = ANativeWindow_fromSurface(env, surfaceObject);
 
 	if (!fbGlobals || !fbGlobals->frameBuffer) {
-        FskInstrumentedTypePrintfMinimal(&gAndroidMainBlockTypeInstrumentation, "MDK - %x fbGlobals or ->frameBuffer %x is NULL here! -__ CHECK BAD BUILD\n", fbGlobals, fbGlobals ? fbGlobals->frameBuffer : 0);
+        FskInstrumentedTypePrintfMinimal(&gAndroidMainBlockTypeInstrumentation, "MDK - %p fbGlobals or ->frameBuffer %p is NULL here! -__ CHECK BAD BUILD\n", fbGlobals, fbGlobals ? fbGlobals->frameBuffer : 0);
 		return kFskErrNone;
 	}
 	// was above the fbGlobals check - will we lose "surface" if we hit the case above?
 	fbGlobals->surface = theNativeWindow;
-    FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "theNativeWindow/fbGlobals->surface is %x\n", theNativeWindow);
+    FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "theNativeWindow/fbGlobals->surface is %p\n", theNativeWindow);
 
 	didLock = (0 ==FskMutexTrylock(fbGlobals->screenMutex));
 
@@ -95,14 +95,14 @@ jint JAVANAME(FskView_setFskSurface)(JNIEnv* env, jobject viewObj, jobject surfa
 jint
 JAVANAME(FskView_unsetFskSurface)(JNIEnv* env, jobject viewObj) {
 	FskBitmap fb;
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "gingerbread FskView_unsetFskSurface -- fbGlobals->surface is %x\n", fbGlobals->surface);
+	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "gingerbread FskView_unsetFskSurface -- fbGlobals->surface is %p\n", fbGlobals->surface);
 
 	if (fbGlobals->surface == NULL)
 		return 0;
 
 	FskECMAScriptHibernate();
 
-	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "unsetFskSurface - about to release theNativeWindow %x\n", theNativeWindow);
+	FskInstrumentedTypePrintfDebug(&gAndroidWindowTypeInstrumentation, "unsetFskSurface - about to release theNativeWindow %p\n", theNativeWindow);
 	if (theNativeWindow)
 		ANativeWindow_release(theNativeWindow);
 
@@ -190,7 +190,7 @@ jint JAVANAME(FskViewGL_setFskSurface)(JNIEnv* env, jobject viewObj, jobject sur
 
 	BAIL_IF_NULL(fWin, err, kFskErrBadState);
 	drawThread	= fWin->thread;
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "FskViewGL_setFskSurface: drawThread is %p", drawThread, drawThread ? "" : ", bailing");
+	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "FskViewGL_setFskSurface: drawThread is %p %s", drawThread, drawThread ? "" : ", bailing");
 	BAIL_IF_NULL(drawThread, err, kFskErrBadState);
 	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "FskViewGL_setFskSurface calling InitGLCallback");
 
@@ -316,7 +316,7 @@ jint JAVANAME(KinomaPlay_doResume)(JNIEnv* env, jclass clazz) {
 	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation,"[%p] KinomaPlay_doResume(%p, %p, %p)", (void*)pthread_self(), env, clazz, fWin);
 	BAIL_IF_NULL(fWin, err, kFskErrBadState);
 	drawThread = fWin->thread;
-	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "KinomaPlay_doResume: drawThread is %p", drawThread, drawThread ? "" : ", bailing");
+	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "KinomaPlay_doResume: drawThread is %p %s", drawThread, drawThread ? "" : ", bailing");
 	BAIL_IF_NULL(drawThread, err, kFskErrBadState);
 	FskInstrumentedTypePrintfVerbose(&gAndroidWindowTypeInstrumentation, "KinomaPlay_doResume calling InitGLCallback");
 

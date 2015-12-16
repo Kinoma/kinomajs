@@ -42,7 +42,7 @@ typedef struct Fsk24BitType { UInt8 c[3]; } Fsk24BitType;
  * A pointer to a union object, suitably converted, points to each of its members
  * (or if a member is a bitfield, then to the unit in which it resides), and vice versa.
  */
-typedef union FskPixelType { UInt8 p8; UInt16 p16; Fsk24BitType p24; UInt32 p32; FskColorRGBARecord rgba; FskColorRGBRecord rgb; UInt8 b4[4];  } FskPixelType;
+typedef union FskPixelType { UInt8 p8, p1; UInt16 p16, p2; Fsk24BitType p24, p3; UInt32 p32, p4; FskColorRGBARecord rgba; FskColorRGBRecord rgb; UInt8 b4[4];  } FskPixelType;
 
 #define fskDefaultAlpha			255						/* Default 8 bit alpha */
 #define fskDefaultAlpha1		(fskDefaultAlpha >> 7)	/* Default 1 bit alpha */

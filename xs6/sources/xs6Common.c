@@ -852,6 +852,9 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"values",
 	"weak",
 	"writable",
+	"__dirname",
+	"__filename",
+	"new.target",
 };
 
 #endif

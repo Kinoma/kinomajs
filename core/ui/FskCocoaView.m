@@ -91,7 +91,7 @@ const float kFskCocoaViewCornerRadius = 8;
 {
 	if (_windowClipCGPath)
 		CGPathRelease(_windowClipCGPath);
-	[[NSNotificationCenter defaultCenter] removeObserver:nil];
+	[[NSNotificationCenter defaultCenter] removeObserver:self];
 	[self removeTrackingRect];
 	[self setFskWindow:nil];
 	[self setWindowClipCGPath:nil];
@@ -605,7 +605,7 @@ static const char* GLErrorStringFromCode(GLenum code) {
 	if (_fskWindow == NULL) return;
 	eventCode = (([event type] == NSKeyDown) ? kFskEventKeyDown : kFskEventKeyUp);
 	keysString = [event charactersIgnoringModifiers];
-
+	[self flagsChanged:event];
 	if ([keysString length] > 0)
 	{
 		SInt32			rotate = FskWindowRotateGet(_fskWindow);
@@ -678,10 +678,45 @@ static const char* GLErrorStringFromCode(GLenum code) {
 			case NSF14FunctionKey:
 			case NSF15FunctionKey:
 			case NSF16FunctionKey:
+			case NSF17FunctionKey:
+			case NSF18FunctionKey:
+			case NSF19FunctionKey:
+			case NSF20FunctionKey:
 				keys = "";
 				keysLength = 1;
 				functionKey = keyChar - NSF1FunctionKey + 1;
 				break;
+			case NSDeleteFunctionKey:
+				chars[0] = kDeleteCharCode;
+				chars[1] = 0;
+				keys = chars;
+				keysLength = 2;
+				break;
+			case NSHomeFunctionKey:
+				chars[0] = kHomeCharCode;
+				chars[1] = 0;
+				keys = chars;
+				keysLength = 2;
+				break;
+			case NSEndFunctionKey:
+				chars[0] = kEndCharCode;
+				chars[1] = 0;
+				keys = chars;
+				keysLength = 2;
+				break;
+			case NSPageUpFunctionKey:
+				chars[0] = kPageUpCharCode;
+				chars[1] = 0;
+				keys = chars;
+				keysLength = 2;
+				break;
+			case NSPageDownFunctionKey:
+				chars[0] = kPageDownCharCode;
+				chars[1] = 0;
+				keys = chars;
+				keysLength = 2;
+				break;
+				
 			default:
 				keys = [keysString UTF8String];
 				keysLength = strlen(keys) + 1;
@@ -826,6 +861,7 @@ static const char* GLErrorStringFromCode(GLenum code) {
 		pat.pt.y -= _fskWindow->port->origin.y;
 	}
 
+	[self flagsChanged:event];
 	//fprintf(stderr, "%d [%d] %d %d\n", eventCode, j, pat.pt.x, pat.pt.y);
 	if (!eventOut || !*eventOut) {
 		when = [event timestamp];

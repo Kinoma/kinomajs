@@ -54,9 +54,12 @@ class Manifest extends CMAKE.Manifest {
 			}
 		}
 
-		if (vs)
-			return vs;
-		else {
+		if (vs) {
+			if (tool.m64)
+				return `${vs} Win64`;
+			else
+				return vs;
+		} else {
 			let envPath = process.getenv("PATH");
 			let nmake = false;
 			for (let dir of envPath.split(";")) {

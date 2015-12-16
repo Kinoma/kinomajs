@@ -400,7 +400,7 @@ static FskErr KprMQTTBrokerPublish(KprMQTTBroker self, const char *topic, KprMem
 
 					client = KprMQTTBrokerFindClient(self, subscriber->client);
 					if (client) {
-						err = KprMQTTBrokerClientSendPublish(client, topic, payload, (qos < subscriber->qos ? qos : subscriber->qos), false);
+						/* err = */ KprMQTTBrokerClientSendPublish(client, topic, payload, (qos < subscriber->qos ? qos : subscriber->qos), false);
 						// @TODO report error
 					}
 				}
@@ -524,7 +524,7 @@ static void KprMQTTBrokerClientHandleError(KprMQTTBrokerClient self, FskErr err,
 static FskErr KprMQTTBrokerClientSendMessage(KprMQTTBrokerClient self, KprMQTTMessage *message);
 static void KprMQTTClientDeliverMessage(KprMQTTQueue queue, KprMQTTMessage *message, void *refcon);
 
-static void KprMQTTBrokerClientSetConnectTimer(KprMQTTBrokerClient self);
+//static void KprMQTTBrokerClientSetConnectTimer(KprMQTTBrokerClient self);
 static void KprMQTTBrokerClientResetKeepAliveTimer(KprMQTTBrokerClient self);
 static void KprMQTTBrokerClientIdleDisconnect(FskTimeCallBack callback, const FskTime time, void *it);
 
@@ -937,6 +937,7 @@ static void KprMQTTClientDeliverMessage(KprMQTTQueue queue, KprMQTTMessage *mess
 
 // --- KEEP ALIVE -----------------------------------
 
+#if 0
 static void KprMQTTBrokerClientSetConnectTimer(KprMQTTBrokerClient self)
 {
 	FskTimeRecord when;
@@ -947,6 +948,7 @@ static void KprMQTTBrokerClientSetConnectTimer(KprMQTTBrokerClient self)
 	FskTimeAddSecs(&when, kKprMQTTBrokerConnectTimeout);
 	FskTimeCallbackSet(self->idleCallaback, &when, KprMQTTBrokerClientIdleDisconnect, self);
 }
+#endif
 
 static void KprMQTTBrokerClientResetKeepAliveTimer(KprMQTTBrokerClient self)
 {

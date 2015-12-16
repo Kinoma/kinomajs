@@ -1,20 +1,20 @@
 //@module
-//
-//     Copyright (C) 2010-2015 Marvell International Ltd.
-//     Copyright (C) 2002-2010 Kinoma, Inc.
-//
-//     Licensed under the Apache License, Version 2.0 (the "License");
-//     you may not use this file except in compliance with the License.
-//     You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-//     Unless required by applicable law or agreed to in writing, software
-//     distributed under the License is distributed on an "AS IS" BASIS,
-//     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//     See the License for the specific language governing permissions and
-//     limitations under the License.
-//
+/*
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
 
 var gRepeats = [];
 
@@ -41,6 +41,7 @@ var httpPins = {
 
 		var container = new Container({behavior: Behavior({
 				onComplete: function(handler, message, result) {
+					if (message.error) debugger
 					Pins.forget(container);
 					if (callback && (200 == message.status)) {
 						if ("application/json" == message.getResponseHeader("Content-Type"))
@@ -76,9 +77,11 @@ var httpPins = {
 
 		var callbackPath = "/pins/callback/" + this.id + "/" + ((Math.random() * 100000) | 0);
 		addRepeat(callbackPath, callback)
-
-		condition = (typeof condition == "number") ? ("interval=" + condition) : ("timer=" + condition);
-		var httpPath = makePath(this.settings, path, condition + "&callback=" + encodeURIComponent("http://*:" + gHTTPServer.port + callbackPath));
+		var query = "";
+		if (condition != undefined)
+			query += (typeof condition == "number") ? ("&interval=" + condition) : ("&timer=" + condition);
+		query += "&callback=" + encodeURIComponent("http://*:" + gHTTPServer.port + callbackPath);
+		var httpPath = makePath(this.settings, path, query);
 		var message = new Message(httpPath + "&repeat=on")
 		container.invoke(message);
 
@@ -105,7 +108,7 @@ function makePath(settings, path, query)
 	var url = settings.url;
 	url += "?path=" + encodeURIComponent(path);
 	if (query)
-		url += "&" + query;
+		url += query;
 	return url;
 }
 

@@ -578,8 +578,8 @@ void FskCocoaWindowDragMouseDown(FskWindow fskWindow)
 void FskCocoaWindowDragMouseMoved(FskWindow fskWindow)
 {
 	NSWindow		*window;
-	NSPoint			currentMouseLocation, origin;
-	NSRect			windowFrame, screenFrame;
+	NSPoint			where, origin;
+	NSRect			windowFrame, screenFrame, currentMouseLocation;
 	NSScreen		*windowScreen;
 	static float	sMenuBarHeight = -1;
 	float			menuBarHeightOffset = 0;
@@ -602,8 +602,9 @@ void FskCocoaWindowDragMouseMoved(FskWindow fskWindow)
 		menuBarHeightOffset = sMenuBarHeight;
 
 	// drag the window
-	currentMouseLocation = [window convertBaseToScreen:[window mouseLocationOutsideOfEventStream]];
-	origin = NSMakePoint(currentMouseLocation.x - fskWindow->dragResizeMousePoint.x, currentMouseLocation.y - fskWindow->dragResizeMousePoint.y);
+	where = [window mouseLocationOutsideOfEventStream];
+	currentMouseLocation = [window convertRectToScreen:NSMakeRect(where.x, where.y, 0, 0)];
+	origin = NSMakePoint(currentMouseLocation.origin.x - fskWindow->dragResizeMousePoint.x, currentMouseLocation.origin.y - fskWindow->dragResizeMousePoint.y);
 
 	// peg the window origin so it doesn't get dragged up under the menu bar
 	if ((origin.y + windowFrame.size.height) > (screenFrame.origin.y + screenFrame.size.height - menuBarHeightOffset))
@@ -616,16 +617,17 @@ void FskCocoaWindowResizeMouseDown(FskWindow fskWindow)
 {
 	NSWindow 	*window;
 	NSPoint		point;
-	NSRect		windowFrame;
+	NSRect		pointR, windowFrame;
 
 	if (fskWindow == NULL) return;
 	window = (NSWindow *)(fskWindow->nsWindow);
-	point = [window convertBaseToScreen:[window mouseLocationOutsideOfEventStream]];
+	point = [window mouseLocationOutsideOfEventStream];
+	pointR = [window convertRectToScreen:NSMakeRect(point.x, point.y, 0, 0)];
 	windowFrame = [window frame];
 
 	// save the mouse down location and current window frame
-	fskWindow->dragResizeMousePoint.x = point.x;
-	fskWindow->dragResizeMousePoint.y = point.y;
+	fskWindow->dragResizeMousePoint.x = pointR.origin.x;
+	fskWindow->dragResizeMousePoint.y = pointR.origin.y;
 
 	fskWindow->lastWindowFrame.x = windowFrame.origin.x;
 	fskWindow->lastWindowFrame.y = windowFrame.origin.y;
@@ -636,21 +638,22 @@ void FskCocoaWindowResizeMouseDown(FskWindow fskWindow)
 void FskCocoaWindowResizeMouseMoved(FskWindow fskWindow)
 {
 	FskCocoaWindow	*window;
-	NSPoint			currentMouseLocation;
-	NSRect			windowFrame;
+	NSPoint			where;
+	NSRect			currentMouseLocation, windowFrame;
 
 	if (fskWindow == NULL) return;
 	window = (FskCocoaWindow *)(fskWindow->nsWindow);
 
 	// resize the window
-	currentMouseLocation = [window convertBaseToScreen:[window mouseLocationOutsideOfEventStream]];
-	windowFrame = NSMakeRect(fskWindow->lastWindowFrame.x, fskWindow->lastWindowFrame.y + currentMouseLocation.y - fskWindow->dragResizeMousePoint.y,
-		fskWindow->lastWindowFrame.width + currentMouseLocation.x - fskWindow->dragResizeMousePoint.x, fskWindow->lastWindowFrame.height + fskWindow->dragResizeMousePoint.y - currentMouseLocation.y);
+	where = [window mouseLocationOutsideOfEventStream];
+	currentMouseLocation = [window convertRectToScreen:NSMakeRect(where.x, where.y, 0, 0)];
+	windowFrame = NSMakeRect(fskWindow->lastWindowFrame.x, fskWindow->lastWindowFrame.y + currentMouseLocation.origin.y - fskWindow->dragResizeMousePoint.y,
+		fskWindow->lastWindowFrame.width + currentMouseLocation.origin.x - fskWindow->dragResizeMousePoint.x, fskWindow->lastWindowFrame.height + fskWindow->dragResizeMousePoint.y - currentMouseLocation.origin.y);
 	[window setFrame:[window constrainFrame:windowFrame] display:YES];
 
 	// update mouse location and window frame
-	fskWindow->dragResizeMousePoint.x = currentMouseLocation.x;
-	fskWindow->dragResizeMousePoint.y = currentMouseLocation.y;
+	fskWindow->dragResizeMousePoint.x = currentMouseLocation.origin.x;
+	fskWindow->dragResizeMousePoint.y = currentMouseLocation.origin.y;
 
 	fskWindow->lastWindowFrame.x = windowFrame.origin.x;
 	fskWindow->lastWindowFrame.y = windowFrame.origin.y;
@@ -2122,6 +2125,7 @@ bail:
 	return success;
 }
 
+#if 0
 Boolean FskCocoaWordConvertRTF(char *sourcePath, char *destinationPath, char *format)
 {
 	Boolean 			success = false;
@@ -2146,8 +2150,11 @@ bail:
 
 	return success;
 }
+#endif
 
 #pragma mark --- html ---
+
+#if 0
 char *FskCocoaHTMLVersion()
 {
  	return "Cocoa NSAttributedString";
@@ -2208,6 +2215,7 @@ bail:
 
 	return success;
 }
+#endif
 
 #pragma mark --- open ---
 Boolean FskCocoaOpenURL(const char *url)

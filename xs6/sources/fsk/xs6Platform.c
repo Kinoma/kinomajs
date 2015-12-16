@@ -93,6 +93,8 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp)
 static char debugAddress[256] = "";
 static Boolean debugAddressFailed = false;
 
+#if TARGET_OS_MAC
+
 static FskErr fxConnectComplete(FskSocket skt, void *refCon)
 {
 	txMachine *the = (txMachine *)refCon;
@@ -167,7 +169,6 @@ bail:
 	}
 }
 
-#if TARGET_OS_MAC
 static void fxConnectThreadProc(void *refcon)
 {
 	txMachine *the = refcon;

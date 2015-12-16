@@ -31,6 +31,7 @@
 static void KprScrollerFitHorizontally(void* it);
 static void KprScrollerFitVertically(void* it);
 static KprContent KprScrollerHit(void* it, SInt32 x, SInt32 y);
+static void KprScrollerInvalidated(void* it, FskRectangle area);
 static void KprScrollerMeasureHorizontally(void* it);
 static void KprScrollerMeasureVertically(void* it);
 static void KprScrollerPlace(void* it);
@@ -53,7 +54,7 @@ static KprDispatchRecord KprScrollerDispatchRecord = {
 	KprContentGetBitmap,
 	KprScrollerHit,
 	KprContentIdle,
-	KprContainerInvalidated,
+	KprScrollerInvalidated,
 	KprContainerLayered,
 	KprContainerMark,
 	KprScrollerMeasureHorizontally,
@@ -294,19 +295,38 @@ KprContent KprScrollerHit(void* it, SInt32 x, SInt32 y)
 	KprContent result;
 	if (self->flags & kprVisible) {
 		Boolean hit = ((0 <= x) && (0 <= y) && (x < self->bounds.width) && (y < self->bounds.height));
-		if (!hit && (self->flags & kprClip))
-			return NULL;
 		content = self->last;
-		while (content) {
+		while (content->previous) {
 			result = (*content->dispatch->hit)(content, x - content->bounds.x, y - content->bounds.y);
 			if (result)
 				return result;
 			content = content->previous;
 		}
+		if (!hit && (self->flags & kprClip))
+			return NULL;
+		result = (*content->dispatch->hit)(content, x - content->bounds.x, y - content->bounds.y);
+		if (result)
+			return result;
 		if (hit && (self->flags & kprActive))
 			return (KprContent)self;
 	}
 	return NULL;
+}
+
+void KprScrollerInvalidated(void* it, FskRectangle area) 
+{
+	if (area) {
+		KprContainer self = it;
+		if (self->flags & kprVisible) {
+			KprContainer container = self->container;
+			if (container && !FskRectangleIsEmpty(area)) {
+				FskRectangleOffset(area, self->bounds.x, self->bounds.y);
+				(*container->dispatch->invalidated)(container, area);
+			}
+		}
+	}
+	else
+		KprContentInvalidated(it, area);
 }
 
 void KprScrollerMeasureHorizontally(void* it) 
@@ -439,11 +459,6 @@ void KprScrollerUpdate(void* it, FskPort port, FskRectangle area)
 						if (content->bounds.height > self->bounds.height)
 							content->bounds.y -= content->bounds.height;
 					}
-					content = content->next;
-					while (content) {
-						(*content->dispatch->update)(content, port, &bounds);
-						content = content->next;
-					}
 					FskPortSetClipRectangle(port, &oldClip);
 				}
 			}
@@ -461,11 +476,11 @@ void KprScrollerUpdate(void* it, FskPort port, FskRectangle area)
 					if (content->bounds.height > self->bounds.height)
 						content->bounds.y -= content->bounds.height;
 				}
+			}
+			content = content->next;
+			while (content) {
+				(*content->dispatch->update)(content, port, area);
 				content = content->next;
-				while (content) {
-					(*content->dispatch->update)(content, port, area);
-					content = content->next;
-				}
 			}
 		}
 		FskRectangleOffset(area, self->bounds.x, self->bounds.y);

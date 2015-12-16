@@ -25,3 +25,4 @@
 	<string name="service_started">#APP_NAME# started</string>
 	<string name="service_running">#APP_NAME# running</string>
 </resources>
+

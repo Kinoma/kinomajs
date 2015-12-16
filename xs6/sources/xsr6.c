@@ -374,6 +374,13 @@ int main(int argc, char* argv[])
 				xsSet(xsGlobal, xsID("gc"), xsVar(1));
 
 				xsResult = xsModulePaths();
+				if (archive) {
+					slash = strrchr(path, mxSeparator);
+					if (slash) {
+						*(slash + 1) = 0;
+						xsCall1(xsResult, xsID("add"), xsString(path));
+					}
+				}
 				realpath(argv[0], modulePath);
 				slash = strrchr(modulePath, mxSeparator);
 				if (slash) {
@@ -391,6 +398,7 @@ int main(int argc, char* argv[])
 				else if (program) {
 					xsVar(0) = xsNewHostFunction(print, 0);
 					xsSet(xsGlobal, xsID("print"), xsVar(0));
+					xsStartProfiling();
 					while (argi < argc) {
 						if (argv[argi][0] != '-') {
 							xsElseError(realpath(argv[argi], path));
@@ -405,6 +413,7 @@ int main(int argc, char* argv[])
 						argi++;
 					}
 					fxRunLoop(the);
+					xsStopProfiling();
 				}
 				else {
 					xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
@@ -457,7 +466,9 @@ int main(int argc, char* argv[])
 					extension = strrchr(name, '.');
 					if (extension)
 						*extension = 0;
+					xsStartProfiling();
 					fxRunModule(the, name);
+					xsStopProfiling();
 				}
 			}
 			xsCatch {

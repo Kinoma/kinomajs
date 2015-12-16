@@ -33,6 +33,7 @@
 		<function name="getInfo" params="url" c="KPR_Files_getInfo"/>
 		<function name="getVolumeInfo" params="url" c="KPR_Files_getVolumeInfo"/>
 		
+		<function name="readBuffer" params="url" c="KPR_Files_readBuffer"/>
 		<function name="readChunk" params="url" c="KPR_Files_readChunk"/>
 		<function name="readJSON" params="url" c="KPR_Files_readJSON"/>
 		<function name="readText" params="url" c="KPR_Files_readText"/>
@@ -41,12 +42,14 @@
 		<function name="renameDirectory" params="url, name" c="KPR_Files_renameDirectory"/>
 		<function name="renameFile" params="url, name" c="KPR_Files_renameFile"/>
 		
+		<function name="writeBuffer" params="url, data" c="KPR_Files_writeBuffer"/>
 		<function name="writeChunk" params="url, data" c="KPR_Files_writeChunk"/>
 		<function name="writeJSON" params="url, data" c="KPR_Files_writeJSON"/>
 		<function name="writeText" params="url, data" c="KPR_Files_writeText"/>
 		<function name="writeXML" params="url, data" c="KPR_Files_writeXML"/>
 		
 		<function name="appendText" params="url, data" c="KPR_Files_appendText"/>
+		<function name="appendBuffer" params="url, data" c="KPR_Files_appendBuffer"/>
 		<function name="appendChunk" params="url, data" c="KPR_Files_appendChunk"/>
 		
 		<object name="iterator" c="KPR_Files_iterator">
@@ -66,3 +69,4 @@
 		<function name="DirectoryNotifier" params="url, callback" prototype="Files.directoryNotifier" c="KPR_Files_DirectoryNotifier"/>
 	</object>
 </package>
+

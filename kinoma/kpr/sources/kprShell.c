@@ -93,7 +93,7 @@ static void KprShellDispose(void* it);
 static void KprShellInvalidated(void* it, FskRectangle area);
 static void KprShellReflowing(void* it, UInt32 flags);
 
-static void KprShellClose(KprShell self);
+static void KprShellCloseWindow(KprShell self);
 static void KprShellDragEnter(KprShell self, FskEvent event);
 static void KprShellDragLeave(KprShell self, FskEvent event);
 static void KprShellDump(KprShell self);
@@ -165,9 +165,6 @@ static KprDispatchRecord KprShellDispatchRecord = {
 FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* shellPath, char* modulesPath, char* cdata, char* debugFile, int debugLine)
 {
 	FskErr err = kFskErrNone;
-	
-#ifdef XS6	
-
 	xsCreation creation = {
 		256 * 1024,
 		1 * 1024,
@@ -184,30 +181,6 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 	void* archive = NULL;
 	char* programName = "FskManifest.xsb";
 	char* programPath = NULL;
-	
-#else /* !XS6 */
-
-	xsAllocation allocation = {
-		256 * 1024,
-		1 * 1024,
-		8 * 1024,
-		1 * 1024,
-		2048,
-		16000,
-		1993
-	};
-#if FSK_EXTENSION_EMBED
-	char* applicationPath = NULL;
-	char* libraryName = NULL;
-	char* libraryPath = NULL;
-#else
-	xsGrammar kprVMGrammar;
-    xsStringValue code = NULL;
-#endif
-	xsGrammar* grammar = NULL;
-	
-#endif  /* !XS6 */
-
 	xsMachine* root = NULL;
 	KprShell self = NULL;
 	xsMachine* shell = NULL;
@@ -248,8 +221,6 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 		FskWindowSetSizeConstraints(window, 320, 240, 3200, 2400);
 	}
 	
-#ifdef XS6	
-
 	creation.initialChunkSize = (xsIntegerValue)KprEnvironmentGetUInt32("initialChunkSize", 256 * 1024);
 	creation.incrementalChunkSize = (xsIntegerValue)KprEnvironmentGetUInt32("incrementalChunkSize", 1 * 1024);
 	applicationPath = FskGetApplicationPath();
@@ -269,30 +240,6 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 	FskStrCopy(programPath, applicationPath);
 	FskStrCat(programPath, programName);
 	fxRunProgram(root, programPath);
-	
-#else /* !XS6 */
-
-	// Get real allocation size for VM (manifest.xml)
-	allocation.initialChunkSize     = (xsIntegerValue)KprEnvironmentGetUInt32("initialChunkSize", 256 * 1024);
-	allocation.incrementalChunkSize = (xsIntegerValue)KprEnvironmentGetUInt32("incrementalChunkSize", 1 * 1024);
-#if FSK_EXTENSION_EMBED
-	applicationPath = FskGetApplicationPath();
-	bailIfNULL(applicationPath);
-	FskExtensionsEmbedGrammar("kpr", &libraryName, &grammar);
-	bailIfError(FskMemPtrNewClear(FskStrLen(applicationPath) + FskStrLen(libraryName) + 1, &libraryPath));
-	FskStrCopy(libraryPath, applicationPath);
-	FskStrCat(libraryPath, libraryName);
-	bailIfError(loadGrammar(libraryPath, grammar));
-#else
-    kprVMGrammar = kprGrammar;
-	grammar = &kprVMGrammar;
-	bailIfError(FskMemPtrNewFromData(grammar->codeSize, grammar->code, &code));
-	grammar->code = code;
-#endif
-	root = xsNewMachine(&allocation, grammar, "kpr");
-	bailIfNULL(root);
-	
-#endif  /* !XS6 */
 
 	bailIfError(FskMemPtrNewClear(sizeof(KprShellRecord), it));
 	gShell = self = *it;
@@ -322,12 +269,8 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 	bailIfError(KprPathToURL(shellPath, &self->url));
 	bailIfError(KprModulesBasesSetup(self->url, modulesPath));
 	
-#ifdef XS6	
 	shell = xsCloneMachine(&creation, root, "shell", self);
-#else
-	shell = xsAliasMachine(&allocation, root, "shell", self);
-#endif
-	
+
 	bailIfNULL(shell);
 	xsBeginHost(shell);
 	xsResult = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID("KPR")), xsID("shell")));
@@ -350,25 +293,7 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 		FskWindowEventSetHandler(self->window, self->handler, self);
 	}
 	
-#ifdef XS6	
-	(void)xsCall1(xsGlobal, xsID("require"), xsString(self->url));
-#else
-	#ifdef KPR_CONFIG
-		xsResult = xsNewHostFunction(KPR_include, 1);
-		xsSet(xsResult, xsID("uri"), xsString(self->url));
-		xsNewHostProperty(xsGlobal, xsID("include"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-		xsResult = xsNewHostFunction(KPR_require, 1);
-		xsSet(xsResult, xsID("uri"), xsString(self->url));
-		xsNewHostProperty(xsGlobal, xsID("require"), xsResult, xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-		(void)xsCall1(xsGlobal, xsID("include"), xsString(self->url));
-	#else
-		#ifdef mxDebug
-			(void)xsCall4(xsGet(xsGlobal, xsID("xs")), xsID("execute"), xsString(cdata), xsUndefined, xsString(debugFile), xsInteger(debugLine));
-		#else
-			(void)xsCall2(xsGet(xsGlobal, xsID("xs")), xsID("execute"), xsString(cdata), xsUndefined);
-		#endif
-	#endif
-#endif
+	xsCall1_noResult(xsGlobal, xsID("require"), xsString(self->url));
 
 	if (gStandAlone) {
 		FskWindowSetVisible(window, true);
@@ -382,22 +307,9 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 #endif	/* SUPPORT_EXTERNAL_SCREEN */
 bail:
 	FskMemPtrDispose(preferencePath);
-#ifdef XS6
 	FskMemPtrDispose(programPath);
 	FskMemPtrDispose(archivePath);
 	FskMemPtrDispose(applicationPath);
-#else /* !XS6 */
-#if FSK_EXTENSION_EMBED
-	if (grammar) {
-		FskMemPtrDispose(grammar->symbols);
-		FskMemPtrDispose(grammar->code);
-	}
-	FskMemPtrDispose(libraryPath);
-	FskMemPtrDispose(applicationPath);
-#else
-	FskMemPtrDispose(code);
-#endif
-#endif  /* !XS6 */
 
 	return err;
 }
@@ -677,6 +589,27 @@ void KprShellReflowing(void* it, UInt32 flags)
 
 void KprShellClose(KprShell self)
 {
+	Boolean flag = true;
+	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;
+	if (behavior) {
+		xsBeginHostSandboxCode(self->the, self->code);
+		{
+			xsVars(2);
+			xsVar(0) = xsAccess(behavior->slot);
+			xsVar(1) = xsAccess(self->slot);
+			if (xsFindResult(xsVar(0), xsID("doQuit"))) {
+				flag = false;
+				(void)xsCallFunction1(xsResult, xsVar(0), xsVar(1));
+			}
+		}
+		xsEndHostSandboxCode();
+	}
+	if (flag)
+		KprShellCloseWindow(self);  
+}
+
+void KprShellCloseWindow(KprShell self)
+{
 	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;
 	if (gStandAlone) {
 #if TARGET_OS_MAC && !TARGET_OS_IPHONE
@@ -712,6 +645,7 @@ void KprShellDragEnter(KprShell self, FskEvent event)
 	UInt32 paramSize;
 	FskMemPtr fileList = NULL;
 	char *fileListWalker;
+	char *url = NULL;
 	xsBeginHostSandboxCode(self->the, self->code);
 	{
 		xsVars(3);
@@ -726,7 +660,9 @@ void KprShellDragEnter(KprShell self, FskEvent event)
 					xsVar(2) = xsNewInstanceOf(xsArrayPrototype);
 					fileListWalker = (char*)fileList;
 					while (0 != *fileListWalker) {
-						(void)xsCall1(xsVar(2), xsID("push"), xsString(fileListWalker));
+						xsThrowIfFskErr(KprPathToURL(fileListWalker, &url));
+						xsCall1_noResult(xsVar(2), xsID("push"), xsString(url));
+						FskMemPtrDisposeAt(&url);
 						fileListWalker += FskStrLen(fileListWalker) + 1;
 					}
 					FskMemPtrDisposeAt(&fileList);
@@ -734,6 +670,7 @@ void KprShellDragEnter(KprShell self, FskEvent event)
 				}
 			}
 			xsCatch {
+				FskMemPtrDispose(url);
 				FskMemPtrDispose(fileList);
 			}
 		}
@@ -780,18 +717,18 @@ void KprShellDumpContent(void* it, SInt32 c)
 	SInt32 i;
 	for (i = 0; i < c; i++)
 		fprintf(stderr, "\t");
-		fprintf(stderr, "%s %p coordinates %ld %ld %ld %ld %ld %ld bounds %ld %ld %ld %ld skin %p style %p\n",
+		fprintf(stderr, "%s %p coordinates %d %d %d %d %d %d bounds %d %d %d %d skin %p style %p\n",
 		self->dispatch->type, self,
-		self->coordinates.left,
-		self->coordinates.width,
-		self->coordinates.right,
-		self->coordinates.top,
-		self->coordinates.height,
-		self->coordinates.bottom,
-		self->bounds.x,
-		self->bounds.y,
-		self->bounds.width,
-		self->bounds.height,
+		(int)self->coordinates.left,
+		(int)self->coordinates.width,
+		(int)self->coordinates.right,
+		(int)self->coordinates.top,
+		(int)self->coordinates.height,
+		(int)self->coordinates.bottom,
+		(int)self->bounds.x,
+		(int)self->bounds.y,
+		(int)self->bounds.width,
+		(int)self->bounds.height,
 		self->skin,
 		self->style);
 	if (self->flags & kprContainer) {
@@ -809,8 +746,8 @@ void KprShellDumpEffects(KprShell self)
 	KprEffect effect = (KprEffect)self->firstEffect;
 	fprintf(stderr, "EFFECTS\n");
 	while (effect) {
-		fprintf(stderr, "\t%p (%p %ld)\n",
-			effect, effect->the, effect->usage);
+		fprintf(stderr, "\t%p (%p %u)\n",
+			effect, effect->the, (unsigned int)effect->usage);
 		effect = (KprEffect)effect->next;
 	}
 }
@@ -821,11 +758,11 @@ void KprShellDumpSkins(KprShell self)
 	fprintf(stderr, "SKINS\n");
 	while (skin) {
 		if (skin->flags)
-			fprintf(stderr, "\t%p (%p %ld) texture %p\n",
-				skin, skin->the, skin->usage, skin->data.pattern.texture);
+			fprintf(stderr, "\t%p (%p %u) texture %p\n",
+				skin, skin->the, (unsigned int)skin->usage, skin->data.pattern.texture);
 		else
-			fprintf(stderr, "\t%p (%p %ld)\n",
-				skin, skin->the, skin->usage);
+			fprintf(stderr, "\t%p (%p %u)\n",
+				skin, skin->the, (unsigned int)skin->usage);
 		skin = (KprSkin)skin->next;
 	}
 }
@@ -836,13 +773,13 @@ void KprShellDumpStyles(KprShell self)
 	fprintf(stderr, "STYLES\n");
 	while (style) {
 		int i;
-		fprintf(stderr, "\t%p (%p %ld) father %p mother %p %8.8X ",
-			style, style->the, style->usage, style->father, style->mother, (unsigned int)style->flags);
+		fprintf(stderr, "\t%p (%p %u) father %p mother %p %8.8X ",
+			style, style->the, (unsigned int)style->usage, style->father, style->mother, (unsigned int)style->flags);
 		for (i = 0; i < 4; i++) {
 			fprintf(stderr, "#%2.2X%2.2X%2.2X ", style->colors[0].r, style->colors[0].g, style->colors[0].b);
 		}
-		fprintf(stderr, "%d %d %ld %ld %ld %ld %ld %ld %ld %s %ld %ld\n",
-			style->horizontalAlignment, style->verticalAlignment, style->indentation, style->lineCount, style->lineHeight, style->margins.left, style->margins.top, style->margins.right, style->margins.bottom, style->textFont ? style->textFont : "?", style->textSize, style->textStyle);
+		fprintf(stderr, "%d %d %u %u %u %d %d %d %d %s %d %u\n",
+			style->horizontalAlignment, style->verticalAlignment, (unsigned int)style->indentation, (unsigned int)style->lineCount, (unsigned int)style->lineHeight, (int)style->margins.left, (int)style->margins.top, (int)style->margins.right, (int)style->margins.bottom, style->textFont ? style->textFont : "?", (int)style->textSize, (unsigned int)style->textStyle);
 		style = (KprStyle)style->next;
 	}
 }
@@ -852,8 +789,8 @@ void KprShellDumpTextures(KprShell self)
 	KprTexture texture = (KprTexture)self->firstTexture;
 	fprintf(stderr, "TEXTURES\n");
 	while (texture) {
-		fprintf(stderr, "\t%p (%p %ld) bitmap %p %s\n",
-			texture, texture->the, texture->usage, texture->bitmap, texture->url ? texture->url : "");
+		fprintf(stderr, "\t%p (%p %u) bitmap %p %s\n",
+			texture, texture->the, (unsigned int)texture->usage, texture->bitmap, texture->url ? texture->url : "");
 		texture = (KprTexture)texture->next;
 	}
 }
@@ -875,12 +812,14 @@ Boolean KprShellEventHandler(FskEvent event, UInt32 eventCode, FskWindow window 
 #endif
 			if (gShell->applicationChain.first)
 				kprDelegateActivated(gShell->applicationChain.first->content, 1);
+			kprDelegateActivated(gShell, 1);
 			(*self->dispatch->activated)(self, 1);
 			break;
 		case kFskEventWindowDeactivated:
 			if (!(self->flags & kprWindowActive)) break;
 			self->flags &= ~kprWindowActive;
 			(*self->dispatch->activated)(self, 0);
+			kprDelegateActivated(gShell, 0);
 			if (gShell->applicationChain.first)
 				kprDelegateActivated(gShell->applicationChain.first->content, 0);
 #ifdef KPR_NETWORKINTERFACE
@@ -1473,8 +1412,18 @@ void KprShellMenuCommand(KprShell self, FskEvent event)
 						xsVar(3) = xsGetAt(xsVar(2), xsInteger(j));
 						if (xsTest(xsVar(2))) {
 							xsIndex doID = xsToInteger(xsGet(xsVar(3), xsID("doID")));
-							if (xsFindResult(xsVar(0), doID)) {
-								(void)xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsVar(3));
+							KprContent content = self->focus;
+							while (content) {
+								KprScriptBehavior behavior = (KprScriptBehavior)content->behavior;
+								if (behavior && (behavior->the == the)) {
+									xsVar(0) = xsAccess(behavior->slot);
+									if (xsFindResult(xsVar(0), doID)) {
+               							xsVar(1) = kprContentGetter(content);
+										(void)xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsVar(3));
+										break;
+									}
+								}
+								content = (KprContent)content->container;
 							}
 						}
 					}
@@ -1496,8 +1445,6 @@ void KprShellMenuStatus(KprShell self, FskEvent event)
 		UInt32 id = 0;
 		xsVars(3);
 		if (kFskErrNone == FskEventParameterGet(event, kFskEventParameterCommand, &id)) {
-			xsVar(0) = xsAccess(behavior->slot);
-			xsVar(1) = xsAccess(self->slot);
 			xsResult = xsGet(self->slot, xsID("menus"));
 			if (xsTest(xsResult)) {
 				xsIntegerValue c, i, d, j;
@@ -1514,16 +1461,27 @@ void KprShellMenuStatus(KprShell self, FskEvent event)
                             Boolean enabled = false;
                             Boolean checked = false;
 							xsIndex canID = xsToInteger(xsGet(xsVar(2), xsID("canID")));
-							if (xsFindResult(xsVar(0), canID)) {
-								xsResult = xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsVar(2));
-								enabled = xsTest(xsResult);
-                            }
+							KprContent content = self->focus;
+							while (content) {
+								KprScriptBehavior behavior = (KprScriptBehavior)content->behavior;
+								if (behavior && (behavior->the == the)) {
+									xsVar(0) = xsAccess(behavior->slot);
+									if (xsFindResult(xsVar(0), canID)) {
+               							xsVar(1) = kprContentGetter(content);
+										xsResult = xsCallFunction2(xsResult, xsVar(0), xsVar(1), xsVar(2));
+										enabled = xsTest(xsResult);
+										break;
+									}
+								}
+								content = (KprContent)content->container;
+							}
 							if (xsFindResult(xsVar(2), xsID("check")))
 								checked = xsTest(xsResult);
                             {
 #if TARGET_OS_MAC
                                 CocoaMenuItemSetEnable(i, id, enabled);
                                 CocoaMenuItemSetCheck(i, id, checked);
+                                CocoaMenuItemSetTitle(i, id, xsToString(xsGet(xsVar(2), xsID("title"))));
 #elif TARGET_OS_WIN32
                                 HMENU menu = GetSubMenu(GetMenu(self->window->hwnd), i);
                                 if (enabled)
@@ -1773,6 +1731,7 @@ void KprShellOpenFiles(KprShell self, FskEvent event)
 	UInt32 paramSize;
 	FskMemPtr fileList = NULL;
 	char *fileListWalker;
+	char *url = NULL;
 	xsBeginHostSandboxCode(self->the, self->code);
 	{
 		xsVars(3);
@@ -1787,7 +1746,9 @@ void KprShellOpenFiles(KprShell self, FskEvent event)
 					xsVar(2) = xsNewInstanceOf(xsArrayPrototype);
 					fileListWalker = (char*)fileList;
 					while (0 != *fileListWalker) {
-						(void)xsCall1(xsVar(2), xsID("push"), xsString(fileListWalker));
+						xsThrowIfFskErr(KprPathToURL(fileListWalker, &url));
+						xsCall1_noResult(xsVar(2), xsID("push"), xsString(url));
+						FskMemPtrDisposeAt(&url);
 						fileListWalker += FskStrLen(fileListWalker) + 1;
 					}
 					FskMemPtrDisposeAt(&fileList);
@@ -1795,6 +1756,7 @@ void KprShellOpenFiles(KprShell self, FskEvent event)
 				}
 			}
 			xsCatch {
+				FskMemPtrDispose(url);
 				FskMemPtrDispose(fileList);
 			}
 		}
@@ -2019,23 +1981,23 @@ void KPR_shell_set_acceptFiles(xsMachine* the)
 void KPR_shell_set_breakOnException(xsMachine* the)
 {
 #ifdef mxDebug
-	(void)xsCall1(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsArg(0));
+	xsCall1_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsArg(0));
 #endif
 }
 
 void KPR_shell_set_debugging(xsMachine* the)
 {
 #ifdef mxDebug
-	(void)xsCall1(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setConnected"), xsArg(0));
+	xsCall1_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setConnected"), xsArg(0));
 #endif
 }
 
 void KPR_shell_set_profiling(xsMachine* the)
 {
 	if (xsTest(xsArg(0)))
-		(void)xsCall0(xsGet(xsGlobal, xsID("xs")), xsID("startProfiling"));
+		xsCall0_noResult(xsGet(xsGlobal, xsID("xs")), xsID("startProfiling"));
 	else
-		(void)xsCall0(xsGet(xsGlobal, xsID("xs")), xsID("stopProfiling"));
+		xsCall0_noResult(xsGet(xsGlobal, xsID("xs")), xsID("stopProfiling"));
 }
 
 void KPR_shell_set_profilingDirectory(xsMachine* the)
@@ -2046,7 +2008,7 @@ void KPR_shell_set_profilingDirectory(xsMachine* the)
 		xsResult = xsString(directory);
 		FskMemPtrDispose(directory);
 	}
-	xsCall1(xsGet(xsGlobal, xsID("xs")), xsID("setProfilingDirectory"), xsResult);
+	xsCall1_noResult(xsGet(xsGlobal, xsID("xs")), xsID("setProfilingDirectory"), xsResult);
 }
 
 void KPR_shell_set_touchMode(xsMachine* the)
@@ -2097,7 +2059,7 @@ void KPR_shell_set_windowState(xsMachine *the)
 
 void KPR_shell_set_windowTitle(xsMachine *the)
 {
-#if (TARGET_OS_MAC && !TARGET_OS_IPHONE) || TARGET_OS_WIN32
+#if (TARGET_OS_MAC && !TARGET_OS_IPHONE) || TARGET_OS_WIN32 || (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
 	KprShell self = xsGetHostData(xsThis);
 	FskWindowSetTitle(self->window, xsToString(xsArg(0)));
 #endif
@@ -2223,7 +2185,7 @@ void KPR_shell_purge(xsMachine* the)
 void KPR_shell_quit(xsMachine* the)
 {
 	KprShell self = xsGetHostData(xsThis);
-	KprShellClose(self);
+	KprShellCloseWindow(self);
 }
 
 void KPR_shell_sensorAux(xsMachine* the, UInt32 modifiers)
@@ -2398,17 +2360,13 @@ void KPR_shell_updateMenus(xsMachine* the)
 	xsIntegerValue c, i, d, j;
 	KprShell shell = xsGetHostData(xsThis);
 	FskGtkWindow win = shell->window->gtkWin;
+	win->menuStatus = false;
+	gdk_threads_enter();
 	FskGtkWindowMenuBarClear(win);
-	
-	GtkWidget *parent = gtk_widget_get_parent(win->menubar);
-	gtk_container_remove(GTK_CONTAINER(parent), win->menubar);
-	win->menubar = gtk_menu_bar_new();
-	gtk_container_add(GTK_CONTAINER(parent), win->menubar);
 
 	xsVars(3);
 	xsEnterSandbox();
 	xsResult = xsGet(xsThis, xsID("menus"));
-
 	if (xsTest(xsResult)) {
 		char buffer0[256];
 		c = xsToInteger(xsGet(xsResult, xsID("length")));
@@ -2454,21 +2412,21 @@ void KPR_shell_updateMenus(xsMachine* the)
 					gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menu), FALSE); //Default is not checked
 					gtk_menu_shell_append(GTK_MENU_SHELL(menuGroup), menu);
 					FskGtkWindowSetMenuItemCallback(win, menu, id);
-					if( key && (key[0] >= '0' && key[0] <= 'z')) {
+					if( (FskStrLen(key) == 1) && (key[0] >= '0' && key[0] <= 'z')) {
 						gtk_widget_add_accelerator(menu, "activate", win->accelGroup, (GdkModifierType)key[0], GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
 					}
-					gtk_widget_show(menu);
 
 				} else {
 					GtkWidget* separator = gtk_separator_menu_item_new();
 					gtk_menu_shell_append(GTK_MENU_SHELL(menuGroup), separator);
-					gtk_widget_show(separator);
 				}
 			}
 		}
 	}
 	xsLeaveSandbox();
-
+	win->menuStatus = true;
+	gtk_widget_show_all(win->menubar);
+	gdk_threads_leave();
 #endif
 }
 
@@ -2729,7 +2687,7 @@ void KPR_system_get_settings(xsMachine* the)
 //		message->the = the;
 //		message->slot = xsNewInstanceOf(xsGet(xsGet(xsGet(xsGet(xsGlobal, xsID_KPR), xsID_HTTP), xsID_Client), xsID_message));
 //		xsSetHostData(message->slot, message);
-//		(void)xsCall1(xsGet(xsGlobal, xsID_Object), xsID_seal, message->slot);
+//		xsCall1_noResult(xsGet(xsGlobal, xsID_Object), xsID_seal, message->slot);
 //		xsResult = xsCallFunction3(xsResult, self->slot, message->slot, xsString(host), xsString(realm));
 //		result = xsToBoolean(xsResult);
 //	}

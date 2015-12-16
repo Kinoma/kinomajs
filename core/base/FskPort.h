@@ -45,6 +45,7 @@ typedef void (*vFskPortBitmapScaleOffset)(FskPort port, FskBitmap bits, FskConst
 typedef void (*vFskPortBitmapDrawSubpixel)(FskPort port, FskBitmap bits, FskConstRectangle srcRect, double x, double y, double width, double height);
 typedef void (*vFskPortBitmapTile)(FskPort port, FskBitmap srcBits, FskConstRectangle srcRect, FskConstRectangle dstRect, FskFixed scale);
 typedef void (*vFskPortTextDraw)(FskPort port, const char *text, UInt32 textLen, FskConstRectangle bounds);
+typedef void (*vFskPortTextDrawSubpixel)(FskPort port, const char *text, UInt32 textLen, double x, double y, double width, double height);
 typedef FskErr (*vFskPortPicSaveAdd)(FskPort port, FskPortPicRenderItem draw, FskPortPicPrepareItem prepare, void *params, UInt32 paramsSize);
 typedef void (*vFskPortEffectApply)(FskPort port, FskBitmap src, FskConstRectangle srcRect, FskConstPoint dstPoint, const struct FskEffectRecord* effect);
 typedef FskErr (*vFskPortSetOrigin)(FskPort port, SInt32 x, SInt32 y);
@@ -69,6 +70,7 @@ struct FskPortVectorsRecord {
     vFskPortBitmapDrawSubpixel  doBitmapDrawSubpixel;
     vFskPortBitmapTile          doBitmapTile;
     vFskPortTextDraw            doTextDraw;
+    vFskPortTextDrawSubpixel	doTextDrawSubpixel;
     vFskPortPicSaveAdd          doPicSaveAdd;
     vFskPortEffectApply         doEffectApply;
     vFskPortSetOrigin           doSetOrigin;
@@ -97,6 +99,7 @@ typedef struct FskPortVectorsRecord *FskPortVectors;
     static void prefix##BitmapDrawSubpixel(FskPort port, FskBitmap bits, FskConstRectangle srcRect, double x, double y, double width, double height);    \
     static void prefix##BitmapTile(FskPort port, FskBitmap srcBits, FskConstRectangle srcRect, FskConstRectangle dstRect, FskFixed scale);    \
     static void prefix##TextDraw(FskPort port, const char *text, UInt32 textLen, FskConstRectangle bounds);    \
+    static void prefix##TextDrawSubpixel(FskPort port, const char *text, UInt32 textLen, double x, double y, double width, double height);    \
     static FskErr prefix##PicSaveAdd(FskPort port, FskPortPicRenderItem draw, FskPortPicPrepareItem prepare, void *params, UInt32 paramsSize);    \
     static void prefix##EffectApply(FskPort port, FskBitmap src, FskConstRectangle srcRect, FskConstPoint dstPoint, const struct FskEffectRecord* effect);
 
@@ -128,6 +131,7 @@ typedef struct FskPortVectorsRecord *FskPortVectors;
         prefix##BitmapDrawSubpixel,  \
         prefix##BitmapTile,  \
         prefix##TextDraw,  \
+        prefix##TextDrawSubpixel,  \
         prefix##PicSaveAdd,  \
         prefix##EffectApply,  \
         prefix##SetOrigin,  \
@@ -295,9 +299,11 @@ FskAPI(void) FskPortBitmapDrawSubpixel(FskPort port, FskBitmap bits, FskConstRec
 FskAPI(void) FskPortBitmapScaleOffset(FskPort port, FskBitmap bits, FskConstRectangle srcRect, const struct FskScaleOffset *scaleOffset);
 FskAPI(void) FskPortBitmapTile(FskPort port, FskBitmap srcBits, FskConstRectangle srcRect, FskConstRectangle dstRect, FskFixed scale);
 FskAPI(void) FskPortTextDraw(FskPort port, const char *text, UInt32 textLen, FskConstRectangle bounds);
+FskAPI(void) FskPortTextDrawSubpixel(FskPort port, const char *text, UInt32 textLen, double x, double y, double width, double height);
 FskAPI(void) FskPortStringDraw(FskPort port, const char *text, FskConstRectangle bounds);
 
 FskAPI(void) FskPortTextGetBounds(FskPort port, const char *text, UInt32 textLen, FskRectangle bounds);
+FskAPI(void) FskPortTextGetBoundsSubPixel(FskPort port, const char *text, UInt32 textLen, double *width, double *height);
 FskAPI(void) FskPortStringGetBounds(FskPort port, const char *text, FskRectangle bounds);
 
 FskAPI(FskErr) FskPortTextFitWidth(FskPort port, const char *text, UInt32 textLen, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars);
@@ -401,6 +407,7 @@ enum {
 	kFskPortInstrMsgApplyMaskAndValue,
 	kFskPortInstrMsgBitmapDraw,
 	kFskPortInstrMsgTextDraw,
+	kFskPortInstrMsgTextDrawSubpixel,
 	kFskPortInstrMsgTextGetBounds,
 	kFskPortInstrMsgTextFitWidth,
 	kFskPortInstrMsgGetFontInfo,

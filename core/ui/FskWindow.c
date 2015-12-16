@@ -834,58 +834,6 @@ FskWindow FskWindowGetInd(UInt32 index, FskThread inThread)
 	return walker;
 }
 
-#if TARGET_OS_WIN32
-
-FskErr FskWindowGetDPI(FskWindow window, FskPoint pt)
-{
-	HDC hdc = GetDC(window->hwnd);
-	double scale = FskPortDoubleScale(FskWindowGetPort(window), FskWindowScaleGet(window));
-	SInt32 rotate = FskWindowRotateGet(window);
-
-	pt->x = (SInt32)(GetDeviceCaps(hdc, LOGPIXELSX) / scale);
-	pt->y = (SInt32)(GetDeviceCaps(hdc, LOGPIXELSY) / scale);
-
-	if ((90 == rotate) || (270 == rotate)) {
-		SInt32 temp = pt->x;
-		pt->x = pt->y;
-		pt->y = temp;
-	}
-
-	ReleaseDC(window->hwnd, hdc);
-
-	return kFskErrNone;
-}
-
-#elif TARGET_OS_ANDROID
-FskErr FskWindowGetDPI(FskWindow window, FskPoint pt)
-{
-	double scale = FskPortDoubleScale(FskWindowGetPort(window), FskWindowScaleGet(window));
-	SInt32 rotate = FskWindowRotateGet(window);
-	int x, y;
-
-	gAndroidCallbacks->getDPICB(&x, &y, NULL);
-
-	pt->x = x / scale;
-	pt->y = y / scale;
-
-	if ((90 == rotate) || (270 == rotate)) {
-		SInt32 temp = pt->x;
-		pt->x = pt->y;
-		pt->y = temp;
-	}
-
-	return kFskErrNone;
-}
-
-#else  /* TARGET_OS_UNKNOWN */
-
-FskErr FskWindowGetDPI(FskWindow window, FskPoint pt)
-{
-	return kFskErrUnimplemented;
-}
-
-#endif /* TARGET_OS */
-
 #if TARGET_OS_ANDROID
 FskErr FskWindowCopyBitsToWindow(FskWindow window, FskBitmap bits, const FskRectangle src, const FskRectangle dstIn, UInt32 mode, FskGraphicsModeParameters modeParams)
 {
@@ -1107,7 +1055,7 @@ FskErr FskWindowCopyBitsToWindow(FskWindow window, FskBitmap bits, const FskRect
 
 FskErr FskWindowUpdateRectangle(FskWindow window, const FskRectangle updateArea, Boolean backBufferUnchanged)
 {
-	FskInstrumentedItemPrintfDebug(window, "FskWindowUpdateRectangle %p - update area %d, %d, %d, %d - backBufferUnchanged %d", window, updateArea->x, updateArea->y, updateArea->width, updateArea->height, backBufferUnchanged);
+	FskInstrumentedItemPrintfDebug(window, "FskWindowUpdateRectangle %p - update area %d, %d, %d, %d - backBufferUnchanged %d", window, (int)updateArea->x, (int)updateArea->y, (int)updateArea->width, (int)updateArea->height, backBufferUnchanged);
 	FskInstrumentedItemPrintfDebug(window, " - window->bits is %p", window->bits);
 
 	(void)FskFrameBufferLockSurfaceArea(window->bits, updateArea, NULL, NULL);
@@ -1138,7 +1086,7 @@ FskErr FskWindowUpdateRectangle(FskWindow window, const FskRectangle updateArea,
 
 FskErr FskWindowBeginDrawing(FskWindow window, const FskRectangle r)
 {
-	FskInstrumentedItemPrintfDebug(window, "FskWindowBeginDrawing %p [%d %d %d %d]", window->bits, r->x, r->y, r->width, r->height );
+	FskInstrumentedItemPrintfDebug(window, "FskWindowBeginDrawing %p [%d %d %d %d]", window->bits, (int)r->x, (int)r->y, (int)r->width, (int)r->height );
 
 #if TARGET_OS_ANDROID
 	if (!window->usingGL)
@@ -1152,7 +1100,7 @@ FskErr FskWindowEndDrawing(FskWindow win, const FskRectangle bounds)
 {
 	FskErr err = kFskErrNone;
 
-	FskInstrumentedItemPrintfDebug(win, "FskWindowEndDrawing %p [%d %d %d %d]", win->bits, bounds->x, bounds->y, bounds->width, bounds->height );
+	FskInstrumentedItemPrintfDebug(win, "FskWindowEndDrawing %p [%d %d %d %d]", win->bits, (int)bounds->x, (int)bounds->y, (int)bounds->width, (int)bounds->height );
 
 	if (win->usingGL) {
 #if FSKBITMAP_OPENGL
@@ -1514,7 +1462,7 @@ FskErr FskWindowSetUpdates(FskWindow window, const Boolean *before, const Boolea
 
 			FskFrameBufferGetProperty(kFskFrameBufferPropertyUpdateInterval, &property);
 			window->updateInterval = property.value.integer;
-			FskInstrumentedItemPrintfDebug(window, "Setting Window Update Interval setting to %u, returned %u", *updateIntervalMS, window->updateInterval);
+			FskInstrumentedItemPrintfDebug(window, "Setting Window Update Interval setting to %u, returned %u", (unsigned int)*updateIntervalMS, (unsigned int)window->updateInterval);
 		}
 		else if ((SInt32)window->updateInterval < 16)
 			window->updateInterval = 16;
@@ -2626,8 +2574,6 @@ Boolean checkWindowBitmapSize(FskWindow win)
 	FskWindowGetUnscaledSize(win, &newWidth, &newHeight);
 
 	if (NULL != bmp) {
-		FskEvent fskEvent;
-
 		if (!changed && ((SInt32)newWidth == bmp->bounds.width) && ((SInt32)newHeight == bmp->bounds.height))
 			return false;
 
@@ -2638,6 +2584,7 @@ Boolean checkWindowBitmapSize(FskWindow win)
 		FskGtkWindowBitmapDispose(win->gtkWin);
 		win->port->bits = NULL;
 		win->bits = NULL;
+		changed = true;
 	}
 
 	//err = FskBitmapNew(-(SInt32)newWidth, (SInt32)newHeight, getScreenPixelFormat(), &bmp);
@@ -2659,6 +2606,13 @@ Boolean checkWindowBitmapSize(FskWindow win)
 	setWindowBitmap(win, bmp);
 	win->port->invalidArea = bmp->bounds;
 
+	if(changed) {
+		FskEvent fskEvent;
+		if (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowResize, NULL, kFskEventModifierNotSet)) {
+			(win->eventHandler)(fskEvent, fskEvent->eventCode, win, win->eventHandlerRefcon);
+			FskEventDispose(fskEvent);
+		}
+	}
 	return true;
 }
 #endif
@@ -2708,7 +2662,7 @@ Boolean checkWindowBitmapSize(FskWindow win)
 		#endif /* FSKBITMAP_OPENGL */
 		#if SUPPORT_INSTRUMENTATION
 			FskInstrumentedItemPrintfDebug(win, "ERROR: checkWindowBitmapSize failed to allocate a bitmap (%d x %d format: %d)",
-										   -(int)newWidth, (int)newHeight, getScreenPixelFormat());
+										   -(int)newWidth, (int)newHeight, (unsigned int)getScreenPixelFormat());
 		#endif /* SUPPORT_INSTRUMENTATION */
 		return false;		// bad scene
 	}
@@ -2801,7 +2755,7 @@ FskErr FskWindowCopyToBitmap(FskWindow window, const FskRectangle srcIn, Boolean
 		err = FskBitmapNew(src->width, src->height, pixelFormat, &copy);
 		BAIL_IF_ERR(err);
 		FskBitmapSetHasAlpha(copy, hasAlpha);
-		FskInstrumentedItemPrintfDebug(window, " -- copy (screen) %d %d %d %d from %p to copy %p", src->x, src->y, src->width, src->height, bits, copy);
+		FskInstrumentedItemPrintfDebug(window, " -- copy (screen) %d %d %d %d from %p to copy %p", (int)src->x, (int)src->y, (int)src->width, (int)src->height, bits, copy);
 		err = FskBitmapDraw(bits, src, copy, &copy->bounds, NULL, NULL, kFskGraphicsModeCopy, NULL);
 		BAIL_IF_ERR(err);
 	}
@@ -3368,6 +3322,9 @@ void setWindowBitmap(FskWindow w, FskBitmap bits)
 					}
 				#else /* !TARGET_OS_ANDROID */
 					FskGLPortNew(bits->bounds.width, bits->bounds.height, w, &bits->glPort);
+					#if TARGET_OS_KPL
+						FskGLPortSetSysContext(bits->glPort, w);
+					#endif /* TARGET_OS_KPL */
 				#endif /* !TARGET_OS_ANDROID */
 			}
 			(void)FskGLPortSetRotation(bits->glPort, ((NULL != (str = FskEnvironmentGet("portRotation"))) && (0 == FskStrCompare("180", str))) ? 180 : 0);
@@ -3473,7 +3430,7 @@ UInt32 getScreenPixelFormat(void)
 void FskWindowAndroidSizeChanged(int win)
 {
 	needMoreRedraw = 1;
-	sendEventWindowSizeChanged((FskWindow)win);
+	sendEventWindowSizeChanged((FskWindow)win);  //TODO: fix this error for 64bits system!!!
 }
 
 #if TARGET_OS_MAC
@@ -3574,13 +3531,13 @@ Boolean doFormatMessageWindow(FskInstrumentedType dispatch, UInt32 msg, void *ms
 
 		case kFskWindowInstrCopyBitsToScreen: {
 			FskRectangle r = (FskRectangle)msgData;
-			snprintf(buffer, bufferSize, "copybits to screen, x=%ld, y=%ld, w=%ld, h=%ld", r->x, r->y, r->width, r->height);
+			snprintf(buffer, bufferSize, "copybits to screen, x=%d, y=%d, w=%d, h=%d", (int)r->x, (int)r->y, (int)r->width, (int)r->height);
 			}
 			return true;
 
 		case kFskWindowInstrInvalidate: {
 			FskRectangle r = (FskRectangle)msgData;
-			snprintf(buffer, bufferSize, "invalidate, x=%ld, y=%ld, w=%ld, h=%ld", r->x, r->y, r->width, r->height);
+			snprintf(buffer, bufferSize, "invalidate, x=%d, y=%d, w=%d, h=%d", (int)r->x, (int)r->y, (int)r->width, (int)r->height);
 			}
 			return true;
 #if TARGET_OS_WIN32

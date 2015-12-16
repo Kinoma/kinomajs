@@ -3307,15 +3307,16 @@ SubdivideHomogeneousBezierForArcLength(FskFixedVector3D *B, int order, FskFixed 
 		d0 = SubdivideHomogeneousBezierForArcLength(R, order, d0, logNumEvals, eval);
 	}
 	else {
-		FskFixedPoint2D *B2 = (void*)L;
+		union Fixed3D2DPtr { FskFixedVector3D *p3; FskFixedPoint2D *p2; };
+		union Fixed3D2DPtr B2 = { L };	/* reuse the 3d storage for 2D */
 		int i;
 		for (i = 0; i < order; i++) {
-			B2[i].x = FskFracDiv(B[i].x, B[i].z);
-			B2[i].y = FskFracDiv(B[i].y, B[i].z);
+			B2.p2[i].x = FskFracDiv(B[i].x, B[i].z);
+			B2.p2[i].y = FskFracDiv(B[i].y, B[i].z);
 		}
-		*(*eval)++ = d0 += (	LengthOfPolyLine(B2, order)						/* Upper bound */
-							+	FskFixedDistance(&B2[0].x, &B2[order-1].x, 2)	/* Lower bound */
-							) >> 1;												/* Averaged */
+		*(*eval)++ = d0 += (	LengthOfPolyLine(B2.p2, order)						/* Upper bound */
+							+	FskFixedDistance(&B2.p2[0].x, &B2.p2[order-1].x, 2)	/* Lower bound */
+							) >> 1;													/* Averaged */
 	}
 
 	return d0;

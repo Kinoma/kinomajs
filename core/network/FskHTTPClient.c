@@ -778,7 +778,6 @@ FskErr FskHTTPClientBegin(FskHTTPClient client)
 #else /* if CLOSED_SSL */
 		if( client->sslProxied && ( client->protocolNum==kFskHTTPProtocolHTTPS && !client->skt->isSSL) )
 		{
-			FskErr err = kFskErrNone;
 			void* ssl = 0;
 			FskSocketCertificateRecord cert = {
 				NULL, 0,
@@ -3454,7 +3453,7 @@ static Boolean doFormatMessageHTTPClient(FskInstrumentedType dispatch, UInt32 ms
 			snprintf(buffer, bufferSize, "[%d:%s] client finished - post callback", client->seqNum, client->host);
 			return true;
     	case kFskHTTPClientRequestInstrMsgAdd:
-			snprintf(buffer, bufferSize, "[%d:%s] adding (/%s) to client session (#%lu in request queue)", request->owner->seqNum, request->owner->host, request->parsedUrl->path, (FskListCount(request->owner->httpRequests)));
+			snprintf(buffer, bufferSize, "[%d:%s] adding (/%s) to client session (#%u in request queue)", request->owner->seqNum, request->owner->host, request->parsedUrl->path, (unsigned)(FskListCount(request->owner->httpRequests)));
 			return true;
     	case kFskHTTPClientRequestInstrMsgRemove:
 			if (request) {
@@ -3473,7 +3472,7 @@ static Boolean doFormatMessageHTTPClient(FskInstrumentedType dispatch, UInt32 ms
 			snprintf(buffer, bufferSize, "server response (%d)", (int)msgData);
 			return true;
     	case kFskHTTPClientRequestInstrMsgSentRequest:
-			snprintf(buffer, bufferSize, "sent request %lu bytes", data->amt);
+			snprintf(buffer, bufferSize, "sent request %u bytes", (unsigned)data->amt);
 			return true;
     	case kFskHTTPClientRequestInstrMsgSentBody:
 #if INSTR_PACKET_CONTENTS
@@ -3485,7 +3484,7 @@ static Boolean doFormatMessageHTTPClient(FskInstrumentedType dispatch, UInt32 ms
 			snprintf(buffer, bufferSize, "sent request body\n%s%c", data->buffer, tmp[0]);
 			data->buffer[s] = tmp[0];
 #else
-			snprintf(buffer, bufferSize, "sent request body (%lu bytes)", data->amt);
+			snprintf(buffer, bufferSize, "sent request body (%u bytes)", (unsigned)data->amt);
 #endif
 			return true;
     	case kFskHTTPClientRequestInstrMsgRecvHeaders:
@@ -3507,7 +3506,7 @@ static Boolean doFormatMessageHTTPClient(FskInstrumentedType dispatch, UInt32 ms
 			snprintf(buffer, bufferSize, "received body\n%s%c", data->buffer, tmp[0]);
 			data->buffer[s] = tmp[0];
 #else
-			snprintf(buffer, bufferSize, "received body (%lu bytes)", data->amt);
+			snprintf(buffer, bufferSize, "received body (%u bytes)", (unsigned)data->amt);
 #endif
 			return true;
     	case kFskHTTPClientInstrMsgRemainder:
@@ -3520,7 +3519,7 @@ static Boolean doFormatMessageHTTPClient(FskInstrumentedType dispatch, UInt32 ms
 			snprintf(buffer, bufferSize, "data remains(%d bytes)\n%s%c", data->amt, data->buffer, tmp[0]);
 			data->buffer[s] = tmp[0];
 #else
-			snprintf(buffer, bufferSize, "data remains after requests satisfied (%lu bytes)", data->amt);
+			snprintf(buffer, bufferSize, "data remains after requests satisfied (%u bytes)", (unsigned)data->amt);
 #endif
 			return true;
     	case kFskHTTPClientRequestInstrMsgReadRemainder:
@@ -3533,7 +3532,7 @@ static Boolean doFormatMessageHTTPClient(FskInstrumentedType dispatch, UInt32 ms
 			snprintf(buffer, bufferSize, "read remainder\n%s%c", data->buffer, tmp[0]);
 			data->buffer[s] = tmp[0];
 #else
-			snprintf(buffer, bufferSize, "read remainder of request (%lu bytes)", data->amt);
+			snprintf(buffer, bufferSize, "read remainder of request (%u bytes)", (unsigned)data->amt);
 #endif
 			return true;
     	case kFskHTTPClientRequestInstrMsgFinished:

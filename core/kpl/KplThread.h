@@ -32,7 +32,7 @@ typedef void (*KplThreadCallback)(void *, void *, void *, void *);
 FskErr KplThreadCreateMain(KplThread *kplThread);
 FskErr KplThreadTerminateMain(void);
 
-FskErr KplThreadCreate(KplThread *thread, KplThreadProc procedure, void *refcon, UInt32 flags, char *name);
+FskErr KplThreadCreate(KplThread *thread, KplThreadProc procedure, void *refcon, UInt32 flags, const char *name);
 FskErr KplThreadJoin(KplThread thread);
 KplThread KplThreadGetCurrent(void);
 void KplThreadYield(void);

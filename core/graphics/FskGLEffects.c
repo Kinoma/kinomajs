@@ -3016,6 +3016,7 @@ FskErr FskGLEffectHiSigmaGaussianBlurApply(FskConstEffectGaussianBlur params, Fs
 		}
 	}
 	else {
+		FskPointRecord loc;
 		FskRectangleRecord sRect;
 		FskEffectCopyMirrorBordersRecord mir;
 		#ifdef LOG_IMAGES
@@ -3046,6 +3047,7 @@ FskErr FskGLEffectHiSigmaGaussianBlurApply(FskConstEffectGaussianBlur params, Fs
 		#endif /* !ALWAYS_CLEAR_DST_TEXTURE */
 
 		FskRectangleSet(&sRect, mir.border, mir.border, srcRect->width, srcRect->height);
+		FskPointSet(&loc, mir.border, mir.border);
 		if (numStages == 1) {																					/* Probability = 0 */
 			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[0][0], stage[0][1], mid[0], &sRect, dst, dstPoint));
 		}
@@ -3054,12 +3056,12 @@ FskErr FskGLEffectHiSigmaGaussianBlurApply(FskConstEffectGaussianBlur params, Fs
 				#ifdef LOG_IMAGES
 					WriteGLBMPToVPath(mid[0], "%s/gtest/GLEffHiSigma%g-%di.bmp", outDir, params->sigmaX, j);
 				#endif /* LOG_IMAGES */
-//				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[0], NULL, mid[1], NULL));						/* Blur everything */
-				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[0],  &sRect, mid[1], (FskConstPoint)(&sRect)));	/* Blur central part */
+//				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[0], NULL, mid[1], NULL));		/* Blur everything */
+				BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[0],  &sRect, mid[1], &loc));	/* Blur central part */
 				#ifdef LOG_IMAGES
 					WriteGLBMPToVPath(mid[1], "%s/gtest/GLEffHiSigma%g-%do.bmp", outDir, params->sigmaX, j);
 				#endif /* LOG_IMAGES */
-				BAIL_IF_ERR(err = FskGLEffectCopyMirrorBordersApply(&mir, mid[1], &sRect, mid[0], NULL));										/* Mirror central part over borders */
+				BAIL_IF_ERR(err = FskGLEffectCopyMirrorBordersApply(&mir, mid[1], &sRect, mid[0], NULL));									/* Mirror central part over borders */
 			}
 			BAIL_IF_ERR(err = FskGLEffectDirectionalGaussianVaryBlurApply(stage[j][0], stage[j][1], mid[0], &sRect, dst, dstPoint));
 			#ifdef LOG_IMAGES

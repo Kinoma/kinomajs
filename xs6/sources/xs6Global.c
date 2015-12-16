@@ -188,6 +188,25 @@ txSlot* fxNewHostFunctionGlobal(txMachine* the, txCallback call, txInteger lengt
 	return function;
 }
 
+txSlot* fxCheckIteratorInstance(txMachine* the, txSlot* slot)
+{
+	txSlot* instance;
+	if (slot->kind == XS_REFERENCE_KIND) {
+		instance = slot->value.reference;
+		slot = instance->next;
+		if (slot && (slot->ID == mxID(_result))) {
+			slot = slot->next;
+			if (slot && (slot->ID == mxID(_iterable))) {
+				slot = slot->next;
+				if (slot && (slot->ID == mxID(_index))) {
+					return instance;
+				}
+			}
+		}
+	}
+	mxTypeError("this is no iterator");
+	return C_NULL;
+}
 
 txSlot* fxNewIteratorInstance(txMachine* the, txSlot* iterable) 
 {
@@ -217,7 +236,8 @@ void fx_Enumerator(txMachine* the)
 	if (mxThis->kind == XS_REFERENCE_KIND)
 		fxEnumerateInstance(the, mxThis->value.reference);
 	else {
-		mxPushSlot(mxFunctionInstancePrototype(mxEnumeratorFunction.value.reference));
+		mxPush(mxEnumeratorFunction);
+		fxGetID(the, mxID(_prototype));
 		iterator = fxNewIteratorInstance(the, mxThis);
 		mxPullSlot(mxResult);
 		iterator->next->next->next = C_NULL;
@@ -382,7 +402,7 @@ void fx_eval(txMachine* the)
 
 void fx_trace(txMachine* the)
 {
-#if mxDebug
+#ifdef mxDebug
 	if (mxArgc > 0) {
 		fxToString(the, mxArgv(0));
 		fxReport(the, "%s", mxArgv(0)->value.string);
@@ -528,7 +548,7 @@ void fxDecodeURI(txMachine* the, txString theSet)
 
 	if (size == (src - (txU1*)mxArgv(0)->value.string)) {
 		mxResult->value.string = mxArgv(0)->value.string;
-		mxResult->kind = XS_STRING_KIND;
+		mxResult->kind = mxArgv(0)->kind;
 		return;
 	}
 
@@ -581,7 +601,7 @@ void fxEncodeURI(txMachine* the, txString theSet)
 
 	if (size == (src - (txU1*)mxArgv(0)->value.string)) {
 		mxResult->value.string = mxArgv(0)->value.string;
-		mxResult->kind = XS_STRING_KIND;
+		mxResult->kind = mxArgv(0)->kind;
 		return;
 	}
 

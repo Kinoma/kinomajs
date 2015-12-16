@@ -4140,7 +4140,7 @@ QTErr selectiveMetaUserDataAtom(QTMovie movie, QTFileOffset offset, QTFileOffset
 		;
 	else if ('ilst' != d[1]) {
 		// append this atom to the userdata
-		UInt32 sizeNow = sizeof(QTUserDataRecord) + movie->userData->size + sizeof(UInt32);
+		sizeNow = sizeof(QTUserDataRecord) + movie->userData->size + sizeof(UInt32);
 
 		err = qtMovieRealloc(movie, &movie->userData, sizeNow, sizeNow + (UInt32)size + 8, NULL);
 		if (err) goto bail;

@@ -24,7 +24,7 @@
 <header name="kpr.h"/>
 <header name="kprPins.h"/>
 
-<platform name="linux/aspen">
+<platform name="linux/aspen,linux/poky">
 <source name="i2cdev.c"/>
 <source name="K4Gen2.c"/>
 <source name="k4Gen2a2d.c"/>
@@ -59,3 +59,4 @@ XSC_OPTIONS += -t MOCKUP -t USERANDOM
 </platform>
 
 </makefile>
+

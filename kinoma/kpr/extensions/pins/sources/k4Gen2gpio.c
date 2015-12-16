@@ -15,6 +15,12 @@
  *     limitations under the License.
  */
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+
 #include "kprPins.h"
 #include "FskECMAScript.h"
 #include "FskExtensions.h"
@@ -26,7 +32,7 @@
 #define bailIfNull(X) { if ((X) == NULL) { err = kFskErrFileNot; goto bail; } }
 
 typedef struct GPIOsysfsStruct{  //GPIO
-	FILE *valueFile;
+	int valueFile;
 } FskGPIOSysfsRecord, *FskGPIOSysfs;
 
 static const char* GPIOexport = "/sys/class/gpio/export";
@@ -56,35 +62,36 @@ FskErr FskGPIOPlatformSetDirection(FskGPIO gpio, GPIOdirection direction){
 	}else{
 		FskErr err = kFskErrNone;
 		FILE *f = NULL;
-		char buffer[40];
-		char existingDirection;
-    
+		int fd = -1;
+		char buffer[50];
+
         if (undefined != direction) {
-            snprintf(buffer, 40, "/sys/class/gpio/gpio%d/direction", gpio->realPin);
+            snprintf(buffer, sizeof(buffer), "/sys/class/gpio/gpio%d/direction", gpio->realPin);
             f = fopen(buffer, "w+");
             bailIfNoFile(f);
-            rewind(f);
-            fscanf(f, "%c", &existingDirection);
-            rewind(f);
-            if (direction == in && existingDirection != 'i'){
-                fprintf(f, "in");
-            }else if (direction == out && existingDirection != 'o'){
-                fprintf(f, "out");
-            }
+			fprintf(f, (in == direction) ? "in" : "out");
             fclose(f);
             f = NULL;
         }
 
-		if (  ((FskGPIOSysfs)gpio->platform)->valueFile != NULL) fclose(((FskGPIOSysfs)gpio->platform)->valueFile);
-		snprintf(buffer, 40, "/sys/class/gpio/gpio%d/value", gpio->realPin);
-		if (direction == in){
-			f = fopen(buffer, "r+");
-		}else if (direction == out){
-			f = fopen(buffer, "w+");
+		snprintf(buffer, sizeof(buffer), "/sys/class/gpio/gpio%d/edge", gpio->realPin);
+		fd = open(buffer, O_WRONLY);
+		if (fd >= 0) {
+			gpio->canInterrupt = write(fd, "both", 5) > 0;
+			close(fd);
 		}
-		bailIfNoFile(f);
-		setbuf(f, NULL);
-		((FskGPIOSysfs)gpio->platform)->valueFile = f;
+		fd = -1;
+		if (  ((FskGPIOSysfs)gpio->platform)->valueFile) {
+			close(((FskGPIOSysfs)gpio->platform)->valueFile);
+			((FskGPIOSysfs)gpio->platform)->valueFile = 0;		//@@
+		}
+		snprintf(buffer, sizeof(buffer), "/sys/class/gpio/gpio%d/value", gpio->realPin);
+		fd = open(buffer, O_RDWR);
+		if (fd <= 0) {
+			err = kFskErrFileNotFound;
+			goto bail;
+		}
+		((FskGPIOSysfs)gpio->platform)->valueFile = fd;
 
 bail:
 		if (err){
@@ -103,6 +110,11 @@ FskErr FskGPIOPlatformGetDirection(FskGPIO gpio, GPIOdirection *direction)
 	FILE *f = NULL;
 	char buffer[50];
     signed char existingDirection = -1;
+
+	if (gpio->realPin >= FRONTOFFSET) {
+		*direction = gpio->direction;
+		return kFskErrNone;
+	}
 
 	snprintf(buffer, sizeof(buffer), "/sys/class/gpio/gpio%d/direction", gpio->realPin);
 
@@ -141,11 +153,12 @@ bail:
 }
 
 FskErr FskGPIOPlatformWrite(FskGPIO gpio, GPIOvalue value){
-	if (gpio->realPin < FRONTOFFSET){
-		fprintf(((FskGPIOSysfs)gpio->platform)->valueFile, "%d\n", value == on ? 1 : 0);
-	}else{
+	if (gpio->realPin < FRONTOFFSET)
+		write(((FskGPIOSysfs)gpio->platform)->valueFile, (on == value) ? "1\n" : "0\n", 2);
+	else {
 		int32_t b = 0;
 		int pin = gpio->realPin - FRONTOFFSET;
+
 		if (pin < 8){
 			FskI2CDevSetSlave(I2CBUS, 0x20);
 		}else{
@@ -167,10 +180,14 @@ FskErr FskGPIOPlatformWrite(FskGPIO gpio, GPIOvalue value){
 
 GPIOvalue FskGPIOPlatformRead(FskGPIO gpio){
 	if (gpio->realPin < FRONTOFFSET){
-		int value;
-		rewind(((FskGPIOSysfs)gpio->platform)->valueFile);
-		int test = fscanf(((FskGPIOSysfs)gpio->platform)->valueFile, "%d", &value);
-		if (test < 1) return error;
+		int result, value = -1;
+		char buffer[6];
+
+		lseek(((FskGPIOSysfs)gpio->platform)->valueFile, 0, SEEK_SET);
+		result = read(((FskGPIOSysfs)gpio->platform)->valueFile, buffer, sizeof(buffer) - 1);
+		if (result < 1) return error;
+		buffer[result - 1] = 0;
+		value = FskStrToNum(buffer);
 		if (value == 1) return on;
 		if (value == 0) return off;
 	}else{
@@ -194,10 +211,15 @@ GPIOvalue FskGPIOPlatformRead(FskGPIO gpio){
 	return error;
 }
 
+int FskGPIOPlatformGetFD(FskGPIO gpio)
+{
+	return gpio->canInterrupt ? ((FskGPIOSysfs)gpio->platform)->valueFile : -1;
+}
+
 FskErr FskGPIOPlatformDispose(FskGPIO gpio){
 	if (gpio->realPin < FRONTOFFSET){
 		if (gpio->platform){
-			if (((FskGPIOSysfs)gpio->platform)->valueFile) fclose(((FskGPIOSysfs)gpio->platform)->valueFile);
+			if (((FskGPIOSysfs)gpio->platform)->valueFile) close(((FskGPIOSysfs)gpio->platform)->valueFile);
 			FskMemPtrDispose((FskGPIOSysfs)gpio->platform);
 		}
 	}

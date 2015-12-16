@@ -39,7 +39,7 @@ extern "C" {
 #define DECL_ALIGN_8	__declspec(align(8))
 #define DECL_ALIGN_4	__declspec(align(4))
 
-#elif TARGET_OS_ANDROID || TARGET_OS_MAC
+#elif TARGET_OS_ANDROID || TARGET_OS_MAC || TARGET_OS_LINUX
 
 #define __ALIGN16(type, name, size)		type name[size] __attribute__ ((aligned (16)))
 #define __ALIGN8(type, name, size)		type name[size] __attribute__ ((aligned (8)))

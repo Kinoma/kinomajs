@@ -31,6 +31,7 @@ FskErr FskCocoaTextNew(void **state);
 FskErr FskCocoaTextDispose(void *state);
 void FskCocoaTextGetFontList(void *state, char **fontList);
 void FskCocoaTextGetBounds(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache);
+void FskCocoaTextGetBoundsSubpixel(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, FskDimensionFloat dimension, FskTextFormatCache cache);
 Boolean FskCocoaTextFitWidth(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache);
 void FskCocoaTextGetFontInfo(void *state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache cache);
 Boolean FskCocoaTextFormatCacheNew(void *state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);

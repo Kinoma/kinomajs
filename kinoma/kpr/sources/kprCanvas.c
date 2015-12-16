@@ -69,9 +69,18 @@ static KprDispatchRecord KprCanvasDispatchRecord = {
 
 static FskBitmapFormatEnum PreferredPixelFormat(void)
 {
-	#if FSKBITMAP_OPENGL && !defined(DISABLE_GL_CANVAS) && !TARGET_OS_ANDROID && !TARGET_OS_IPHONE
-		if (gShell->window->usingGL)
-			return kFskBitmapFormatGLRGBA;
+	// TODO: Get Pause/Resume working with GLCanvas on Android, so we can enable it here.
+	// TODO: Check GPU capabilities to see if it supports NPOT repeat, which is required for GLCanvas.
+	// At least one GPU on iOS and several on Android cannot repeat NPOT textures; we would rather not disable it
+	// on capable GPUs but this is the best we can do at this time.
+	#if FSKBITMAP_OPENGL && !defined(DISABLE_GL_CANVAS) && !TARGET_OS_ANDROID && !TARGET_OS_IOS
+		if (gShell->window->usingGL) {
+			static SInt8 canDoGLCanvas = 0;
+			if (!canDoGLCanvas)
+				canDoGLCanvas = FskCanvasAccelerationIsTrusty() ? +1 : -1;
+			if (canDoGLCanvas > 0)
+				return kFskBitmapFormatGLRGBA;
+		}
 	#endif
 	return kFskBitmapFormatDefaultRGBA;
 }

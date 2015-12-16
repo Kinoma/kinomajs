@@ -172,7 +172,7 @@ Boolean doFormatMessageAudioFilter(FskInstrumentedType dispatch, UInt32 msg, voi
 			if (kFskErrNone != (FskErr)md[2])
 				snprintf(buffer, bufferSize, "process failed, err=%ld", (long)md[2]);
 			else
-				snprintf(buffer, bufferSize, "process samplesIn=%ld, samplesOut=%ld", (UInt32)md[0], (UInt32)md[1]);
+				snprintf(buffer, bufferSize, "process samplesIn=%d, samplesOut=%d", (unsigned)md[0], (unsigned)md[1]);
 			}
 			return true;
 	}
