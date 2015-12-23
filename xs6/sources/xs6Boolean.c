@@ -24,7 +24,6 @@ static txSlot* fxCheckBoolean(txMachine* the, txSlot* it);
 void fxBuildBoolean(txMachine* the)
 {
     static const txHostFunctionBuilder gx_Boolean_prototype_builders[] = {
-		{ fx_Boolean_prototype_toString, 0, _toLocaleString },
 		{ fx_Boolean_prototype_toString, 0, _toString },
 		{ fx_Boolean_prototype_valueOf, 0, _valueOf },
  		{ C_NULL, 0, 0 },

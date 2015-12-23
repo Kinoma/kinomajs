@@ -22,6 +22,7 @@
 
 	<patch prototype="Crypt">
 		<object name="keyInfo">
+			<chunk name="__ber__"/>
 
 			<!-- I don't know the reason but it causes a fatal error in xsGrammar if 'pattern' appears in an object which is not defined in xs. (i.e. as a host object) -->
 			<object name="keyInfoProto" pattern="/ds:KeyInfo">
@@ -85,10 +86,14 @@
 				<chunk name="sym" pattern="ds:KeyValue/fsk:SymKeyValue"/>
 
 				<function name="parse" params="b" script="false">
-					return(xs.parse(b));	// @@ the returned object seems not to be recognized as an instance of keyInfoProto... so it needs to 'cast' to toString on this object for example...
+					return Crypt.keyInfo.pem.parse(b, "RSA PRIVATE KEY");	// DOES NOT SUPPORT any kind of the key format except PEM/RSA
+					// return(xs.parse(b));	// @@ the returned object seems not to be recognized as an instance of keyInfoProto... so it needs to 'cast' to toString on this object for example...
 				</function>
 
 				<function name="serialize" params="o" script="false">
+					// !!! NO xs.serialize in xs6...
+					if (o.__ber__)
+						return o.__ber__;
 					return(xs.serialize(o));
 				</function>
 
@@ -236,6 +241,7 @@
 					switch (keyword) {
 					case "RSA PRIVATE KEY":
 						tmpKey.rsaKey = new tmpKey.RsaKey({modulus: keyFile[2][1], exponent: keyFile[3][1], privExponent: keyFile[4][1], prim1: keyFile[5][1], prim2: keyFile[6][1], exponent1: keyFile[7][1], exponent2: keyFile[8][1], coefficient: keyFile[9][1]});
+						tmpKey.__ber__ = ber;
 						break;
 					case "DSA PRIVATE KEY":
 						tmpKey.dsaKey = new tmpKey.DsaKey({p: keyFile[2][1], q: keyFile[3][1], g: keyFile[4][1], x: keyFile[5][1], y: keyFile[6][1]});
@@ -257,3 +263,4 @@
 		</function>
 	</patch>
 </package>
+

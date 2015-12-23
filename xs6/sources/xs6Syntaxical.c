@@ -2875,7 +2875,7 @@ void fxCheckReference(txParser* parser, txToken theToken)
 		fxCheckStrictSymbol(parser, ((txAccessNode*)node)->symbol);
 		return;
 	}
-	if ((aToken== XS_TOKEN_MEMBER) || (aToken == XS_TOKEN_MEMBER_AT))
+	if ((aToken== XS_TOKEN_MEMBER) || (aToken == XS_TOKEN_MEMBER_AT) || (aToken == XS_TOKEN_UNDEFINED))
 		return;
 	if (theToken == XS_TOKEN_ASSIGN) {
 		if (aToken == XS_TOKEN_ARRAY) {

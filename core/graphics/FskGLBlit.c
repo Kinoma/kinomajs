@@ -23,9 +23,9 @@
 	#define BG3CDP_GL	1
 #endif /* BG3CDP */
 #if 0 //BG3CDP_GL	/* Perhaps this will reduce memory usage on BG3CDP? */
-	#define RGB_TEXTURES_WORK	1
+	#define RGB_TEXTURES_WORK	1	/**< This indicates that RGB textures function on this platform. */
 #else /* ! BG3CDP_GL */
-	#define RGB_TEXTURES_WORK 	0
+	#define RGB_TEXTURES_WORK 	0	/**< This indicates that RGB textures do not function on this platform. */
 #endif /* ! BG3CDP_GL */
 
 #define __FSKBITMAP_PRIV__	/**< Gain access to the fields of the bitmap. */

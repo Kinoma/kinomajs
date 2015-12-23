@@ -57,7 +57,8 @@ pl_sync(xsMachine *the, persistentList *pl, xsSlot *client)
 	n = xsToInteger(xsGet(xsVar(2), xsID("length")));
 	for (i = 0, master = pl->list; i < n && master != NULL;) {
 		xsVar(0) = xsGet(xsVar(2), i);
-		if (FskStrCompare(master->name, xsToString(xsGet(xsVar(0), id_name))) != 0) {
+		if (xsTypeOf(xsVar(0)) == xsUndefinedType ||
+		    FskStrCompare(master->name, xsToString(xsGet(xsVar(0), id_name))) != 0) {
 			/* i'th item removed */
 			(void)xsCall2(xsVar(2), xsID("splice"), xsInteger(i), xsInteger(1));
 			--n;

@@ -117,7 +117,7 @@
 						var dn = Crypt.x509.dn.toString(Crypt.ber.decode(names[j]));
 						for (var i in certList) {
 							var o = certList[i];
-							if (o.tbsCertificate.subject == dn && Ber.oideq(algo, o.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm))
+							if (o.tbsCertificate.subject == dn && Crypt.ber.oideq(algo, o.tbsCertificate.subjectPublicKeyInfo.algorithm.algorithm))
 								return(this.certChain([o], descendant, certList));
 						}
 					}
@@ -280,7 +280,7 @@
 					this.doProtocol(s, FskSSL.certificate, certs);
 					if (System.applyEnvironment("[sslClientAuth]"))
 						// S -> C: CertificateRequest  (always, for now..)
-						this.doProtocol(s, FskSSL.certificateRequest, [FskSSL.cipherSuite.RSA, FskSSL.cipherSuite.DSA], [Ber.encode(certs[certs.length - 1].tbsCertificate.subjectDN)]);
+						this.doProtocol(s, FskSSL.certificateRequest, [FskSSL.cipherSuite.RSA, FskSSL.cipherSuite.DSA], [Crypt.ber.encode(certs[certs.length - 1].tbsCertificate.subjectDN)]);
 					// S -> C: ServerHelloDone
 					this.doProtocol(s, FskSSL.serverHelloDone);
 
@@ -613,11 +613,12 @@
 				alert.close();
 			</function>
 		</object>
-		<function name="Session" prototype="FskSSL.session">
+		<function name="Session" params="extensions" prototype="FskSSL.session">
 			this.certificates = new Crypt.Certificate(FskSSL.certificatesInstance);
 			this.keyring = new Crypt.Keyring(FskSSL.keyringInstance);
 			this.cacheManager = new FskSSL.SessionCacheManager();
 			this.alert = undefined;
+			this.extensions = extensions;
 		</function>
 	</patch>
 </package>

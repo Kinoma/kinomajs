@@ -21,14 +21,11 @@
 
 		<object name="keyringInstanceProto" prototype="Crypt.persistentList">
 			<function name="parse" params="b" script="false">
-				// keyInfo.parse takes string
-				return(Crypt.keyInfo.keyInfoProto.parse(b.toRawString()));
+				return(Crypt.keyInfo.keyInfoProto.parse(b));
 			</function>
 
 			<function name="serialize" params="o" script="false">
-				// keyInfo.serialize returns string
-				var s = Crypt.keyInfo.keyInfoProto.serialize(o);
-				return(new Crypt.bin.chunk.String(s));
+				return Crypt.keyInfo.keyInfoProto.serialize(o);
 			</function>
 		</object>
 		<function name="KeyringInstance" params="" prototype="Crypt.keyringInstanceProto">
@@ -52,3 +49,4 @@
 		Crypt.keyringInstance = new Crypt.KeyringInstance();
 	</program>
 </package>
+

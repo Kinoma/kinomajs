@@ -40,6 +40,7 @@ typedef const struct FskGLContextRecord	*FskConstGLContext;		/**< Immutable GL c
  **	\param[in]	width		the desired offscreen width  (can be 0).
  **	\param[in]	height		the desired offscreen height (can be 0).
  **	\param[in]	pixelFormat	the desired pixel precision (coarse: RGB, RGBA 565).
+ **	\param[in]	version		the desired Open GL version.
  **	\param[in]	share		share assets with this other context; if NULL, then no assets are shared.
  **	\param[out]	ctx			the resultant context.
  **	\return		kFskErrNone	if the operation succeeded.

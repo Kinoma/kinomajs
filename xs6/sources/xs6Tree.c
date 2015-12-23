@@ -1015,6 +1015,13 @@ static const txNodeDispatch gxUnaryExpressionNodeDispatch = {
 	fxUnaryExpressionNodeCode,
 	fxNodeCodeAssign
 };
+static const txNodeDispatch gxUndefinedNodeDispatch = {
+	fxNodeDistribute,
+	fxNodeBind,
+	fxNodeHoist,
+	fxValueNodeCode,
+	fxUndefinedNodeCodeAssign
+};
 static const txNodeDispatch gxValueNodeDispatch = {
 	fxNodeDistribute,
 	fxNodeBind,
@@ -1191,7 +1198,7 @@ const txNodeDescription gxTokenDescriptions[XS_TOKEN_COUNT] = {
 	{ XS_CODE_TRUE, XS_TOKEN_TRUE, "True", sizeof(txNode), &gxValueNodeDispatch },
 	{ XS_NO_CODE, XS_TOKEN_TRY, "Try", sizeof(txTryNode), &gxTryNodeDispatch },
 	{ XS_CODE_TYPEOF, XS_TOKEN_TYPEOF, "Typeof", sizeof(txUnaryExpressionNode), &gxUnaryExpressionNodeDispatch },
-	{ XS_CODE_UNDEFINED, XS_TOKEN_UNDEFINED, "Undefined", sizeof(txNode), &gxValueNodeDispatch },
+	{ XS_CODE_UNDEFINED, XS_TOKEN_UNDEFINED, "Undefined", sizeof(txNode), &gxUndefinedNodeDispatch },
 	{ XS_CODE_UNSIGNED_RIGHT_SHIFT, XS_TOKEN_UNSIGNED_RIGHT_SHIFT, "UnsignedRightShift", sizeof(txBinaryExpressionNode), &gxBinaryExpressionNodeDispatch },
 	{ XS_CODE_UNSIGNED_RIGHT_SHIFT, XS_TOKEN_UNSIGNED_RIGHT_SHIFT_ASSIGN, "UnsignedRightShiftAssign", sizeof(txAssignNode), &gxCompoundExpressionNodeDispatch },
 	{ XS_NO_CODE, XS_TOKEN_VAR, "Var", sizeof(txDeclareNode), &gxDeclareNodeDispatch },

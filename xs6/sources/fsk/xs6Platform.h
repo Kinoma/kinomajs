@@ -283,6 +283,7 @@ typedef struct tm c_tm;
 #define c_pow pow
 #define c_rand rand
 #define c_round round
+#define c_signbit signbit
 #define c_sin sin
 #define c_sinh sinh
 #define c_sqrt sqrt

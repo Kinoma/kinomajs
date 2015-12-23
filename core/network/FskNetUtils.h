@@ -94,6 +94,8 @@ extern "C" {
 	typedef struct FskNetNotificationRecord *FskNetNotification;
 #endif
 
+typedef struct FskSocketCertificateRecord *FskSocketCertificate;
+
 typedef FskErr (*FskNetSocketCreatedCallback)(FskSocket skt, void *refCon);
 
 typedef void (*FskNetNotificationCallback)(int what, int message, void *refCon);
@@ -328,7 +330,7 @@ enum {
 FskAPI(FskErr) FskNetSocketDoSSL(char *host, FskSocket skt, FskNetSocketCreatedCallback callback, void *refCon);
 #endif
 
-typedef struct {
+typedef struct FskSocketCertificateRecord {
 	void *certificates;
 	int certificatesSize;
 	char *policies;
@@ -339,7 +341,7 @@ typedef struct {
 
 FskAPI(FskErr) FskNetConnectToHostPrioritized(char *host, int port, Boolean blocking,
 				FskNetSocketCreatedCallback callback, void *refCon, long flags,
-				int priority, FskSocketCertificateRecord *cert, char *debugName);
+				int priority, FskSocketCertificate cert, char *debugName);
 #define FskNetConnectToHost(host, port, blocking, callback, refCon, flags, cert, debugName) \
 			FskNetConnectToHostPrioritized(host, port, blocking, callback, refCon, flags, \
 					kFskNetSocketDefaultPriority, cert, debugName)
@@ -366,8 +368,8 @@ FskAPI(void) FskNetStringToIPandPort(const char *buf, int *IP, int *port);
 FskAPI(void) FskNetIPandPortToString(int IP, int port, char *addrString);
 FskAPI(FskErr) FskNetSocketGetLastError(FskSocket skt);
 
-FskAPI(FskSocketCertificateRecord *) FskNetUtilCopyCertificate(FskSocketCertificateRecord *src);
-FskAPI(void) FskNetUtilDisposeCertificate(FskSocketCertificateRecord *cert);
+FskAPI(FskSocketCertificate) FskNetUtilCopyCertificate(FskSocketCertificate src);
+FskAPI(void) FskNetUtilDisposeCertificate(FskSocketCertificate cert);
 
 
 #if TARGET_OS_KPL

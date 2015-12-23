@@ -1798,7 +1798,7 @@ static void sConnectResolved(FskResolver rr) {
 
 FskErr FskNetConnectToHostPrioritized(char *host, int port, Boolean blocking,
 			FskNetSocketCreatedCallback callback, void *refCon, long flags,
-			int priority, FskSocketCertificateRecord *cert, char *debugName)
+			int priority, FskSocketCertificate cert, char *debugName)
 {
 	FskSocket	skt = NULL;
 	FskErr		err = kFskErrNone;
@@ -1920,9 +1920,9 @@ FskErr FskNetSocketGetLastError(FskSocket skt)
 	return skt->lastErr;
 }
 
-FskSocketCertificateRecord *FskNetUtilCopyCertificate(FskSocketCertificateRecord *src)
+FskSocketCertificate FskNetUtilCopyCertificate(FskSocketCertificate src)
 {
-	FskSocketCertificateRecord *dst;
+	FskSocketCertificate dst;
 	FskErr err;
 
 	if ((err = FskMemPtrNewClear(sizeof(FskSocketCertificateRecord), &dst)) != kFskErrNone)
@@ -1941,7 +1941,7 @@ FskSocketCertificateRecord *FskNetUtilCopyCertificate(FskSocketCertificateRecord
 	}
 	if (src->hostname != NULL) {
 		dst->hostname = FskStrDoCopy(src->hostname);
-		if (dst->hostname != NULL) {
+		if (dst->hostname == NULL) {
 			err = kFskErrMemFull;
 			goto bail;
 		}
@@ -1959,7 +1959,7 @@ bail:
 	return dst;
 }
 
-void FskNetUtilDisposeCertificate(FskSocketCertificateRecord *cert)
+void FskNetUtilDisposeCertificate(FskSocketCertificate cert)
 {
 	if (cert != NULL) {
 		if (cert->certificates != NULL && cert->certificatesSize > 0)

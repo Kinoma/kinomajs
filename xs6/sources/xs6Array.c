@@ -23,7 +23,6 @@ static txBoolean fxCallArrayItem(txMachine* the, txSlot* function, txSlot* array
 static txSlot* fxCoerceToArray(txMachine* the, txSlot* slot, txIndex* length);
 static int fxCompareArrayItem(txMachine* the, txSlot* function, txSlot* array, txInteger i);
 static txSlot* fxConstructArrayResult(txMachine* the, txSlot* constructor, txUnsigned length);
-static txBoolean fxIsArray(txMachine* the, txSlot* instance);
 static void fxReduceArrayItem(txMachine* the, txSlot* function, txSlot* array, txIndex index);
 #if mxProxy
 static txBoolean fxCallProxyItem(txMachine* the, txSlot* function, txSlot* instance, txIndex index, txSlot* item);
@@ -155,14 +154,10 @@ void fxBuildArray(txMachine* the)
 	mxPull(mxArrayValuesIteratorPrototype);
 	
 	mxPush(mxObjectPrototype);
-	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot = fxNextStringProperty(the, slot, "Arguments", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxParametersPrototype = *the->stack;
 	the->stack++;
 	
 	mxPush(mxObjectPrototype);
-	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot = fxNextStringProperty(the, slot, "Arguments", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxArgumentsStrictPrototype = *the->stack;
 	the->stack++;
 }
@@ -501,10 +496,23 @@ void fxReduceProxyItem(txMachine* the, txSlot* function, txSlot* instance, txInd
 }
 #endif
 
-void fxSetArrayLength(txMachine* the, txSlot* array, txIndex target)
+txBoolean fxSetArrayLength(txMachine* the, txSlot* array, txIndex target)
 {
 	txIndex length = array->value.array.length;
 	txSlot* address = array->value.array.address;
+	txBoolean result = 1;
+	if (target < length) {
+		txSlot* from = address + target;
+		txSlot* to = address + length;
+		while (from < to) {
+			if (from->flag & XS_DONT_DELETE_FLAG) {
+				target = (from - address) + 1;
+				result = 0;
+				break;
+			}
+			from++;
+		}
+	}
 	if (length != target) {
 		if (address)
 			address = (txSlot*)fxRenewChunk(the, address, target * sizeof(txSlot));
@@ -524,6 +532,7 @@ void fxSetArrayLength(txMachine* the, txSlot* array, txIndex target)
 		array->value.array.length = target;
 		array->value.array.address = address;
 	}
+	return result;
 }
 
 txSlot* fxNewArrayInstance(txMachine* the)
@@ -533,6 +542,7 @@ txSlot* fxNewArrayInstance(txMachine* the)
 	instance = fxNewObjectInstance(the);
 	instance->flag |= XS_VALUE_FLAG;
 	property = instance->next = fxNewSlot(the);
+	property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG;
 	property->kind = XS_ARRAY_KIND;
 	property->value.array.length = 0;
 	property->value.array.address = C_NULL;
@@ -568,8 +578,11 @@ txSlot* fxSetArrayProperty(txMachine* the, txSlot* array, txInteger index)
 	txSlot* result;
 	if (index >= XS_MAX_INDEX)		
 		mxRangeError("invalid index");
-	if (array->value.array.length <= index)
+	if (array->value.array.length <= index) {
+		if (array->flag & XS_DONT_SET_FLAG)
+			mxTypeError("invalid index");
 		fxSetArrayLength(the, array, index + 1);
+	}
 	result = array->value.array.address + index;
 	result->ID = XS_NO_ID;
 	return result;
@@ -1477,7 +1490,7 @@ void fx_Array_prototype_length_set(txMachine* the)
 		}
 	}
 	else
-		mxRangeError("invalid length");
+		mxTypeError("invalid length");
 	*mxResult = *mxArgv(0);
 }
 
@@ -2277,11 +2290,16 @@ txBoolean fxRemoveParametersProperty(txMachine* the, txSlot* instance, txInteger
 	txSlot* result;
 	if (index < array->value.array.length) {
 		result = array->value.array.address + index;
-		if (result->ID) {
-			result->ID = 0;
-			result->kind = XS_UNDEFINED_KIND;
-			return 1;
+		if (result->kind == XS_CLOSURE_KIND) {
+			if (result->value.closure->flag & XS_DONT_DELETE_FLAG)
+				return 0;
 		}
+		else {
+			if (result->flag & XS_DONT_DELETE_FLAG)
+				return 0;
+		}
+		result->ID = 0;
+		return 1;
 	}
 	return 0;
 }
@@ -2292,11 +2310,18 @@ txSlot* fxSetParametersProperty(txMachine* the, txSlot* instance, txInteger inde
 	txSlot* result;
 	if (index < array->value.array.length) {
 		result = array->value.array.address + index;
-		if (result->ID) {
-			if (result->kind == XS_CLOSURE_KIND)
-				return result->value.closure;
-			return result;
-		}
+		result->ID = XS_NO_ID;
+		if (result->kind == XS_CLOSURE_KIND)
+			return result->value.closure;
+		return result;
+	}
+	else {
+		if (instance->flag & XS_DONT_PATCH_FLAG)
+			return C_NULL;
+		fxSetArrayLength(the, array, index + 1);
+		result = array->value.array.address + index;
+		result->ID = XS_NO_ID;
+		return result;
 	}
 	return C_NULL;
 }
@@ -2320,6 +2345,7 @@ txSlot* fxNewArgumentsStrictInstance(txMachine* the, txInteger count)
 	property = fxNextHostAccessorProperty(the, property, fx_Arguments_prototype_callee, fx_Arguments_prototype_callee, mxID(_callee), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	property = fxNextHostAccessorProperty(the, property, fx_Arguments_prototype_caller, fx_Arguments_prototype_caller, mxID(_caller), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	property = fxNextHostFunctionProperty(the, property, fx_Array_prototype_values, 0, mxID(_Symbol_iterator), XS_DONT_ENUM_FLAG);
+	property = fxNextStringProperty(the, property, "Arguments", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	the->code = code;
 	count = mxArgc;
 	fxSetArrayLength(the, array, length);

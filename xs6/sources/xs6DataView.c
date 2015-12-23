@@ -248,7 +248,6 @@ void fxBuildDataView(txMachine* the)
 		{ fx_TypedArray_prototype_some, 1, _some },
 		{ fx_TypedArray_prototype_sort, 1, _sort },
 		{ fx_TypedArray_prototype_subarray, 2, _subarray },
-		{ fx_TypedArray_prototype_join, 0, _toLocaleString },
 		{ fx_TypedArray_prototype_join, 0, _toString },
 		{ fx_TypedArray_prototype_values, 0, _values },
 		{ fx_TypedArray_prototype_values, 0, _Symbol_iterator },

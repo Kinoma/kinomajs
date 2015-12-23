@@ -229,8 +229,8 @@ FskAPI(FskEmbedding)		FskEmbeddingMake(FskConstRectangle srcRect, FskConstFloatR
  *	\param[in]	position	The 3D position of the camera, in world units.
  *	\param[in]	orientation	The orientation of the image.
  *	\param[in]	focalLength	The focal length of the camera, in pixels; e.g. to capture 90 degrees horizontally, set equal to the width.
- *	\param[in]	embedding	The resultant camera matrix.
- *	\return					he resultant camera matrix.
+ *	\param[in]	camera		The resultant camera matrix.
+ *	\return					The resultant camera matrix.
  */
 FskAPI(FskCamera)			FskCameraMake(SInt32 width, SInt32 height, const FskPoint3F *position, const FskQuaternionWXYZ *orientation, float focalLength, FskCamera camera);
 

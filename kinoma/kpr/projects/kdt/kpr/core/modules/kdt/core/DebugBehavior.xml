@@ -844,9 +844,9 @@
                 function processMessage( handler, message, params ) 
                 {
                     var url = getBehavior().getIcon();
-                    
+					
                     if( Files.exists( url ) )
-                       message.responseChunk = Files.readChunk( url );
+                       message.responseBuffer = Files.readBuffer( url );
                 }
             ]]>
         </behavior>
@@ -1214,7 +1214,6 @@
                                    url = symbols;
                                    break;
                             }
-                            
                             if( url != null && Files.exists( url ) != null )
                                 message.responseChunk = Files.readChunk( url );
                             else

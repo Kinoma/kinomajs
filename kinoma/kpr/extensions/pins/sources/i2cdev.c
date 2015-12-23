@@ -85,9 +85,6 @@ FskErr FskI2CDevSetSlave(int busNum, uint8_t addr)
 {
     FskErr err = kFskErrNone;
 
-    if (!i2c_fd[busNum])
-        FskI2COpen(busNum);
-
     if (i2c_slave[busNum] == addr)
         return kFskErrNone;
  
@@ -130,7 +127,7 @@ int32_t FskI2CDevReadByte(int busNum, I2C_BusType i2cBusType)
     }
     else { // SMB i2c_smbus_read_byte
         union i2c_smbus_data data;
-        int result = doI2C(i2c_fd[busNum], I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &data);
+        int result = doI2C(i2c_fd[busNum], I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &data);		//@@
         if (result) {
             DBG_I2C("FskI2CReadByte: Failed to read byte using SMB\n");
             return -1;
@@ -188,7 +185,7 @@ FskErr FskI2CDevWriteByte(int busNum, I2C_BusType i2cBusType, uint8_t byte)
     else { // SMB i2c_smbus_write_byte
         union i2c_smbus_data data;
         data.byte = byte;
-        int result = doI2C(i2c_fd[busNum], I2C_SMBUS_WRITE, byte, I2C_SMBUS_BYTE, &data);
+        int result = doI2C(i2c_fd[busNum], I2C_SMBUS_WRITE, byte, I2C_SMBUS_BYTE, &data);		//@@
         if (result < 0) {
             DBG_I2C("FskI2CWriteByte: Failed to write byte %#x using SMB\n", byte);
             err = kFskErrOperationFailed;

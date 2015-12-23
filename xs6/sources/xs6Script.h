@@ -966,6 +966,7 @@ extern void fxTemplateNodeCode(void* it, void* param);
 extern void fxThrowNodeCode(void* it, void* param); 
 extern void fxTryNodeCode(void* it, void* param); 
 extern void fxUnaryExpressionNodeCode(void* it, void* param);
+extern void fxUndefinedNodeCodeAssign(void* it, void* param);
 extern void fxValueNodeCode(void* it, void* param);
 extern void fxWhileNodeCode(void* it, void* param); 
 extern void fxWithNodeCode(void* it, void* param);

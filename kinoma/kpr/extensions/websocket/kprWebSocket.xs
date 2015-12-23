@@ -27,6 +27,8 @@
 			<function name="get bufferedAmount" c="KPR_websocketclient_get_bufferedAmount"/>
 			<function name="get protocol" c="KPR_websocketclient_get_protocol"/>
 			<function name="get url" c="KPR_websocketclient_get_url"/>
+			<function name="get binaryType" c="KPR_websocketclient_get_binaryType"/>
+			<function name="set binaryType" c="KPR_websocketclient_set_binaryType"/>
 
 			<null name="onopen"/>
 			<null name="onmessage"/>

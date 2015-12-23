@@ -45,7 +45,9 @@ enum {
 	kFskExtensionTextEngine,
 	kFskExtensionPinDigital,
 	kFskExtensionPinAnalog,
-	kFskExtensionPinI2C
+	kFskExtensionPinI2C,
+	kFskExtensionPinPWM,
+	kFskExtensionPinSerial
 };
 
 

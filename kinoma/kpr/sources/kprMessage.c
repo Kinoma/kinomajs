@@ -420,8 +420,8 @@ void KprMessageDispose(KprMessage self)
 		if (self->request.dispose)
 			(*self->request.dispose)(self->request.target);
 		FskMemPtrDispose(self->request.body);
-		FskMemPtrDispose(self->request.certificate);
-		FskMemPtrDispose(self->request.policies);
+		if (self->request.certs != NULL)
+			FskNetUtilDisposeCertificate(self->request.certs);
 		FskAssociativeArrayDispose(self->request.headers);
 		FskMemPtrDispose(self->url);
 		FskMemPtrDispose(self->method);
@@ -599,20 +599,14 @@ bail:
 	return err;
 }
 
-FskErr KprMessageSetRequestCertificate(KprMessage self, void* certificate, UInt32 size, char *policies)
+FskErr KprMessageSetRequestCertificate(KprMessage self, FskSocketCertificateRecord* certs)
 {
-	FskErr err = kFskErrNone;
-	FskMemPtrDisposeAt(&self->request.certificate);
-	FskMemPtrDisposeAt(&self->request.policies);
-	self->request.certificateSize = 0;
-	if (certificate && size) {
-		bailIfError(FskMemPtrNew(size, &self->request.certificate));
-		FskMemCopy(self->request.certificate, certificate, size);
-		self->request.certificateSize = size;
-	}
-	self->request.policies = FskStrDoCopy(policies);
-bail:
-	return err;
+	if (certs == NULL)
+		return kFskErrNone;
+	self->request.certs = FskNetUtilCopyCertificate(certs);
+	if (self->request.certs == NULL)
+		return kFskErrMemFull;
+	return kFskErrNone;
 }
 
 FskErr KprMessageSetRequestHeader(KprMessage self, char* name, char* value)
@@ -1128,16 +1122,37 @@ void KPR_message_cancel(xsMachine* the)
 void KPR_message_setRequestCertificate(xsMachine* the)
 {
 	KprMessage self = xsGetHostData(xsThis);
-	void *data = NULL;
-	xsStringValue policies = NULL;
-	xsIntegerValue size = 0;
-	if (xsTest(xsArg(0))) {
-		data = xsGetHostData(xsArg(0));
-		size = xsToInteger(xsGet(xsArg(0), xsID_length));
+	FskSocketCertificateRecord* certs = NULL;
+	FskSocketCertificateRecord certsRecord = {
+		NULL, 0,
+		NULL,
+		NULL,
+		NULL, 0,
+	};
+	if (xsIsInstanceOf(xsArg(0), xsObjectPrototype)) {
+		certs = &certsRecord;
+		if (xsHas(xsArg(0), xsID("certificates"))) {
+			certs->certificates = (void*)xsToString(xsGet(xsArg(0), xsID("certificates")));
+			certs->certificatesSize = FskStrLen(certs->certificates);
+		}
+		if (xsHas(xsArg(0), xsID("policies"))) {
+			certs->policies = xsToString(xsGet(xsArg(0), xsID("policies")));
+		}
+		if (xsHas(xsArg(0), xsID("key"))) {
+			certs->key = (void*)xsToString(xsGet(xsArg(0), xsID("key")));
+			certs->keySize = FskStrLen(certs->key);
+		}
 	}
-	if (xsTest(xsArg(1)))
-		policies = xsToString(xsArg(1));
-	xsThrowIfFskErr(KprMessageSetRequestCertificate(self, data, size, policies));
+	else { // compatibility
+		certs = &certsRecord;
+		if (xsTest(xsArg(0))) {
+			certs->certificates = xsGetHostData(xsArg(0));
+			certs->certificatesSize = xsToInteger(xsGet(xsArg(0), xsID_length));
+		}
+		if (xsTest(xsArg(1)))
+			certs->policies = xsToString(xsArg(1));
+	}
+	xsThrowIfFskErr(KprMessageSetRequestCertificate(self, certs));
 }
 
 void KPR_message_setRequestHeader(xsMachine* the)

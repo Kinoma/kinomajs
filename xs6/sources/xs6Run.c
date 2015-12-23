@@ -717,7 +717,7 @@ XS_CODE_JUMP:
 			generator = fxNewGeneratorInstance(the);
 			mxRestoreState;
             if (mxFrameTarget->kind != XS_UNDEFINED_KIND)
-            	mxFrameThis->kind = XS_UNDEFINED_KIND;
+            	mxFrameThis->kind = XS_UNINITIALIZED_KIND;
 			/* continue */
 		mxCase(XS_CODE_YIELD)
 			mxSkipCode(1);
@@ -1641,8 +1641,11 @@ XS_CODE_JUMP:
 #ifdef mxTrace
 			if (gxDoTrace) fxTraceID(the, offset);
 #endif
-			if (!slot)
-				mxRunDebugID(XS_TYPE_ERROR, "set %s: not extensible", offset);
+			if (!slot) {
+				if (mxFrame->flag & XS_STRICT_FLAG)
+					mxRunDebugID(XS_TYPE_ERROR, "set %s: not extensible", offset);
+				mxBreak;
+			}
 			if (slot->kind == XS_ACCESSOR_KIND) {
 				slot = slot->value.accessor.setter;
 				if (!mxIsFunction(slot)) {
@@ -2763,6 +2766,40 @@ txBoolean fxIsSameSlot(txMachine* the, txSlot* a, txSlot* b)
 		result = (!c_isnan(b->value.number)) && ((txNumber)(a->value.integer) == b->value.number);
 	else if ((XS_NUMBER_KIND == a->kind) && (XS_INTEGER_KIND == b->kind))
 		result = (!c_isnan(a->value.number)) && (a->value.number == (txNumber)(b->value.integer));
+	else if ((XS_STRING_KIND == a->kind) && (XS_STRING_X_KIND == b->kind))
+		result = c_strcmp(a->value.string, b->value.string) == 0;
+	else if ((XS_STRING_X_KIND == a->kind) && (XS_STRING_KIND == b->kind))
+		result = c_strcmp(a->value.string, b->value.string) == 0;
+	return result;
+}
+
+txBoolean fxIsSameValue(txMachine* the, txSlot* a, txSlot* b)
+{	
+	txBoolean result = 0;
+	if (a->kind == b->kind) {
+		if ((XS_UNDEFINED_KIND == a->kind) || (XS_NULL_KIND == a->kind))
+			result = 1;
+		else if (XS_BOOLEAN_KIND == a->kind)
+			result = a->value.boolean == b->value.boolean;
+		else if (XS_INTEGER_KIND == a->kind)
+			result = a->value.integer == b->value.integer;
+        else if (XS_NUMBER_KIND == a->kind)
+			result = ((c_isnan(a->value.number) && c_isnan(b->value.number)) || ((a->value.number == b->value.number) && (c_signbit(a->value.number) == c_signbit(b->value.number))));
+		else if ((XS_STRING_KIND == a->kind) || (XS_STRING_X_KIND == a->kind))
+			result = c_strcmp(a->value.string, b->value.string) == 0;
+		else if (XS_SYMBOL_KIND == a->kind)
+			result = a->value.ID == b->value.ID;
+		else if (XS_REFERENCE_KIND == a->kind)
+			result = a->value.reference == b->value.reference;
+	}
+	else if ((XS_INTEGER_KIND == a->kind) && (XS_NUMBER_KIND == b->kind)) {
+		txNumber aNumber = a->value.integer;
+		result = (aNumber == b->value.number) && (signbit(aNumber) == signbit(b->value.number));
+	}
+	else if ((XS_NUMBER_KIND == a->kind) && (XS_INTEGER_KIND == b->kind)) {
+		txNumber bNumber = b->value.integer;
+		result = (a->value.number == bNumber) && (signbit(a->value.number) == signbit(bNumber));
+	}
 	else if ((XS_STRING_KIND == a->kind) && (XS_STRING_X_KIND == b->kind))
 		result = c_strcmp(a->value.string, b->value.string) == 0;
 	else if ((XS_STRING_X_KIND == a->kind) && (XS_STRING_KIND == b->kind))

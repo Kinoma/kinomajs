@@ -1051,10 +1051,10 @@ FskAPI(FskErr)	FskGrowableEquivalencesFindClassIndexOfElement(FskConstGrowableEq
  *	\param[in]		position	Position of the element in the class.
  *	\param[in]		compare		The comparison function to use for the search.
  *	\param[out]		pIndex		A location to store the index of the matched element.
- *	\bug			There is no way to fetch multiple matches with this call.
- *					However, see the "To iterate through all elements of all classes" section above.
  *	\return			kFskErrNone			if the operation was completed successfully.
  *	\return			kFskErrItemNotFound	if the element could not be found in the specified position of any class.
+ *	\bug			There is no way to fetch multiple matches with this call.
+ *					However, see the "To iterate through all elements of all classes" section above.
  */
 FskAPI(FskErr)	FskGrowableEquivalencesFindClassIndexOfElementInPosition(FskConstGrowableEquivalences coll, FskBlobRecord *key, UInt32 position, FskEquivalenceElementCompare compare, UInt32 *pIndex);
 
@@ -1143,9 +1143,9 @@ FskErr		FskGrowableEquivalencesGetConstPointerToClass(FskConstGrowableEquivalenc
  *								The other fields (id and dir) will be preserved and communicated to the comparison function call.
  *	\param[in]		compare		A function to be used for comparison; NULL matches size and content. The key is supplied as the first blob.
  *	\param[out]		pID			A location to store the ID of the matched element.
+ *	\return			kFskErrNone	if the operation was completed successfully.
  *	\bug			There is no way to fetch multiple matches with this call.
  *					However, see the "To iterate through all elements of all classes" section above.
- *	\return			kFskErrNone	if the operation was completed successfully.
  */
 FskErr	FskGrowableEquivalencesFindClassIDOfElement(FskConstGrowableEquivalences coll, FskBlobRecord *key, FskEquivalenceElementCompare compare, UInt32 *pID);
 #define FskGrowableEquivalencesFindClassIDOfElement(coll, key, compare, pID)	((kFskErrNone == (err = FskGrowableEquivalencesFindClassIndexOfElement(coll, key, compare, pID))) \

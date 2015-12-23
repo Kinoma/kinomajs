@@ -192,7 +192,7 @@ typedef struct FskHTTPClientRecord {
 	int			hostIP;
 
 	FskHTTPAuth	auth;
-	FskSocketCertificateRecord	cert;
+	FskSocketCertificate	certs;
 
 	struct FskHTTPClientRequestRecord *httpRequests;
 	int			requestState;
@@ -354,7 +354,7 @@ FskAPI(void)	FskHTTPClientSetAuthCallback(FskHTTPClient client,
 FskAPI(FskErr)	FskHTTPClientSetCredentials(FskHTTPClient client,
 								char *username, char *credentials,
 								int credentialsSize, int credentialsType);
-FskAPI(FskErr)	FskHTTPClientSetCertificates(FskHTTPClient client, const void *data, int dataSize, const char *policies);
+FskAPI(FskErr)	FskHTTPClientSetCertificates(FskHTTPClient client, FskSocketCertificate certs);
 
 FskAPI(FskErr)	FskHTTPClientBegin(FskHTTPClient client);
 FskAPI(FskErr)  FskHTTPClientAddRequest(FskHTTPClient client, FskHTTPClientRequest request);

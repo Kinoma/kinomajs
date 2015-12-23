@@ -274,6 +274,7 @@ void fxConstructObject(txMachine* the, txSlot* instance, txSlot* arguments, txSl
 
 txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id, txSlot* descriptor)
 {
+	txSlot* stack = the->stack;
 	txSlot* configurable = C_NULL;
 	txSlot* enumerable = C_NULL;
 	txSlot* get = C_NULL;
@@ -282,33 +283,48 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id,
 	txSlot* writable = C_NULL;
 	txSlot* getFunction = C_NULL;
 	txSlot* setFunction = C_NULL;
+	txBoolean isArrayLength = (instance->flag & XS_VALUE_FLAG) && (instance->next->kind == XS_ARRAY_KIND) && (id == mxID(_length));
 	txSlot* property;
 	txFlag aFlag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 
+	if (!mxIsReference(descriptor))
+		mxTypeError("descriptor is no object");
 	mxPushSlot(descriptor);
-	fxGetID(the, mxID(_enumerable));
-	if (the->stack->kind != XS_UNDEFINED_KIND)
+	if (fxHasID(the, mxID(_enumerable))) {
+		mxPushSlot(descriptor);
+		fxGetID(the, mxID(_enumerable));
 		enumerable = the->stack;
+	}
 	mxPushSlot(descriptor);
-	fxGetID(the, mxID(_configurable));
-	if (the->stack->kind != XS_UNDEFINED_KIND)
+	if (fxHasID(the, mxID(_configurable))) {
+		mxPushSlot(descriptor);
+		fxGetID(the, mxID(_configurable));
 		configurable = the->stack;
+	}
 	mxPushSlot(descriptor);
-	fxGetID(the, mxID(_value));
-	if (the->stack->kind != XS_UNDEFINED_KIND)
+	if (fxHasID(the, mxID(_value))) {
+		mxPushSlot(descriptor);
+		fxGetID(the, mxID(_value));
 		value = the->stack;
+	}
 	mxPushSlot(descriptor);
-	fxGetID(the, mxID(_writable));
-	if (the->stack->kind != XS_UNDEFINED_KIND)
+	if (fxHasID(the, mxID(_writable))) {
+		mxPushSlot(descriptor);
+		fxGetID(the, mxID(_writable));
 		writable = the->stack;
+	}
 	mxPushSlot(descriptor);
-	fxGetID(the, mxID(_get));
-	if (the->stack->kind != XS_UNDEFINED_KIND)
+	if (fxHasID(the, mxID(_get))) {
+		mxPushSlot(descriptor);
+		fxGetID(the, mxID(_get));
 		get = the->stack;
+	}
 	mxPushSlot(descriptor);
-	fxGetID(the, mxID(_set));
-	if (the->stack->kind != XS_UNDEFINED_KIND)
+	if (fxHasID(the, mxID(_set))) {
+		mxPushSlot(descriptor);
+		fxGetID(the, mxID(_set));
 		set = the->stack;
+	}
 	if (get) {
 		if (value)
 			mxTypeError("get and value");
@@ -331,7 +347,10 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id,
 				mxTypeError("set is no function");
 		}
 	}
-	property = fxGetOwnProperty(the, instance, id);
+	if (isArrayLength)
+		property = instance->next;
+	else
+		property = fxGetOwnProperty(the, instance, id);
 	if (property) {
 		if (property->flag & XS_DONT_DELETE_FLAG) {
 			if (configurable && fxToBoolean(the, configurable)) {
@@ -364,7 +383,11 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id,
 					if (writable && fxToBoolean(the, writable))
 						goto not_configurable; 
 					if (value) {
-						if (!fxIsSameSlot(the, property, value))
+						if (isArrayLength)
+							mxPushInteger(property->value.array.length);
+						else
+							mxPushSlot(property);
+						if (!fxIsSameValue(the, the->stack, value))
 							goto not_configurable;
 					}
 				}
@@ -390,9 +413,11 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id,
 			property->flag |= XS_DONT_ENUM_FLAG;
 	}
 	if (get || set) {
-		property->kind = XS_ACCESSOR_KIND;
-		property->value.accessor.getter = C_NULL;
-		property->value.accessor.setter = C_NULL;
+		if (property->kind != XS_ACCESSOR_KIND) {
+			property->kind = XS_ACCESSOR_KIND;
+			property->value.accessor.getter = C_NULL;
+			property->value.accessor.setter = C_NULL;
+		}
 		if (get) {
 			property->value.accessor.getter = getFunction;
 			if (mxIsFunction(getFunction)) {
@@ -426,18 +451,32 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id,
 				property->flag |= XS_DONT_SET_FLAG;
 		}
 		if (value) {
-			property->kind = value->kind;
-			property->value = value->value;
-			if (value->kind == XS_REFERENCE_KIND) {
-				value = value->value.reference;
-				if (mxIsFunction(value)) {
-					property = mxFunctionInstanceHome(value);
-					if (property->kind == XS_NULL_KIND) {
-						property->kind = XS_REFERENCE_KIND;
-						property->value.reference = instance;
+			if ((instance->flag & XS_VALUE_FLAG) && (instance->next->kind == XS_ARRAY_KIND) && (id == mxID(_length))) {
+				txBoolean flag;
+				txIndex length;
+				if (value->kind == XS_INTEGER_KIND)
+					flag = fxIntegerToIndex(the->dtoa, value->value.integer, (txInteger*)&length);
+				else
+					flag = fxNumberToIndex(the->dtoa, fxToNumber(the, value), (txInteger*)&length);
+				if (!flag)
+					mxRangeError("invalid length");
+				if (!fxSetArrayLength(the, property, length))
+					mxTypeError("invalid length");
+			}
+			else {
+				property->kind = value->kind;
+				property->value = value->value;
+				if (value->kind == XS_REFERENCE_KIND) {
+					value = value->value.reference;
+					if (mxIsFunction(value)) {
+						property = mxFunctionInstanceHome(value);
+						if (property->kind == XS_NULL_KIND) {
+							property->kind = XS_REFERENCE_KIND;
+							property->value.reference = instance;
+						}
+						property = fxGetProperty(the, value, mxID(_name));
+						fxRenameFunction(the, property, id, "value", C_NULL);
 					}
-					property = fxGetProperty(the, value, mxID(_name));
-					fxRenameFunction(the, property, id, "value", C_NULL);
 				}
 			}
 		}
@@ -445,10 +484,10 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txInteger id,
 			property->kind = XS_UNDEFINED_KIND;
 		}
 	}
-	the->stack += 6;
+	the->stack = stack;
 	return 1;
 not_configurable:
-	the->stack += 6;
+	the->stack = stack;
 	return 0;
 }
 
@@ -481,16 +520,28 @@ void fxEachObjectProperty(txMachine* the, txSlot* target, txFlag theFlag, txStep
 			}
 		}
 		while (aProperty) {
-			if (!(aProperty->flag & propertyFlag)) {
-				if (aProperty->ID == XS_NO_ID) {
-					if (aProperty->kind == XS_ARRAY_KIND) {
-						aCount = aProperty->value.array.length;
-						for (anIndex = 0; anIndex < aCount; anIndex++) {
-							if ((aProperty->value.array.address + anIndex)->ID)
-								fxStepInstanceProperty(the, target, theFlag, theStep, theContext, anIndex, aProperty->value.array.address + anIndex);
-						}
-						break;
+			if (aProperty->ID == XS_NO_ID) {
+				if (aProperty->kind == XS_ARRAY_KIND) {
+					aCount = aProperty->value.array.length;
+					for (anIndex = 0; anIndex < aCount; anIndex++) {
+						txSlot* aSlot = aProperty->value.array.address + anIndex;
+						if (aSlot->ID && !(aSlot->flag & propertyFlag))
+							fxStepInstanceProperty(the, target, theFlag, theStep, theContext, anIndex, aSlot);
 					}
+					break;
+				}
+				if (aProperty->kind == XS_PARAMETERS_KIND) {
+					aCount = aProperty->value.array.length;
+					for (anIndex = 0; anIndex < aCount; anIndex++) {
+						txSlot* aSlot = aProperty->value.array.address + anIndex;
+						if (aSlot->ID) {
+							if (aSlot->kind == XS_CLOSURE_KIND)
+								aSlot = aSlot->value.closure;
+							if (!(aSlot->flag & propertyFlag))
+								fxStepInstanceProperty(the, target, theFlag, theStep, theContext, anIndex, aSlot);
+						}
+					}
+					break;
 				}
 			}
 			aProperty = aProperty->next;
@@ -609,7 +660,7 @@ txSlot* fxGetObjectOwnProperty(txMachine* the, txSlot* instance, txInteger id)
 		case XS_ARRAY_KIND:
 			if (id == mxID(_length)) {
 				mxPushInteger(instance->next->value.array.length);
-				the->stack->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG;
+				the->stack->flag = instance->next->flag;
 				return the->stack;
 			}
 			break;
@@ -651,6 +702,8 @@ void fxIsObjectExtensible(txMachine* the, txSlot* instance)
 void fxPreventObjectExtensions(txMachine* the, txSlot* instance)
 {
 	instance->flag |= XS_DONT_PATCH_FLAG;
+	mxResult->kind = XS_BOOLEAN_KIND;
+	mxResult->value.boolean = 1;
 }
 
 void fxSetObjectPrototype(txMachine* the, txSlot* instance, txSlot* slot)

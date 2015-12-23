@@ -568,17 +568,12 @@ void FskCocoaWindowInputTextActivate(FskWindow fskWindow, xsMachine *the, xsSlot
 
     win.machine = the;
     win.obj = obj;
-    win.keyboardString = nil;
+	[win resetStorage];
     win.autocapitalizationType = UITextAutocapitalizationTypeNone;
     win.autocorrectionType = UITextAutocorrectionTypeNo;
+	win.returnKeyType = UIReturnKeyNext;
     switch (mode)
     {
-        case cocoaTextInputTypeDefault:
-        case cocoaTextInputTypeMultiLine:
-        case cocoaTextInputTypePassword:
-        default:
-            win.keyboardType = UIKeyboardTypeDefault;
-            break;
         case cocoaTextInputTypeNumeric:
             //win.keyboardType = UIKeyboardTypeNumbersAndPunctuation;
             win.keyboardType = UIKeyboardTypeNumberPad;
@@ -593,6 +588,15 @@ void FskCocoaWindowInputTextActivate(FskWindow fskWindow, xsMachine *the, xsSlot
         case cocoaTextInputTypePhone:
             win.keyboardType = UIKeyboardTypePhonePad;
             break;
+		case cocoaTextInputTypeMultiLine:
+			win.returnKeyType = UIReturnKeyDefault;
+			win.keyboardType = UIKeyboardTypeDefault;
+			break;
+		case cocoaTextInputTypeDefault:
+		case cocoaTextInputTypePassword:
+		default:
+			win.keyboardType = UIKeyboardTypeDefault;
+			break;
     }
 #endif
 }
@@ -607,8 +611,7 @@ void FskCocoaWindowInputTextSetSelection(FskWindow fskWindow, const char *text, 
         return;
     }
 
-    win.keyboardSelectedRange = NSMakeRange((NSUInteger)selectionStart, (NSUInteger)(selectionEnd - selectionStart));
-	win.keyboardString = [NSMutableString stringWithUTF8String:text];
+	[win setStorageText:[NSString stringWithUTF8String:text] selection:NSMakeRange((NSUInteger)selectionStart, (NSUInteger)(selectionEnd - selectionStart))];
  #endif
 }
 

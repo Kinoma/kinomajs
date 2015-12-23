@@ -21,6 +21,44 @@
 #define MULTI_TOUCHES 1
 #define TEXT_INPUT_SYSTEM   1
 
+#pragma mark TextStorage
+
+#if TEXT_INPUT_SYSTEM
+
+@protocol CocoaTextStorageDeleage <NSObject>
+
+- (void)storageChangedInRange:(NSRange)range withText:(NSString *)text;
+
+@end
+
+@interface CocoaTextStorage : NSObject
+
+@property (nonatomic, assign) id<CocoaTextStorageDeleage> delegate;
+@property (nonatomic, readonly) NSString *text;
+@property (nonatomic, assign) NSRange selectedRange;
+@property (nonatomic, readonly, assign) NSRange markedRange;
+@property (nonatomic, readonly) NSUInteger length;
+
+- (void)unmark;
+- (BOOL)isMarked;
+- (NSUInteger)caretPosition;
+- (void)setCaretPosition:(NSUInteger)pos;
+- (BOOL)hasSelection;
+
+- (BOOL)isInTextRange:(NSInteger)pos;
+
+- (NSString *)text;
+- (NSString *)subtextWithRange:(NSRange)range;
+- (void)setText:(NSString *)text withSelectedRange:(NSRange)range;
+
+- (void)insertText:(NSString *)text;
+- (void)deleteBackword;
+- (void)insertMarkedText:(NSString *)text withSelection:(NSRange)selection;
+
+@end
+
+#endif
+
 @interface FskCocoaView : UIView
 #if TEXT_INPUT_SYSTEM
 <UITextInput>
@@ -30,10 +68,8 @@
 
 @property (nonatomic, readonly) BOOL isMainView;
 @property (nonatomic, assign) BOOL keyboardActive;
+@property(nonatomic) UIReturnKeyType returnKeyType;
 #if TEXT_INPUT_SYSTEM
-@property (nonatomic, retain) NSMutableString *keyboardString;
-@property (nonatomic, assign) NSRange keyboardSelectedRange;
-@property (nonatomic, assign) NSRange keyboardMarkedRange;
 @property (nonatomic, readonly) BOOL keyboardUpdating;
 @property (nonatomic, assign) xsMachine *machine;
 @property (nonatomic, assign) xsSlot obj;
@@ -79,5 +115,8 @@
 - (void)keyboardDidShow:(NSNotification *)notification;
 - (void)keyboardWillHide:(NSNotification *)notification;
 - (void)keyboardWillShow:(NSNotification *)notification;
+
+- (void)resetStorage;
+- (void)setStorageText:(NSString *)text selection:(NSRange)range;
 
 @end

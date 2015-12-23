@@ -402,6 +402,14 @@
 		</object>
 
 		<object name="helloProtocol">
+			<object name="extension_type">
+				<number name="server_name" value="0"/>
+				<number name="max_fragment_length" value="1"/>
+				<number name="client_certification_url" value="2"/>
+				<number name="trusted_ca_keys" value="3"/>
+				<number name="trusted_hmac" value="4"/>
+				<number name="status_request" value="5"/>
+			</object>
 			<string name="name" value="helloProtocol"/>
 			<object name="random">
 				<number name="qmt_unix_time"/>
@@ -509,6 +517,44 @@
 					s.writeChar(compressionMethods.length);
 					for (var i = 0; i < compressionMethods.length; i++)
 						s.writeChar(compressionMethods[i]);
+					if (session.extensions) {
+						var es = new FskSSL.ChunkStream();
+						for (var i in session.extensions) {
+							var ext = session.extensions[i];
+							var type = this.extension_type[i];
+							es.writeChars(type, 2);
+							switch (type) {
+							case this.extension_type.server_name:
+								var len = 1 + 2 + ext.length;
+								es.writeChars(2 + len, 2);
+								es.writeChars(len, 2);
+								es.writeChar(0);		// name_type, 0 -- host_name
+								es.writeChars(ext.length, 2);
+								es.writeString(ext);
+								break;
+							case this.extension_type.max_fragment_length:
+								es.writeChars(2 + 1, 2);
+								es.writeChars(1, 2);
+								var j;
+								for (j = 1; j <= 4; j++) {
+									var e = j + 9;	// start with 2^9
+									if ((ext >>> e) == 0)
+										break;
+								}
+								if (j > 4)
+									j = 4;
+								es.writeChar(j);
+								break;
+							default:
+								// not supported yet
+								break;
+							}
+						}
+						if (es.bytesAvailable) {
+							s.writeChars(es.bytesAvailable, 2);
+							s.writeChunk(es.getChunk());
+						}
+					}
 				}
 				else {
 					var val = cipherSuites[0].value;
@@ -698,6 +744,10 @@
 				session.clientCerts = session.findPreferedCert(types, names, true);
 				if (!session.clientCerts)
 					session.clientCerts = [];	// proceed to the "certificate" protocol with a null certificate
+
+				// can't include the CA's cert?????
+				if (session.clientCerts.length > 1)
+					session.clientCerts.pop();
 			</function>
 			</target>
 
@@ -907,3 +957,4 @@
 		</object>
 	</patch>
 </package>
+

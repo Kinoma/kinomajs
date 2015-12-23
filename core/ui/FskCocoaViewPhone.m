@@ -81,7 +81,7 @@ FskInstrumentedSimpleType(CocoaView, cocoaview);													/**< This declares 
 
 #if TEXT_INPUT_SYSTEM
 #if DEBUG_TEXT_INPUT_SYSTEM
-#define showKeyboardString()        NSLog(@"%@", _keyboardString)
+#define showKeyboardString()        NSLog(@"%@", _storage.text)
 #define textInputLog(...)           NSLog(__VA_ARGS__);
 #else
 #define showKeyboardString()
@@ -92,7 +92,6 @@ FskInstrumentedSimpleType(CocoaView, cocoaview);													/**< This declares 
 
 @interface IndexedPosition : UITextPosition {
     NSUInteger               _index;
-    id <UITextInputDelegate> _inputDelegate;
 }
 
 @property (nonatomic) NSUInteger index;
@@ -111,9 +110,10 @@ FskInstrumentedSimpleType(CocoaView, cocoaview);													/**< This declares 
 + (IndexedRange *)rangeWithNSRange:(NSRange)range;
 
 @end
+
 #endif
 
-@interface FskCocoaView (Private)
+@interface FskCocoaView()<CocoaTextStorageDeleage>
 
 - (CGRect)cgBounds;
 
@@ -126,6 +126,9 @@ FskInstrumentedSimpleType(CocoaView, cocoaview);													/**< This declares 
 - (void)saveImage:(CGImageRef)imageRef name:(NSString*)name;
 #endif
 
+- (BOOL)shouldIgnoreReturn;
+- (NSString *)stringForInsertion:(NSString *)string;
+
 @end
 
 @implementation FskCocoaView
@@ -136,10 +139,9 @@ FskInstrumentedSimpleType(CocoaView, cocoaview);													/**< This declares 
     UITouch             **_touches;
 #endif
     BOOL _keyboardActivated;
+	UIReturnKeyType _returnKeyType;
 #if TEXT_INPUT_SYSTEM
-    NSMutableString *_keyboardString;
-    NSRange _keyboardSelectedRange;
-    NSRange _keyboardMarkedRange;
+	CocoaTextStorage *_storage;
     BOOL _keyboardUpdating;
     UITextInputStringTokenizer *_tokenizer;
     NSDictionary *_markedTextStyle;
@@ -319,6 +321,9 @@ const float kFskCocoaViewCornerRadius = 8;
 		[notificationCenter addObserver:self selector:@selector(keyboardDidShow:) name:UIKeyboardDidShowNotification object:nil];
 		[notificationCenter addObserver:self selector:@selector(keyboardWillHide:) name:UIKeyboardWillHideNotification object:nil];
 		[notificationCenter addObserver:self selector:@selector(keyboardWillShow:) name:UIKeyboardWillShowNotification object:nil];
+
+		_storage = [[CocoaTextStorage alloc] init];
+		_storage.delegate = self;
 	}
 
 	return self;
@@ -328,7 +333,8 @@ const float kFskCocoaViewCornerRadius = 8;
 {
     self.keyboardActive = NO;
 #if TEXT_INPUT_SYSTEM
-    self.keyboardString = nil;
+	_storage.delegate = nil;
+	[_storage release];
     if (_tokenizer != nil)
     {
         [_tokenizer release];
@@ -356,10 +362,8 @@ const float kFskCocoaViewCornerRadius = 8;
 
 @synthesize isMainView = _isMainView;
 @dynamic keyboardActive;
+@synthesize returnKeyType = _returnKeyType;
 #if TEXT_INPUT_SYSTEM
-@synthesize keyboardString = _keyboardString;
-@dynamic keyboardSelectedRange;
-@synthesize keyboardMarkedRange = _keyboardMarkedRange;
 @synthesize keyboardUpdating = _keyboardUpdating;
 @synthesize markedTextStyle = _markedTextStyle;
 @synthesize inputDelegate = _inputDelegate;
@@ -455,45 +459,21 @@ const float kFskCocoaViewCornerRadius = 8;
 }
 
 #if TEXT_INPUT_SYSTEM
-- (NSString *)keyboardString
+
+- (void)resetStorage
 {
-    return _keyboardString;
+	[self setStorageText:@"" selection:NSMakeRange(0, 0)];
 }
 
-- (void)setKeyboardString:(NSMutableString*)string
+- (void)setStorageText:(NSString *)text selection:(NSRange)range
 {
-    if (string == nil)
-    {
-        [_keyboardString release];
-        _keyboardString = nil;
-        _keyboardSelectedRange = NSMakeRange(0, 0);
-        _keyboardMarkedRange = NSMakeRange(NSNotFound, 0);
-        return;
-    }
+	[self.inputDelegate selectionWillChange:self];
+	[self.inputDelegate textWillChange:self];
 
-    if (![string isEqualToString:_keyboardString])
-    {
-        [self.inputDelegate textWillChange:self];
-        [_keyboardString release];
-        _keyboardString = [string retain];
-        [self.inputDelegate textDidChange:self];
-    }
-}
+	[_storage setText:text withSelectedRange:range];
 
-- (NSRange)keyboardSelectedRange
-{
-    return _keyboardSelectedRange;
-}
-
-- (void)setKeyboardSelectedRange:(NSRange)range
-{
-    if (!NSEqualRanges(range, _keyboardSelectedRange))
-    {
-        [self.inputDelegate selectionWillChange:self];
-        _keyboardSelectedRange = range;
-        _keyboardMarkedRange = NSMakeRange(NSNotFound, 0);
-        [self.inputDelegate selectionDidChange:self];
-    }
+	[self.inputDelegate selectionWillChange:self];
+	[self.inputDelegate textWillChange:self];
 }
 
 - (void)setKeyboardType:(UIKeyboardType)newType
@@ -1176,29 +1156,23 @@ const float kFskCocoaViewCornerRadius = 8;
 
 #pragma mark UITextInput - Replacing and Returning Text
 
-- (void)insertStringToTextEdit:(NSString*)string withSelection:(NSRange)selection
+- (void)storageChangedInRange:(NSRange)range withText:(NSString *)text
 {
     FskEvent fskEvent;
     const char *s;
     UInt32 len;
-	UInt32 cmd;
-    char empty = 0;
-    char cr = '\r';
+	UInt32 cmd = 1025;;
     char filelist[256], *pos;
 
-    if (string != nil)
-    {
-        s = [string UTF8String];
-        len = (UInt32)[string lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
-        if ((len == 1) && (FskStrLen(s) == 1) && (s[0] == '\n'))
-        {
+    if (text) {
+        s = [text UTF8String];
+        len = FskStrLen(s);
+        if (len == 1 && s[0] == '\n') {
             // replace nl to cr
-            s = &cr;
+            s = "\r";
         }
-    }
-    else
-    {
-        s = &empty;
+    } else {
+        s = "";
         len = 0;
     }
 
@@ -1207,189 +1181,67 @@ const float kFskCocoaViewCornerRadius = 8;
         return;
     }
 
-    (void)FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, len + 1, (void*)s);
+    FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, len + 1, (void*)s);
 
-    cmd = 1025;
     (void)FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(UInt32), &cmd);
 
     pos = filelist;
-    len = sprintf(pos, "%d", (int)selection.location);
+    len = sprintf(pos, "%d", (int)range.location);
     pos[len++] = '\0';
-    len += sprintf(&pos[len], "%d", (int)selection.length);
+    len += sprintf(&pos[len], "%d", (int)range.length);
     pos[len++] = '\0';
     pos[len++] = '\0';
 
-    (void)FskEventParameterAdd(fskEvent, kFskEventParameterFileList, len, filelist);
+    FskEventParameterAdd(fskEvent, kFskEventParameterFileList, len, filelist);
 
     _keyboardUpdating = YES;
     FskWindowEventQueue(_fskWindow, fskEvent);
     _keyboardUpdating = NO;
 }
 
-- (void)insertString:(NSString*)string withSelection:(NSRange)selection
-{
-    if (string == nil)
-    {
-        [_keyboardString deleteCharactersInRange:selection];
-    }
-    else if (selection.length > 0)
-    {
-        [_keyboardString replaceCharactersInRange:selection withString:string];
-    }
-    else
-    {
-        [_keyboardString insertString:string atIndex:selection.location];
-    }
-    [self insertStringToTextEdit:string withSelection:selection];
-}
-
-- (void)insertMarkedString:(NSString*)string withSelection:(NSRange)selection
-{
-    FskEvent fskEvent;
-    const char *s;
-    UInt32 len;
-	UInt32 cmd;
-    char empty = 0;
-
-#if 0
-    if (NSEqualRanges(selection, _keyboardMarkedRange))
-    {
-        NSString *originalString;
-
-        originalString = [_keyboardString substringWithRange:selection];
-        if ([originalString isEqualToString:string])
-        {
-            return;
-        }
-    }
-#endif
-
-    /* updating local string */
-    [_keyboardString replaceCharactersInRange:selection withString:string];
-
-    /* delete characters in selection */
-    [self insertStringToTextEdit:nil withSelection:selection];
-
-    /* then add marked string and marked(selected in Fsk) */
-    if (string != nil)
-    {
-        s = [string UTF8String];
-        len = (UInt32)[string lengthOfBytesUsingEncoding:NSUTF8StringEncoding];
-    }
-    else
-    {
-        s = &empty;
-        len = 0;
-    }
-
-	if (kFskErrNone != FskEventNew(&fskEvent, kFskEventKeyDown, NULL, 0))
-    {
-        return;
-    }
-
-    (void)FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, len + 1, (void*)s);
-
-    cmd = 1024;
-    (void)FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(UInt32), &cmd);
-
-    _keyboardUpdating = YES;
-    FskWindowEventQueue(_fskWindow, fskEvent);
-    _keyboardUpdating = NO;
-}
-
-- (void)updateTextEditSelection
-{
-    NSString *originalString;
-
-    originalString = [_keyboardString substringWithRange:_keyboardSelectedRange];
-    [self insertStringToTextEdit:originalString withSelection:_keyboardSelectedRange];
-}
-
+/* UITextInput required */
 - (NSString *)textInRange:(UITextRange *)range
 {
     IndexedRange *r = (IndexedRange *)range;
-    return ([_keyboardString substringWithRange:r.range]);
+    return [_storage subtextWithRange:r.range];
 }
 
+/* UITextInput required */
 - (void)replaceRange:(UITextRange *)range withText:(NSString *)text
 {
-    IndexedRange *r = (IndexedRange *)range;
-
-    textInputLog(@"replaceRange:(%d %d) withText:%@", (int)r.range.location, (int)r.range.length, text);
-
-    if ((r.range.location + r.range.length) <= _keyboardSelectedRange.location) {
-        _keyboardSelectedRange.location -= (r.range.length - text.length);
-    } else {
-        // Need to also deal with overlapping ranges.  Not addressed
-		// in this simplified sample.
-    }
-
-    [self insertString:text withSelection:r.range];
-
-    showKeyboardString();
-
-    [self updateTextEditSelection];
 }
 
 #pragma mark UITextInput - Working with Marked and Selected Text
 
+/* UITextInput required */
 - (UITextRange *)selectedTextRange
 {
-    return [IndexedRange rangeWithNSRange:_keyboardSelectedRange];
+    return [IndexedRange rangeWithNSRange:_storage.selectedRange];
 }
 
+/* UITextInput required */
 - (void)setSelectedTextRange:(UITextRange *)range
 {
     IndexedRange *r = (IndexedRange *)range;
-    _keyboardSelectedRange = r.range;
+    _storage.selectedRange = r.range;
 
     textInputLog(@"setSelectedTextRange:(%d %d)", (int)r.range.location, (int)r.range.length);
 
     showKeyboardString();
-
-    /* updating text edit */
-    [self updateTextEditSelection];
 }
 
+/* UITextInput required */
 - (UITextRange *)markedTextRange
 {
-    return [IndexedRange rangeWithNSRange:_keyboardMarkedRange];
+    return [IndexedRange rangeWithNSRange:_storage.markedRange];
 }
 
-- (void)setMarkedText:(NSString *)markedText selectedRange:(NSRange)selectedRange
+/* UITextInput required */
+- (void)setMarkedText:(NSString *)text selectedRange:(NSRange)selectedRange
 {
-    textInputLog(@"setMarkedText:%@ selectedRange:(%d %d)", markedText, (int)selectedRange.location, (int)selectedRange.length);
+    textInputLog(@"setMarkedText:%@ selectedRange:(%d %d)", text, (int)selectedRange.location, (int)selectedRange.length);
 
-    if (markedText == nil)
-        markedText = @"";
-
-    if (_keyboardMarkedRange.location != NSNotFound) {
-        [self insertMarkedString:markedText withSelection:_keyboardMarkedRange];
-
-        _keyboardMarkedRange.length = markedText.length;
-    } else if (_keyboardSelectedRange.length > 0) {
-        [self insertMarkedString:markedText withSelection:_keyboardSelectedRange];
-
-        _keyboardMarkedRange.location = _keyboardSelectedRange.location;
-        _keyboardMarkedRange.length = markedText.length;
-    } else {
-        [self insertMarkedString:markedText withSelection:_keyboardSelectedRange];
-
-        _keyboardMarkedRange.location = _keyboardSelectedRange.location;
-        _keyboardMarkedRange.length = markedText.length;
-    }
-
-    if (selectedRange.location == NSNotFound)
-    {
-        selectedRange.location = 0;
-        selectedRange.length = 0;
-    }
-    _keyboardSelectedRange = NSMakeRange(selectedRange.location + _keyboardMarkedRange.location, selectedRange.length);
-
-    if (markedText.length == 0)
-    {
-        _keyboardMarkedRange = NSMakeRange(NSNotFound, 0);
-    }
+	[_storage insertMarkedText:text ? text : @"" withSelection:selectedRange];
 
     showKeyboardString();
 }
@@ -1398,12 +1250,10 @@ const float kFskCocoaViewCornerRadius = 8;
 {
     textInputLog(@"unmarkText");
 
-    if (_keyboardMarkedRange.location == NSNotFound)
+    if (_storage.markedRange.location == NSNotFound)
         return;
 
-    _keyboardMarkedRange.location = NSNotFound;
-
-    [self updateTextEditSelection];
+    [_storage unmark];
 
     showKeyboardString();
 }
@@ -1417,7 +1267,7 @@ const float kFskCocoaViewCornerRadius = 8;
 
 - (UITextPosition *)endOfDocument
 {
-    return [IndexedPosition positionWithIndex:_keyboardString.length];
+    return [IndexedPosition positionWithIndex:_storage.length];
 }
 
 - (UITextRange *)textRangeFromPosition:(UITextPosition *)fromPosition toPosition:(UITextPosition *)toPosition
@@ -1433,7 +1283,7 @@ const float kFskCocoaViewCornerRadius = 8;
 {
     IndexedPosition *pos = (IndexedPosition *)position;
     NSInteger end = pos.index + offset;
-    if (end > _keyboardString.length || end < 0)
+	if (![_storage isInTextRange:end])
         return nil;
 
     return [IndexedPosition positionWithIndex:end];
@@ -1460,8 +1310,8 @@ const float kFskCocoaViewCornerRadius = 8;
     if (newPos < 0)
         newPos = 0;
 
-    if (newPos > _keyboardString.length)
-        newPos = _keyboardString.length;
+	if (![_storage isInTextRange:newPos])
+        newPos = _storage.length;
 
     return [IndexedPosition positionWithIndex:newPos];
 }
@@ -1597,10 +1447,23 @@ const float kFskCocoaViewCornerRadius = 8;
 
 #pragma mark UIKeyInput
 
+- (BOOL)shouldIgnoreReturn
+{
+	return (self.returnKeyType != UIReturnKeyDefault);
+}
+
+- (NSString *)stringForInsertion:(NSString *)string
+{
+	if ([self shouldIgnoreReturn]) {
+		string = [string stringByReplacingOccurrencesOfString:@"\n" withString:@""];
+	}
+	return string;
+}
+
 - (BOOL)hasText
 {
 #if TEXT_INPUT_SYSTEM
-    return (_keyboardString.length != 0);
+    return (_storage.length != 0);
 #else
     return NO;
 #endif
@@ -1611,29 +1474,13 @@ const float kFskCocoaViewCornerRadius = 8;
     textInputLog(@"insertText:%@", text);
 
 #if TEXT_INPUT_SYSTEM
-    if (_keyboardMarkedRange.location != NSNotFound) {
-        [self insertString:text withSelection:_keyboardMarkedRange];
-
-        _keyboardSelectedRange.location = _keyboardMarkedRange.location + text.length;
-        _keyboardSelectedRange.length = 0;
-        _keyboardMarkedRange = NSMakeRange(NSNotFound, 0);
-
-    } else if (_keyboardSelectedRange.length > 0) {
-        [self insertString:text withSelection:_keyboardSelectedRange];
-
-        _keyboardSelectedRange.length = 0;
-        _keyboardSelectedRange.location += text.length;
-
-    } else {
-        [self insertString:text withSelection:_keyboardSelectedRange];
-
-        _keyboardSelectedRange.location += text.length;
-    }
+	if ([self shouldIgnoreReturn] && [text isEqualToString:@"\n"]) {
+		[self throwKeyEvent:'\r' keyDown:YES];
+	} else {
+		[_storage insertText:text ? text : @""];
+	}
 
     showKeyboardString();
-
-    /* updating text edit */
-    [self updateTextEditSelection];
 #else
     int i;
     char charCode;
@@ -1649,30 +1496,9 @@ const float kFskCocoaViewCornerRadius = 8;
 
 - (void)deleteBackward
 {
-    textInputLog(@"deleteBackward");
-
 #if TEXT_INPUT_SYSTEM
-    if (_keyboardMarkedRange.location != NSNotFound) {
-        [self insertString:nil withSelection:_keyboardMarkedRange];
-
-        _keyboardSelectedRange.location = _keyboardMarkedRange.location;
-        _keyboardSelectedRange.length = 0;
-        _keyboardMarkedRange = NSMakeRange(NSNotFound, 0);
-
-    } else if (_keyboardSelectedRange.length > 0) {
-        [self insertString:nil withSelection:_keyboardSelectedRange];
-
-        _keyboardSelectedRange.length = 0;
-
-    } else if (_keyboardSelectedRange.location > 0) {
-        /* updating local string */
-        _keyboardSelectedRange.location--;
-        _keyboardSelectedRange.length = 1;
-
-        [self insertString:nil withSelection:_keyboardSelectedRange];
-
-        _keyboardSelectedRange.length = 0;
-    }
+	textInputLog(@"deleteBackward");
+	[_storage deleteBackword];
 
     showKeyboardString();
 #else
@@ -1831,4 +1657,143 @@ static NSUInteger sIndex = 0;
 }
 
 @end
+
+@implementation CocoaTextStorage {
+	NSMutableString *_text;
+}
+
+@synthesize delegate;
+@synthesize selectedRange = _selectedRange;
+@synthesize markedRange =_markedRange;
+
+- (instancetype)init
+{
+	self = [super init];
+	if (self) {
+		_text = [[NSMutableString alloc] initWithCapacity:256];
+	}
+	return self;
+}
+
+- (void)dealloc
+{
+	[_text release];
+	[super dealloc];
+}
+
+- (NSUInteger)length
+{
+	return [_text length];
+}
+
+- (NSUInteger)caretPosition
+{
+	return _selectedRange.location;
+}
+
+- (void)setCaretPosition:(NSUInteger)pos
+{
+	_selectedRange = NSMakeRange(pos, 0);
+}
+
+- (BOOL)hasSelection
+{
+	return _selectedRange.length > 0;
+}
+
+- (void)unmark
+{
+	_markedRange = NSMakeRange(NSNotFound, 0);
+}
+
+- (BOOL)isMarked
+{
+	return _markedRange.location != NSNotFound;
+}
+
+- (BOOL)isInTextRange:(NSInteger)pos
+{
+	return ((NSUInteger) pos < _text.length && pos >= 0);
+}
+
+- (NSString *)text
+{
+	return _text;
+}
+
+- (NSString *)subtextWithRange:(NSRange)range
+{
+	return [_text substringWithRange:range];
+}
+
+- (void)setText:(NSString *)text withSelectedRange:(NSRange)range
+{
+	[_text setString:text];
+	_selectedRange = range;
+	[self unmark];
+}
+
+- (void)insertText:(NSString *)text
+{
+	NSRange range = ([self isMarked] ? _markedRange : _selectedRange);
+
+	if ([self isMarked]) {
+		range = _markedRange;
+
+		[self unmark];
+	} else {
+		range = _selectedRange;
+	}
+
+	[_text replaceCharactersInRange:range withString:text];
+	[self setCaretPosition:range.location + text.length];
+
+	[self.delegate storageChangedInRange:range withText:text];
+}
+
+- (void)deleteBackword
+{
+	NSRange range;
+
+	if ([self isMarked]) {
+		range = _markedRange;
+
+		[self unmark];
+	} else if ([self hasSelection]) {
+		range = _selectedRange;
+	} else if (self.caretPosition > 0) {
+		range = NSMakeRange(self.caretPosition - 1, 1);
+	} else {
+		return;
+	}
+
+	[_text deleteCharactersInRange:range];
+	[self setCaretPosition:range.location];
+
+	[self.delegate storageChangedInRange:range withText:@""];
+}
+
+- (void)insertMarkedText:(NSString *)text withSelection:(NSRange)selection
+{
+	NSRange range;
+	if ([self isMarked]) {
+		range = _markedRange;
+	} else {
+		range = _selectedRange;
+	}
+
+	[_text replaceCharactersInRange:range withString:text];
+	_markedRange = NSMakeRange(range.location, text.length);
+
+	_selectedRange = NSMakeRange(_markedRange.location +selection.location, selection.length);
+
+	if (_markedRange.length == 0) {
+		[self unmark];
+	}
+
+	[self.delegate storageChangedInRange:range withText:text];
+}
+
+@end
+
 #endif

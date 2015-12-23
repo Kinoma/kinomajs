@@ -201,20 +201,23 @@ typedef struct FskColorSourceProcedure {
 	void					*userData;			/**< The shader-specific data. */
 } FskColorSourceProcedure;
 
+
+/** Opaque constant color source. */
 typedef struct FskColorSourceConstantRGB {
 	FskColorSource			colorSource;		/**< Type = kFskColorSourceTypeConstant. */
 	FskColorRGBRecord		color;				/**< Constant color specification. */
 } FskColorSourceConstantRGB;
 
 
+/** Union of all the color source classes, to allow easy up- and down-casting. */
 typedef union FskColorSourceUnion {
-	FskColorSource						so;
-	FskColorSourceConstant				cn;
-	FskColorSourceLinearGradient		lg;
-	FskColorSourceRadialGradient		rg;
-	FskColorSourceTexture				tx;
-	FskColorSourceProcedure				pr;
-	FskColorSourceConstantRGB			rgb;
+	FskColorSource						so;		/**< Base class color source. */
+	FskColorSourceConstant				cn;		/**< Constant color subclass. */
+	FskColorSourceLinearGradient		lg;		/**< Linear gradient subclass. */
+	FskColorSourceRadialGradient		rg;		/**< Radial gradient subclass. */
+	FskColorSourceTexture				tx;		/**< Texture subclass. */
+	FskColorSourceProcedure				pr;		/**< Procedural subclass. */
+	FskColorSourceConstantRGB			rgb;	/**< Constant opaque RGB color subclass. */
 } FskColorSourceUnion;
 
 
@@ -294,11 +297,11 @@ void							FskDisposeColorSourceTexture(FskColorSourceTexture *cs);
  */
 void							FskDisposeColorSourceProcedure(FskColorSourceProcedure *cs);
 
-#define FskDisposeColorSourceConstant(cs)				FskDisposeColorSource(&cs->colorSource)	/* Inherit base class destructor */
-#define FskDisposeColorSourceLinearGradient(cs)			FskDisposeColorSource(&cs->colorSource)	/* Inherit base class destructor */
-#define FskDisposeColorSourceRadialGradient(cs)			FskDisposeColorSource(&cs->colorSource)	/* Inherit base class destructor */
-#define FskDisposeColorSourceTexture(cs)				FskDisposeColorSource(&cs->colorSource)	/* Inherit base class destructor */
-#define FskDisposeColorSourceProcedure(cs)				FskDisposeColorSource(&cs->colorSource)	/* Inherit base class destructor */
+#define FskDisposeColorSourceConstant(cs)				FskDisposeColorSource(&cs->colorSource)	/**< Inherit the base class destructor for \param[in] cs colorsource. */
+#define FskDisposeColorSourceLinearGradient(cs)			FskDisposeColorSource(&cs->colorSource)	/**< Inherit the base class destructor for \param[in] cs colorsource. */
+#define FskDisposeColorSourceRadialGradient(cs)			FskDisposeColorSource(&cs->colorSource)	/**< Inherit the base class destructor for \param[in] cs colorsource. */
+#define FskDisposeColorSourceTexture(cs)				FskDisposeColorSource(&cs->colorSource)	/**< Inherit the base class destructor for \param[in] cs colorsource. */
+#define FskDisposeColorSourceProcedure(cs)				FskDisposeColorSource(&cs->colorSource)	/**< Inherit the base class destructor for \param[in] cs colorsource. */
 
 
 /** ColorSource Transformations.
@@ -434,15 +437,16 @@ FskAPI(FskErr)	FskFrameFillPolygonContours(UInt32 nContours, const UInt32 *nPts,
 
 /** Frame (stroke) a polyline.
  *	This differs from FskFramePolygon() in that the polyline is not usually closed.
- *	\param[in]		nPts			The number of points on the polygon.
- *	\param[in]		pts				The points (vertices) of the polygon.
+ *	\param[in]		nPts			The number of points on the polyline.
+ *	\param[in]		pts				The points (vertices) of the polyline.
  *	\param[in]		strokeWidth		The width of the lines to be drawn, in pixels.
- *	\param[in]		jointSharpness	The sharpness that should be used for the joints between edges of the polygon.
- *	\param[in]		frameColor		Frame the polygon using this color source.
- *	\param[in]		matrix			A matrix to be used for transforming the polygon. Can be NULL.
+ *	\param[in]		jointSharpness	The sharpness that should be used for the joints between edges of the polyline.
+ *	\param[in]		endCaps			The style of cap (round, square, butt) to be applied to the ends of the polyline.
+ *	\param[in]		frameColor		Frame the polyline using this color source.
+ *	\param[in]		matrix			A matrix to be used for transforming the polyline. Can be NULL.
  *	\param[in]		quality			The quality to be use when rendering.
  *	\param[in]		clipRect		The rectangle to which all filling is to be constrained. Can be NULL.
- *	\param[in,out]	dstBM			The bitmap to which the polygon will be drawn.
+ *	\param[in,out]	dstBM			The bitmap to which the polyline will be drawn.
  *	\return			kFskErrNone		if there were no errors.
  */
 FskAPI(FskErr)	FskFramePolyLine(			UInt32 nPts, const FskFixedPoint2D *pts,
@@ -450,16 +454,17 @@ FskAPI(FskErr)	FskFramePolyLine(			UInt32 nPts, const FskFixedPoint2D *pts,
 																											const FskFixedMatrix3x2 *matrix, UInt32 quality, FskConstRectangle clipRect, FskBitmap dstBM);
 
 /** Frame (stroke) a polyline with multiple contours.
- *	\param[in]		nContours	The number of contours in the polygon.
- *	\param[in]		nPts			The number of points on the polygon.
- *	\param[in]		pts				The points (vertices) of the polygon.
+ *	\param[in]		nContours	The number of contours in the polyline.
+ *	\param[in]		nPts			The number of points on the polyline.
+ *	\param[in]		pts				The points (vertices) of the polyline.
  *	\param[in]		strokeWidth		The width of the lines to be drawn, in pixels.
- *	\param[in]		jointSharpness	The sharpness that should be used for the joints between edges of the polygon.
- *	\param[in]		frameColor		Frame the polygon using this color source.
- *	\param[in]		matrix			A matrix to be used for transforming the polygon. Can be NULL.
+ *	\param[in]		jointSharpness	The sharpness that should be used for the joints between edges of the polyline.
+ *	\param[in]		endCaps			The style of cap (round, square, butt) to be applied to the ends of the polyline.
+ *	\param[in]		frameColor		Frame the polyline using this color source.
+ *	\param[in]		matrix			A matrix to be used for transforming the polyline. Can be NULL.
  *	\param[in]		quality			The quality to be use when rendering.
  *	\param[in]		clipRect		The rectangle to which all filling is to be constrained. Can be NULL.
- *	\param[in,out]	dstBM			The bitmap to which the polygon will be drawn.
+ *	\param[in,out]	dstBM			The bitmap to which the polyline will be drawn.
  *	\return			kFskErrNone		if there were no errors.
  */
 FskAPI(FskErr)	FskFramePolylineContours(	UInt32 nContours, const UInt32 *nPts, const FskFixedPoint2D *pts,
@@ -470,12 +475,13 @@ FskAPI(FskErr)	FskFramePolylineContours(	UInt32 nContours, const UInt32 *nPts, c
  *	\param[in]		p0		The coordinates of the first  point.
  *	\param[in]		p1		The coordinates of the second point.
  *	\param[in]		strokeWidth		The width of the lines to be drawn, in pixels.
- *	\param[in]		jointSharpness	The sharpness that should be used for the joints between edges of the polygon.
- *	\param[in]		frameColor		Frame the polygon using this color source.
- *	\param[in]		matrix			A matrix to be used for transforming the polygon. Can be NULL.
+ *	\param[in]		jointSharpness	The sharpness that should be used for the joints between edges of the line.
+ *	\param[in]		endCaps			The style of cap (round, square, butt) to be applied to the ends of the polyline.
+ *	\param[in]		frameColor		Frame the line using this color source.
+ *	\param[in]		matrix			A matrix to be used for transforming the line. Can be NULL.
  *	\param[in]		quality			The quality to be use when rendering.
  *	\param[in]		clipRect		The rectangle to which all filling is to be constrained. Can be NULL.
- *	\param[in,out]	dstBM			The bitmap to which the polygon will be drawn.
+ *	\param[in,out]	dstBM			The bitmap to which the line will be drawn.
  *	\return			kFskErrNone		if there were no errors.
  */
 FskAPI(FskErr)	FskFrameLine(				const FskFixedPoint2D *p0, const FskFixedPoint2D *p1,

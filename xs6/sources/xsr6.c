@@ -54,7 +54,7 @@ void console_log(xsMachine* the)
 	console_log_depth++;
 	for (i = 0; i < c; i++) {
 		if (space)
-			fprintf(stderr,  " ");
+			fprintf(stdout,  " ");
 		else
 			space = 1;
 		switch (xsTypeOf(xsArg(i))) {
@@ -63,42 +63,42 @@ void console_log(xsMachine* the)
 		case xsBooleanType:
 		case xsIntegerType:
 		case xsNumberType:
-			fprintf(stderr,  "%s", xsToString(xsArg(i)));
+			fprintf(stdout,  "%s", xsToString(xsArg(i)));
 			break;
 		case xsSymbolType:
 			xsResult = xsCall1(xsGlobal, xsID("String"), xsArg(i));
-			fprintf(stderr,  "%s", xsToString(xsResult));
+			fprintf(stdout,  "%s", xsToString(xsResult));
 			break;
 		case xsStringType:
 		case xsStringXType:
 			if ((console_log_depth == 1) && (i == 0))
-				fprintf(stderr,  "%s", xsToString(xsArg(i)));
+				fprintf(stdout,  "%s", xsToString(xsArg(i)));
 			else
-				fprintf(stderr,  "'%s'", xsToString(xsArg(i)));
+				fprintf(stdout,  "'%s'", xsToString(xsArg(i)));
 			break;
 		case xsReferenceType:
 			if (console_log_depth < 3) {
 				xsBooleanValue comma = 0;
 				if (xsHas(xsArg(i), xsID("length"))) {
 					xsIntegerValue length = xsToInteger(xsGet(xsArg(i), xsID("length"))), index;
-					fprintf(stderr,  "[");
+					fprintf(stdout,  "[");
 					for (index = 0; index < length; index++) {
 						xsVar(1) = xsGet(xsArg(i), (xsIndex)index);
 						if (comma)
-							fprintf(stderr,  ",");
+							fprintf(stdout,  ",");
 						else
 							comma = 1;
-						fprintf(stderr,  " ");
+						fprintf(stdout,  " ");
 						fxPush(xsVar(1));
 						fxPushCount(the, 1);
 						fxPush(xsThis);
 						fxPush(xsFunction);
 						fxCall(the);
 					}
-					fprintf(stderr,  " ]");
+					fprintf(stdout,  " ]");
 				}
 				else {
-					fprintf(stderr,  "{");
+					fprintf(stdout,  "{");
 					xsVar(0) = xsEnumerate(xsArg(i));
 					for (;;) {
 						xsVar(1) = xsCall0(xsVar(0), xsID("next"));
@@ -107,27 +107,27 @@ void console_log(xsMachine* the)
 						xsVar(2) = xsGet(xsVar(1), xsID("value"));
 						xsVar(3) = xsGetAt(xsArg(i), xsVar(2));
 						if (comma)
-							fprintf(stderr,  ",");
+							fprintf(stdout,  ",");
 						else
 							comma = 1;
-						fprintf(stderr,  " %s: ", xsToString(xsVar(2)));
+						fprintf(stdout,  " %s: ", xsToString(xsVar(2)));
 						fxPush(xsVar(3));
 						fxPushCount(the, 1);
 						fxPush(xsThis);
 						fxPush(xsFunction);
 						fxCall(the);
 					}
-					fprintf(stderr,  " }");
+					fprintf(stdout,  " }");
 				}
 			}
 			else
-				fprintf(stderr,  "%s", xsToString(xsArg(i)));
+				fprintf(stdout,  "%s", xsToString(xsArg(i)));
 			break;
 		}
 	}
 	console_log_depth--;
 	if (!console_log_depth)
-		fprintf(stderr,  "\n");
+		fprintf(stdout,  "\n");
 }
 
 void console_log_xsbug(xsMachine* the)
@@ -314,7 +314,6 @@ int main(int argc, char* argv[])
 	xsStringValue slash;
 	xsStringValue name;
 	int size;
-	
 	if (argi < argc) {
 		if (!strcmp(argv[argi], "-a")) {
 			argi++;

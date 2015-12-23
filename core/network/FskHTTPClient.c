@@ -637,8 +637,8 @@ static FskErr sFskHTTPClientDispose(FskHTTPClient client)
 	}
 
 	FskHTTPAuthDispose(client->auth);
-	FskMemPtrDispose(client->cert.certificates);
-	FskMemPtrDispose(client->cert.policies);
+	if (client->certs != NULL)
+		FskNetUtilDisposeCertificate(client->certs);
 	FskMemPtrDispose(client->proxyAuth);
 
 	FskInstrumentedItemDispose(client);
@@ -779,11 +779,12 @@ FskErr FskHTTPClientBegin(FskHTTPClient client)
 		if( client->sslProxied && ( client->protocolNum==kFskHTTPProtocolHTTPS && !client->skt->isSSL) )
 		{
 			void* ssl = 0;
+			FskSocketCertificate certs = client->certs;
 			FskSocketCertificateRecord cert = {
-				NULL, 0,
-				client->cert.policies ? client->cert.policies : "allowOrphan",
+				certs && certs->certificates ? certs->certificates : NULL, certs && certs->certificatesSize ? certs->certificatesSize : 0,
+				certs && certs->policies ? certs->policies : "allowOrphan",
 				client->host,
-				NULL, 0,
+				certs && certs->key ? certs->key : NULL, certs && certs->keySize ? certs->keySize : 0,
 			};
 
 			FskInstrumentedItemSendMessage(client, kFskHTTPClientInstrMsgBeginSSLThruProxy, client);
@@ -842,12 +843,12 @@ FskErr FskHTTPClientBegin(FskHTTPClient client)
 		FskNetIPandPortToString(connectToAddr, 0, name);
 		err = FskNetConnectToHostPrioritized(name, connectToPort, false,
 			(FskNetSocketCreatedCallback)sHTTPClientGotSocket, client, connectionFlags,
-			client->priority, &client->cert, "HTTP Client - proxied");
+			client->priority, client->certs, "HTTP Client - proxied");
 	}
 	else {
 		err = FskNetConnectToHostPrioritized(client->host, client->hostPort, false,
 			(FskNetSocketCreatedCallback)sHTTPClientGotSocket, client, connectionFlags,
-			client->priority, &client->cert, "HTTP Client");
+			client->priority, client->certs, "HTTP Client");
 	}
 
 	if (kFskErrWaitingForSocket == err)
@@ -1375,26 +1376,13 @@ bail:
 	return err;
 }
 
-FskErr FskHTTPClientSetCertificates(FskHTTPClient client, const void *data, int dataSize, const char *policies)
+FskErr FskHTTPClientSetCertificates(FskHTTPClient client, FskSocketCertificate certs)
 {
-	FskErr err;
-
-	if (client->cert.certificates != NULL)
-		FskMemPtrDispose(client->cert.certificates);
-	client->cert.certificates = NULL;
-	client->cert.certificatesSize = dataSize;
-	if (data != NULL) {
-		if ((err = FskMemPtrNewFromData(dataSize, data, &client->cert.certificates)) != kFskErrNone)
-			return err;
-	}
-	if (policies != NULL) {
-		if ((client->cert.policies = FskStrDoCopy(policies)) == NULL)
-			return kFskErrMemFull;
-	}
-	else
-		client->cert.policies = NULL;
-	client->cert.hostname = NULL;
-
+	if (certs == NULL)
+		return kFskErrNone;
+	client->certs = FskNetUtilCopyCertificate(certs);
+	if (client->certs == NULL)
+		return kFskErrMemFull;
 	return kFskErrNone;
 }
 
@@ -2161,11 +2149,12 @@ transition:
 							( client->protocolNum==kFskHTTPProtocolHTTPS && !client->skt->isSSL ) )
 				{
 					void* ssl;
+					FskSocketCertificate certs = client->certs;
 					FskSocketCertificateRecord cert = {
-						NULL, 0,
-						client->cert.policies ? client->cert.policies : "allowOrphan",
+						certs && certs->certificates ? certs->certificates : NULL, certs && certs->certificatesSize ? certs->certificatesSize : 0,
+						certs && certs->policies ? certs->policies : "allowOrphan",
 						client->host,
-						NULL, 0,
+						certs && certs->key ? certs->key : NULL, certs && certs->keySize ? certs->keySize : 0,
 					};
 
 					FskInstrumentedItemSendMessage(client, kFskHTTPClientInstrMsgBeginSSLThruProxy, client);
@@ -3079,7 +3068,7 @@ static FskErr sHTTPClientRequestBlob(FskHTTPClient client, FskHTTPClientRequest 
 	hostStringSize = FskStrLen(request->parsedUrl->host) + 10;
 	if (kFskErrNone != (err = FskMemPtrNew(hostStringSize, &hostString))) return err;
 
-	if (request->parsedUrl->port != 80)	{
+	if (request->parsedUrl->specifyPort) {
 		char portNum[12];
 		FskStrCopy(hostString, request->parsedUrl->host);
 		FskStrCat(hostString, ":");

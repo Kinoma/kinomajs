@@ -525,7 +525,7 @@ FskSSLNew(void **fsslp, const char *host, int port, Boolean blocking, long flags
 	xsBeginHost(fssl->vm->the);
 	xsTry {
 		const char *prStr;
-		xsVars(2);
+		xsVars(3);
 		/* construct the options */
 		xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
 		if (blocking)
@@ -544,7 +544,9 @@ FskSSLNew(void **fsslp, const char *host, int port, Boolean blocking, long flags
 		(void)xsSet(xsVar(0), xsID("raw"), xsTrue);
 		xsVar(1) = xsNew3(xsGet(xsGlobal, xsID("Stream")), xsID("Socket"), xsString((xsStringValue)host), xsInteger(port), xsVar(0));
 		fssl->socket = xsVar(1); xsRemember(fssl->socket);
-		xsVar(1) = xsNew0(xsGet(xsGlobal, xsID("FskSSL")), xsID("Session"));
+		xsVar(2) = xsNewInstanceOf(xsObjectPrototype);
+		xsSet(xsVar(2), xsID("server_name"), xsString(host));
+		xsVar(1) = xsNew1(xsGet(xsGlobal, xsID("FskSSL")), xsID("Session"), xsVar(2));
 		fssl->ssl = xsVar(1); xsRemember(fssl->ssl);
 	} xsCatch {
 		if (xsHas(xsException, xsID("code")))

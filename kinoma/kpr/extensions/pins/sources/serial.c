@@ -14,11 +14,13 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#ifdef USESERIAL
 
 #define __FSKTHREAD_PRIV__
-#include "FskECMAScript.h"
 #include "kprPins.h"
+
+#ifdef USESERIAL
+
+#include "FskECMAScript.h"
 #include "FskMemory.h"
 #include "FskTextConvert.h"
 #include "FskString.h"
@@ -27,27 +29,16 @@
 #include "KplThread.h"
 #include "KplThreadLinuxPriv.h"
 
-#include <poll.h>
-
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/eventfd.h>
-
-#define KPR_NO_GRAMMAR 1
-
 static void writeOne(xsMachine *the, FskSerialIO sio, xsSlot *slot);
-static void serialThread(void *param);
+
+static void serialPinDataReady(FskPinSerial pin, void *refCon);
 static void serialDataReady(void *arg0, void *arg1, void *arg2, void *arg3);
-static void disposePollerThread(FskSerialIO sio);
 
 void xs_serial(void *data)
 {
     FskSerialIO sio = data;
     if (sio) {
-		disposePollerThread(sio);
-        FskSerialIOPlatformDispose(sio);
-		FskMutexDispose(sio->mutex);
-
+        FskPinSerialDispose(sio->pin);
         FskMemPtrDispose(sio);
     }
 }
@@ -58,7 +49,6 @@ void xs_serial_init(xsMachine* the)
     FskSerialIO sio;
     SInt32 rxPin = 0, txPin = 0;
     SInt32 baud = xsToInteger(xsGet(xsThis, xsID("baud")));
-    int ttyNumrx = -1, ttyNumtx = -1;
     const char *path = NULL;
 
     sio = xsGetHostData(xsThis);
@@ -72,24 +62,6 @@ void xs_serial_init(xsMachine* the)
             rxPin = xsToInteger(xsGet(xsThis, xsID("rx")));
         if (xsHas(xsThis, xsID("tx")))
             txPin = xsToInteger(xsGet(xsThis, xsID("tx")));
-
-        if ((0 == rxPin) && (0 == txPin))
-            xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "No pin specified for rx or tx (rx pin %d, tx pin %d).", (int)rxPin, (int)txPin);
-
-        if (rxPin) {
-            ttyNumrx = FskHardwarePinsMux(rxPin, kFskHardwarePinUARTRX);
-            if (ttyNumrx < 0)
-                ttyNumrx = FskHardwarePinsMux(rxPin, kFskHardwarePinUARTTX);
-        }
-        if (txPin) {
-            ttyNumtx = FskHardwarePinsMux(txPin, kFskHardwarePinUARTTX);
-            if (ttyNumtx < 0) {
-                ttyNumtx = FskHardwarePinsMux(txPin, kFskHardwarePinUARTRX);
-            }
-        }
-
-        if (((rxPin && txPin) && (ttyNumrx != ttyNumtx)) || (rxPin && (ttyNumrx < 0)) || (txPin && (ttyNumtx < 0)))
-            xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "Invalid serial pins (rx pin %d, tx pin %d).", (int)rxPin, (int)txPin);
     }
 
     xsThrowIfFskErr(FskMemPtrNewClear(sizeof(FskSerialIORecord) + (path ? FskStrLen(path) : 0), (FskMemPtr *)&sio));
@@ -97,17 +69,10 @@ void xs_serial_init(xsMachine* the)
     sio->txNum = txPin;
     if (path)
         FskStrCopy(sio->path, path);
-    else if (-1 != ttyNumrx)
-        sio->ttyNum = ttyNumrx;
-    else if (-1 != ttyNumtx)
-        sio->ttyNum = ttyNumtx;
-    else
-        xsThrowDiagnosticIfFskErr(kFskErrBadState, "Serial ttyNumtx and ttyNumrx are both uninitialized", 0);
 
-	FskMutexNew(&sio->mutex, "serial pin");
 	sio->pinsThread = FskThreadGetCurrent();
 
-    err = FskSerialIOPlatformInit(sio, baud);
+	err = FskPinSerialNew(&sio->pin, rxPin, txPin, path, baud);
     if (err) {
         FskMemPtrDispose(sio);
         xsThrowDiagnosticIfFskErr(err, "Serial initialization failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
@@ -141,9 +106,6 @@ void xs_serial_read(xsMachine* the)
 
 	{
 	xsTry {
-		if (sio->pollerThread)
-			FskMutexAcquire(sio->mutex);
-
 		switch (format) {
 			case 0: // Chunk
 			case 1: // Array
@@ -163,41 +125,25 @@ void xs_serial_read(xsMachine* the)
 
 				while (true) {
 					FskTimeRecord now;
-					char *d;
-					int ds;
+					unsigned char buffer[1024];
+					SInt32 ds;
+					SInt32 bytesToRead = ((0 == maxCount) || (maxCount > sizeof(buffer))) ? sizeof(buffer) : maxCount;
 
-					if (sio->pollerThread) {
-						if (maxCount)
-							xsThrowDiagnosticIfFskErr(kFskErrUnimplemented, "maxCount not supported with Serial repeat", kFskErrUnimplemented);
-						d = (char *)sio->data;
-						ds = sio->dataCount;
-						sio->dataCount = 0;
-					}
-					else {
-						err = FskSerialIOPlatformRead(sio, &d, &ds, maxCount - dataSize);
-						if (kFskErrNone == err)
-							;
-						else if (kFskErrNoData == err) {
-							d = NULL;
+					err = FskPinSerialRead(sio->pin, bytesToRead, &ds, buffer);
+					if (err) {
+						if (kFskErrNoData == err)
 							ds = 0;
-						}
 						else
 							xsThrowDiagnosticIfFskErr(err, "Serial read failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
 					}
 
-					if (NULL == data) {
-						data = (unsigned char *)d;
-						dataSize = ds;
+					err = FskMemPtrRealloc(dataSize + ds, &data);
+					if (err) {
+						FskMemPtrDispose(data);
+						xsError(err);
 					}
-					else {
-						err = FskMemPtrRealloc(dataSize + ds, &data);
-						if (err) {
-							FskMemPtrDispose(data);
-							xsError(err);
-						}
-						FskMemMove(data + dataSize, d, ds);
-						dataSize += ds;
-					}
+					FskMemMove(data + dataSize, buffer, ds);
+					dataSize += ds;
 
 					if (!endTime || (dataSize >= maxCount))
 						break;
@@ -230,28 +176,25 @@ void xs_serial_read(xsMachine* the)
 				break;
 
 			case 3: // charCode
-//@@ this can't work.... when _repeat is active
-				err = FskSerialIOPlatformRead(sio, (char **)&data, &dataSize, 1);
+				{
+				UInt8 c;
+				err = FskPinSerialRead(sio->pin, 1, &dataSize, &c);
 				if (kFskErrNone == err)
-					xsResult = xsInteger(*(unsigned char *)data);
+					xsResult = xsInteger(c);
 				 else {
 					if (kFskErrNoData == err)
 						xsResult = xsUndefined;
 					else
 						xsThrowDiagnosticIfFskErr(err, "Serial read failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
 				}
+				}
 				break;
 		}
-		if (data != sio->data)
-			FskMemPtrDispose(data);
-		if (sio->pollerThread)
-			FskMutexRelease(sio->mutex);
+
+		FskMemPtrDispose(data);
 	}
 	xsCatch {
-		if (data != sio->data)
-			FskMemPtrDispose(data);
-		if (sio->pollerThread)
-			FskMutexRelease(sio->mutex);
+		FskMemPtrDispose(data);
 
 		xsThrow(xsException);
 	}
@@ -267,16 +210,17 @@ void writeOne(xsMachine *the, FskSerialIO sio, xsSlot *slot)
         case xsIntegerType:
         case xsNumberType: {
             SInt32 value = xsToInteger(*slot);
+			UInt8 cv = (UInt8)value;
             if ((value < 0) || (value > 255))
                     xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "SerialIO Error: Invalid character value (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
-            err = FskSerialIOPlatformWriteChar(sio, (char)value);
+            err = FskPinSerialWrite(sio->pin, 1, &cv);
             xsThrowDiagnosticIfFskErr(err, "Serial write failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
             }
             break;
         
         case xsStringType: {
             char *text = xsToString(*slot);
-            err = FskSerialIOPlatformWriteString(sio, text, FskStrLen(text));
+            err = FskPinSerialWrite(sio->pin, FskStrLen(text), (UInt8 *)text);
             xsThrowDiagnosticIfFskErr(err, "Serial write failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
             }
             break;
@@ -285,13 +229,13 @@ void writeOne(xsMachine *the, FskSerialIO sio, xsSlot *slot)
             if (xsIsInstanceOf(*slot, xsArrayBufferPrototype)) {
                 char *data = xsToArrayBuffer(*slot);
                 SInt32 dataSize = xsGetArrayBufferLength(*slot);
-                err = FskSerialIOPlatformWriteString(sio, data, dataSize);
+                err = FskPinSerialWrite(sio->pin, dataSize, (UInt8 *)data);
                 xsThrowDiagnosticIfFskErr(err, "Serial write failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
 			}
 			else if (xsIsInstanceOf(*slot, xsChunkPrototype)) {
                 char *data = xsGetHostData(*slot);
                 SInt32 dataSize = xsToInteger(xsGet(*slot, xsID("length")));
-                err = FskSerialIOPlatformWriteString(sio, data, dataSize);
+                err = FskPinSerialWrite(sio->pin, dataSize, (UInt8 *)data);
                 xsThrowDiagnosticIfFskErr(err, "Serial write failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
             }
             else if (xsIsInstanceOf(*slot, xsArrayPrototype)) {
@@ -342,61 +286,16 @@ void xs_serial_repeat(xsMachine *the)
     if (!sio->path && (0 == sio->rxNum))
         xsThrowDiagnosticIfFskErr(kFskErrBadState, "Cannot poll from transmit only serial connection (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
 
-	disposePollerThread(sio);
-
     sio->poller = (xsTest(xsArg(0))) ? xsGetHostData(xsArg(0)) : NULL;
 
-	if (sio->poller) {
-		sio->eventfd = eventfd(0, EFD_NONBLOCK);
-		if (sio->eventfd >= 0)
-			FskThreadCreate(&sio->pollerThread, serialThread, kFskThreadFlagsDefault, sio, "serial poller");
-	}
+	FskPinSerialDataReady(sio->pin, sio->poller ? serialPinDataReady : NULL, sio);
 }
 
-void serialThread(void *param)
+void serialPinDataReady(FskPinSerial pin, void *refCon)
 {
-    FskSerialIO sio = param;
-	unsigned char buffer[1024];
-	struct pollfd fds[2];
-
-	fds[0].fd = sio->eventfd;
-	fds[0].events = POLLIN | POLLERR | POLLHUP;
-
-	fds[1].fd = FskSerialIOPlatformGetFD(sio);
-	fds[1].events = POLLIN | POLLERR;
-
-//	FskThreadInitializationComplete(FskThreadGetCurrent());
-	while (!sio->killed) {
-		UInt32 bytesRead;
-		int nfds;
-		int i;
-		Boolean hasData = false;
-
-		poll(fds, 2, -1);
-
-		if (!(fds[1].revents & POLLIN))
-			continue;
-
-		if (kFskErrNone != FskSerialIOPlatformReadBlocking(sio, sizeof(buffer), buffer, &bytesRead))
-			break;
-
-		FskMutexAcquire(sio->mutex);
-
-		if ((bytesRead + sio->dataCount) > sio->dataAllocated) {
-			UInt32 newSize = (bytesRead + sio->dataCount) * 2;
-			if (newSize < 8192) newSize = 8192;
-			if (kFskErrNone != FskMemPtrRealloc(newSize, &sio->data)) {
-				FskMutexRelease(sio->mutex);
-				break;
-			}
-			sio->dataAllocated = newSize;
-		}
-
-		FskMemMove(sio->data + sio->dataCount, buffer, bytesRead);
-		sio->dataCount += bytesRead;
-
-		FskMutexRelease(sio->mutex);
-
+	FskSerialIO sio = refCon;
+	if (!sio->notifyPending) {
+		sio->notifyPending = true;
 		FskThreadPostCallback(sio->pinsThread, serialDataReady, sio, NULL, NULL, NULL);
 	}
 }
@@ -404,31 +303,8 @@ void serialThread(void *param)
 void serialDataReady(void *arg0, void *arg1, void *arg2, void *arg3)
 {
 	FskSerialIO sio = arg0;
-	if (sio->dataCount)
-		KprPinsPollerRun(sio->poller);
+	sio->notifyPending = false;
+	KprPinsPollerRun(sio->poller);
 }
-
-void disposePollerThread(FskSerialIO sio)
-{
-	if (sio->pollerThread) {
-		uint64_t one = 1;
-		sio->killed = true;
-		if (sio->eventfd >= 0)
-			write(sio->eventfd, &one, sizeof(one));
-		FskThreadJoin(sio->pollerThread);
-		if (sio->eventfd >= 0)
-			close(sio->eventfd);
-
-		FskMutexAcquire(sio->mutex);
-			FskMemPtrDisposeAt(&sio->data);
-			sio->dataAllocated = 0;
-			sio->dataCount = 0;
-			sio->pollerThread = NULL;
-			sio->killed = false;
-			sio->eventfd = -1;
-		FskMutexRelease(sio->mutex);
-	}
-}
-
 
 #endif /* USESERIAL */

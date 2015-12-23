@@ -61,6 +61,7 @@
 	<source name="FskMemory.c"/>
 	<source name="FskMemoryAllocator.c"/>
 	<source name="FskList.c"/>
+	<source name="FskPin.c"/>
 	<source name="FskPort.c"/>
 	<source name="FskPortEffects.c"/>
 	<source name="FskRectangle.c"/>
@@ -94,6 +95,7 @@
 	<header name="FskMedia.h"/>
 	<header name="FskMemory.h"/>
 	<header name="FskMemoryAllocator.h"/>
+	<header name="FskPin.h"/>
 	<header name="FskPlatformImplementation.h"/>
 	<header name="FskPort.h"/>
 	<header name="FskRectangle.h"/>

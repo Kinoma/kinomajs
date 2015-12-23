@@ -19,6 +19,7 @@
 
 #define KPR_NO_GRAMMAR 1
 #include "kpr.h"
+#include "FskPin.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -105,7 +106,6 @@ int FskHardwarePinsMux(int physicalPinNum, FskHardwarePinFunction function);
 
 void FskHardwarePinsDoMux(int pinNum, int slaveAddress, int pinType);
 
-
 #if USEGPIO
 
 typedef enum{in, out, undefined, errorDir} GPIOdirection;
@@ -161,18 +161,12 @@ typedef struct serialStruct {  //Serial IO
 	UInt8               ttyNum;
 
 	void                *platform;
+	FskPinSerial		pin;
 
     KprPinsPoller       poller;
-	FskThread			pollerThread;
 	FskThread			pinsThread;
-	FskMutex			mutex;
-	int					eventfd;
 
-	Boolean				killed;
-
-	unsigned char		*data;
-	UInt32				dataCount;	// data bytes available
-	UInt32				dataAllocated;	// size of data
+	Boolean				notifyPending;
 
 	char                path[1];
 } FskSerialIORecord, *FskSerialIO;
@@ -181,12 +175,12 @@ FskErr FskSerialIOPlatformInit(FskSerialIO sio, int baud);
 FskErr FskSerialIOPlatformDispose(FskSerialIO sio);
 FskErr FskSerialIOPlatformWriteChar(FskSerialIO sio, char c);
 FskErr FskSerialIOPlatformWriteString(FskSerialIO sio, char* str, int len);
-FskErr FskSerialIOPlatformReadCharBlocking(FskSerialIO sio, char* c);
-FskErr FskSerialIOPlatformReadCharNonBlocking(FskSerialIO sio, char* c);
+FskErr FskSerialIOPlatformReadCharBlocking(FskSerialIO sio, char* c);		//@@ unused
+FskErr FskSerialIOPlatformReadCharNonBlocking(FskSerialIO sio, char* c);	//@@ unused
 FskErr FskSerialIOPlatformRead(FskSerialIO sio, char** str, int* count, int maxCount);
 FskErr FskSerialIOPlatformReadBlocking(FskSerialIO sio, UInt32 bytesToRead, void *buffer, UInt32 *bytesRead);
-FskErr FskSerialIOPlatformGetByteCount(FskSerialIO sio, int* count);
-FskErr FskSerialIOPlatformClearBuffer(FskSerialIO sio);
+FskErr FskSerialIOPlatformGetByteCount(FskSerialIO sio, int* count);		//@@ unused
+FskErr FskSerialIOPlatformClearBuffer(FskSerialIO sio);						//@@ unused
 int FskSerialIOPlatformGetFD(FskSerialIO sio);
 
 #endif

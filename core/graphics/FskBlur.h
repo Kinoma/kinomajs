@@ -60,7 +60,7 @@ FskAPI(FskErr) FskGaussianBlur(FskConstBitmap srcBM, FskConstRectangle srcRect, 
  *	\param[in]	srcRect	a sub-rectangle in the source to blur; NULL implies the whole bitmap.
  *	\param[out]	dstBM	the destination bitmap. Must be the same pixel format as the source bitmap.
  *						Can be the same as the source bitmap.
- *	\param[in]	dstPt	a place in the destination to place the blurred srcRect; NULL implies (0,0).
+ *	\param[in]	dstLoc	a place in the destination to place the blurred srcRect; NULL implies (0,0).
  *	\param[in]	radiusX	the radius of the kernel used for blurring horizontally, incorporating 2*radiusX+1 pixels.
  *	\param[in]	radiusY	the radius of the kernel used for blurring vertically,   incorporating 2*radiusX+1 pixels.
  *	\return	kFskErrNone					if the operation completed successfully.

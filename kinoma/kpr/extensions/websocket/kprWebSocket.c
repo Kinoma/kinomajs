@@ -32,6 +32,12 @@
 #include "kprWebSocketEndpoint.h"
 #include "kprWebSocketServer.h"
 
+typedef enum {
+	kKprWebSocketBinaryChunk,
+	kKprWebSocketBinaryBlob,
+	kKprWebSocketBinaryArrayBuffer,
+} KPR_WebSocketBinaryType;
+
 static void KPR_WebSocketClient_onOpen(KprWebSocketEndpoint endpoint, void *refcon);
 static void KPR_WebSocketClient_onClose(KprWebSocketEndpoint endpoint, UInt16 code, char *reason, Boolean wasClean, void *refcon);
 static void KPR_WebSocketClient_onTextMessage(KprWebSocketEndpoint endpoint, char *text, void *refcon);
@@ -48,6 +54,7 @@ struct KPR_WebSocketClientStruct {
 	xsIndex* code;
 	KprWebSocketEndpoint endpoint;
 	KPR_WebSocketServerRecord *server;
+	KPR_WebSocketBinaryType binaryType;
 };
 
 static void KPR_WebSocketServerClientWillDispose(KPR_WebSocketServerRecord *self, KPR_WebSocketClientRecord *client);
@@ -141,13 +148,17 @@ void KPR_websocketclient_send(xsMachine* the)
 {
 	KPR_WebSocketClientRecord *self = xsGetHostData(xsThis);
 
-	if (isChunk(xsArg(0))) {
+	if (xsTypeOf(xsArg(0)) == xsStringType) {
+		xsThrowIfFskErr(KprWebSocketEndpointSendString(self->endpoint, xsToString(xsArg(0))));
+	} else if (isChunk(xsArg(0))) {
 		void *data = xsGetHostData(xsArg(0));
 		UInt32 length = xsToInteger(xsGet(xsArg(0), xsID_length));
 
 		xsThrowIfFskErr(KprWebSocketEndpointSendBinary(self->endpoint, data, length));
 	} else {
-		xsThrowIfFskErr(KprWebSocketEndpointSendString(self->endpoint, xsToString(xsArg(0))));
+		void *data = xsToArrayBuffer(xsArg(0));
+		UInt32 length = xsGetArrayBufferLength(xsArg(0));
+		xsThrowIfFskErr(KprWebSocketEndpointSendBinary(self->endpoint, data, length));
 	}
 }
 
@@ -257,9 +268,20 @@ static void KPR_WebSocketClient_onBinaryMessage(KprWebSocketEndpoint endpoint, v
 		xsTry {
 			xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
 
-			FskMemPtrNewFromData(length, data, &data2);
-			xsMemPtrToChunk(the, &xsVar(1), (FskMemPtr)data2, length, false);
-			data2 = NULL; // data is taking over by ECMASCript Object
+			switch (self->binaryType) {
+				case kKprWebSocketBinaryChunk: {
+					FskMemPtrNewFromData(length, data, &data2);
+					xsMemPtrToChunk(the, &xsVar(1), (FskMemPtr)data2, length, false);
+					data2 = NULL; // data is taking over by ECMASCript Object
+					break;
+				}
+
+				case kKprWebSocketBinaryArrayBuffer:
+				default: {
+					xsVar(1) = xsArrayBuffer(data, length);
+					break;
+				}
+			}
 
 			xsNewHostProperty(xsVar(0), xsID("data"), xsVar(1), xsDefault, xsDontScript);
 
@@ -313,6 +335,39 @@ void KPR_websocketclient_get_url(xsMachine* the)
 {
 	KPR_WebSocketClientRecord *self = xsGetHostData(xsThis);
 	xsResult = xsString(self->endpoint->url);
+}
+
+void KPR_websocketclient_get_binaryType(xsMachine *the)
+{
+	KPR_WebSocketClientRecord *self = xsGetHostData(xsThis);
+
+	char *type;
+	switch (self->binaryType) {
+		case kKprWebSocketBinaryArrayBuffer:
+			type = "arraybuffer";
+			break;
+		case kKprWebSocketBinaryBlob:
+			type = "blob";
+			break;
+		case kKprWebSocketBinaryChunk:
+			type = "chunk";
+			break;
+	}
+	xsResult = xsString(type);
+}
+
+void KPR_websocketclient_set_binaryType(xsMachine *the)
+{
+	KPR_WebSocketClientRecord *self = xsGetHostData(xsThis);
+	char *type = xsToString(xsArg(0));
+
+	if (FskStrCompare(type, "arraybuffer") == 0) {
+		self->binaryType = kKprWebSocketBinaryArrayBuffer;
+	} else if (FskStrCompare(type, "chunk") == 0) {
+		self->binaryType = kKprWebSocketBinaryChunk;
+	} else {
+		xsThrowIfFskErr(kFskErrUnimplemented);
+	}
 }
 
 //--------------------------------------------------

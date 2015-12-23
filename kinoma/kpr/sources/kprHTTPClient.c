@@ -778,6 +778,13 @@ void KprHTTPConnectionClose(KprHTTPConnection self)
 	self->target = NULL;
 }
 
+FskSocketCertificateRecord kDefaultCerts = {
+	NULL, 0,
+	"allowOrphan",
+	NULL,
+	NULL, 0
+};
+
 FskErr KprHTTPConnectionProcess(KprHTTPConnection self, KprHTTPTarget target)
 {
 	FskErr err = kFskErrNone;
@@ -791,7 +798,7 @@ FskErr KprHTTPConnectionProcess(KprHTTPConnection self, KprHTTPTarget target)
 		FskHTTPClientSetAuthCallback(self->client, KprHTTPConnectionAuthCallback);
 		FskHTTPClientSetFinishedCallback(self->client, KprHTTPConnectionClosedCallback);
 		FskHTTPClientSetCredentials(self->client, NULL, NULL, 0, kFskHTTPAuthCredentialsTypeNone);
-		FskHTTPClientSetCertificates(self->client, message->request.certificate, message->request.certificateSize, message->request.policies ? message->request.policies : "allowOrphan");
+		FskHTTPClientSetCertificates(self->client, message->request.certs ? message->request.certs : &kDefaultCerts);
 		FskInstrumentedItemSendMessageVerbose(self, kprInstrumentedHTTPConnectionOpen, self->client)
 	}
 	FskInstrumentedItemSendMessageDebug(self, kprInstrumentedHTTPConnectionProcess, message->url)

@@ -294,6 +294,7 @@ void fxGetNextJSONToken(txMachine* the, txJSONParser* theParser)
 					c = (++p < q) ? *p : 0;
 					switch (c) {
 					case '"':
+					case '/':
 					case '\\':
 					case 'b':
 					case 'f':
@@ -353,12 +354,29 @@ void fxGetNextJSONToken(txMachine* the, txJSONParser* theParser)
 						p++; c = *p;
 						switch (c) {
 						case '"':
-						case 'b':
-						case 'f':
-						case 'n':
-						case 'r':
-						case 't':
+						case '/':
+						case '\\':
 							*string++ = c;
+							p++; c = *p;
+							break;
+						case 'b':
+							*string++ = '\b';
+							p++; c = *p;
+							break;
+						case 'f':
+							*string++ = '\f';
+							p++; c = *p;
+							break;
+						case 'n':
+							*string++ = '\n';
+							p++; c = *p;
+							break;
+						case 'r':
+							*string++ = '\r';
+							p++; c = *p;
+							break;
+						case 't':
+							*string++ = '\t';
 							p++; c = *p;
 							break;
 						case 'u':
@@ -373,7 +391,7 @@ void fxGetNextJSONToken(txMachine* the, txJSONParser* theParser)
 									value = (value * 16) + (10 + c - 'A');
 							}
 							// surrogate pair?
-							string = (txString)fsX2UTF8(value, (txU1*)string, size);
+							string = (txString)fsX2UTF8(value, (txU1*)string, 0x7FFFFFFF);
 							p++; c = *p;
 							break;
 						}
@@ -741,17 +759,20 @@ void fxSerializeJSONProperty(txMachine* the, txJSONSerializer* theSerializer, tx
 		anInstance = fxGetInstance(the, aValue);
 		if (anInstance->flag & XS_LEVEL_FLAG)
 			mxTypeError("cyclic value");
-		aProperty = fxGetProperty(the, anInstance, mxID(_toJSON));
-		if (aProperty && mxIsReference(aProperty) && mxIsFunction(fxGetInstance(the, aProperty)))  {
-			mxPushSlot(aKey);
-			/* COUNT */
-			mxPushInteger(1);
-			/* THIS */
-			mxPushSlot(aValue);
-			/* FUNCTION */
-			mxPushSlot(aProperty);
+		mxPushSlot(aKey);
+		/* COUNT */
+		mxPushInteger(1);
+		/* THIS */
+		mxPushSlot(aValue);
+		/* FUNCTION */
+		mxPushSlot(aValue);
+		fxGetID(the, mxID(_toJSON));
+		if (mxIsReference(the->stack) && mxIsFunction(the->stack->value.reference))  {
 			fxCall(the);
 			mxPullSlot(aValue);
+		}
+		else {
+			the->stack = aKey;
 		}
 	}
 	else
@@ -819,19 +840,40 @@ again:
 		}
 		fxSerializeJSONName(the, theSerializer, theFlag);
 		anInstance->flag |= XS_LEVEL_FLAG;
-		fxSerializeJSONChar(the, theSerializer, '{');
-		theSerializer->level++;
-		fxSerializeJSONIndent(the, theSerializer);
-		aFlag = 2;
-		{
-			txSlot aContext;
-			aContext.value.regexp.code = theSerializer;
-			aContext.value.regexp.offsets = &aFlag;
-			fxEachInstanceProperty(the, anInstance, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG, fxSerializeJSONOwnProperty, &aContext, anInstance);
+		if (fxIsArray(the, anInstance)) {
+			fxSerializeJSONChar(the, theSerializer, '[');
+			theSerializer->level++;
+			fxSerializeJSONIndent(the, theSerializer);
+			aFlag = 4;
+			mxPushReference(anInstance);
+			fxGetID(the, mxID(_length));
+			aLength = fxToInteger(the, the->stack);
+			mxPop();
+			for (anIndex = 0; anIndex < aLength; anIndex++) {
+				mxPushReference(anInstance);
+				fxGetID(the, anIndex);
+				mxPushInteger(anIndex);
+				fxSerializeJSONProperty(the, theSerializer, &aFlag);
+			}
+			theSerializer->level--;
+			fxSerializeJSONIndent(the, theSerializer);
+			fxSerializeJSONChar(the, theSerializer, ']');
 		}
-		theSerializer->level--;
-		fxSerializeJSONIndent(the, theSerializer);
-		fxSerializeJSONChar(the, theSerializer, '}');
+		else {
+			fxSerializeJSONChar(the, theSerializer, '{');
+			theSerializer->level++;
+			fxSerializeJSONIndent(the, theSerializer);
+			aFlag = 2;
+			{
+				txSlot aContext;
+				aContext.value.regexp.code = theSerializer;
+				aContext.value.regexp.offsets = &aFlag;
+				fxEachInstanceProperty(the, anInstance, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_STEP_GET_FLAG, fxSerializeJSONOwnProperty, &aContext, anInstance);
+			}
+			theSerializer->level--;
+			fxSerializeJSONIndent(the, theSerializer);
+			fxSerializeJSONChar(the, theSerializer, '}');
+		}
 		anInstance->flag &= ~XS_LEVEL_FLAG;
 		break;
 	default:

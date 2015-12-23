@@ -489,11 +489,11 @@ FskAPI(const FskColorSource*)	FskCanvas2dGetStrokeStyle(FskConstCanvas2dContext 
 /** Set the current stroke style as a color source.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	cs			The desired color source to be used for stroking paths.
- *	\bug		In this implementation,  dashes   are restricted to at most kCanvas2DMaxDashCycles cycles.
- *	\bug		In this implementation, gradients are restricted to at most kCanvas2DMaxGradientStops color stops.
- *	\todo		Accommodate an arbitrary number of gradient color stops.
  *	\see		FskColorSource
  *	\see		FskPolygon.h
+ *	\bug		In this implementation,  dashes   are restricted to at most kCanvas2DMaxDashCycles (4) cycles.
+ *	\bug		In this implementation, gradients are restricted to at most kCanvas2DMaxGradientStops (6) color stops.
+ *	\todo		Accommodate an arbitrary number of gradient color stops.
  */
 FskAPI(void)	FskCanvas2dSetStrokeStyle(FskCanvas2dContext ctx, const FskColorSource *cs);
 
@@ -511,11 +511,11 @@ FskAPI(const FskColorSource*)	FskCanvas2dGetFillStyle(FskConstCanvas2dContext ct
 /** Set the current fill style as a color source.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	cs			The desired color source to be used for filling paths.
- *	\bug		In this implementation,  dashes   are restricted to at most kCanvas2DMaxDashCycles cycles.
- *	\bug		In this implementation, gradients are restricted to at most kCanvas2DMaxGradientStops color stops.
- *	\todo		Accommodate an arbitrary number of gradient color stops.
  *	\see		FskColorSource
  *	\see		FskPolygon.h
+ *	\bug		In this implementation,  dashes   are restricted to at most kCanvas2DMaxDashCycles (4) cycles.
+ *	\bug		In this implementation, gradients are restricted to at most kCanvas2DMaxGradientStops (6) color stops.
+ *	\todo		Accommodate an arbitrary number of gradient color stops.
  */
 FskAPI(void)	FskCanvas2dSetFillStyle(FskCanvas2dContext ctx, const FskColorSource *cs);
 
@@ -547,7 +547,7 @@ FskAPI(void)	FskCanvas2dSetStrokeStyleColor(FskCanvas2dContext ctx, FskConstColo
  *	\note		(x0,y0) and (x1,y1) set up a 1-dimensional coordinate system,
  *				where an offset of 0 corresponds to (x0,y0) and (an offset of 1 corresponds to (x1,y1).
  *				Offsets between 0 and 1 are linearly interpolated between (x0,y0) and (x1,y1).
- *	\bug		Only 4 gradient stops are currently accommodated.
+ *	\bug		Only kCanvas2DMaxGradientStops (6) gradient stops are currently accommodated.
  *	\todo		Accommodate an arbitrary number of gradient stops.
  */
 FskAPI(FskErr)	FskCanvas2dSetFillStyleLinearGradient(	FskCanvas2dContext ctx,
@@ -568,7 +568,7 @@ FskAPI(FskErr)	FskCanvas2dSetFillStyleLinearGradient(	FskCanvas2dContext ctx,
  *	\note		(x0,y0) and (x1,y1) set up a 1-dimensional coordinate system,
  *				where an offset of 0 corresponds to (x0,y0) and (an offset of 1 corresponds to (x1,y1).
  *				Offsets between 0 and 1 are linearly interpolated between (x0,y0) and (x1,y1).
- *	\bug		Only 4 gradient stops are currently accommodated.
+ *	\bug		Only kCanvas2DMaxGradientStops (6) gradient stops are currently accommodated.
  *	\todo		Accommodate an arbitrary number of gradient stops.
  */
 FskAPI(FskErr)	FskCanvas2dSetStrokeStyleLinearGradient(FskCanvas2dContext ctx,
@@ -591,8 +591,7 @@ FskAPI(FskErr)	FskCanvas2dSetStrokeStyleLinearGradient(FskCanvas2dContext ctx,
  *	\note		(x0,y0,r0) and (x1,y1,r1) set up a 1-dimensional coordinate system,
  *				where an offset of 0 corresponds to (x0,y0,r0) and (an offset of 1 corresponds to (x1, y1,r1).
  *				Offsets between 0 and 1 are linearly interpolated between (x0,y0,r0) and (x1,y1,r1).
- *	\bug		r0 is currently ignored, and has an effective value of 0.
- *	\bug		Only 4 gradient stops are currently accommodated.
+ *	\bug		Only kCanvas2DMaxGradientStops (6) gradient stops are currently accommodated.
  *	\todo		Implement r0 != 0.
  *	\todo		Accommodate an arbitrary number of gradient stops.
  */
@@ -616,8 +615,7 @@ FskAPI(FskErr)	FskCanvas2dSetFillStyleRadialGradient(	FskCanvas2dContext ctx,
  *	\note		(x0,y0,r0) and (x1,y1,r1) set up a 1-dimensional coordinate system,
  *				where an offset of 0 corresponds to (x0,y0,r0) and (an offset of 1 corresponds to (x1, y1,r1).
  *				Offsets between 0 and 1 are linearly interpolated between (x0,y0,r0) and (x1,y1,r1).
- *	\bug		r0 is currently ignored, and has an effective value of 0.
- *	\bug		Only 4 gradient stops are currently accommodated.
+ *	\bug		Only kCanvas2DMaxGradientStops (6) gradient stops are currently accommodated.
  *	\todo		Implement r0 != 0.
  *	\todo		Accommodate an arbitrary number of gradient stops.
  */
@@ -1013,6 +1011,36 @@ FskAPI(FskErr)	FskCanvas2dPathArcTo(FskCanvas2dContext ctx, FskCanvas2dPath path
 FskAPI(FskErr)	FskCanvas2dPathArc(FskCanvas2dContext ctx, FskCanvas2dPath path, double cx, double cy, double radius, double startAngle, double endAngle, Boolean counterClockwise);
 
 
+/** Append a polyline segment to the given path.
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	numPts		The number of points.
+ *	\param[in]	pt			The points.
+ *	\return		kFskErrNone	If the polyline segment was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathPolylineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt);
+
+
+/** Append a quadratic B-spline segment to the given path.
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	numPts		The number of points.
+ *	\param[in]	pt			The points.
+ *	\return		kFskErrNone	If the quadratic segment was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathQuadraticBSplineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt);
+
+
+/** Append a cubic B-spline segment to the given path.
+ *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in]	numPts		The number of points.
+ *	\param[in]	pt			The points.
+ *	\return		kFskErrNone	If the cubic B-spline segment was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathCubicBSplineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt);
+
+
 /** Append a rectangle to the given path.
  *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
  *	\param[in]	path	The path. NULL implies the path in the context.
@@ -1193,11 +1221,11 @@ FskAPI(FskErr)	FskCanvas2dStrokeText( FskCanvas2dContext ctx, const UInt16 *uniC
 /** Determine the width of the text using the current font attributes.
  *	\param[in]	ctx			The Canvas 2d context.
  *	\param[in]	uniChars	The text string, in Unicode (UTF-16).
+ *	\return		The width of the text string.
  *	\todo	In addition to advance width, this should also have
  *			actualBoundingBoxLeft, actualBoundingBoxRight
  *			fontBoundingBoxAscent, fontBoundingBoxDescent, actualBoundingBoxAscent, actualBoundingBoxDescent,
  *			emHeightAscent, emHeightDescent, hangingBaseline, alphabeticBaseline, deographicBaseline.
- *	\return		The width of the text string.
  */
 FskAPI(double)	FskCanvas2dMeasureText(FskCanvas2dContext ctx, const UInt16 *uniChars);
 

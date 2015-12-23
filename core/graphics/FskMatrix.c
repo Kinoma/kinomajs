@@ -22,6 +22,7 @@
 	#endif /* !PRAGMA_MARK_SUPPORTED */
 #endif /* PRAGMA_MARK_SUPPORTED */
 
+#include "FskMemory.h"
 
 #ifndef MINIMAL_CUBIC
 	#define MINIMAL_CUBIC 0	/* This should really be set on the command line instead */
@@ -671,6 +672,274 @@ FskName3(Fsk,FLTPREC,DeterminantMatrix)(register const FLOAT *a, register int n)
 }
 #undef A
 #endif /* MINIMAL_CUBIC */
+
+
+/***************************************************************************//**
+ * FskCholeskyDecompose.
+ *	Compute the Cholesky Decomposition of a positive definite symmetric matrix.
+ *	\param[in]	A	the input symmetric matrix.
+ *	\param[in]	n	the size (n x n) of the matrices A and L.
+ *	\param[out]	L	the resultant lower triangular Cholesky matrix.
+ *	\return		1	if the decomposition was successful,
+ *	\return		0	if the matrix was not positive definite.
+ *******************************************************************************/
+
+int
+FskName3(Fsk,FLTPREC,CholeskyDecompose)(const FLOAT *A, int n, FLOAT *L)
+{
+	int i, j, k;
+	double s;
+
+	FskMemSet(L, 0, n * n * sizeof(*L));
+
+    for (i = 0; i < n; ++i) {
+        for (j = 0; j <= i; ++j) {
+            for (k = 0, s = A[i * n + j]; k < j; ++k)
+                s -= L[i * n + k] * L[j * n + k];
+            if (i == j) {
+            	if (s < 0)
+            		return 0;									/* Failed because the given matrix was not positive definite */
+				L[i * n + j] = (FLOAT)sqrt(s);
+            }
+            else {
+				L[i * n + j] = (FLOAT)(1.0 / L[j * n + j] * s);
+            }
+        }
+    }
+
+    return 1;													/* The decomposition succeeded */
+}
+
+
+/***************************************************************************//**
+ * FskCholeskySolve.
+ *	Solve the linear equation L Lt x = b, where L Lt is the Cholesky decomposition of some matrix.
+ *	\param[in]	L		the Cholesky decomposition of a matrix.
+ *	\param[in]	n		the size (n x n) of the matrix.
+ *	\param[in]	b		the vector to be solved.
+ *	\param[out]	x		the solution to the equation.
+ *	\param[in]	bxCols	the number of columns in b and x; use 1 for a vector.
+ *******************************************************************************/
+
+void
+FskName3(Fsk,FLTPREC,CholeskySolve)(const FLOAT *L, int n, const FLOAT *b, FLOAT *x, int bxCols)
+{
+	int i, j, k;
+	double s;
+
+	for (j = bxCols; j--; ++b, ++x) {
+		for (i = 0; i < n; ++i) {								/* Solve L y = b */
+			for (k = i - 1, s = b[i * bxCols]; k >= 0; --k)
+				s -= L[i * n + k] * x[k * bxCols];
+			x[i * bxCols] = s / L[i * n + i];
+		}
+		for (i = n - 1; i >= 0; --i) {							/* Solve Lt x = y */
+			for (k = i + 1, s = x[i * bxCols]; k < n; ++k)
+				s -= L[k * n + i] * x[k * bxCols];
+			x[i * bxCols] = s / L[i * n + i];
+		}
+	}
+}
+
+
+/***************************************************************************//**
+ *	Evaluate the B-spline basis.
+ *	\param[in]	u		the parametric value at which the spline is be be evaluated.
+ *	\param[in]	order	the order of theB-spline to evaluate.
+ *	\param[in]	nindex	the basis is to be evaluated at this knot index.
+ *	\param[in]	knots	the knot vector.
+ *	\return		the evaluation of the specified B-spline basis function.
+ *******************************************************************************/
+
+static FLOAT
+FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(FLOAT u, int order, int nindex, const FLOAT *knots) {
+	FLOAT b0, b1;
+	if (order == 1)
+		return (knots[nindex] <= u && u < knots[nindex+1]) ? 1 : 0;
+	if (0 != (b0 = FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(u, order - 1, nindex+0, knots)))
+		b0 *= (u - knots[nindex]) / (knots[nindex + order - 1] - knots[nindex]);
+	if (0 != (b1 = FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(u, order - 1, nindex+1, knots)))
+		b1 *= (knots[nindex + order] - u) / (knots[nindex + order] - knots[nindex + 1]);
+	return b0 + b1;
+}
+
+
+/***************************************************************************//**
+ *	FskBSplineFit.
+ *	Least squares fit of the given equally spaced samples to a uniform cubic B-spline.
+ *	\param[in]		numSamples	the number of samples.
+ *	\param[in]		samples		the samples to be fitted. 1-D if (xMin < xMax), 2-D with monotonic abscissae otherwise.
+ *	\param[in]		xMin		the minimum abscissa.
+ *	\param[in]		xMax		the maximum abscissa. If xMax <= xMin, it implies that the samples are 2-D not 1-D.
+ *	\param[in]		numCtrl		the number of control points to be used for fitting.
+ *	\param[in,out]	ctrl		a preallocated place to store the 2-D control points of size (2 * numCtrl).
+ *	\param[in]		interpolateEnds		if true, assures that the B-spline goes through the first and last sample points.
+ *	\return			1	if the operation completed successfully.
+ *	\return			0	if there was not enough memory to complete the operation, or if the samples were ill-conditioned.
+ *******************************************************************************/
+
+int
+FskName3(Fsk,FLTPREC,BSplineFit)(int numSamples, const FLOAT *samples, FLOAT xMin, FLOAT xMax, int degree, int numCtrl, FLOAT *ctrl, int interpolateEnds)
+{
+	const int	order	= degree + 1;
+	FLOAT		*knots	= NULL,
+				*ATA	= NULL,
+				*AT		= NULL,
+				*L		= NULL,
+				*X		= NULL;
+	FskErr		err;
+	FLOAT		t, dt, t0;
+	double		s;
+	int			i, j, k, numKnots;
+
+	numKnots = numCtrl + order;
+	BAIL_IF_ERR(err = FskMemPtrNew(numKnots                  * sizeof(*knots), &knots));			/* Allocate working memory */
+	BAIL_IF_ERR(err = FskMemPtrNewClear(numCtrl * numCtrl    * sizeof(*ATA),   &ATA));
+	BAIL_IF_ERR(err = FskMemPtrNewClear(numCtrl * numSamples * sizeof(*AT),    &AT));
+	BAIL_IF_ERR(err = FskMemPtrNewClear(numCtrl * numCtrl    * sizeof(*L),     &L));
+	BAIL_IF_ERR(err = FskMemPtrNewClear(numCtrl * numSamples * sizeof(*X),     &X));
+
+	for (i = order; i--;)																			/* Make knot vector */
+		*knots++ = 0.;
+	i = numCtrl - order;
+	for (t = dt = 1. / (numCtrl - degree); i--; t += dt)
+		*knots++ = t;
+	for (i = order; i--;)
+		*knots++ = 1.;
+	knots -= numKnots;
+
+	if (xMax > xMin) {																				/* Equally spaced samples (ordinate) */
+		t0 = 0;
+		dt = (FLOAT)(1.) / (numSamples - 1);
+	} else {
+		t0 = samples[0*2+0];																		/* Samples (abscissa, ordinate) at specified positions */
+		dt = (FLOAT)(1.) / (samples[numSamples*2-2] - t0);											/* We require the first and last samples to contain extremes of the abscissae */
+	}
+
+	for (i = 0; i < numCtrl; ++i) {																	/* Make ATA matrix (sparse) */
+		int jMax = i + degree;
+		if (jMax >= numCtrl)
+			jMax = numCtrl - 1;
+		for (j = 0; j < i; ++j)
+			ATA[i * numCtrl + j] = ATA[j * numCtrl + i];
+		for (j = i; j <= jMax; ++j) {
+			if (xMax > xMin) {																		/* Equally spaced samples */
+				for (k = 0, s = 0; k < numSamples; ++k)	 {
+					t = dt * k;
+					s += FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(t, order, i, knots)
+					   * FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(t, order, j, knots);
+				}
+			} else {																				/* Samples at specified positions */
+				for (k = 0, s = 0; k < numSamples; ++k)	 {
+					t = (samples[k*2+0] - t0) * dt;
+					s += FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(t, order, i, knots)
+					   * FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(t, order, j, knots);
+				}
+			}
+			ATA[i * numCtrl + j] = s;
+		}
+	}
+
+	if (xMax > xMin) {																				/* Equally spaced samples */
+		for (i = 0; i < numCtrl; ++i) {																/* Make AT matrix (sparse) */
+			for (j = 0; j < numSamples; ++j) {
+				t = dt * j;
+				AT[i * numSamples + j] = FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(t, order, i, knots);
+		   }
+		}
+	} else {																						/* Samples at specified positions */
+		for (i = 0; i < numCtrl; ++i) {																/* Make AT matrix (sparse) */
+			for (j = 0; j < numSamples; ++j) {
+				t = (samples[j*2+0] - t0) * dt;
+				AT[i * numSamples + j] = FskName3(Fsk,FLTPREC,EvaluateBSplineBasis)(t, order, i, knots);
+		   }
+		}
+	}
+
+	err = FskName3(Fsk,FLTPREC,CholeskyDecompose)(ATA, numCtrl, L) ? kFskErrNone : kFskErrSingular;	/* Cholesky decomposition of ATA (sparse) */
+	BAIL_IF_ERR(err);
+	FskName3(Fsk,FLTPREC,CholeskySolve)(L, numCtrl, AT, X, numSamples);								/* Solve for ATA^-1 * AT (dense) */
+
+	#ifdef DEBUG_FIT
+		printf("\nsamples[%d]: ", numSamples);
+		for (i = 0; i < numSamples; ++i)
+			printf(" %.4g", samples[i]);
+		printf("\n");
+		printf("\nknots[%d]: ", numKnots);
+		for (i = 0; i < numKnots; ++i)
+			printf(" %.4f", knots[i]);
+		printf("\n");
+		printf("\nATA[%d][%d]:\n", numCtrl, numCtrl);
+		for (i = 0; i < numCtrl; ++i) {
+			for (j = 0; j < numCtrl; ++j)
+				printf("%8.5f ", ATA[i * numCtrl + j]);
+			printf("\n");
+		}
+		printf("\nAT[%d][%d] transposed[%d][%d]:\n", numSamples, numCtrl, numCtrl, numSamples);
+		for (i = 0; i < numSamples; ++i) {
+			for (j = 0; j < numCtrl; ++j)
+				printf("%8.5f ", AT[j * numSamples + i]);
+			printf("\n");
+		}
+		printf("control sum:");
+		for (j = 0; j < numCtrl; ++j) {
+			for (i = 0, t = 0; i < numSamples; ++i)
+				t += AT[j * numSamples + i];
+			printf(" %g", t);
+		}
+		printf("\n");
+		printf("sample sum:");
+		for (i = 0; i < numSamples; ++i) {
+			for (j = 0, t = 0; j < numCtrl; ++j)
+				t += AT[j * numSamples + i];
+			printf(" %g", t);
+		}
+		printf("\n");
+		printf("\nL[%d][%d]:\n", numCtrl, numCtrl);
+		for (i = 0; i < numCtrl; ++i) {
+			for (j = 0; j < numCtrl; ++j)
+				printf("%8.5f ", L[i * numCtrl + j]);
+			printf("\n");
+		}
+		printf("\nX[%d][%d] transposed[%d][%d]:\n", numSamples, numCtrl, numCtrl, numSamples);
+		for (i = 0; i < numSamples; ++i) {
+			for (j = 0; j < numCtrl; ++j)
+				printf("%9.4f", X[j * numSamples + i]);
+			printf("\n");
+		}
+	#endif // DEBUG_FIT
+
+	if (xMax > xMin) {																					/* Equally spaced samples between xMin and xMax */
+		for (i = 0, t = xMin, dt = (xMax - xMin) / (numSamples - 1); i < numSamples; ++i, t += dt) {	/* Create coordinate pairs... */
+			AT[i*2+0] = t;																				/* ... by interleaving equally spaced X ... */
+			AT[i*2+1] = samples[i];																		/* ... with Y */
+		}
+ 		AT[2*numSamples-2] = xMax;																		/* Avoid numerical precision loss for the last abscissa */
+		samples = AT;
+	}
+	FskName3(Fsk,FLTPREC,LinearTransform)(X, samples, ctrl, numCtrl, numSamples, 2);					/* Compute control points */
+	if (interpolateEnds) {																				/* If it is desired to interpolate the end samples, ... */
+		ctrl[0]           = samples[0];																	/* ... coerce the control points ... */
+		ctrl[1]           = samples[1];
+		ctrl[2*numCtrl-2] = samples[2*numSamples-2];													/* ... to do so */
+		ctrl[2*numCtrl-1] = samples[2*numSamples-1];
+	}
+
+	#ifdef DEBUG_FIT
+		printf("\nControl points:\n");
+		for (i = 0; i < numCtrl; ++i)
+			printf("%8.5f ", ctrl[i]);
+		printf("\n");
+	#endif // DEBUG_FIT
+
+bail:
+	FskMemPtrDispose(X);
+	FskMemPtrDispose(L);
+	FskMemPtrDispose(AT);
+	FskMemPtrDispose(ATA);
+	FskMemPtrDispose(knots);
+	return (err == kFskErrNone);
+}
 
 
 #if PRAGMA_MARK_SUPPORTED

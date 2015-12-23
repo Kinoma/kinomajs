@@ -783,35 +783,50 @@ bail:
  * FskGrowablePathAppendSegmentCubicBSplineTo
  ********************************************************************************/
 
+#define kFracThird	0x15555555
+
 FskErr
 FskGrowablePathAppendSegmentCubicBSplineTo(UInt32 numPts, const FskFixedPoint2D *pt, FskGrowablePath path)
 {
-	FskErr	err;
+	FskErr			err;
+	FskFixedPoint2D	q1, q2, q3, q4;
 
-	if (numPts < 3) {		/* Not enough points for a cubic -- do a quadratic instead */
-		err = FskGrowablePathAppendSegmentQuadraticBSplineTo(numPts, pt, path);
-	}
-	else {					/* We have at least 3 points for a cubic */
-		FskFixedPoint2D q1, q2, q3, q4;
-		q1 = *pt++;
-		if (numPts >= 4) {	/* Convert from cubic B-spline to cubic Bezier */
-			for (numPts -= 4; numPts--; pt++, q1 = q4) {
-				q4.x = ((pt[0].x << 1) + pt[1].x + 1) / 3;	q4.y = ((pt[0].y << 1) + pt[1].y + 1) / 3;
-				q2.x =     (q1.x       + pt[0].x) >> 1;		q2.y =     (q1.y       + pt[0].y) >> 1;
-				q3.x =     (q2.x       +    q4.x) >> 1;		q3.y =     (q2.y       +    q4.y) >> 1;
+	q1 = *pt++;
+	switch (numPts) {
+		case 0:
+		case 1:
+		case 2:
+			return FskGrowablePathAppendSegmentQuadraticBSplineTo(numPts, --pt, path);				/* Not enough points for a cubic -- do a quadratic instead */
+		case 3:																						/* Already a cubic Bezier */
+			q4 = q1;
+			break;
+		case 4:
+			q4.x = (pt[0].x + pt[1].x)   >> 1;										q4.y = (pt[0].x + pt[1].x)   >> 1;
+			q2.x = (q1.x    + pt[0].x)   >> 1;										q2.y = (q1.y    + pt[0].x)   >> 1;
+			q3.x = (q2.x    + q4.x     ) >> 1;										q3.y = (q2.y    + q4.y     ) >> 1;
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatCubicBezierTo(q1.x, q1.y, q2.x, q2.y, q3.x, q3.y, path));
+			++pt;
+			break;
+		default:
+			q4.x = FskFracMul((pt[0].x << 1) + (pt[1].x << 0), kFracThird);			q4.y = FskFracMul((pt[0].y << 1) + (pt[1].y << 0), kFracThird);
+			q2.x =            (q1.x          +  pt[0].x     ) >> 1;					q2.y =            (q1.y          +  pt[0].y     ) >> 1;
+			q3.x =            (q2.x          +  q4.x        ) >> 1;					q3.y =            (q2.y          +  q4.y        ) >> 1;
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentCubicBezierTo(q1.x, q1.y, q2.x, q2.y, q3.x, q3.y, path));
+			q1 = q4;
+			for (numPts -= 5; numPts--; ++pt, q1 = q4) {
+				q4.x = FskFracMul((pt[1].x << 1) + (pt[2].x << 0), kFracThird);		q4.y = FskFracMul((pt[1].y << 1) + (pt[2].y << 0), kFracThird);
+				q2.x = FskFracMul((pt[0].x << 0) + (pt[1].x << 1), kFracThird);		q2.y = FskFracMul((pt[0].y << 0) + (pt[1].y << 1), kFracThird);
+				q3.x =            (q2.x          +  q4.x        ) >> 1;				q3.y =            (q2.y          +  q4.y        ) >> 1;
 				BAIL_IF_ERR(err = FskGrowablePathAppendSegmentCubicBezierTo(q1.x, q1.y, q2.x, q2.y, q3.x, q3.y, path));
 			}
-
-			q4.x = (pt[0].x + pt[1].x) >> 1;		q4.y  = (pt[0].y + pt[1].y) >> 1;
-			q2.x =    (q1.x + pt[0].x) >> 1;		q2.y =     (q1.y + pt[0].y) >> 1;
-			q3.x =    (q2.x +    q4.x) >> 1;		q3.y =     (q2.y +    q4.y) >> 1;
+			q4.x =            (pt[1].x       +  pt[2].x     ) >> 1;					q4.y =            (pt[1].y       +  pt[2].y     ) >> 1;
+			q2.x = FskFracMul((pt[0].x << 0) + (pt[1].x << 1), kFracThird);			q2.y = FskFracMul((pt[0].y << 0) + (pt[1].y << 1), kFracThird);
+			q3.x =            (q2.x          +  q4.x        ) >> 1;					q3.y =            (q2.y          +  q4.y        ) >> 1;
 			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentCubicBezierTo(q1.x, q1.y, q2.x, q2.y, q3.x, q3.y, path));
-			pt++;
-			q1 = q4;
-		}
-
-		err = FskGrowablePathAppendSegmentCubicBezierTo(q1.x, q1.y, pt[0].x, pt[0].y, pt[1].x, pt[1].y, path);
+			pt += 2;
+			break;
 	}
+	err = FskGrowablePathAppendSegmentCubicBezierTo(q4.x, q4.y, pt[0].x, pt[0].y, pt[1].x, pt[1].y, path);
 
 bail:
 	return err;

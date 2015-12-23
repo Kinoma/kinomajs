@@ -85,7 +85,7 @@ void fxBuildProxy(txMachine* the)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	slot = fxNextStringProperty(the, slot, "Reflect", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_Reflect), C_NULL);
-	slot->flag = XS_GET_ONLY;
+	slot->flag = XS_DONT_ENUM_FLAG;
 	slot->kind = the->stack->kind;
 	slot->value = the->stack->value;
 	the->stack++;
@@ -676,9 +676,9 @@ void fx_Reflect_defineProperty(txMachine* the)
 		mxTypeError("target is no object");
 	if (mxArgc < 2)
 		mxTypeError("no key");
+    fxSlotToID(the, mxArgv(1), &id);
 	if ((mxArgc < 3) || (mxArgv(2)->kind != XS_REFERENCE_KIND))
 		mxTypeError("invalid descriptor");
-    fxSlotToID(the, mxArgv(1), &id);
 	mxResult->value.boolean = fxDefineInstanceProperty(the, mxArgv(0)->value.reference, id, mxArgv(2));
 	mxResult->kind = XS_BOOLEAN_KIND;
 }
@@ -782,12 +782,25 @@ void fx_Reflect_set(txMachine* the)
 		mxTypeError("target is no object");
 	if (mxArgc < 2)
 		mxTypeError("no key");
+	fxSlotToID(the, mxArgv(1), &id);
 	if (mxArgc < 3)
 		mxTypeError("no value");
-	fxSlotToID(the, mxArgv(1), &id);
 	mxPushSlot(mxArgv(2));
-	mxPushSlot(mxArgv(0));
-	fxSetID(the, id);
+	if (mxArgc < 4)
+		mxPushSlot(mxArgv(0));
+	else
+		mxPushSlot(mxArgv(3));
+	{
+		mxTry(the) {
+			fxSetID(the, id);
+			mxResult->kind = XS_BOOLEAN_KIND;
+			mxResult->value.boolean = 1;
+		}
+		mxCatch(the) {
+			mxResult->kind = XS_BOOLEAN_KIND;
+			mxResult->value.boolean = 0;
+		}
+	}
 }
 
 void fx_Reflect_setPrototypeOf(txMachine* the)

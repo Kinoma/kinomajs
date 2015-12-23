@@ -221,6 +221,14 @@
 					}
 				}
 			</function>
+			<function name="getList">
+				var list = Crypt.persistentListClient.getList.call(this);
+				if (this.localCerts) {
+					for (var i = 0; i < this.localCerts.length; i++)
+						list.push(this.localCerts[i]);
+				}
+				return list;
+			</function>
 		</object>
 		<function name="Certificate" params="certificatesInstance" prototype="Crypt.certificate">
 			Crypt.PersistentListClient.call(this, certificatesInstance ? certificatesInstance : Crypt.certificatesInstance);
@@ -231,3 +239,4 @@
 		Crypt.certificatesInstance = new Crypt.CertificateInstance();
 	</program>
 </package>
+

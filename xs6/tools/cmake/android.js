@@ -138,18 +138,17 @@ add_custom_target(
 	)
 
 add_custom_command(
-	OUTPUT \${NDK_PROJECT_BIN}/runtime-\${ANT_CONFIGURATION}.apk
+	OUTPUT \${NDK_PROJECT_BIN}/${this.tree.info.name}-\${ANT_CONFIGURATION}.apk
 	COMMAND android update project -p .
 	COMMAND ant -Dsdk.dir=\${ANDROID_SDK} \${ANT_CONFIGURATION}
 	DEPENDS ndk jet \${SEPARATE}
 	WORKING_DIRECTORY \${NDK_PROJECT_PATH}
 	)
-add_custom_target(ant DEPENDS \${NDK_PROJECT_BIN}/runtime-\${ANT_CONFIGURATION}.apk)
+add_custom_target(ant DEPENDS \${NDK_PROJECT_BIN}/${this.tree.info.name}-\${ANT_CONFIGURATION}.apk)
 
 add_custom_command(
 	OUTPUT \${BIN_DIR}/${application}.apk
-	COMMAND android update project -p .
-	COMMAND \${CMAKE_COMMAND} -E copy \${NDK_PROJECT_BIN}/${application.toLowerCase()}-\${ANT_CONFIGURATION}.apk \${BIN_DIR}/${application}.apk
+	COMMAND \${CMAKE_COMMAND} -E copy \${NDK_PROJECT_BIN}/${this.tree.info.name}-\${ANT_CONFIGURATION}.apk \${BIN_DIR}/${application}.apk
 	DEPENDS ndk jet ant \${SEPARATE}
 	WORKING_DIRECTORY \${NDK_PROJECT_PATH}
 	)

@@ -440,6 +440,72 @@ txU1* fsX2UTF8(txU4 c, txU1* p, txU4 theSize)
 	return p;
 }
 
+static txBoolean fxIsSpace(txU4 c)
+{
+	static txU4 spaces[26] = {
+		0x00000009,
+        0x0000000A,
+        0x0000000B,
+        0x0000000C,
+        0x0000000D,
+		0x00000020,
+		0x000000A0,
+		0x00001680,
+		0x0000180E,
+		0x00002000,
+		0x00002001,
+		0x00002002,
+		0x00002003,
+		0x00002004,
+		0x00002005,
+		0x00002006,
+		0x00002007,
+		0x00002008,
+		0x00002009,
+		0x0000200A,
+		0x00002028,
+		0x00002029,
+		0x0000202F,
+		0x0000205F,
+		0x00003000,
+		0x00000000,
+	};
+	txU4 *p = spaces, s;
+	while ((s = *p++)) {
+		if (c < s)
+			return 0;
+		if (c == s)
+			return 1;
+	}
+	return 0;
+}
+
+txString fxSkipSpaces(txString string) 
+{
+	const txUTF8Sequence *sequence;
+	txU1* p = (txU1*)string;
+	txU1* q = p;
+	txU4 c;
+	txS4 size;
+	while ((c = *q++)) {
+		for (sequence = gxUTF8Sequences; sequence->size; sequence++) {
+			if ((c & sequence->cmask) == sequence->cval)
+				break;
+		}
+		size = sequence->size - 1;
+		while (size > 0) {
+			size--;
+			c = (c << 6) | (*q++ & 0x3F);
+		}
+		c &= sequence->lmask;
+		if (fxIsSpace(c))
+			 p = q;
+		else
+			break;
+	}
+	return (txString)p;
+}
+
 txFlag fxIntegerToIndex(void* dtoa, txInteger theInteger, txIndex* theIndex)
 {
 	if (0 <= theInteger) {

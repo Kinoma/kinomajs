@@ -3886,29 +3886,33 @@ FskAPI(UInt32)	FskAlphaStraightOver32A16RGB565SE(UInt32 dst, UInt32 src);
 
 /** Add a scaled portion of x to y. Helper for premultiplied alpha to 16RGB565SE.
  *	\param[in]	alpha6	6 bit fraction
- *	\param[in]	fr		the pixel pixel to be scaled and added to "to".
- *	\param[in]	to		the source pixel.
+ *	\param[in]	x		the pixel to be scaled and summed with "y".
+ *	\param[in]	y		the pixel to be modified.
+ *	\return		the resultant sum.
  **/
 FskAPI(UInt16)	FskAXPY16RGB565SE(UInt8 alpha6, UInt16 x, UInt16 y);
 
 /** Add a scaled portion of x to y. Helper for premultiplied alpha to 16RGB565DE.
  *	\param[in]	alpha6	6 bit fraction
- *	\param[in]	fr		the pixel pixel to be scaled and added to "to".
- *	\param[in]	to		the source pixel.
+ *	\param[in]	x		the pixel to be scaled and summed with "y".
+ *	\param[in]	y		the pixel to be modified.
+ *	\return		the resultant sum.
  **/
 FskAPI(UInt16)	FskAXPY16RGB565DE(UInt8 alpha6, UInt16 x, UInt16 y);
 
 /** Add a scaled portion of x to y. Helper for premultiplied alpha to 32XYZW.
  *	\param[in]	alpha	8 bit fraction
- *	\param[in]	fr		the pixel pixel to be scaled and added to "to".
- *	\param[in]	to		the source pixel.
+ *	\param[in]	x		the pixel to be scaled and summed with "y".
+ *	\param[in]	y		the pixel to be modified.
+ *	\return		the resultant sum.
  **/
 FskAPI(UInt32)	FskAXPY8888(UInt8 alpha, UInt32 x, UInt32 y);
 
 /** Add a scaled portion of x to y. Helper for premultiplied alpha to 24XYZ.
  *	\param[in]	alpha	8 bit fraction
- *	\param[in]	fr		the pixel pixel to be scaled and added to "to".
- *	\param[in]	to		the source pixel.
+ *	\param[in]	x		the pixel to be scaled and summed with "y".
+ *	\param[in]	y		the pixel to be modified.
+ *	\return		the resultant sum.
  **/
 FskAPI(Fsk24BitType)	FskAXPY24(UInt8 alpha, Fsk24BitType x, Fsk24BitType y);
 

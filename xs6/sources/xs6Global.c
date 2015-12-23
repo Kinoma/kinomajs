@@ -104,15 +104,15 @@ void fxBuildGlobal(txMachine* the)
     const txHostFunctionBuilder* builder;
 	txSlot* slot;
 	
-	fxNewGlobalInstance(the);
-	mxPull(mxGlobal);
-
 	fxNewInstance(the);
 	mxPull(mxObjectPrototype);
 	
 	mxPush(mxObjectPrototype);
 	fxNewFunctionInstance(the, XS_NO_ID);
 	mxPull(mxFunctionPrototype);
+	
+	fxNewGlobalInstance(the);
+	mxPull(mxGlobal);
 	
 	for (builder = gx_global_builders; builder->callback; builder++) {
 		fxNewHostFunctionGlobal(the, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
@@ -137,8 +137,12 @@ txSlot* fxNewGlobalInstance(txMachine* the)
 {
 	txSlot* instance;
 	txSlot* property;
-	instance = fxNewInstance(the);
+	instance = fxNewSlot(the);
 	instance->flag |= XS_VALUE_FLAG;
+	instance->kind = XS_INSTANCE_KIND;
+	instance->value.instance.garbage = C_NULL;
+	instance->value.instance.prototype = mxObjectPrototype.value.reference;
+	mxPushReference(instance);
 	property = instance->next = fxNewSlot(the);
 	property->value.table.address = (txSlot**)fxNewChunk(the, the->keyCount * sizeof(txSlot*));
 	c_memset(property->value.table.address, 0, the->keyCount * sizeof(txSlot*));
@@ -516,43 +520,82 @@ void fx_unescape(txMachine* the)
 	mxResult->kind = XS_STRING_KIND;
 }
 			
+static txU1 fxDecodeURIEscape(txMachine* the, txU1* string)
+{
+	txU1 result;
+	txU1 c = *string++;
+	if (('0' <= c) && (c <= '9'))
+		result = c - '0';
+	else if (('a' <= c) && (c <= 'f'))
+		result = 10 + c - 'a';
+	else if (('A' <= c) && (c <= 'F'))
+		result = 10 + c - 'A';
+	else
+		mxURIError("invalid URI");
+	c = *string;
+	if (('0' <= c) && (c <= '9'))
+		result = (result * 16) + (c - '0');
+	else if (('a' <= c) && (c <= 'f'))
+		result = (result * 16) + (10 + c - 'a');
+	else if (('A' <= c) && (c <= 'F'))
+		result = (result * 16) + (10 + c - 'A');
+	else
+		mxURIError("invalid URI");
+	return result;
+}
+
 void fxDecodeURI(txMachine* the, txString theSet)
 {
 	txU1* src;
-	txS4 size;
+	txS4 length;
 	txU1 c, d;
+	const txUTF8Sequence *sequence;
+	txS4 size;
 	txS1 *result;
 	txU1* dst;
 	
 	src = (txU1*)mxArgv(0)->value.string;
-	size = 0;
+	length = 0;
 	while ((c = *src++)) {
 		if (c == '%') {
-			c = *src++;
-			if (c == 0)
-				mxURIError("invalid URI");
-			d = mxURIXDigit(c) << 4;
-			c = *src++;
-			if (c == 0)
-				mxURIError("invalid URI");
-			d += mxURIXDigit(c);
+			d = fxDecodeURIEscape(the, src);
+			src +=2 ;
 			if ((d < 128) && (theSet[(int)d]))
-				size += 3;
-			else
-				size += 1;
+				length += 3;
+			else {
+				for (sequence = gxUTF8Sequences; sequence->size; sequence++) {
+					if ((d & sequence->cmask) == sequence->cval)
+						break;
+				}
+				if (!sequence->size)
+					mxURIError("invalid URI");
+				size = sequence->size - 1;
+				length++;
+				while (size > 0) {
+					c = *src++;
+					if (c != '%')
+						mxURIError("invalid URI");
+					d = fxDecodeURIEscape(the, src);
+					if ((d & 0xC0) != 0x80)
+						mxURIError("invalid URI");
+					src += 2;
+					size--;
+					length++;
+				}
+			}
 		}
 		else
-			size += 1;
+			length += 1;
 	}		
-	size += 1;
+	length += 1;
 
-	if (size == (src - (txU1*)mxArgv(0)->value.string)) {
+	if (length == (src - (txU1*)mxArgv(0)->value.string)) {
 		mxResult->value.string = mxArgv(0)->value.string;
 		mxResult->kind = mxArgv(0)->kind;
 		return;
 	}
 
-	result = fxNewChunk(the, size);
+	result = fxNewChunk(the, length);
 	
 	src = (txU1*)mxArgv(0)->value.string;
 	dst = (txU1*)result;

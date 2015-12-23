@@ -36,7 +36,7 @@ extern "C" {
  *	\param[in]	dstBM		the proxy destination bitmap.
  *	\param[in]	dstLocation	the location where the src is to be copied.
  *	\param[in]	dstClip		the destination clipping rectangle (may be NULL).
- *	\param[in]	fgColor		the color that is given to the source pixels with full value.
+ *	\param[in]	opColor		the color that is given to the source pixels with full value.
  *	\param[in]	modeParams	additional mode parameters.
  *	\return		kFskErrNone	if the operation was successful.
  **/

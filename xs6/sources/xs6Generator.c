@@ -46,6 +46,9 @@ void fxBuildGenerator(txMachine* the)
 	mxGeneratorFunctionPrototype = *the->stack;
 	slot = fxNewHostConstructor(the, fx_GeneratorFunction, 1, mxID(_GeneratorFunction));
 	the->stack++;
+	
+	slot = fxGetProperty(the, mxGeneratorPrototype.value.reference, mxID(_constructor));
+	slot->flag |= XS_DONT_SET_FLAG;
 }
 
 txSlot* fxCheckGeneratorInstance(txMachine* the, txSlot* slot)
@@ -105,8 +108,12 @@ txSlot* fxNewGeneratorInstance(txMachine* the)
     property = property->next = fxNewSlot(the);
 	property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	property->kind = XS_REFERENCE_KIND;
-	property->ID = XS_NO_ID;
 	property->value.reference = the->stack->value.reference;
+	
+    property = property->next = fxNewSlot(the);
+	property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	property->kind = XS_INTEGER_KIND;
+	property->value.integer = -1;
 	the->stack++;
 	
 	return instance;
@@ -123,20 +130,46 @@ void fx_Generator_prototype_aux(txMachine* the, txFlag status)
 	txSlot* generator = fxCheckGeneratorInstance(the, mxThis);
 	txSlot* slot = generator->next->next;
 	txSlot* result = slot->value.reference;
+	txSlot* state = slot->next;
 	mxResult->kind = XS_REFERENCE_KIND;
 	mxResult->value.reference = result;
+	if ((status != XS_NO_STATUS) && (state->value.integer < 0)) {
+		result->next->next->value.boolean = 1;
+		state->value.integer = 0;
+	}
+	if (state->value.integer > 0)
+		mxTypeError("generator is running");
 	if (result->next->next->value.boolean) {
-		result->next->kind = XS_UNDEFINED_KIND;
+		if (status == XS_NO_STATUS)
+			result->next->kind = XS_UNDEFINED_KIND;
+		else if (status == XS_RETURN_STATUS) {
+			result->next->kind = mxArgv(0)->kind;
+			result->next->value = mxArgv(0)->value;
+		}
+		else {
+			mxException = *mxArgv(0);
+			fxJump(the);
+		}
 		return;
 	}
-	if (mxArgc > 0) {
-		the->scratch.kind = mxArgv(0)->kind;
-		the->scratch.value = mxArgv(0)->value;
+	{
+		mxTry(the) {
+			if (mxArgc > 0) {
+				the->scratch.kind = mxArgv(0)->kind;
+				the->scratch.value = mxArgv(0)->value;
+			}
+			else
+				the->scratch.kind = XS_UNDEFINED_KIND;
+			the->status = status;
+			state->value.integer = 1;
+			fxRunID(the, generator, XS_NO_ID);
+			state->value.integer = 0;
+		}
+		mxCatch(the) {
+			state->value.integer = 0;
+			fxJump(the);
+		}
 	}
-	else
-		the->scratch.kind = XS_UNDEFINED_KIND;
-	the->status = status;
-	fxRunID(the, generator, XS_NO_ID);
 	result->next->kind = the->stack->kind;
 	result->next->value = the->stack->value;
 	the->stack++;

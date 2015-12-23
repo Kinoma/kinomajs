@@ -142,23 +142,34 @@ FskAPI(void)	FskSTransposeSquareMatrixInPlace(float  *M, int n);														/*
 FskAPI(void)	FskDTransposeSquareMatrixInPlace(double *M, int n);														/* Double precision */
 
 		/* LU Decomposition and solution (does not work in-place) */
-FskAPI(int)	FskSLUDecompose(const float  *a, double *lu, int n);														/* Single precision */
-FskAPI(int)	FskDLUDecompose(const double *a, double *lu, int n);														/* Double precision */
+FskAPI(int)		FskSLUDecompose(const float  *a, double *lu, int n);													/* Single precision */
+FskAPI(int)		FskDLUDecompose(const double *a, double *lu, int n);													/* Double precision */
 FskAPI(void)	FskSLUSolve(const double *lu, const float  *b, float  *x, int n);										/* Single precision */
 FskAPI(void)	FskDLUSolve(const double *lu, const double *b, double *x, int n);										/* Double precision */
 
-		/* Invert matrix (this works in-place) */
-FskAPI(int)	FskSInvertMatrix(const float  *M, int nRows, int n, float  *Minv);											/* Single precision */
-FskAPI(int)	FskDInvertMatrix(const double *M, int nRows, int n, double *Minv);											/* Double precision */
+		/* Invert matrix (this works in-place). Returns 1 if successful. */
+FskAPI(int)		FskSInvertMatrix(const float  *M, int nRows, int n, float  *Minv);										/* Single precision */
+FskAPI(int)		FskDInvertMatrix(const double *M, int nRows, int n, double *Minv);										/* Double precision */
 
 		/* L-infinity norm of a matrix, induced by ROW vectors */
 FskAPI(float)	FskSNormMatrix(const float  *M, int height, int width);													/* Single precision */
 FskAPI(double)	FskDNormMatrix(const double *M, int height, int width);													/* Double precision */
 
 		/* Determinant of a square matrix */
-FskAPI(float)	FskSDeterminantMatrix(const  float *a, int n);
-FskAPI(double)	FskDDeterminantMatrix(const double *a, int n);
+FskAPI(float)	FskSDeterminantMatrix(const  float *a, int n);															/* Single precision */
+FskAPI(double)	FskDDeterminantMatrix(const double *a, int n);															/* Double precision */
 
+		/* Cholesky decomposition of a positive definite symmetric matrix. Returns 1 if successful.*/
+FskAPI(int)		FskSCholeskyDecompose(const float  *A, int n, float  *L);												/* Single precision */
+FskAPI(int)		FskDCholeskyDecompose(const double *A, int n, double *L);												/* Double precision */
+
+		/* Solution of a linear system involving a Cholesky-factored matrix */
+FskAPI(void)	FskSCholeskySolve(const float  *L, int n, const float  *b, float  *x, int bxCols);						/* Single precision */
+FskAPI(void)	FskDCholeskySolve(const double *L, int n, const double *b, double *x, int bxCols);						/* Double precision */
+
+		/* Least squares fit of the given samples with a B-Spline. */
+FskAPI(int)		FskSBSplineFit(int numSamples, const float  *samples, float  xMin, float  xMax, int degree, int numCtrl, float  *ctrl, int interpolateEnds);	/* Single precision */
+FskAPI(int)		FskDBSplineFit(int numSamples, const double *samples, double xMin, double xMax, int degree, int numCtrl, double *ctrl, int interpolateEnds);	/* Double precision */
 
 /********************************************************************************
  * Specializations for 3x3 matrices.

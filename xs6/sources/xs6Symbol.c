@@ -386,6 +386,7 @@ void fxSlotToID(txMachine* the, txSlot* slot, txInteger* id)
 {
 	txString string;
 	txSlot* key;
+again:
 	if ((slot->kind == XS_INTEGER_KIND) && fxIntegerToIndex(the->dtoa, slot->value.integer, id))
 		return;
 	if ((slot->kind == XS_NUMBER_KIND) && fxNumberToIndex(the->dtoa, slot->value.number, id))
@@ -393,6 +394,10 @@ void fxSlotToID(txMachine* the, txSlot* slot, txInteger* id)
 	if (slot->kind == XS_SYMBOL_KIND) {
 		*id = slot->value.ID;
 		return;
+	}
+	if (slot->kind == XS_REFERENCE_KIND) {
+		fxToPrimitive(the, slot, XS_STRING_HINT);
+		goto again;
 	}
 	string = fxToString(the, slot);
 	if (!fxStringToIndex(the->dtoa, string, id)) {

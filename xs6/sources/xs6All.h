@@ -407,6 +407,7 @@ extern txString fxConcatStringC(txMachine* the, txSlot* a, txString b);
 extern txString fxCopyString(txMachine* the, txSlot* a, txSlot* b);
 extern txString fxCopyStringC(txMachine* the, txSlot* a, txString b);
 extern txString fxResizeString(txMachine* the, txSlot* a, txSize theSize);
+
 extern int fxStringGetter(void*);
 extern int fxStringCGetter(void*);
 extern void fxJump(txMachine*) XS_FUNCTION_NORETURN;
@@ -419,6 +420,7 @@ mxExport txInteger fxUTF8ToUnicodeOffset(txString theString, txInteger theOffset
 extern void fxRunID(txMachine* the, txSlot* generator, txID theID);
 extern void fxRunScript(txMachine* the, txScript* script, txSlot* _this, txSlot* environment, txSlot* home, txSlot* module);
 extern txBoolean fxIsSameSlot(txMachine* the, txSlot* a, txSlot* b);
+extern txBoolean fxIsSameValue(txMachine* the, txSlot* a, txSlot* b);
 
 /* xsMemory.c */
 extern void fxCheckStack(txMachine* the, txSlot* slot);
@@ -586,11 +588,12 @@ extern void fxBuildArray(txMachine* the);
 extern void fxCacheArray(txMachine* the, txSlot* theArray);
 extern void fxConstructArrayEntry(txMachine* the, txSlot* entry);
 extern txSlot* fxGetArrayProperty(txMachine* the, txSlot* array, txInteger index);
+extern txBoolean fxIsArray(txMachine* the, txSlot* instance);
 extern txSlot* fxNewArrayInstance(txMachine* the);
 extern txSlot* fxNewArrayFromList(txMachine* the, txSlot* reference);
 extern txSlot* fxNewListFromArray(txMachine* the, txSlot* reference);
 extern txBoolean fxRemoveArrayProperty(txMachine* the, txSlot* array, txInteger index);
-extern void fxSetArrayLength(txMachine* the, txSlot* array, txIndex target);
+extern txBoolean fxSetArrayLength(txMachine* the, txSlot* array, txIndex target);
 extern txSlot* fxSetArrayProperty(txMachine* the, txSlot* array, txInteger index);
 
 extern txSlot* fxNewParametersInstance(txMachine* the, txInteger count);

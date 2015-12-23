@@ -249,6 +249,7 @@ Boolean			FskGLPortIsDestination(FskConstGLPort port);
 
 /** Set whether the port is persistent, i.e. retains its value from frame to frame when used as a destination.
  *	\param[in]	port	the port to be set.
+ *	\param[in]	value	true, to be persistent.
  *	\return		kfskErrNone	if the operation was completed successfully.
  **/
 FskErr			FskGLPortSetPersistent(FskGLPort port, Boolean value);
@@ -319,6 +320,7 @@ FskAPI(FskErr)	FskGLBlitContextNewFromCurrent(FskGLBlitContext *pBlitContext);
  *	\param[in]	width			the desired width  of the offscreen context.
  *	\param[in]	height			the desired height of the offscreen context.
  *	\param[in]	pixelFormat		the desired format of the offscreen context.
+ *	\param[in]	version			the desired Open GL version of the offscreen context.
  *	\param[in]	share			another context, whose resources are to be shared; NULL implies resources are not shared.
  *	\param[out]	pBlitContext	pointer to a place to store the new Blit Context.
  *	\return		kFskErrNone		if the operation was successful.
@@ -524,10 +526,11 @@ FskAPI(Boolean)	FskGLCapabilitiesHas(FskConstGLCapabilities caps, const char *qu
  *	In the arguments are returned a bitfield with each bit corresponding to the pixel format that is supported, e.g.
  *			1 << kFskBitmapFormatYUV420,
  *			1 << kFskBitmapFormatUYVY,
- *	\param[out]	formats[0]	the fastest formats,        supported directly in hardware.
- *	\param[out]	formats[1]	the second fastest formats, implemented as shaders;                 also includes formats[0].
- *	\param[out]	formats[2]	the third fastest formats,  utilizing lossless conversion in-place; also includes formats[1].
- *	\param[out]	formats[3]	the slowest formats,        requiring memory allocation;            also includes formats[2].
+ *	\param[out]	formats	an array of 4 bitfield arrays:
+ *						formats[0]	the fastest formats,        supported directly in hardware.
+ *						formats[1]	the second fastest formats, implemented as shaders;                 also includes formats[0].
+ *						formats[2]	the third fastest formats,  utilizing lossless conversion in-place; also includes formats[1].
+ *						formats[3]	the slowest formats,        requiring memory allocation;            also includes formats[2].
  */
 FskAPI(void)	FskGLSourceTypes(UInt32 formats[4]);
 
@@ -585,9 +588,10 @@ FskAPI(FskErr) FskGLBitmapTextureSetRenderable(FskBitmap bm, Boolean renderable)
 /** Render to a texture rather than the frame buffer.
  *	If the bitmap currently has no texture, one is created of the same size as the bitmap.
  *	No initialization is done.
- *	\param[in]	bm	The bitmap whose texture is to become the new framebuffer;
- *					if NULL, restores rendering to the normal frame buffer.
- *	\return			kFskErrNone	if successful.
+ *	\param[in]	bm		The bitmap whose texture is to become the new framebuffer;
+ *						if NULL, restores rendering to the normal frame buffer.
+ *	\param[in]	clear	the color to which the texture should be initially cleared; NULL implies transparent black (0,0,0,0).
+ *	\return		kFskErrNone	if successful.
  */
 FskAPI(FskErr)	FskGLRenderToBitmapTexture(FskBitmap bm, FskConstColorRGBA clear);
 
@@ -604,8 +608,8 @@ FskAPI(FskErr) FskGLUseProgram(unsigned int id);
  *	\param[in,out]	coordinatesBytes	pointer to a place to store the number of bytes allocated for the coordinate buffer.
  *										If coordinates==NULL and coordinatesBytes!=NULL, then FskGLGetCoordinatePointer verifies that
  *										at least *coordinatesBytes is allocated for the buffer, reallocating if necessary.
- *	\bug		There is no way to increase the number of bytes in the coordinate pointer
  *	\return		kFskErrNone	if the operation was successful.
+ *	\bug		There is no way to increase the number of bytes in the coordinate pointer.
  */
 FskAPI(FskErr) FskGLGetCoordinatePointer(float **coordinates, UInt32 *coordinatesBytes);
 
@@ -731,21 +735,24 @@ FskAPI(FskErr)	FskGLTransferAlphaBitmap(
 
 
 /** Draw the text in the specified color in the specified dstRect.
- *	\param[in]	fte			the font text engine.
- *	\param[in]	dstBM		the proxy destination bitmap.
- *	\param[in]	text		the text to be drawn (UTF-8?).
- *	\param[in]	textLen		the length of the text string.
- *	\param[in]	dstRect		the rectangle where the text is to be drawn.
- *	\param[in]	clipRect	a rectangle that can be used to clip some of the text.
- *	\param[in]	color		the desired color of the text.
- *	\param[in]	blendLevel	the opacity of the text (can also be specified with the alpha component of the color.
- *	\param[in]	textSize	the size of the text, in pixels.
- *	\param[in]	textStyle	the style of the text.
- *	\param[in]	hAlign		the horizontal alignment of the text.
- *	\param[in]	vAlign		the vertical  alignment of the text.
- *	\param[in]	fontName	the name of the font desired.
- *	\param[in]	cache		the cache. Can be NULL.
- *	\return		kFskErrNone	if the text were rendered without problems.
+ *	\param[in]	fte				the font text engine.
+ *	\param[in]	dstBM			the proxy destination bitmap.
+ *	\param[in]	text			the text to be drawn (UTF-8?).
+ *	\param[in]	textLen			the length of the text string.
+ *	\param[in]	dstRect			the rectangle where the text is to be drawn.
+ *	\param[in]	dstRectFloat	a higher precision rectangle where the text is to be drawn, including subpixel positioning.
+ *								The dstRect must also be specified, and must contain dstRectFloat.
+ *								This may be NULL, in which case the rectangle is specified in integer coordinates by dstRect.
+ *	\param[in]	clipRect		a rectangle that can be used to clip some of the text.
+ *	\param[in]	color			the desired color of the text.
+ *	\param[in]	blendLevel		the opacity of the text (can also be specified with the alpha component of the color.
+ *	\param[in]	textSize		the size of the text, in pixels.
+ *	\param[in]	textStyle		the style of the text.
+ *	\param[in]	hAlign			the horizontal alignment of the text.
+ *	\param[in]	vAlign			the vertical  alignment of the text.
+ *	\param[in]	fontName		the name of the font desired.
+ *	\param[in]	cache			the cache. Can be NULL.
+ *	\return		kFskErrNone		if the text were rendered without problems.
  **/
 FskAPI(FskErr)	FskGLTextBox(
 	struct FskTextEngineRecord	*fte,

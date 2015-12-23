@@ -184,8 +184,6 @@ void fxDescribeProperty(txMachine* the, txSlot* property)
 	mxPush(mxObjectPrototype);
 	fxNewObjectInstance(the);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot= fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_DELETE_FLAG) ? 0 : 1, mxID(_configurable), XS_NO_FLAG);
-	slot= fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_ENUM_FLAG) ? 0 : 1, mxID(_enumerable), XS_NO_FLAG);
 	if (property->kind == XS_ACCESSOR_KIND) {
 		slot = fxNextUndefinedProperty(the, slot, mxID(_get), XS_NO_FLAG);
 		if (property->value.accessor.getter) {
@@ -199,9 +197,11 @@ void fxDescribeProperty(txMachine* the, txSlot* property)
 		}
 	}
 	else {
-		slot = fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_SET_FLAG) ? 0 : 1, mxID(_writable), XS_NO_FLAG);
 		slot = fxNextSlotProperty(the, slot, property, mxID(_value), XS_NO_FLAG);
+		slot = fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_SET_FLAG) ? 0 : 1, mxID(_writable), XS_NO_FLAG);
 	}
+	slot= fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_ENUM_FLAG) ? 0 : 1, mxID(_enumerable), XS_NO_FLAG);
+	slot= fxNextBooleanProperty(the, slot, (property->flag & XS_DONT_DELETE_FLAG) ? 0 : 1, mxID(_configurable), XS_NO_FLAG);
 }
 
 void fxEnumProperties(txMachine* the, txSlot* instance, txFlag flag)
@@ -309,8 +309,15 @@ again:
 	}
 	if (aSlot->flag & XS_VALUE_FLAG) {
 		if (theID < 0) {
-			if (aSlot->next->kind == XS_GLOBAL_KIND)
-				return fxGetGlobalProperty(the, aSlot, theID);
+			if (aSlot->next->kind == XS_GLOBAL_KIND) {
+				result = fxGetGlobalProperty(the, aSlot, theID);
+				if (result)
+					return result;
+				aSlot = aSlot->value.instance.prototype;
+				if (aSlot)
+					goto again;
+                return aSlot;
+			}
 			if (aSlot->next->kind == XS_STAR_KIND)
 				return fxGetStarProperty(the, aSlot, theID);
 			if (aSlot->next->kind == XS_PROXY_KIND)
@@ -626,6 +633,8 @@ txSlot* fxSetProperty(txMachine* the, txSlot* theInstance, txInteger theID, txFl
 		while ((aProperty = *instanceAddress)) {
 			if (aProperty->ID == XS_NO_ID) {
 				if (aProperty->kind == XS_ARRAY_KIND) {
+					if ((theInstance->flag & XS_DONT_PATCH_FLAG) && (theID >= aProperty->value.array.length))
+						return C_NULL;
 					return fxSetArrayProperty(the, aProperty, theID);
 				}
 			}

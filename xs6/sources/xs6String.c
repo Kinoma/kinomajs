@@ -138,6 +138,8 @@ txBoolean fxRemoveStringProperty(txMachine* the, txSlot* instance, txInteger ind
 
 txSlot* fxSetStringProperty(txMachine* the, txSlot* instance, txInteger index)
 {
+	if (instance->flag & XS_DONT_PATCH_FLAG)
+		return C_NULL;
 	instance->next->next->value.integer = index;
 	return &mxStringAccessor;
 }
@@ -274,7 +276,69 @@ void fx_String_fromCharCode(txMachine* the)
 
 void fx_String_raw(txMachine* the)
 {
-	mxUnknownError("TBD");
+	txInteger argCount = mxArgc;
+	txSlot* raw;
+	txInteger rawCount;
+	if (argCount > 0)
+		fxToInstance(the, mxArgv(0));
+	else
+		mxTypeError("cannot coerce undefined to object");
+	mxPushSlot(mxArgv(0));
+	fxGetID(the, mxID(_raw));
+	raw = the->stack;
+	mxPushSlot(raw);
+	fxGetID(the, mxID(_length));
+	rawCount = fxToInteger(the, the->stack);
+	mxPop();
+	if (rawCount <= 0) {
+		mxResult->value = mxEmptyString.value;
+	}
+	else {
+		txSlot* list;
+		txInteger index = 0;
+		txSlot* item;
+		txInteger size;
+		list = item = fxNewInstance(the);
+		mxPushSlot(list);
+		for (;;) {
+			mxPushSlot(raw);
+			fxGetID(the, index);
+			fxToString(the, the->stack);
+			item = item->next = fxNewSlot(the);
+			mxPullSlot(item);
+			index++;
+			if (index == rawCount)
+				break;
+			if (index < argCount) {
+				mxPushSlot(mxArgv(index));
+				fxToString(the, the->stack);
+			}
+			else
+				mxPush(mxEmptyString);
+			item = item->next = fxNewSlot(the);
+			mxPullSlot(item);
+		}
+		size = 0;
+		item = list->next;
+		while (item) {
+			item->value.key.sum = c_strlen(item->value.string);
+			size += item->value.key.sum;
+			item = item->next;
+		}
+		size++;
+		mxResult->value.string = (txString)fxNewChunk(the, size);
+		size = 0;
+		item = list->next;
+		while (item) {
+			c_memcpy(mxResult->value.string + size, item->value.string, item->value.key.sum);
+			size += item->value.key.sum;
+			item = item->next;
+		}
+		mxResult->value.string[size] = 0;
+		mxPop();
+	}
+	mxResult->kind = XS_STRING_KIND;
+	mxPop();
 }
 
 void fx_String_prototype_charAt(txMachine* the)

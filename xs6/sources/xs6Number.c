@@ -38,7 +38,7 @@ void fxBuildNumber(txMachine* the)
 		{ fx_isFinite, 1, _isFinite },
 		{ fx_isNaN, 1, _isNaN },
 		{ fx_parseFloat, 1, _parseFloat },
-		{ fx_parseInt, 1, _parseInt },
+		{ fx_parseInt, 2, _parseInt },
 		{ C_NULL, 0, 0 },
     };
   	static const txHostFunctionBuilder gx_Number_prototype_builders[] = {
@@ -163,13 +163,8 @@ void fx_parseInt(txMachine* the)
 	}
 	else
 		aRadix = 0;
-	s = mxArgv(0)->value.string;
-	while ((c = *s)) {
-		if ((c != ' ') && (c != '\f') && (c != '\n') && (c != '\r')
-				&& (c != '\t') && (c != '\v'))
-			break;
-		s++;
-	}
+	s = fxSkipSpaces(mxArgv(0)->value.string);
+	c = *s;
 	aSign = 1;
 	if (c == '+')
 		s++;
@@ -183,11 +178,11 @@ void fx_parseInt(txMachine* the)
 			s += 2;
 		}
 	}
-	if (*s == '0') {
+	/*if (*s == '0') {
 		if ((aRadix == 0) || (aRadix == 8)) {
 			aRadix = 8;
 		}
-	}
+	}*/
 	if (aRadix == 0)
 		aRadix = 10;
 	aResult = 0;
@@ -385,6 +380,9 @@ void fx_Number_prototype_toString(txMachine* the)
 			break;
 		case C_FP_NAN:
 			fxCopyStringC(the, mxResult, "NaN");
+			break;
+		case C_FP_ZERO:
+			fxCopyStringC(the, mxResult, "0");
 			break;
 		default:
 			*(--string) = 0;

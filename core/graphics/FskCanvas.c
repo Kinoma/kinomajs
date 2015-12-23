@@ -2778,6 +2778,108 @@ bail:
 
 
 /********************************************************************************
+ * FskCanvas2dPathPolylineTo
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathPolylineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt)
+{
+	FskErr err	= kFskErrNone;
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	for ( ; numPts--; pt += 2)
+		if ((err = FskGrowablePathAppendSegmentFloatLineTo(pt[0], pt[1], path)) != kFskErrNone)
+			break;
+	return err;
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathQuadraticBSplineTo
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathQuadraticBSplineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt)
+{
+	FskErr		err;
+
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	BAIL_IF_FALSE((numPts > 0), err, kFskErrBadData);
+	if (numPts == 1) {							/* Not enough for a quadratic segment -- append a line instead */
+		err = FskGrowablePathAppendSegmentFloatLineTo(pt[0*2+0], pt[0*2+1], path);
+	}
+	else {
+		for (numPts -=2; numPts--; pt += 2) {		/* Convert from quadratic B-spline to quadratic Bezier */
+			double xm = (pt[1*2+0] + pt[0*2+0]) * .5;
+			double ym = (pt[1*2+1] + pt[0*2+1]) * .5;
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatQuadraticBezierTo(pt[0*2+0], pt[0*2+1], xm, ym, path));
+		}
+		err = FskGrowablePathAppendSegmentFloatQuadraticBezierTo(pt[0*2+0], pt[0*2+1], pt[1*2+0], pt[1*2+1], path);
+	}
+
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathCubicBSplineTo
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathCubicBSplineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt)
+{
+	const double	F1_3 = 0.33333333333333333333;
+	const double	F2_3 = 0.66666666666666666667;
+	FskDPoint2D		q1, q2, q3, q4;
+	FskErr			err;
+
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	q1.x = pt[0];	q1.y = pt[1];
+	pt += 2;
+
+	switch (numPts) {
+		case 0:
+		case 1:
+		case 2:
+			return FskCanvas2dPathQuadraticBSplineTo(ctx, path, numPts, pt -= 2);					/* Not enough points for a cubic -- do a quadratic instead */
+		case 3:																						/* Already a cubic Bezier */
+			q4 = q1;
+			break;
+		case 4:
+			q4.x = (pt[0*2+0] + pt[1*2+0]) * 0.5;				q4.y = (pt[0*2+1] + pt[1*2+1]) * 0.5;
+			q2.x = (q1.x      + pt[0*2+0]) * 0.5;				q2.y = (q1.y      + pt[0*2+1]) * 0.5;
+			q3.x = (q2.x      + q4.x     ) * 0.5;				q3.y = (q2.y      + q4.y     ) * 0.5;
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatCubicBezierTo(q1.x, q1.y, q2.x, q2.y, q3.x, q3.y, path));
+			pt += 2;
+			break;
+		default:
+			q4.x = pt[0*2+0] * F2_3 + pt[1*2+0]  * F1_3;		q4.y = pt[0*2+1] * F2_3 + pt[1*2+1]  * F1_3;
+			q2.x = (q1.x            + pt[0*2+0]) * 0.5;			q2.y = (q1.y            + pt[0*2+1]) * 0.5;
+			q3.x = (q2.x            + q4.x     ) * 0.5;			q3.y = (q2.y            + q4.y     ) * 0.5;
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatCubicBezierTo(q1.x, q1.y, q2.x, q2.y, q3.x, q3.y, path));
+			q1 = q4;
+			for (numPts -= 5; numPts--; pt += 2, q1 = q4) {
+				q4.x = pt[1*2+0] * F2_3 + pt[2*2+0] * F1_3;		q4.y = pt[1*2+1] * F2_3 + pt[2*2+1] * F1_3;
+				q2.x = pt[0*2+0] * F1_3 + pt[1*2+0] * F2_3;		q2.y = pt[0*2+1] * F1_3 + pt[1*2+1] * F2_3;
+				q3.x = (q2.x            +     q4.x) * 0.5;		q3.y =  (q2.y           +     q4.y) * 0.5;
+				BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatCubicBezierTo(q1.x, q1.y, q2.x, q2.y, q3.x, q3.y, path));
+			}
+
+			q4.x = (pt[1*2+0]       + pt[2*2+0]) * 0.5;			q4.y = (pt[1*2+1]       + pt[2*2+1]) * 0.5;
+			q2.x = pt[0*2+0] * F1_3 + pt[1*2+0]  * F2_3;		q2.y = pt[0*2+1] * F1_3 + pt[1*2+1]  * F2_3;
+			q3.x = (q2.x            + q4.x     ) * 0.5;			q3.y = (q2.y            + q4.y     ) * 0.5;
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatCubicBezierTo(q1.x, q1.y, q2.x, q2.y, q3.x, q3.y, path));
+			pt += 4;
+			break;
+	}
+	err = FskGrowablePathAppendSegmentFloatCubicBezierTo(q4.x, q4.y, pt[0*2+0], pt[0*2+1], pt[1*2+0], pt[1*2+1], path);
+
+bail:
+	return err;
+}
+
+
+/********************************************************************************
  * FskCanvas2dPathAppendPathString
  ********************************************************************************/
 

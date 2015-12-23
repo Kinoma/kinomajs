@@ -149,6 +149,13 @@ void KprModulesBasesCleanup(void)
 extern xsIndex fxFindModule(xsMachine* the, xsIndex moduleID, xsSlot* slot);
 static xsIndex fxFindModuleKPR(xsMachine* the, xsIndex moduleID, xsSlot* slot);
 
+#ifdef KPR_NODE_MODULES
+static xsBooleanValue fxFindModuleLoadAsDirectory(xsMachine* the, xsStringValue base, xsStringValue name, xsIndex* id);
+static xsBooleanValue fxFindModuleLoadAsFile(xsMachine* the, xsStringValue base, xsStringValue name, xsIndex* id);
+static xsBooleanValue fxFindModuleLoadNodeModules(xsMachine* the, xsStringValue base, xsStringValue name, xsIndex* id);
+static xsIndex fxFindModuleNode(xsMachine* the, xsIndex moduleID, xsSlot* slot);
+#endif /* KPR_NODE_MODULES */
+
 extern xsBooleanValue fxFindArchive(xsMachine* the, xsStringValue path);
 static xsBooleanValue fxFindFile(xsMachine* the, xsStringValue path);
 static xsBooleanValue fxFindURI(xsMachine* the, xsStringValue base, xsStringValue name, xsStringValue dot, xsIndex* id);
@@ -171,7 +178,11 @@ xsBooleanValue fxFindFile(xsMachine* the, xsStringValue path)
 
 xsIndex fxFindModule(xsMachine* the, xsIndex moduleID, xsSlot* slot)
 {
+#ifdef KPR_NODE_MODULES
+	return fxFindModuleNode(the, moduleID, slot);
+#else
 	return fxFindModuleKPR(the, moduleID, slot);
+#endif /* KPR_NODE_MODULES */
 }
 
 xsIndex fxFindModuleKPR(xsMachine* the, xsIndex moduleID, xsSlot* slot)
@@ -218,8 +229,189 @@ xsIndex fxFindModuleKPR(xsMachine* the, xsIndex moduleID, xsSlot* slot)
 	return XS_NO_ID;
 }
 
+#ifdef KPR_NODE_MODULES
+
 // Node.js module resolution
 // https://nodejs.org/dist/v4.2.1/docs/api/modules.html#modules_all_together
+
+xsBooleanValue fxFindModuleLoadAsDirectory(xsMachine* the, xsStringValue base, xsStringValue name, xsIndex* id)
+{
+	char node[1024];
+	UInt32 nodeSize;
+	xsStringValue slash;
+	FskErr err;
+	FskFileMapping map = NULL;
+	xsBooleanValue result = 0;
+	xsStringValue path = NULL;
+	unsigned char* data;
+	FskInt64 size;
+	xsSlot slot;
+	
+	nodeSize = sizeof(node);
+	FskStrNCopy(node, base, nodeSize);
+	slash = FskStrRChr(node, '/');
+	if (slash)
+		*slash = 0;
+	FskStrNCat(node, "/", nodeSize);
+	FskStrNCat(node, name, nodeSize);
+	if (FskStrTail(node, "/") != 0)
+		FskStrNCat(node, "/", nodeSize);
+	FskStrNCat(node, "package.json", nodeSize);
+	err = KprURLToPath(node, &path);
+	if (err == kFskErrNone) {
+		err = FskFileMap(path, &data, &size, 0, &map);
+		if (err == kFskErrNone) {
+			xsTry {
+				slot = xsNewInstanceOf(xsChunkPrototype);
+				xsSetHostData(slot, data);
+				xsSetHostDestructor(slot, NULL);
+				xsSet(slot, xsID("length"), xsInteger(size));
+				slot = xsCall1(xsGet(xsGlobal, xsID("JSON")), xsID("parse"), slot);
+			}
+			xsCatch {
+				slot = xsUndefined;
+			}
+			if (xsTest(slot)) {
+				slot = xsGet(slot, xsID("main"));
+				if (xsTest(slot)) {
+					FskStrNCopy(node, name, nodeSize);
+					if (FskStrTail(node, "/") != 0)
+						FskStrNCat(node, "/", nodeSize);
+					FskStrNCat(node, xsToString(slot), nodeSize);
+					if (fxFindModuleLoadAsFile(the, base, node, id))
+						result = 1;
+				}
+			}
+		}
+	}
+	FskFileDisposeMap(map);
+	FskMemPtrDispose(path);
+	if (result)
+		return result;
+	FskStrNCopy(node, name, nodeSize);
+	if (FskStrTail(node, "/") != 0)
+		FskStrNCat(node, "/", nodeSize);
+	FskStrNCat(node, "index", nodeSize);
+	if (fxFindModuleLoadAsFile(the, base, node, id))
+		return 1;
+	return 0;
+}
+
+xsBooleanValue fxFindModuleLoadAsFile(xsMachine* the, xsStringValue base, xsStringValue name, xsIndex* id) // based on fxFindModuleKPR
+{
+	xsBooleanValue absolute, relative;
+	xsStringValue dot, slash;
+	
+	if ((!FskStrCompareWithLength(name, "./", 2)) || (!FskStrCompareWithLength(name, "../", 3))) {
+		absolute = 0;
+		relative = (base == NULL) ? 0 : 1;
+	}
+	else if ((!FskStrCompareWithLength(name, "/", 1))) {
+		FskMemMove(name, name + 1, FskStrLen(name));
+		absolute = 1;
+		relative = 0;
+	}
+	else {
+		absolute = 1;
+		relative = (base == NULL) ? 0 : 1;
+	}
+	slash = FskStrRChr(name, '/');
+	if (!slash)
+		slash = name;
+	dot = FskStrRChr(slash, '.');
+	if (dot) {
+		xsBooleanValue known = 0;
+		xsStringValue* extension;
+		for (extension = gxExtensions; *extension; extension++) {
+			if (!FskStrCompare(dot, *extension)) {
+				known = 1;
+				break;
+			}
+		}
+		if (!known)
+			dot = NULL;
+	}
+	if (!dot)
+		dot = name + FskStrLen(name);
+	if (relative) {
+		if (fxFindURI(the, base, name, dot, id))
+			return 1;
+	}
+	if (absolute) {
+		xsStringValue* bases = gModulesBases;
+		UInt32 c = gModulesBasesCount;
+		UInt32 i = 1;
+		while (i < c) {
+			if (fxFindURI(the, bases[i], name, dot, id))
+				return 1;
+			i++;
+		}
+	}
+	return 0;
+}
+
+xsBooleanValue fxFindModuleLoadNodeModules(xsMachine* the, xsStringValue base, xsStringValue name, xsIndex* id)
+{
+	char node[1024];
+	UInt32 nodeSize;
+	xsStringValue* bases;
+	UInt32 c, i;
+	
+	nodeSize = sizeof(node);
+	if (base) {
+		bases = &base;
+		c = 1;
+		i = 0;
+	}
+	else {
+		bases = gModulesBases;
+		c = gModulesBasesCount;
+		i = 1;
+	}
+	while (i < c) {
+		UInt32 count = 1; // limit moves to the parent directory
+		xsStringValue slash;
+		FskStrNCopy(node, bases[i], nodeSize);
+		do {
+			slash = FskStrRChr(node, '/');
+			if (slash) {
+				*slash = 0;
+				if (FskStrTail(node, "/node_modules") != 0)
+					FskStrNCopy(slash, "/node_modules/", nodeSize - (slash - node));
+				else if (FskStrTail(node, "/") != 0)
+					FskStrNCopy(slash, "/", nodeSize - (slash - node));
+				if (fxFindModuleLoadAsFile(the, node, name, id))
+					return 1;
+				if (fxFindModuleLoadAsDirectory(the, node, name, id))
+					return 1;
+				*slash = 0;
+			}
+		} while ((count-- > 0) && (slash && (slash - node > 7))); // "file://"
+		i++;
+	}
+	return 0;
+}
+
+xsIndex fxFindModuleNode(xsMachine* the, xsIndex moduleID, xsSlot* slot)
+{
+	char* base;
+	char name[1024];
+	xsIndex id;
+	
+	xsToStringBuffer(*slot, name, sizeof(name));
+	base = (moduleID == XS_NO_ID) ? NULL : xsName(moduleID);
+	if ((!FskStrCompareWithLength(name, "/", 1)) || (!FskStrCompareWithLength(name, "./", 2)) || (!FskStrCompareWithLength(name, "../", 3))) {
+		if (fxFindModuleLoadAsFile(the, base, name, &id))
+			return id;
+		if (fxFindModuleLoadAsDirectory(the, base, name, &id))
+			return id;
+	}
+	if (fxFindModuleLoadNodeModules(the, base, name, &id))
+		return id;
+	return XS_NO_ID;
+}
+
+#endif /* KPR_NODE_MODULES */
 
 xsBooleanValue fxFindURI(xsMachine* the, xsStringValue base, xsStringValue name, xsStringValue dot, xsIndex* id)
 {

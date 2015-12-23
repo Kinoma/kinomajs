@@ -19,6 +19,7 @@
 
 #include "kpr.h"
 #include "kprURL.h"
+#include "FskNetUtils.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,9 +94,7 @@ typedef struct {
 	void* headers;
 	void* body;
 	UInt32 size;
-	void* certificate;
-	UInt32 certificateSize;
-	char *policies;
+	FskSocketCertificateRecord* certs;
 	void* target;
 	KprMessageCallbackProc callback;
 	KprMessageDisposeProc dispose;
@@ -164,7 +163,7 @@ FskAPI(FskErr) KprMessageSetCredentials(KprMessage self, char* username, char* p
 FskAPI(FskErr) KprMessageSetMethod(KprMessage self, char* method);
 void KprMessageSetPriority(KprMessage self, SInt32 priority);
 FskAPI(FskErr) KprMessageSetRequestBody(KprMessage self, void* data, UInt32 size);
-FskAPI(FskErr) KprMessageSetRequestCertificate(KprMessage self, void* certificate, UInt32 size, char *policies);
+FskAPI(FskErr) KprMessageSetRequestCertificate(KprMessage self, FskSocketCertificateRecord* certs);
 FskAPI(FskErr) KprMessageSetRequestHeader(KprMessage self, char* name, char* value);
 FskAPI(FskErr) KprMessageSetResponseBody(KprMessage self, void* data, UInt32 size);
 FskAPI(FskErr) KprMessageSetResponseHeader(KprMessage self, char* name, char* value);

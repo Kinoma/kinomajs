@@ -1908,10 +1908,14 @@ void fxDelegateNodeCode(void* it, void* param)
 void fxDeleteNodeCode(void* it, void* param) 
 {
 	txDeleteNode* self = it;
+	txCoder* coder = param;
 	switch (self->reference->description->token) {
 	case XS_TOKEN_ACCESS: fxAccessNodeCodeDelete(self->reference, param); break;
 	case XS_TOKEN_MEMBER: fxMemberNodeCodeDelete(self->reference, param); break;
 	case XS_TOKEN_MEMBER_AT: fxMemberAtNodeCodeDelete(self->reference, param); break;
+	case XS_TOKEN_UNDEFINED:
+		fxCoderAddSymbol(param, 1, XS_CODE_DELETE_GLOBAL, coder->parser->undefinedSymbol);
+		break;
 	default: 
 		fxNodeDispatchCode(self->reference, param);
 		fxCoderAddByte(param, -1, XS_CODE_POP);
@@ -2005,12 +2009,12 @@ void fxForNodeCode(void* it, void* param)
 	fxScopeCodeDefineNodes(self->scope, param);
 	nextTarget = fxCoderCreateTarget(param);
 	doneTarget = fxCoderCreateTarget(param);
+	if (self->initialization)
+		fxNodeDispatchCode(self->initialization, param);
 	if (coder->programFlag) {
 		fxCoderAddByte(param, 1, XS_CODE_UNDEFINED);
 		fxCoderAddByte(param, -1, XS_CODE_RESULT);
 	}
-	if (self->initialization)
-		fxNodeDispatchCode(self->initialization, param);
 	fxCoderAdd(param, 0, nextTarget);
 	if (self->expression) {
 		fxNodeDispatchCode(self->expression, param);
@@ -2904,6 +2908,8 @@ void fxReturnNodeCode(void* it, void* param)
 {
 	txStatementNode* self = it;
 	txCoder* coder = param;
+	if (coder->programFlag)
+		fxReportLineError(coder->parser, self->line, "No function");
 	if (((self->flags & (mxStrictFlag | mxGeneratorFlag)) == mxStrictFlag) && (coder->returnTarget->original == NULL))
 		self->expression->flags |= mxTailRecursionFlag;
 	fxNodeDispatchCode(self->expression, param);
@@ -3209,6 +3215,12 @@ void fxUnaryExpressionNodeCode(void* it, void* param)
 	txUnaryExpressionNode* self = it;
 	fxNodeDispatchCode(self->right, param);
 	fxCoderAddByte(param, 0, self->description->code);
+}
+
+void fxUndefinedNodeCodeAssign(void* it, void* param) 
+{
+	txCoder* coder = param;
+	fxCoderAddSymbol(param, 0, XS_CODE_SET_GLOBAL, coder->parser->undefinedSymbol);
 }
 
 void fxValueNodeCode(void* it, void* param) 

@@ -23,6 +23,7 @@ static void fx_Object_prototype_hasOwnProperty(txMachine* the);
 static void fx_Object_prototype_isPrototypeOf(txMachine* the);
 static void fx_Object_prototype_propertyIsEnumerable(txMachine* the);
 static void fx_Object_prototype_propertyIsScriptable(txMachine* the);
+static void fx_Object_prototype_toLocaleString(txMachine* the);
 static void fx_Object_prototype_toPrimitive(txMachine* the);
 static void fx_Object_prototype_toString(txMachine* the);
 static void fx_Object_prototype_valueOf(txMachine* the);
@@ -59,8 +60,8 @@ void fxBuildObject(txMachine* the)
 		{ fx_Object_prototype_isPrototypeOf, 1, _isPrototypeOf },
 		{ fx_Object_prototype_propertyIsEnumerable, 1, _propertyIsEnumerable },
 		{ fx_Object_prototype_propertyIsScriptable, 1, _propertyIsScriptable },
+		{ fx_Object_prototype_toLocaleString, 0, _toLocaleString },
 		{ fx_Object_prototype_toPrimitive, 1, _Symbol_toPrimitive },
-		{ fx_Object_prototype_toString, 0, _toLocaleString },
 		{ fx_Object_prototype_toString, 0, _toString },
 		{ fx_Object_prototype_valueOf, 0, _valueOf },
 		{ C_NULL, 0, 0 },
@@ -75,14 +76,14 @@ void fxBuildObject(txMachine* the)
 		{ fx_Object_getOwnPropertyNames, 1, _getOwnPropertyNames },
 		{ fx_Object_getOwnPropertySymbols, 1, _getOwnPropertySymbols },
 		{ fx_Object_getPrototypeOf, 1, _getPrototypeOf },
-		{ fx_Object_is, 1, _is },
+		{ fx_Object_is, 2, _is },
 		{ fx_Object_isExtensible, 1, _isExtensible },
 		{ fx_Object_isFrozen, 1, _isFrozen },
 		{ fx_Object_isSealed, 1, _isSealed },
 		{ fx_Object_keys, 1, _keys },
 		{ fx_Object_preventExtensions, 1, _preventExtensions },
 		{ fx_Object_seal, 1, _seal },
-		{ fx_Object_setPrototypeOf, 1, _setPrototypeOf },
+		{ fx_Object_setPrototypeOf, 2, _setPrototypeOf },
 		{ C_NULL, 0, 0 },
     };
     const txHostFunctionBuilder* builder;
@@ -208,6 +209,16 @@ void fx_Object_prototype_propertyIsScriptable(txMachine* the)
 {
 	mxResult->kind = XS_BOOLEAN_KIND;
 	mxResult->value.boolean = 1;
+}
+
+void fx_Object_prototype_toLocaleString(txMachine* the)
+{
+	mxPushInteger(0);
+	mxPushSlot(mxThis);
+	mxPushSlot(mxThis);
+	fxGetID(the, mxID(_toString));
+	fxCall(the);
+	mxPullSlot(mxResult);
 }
 
 void fx_Object_prototype_toPrimitive(txMachine* the)
@@ -379,6 +390,7 @@ void fx_Object_prototype_toString(txMachine* the)
 
 void fx_Object_prototype_valueOf(txMachine* the)
 {
+	fxToInstance(the, mxThis);
 	*mxResult = *mxThis;
 }
 
@@ -389,6 +401,7 @@ void fx_Object_assign(txMachine* the)
 	txSlot* source;
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid target");
+	fxToInstance(the, mxArgv(0));
 	target = mxArgv(0);
 	c = mxArgc;
 	for (i = 1; i < c; i++) {
@@ -505,37 +518,17 @@ void fx_Object_getPrototypeOf(txMachine* the)
 
 void fx_Object_is(txMachine* the)
 {
-	txBoolean result = 0;
-	if (mxArgc > 1) {
-		txSlot* a = mxArgv(0);
-		txSlot* b = mxArgv(1);
-		if (a->kind == b->kind) {
-			if ((XS_UNDEFINED_KIND == a->kind) || (XS_NULL_KIND == a->kind))
-				result = 1;
-			else if (XS_BOOLEAN_KIND == a->kind)
-				result = a->value.boolean == b->value.boolean;
-			else if (XS_INTEGER_KIND == a->kind)
-				result = a->value.integer == b->value.integer;
-			else if (XS_NUMBER_KIND == a->kind)
-				result = ((a->value.number == b->value.number) && c_isnormal(a->value.number) && c_isnormal(a->value.number)) || (c_isnan(a->value.number) && c_isnan(b->value.number));
-			else if ((XS_STRING_KIND == a->kind) || (XS_STRING_X_KIND == a->kind))
-				result = c_strcmp(a->value.string, b->value.string) == 0;
-			else if (XS_SYMBOL_KIND == a->kind)
-				result = a->value.ID == b->value.ID;
-			else if (XS_REFERENCE_KIND == a->kind)
-				result = a->value.reference == b->value.reference;
-		}
-		else if ((XS_INTEGER_KIND == a->kind) && (XS_NUMBER_KIND == b->kind))
-			result = (((txNumber)(a->value.integer) == b->value.number)) && c_isnormal(b->value.number);
-		else if ((XS_NUMBER_KIND == a->kind) && (XS_INTEGER_KIND == b->kind))
-			result = (a->value.number == (txNumber)(b->value.integer)) && c_isnormal(a->value.number);
-		else if ((XS_STRING_KIND == a->kind) && (XS_STRING_X_KIND == b->kind))
-			result = c_strcmp(a->value.string, b->value.string) == 0;
-		else if ((XS_STRING_X_KIND == a->kind) && (XS_STRING_KIND == b->kind))
-			result = c_strcmp(a->value.string, b->value.string) == 0;
-	}
+	if (mxArgc > 0)
+		mxPushSlot(mxArgv(0));
+	else
+		mxPushUndefined();
+	if (mxArgc > 1)
+		mxPushSlot(mxArgv(1));
+	else
+		mxPushUndefined();
+	mxResult->value.boolean = fxIsSameValue(the, the->stack + 1, the->stack);
 	mxResult->kind = XS_BOOLEAN_KIND;
-	mxResult->value.boolean = result;
+	the->stack += 2;
 }
 
 void fx_Object_isExtensible(txMachine* the)
@@ -577,7 +570,9 @@ void fx_Object_isSealed(txMachine* the)
 		txSlot* slot = mxArgv(0);
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
+			mxResult->value.boolean = 0;
 			fxIsInstanceExtensible(the, slot);
+			mxResult->value.boolean = mxResult->value.boolean ? 0 : 1;
 			if (mxResult->value.boolean)
 				fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG, fxIsPropertySealed, mxResult, slot);
 		}

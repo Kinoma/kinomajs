@@ -312,6 +312,7 @@ extern txBoolean fxIsIdentifier(txString string);
 extern txBoolean fxIsIdentifierFirst(char c);
 extern txBoolean fxIsIdentifierNext(char c);
 extern txU1* fsX2UTF8(txU4 c, txU1* p, txU4 theSize);
+extern txString fxSkipSpaces(txString string);
 
 txFlag fxIntegerToIndex(void* dtoa, txInteger theInteger, txIndex* theIndex);
 txFlag fxNumberToIndex(void* dtoa, txNumber theNumber, txIndex* theIndex);
