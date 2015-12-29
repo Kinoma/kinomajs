@@ -1181,8 +1181,8 @@
 			<number name="NOT_SUPPORTED_ERR" value="9"/>
 			<number name="INUSE_ATTRIBUTE_ERR" value="10"/>
 			<number name="NVALID_STATE_ERR" value="11"/>
-			<number name="SYNTAX_ERR " value="12"/>
-			<number name="INVALID_MODIFICATION_ERR " value="13"/>
+			<number name="SYNTAX_ERR" value="12"/>
+			<number name="INVALID_MODIFICATION_ERR" value="13"/>
 			<number name="NAMESPACE_ERR" value="14"/>
 			<number name="INVALID_STATE_ERR" value="15"/>
 			<number name="code"/>

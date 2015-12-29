@@ -287,5 +287,6 @@ BSD License", with some additional language pertaining to Australian law).
 11. Open Sans font family is licensed under the terms of the Apache License, Version 2.0 available from:
    <http://www.apache.org/licenses/LICENSE-2.0.html>
 
-
+12. This software is based in part on the work of Daniel Beer <dlbeer@gmail.com> Curve25519 is in the public domain.
+ 
 

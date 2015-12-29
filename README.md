@@ -22,6 +22,7 @@ The host build environment is set-up on the computer used to perform the build.
  * Building KinomaJS for Android also requires a **Mac OS X** build host. 
  * Building KinomaJS for Linux (e.g. GTK destkop, Kinoma Create) requires a **Linux** build host.
  * Building KinomaJS for Windows requires a **Windows** build host.
+ * Building KinomaJS for Element (MW302) requires a **Mac OS X** build host.
 
 The host build environment is set up once. Instructions for setting up the host build environment for each target platform are below.
 
@@ -98,7 +99,7 @@ On Mac OS X, the KinomaJS build uses **Homebrew** to manage installation and mai
 
 ### Set-up your host build environment
 
-1. Install the current version of **Xcode** from Apple's App Store. *(As of the writing of this document, that is version 7.0.1)* After installing, run Xcode to accept the license agreement and install any required additional components.
+1. Install the current version of **Xcode** from Apple's App Store. *(As of the writing of this document, that is version 7.2)* After installing, run Xcode to accept the license agreement and install any required additional components.
 
 2. Install Homebrew ([http://brew.sh/](http://brew.sh/))
 
@@ -293,7 +294,7 @@ On Mac OS X, the KinomaJS build uses **Homebrew** to manage installation and mai
 
 ### Set-up your Mac OS X host build environment
 
-1. Install the current version of **Xcode** from Apple's App Store. *(As of the writing of this document, that is version 7.0.1)* After installing, run Xcode to accept the license agreement and install any required additional components.
+1. Install the current version of **Xcode** from Apple's App Store. *(As of the writing of this document, that is version 7.2)* After installing, run Xcode to accept the license agreement and install any required additional components.
 
 2. Install Homebrew ([http://brew.sh/](http://brew.sh/))
 
@@ -365,7 +366,7 @@ On Mac OS X, the KinomaJS build uses **Homebrew** to manage installation and mai
 
 ### Set-up your Mac OS X host build environment and Android tools
 
-1. Install the current version of **Xcode** from Apple's App Store. *(As of the writing of this document, that is version 7.0.1)* After installing, run Xcode to  accept the license agreement and install any required additional components.
+1. Install the current version of **Xcode** from Apple's App Store. *(As of the writing of this document, that is version 7.2)* After installing, run Xcode to  accept the license agreement and install any required additional components.
 
 2. Install Homebrew ([http://brew.sh/](http://brew.sh/))
 
@@ -530,3 +531,73 @@ When building for **Mac OS X** or **iOS** build targets, the Xcode IDE can be us
         $ kprconfig6 -I -x -p mac ${F_HOME}/kinoma/kpr/applications/balls/manifest.json
 
 * * *
+
+
+# Kinoma Element (MW302) Target
+![icon](http://kinoma.com/buy/img/Buy_Element.png)
+## (mc)
+
+Building KinomaJS for Element uses a Mac OS X build host. Applications are built on a **Mac OS X** build host. If you have already set up your Mac OS X build host and XS6 tools, skip to the **Build your KinomaJS Application** section.
+
+
+The build system uses `mc` as the target platform to build for Kinoma Element.
+
+
+On Mac OS X, the KinomaJS build uses **Homebrew** to manage installation and maintenance of **CMake**.
+
+### Set-up your Mac OS X host build environment
+
+1. Install the current version of **Xcode** from Apple's App Store. *(As of the writing of this document, that is version 7.2)* After installing, run Xcode to accept the license agreement and install any required additional components.
+
+2. Install Homebrew ([http://brew.sh/](http://brew.sh/))
+
+        $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+        $ brew install caskroom/cask/brew-cask
+
+3. Install CMake
+
+        $ brew install cmake
+
+4. Get a copy of the KinomaJS source code. It can be downloaded using your web browser from the [KinomaJS repository on GitHub](http://github.org/kinoma/kinomajs) or using the git command line tool:
+
+        $ git clone https://github.com/kinoma/kinomajs.git
+
+5. Set up two environment variables to point to the source tree.
+
+        $ export F_HOME=/path/to/kinomajs
+        $ export XS6=${F_HOME}/xs6
+        
+### Build the XS6 tools
+
+Building KinomaJS for Element currently requires a non-parallel build. Set the MAKEFLAGS environment variable:
+
+		$ export MAKEOPTS=-j1
+
+        $ cd ${XS6}
+        $ mkdir tmp
+        $ cd tmp
+        $ cmake ${XS6}
+        $ cmake --build . --config Release
+        
+        $ cmake --build . --target mc
+
+Update the **PATH** environment variable to include the path to the XS6 tools:
+
+        $ export PATH=${PATH}:${XS6}/bin/mac/Release
+        
+*Optional*: Build **xsbug**, a graphical debugger used as an alternative to the Kinoma Studio debugger.
+
+        $ kprconfig6 -p mac -x -m ${XS6}/xsbug/manifest.json
+
+The xsbug application is located at `${F_HOME}/bin/mac/Release/xsbug.app`
+
+### Build your KinomaJS Application
+
+Build the Kinoma Element simulator that is included in the KinomaJS respository.
+
+        $ cd ${F_HOME}
+        $ kprconfig6 -d -x -m ${F_HOME}/kinoma/kpr/projects/element/manifest.json
+
+The simulator application is located at `${F_HOME}/bin/mac/Debug/ElementShell.app`
+
+

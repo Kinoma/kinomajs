@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+<specVersion>
+<major>1</major><minor>0</minor>
+</specVersion>
+<device>
+<deviceType>urn:schemas-upnp-org:device:<% DEVICE_TYPE %>:<% DEVICE_VERSION %></deviceType>
+<friendlyName>Kinoma Sensor (K5)</friendlyName>
+<manufacturer>Kinoma</manufacturer>
+<manufacturerURL>http://www.kinoma.com</manufacturerURL>
+<modelDescription>Media Sensor</modelDescription>
+<modelName>K5</modelName>
+<modelNumber>3.27</modelNumber>
+<modelURL>http://www.kinoma.com/upnp/MediaServerDevice</modelURL>
+<UDN><% uuid %></UDN>
+<serviceList>
+<service>
+<serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType>
+<serviceId>urn:upnp-org:serviceId:ContentDirectory</serviceId>
+<SCPDURL>
+/upnp/<% uuid %>/ContentDirectory/description
+</SCPDURL>
+<controlURL>
+/upnp/<% uuid %>/ContentDirectory/control
+</controlURL>
+<eventSubURL>
+/upnp/<% uuid %>/ContentDirectory/event
+</eventSubURL>
+</service>
+</serviceList>
+</device>
+</root>
