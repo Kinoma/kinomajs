@@ -125,6 +125,7 @@ typedef struct LineListRecord {
 	UInt32 blendLevel;
 	UInt32 textSize;
 	UInt32 textStyle;
+	FskFixed textExtra;
 	const char *fontName;
 	CGFloat constraintWidth;
 
@@ -821,7 +822,7 @@ lineHash(const char *text, int textLength)
 }
 
 static LineList
-lineLookup(FskTextEngineState state, const char *text, UInt32 textLength, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, const char *fontName, CGFloat constraintWidth)
+lineLookup(FskTextEngineState state, const char *text, UInt32 textLength, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, CGFloat constraintWidth)
 {
 	int v = lineHash(text, textLength);
 
@@ -831,6 +832,7 @@ lineLookup(FskTextEngineState state, const char *text, UInt32 textLength, FskCon
 		    textStyle == ll->textStyle &&
 		    constraintWidth == ll->constraintWidth &&
 		    blendLevel == ll->blendLevel &&
+		    textExtra == ll->textExtra &&
 		    sameColorRGB(fskColorRGB, &ll->colorRGB) &&
 		    FskStrCompareWithLength(text, ll->text, textLength) == 0 &&
 		    FskStrCompare(fontName, ll->fontName) == 0)
@@ -883,7 +885,7 @@ createLine_(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGB
 		if (blendLevel == 0)
 			blendLevel = 255;
 	}
-	if ((ll = lineLookup(state, text, textLength, fskColorRGB, blendLevel, textSize, textStyle, fontName, constraintWidth)) == NULL) {
+	if ((ll = lineLookup(state, text, textLength, fskColorRGB, blendLevel, textSize, textStyle, textExtra, fontName, constraintWidth)) == NULL) {
 		CTLineRef line;
 		CFIndex lineLength;
 		if ((attrString = createAttributedString(text, textLength, fskColorRGB, blendLevel, textSize, textStyle, fontName, cache)) == nil)
@@ -955,6 +957,7 @@ createLine_(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGB
 		ll->blendLevel = blendLevel;
 		ll->textSize = textSize;
 		ll->textStyle = textStyle;
+		ll->textExtra = textExtra;
 		if ((ll->fontName = FskStrDoCopy(fontName)) == NULL) {
 //			err = kFskErrMemFull;
 			goto bail;
