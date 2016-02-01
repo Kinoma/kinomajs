@@ -162,7 +162,7 @@ static void KprDebugMachineUnlockView(KprDebugMachine self, int theView);
 // KprDebug
 //--------------------------------------------------
 
-static FskErr KprDebugAcceptNewConnection(KprSocketServer server UNUSED, FskSocket skt, const char *interfaceName UNUSED, void *refcon);
+static FskErr KprDebugAcceptNewConnection(KprSocketServer server UNUSED, FskSocket skt, const char *interfaceName UNUSED, UInt32 ip, void *refcon);
 
 KprDebug gKprDebugList = NULL;
 
@@ -206,7 +206,7 @@ void KprDebugDispose(KprDebug self)
 	}
 }
 
-FskErr KprDebugAcceptNewConnection(KprSocketServer server UNUSED, FskSocket skt, const char *interfaceName UNUSED, void *refcon)
+FskErr KprDebugAcceptNewConnection(KprSocketServer server UNUSED, FskSocket skt, const char *interfaceName UNUSED, UInt32 ip, void *refcon)
 {
 	KprDebug self = refcon;
 	FskErr err = kFskErrNone;
