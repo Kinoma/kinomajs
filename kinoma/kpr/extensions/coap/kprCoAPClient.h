@@ -55,7 +55,7 @@ struct KprCoAPClientRecord {
 	UInt16 messageId;
 
 	Boolean autoToken;
-	KprMemoryChunk recycleTokens;
+	KprMemoryBlock recycleTokens;
 	UInt32 nextTokenId;
 	UInt32 nextTokenBytes;
 

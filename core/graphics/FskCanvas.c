@@ -50,6 +50,7 @@
 	#define LOG_PARAMETERS				/**< Log the parameters of API calls. */
 	//#define LOG_COLORSOURCE			/**< Log the color source when being used. */
 	//#define LOG_PATH					/**< Log the path details. */
+	//#define LOG_STATE					/**< Log the state when saving and restoring the stack. */
 #endif /* SUPPORT_INSTRUMENTATION */
 
 //#define CANVAS_DEBUG 1
@@ -58,7 +59,8 @@
 #endif /* CANVAS_DEBUG */
 #if	defined(LOG_PARAMETERS)		|| \
 	defined(LOG_COLORSOURCE)	|| \
-	defined(LOG_PATH)
+	defined(LOG_PATH)			|| \
+	defined(LOG_STATE)
 	#undef  CANVAS_DEBUG
 	#define CANVAS_DEBUG 1
 #endif /* LOG_PARAMETERS et al */
@@ -363,6 +365,40 @@ static void LogColorSource(const FskColorSource *cs, const char *name) {
 			break;
 	}
 	LogDash(csu->so.dashCycles, csu->so.dash, csu->so.dashPhase);
+}
+static UInt32 ChecksumBitmap(FskConstBitmap bm) {
+	SInt32		bump, width, w, h;
+	UInt32		sum;
+	const UInt8	*p;
+
+	if (bm == 0)	return 0;
+	FskBitmapReadBegin((FskBitmap)bm, (const void**)&p, &bump, NULL);
+	width = bm->bounds.width * (bm->depth >> 3);
+	bump -= width;
+	for (sum = 0, h = bm->bounds.height; h--; p += bump)
+		for (w = width; w--; ++p)
+			sum = (sum << 7) + (sum >> 25) + *p;
+	FskBitmapReadEnd((FskBitmap)bm);
+	return sum;
+}
+static void LogState(FskCanvas2dContext ctx, const char *name) {
+	FskCanvas2dContextState	*st = FskCanvasGetStateFromContext(ctx);
+	if (!name) name = "";
+	LOGD("%s State(ctx=%p)[%u]:", name, ctx, (unsigned)FskGrowableArrayGetItemCount(ctx->state) - 1);
+	LOGD("\tglobalAlpha=%u lineCap=%s lineJoin=%s textAlign=%s textBaseline=%s globalCompositeOperation=%s quality=%u fillRule=%s",
+		st->globalAlpha, LineCapNameFromCode(st->lineCap), LineJoinNameFromCode(st->lineJoin), TextAlignNameFromCode(st->textAlign),
+		TextBaselineNameFromCode(st->textBaseline), CompositionNameFromCode(st->globalCompositeOperation), st->quality, FillRuleNameFromCode(st->fillRule));
+	LOGD("\tmiterLimit=%g lineWidth=%g shadowOffset=(%d,%d) shadowBlur=%g shadowColor=(%u,%u,%u,%u)",
+		st->miterLimit/65536., st->lineWidth/65536., st->shadowOffset.x, st->shadowOffset.y, st->shadowBlur, st->shadowColor.r, st->shadowColor.g, st->shadowColor.b, st->shadowColor.a);
+	LogColorSource(&st->strokeStyle.csu.so, "strokeStyle");
+	LogColorSource(&st->fillStyle.csu.so, "fillStyle");
+	LOGD("\tclipRect=(%d,%d,%d,%d) clipBytes=%u clipBM=%p clipSum=%u", st->clipRect.x, st->clipRect.y, st->clipRect.width, st->clipRect.height, (unsigned)st->clipBytes, st->clipBM, ChecksumBitmap(st->clipBM));
+	LOGD("\ttransform: [[%g %g],[%g %g],[%g %g]]", st->transform.M[0][0], st->transform.M[0][1],
+		st->transform.M[1][0], st->transform.M[1][1], st->transform.M[2][0], st->transform.M[2][1]);
+	LogFixedMatrix3x2(&st->fixedTransform, "fixedTransform");
+	LOGD("\tfont: family=\"%s\" size=%g weight=%u style=%u anchor=%u stretch=%u decoration=%u variant=%u sizeAdjust=%g",
+		st->font.family, st->font.size, st->font.weight, st->font.style, st->font.anchor,
+		st->font.stretch, st->font.decoration, st->font.variant, st->font.sizeAdjust);
 }
 #endif /* CANVAS_DEBUG */
 
@@ -2175,8 +2211,11 @@ FskCanvas2dSave(FskCanvas2dContext ctx)
 	FskCanvas2dContextState *st;
 
 	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dSave(ctx=%p) when level=%u", ctx, (unsigned)FskGrowableArrayGetItemCount(ctx->state));
+		LOGD("FskCanvas2dSave(ctx=%p) when level=%u", ctx, (unsigned)FskGrowableArrayGetItemCount(ctx->state)-1);
 	#endif /* LOG_PARAMETERS */
+	#ifdef LOG_STATE
+		LogState(ctx, "Save");
+	#endif /* LOG_STATE */
 
 	BAIL_IF_NULL(ctx, err, kFskErrInvalidParameter);
 	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToNewEndItem(ctx->state, (void**)(void*)(&st)));
@@ -2202,15 +2241,19 @@ FskCanvas2dRestore(FskCanvas2dContext ctx)
 	FskCanvas2dContextState *st;
 
 	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dRestore(ctx=%p) when level=%u", ctx, (unsigned)FskGrowableArrayGetItemCount(ctx->state));
+		LOGD("FskCanvas2dRestore(ctx=%p) when level=%u", ctx, (unsigned)FskGrowableArrayGetItemCount(ctx->state)-1);
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_FALSE(ctx, err, kFskErrInvalidParameter);
 	BAIL_IF_FALSE((n = FskGrowableArrayGetItemCount(ctx->state)) > 1, err, kFskErrEmpty);
 	BAIL_IF_FALSE(st = FskCanvasGetStateFromContext(ctx), err, kFskErrBadState);
-	CleanupCanvasState(st);
+	CleanupCanvasState(st);			/* This disposes of the clip bitmap */
 	FskGrowableArraySetItemCount(ctx->state, n - 1);
 	FixUpCanvasContextPointers(ctx);
+
+	#ifdef LOG_STATE
+		LogState(ctx, "Restore");
+	#endif /* LOG_STATE */
 
 bail:
 	return err;
@@ -2623,6 +2666,7 @@ FskCanvas2dPathArc(FskCanvas2dContext ctx, FskCanvas2dPath path, double cx, doub
 	int						nBez;
 	Boolean					isCircle;
 
+	BAIL_IF_NEGATIVE(radius, err, kFskErrInvalidParameter);
 	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
 
 	/* Determine the first point */
@@ -2680,6 +2724,78 @@ bail:
 }
 
 
+/*****************************************************************************//**
+ * Conic Fillet.
+ ********************************************************************************/
+
+typedef struct ConicFillet {
+	double	v[2][2];	/**< [in]	The vector at the corner. These will be normalized after returning from ComputeConicFillet(). */
+	double	p[5][2];	/**< [out]	The control points, ether 3 or 5 depending on the number of segments. */
+	double	w;			/**< [out]	The weight. */
+	int		numSegs;	/**< [out]	The number of segments, either 1 or 2. */
+} ConicFillet;
+
+
+/****************************************************************************//**
+ * Compute a circular fillet, represented as a conic, i.e. rational quadratic Bezier.
+ *	\param[in]		rad		The circular radius of the fillet.
+ *	\param[in]		x1		The corner of the fillet.
+ *	\param[in]		y1		The corner of the fillet.
+ *	\param[in,out]	f		The input corner vector, and the output weight, control points, and number of segments..
+ ********************************************************************************/
+
+static void ComputeConicFillet(double rad, double x1, double y1, ConicFillet *f) {
+	double c, s;
+	c = sqrt(f->v[0][0] * f->v[0][0] + f->v[0][1] * f->v[0][1]);	f->v[0][0] /= c;	f->v[0][1] /= c;	/* Normalize v0 */
+	s = sqrt(f->v[1][0] * f->v[1][0] + f->v[1][1] * f->v[1][1]);	f->v[1][0] /= s;	f->v[1][1] /= s;	/* Normalize v1 */
+	c =      f->v[0][0] * f->v[1][0] + f->v[0][1] * f->v[1][1];		/*   dot(v0,v1) = cos angle between them */
+	s =      f->v[0][0] * f->v[1][1] - f->v[0][1] * f->v[1][0];		/* cross(v0,v1) = sin angle between them */
+	s = fabs(s);
+	if (rad == 0) {
+		f->p[0][0] = c;
+		f->p[0][1] = s;
+		f->numSegs = 0;
+		return;
+	}
+	c = 1. - c;														/* versine */
+	s /= c;															/* cotangent of half the angle */
+	f->w = c * .5;													/* sin^2 of the half angle */
+	c = rad * s;													/* distance of contact from corner */
+	f->p[0][0] = f->v[0][0] * c + x1;								/* Absolute coordinates of the first  contact point X */
+	f->p[0][1] = f->v[0][1] * c + y1;								/* Absolute coordinates of the first  contact point Y */
+	f->p[1][0] = f->v[1][0] * c + x1;								/* Absolute coordinates of the second contact point X */
+	f->p[1][1] = f->v[1][1] * c + y1;								/* Absolute coordinates of the second contact point Y */
+	if      (f->w <= 0.)	f->w = 0.;
+	else if (f->w >= 1.)	f->w = 1.;
+	else					f->w = sqrt(f->w);						/* sin of the half angle */
+	if (s >= .5) {													/* Small enough angle to do the arc in one rational quadratic */
+		f->numSegs = 1;
+	}
+	else {															/* Subdivide once */
+		x1 *= f->w;													/* Convert from rational to homogeneous */
+		y1 *= f->w;
+		f->w = (1. + f->w) * .5;									/* Homogeneous subdivision */
+		s = 1. / f->w;
+		f->p[4][0] = f->p[1][0];
+		f->p[4][1] = f->p[1][1];
+		f->p[1][0] = .5 * (f->p[0][0] + x1);
+		f->p[1][1] = .5 * (f->p[0][1] + y1);
+		f->p[3][0] = .5 * (f->p[4][0] + x1);
+		f->p[3][1] = .5 * (f->p[4][1] + y1);
+		f->p[2][0] = .5 * (f->p[1][0] + f->p[3][0]);
+		f->p[2][1] = .5 * (f->p[1][1] + f->p[3][1]);
+		f->p[1][0] *= s;											/* Convert back to rational from homogeneous */
+		f->p[1][1] *= s;
+		f->p[2][0] *= s;
+		f->p[2][1] *= s;
+		f->p[3][0] *= s;
+		f->p[3][1] *= s;
+		f->w = sqrt(f->w);
+		f->numSegs = 2;
+	}
+}
+
+
 /********************************************************************************
  * FskCanvas2dPathArcTo
  *
@@ -2706,74 +2822,138 @@ FskErr
 FskCanvas2dPathArcTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x1, double y1, double x2, double y2, double radius)
 {
 	FskErr					err		= kFskErrNone;
-	FskFixedPoint2D			lastPt;
-	double					x0, y0;
+	FskFixedPoint2D			lastPt, pt;
+	ConicFillet				fil;
 
 	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
 
 	BAIL_IF_ERR(err = FskGrowablePathGetLastPoint(path, &lastPt));
 	BAIL_IF_NEGATIVE(radius, err, kFskErrInvalidParameter);
-	x0 = FskFixedToFloat(lastPt.x) - x1;			/* Coordinates relative to (x1, y1) */
-	y0 = FskFixedToFloat(lastPt.y) - y1;
-	x2 -= x1;
-	y2 -= y1;
-	if ((x0 == 0 && y0 == 0)	||
-		(x2 == 0 && y2 == 0)	||
-		(radius == 0)			||
-		((x2 * y0 - x0 * y2) == 0)
+	fil.v[0][0] = FskFixedToFloat(lastPt.x) - x1;										/* Coordinates relative to (x1, y1) */
+	fil.v[0][1] = FskFixedToFloat(lastPt.y) - y1;
+	fil.v[1][0] = x2 - x1;
+	fil.v[1][1] = y2 - y1;
+	if ((fil.v[0][0] == 0 && fil.v[0][1] == 0)	||
+		(fil.v[1][0] == 0 && fil.v[1][1] == 0)	||
+		(radius      == 0)						||
+		((fil.v[1][0] * fil.v[0][1] - fil.v[0][0] * fil.v[1][1]) == 0)
 	) {
 		BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatLineTo(x1, y1, path));
 	}
 	else {
-		double r, cosFull, sinFull, cotHalf, contact, w;
-		r = hypot(x0, y0);	x0 /= r;	y0 /= r;	/* Normalize v0 */
-		r = hypot(x2, y2);	x2 /= r;	y2 /= r;	/* Normalize v2 */
-		cosFull = x0 * x2 + y0 * y2;				/*   dot(v0,v2) = cos angle between them */
-		sinFull = x0 * y2 - y0 * x2;				/* cross(v0,v2) = sin angle between them */
-		sinFull = fabs(sinFull);
-		cotHalf = sinFull / (1. - cosFull);			/* cotangent of half the angle */
-		contact = radius * cotHalf;					/* distance of contact from corner */
-		x0 = x0 * contact + x1;						/* Absolute coordinates of the first  contact point X */
-		y0 = y0 * contact + y1;						/* Absolute coordinates of the first  contact point Y */
-		x2 = x2 * contact + x1;						/* Absolute coordinates of the second contact point X */
-		y2 = y2 * contact + y1;						/* Absolute coordinates of the second contact point Y */
-		w = (1 - cosFull) * .5;						/* sin^2 of the half angle */
-		if      (w <= 0.)	w = 0;
-		else if (w >= 1.)	w = 1.;
-		else				w = sqrt(w);			/* sin of the half angle */
-		BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatLineTo(x0, y0, path));
-		if (cotHalf >= .5) {							/* Small enough angle to do the arc in one rational quadratic */
-			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(x1, y1, w, x2, y2, path));
+		ComputeConicFillet(radius, x1, y1, &fil);
+		pt.x = (FskFixed)(fil.p[0][0] * 65536);											/* Convert the first point to fixed point */
+		pt.y = (FskFixed)(fil.p[0][1] * 65536);
+		if ((abs(pt.x - lastPt.x) + abs(pt.y - lastPt.y)) > 2)							/* If the previous point was sufficiently different ... */
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentLineTo(pt.x, pt.y, path));	/* ... draw a line from it to the first point */
+		if (fil.numSegs == 1) {															/* Small enough angle to do the arc in one rational quadratic */
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(x1, y1, fil.w, fil.p[1][0], fil.p[1][1], path));
 		}
-		else {										/* Subdivide once */
-			double w01, x01, y01, w12, x12, y12, w012, x012, y012;
-			x1 *= w;								/* Convert from rational to homogeneous */
-			y1 *= w;
-			w01  = (1.  +   w) * .5;				/* Homogeneous subdivision */
-			x01  = (x0  +  x1) * .5;
-			y01  = (y0  +  y1) * .5;
-			w12  = (w   +  1.) * .5;
-			x12  = (x1  +  x2) * .5;
-			y12  = (y1  +  y2) * .5;
-			w012 = (w01 + w12) * .5;
-			x012 = (x01 + x12) * .5;
-			y012 = (y01 + y12) * .5;
-			x01  /= w01;							/* Convert from homogeneous to rational */
-			y01  /= w01;
-			x12  /= w12;
-			y12  /= w12;
-			x012 /= w012;
-			y012 /= w012;
-			w012  = sqrt(w012);
-			w01  /= w012;							/* Canonical w with first and last 1 */
-			w12  /= w012;
-			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(x01, y01, w01, x012, y012, path));
-			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(x12, y12, w12, x2,   y2,   path));
+		else {
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(fil.p[1][0], fil.p[1][1], fil.w, fil.p[2][0], fil.p[2][1], path));
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(fil.p[3][0], fil.p[3][1], fil.w, fil.p[4][0], fil.p[4][1], path));
 		}
 	}
 
 bail:
 	return err;
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathEllipticalArcTo
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathEllipticalArcTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x1, double y1, double x2, double y2, double radiusX, double radiusY, double rotation)
+{
+	FskErr					err		= kFskErrNone;
+	FskFixedPoint2D			lastPt, pt;
+	ConicFillet				fil;
+	double					c, s;
+
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+
+	BAIL_IF_ERR(err = FskGrowablePathGetLastPoint(path, &lastPt));
+	BAIL_IF_NEGATIVE(radiusX, err, kFskErrInvalidParameter);
+	BAIL_IF_NEGATIVE(radiusY, err, kFskErrInvalidParameter);
+
+	c = cos(rotation);
+	s = sin(rotation);
+	fil.p[0][0] = FskFixedToFloat(lastPt.x) - x1;													/* Coordinates relative to (x1, y1) */
+	fil.p[0][1] = FskFixedToFloat(lastPt.y) - y1;
+	fil.p[1][0] = x2 - x1;
+	fil.p[1][1] = y2 - y1;
+	if ((fil.p[0][0] == 0 && fil.p[0][1] == 0)	||													/* p0 == p1 */
+		(fil.p[1][0] == 0 && fil.p[1][1] == 0)	||													/* p1 == p2 */
+		(radiusX     == 0 && radiusY     == 0)	||													/* radii are 0 */
+		((fil.p[1][0] * fil.p[0][1] - fil.p[0][0] * fil.p[1][1]) == 0)								/* collinear */
+	) {
+		BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatLineTo(x1, y1, path));
+	}
+	else if (radiusX == 0 || radiusY == 0) {														/* Degenerate: bevel instead of elliptical arc */
+		fil.v[0][0] = fil.p[0][0];			fil.v[0][1] = fil.p[0][1];								/* Set up arguments to ComputeConicFillet */
+		fil.v[1][0] = fil.p[1][0];			fil.v[1][1] = fil.p[1][1];
+		ComputeConicFillet(0, 0, 0, &fil);															/* Radius of 0 asks to compute unit vectors only */
+		fil.p[4][0] = (radiusX * c - radiusY * s) * 2.;												/* Oriented bevel segment */
+		fil.p[4][1] = (radiusX * s + radiusY * c) * 2.;
+		fil.p[3][0] = (fil.p[4][0] * fil.v[1][1] - fil.p[4][1] * fil.v[1][0]) / fil.p[0][1];		/* Length of side 0 */
+		fil.p[3][1] = (fil.p[4][0] * fil.v[0][1] - fil.p[4][1] * fil.v[0][0]) / fil.p[0][1];		/* Length of side 1 */
+		if (fil.p[3][0] * fil.p[3][1] > 0) {
+			fil.p[3][0] = fabs(fil.p[3][0]);				fil.p[3][1] = fabs(fil.p[3][1]);
+			fil.p[0][0] = fil.p[3][0] * fil.v[0][0] + x1;	fil.p[0][1] = fil.p[3][0] * fil.v[0][1] + y1;	/* Compute first point of bevel */
+			fil.p[1][0] = fil.p[3][1] * fil.v[1][0] + x1;	fil.p[1][1] = fil.p[3][1] * fil.v[1][1] + y1;	/* Compute second point of bevel */
+			pt.x = (FskFixed)(fil.p[0][0] * 65536);			pt.y = (FskFixed)(fil.p[0][1] * 65536);			/* Convert the first point to fixed point */
+			if ((abs(pt.x - lastPt.x) + abs(pt.y - lastPt.y)) > 2)									/* If the previous point was sufficiently different ... */
+				BAIL_IF_ERR(err = FskGrowablePathAppendSegmentLineTo(pt.x, pt.y, path));			/* ... draw a line from it to the first point */
+			err = FskGrowablePathAppendSegmentFloatLineTo(fil.p[1][0], fil.p[1][1], path);
+		}
+		else {
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatLineTo(x1, y1, path));				/* Bevel is oriented the wrong direction for this corner */
+		}
+	}
+	else {
+		double			P[5][2];
+		const double	irdiusX	= 1. / radiusX,
+						irdiusY	= 1. / radiusY,
+						S[2][2]	=	{	{  c * irdiusX, -s * irdiusY },
+										{  s * irdiusX,  c * irdiusY }
+									},
+						T[3][2] =	{	{  c * radiusX,  s * radiusX },
+										{ -s * radiusY,  c * radiusY },
+										{           x1,           y1 }
+									};
+
+		FskDLinearTransform(fil.p[0], S[0], fil.v[0], 2, 2, 2);
+		ComputeConicFillet(1., 0., 0., &fil);
+		FskDAffineTransform(fil.p[0], T[0], P[0], (fil.numSegs == 1) ? 2 : 5, 2, 2);
+		pt.x = (FskFixed)(P[0][0] * 65536);															/* Convert the first point to fixed point */
+		pt.y = (FskFixed)(P[0][1] * 65536);
+		if ((abs(pt.x - lastPt.x) + abs(pt.y - lastPt.y)) > 2)										/* If the previous point was sufficiently different ... */
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentLineTo(pt.x, pt.y, path));				/* ... draw a line from it to the first point */
+		if (fil.numSegs == 1) {																		/* Small enough angle to do the arc in one rational quadratic */
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(x1, y1, fil.w, P[1][0], P[1][1], path));
+		}
+		else {
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(P[1][0], P[1][1], fil.w, P[2][0], P[2][1], path));
+			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(P[3][0], P[3][1], fil.w, P[4][0], P[4][1], path));
+		}
+	}
+
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskCanvas2dPathEllipse
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dPathEllipse(FskCanvas2dContext ctx, FskCanvas2dPath path, double cx, double cy, double rx, double ry, double rotation, double startAngle, double endAngle, Boolean anticlockwise)
+{
+	if (!path) { if (!ctx) return kFskErrInvalidParameter; path = ctx->path; }
+	return FskGrowablePathAppendSegmentEllipse(cx, cy, rx, ry, rotation, startAngle, endAngle, anticlockwise, path);
 }
 
 
@@ -2948,46 +3128,6 @@ FskCanvas2dPathEndGlyph(FskCanvas2dContext ctx, FskCanvas2dPath path)
 
 
 /********************************************************************************
- * FskCanvas2dClearRect
- *	Clear the specified rectangle to transparent black.
- ********************************************************************************/
-
-FskErr
-FskCanvas2dClearRect(FskCanvas2dContext ctx, double x, double y, double w, double h)
-{
-	FskCanvas2dContextState	*st;
-	FskColorRGBARecord		color;
-	FskErr					err;
-	FskRectangleRecord		r;
-
-	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
-		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
-			return FskGLCanvas2dClearRect(ctx, x, y, w, h);
-	#endif /* FSKBITMAP_OPENGL */
-
-	#if defined(LOG_PARAMETERS)
-		LOGD("FskCanvas2dClearRect(ctx=%p x=%g y=%g w=%g h=%g)", ctx, x, y, w, h);
-	#endif /* LOG_PARAMETERS */
-
-	FskRectangleSet(&r, FskRoundFloatToInt(x), FskRoundFloatToInt(y), FskRoundFloatToInt(w), FskRoundFloatToInt(h));	/* Quantize to integers */
-	st = FskCanvasGetStateFromContext(ctx);
-	BAIL_IF_FALSE(FskRectangleIntersect(&st->clipRect, &r, &r), err, kFskErrNothingRendered);
-	FskColorRGBASet(&color, 0, 0, 0, 0);
-	if (st->clipBM == NULL) {
-		err = FskRectangleFill(ctx->canvas->bm, &r, &color, 0, NULL);													/* Fill the given rectangle */
-	}
-	else {
-		FskPointRecord dstPt;
-		dstPt.x = 0;
-		dstPt.y = 0;
-		err = FskTransferAlphaBitmap(st->clipBM, NULL, ctx->canvas->bm, &dstPt, &r, &color, NULL);							/* Transfer the shape with color */
-	}
-bail:
-	return err;
-}
-
-
-/********************************************************************************
  * FskComputeBoundingBoxOfTransformedRect
  ********************************************************************************/
 
@@ -3036,6 +3176,71 @@ static FskErr ComputeBoundingBoxOfFilledTransformedRect(double x, double y, doub
 static FskErr ComputeBoundingBoxOfStrokedTransformedRect(double x, double y, double w, double h, FskCanvas2dContextState *st, FskFixedRectangle bbox) {
 	FskErr err = FskComputeBoundingBoxOfTransformedRect(x, y, w, h, &st->fixedTransform, bbox);
 	EnlargeBoundingBox(bbox, FskFixMul(FskFixMul(FskFixedMatrixNorm2x2(st->fixedTransform.M[0], 2), st->lineWidth), kFskLineJoinMiter90));	/* Rects are hard-wired to a 90 degree miter limit */
+	return err;
+}
+
+
+/********************************************************************************
+ * FskCanvas2dClearRect
+ *	Clear the specified rectangle to transparent black.
+ ********************************************************************************/
+
+FskErr
+FskCanvas2dClearRect(FskCanvas2dContext ctx, double x, double y, double w, double h)
+{
+	FskCanvas2dContextState	*st;
+	FskColorRGBARecord		color;
+	FskErr					err;
+	FskRectangleRecord		r;
+
+	#if FSKBITMAP_OPENGL && FSK_GLCANVAS
+		if (FskBitmapIsOpenGLDestinationAccelerated(ctx->canvas->bm))
+			return FskGLCanvas2dClearRect(ctx, x, y, w, h);
+	#endif /* FSKBITMAP_OPENGL */
+
+	#if defined(LOG_PARAMETERS)
+		LOGD("FskCanvas2dClearRect(ctx=%p x=%g y=%g w=%g h=%g)", ctx, x, y, w, h);
+	#endif /* LOG_PARAMETERS */
+
+	FskRectangleSet(&r, FskRoundFloatToInt(x), FskRoundFloatToInt(y), FskRoundFloatToInt(w), FskRoundFloatToInt(h));	/* Quantize to integers */
+	st = FskCanvasGetStateFromContext(ctx);
+	BAIL_IF_FALSE(FskRectangleIntersect(&st->clipRect, &r, &r), err, kFskErrNothingRendered);
+	if (FskCanvasStateMatrixIsIdentity(st)) {
+		FskColorRGBASet(&color, 0, 0, 0, 0);
+		if (st->clipBM == NULL) {
+			err = FskRectangleFill(ctx->canvas->bm, &r, &color, 0, NULL);												/* Fill the given rectangle */
+		}
+		else {
+			FskPointRecord dstPt;
+			dstPt.x = 0;
+			dstPt.y = 0;
+			err = FskTransferAlphaBitmap(st->clipBM, NULL, ctx->canvas->bm, &dstPt, &r, &color, NULL);					/* Transfer the shape with color */
+			FskColorRGBASet(&color, 255, 255, 255, 255);
+			BAIL_IF_ERR(err = FskRectangleFill(ctx->canvas->tmp, &r, &color, 0, NULL));									/* Fill the given rectangle */
+			err = FskMatteCompositeRect(kFskCompositePreSubtract, 255, st->clipBM, ctx->canvas->tmp, &r, ctx->canvas->bm, (const void*)(&r));
+		}
+	}
+	else {
+		FskShapeRect shapeRect;
+		FskColorSourceConstant csc;
+		FskFixedRectangleRecord bbox;
+		shapeRect.origin.x = FskRoundFloatToFixed(x);
+		shapeRect.origin.y = FskRoundFloatToFixed(y);
+		shapeRect.size.x   = FskRoundFloatToFixed(w);
+		shapeRect.size.y   = FskRoundFloatToFixed(h);
+		shapeRect.radius.x = 0;
+		shapeRect.radius.y = 0;
+		ComputeBoundingBoxOfFilledTransformedRect(x, y, w, h, st, &bbox);
+		FixedToIntBounds(&bbox, &r);
+		FskSetBasicConstantColorSource(&csc, 255, 255, 255, 255);
+		ClearTempBufferTransparent(ctx);
+		BAIL_IF_ERR(err = FskFillShapeRect(&shapeRect, &csc.colorSource, &st->fixedTransform, st->quality, &st->clipRect, ctx->canvas->tmp));
+		if (st->clipBM == NULL)
+			err = FskCompositeRect(kFskCompositePreSubtract, ctx->canvas->tmp, &r, ctx->canvas->bm, (const void*)(&r));
+		else
+			err = FskMatteCompositeRect(kFskCompositePreSubtract, 255, st->clipBM, ctx->canvas->tmp, &r, ctx->canvas->bm, (const void*)(&r));
+	}
+bail:
 	return err;
 }
 
@@ -3560,11 +3765,7 @@ FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath path, SInt32 fi
 	tmpClipBM.rowBytes = (tmpClipBM.rowBytes < 0) ? -tmpClipBM.bounds.width : tmpClipBM.bounds.width;
 
 	/* Draw path */
-	color.colorSource.type = kFskColorSourceTypeConstant;
-	color.colorSource.dashCycles = 0;
-	color.colorSource.dash = NULL;
-	color.colorSource.dashPhase = 0;
-	FskColorRGBASet(&color.color, 255U, 255U, 255U, 255U);
+	FskSetBasicConstantColorSource(&color, 255, 255, 255, 255);
 	ClearBufferToValue(&tmpClipBM, 0U);
 	BAIL_IF_ERR(err = FskGrowablePathFill(path, &color.colorSource, fillRule, &st->fixedTransform, st->quality, &st->clipRect, &tmpClipBM));
 

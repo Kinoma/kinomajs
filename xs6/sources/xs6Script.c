@@ -45,6 +45,7 @@ void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSi
 	parser->doneSymbol = fxNewParserSymbol(parser, "done");
 	parser->evalSymbol = fxNewParserSymbol(parser, "eval");
 	parser->exportsSymbol = fxNewParserSymbol(parser, "exports");
+	parser->fillSymbol = fxNewParserSymbol(parser, "fill");
 	parser->freezeSymbol = fxNewParserSymbol(parser, "freeze");
 	parser->fromSymbol = fxNewParserSymbol(parser, "from");
 	parser->getSymbol = fxNewParserSymbol(parser, "get");
@@ -53,14 +54,19 @@ void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSi
 	parser->lengthSymbol = fxNewParserSymbol(parser, "length");
 	parser->letSymbol = fxNewParserSymbol(parser, "let");
 	parser->moduleSymbol = fxNewParserSymbol(parser, "module");
+	parser->nameSymbol = fxNewParserSymbol(parser, "name");
 	parser->nextSymbol = fxNewParserSymbol(parser, "next");
+	parser->newTargetSymbol = fxNewParserSymbol(parser, "new.target");
 	parser->ofSymbol = fxNewParserSymbol(parser, "of");
 	parser->prototypeSymbol = fxNewParserSymbol(parser, "prototype");
 	parser->rawSymbol = fxNewParserSymbol(parser, "raw");
+	parser->ReferenceErrorSymbol = fxNewParserSymbol(parser, "ReferenceError");
 	parser->RegExpSymbol = fxNewParserSymbol(parser, "RegExp");
 	parser->returnSymbol = fxNewParserSymbol(parser, "return");
 	parser->setSymbol = fxNewParserSymbol(parser, "set");
 	parser->sliceSymbol = fxNewParserSymbol(parser, "slice");
+	parser->SyntaxErrorSymbol = fxNewParserSymbol(parser, "SyntaxError");
+	parser->StringSymbol = fxNewParserSymbol(parser, "String");
 	parser->thisSymbol = fxNewParserSymbol(parser, "this");
 	parser->targetSymbol = fxNewParserSymbol(parser, "target");
 	parser->toStringSymbol = fxNewParserSymbol(parser, "toString");
@@ -69,6 +75,8 @@ void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSi
 	parser->valueSymbol = fxNewParserSymbol(parser, "value");
 	parser->withSymbol = fxNewParserSymbol(parser, "with");
 	parser->yieldSymbol = fxNewParserSymbol(parser, "yield");
+	
+	parser->errorSymbol = NULL;
 }
 
 void* fxNewParserChunkClear(txParser* parser, txSize size)
@@ -127,6 +135,19 @@ void fxReportParserError(txParser* parser, txString theFormat, ...)
 {
 	c_va_list arguments;
 	parser->errorCount++;
+	if (!parser->errorSymbol)
+		parser->errorSymbol = parser->SyntaxErrorSymbol;
+	c_va_start(arguments, theFormat);
+    fxVReportError(parser->console, parser->path ? parser->path->string : C_NULL, parser->line, theFormat, arguments);
+	c_va_end(arguments);
+}
+
+void fxReportReferenceError(txParser* parser, txString theFormat, ...)
+{
+	c_va_list arguments;
+	parser->errorCount++;
+	if (!parser->errorSymbol)
+		parser->errorSymbol = parser->ReferenceErrorSymbol;
 	c_va_start(arguments, theFormat);
     fxVReportError(parser->console, parser->path ? parser->path->string : C_NULL, parser->line, theFormat, arguments);
 	c_va_end(arguments);
@@ -141,10 +162,23 @@ void fxReportParserWarning(txParser* parser, txString theFormat, ...)
 	c_va_end(arguments);
 }
 
+void fxReportLineReferenceError(txParser* parser, txInteger line, txString theFormat, ...)
+{
+	c_va_list arguments;
+	parser->errorCount++;
+	if (!parser->errorSymbol)
+		parser->errorSymbol = parser->ReferenceErrorSymbol;
+	c_va_start(arguments, theFormat);
+	fxVReportError(parser->console, parser->path ? parser->path->string : C_NULL, line, theFormat, arguments);
+	c_va_end(arguments);
+}
+
 void fxReportLineError(txParser* parser, txInteger line, txString theFormat, ...)
 {
 	c_va_list arguments;
 	parser->errorCount++;
+	if (!parser->errorSymbol)
+		parser->errorSymbol = parser->SyntaxErrorSymbol;
 	c_va_start(arguments, theFormat);
 	fxVReportError(parser->console, parser->path ? parser->path->string : C_NULL, line, theFormat, arguments);
 	c_va_end(arguments);

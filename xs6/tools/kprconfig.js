@@ -304,10 +304,7 @@ class Tool extends TOOL {
 		if (this.platform == "android" && this.homePath.indexOf(" ") > 0)
 			throw new Error("The Android NDK does not support spaces in it's path. Please move your FSK folder accordingly.");
 			
-		if (this.platform == "ios")
-			path = this.resolveDirectoryPath("$(F_HOME)/kinoma/kpr/cmake/iphone");
-		else
-			path = this.resolveDirectoryPath("$(F_HOME)/kinoma/kpr/cmake/" + this.platform);
+		path = this.resolveDirectoryPath("$(F_HOME)/build/" + this.platform);
 		if (!path)
 			throw new Error("-p '" + this.platform + "': platform not found!");
 		this.makePath = path;
@@ -379,7 +376,10 @@ class Tool extends TOOL {
 			}
 		}
 		FS.mkdirSync(path);
-		path += this.slash + this.application;
+		if (name == "tmp" && this.platform == "android")
+			path += this.slash + this.application.replace(/\s/g, "-").toLowerCase();
+		else
+			path += this.slash + this.application;
 		if (flag)
 			FS.mkdirSync(path);
 		return path;
@@ -650,6 +650,8 @@ class Tool extends TOOL {
 				this.patchesPath,
 				directory
 			];
+			if (!this.cmake)
+				this.inputDirectories.push(this.patchesPath, this.xs6Includes);
 			var sourcesPath = this.resolveDirectoryPath(this.joinPath({ directory: directory, name: "sources" }));
 			if (sourcesPath)
 				this.inputDirectories.push(sourcesPath);

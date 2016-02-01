@@ -16,25 +16,36 @@
  */
 
 #include "FskPin.h"
+#include "FskMemory.h"
 
 #include "mraa/pwm.h"
+
+#define PWMDEFAULTPERIOD 20
 
 static Boolean mraaPWMCanHandle(SInt32 number, const char *name, SInt32 *remappedNumber);
 static FskErr mraaPWMNew(FskPinPWM *pin, SInt32 number, const char *name);
 void mraaPWMDispose(FskPinPWM pin);
 static FskErr mraaPWMSetDutyCycle(FskPinPWM pin, double value);
 static FskErr mraaPWMGetDutyCycle(FskPinPWM pin, double *value);
+static FskErr mraaPWMSetDutyCycleAndPeriod(FskPinPWM pin, UInt8 dutyCycle, UInt8 period);
+static FskErr mraaPWMGetDutyCycleAndPeriod(FskPinPWM pin, UInt8 *dutyCycle, UInt8 *period);
 
 FskPinPWMDispatchRecord gMRAAPWM = {
 	mraaPWMCanHandle,
 	mraaPWMNew,
 	mraaPWMDispose,
 	mraaPWMSetDutyCycle,
-	mraaPWMGetDutyCycle
+	mraaPWMGetDutyCycle,
+	mraaPWMSetDutyCycleAndPeriod,
+	mraaPWMGetDutyCycleAndPeriod
 };
 
 typedef struct {
 	FskPinPWMRecord		pd;
+
+	int		enabled;
+	UInt8	period;
+	UInt8	dutyCycle;
 
 	mraa_pwm_context	context;
 } mraaPWMRecord, *mraaPWM;
@@ -53,10 +64,14 @@ FskErr mraaPWMNew(FskPinPWM *pin, SInt32 number, const char *name)
 	if (err) return err;
 
 	mpwm->context = mraa_pwm_init(number);
-	if (!mpwm->context)
+	if (!mpwm->context) {
 		FskMemPtrDispose(mpwm);
 		return kFskErrOperationFailed;
 	}
+
+	mraa_pwm_period_ms(mpwm->context, PWMDEFAULTPERIOD);
+	mpwm->period = PWMDEFAULTPERIOD;
+	mraa_pwm_write(mpwm->context, 0.0);
 
 	*pin = (FskPinPWM)mpwm;
 
@@ -67,6 +82,7 @@ void mraaPWMDispose(FskPinPWM pin)
 {
 	mraaPWM mpwm = (mraaPWM)pin;
 	mraaPWMSetDutyCycle(pin, 0);
+	mraa_pwm_enable(mpwm->context, 0);
 	mraa_pwm_close(mpwm->context);
 	FskMemPtrDispose(mpwm);
 }
@@ -75,13 +91,55 @@ FskErr mraaPWMSetDutyCycle(FskPinPWM pin, double value)
 {
 	mraaPWM mpwm = (mraaPWM)pin;
 	int result = mraa_pwm_write(mpwm->context, value);
-	return (MRAA_SUCCESS == result) ? kFskErrNone : kFskErrOperationFailed;
+
+	if (MRAA_SUCCESS != result)
+		return kFskErrOperationFailed;
+
+	if (!mpwm->enabled) {
+		mraa_pwm_enable(mpwm->context, 1);
+		mpwm->enabled = 1;
+	}
+	return  kFskErrNone;
 }
 
 FskErr mraaPWMGetDutyCycle(FskPinPWM pin, double *value)
 {
 	mraaPWM mpwm = (mraaPWM)pin;
-	*value = mraa_pwm_read(npwm->context);
+	*value = mraa_pwm_read(mpwm->context);
+	return kFskErrNone;
+}
+
+FskErr mraaPWMSetDutyCycleAndPeriod(FskPinPWM pin, UInt8 dutyCycle, UInt8 period)
+{
+	// dutyCycle and period aer in ms
+	mraaPWM mpwm = (mraaPWM)pin;
+	int result;
+	float dc = (float)dutyCycle;
+
+	result = mraa_pwm_config_ms(mpwm->context, period, dc);
+	if (MRAA_SUCCESS != result) {
+		return kFskErrOperationFailed;
+	}
+
+	mpwm->period = period;
+	mpwm->dutyCycle = dutyCycle;
+	if (!mpwm->enabled) {
+		mraa_pwm_enable(mpwm->context, 1);
+		mpwm->enabled = 1;
+	}
+	return  kFskErrNone;
+}
+
+FskErr mraaPWMGetDutyCycleAndPeriod(FskPinPWM pin, UInt8 *dutyCycle, UInt8 *period)
+{
+	mraaPWM mpwm = (mraaPWM)pin;
+	float value, dc;
+
+	value = mraa_pwm_read(mpwm->context);
+	dc = mpwm->period * value;
+	*dutyCycle = dc;
+	*period = mpwm->period;
+
 	return kFskErrNone;
 }
 
@@ -89,12 +147,12 @@ FskErr mraaPWMGetDutyCycle(FskPinPWM pin, double *value)
 	Extension
 */
 
-FskExport(FskErr) FskPinPWMCreate_fskLoad(FskLibrary library)
+FskExport(FskErr) FskPinPWMMRAA_fskLoad(FskLibrary library)
 {
 	return FskExtensionInstall(kFskExtensionPinPWM, &gMRAAPWM);
 }
 
-FskExport(FskErr) FskPinPWMCreate_fskUnload(FskLibrary library)
+FskExport(FskErr) FskPinPWMMRAA_fskUnload(FskLibrary library)
 {
 	return FskExtensionUninstall(kFskExtensionPinPWM, &gMRAAPWM);
 }

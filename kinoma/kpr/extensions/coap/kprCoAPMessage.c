@@ -55,8 +55,8 @@ FskErr KprCoAPMessageDispose(KprCoAPMessage self)
 	if (self && KprRetainableRelease(self->retainable)) {
 		KprCoAPMessageOptionRecord *optRec;
 
-		KprMemoryChunkDispose(self->token);
-		KprMemoryChunkDispose(self->payload);
+		KprMemoryBlockDispose(self->token);
+		KprMemoryBlockDispose(self->payload);
 
 		optRec = self->options;
 		while (optRec != NULL) {
@@ -102,7 +102,7 @@ FskErr KprCoAPMessageCopy(KprCoAPMessage original, KprCoAPMessage *it)
 
 		size = original->token->size;
 		if (size > 0) {
-			bailIfError(KprCoAPMessageSetToken(self, KprMemoryChunkStart(original->token), size));
+			bailIfError(KprCoAPMessageSetToken(self, KprMemoryBlockStart(original->token), size));
 		}
 	}
 
@@ -264,9 +264,9 @@ FskErr KprCoAPMessageSetToken(KprCoAPMessage self, const void *token, UInt32 len
 		bailIfError(kFskErrBadData);
 	}
 
-	KprMemoryChunkDisposeAt(&self->token);
+	KprMemoryBlockDisposeAt(&self->token);
 
-	bailIfError(KprMemoryChunkNew(length, token, &self->token));
+	bailIfError(KprMemoryBlockNew(length, token, &self->token));
 
 bail:
 	return err;
@@ -276,8 +276,8 @@ FskErr KprCoAPMessageSetPayload(KprCoAPMessage self, const void *payload, UInt32
 {
 	FskErr err = kFskErrNone;
 
-	KprMemoryChunkDisposeAt(&self->payload);
-	bailIfError(KprMemoryChunkNew(length, payload, &self->payload));
+	KprMemoryBlockDisposeAt(&self->payload);
+	bailIfError(KprMemoryBlockNew(length, payload, &self->payload));
 
 bail:
 	return err;
@@ -433,7 +433,7 @@ static void KprCoAPMessageSerializeTo(KprCoAPMessage self, FskMemPtr data)
 
 	// token
 	if (self->token) {
-		data = KprMemoryChunkCopyTo(self->token, data);
+		data = KprMemoryBlockCopyTo(self->token, data);
 	}
 
 	// options
@@ -508,26 +508,26 @@ static void KprCoAPMessageSerializeTo(KprCoAPMessage self, FskMemPtr data)
 	// payload
 	if (self->payload) {
 		*(UInt8 *)data++ = 0xff;
-		KprMemoryChunkCopyTo(self->payload, data);
+		KprMemoryBlockCopyTo(self->payload, data);
 	}
 }
 
-FskErr KprCoAPMessageSerialize(KprCoAPMessage self, KprMemoryChunk *it)
+FskErr KprCoAPMessageSerialize(KprCoAPMessage self, KprMemoryBlock *it)
 {
 	FskErr err = kFskErrNone;
-	KprMemoryChunk chunk = NULL;
+	KprMemoryBlock chunk = NULL;
 	UInt32 size;
 
 	size = KprCoAPMessageCalculateSerializedSize(self);
-	bailIfError(KprMemoryChunkNew(size, NULL, &chunk));
+	bailIfError(KprMemoryBlockNew(size, NULL, &chunk));
 
-	KprCoAPMessageSerializeTo(self, KprMemoryChunkStart(chunk));
+	KprCoAPMessageSerializeTo(self, KprMemoryBlockStart(chunk));
 
 	*it = chunk;
 
 bail:
 	if (err) {
-		KprMemoryChunkDispose(chunk);
+		KprMemoryBlockDispose(chunk);
 	}
 	return err;
 }

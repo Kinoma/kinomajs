@@ -37,11 +37,11 @@ struct KprCoAPMessageRecord {
 	UInt16 messageId;
 	Boolean frozen;
 
-	KprMemoryChunk token;
+	KprMemoryBlock token;
 
 	KprCoAPMessageOptionRecord *options;
 
-	KprMemoryChunk payload;
+	KprMemoryBlock payload;
 
 	const char *uri;
 	const char *host;
@@ -91,7 +91,7 @@ FskErr KprCoAPMessageSetPayload(KprCoAPMessage self, const void *payload, UInt32
 KprCoAPContentFormat KprCoAPMessageGetContentFormat(KprCoAPMessage self);
 FskErr KprCoAPMessageSetContentFormat(KprCoAPMessage self, KprCoAPContentFormat format);
 
-FskErr KprCoAPMessageSerialize(KprCoAPMessage self, KprMemoryChunk *chunk);
+FskErr KprCoAPMessageSerialize(KprCoAPMessage self, KprMemoryBlock *chunk);
 FskErr KprCoAPMessageDeserialize(const void *buffer, UInt32 size, KprCoAPMessage *it);
 
 FskErr KprCoAPMessageParseUri(KprCoAPMessage request, const char *uri);

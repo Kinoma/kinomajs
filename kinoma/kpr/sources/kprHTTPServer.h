@@ -22,6 +22,7 @@ extern "C" {
 #endif /* __cplusplus */
 
 #include "FskNetUtils.h"
+#include "FskNetInterface.h"
 
 #ifdef __KPRHTTPSERVER_PRIV__
 #define kKprHTTPServerDefaultCretificates "\
@@ -96,6 +97,23 @@ FskAPI(void) KprHTTPTargetMessageSetResponseProtocol(KprMessage message, char* p
 FskAPI(void) KprNetworkInterfaceActivate(Boolean activateIt);
 FskAPI(void) KprNetworkInterfaceCleanup();
 FskAPI(void) KprNetworkInterfaceSetup();
+
+typedef struct KprNetworkInterfaceNotifierRecord KprNetworkInterfaceNotifier;
+
+typedef void (*KprNetworkInterfaceEventCallback)(FskNetInterface ifc, void *refcon);
+
+struct KprNetworkInterfaceNotifierRecord {
+	KprNetworkInterfaceNotifier *next;
+	void *refcon;
+
+	KprNetworkInterfaceEventCallback added;
+	KprNetworkInterfaceEventCallback removed;
+	KprNetworkInterfaceEventCallback connected;
+	KprNetworkInterfaceEventCallback disconnected;
+};
+	
+FskAPI(void) KprNetworkInterfaceAddNotifier(KprNetworkInterfaceNotifier *notifier);
+FskAPI(void) KprNetworkInterfaceRemoveNotifier(KprNetworkInterfaceNotifier *notifier);
 
 #ifdef __cplusplus
 }

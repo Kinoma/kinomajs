@@ -34,7 +34,8 @@ typedef struct KprWebSocketServerRequestStruct KprWebSocketServerRequestRecord, 
 // Callbacks
 
 typedef void (*KprWebSocketServerLaunchCallback)(KprWebSocketServer self, void *refcon);
-typedef void (*KprWebSocketServerConnectCallback)(KprWebSocketServer self, FskSocket sock, void *refcon);
+typedef void (*KprWebSocketServerConnectCallback)(KprWebSocketServer self, FskSocket sock, const char *interface, int ip, void *refcon);
+typedef void (*KprWebSocketServerInterfaceDropCallback)(KprWebSocketServer self, const char *interface, int ip, void *refcon);
 typedef void (*KprWebSocketServerErrorCallback)(KprWebSocketServer self, FskErr err, char *message, void *refcon);
 
 struct KprWebSocketServerStruct {
@@ -48,6 +49,7 @@ struct KprWebSocketServerStruct {
 
 	KprWebSocketServerLaunchCallback launchCallback;
 	KprWebSocketServerConnectCallback connectCallback;
+	KprWebSocketServerInterfaceDropCallback interfaceDropCallback;
 	KprWebSocketServerErrorCallback errorCallback;
 };
 
@@ -59,6 +61,8 @@ struct KprWebSocketServerRequestStruct {
 	int requesterPort;
 	FskHeaders *requestHeaders;
 	FskStrParsedUrl parts;
+	const char *interface;
+	int ip;
 
 	FskHeaders *responseHeaders;
 	struct {
@@ -76,5 +80,6 @@ void KprWebSocketServerDispose(KprWebSocketServer self);
 FskErr KprWebSocketServerListen(KprWebSocketServer self, int port, char *interfaceName);
 
 UInt16 KprWebSocketServerGetPort(KprWebSocketServer self);
+KprPortListener KprWebSocketServerGetInterface(KprWebSocketServer self);KprPortListener KprWebSocketServerGetInterface(KprWebSocketServer self);
 
 #endif

@@ -378,21 +378,32 @@
 				// and verify it with the public key
 				var result = false;
 				var algoID = x509obj.signatureAlgorithm.algorithm;
-				if (Crypt.ber.oideq(algoID, [1, 2, 840, 113549, 1, 1, 4]) ||
-				    Crypt.ber.oideq(algoID, [1, 2, 840, 113549, 1, 1, 5]) ||
-				    Crypt.ber.oideq(algoID, [1, 2, 840, 113549, 1, 1, 11])) {
+				if (Crypt.ber.oideq(algoID, [1, 2, 840, 113549, 1, 1], 6)) {
 					// sanity check
 					if (!key.hasOwnProperty("rsaKey"))
 						throw new Crypt.Error(Crypt.error.kCryptInvalidAlgorithm);
-					if (Crypt.ber.oideq(algoID, [1, 2, 840, 113549, 1, 1, 11]))
-						// PKCS-1 SHA256 with RSA encryption
-						var digest = new Crypt.SHA256();
-					else if (Crypt.ber.oideq(algoID, [1, 2, 840, 113549, 1, 1, 5]))
-						// PKCS-1 SHA1 with RSA encryption
-						var digest = new Crypt.SHA1();
-					else
-						// PKCS-1 MD5 with RSA encryption
+					switch (algoID[6]) {
+					case 4:	// PKCS-1 MD5 with RSA encryption
 						var digest = new Crypt.MD5();
+						break;
+					case 5:		// PKCS-1 SHA1 with RSA encryption
+						var digest = new Crypt.SHA1();
+						break;
+					case 11:	// PKCS-1 SHA256 with RSA encryption
+						var digest = new Crypt.SHA256();
+						break;
+					case 12:	// PKCS-1 SHA384 with RSA encryption
+						var digest = new Crypt.SHA384();
+						break;
+					case 13:	// PKCS-1 SHA512 with RSA encryption
+						var digest = new Crypt.SHA512();
+						break;
+					case 14:	// PKCS-1 SHA224 with RSA encryption
+						var digest = new Crypt.SHA224();
+						break;
+					default:
+						throw new Crypt.Error(Crypt.error.kCryptInvalidAlgorithm);
+					}
 					digest.update(x509obj.tbsCertificate.__ber__);
 					var v = digest.close();
 					var sig = new Crypt.PKCS1_5(key.rsaKey);

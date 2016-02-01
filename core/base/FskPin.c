@@ -23,18 +23,16 @@
 FskErr FskPinDigitalNew(FskPinDigital *pin, SInt32 number, const char *name, FskPinsDigitalDirection direction)
 {
 	FskErr err;
-	FskPinDigitalDispatch dispatch = NULL;
+	FskPinDigitalDispatch dispatch;
 	UInt32 i = 0;
 
 	while (true) {
-		FskPinDigitalDispatch aDispatch = FskExtensionGetByIndex(kFskExtensionPinDigital, i++);
-		if (NULL == aDispatch)
+		dispatch = FskExtensionGetByIndex(kFskExtensionPinDigital, i++);
+		if (NULL == dispatch)
 			BAIL(kFskErrExtensionNotFound);
 
-		if ((aDispatch->doCanHandle)(number, name, &number)) {
-			dispatch = aDispatch;
+		if ((dispatch->doCanHandle)(number, name, &number))
 			break;
-		}
 	}
 
 	err = (dispatch->doNew)(pin, number, name, direction);
@@ -49,18 +47,16 @@ bail:
 FskErr FskPinAnalogNew(FskPinAnalog *pin, SInt32 number, const char *name)
 {
 	FskErr err;
-	FskPinAnalogDispatch dispatch = NULL;
+	FskPinAnalogDispatch dispatch;
 	UInt32 i = 0;
 
 	while (true) {
-		FskPinAnalogDispatch aDispatch = FskExtensionGetByIndex(kFskExtensionPinAnalog, i++);
-		if (NULL == aDispatch)
+		dispatch = FskExtensionGetByIndex(kFskExtensionPinAnalog, i++);
+		if (NULL == dispatch)
 			BAIL(kFskErrExtensionNotFound);
 
-		if ((aDispatch->doCanHandle)(number, name, &number)) {
-			dispatch = aDispatch;
+		if ((dispatch->doCanHandle)(number, name, &number))
 			break;
-		}
 	}
 
 	err = (dispatch->doNew)(pin, number, name);
@@ -75,19 +71,17 @@ bail:
 FskErr FskPinI2CNew(FskPinI2C *pin, SInt32 sda, SInt32 sclk, SInt32 bus)
 {
 	FskErr err;
-	FskPinI2CDispatch dispatch = NULL;
+	FskPinI2CDispatch dispatch;
 	UInt32 i = 0;
 
 	while (true) {
 		SInt32 remappedBus = kFskPinI2CNoBus;
-		FskPinI2CDispatch aDispatch = FskExtensionGetByIndex(kFskExtensionPinI2C, i++);
-		if (NULL == aDispatch)
+		dispatch = FskExtensionGetByIndex(kFskExtensionPinI2C, i++);
+		if (NULL == dispatch)
 			BAIL(kFskErrExtensionNotFound);
 
-		if ((aDispatch->doCanHandle)(sda, sclk, bus, &remappedBus)) {
-			dispatch = aDispatch;
+		if ((dispatch->doCanHandle)(sda, sclk, bus, &remappedBus))
 			break;
-		}
 
 		if (kFskPinI2CNoBus != remappedBus)
 			bus = remappedBus;
@@ -105,18 +99,16 @@ bail:
 FskErr FskPinPWMNew(FskPinPWM *pin, SInt32 number, const char *name)
 {
 	FskErr err;
-	FskPinPWMDispatch dispatch = NULL;
+	FskPinPWMDispatch dispatch;
 	UInt32 i = 0;
 
 	while (true) {
-		FskPinPWMDispatch aDispatch = FskExtensionGetByIndex(kFskExtensionPinPWM, i++);
-		if (NULL == aDispatch)
+		dispatch = FskExtensionGetByIndex(kFskExtensionPinPWM, i++);
+		if (NULL == dispatch)
 			BAIL(kFskErrExtensionNotFound);
 
-		if ((aDispatch->doCanHandle)(number, name, &number)) {
-			dispatch = aDispatch;
+		if ((dispatch->doCanHandle)(number, name, &number))
 			break;
-		}
 	}
 
 	err = (dispatch->doNew)(pin, number, name);
@@ -132,19 +124,17 @@ FskErr FskPinSerialNew(FskPinSerial *pin, SInt32 rxNumber, SInt32 txNumber, cons
 {
 	FskErr err;
 	const char *name = nameIn;
-	FskPinSerialDispatch dispatch = NULL;
+	FskPinSerialDispatch dispatch;
 	UInt32 i = 0;
 
 	while (true) {
 		char *remappedName = NULL;
-		FskPinSerialDispatch aDispatch = FskExtensionGetByIndex(kFskExtensionPinSerial, i++);
-		if (NULL == aDispatch)
+		dispatch = FskExtensionGetByIndex(kFskExtensionPinSerial, i++);
+		if (NULL == dispatch)
 			BAIL(kFskErrExtensionNotFound);
 
-		if ((aDispatch->doCanHandle)(rxNumber, txNumber, name, &remappedName)) {
-			dispatch = aDispatch;
+		if ((dispatch->doCanHandle)(rxNumber, txNumber, name, &remappedName))
 			break;
-		}
 
 		if (remappedName) {
 			if (name != nameIn)

@@ -70,7 +70,7 @@ Boolean createSerialCanHandle(SInt32 rxNumber, SInt32 txNumber, const char *name
 
 	*remappedName = ttyPath;
 
-	return true;
+	return false;
 }
 
 /*

@@ -1401,6 +1401,7 @@ void KPR_StylePatch(xsMachine *the)
 		KprStyle self;
 		KprShell shell = gShell;
 		xsIntegerValue c = xsToInteger(xsArgc);
+		double n;
 		xsVars(1);
 		KprStyleNew(&self, (KprContext)shell, NULL, NULL);
 		kprVolatileConstructor(KPR_Style);
@@ -1431,6 +1432,8 @@ void KPR_StylePatch(xsMachine *the)
 				KprStyleSetMarginTop(self, integer);
 			if (xsFindInteger(xsArg(0), xsID_bottom, &integer))
 				KprStyleSetMarginBottom(self, integer);
+			if (xsFindNumber(xsArg(0), xsID_extra, &n))
+				KprStyleSetTextExtra(self, n * 65536.0);
 			xsLeaveSandbox();
 		}
 		else {
@@ -1456,6 +1459,8 @@ void KPR_StylePatch(xsMachine *the)
 				KprStyleSetLineHeight(self, xsToInteger(xsArg(9)));
 			if ((c > 10) && xsTest(xsArg(10)))
 				KprStyleSetLineCount(self, xsToInteger(xsArg(10)));
+			if ((c > 11) && xsTest(xsArg(11)))
+				KprStyleSetTextExtra(self, xsToNumber(xsArg(11)) * 65536.0);
 		}
 		xsResult = xsThis;
 	}
@@ -1608,11 +1613,11 @@ void KPR_Behavior_template(xsMachine *the)
 	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_##_ID), xsID_prototype); \
 	xsVar(2) = xsNewHostConstructorObject(KPR_##_ID##Template, 3, xsVar(1), xsID__##_ID); \
 	xsNewHostProperty(xsVar(2), xsID_template, xsVar(0), xsDefault, xsDontScript); \
-	xsNewHostProperty(xsGlobal, xsID__##_ID, xsVar(2), xsDefault, xsDontScript); \
+	xsNewHostProperty(xsGlobal, xsID__##_ID, xsVar(2), xsDontDelete, xsDontDelete | xsDontScript); \
 	xsVar(2) = xsNewHostConstructorObject(KPR_##_ID##Patch, 0, xsVar(1), xsID_##_ID); \
 	xsVar(3) = xsNewHostFunctionObject(KPR_##_ID##_template, 1, xsID_template); \
 	xsNewHostProperty(xsVar(2), xsID_template, xsVar(3), xsDefault, xsDontScript); \
-	xsNewHostProperty(xsGlobal, xsID_##_ID, xsVar(2), xsDefault, xsDontScript)
+	xsNewHostProperty(xsGlobal, xsID_##_ID, xsVar(2), xsDontDelete, xsDontDelete | xsDontScript)
 
 void KPR_patchConstructors(xsMachine *the)
 {
@@ -1656,11 +1661,11 @@ void KPR_patchConstructors(xsMachine *the)
 
 	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_Skin), xsID_prototype);
 	xsVar(2) = xsNewHostConstructorObject(KPR_SkinPatch, 1, xsVar(1), xsID_Skin);
-	xsNewHostProperty(xsGlobal, xsID_Skin, xsVar(2), xsDefault, xsDontScript);
+	xsNewHostProperty(xsGlobal, xsID_Skin, xsVar(2), xsDontDelete, xsDontDelete | xsDontScript);
 	
 	xsVar(1) = xsGet(xsGet(xsGlobal, xsID_Style), xsID_prototype);
 	xsVar(2) = xsNewHostConstructorObject(KPR_StylePatch, 1, xsVar(1), xsID_Style);
-	xsNewHostProperty(xsGlobal, xsID_Style, xsVar(2), xsDefault, xsDontScript);
+	xsNewHostProperty(xsGlobal, xsID_Style, xsVar(2), xsDontDelete, xsDontDelete | xsDontScript);
 
 	xsVar(0) = xsGet(xsGlobal, xsID_Handler);
 	xsVar(1) = xsNewHostFunctionObject(KPR_Handler_bind, 2, xsID_bind);
@@ -1672,7 +1677,7 @@ void KPR_patchConstructors(xsMachine *the)
 	xsVar(1) = xsNewHostFunctionObject(KPR_Behavior_template, 1, xsID_template);
 	xsVar(2) = xsNewHostConstructor(KPR_Behavior_Template, 1, xsVar(0));
 	xsNewHostProperty(xsVar(2), xsID_template, xsVar(1), xsDefault, xsDontScript);
-	xsNewHostProperty(xsGlobal, xsID_Behavior, xsVar(2), xsDefault, xsDontScript);
+	xsNewHostProperty(xsGlobal, xsID_Behavior, xsVar(2), xsDontDelete, xsDontDelete | xsDontScript);
 }
 
 

@@ -59,12 +59,12 @@ typedef struct {
 	FskErr (*doFormatCacheNew)(FskTextEngineState state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 	FskErr (*doFormatCacheDispose)(FskTextEngineState state, FskTextFormatCache cache);
 	FskErr (*doBox)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel,
-					UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-	FskErr (*doGetBounds)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
+					UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed textExtra, const char *fontName, FskTextFormatCache cache);
+	FskErr (*doGetBounds)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
 	FskErr (*doGetFontInfo)(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache formatCache);
-	FskErr (*doFitWidth)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags,
+	FskErr (*doFitWidth)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags,
 					UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
-	FskErr (*doGetLayout)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+	FskErr (*doGetLayout)(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName,
 					UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
 
 	// global functions
@@ -173,7 +173,7 @@ FskAPI(FskErr) FskTextEngineGetProperty(FskTextEngine fte, UInt32 propertyID, Fs
  *	\return		kFskErrNone	if the text was rendered successfully.
  **/
 FskAPI(FskErr) FskTextBox(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color,
-							UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
+							UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed extra, const char *fontName, FskTextFormatCache cache);
 
 /** Get the rough bounds of a text string.
  *	There is no guarantee whatsoever that no text would be rendered outside of these bounds.
@@ -190,7 +190,7 @@ FskAPI(FskErr) FskTextBox(FskTextEngine fte, FskBitmap bits, const char *text, U
  *	\param[in]	cache		the font cache.
  *	\return		kFskErrNone	if the bounds were retrieved successfully.
  **/
-FskAPI(FskErr) FskTextGetBounds(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+FskAPI(FskErr) FskTextGetBounds(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed extra, const char *fontName,
 								FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
 
 /** Get the list of fonts available on this system.
@@ -217,7 +217,7 @@ FskAPI(FskErr) FskTextGetFontList(FskTextEngine fte, char **fontNames);
  *	\param[in]	cache		the font cache.
  *	\return		kFskErrNone	if the layout was retrieved successfully.
  **/
-FskAPI(FskErr) FskTextGetLayout(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+FskAPI(FskErr) FskTextGetLayout(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName,
 								UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
 
 /** Get information about a font: ascent, descent, leading.
@@ -255,7 +255,7 @@ enum {
  *	\param[in]	cache		the font cache.
  *	\return		kFskErrNone	if successful.
  **/
-FskAPI(FskErr) FskTextFitWidth(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
+FskAPI(FskErr) FskTextFitWidth(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
 
 #ifdef __FSKTEXT_PRIV__
 	/** Initialize the text system.
@@ -308,7 +308,7 @@ FskAPI(FskErr) FskTextAddFontFile(FskTextEngine fte, const char *path);
 #if USE_GLYPH	/* define APIs only for now -- no disptach functions are defined yet */
        FskAPI(FskErr) FskTextGlyphGetBounds(FskTextEngine fte, FskBitmap bits, const UInt16 *codes, UInt32 codesLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache);
       FskAPI(FskErr) FskTextGlyphBox(FskTextEngine fte, FskBitmap bits, const UInt16 *codes, UInt32 codesLen, FskConstRectangle r, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-     FskAPI(FskErr) FskTextGetGlyphs(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layout, float *widthPtr, float *heightPtr, FskTextFormatCache cache);
+     FskAPI(FskErr) FskTextGetGlyphs(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layout, float *widthPtr, float *heightPtr, FskTextFormatCache cache);
 #endif
 
 #if SUPPORT_INSTRUMENTATION	/* TODO: Put these into the dispatch table. Make available outside of instrumentation for debugging? */

@@ -3980,6 +3980,11 @@ void	FskAlphaBlackLighter(UInt32 *d, UInt32 p);
 void	FskAlphaBlackXorA32(UInt32 *d, UInt32 p);
 void	FskAlphaBlackXor32A(UInt32 *d, UInt32 p);
 
+		/* Subtract with saturation */
+void	FskAlphaBlackSubtract32(UInt32 *d, UInt32 s);
+#define	FskAlphaBlackSubtract32A	FskAlphaBlackSubtract32
+#define FskAlphaBlackSubtractA32	FskAlphaBlackSubtract32
+
 
 /********************************************************************************
  * Multiply two pixels together

@@ -2902,6 +2902,22 @@ void FskAlphaBlackXor32A(UInt32 *d, UInt32 s)
 }
 
 
+/********************************************************************************
+ * FskAlphaBlackSubtract32
+ ********************************************************************************/
+
+void FskAlphaBlackSubtract32(UInt32 *d, UInt32 s)
+{
+	UInt8		*dp = (UInt8*)d;
+	const UInt8	*sp = (const UInt8*)(&s);
+	int			i;
+	for (i = 0; i < 4; ++i) {
+		SInt32 t = (SInt32)dp[i] - (SInt32)sp[i];
+		dp[i] = (t <= 0) ? 0 : t;
+	}
+}
+
+
 #if PRAGMA_MARK_SUPPORTED
 #pragma mark -
 #endif /* PRAGMA_MARK_SUPPORTED */

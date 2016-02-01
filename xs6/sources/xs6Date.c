@@ -166,9 +166,9 @@ txSlot* fxNewDateInstance(txMachine* the)
 	txSlot* instance;
 	txSlot* property;
 	instance = fxNewObjectInstance(the);
-	instance->flag |= XS_VALUE_FLAG;
-	property = fxNextNumberProperty(the, instance, 0, XS_NO_ID, XS_GET_ONLY);
+	property = fxNextNumberProperty(the, instance, 0, XS_NO_ID, XS_INTERNAL_FLAG | XS_GET_ONLY);
 	property->kind = XS_DATE_KIND;
+	property->value.number = C_NAN;
 	return instance;
 }
 
@@ -219,7 +219,7 @@ void fx_Date(txMachine* the)
 			txSlot* slot = mxArgv(0);
 			if (slot->kind == XS_REFERENCE_KIND) {
 				txSlot* instance = slot->value.reference;;
-				if ((instance->flag & XS_VALUE_FLAG) && (instance->next->kind == XS_DATE_KIND) && (instance != mxDatePrototype.value.reference)) {
+				if ((instance->next) && (instance->next->kind == XS_DATE_KIND) && (instance != mxDatePrototype.value.reference)) {
 					mxThis->value.reference->next->value.number = instance->next->value.number;
 					return;
 				}
@@ -1336,7 +1336,7 @@ txSlot* fxCheckDate(txMachine* the, txSlot* it)
 	if (it->kind == XS_REFERENCE_KIND) {
 		txSlot* instance = it->value.reference;
 		it = instance->next;
-		if ((instance->flag & XS_VALUE_FLAG) && (it->kind == XS_DATE_KIND) && (instance != mxDatePrototype.value.reference))
+		if ((it) && (it->flag & XS_INTERNAL_FLAG) && (it->kind == XS_DATE_KIND))
 			result = it;
 	}
 	return result;

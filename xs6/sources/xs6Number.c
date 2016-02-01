@@ -66,11 +66,11 @@ void fxBuildNumber(txMachine* the)
 		fxNewHostFunctionGlobal(the, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 		the->stack++;
 	}
-	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_Infinity), C_NULL);
+	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_Infinity));
 	slot->flag = XS_GET_ONLY;
 	slot->kind = XS_NUMBER_KIND;
 	slot->value.number = (txNumber)C_INFINITY;
-	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_NaN), C_NULL);
+	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_NaN));
 	slot->flag = XS_GET_ONLY;
 	slot->kind = XS_NUMBER_KIND;
 	slot->value.number = C_NAN;
@@ -99,8 +99,7 @@ txSlot* fxNewNumberInstance(txMachine* the)
 	txSlot* instance;
 	txSlot* property;
 	instance = fxNewObjectInstance(the);
-	instance->flag |= XS_VALUE_FLAG;
-	property = fxNextNumberProperty(the, instance, 0, XS_NO_ID, XS_GET_ONLY);
+	property = fxNextNumberProperty(the, instance, 0, XS_NO_ID, XS_INTERNAL_FLAG | XS_GET_ONLY);
 	return instance;
 }
 
@@ -423,7 +422,7 @@ txSlot* fxCheckNumber(txMachine* the, txSlot* it)
 	else if (it->kind == XS_REFERENCE_KIND) {
 		txSlot* instance = it->value.reference;
 		it = instance->next;
-		if ((instance->flag & XS_VALUE_FLAG) && (it->kind == XS_NUMBER_KIND) && (instance != mxNumberPrototype.value.reference))
+		if ((it) && (it->flag & XS_INTERNAL_FLAG) && (it->kind == XS_NUMBER_KIND))
 			result = it;
 	}
 	return result;

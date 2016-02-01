@@ -63,7 +63,8 @@ extern "C" {
 #define kFskCompositePreDestinationAtop	19	/**< Premultiplied Porter-Duff destination atop source. */
 #define kFskCompositePreLighter			20	/**< Premultiplied Porter-Duff lighter (add). */
 #define kFskCompositePreXor				21	/**< Premultiplied Porter-Duff exclusive-OR. */
-#define kFskNumPorterDuffCompositeModes	(kFskCompositePreXor - kFskCompositePreSourceOver + 1)	/**< The number of Porter-Duff composition modes. */
+#define kFskCompositePreSubtract		22	/**< Premultiplied Subtract with saturation. */
+#define kFskNumPorterDuffCompositeModes	(kFskCompositePreSubtract - kFskCompositePreSourceOver + 1)	/**< The number of Porter-Duff composition modes. */
 
 
 /**

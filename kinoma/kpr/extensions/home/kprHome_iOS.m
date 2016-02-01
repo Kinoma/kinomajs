@@ -482,6 +482,21 @@ bail:
 	return err;
 }
 
+FskErr KprHomeGetRoomForEntireHome(KprHome self, xsMachine *the)
+{
+	FskErr err = kFskErrNone;
+	KprHomeRoom room = NULL;
+
+	HMRoom *native = [self->home roomForEntireHome];
+	room = [self->delegate newRoom:native err:&err];
+	bailIfError(err);
+	room = NULL;
+
+bail:
+	KprHomeRoomDispose(room);
+	return err;
+}
+
 FskErr KprHomeAddRoom(KprHome self, const char *name, xsSlot callback)
 {
 	void (^completion)(HMRoom *room, NSError *error) = [self->delegate completionHandlerForCallbackWithRoom:callback];
@@ -1904,6 +1919,10 @@ FskErr KprHomeGenericDispose(void *self)
 
 - (NSString *)nativeServiceTypeString:(const char *)typeStr
 {
+    if (FskStrCompare(typeStr, "None") == 0) {
+        return [NSString stringWithUTF8String:""];
+    }
+
 	if (FskStrCompare(typeStr, "Lightbulb") == 0) {
 		return HMServiceTypeLightbulb;
 	}

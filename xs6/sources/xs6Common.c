@@ -16,6 +16,8 @@
  */
 #include "xs6Common.h"
 
+static txBoolean fxIsSpace(txU4 c);
+
 const txString gxCodeNames[XS_CODE_COUNT] = {
 	"",
 	/* XS_CODE_ADD */ "add",
@@ -51,6 +53,7 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_CATCH_1 */ "catch",
 	/* XS_CODE_CATCH_2 */ "catch_2",
 	/* XS_CODE_CATCH_4 */ "catch_4",
+	/* XS_CODE_CHECK_INSTANCE */ "check_instance",
 	/* XS_CODE_CLASS */ "class",
 	/* XS_CODE_CODE_1 */ "code",
 	/* XS_CODE_CODE_2 */ "code_2",
@@ -78,7 +81,11 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_DELETE_SUPER_AT */ "delete_super_at",
 	/* XS_CODE_DIVIDE */ "divide",
 	/* XS_CODE_DUB */ "dub",
+	/* XS_CODE_DUB_AT */ "dub_at",
 	/* XS_CODE_END */ "end",
+	/* XS_CODE_END_ARROW */ "end_arrow",
+	/* XS_CODE_END_BASE */ "end_base",
+	/* XS_CODE_END_DERIVED */ "end_derived",
 	/* XS_CODE_EQUAL */ "equal",
 	/* XS_CODE_EVAL */ "eval",
 	/* XS_CODE_EXCEPTION */ "exception",
@@ -93,7 +100,6 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_GET_CLOSURE_2 */ "get_closure_2",
 	/* XS_CODE_GET_EVAL */ "get_eval",
 	/* XS_CODE_GET_GLOBAL */ "get_global",
-	/* XS_CODE_GET_HOME */ "get_home",
 	/* XS_CODE_GET_LOCAL_1 */ "get_local",
 	/* XS_CODE_GET_LOCAL_2 */ "get_local_2",
 	/* XS_CODE_GET_PROPERTY */ "get_property",
@@ -112,13 +118,20 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_LEFT_SHIFT */ "left_shift",
 	/* XS_CODE_LESS */ "less",
 	/* XS_CODE_LESS_EQUAL */ "less_equal",
+	/* XS_CODE_LET_CLOSURE_1 */ "let_closure",
+	/* XS_CODE_LET_CLOSURE_2 */ "let_closure_2",
+	/* XS_CODE_LET_GLOBAL */ "let_global",
+	/* XS_CODE_LET_LOCAL_1 */ "let_local",
+	/* XS_CODE_LET_LOCAL_2 */ "let_local_2",
 	/* XS_CODE_LINE */ "line",
+	/* XS_CODE_METHOD */ "method",
 	/* XS_CODE_MINUS */ "minus",
 	/* XS_CODE_MODULE */ "module",
 	/* XS_CODE_MODULO */ "modulo",
 	/* XS_CODE_MORE */ "more",
 	/* XS_CODE_MORE_EQUAL */ "more_equal",
 	/* XS_CODE_MULTIPLY */ "multiply",
+	/* XS_CODE_NAME */ "name",
 	/* XS_CODE_NEW */ "new",
 	/* XS_CODE_NEW_CLOSURE */ "new_closure",
 	/* XS_CODE_NEW_EVAL */ "new_eval",
@@ -137,9 +150,17 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_PULL_CLOSURE_2 */ "pull_closure_2",
 	/* XS_CODE_PULL_LOCAL_1 */ "pull_local",
 	/* XS_CODE_PULL_LOCAL_2 */ "pull_local_2",
-	/* XS_CODE_RESULT */ "result",
+	/* XS_CODE_REFRESH_CLOSURE_1 */ "refresh_closure",
+	/* XS_CODE_REFRESH_CLOSURE_2 */ "refresh_closure_2",
+	/* XS_CODE_REFRESH_LOCAL_1 */ "refresh_local",
+	/* XS_CODE_REFRESH_LOCAL_2 */ "refresh_local_2",
 	/* XS_CODE_RESERVE_1 */ "reserve",
 	/* XS_CODE_RESERVE_2 */ "reserve_2",
+	/* XS_CODE_RESET_CLOSURE_1 */ "reset_closure",
+	/* XS_CODE_RESET_CLOSURE_2 */ "reset_closure_2",
+	/* XS_CODE_RESET_LOCAL_1 */ "reset_local",
+	/* XS_CODE_RESET_LOCAL_2 */ "reset_local_2",
+	/* XS_CODE_RESULT */ "result",
 	/* XS_CODE_RETHROW */ "rethrow",
 	/* XS_CODE_RETRIEVE_1 */ "retrieve",
 	/* XS_CODE_RETRIEVE_2 */ "retrieve_2",
@@ -151,7 +172,6 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_SET_CLOSURE_2 */ "set_closure_2",
 	/* XS_CODE_SET_EVAL */ "set_eval",
 	/* XS_CODE_SET_GLOBAL */ "set_global",
-	/* XS_CODE_SET_HOME */ "set_home",
 	/* XS_CODE_SET_LOCAL_1 */ "set_local",
 	/* XS_CODE_SET_LOCAL_2 */ "set_local_2",
 	/* XS_CODE_SET_PROPERTY */ "set_property",
@@ -176,7 +196,10 @@ const txString gxCodeNames[XS_CODE_COUNT] = {
 	/* XS_CODE_SWAP */ "swap",
 	/* XS_CODE_SYMBOL */ "symbol",
 	/* XS_CODE_TARGET */ "target",
+	/* XS_CODE_TEMPLATE */ "template",
+	/* XS_CODE_THIS */ "this",
 	/* XS_CODE_THROW */ "throw",
+	/* XS_CODE_TO_INSTANCE */ "to_instance",
 	/* XS_CODE_TRANSFER */ "transfer",
 	/* XS_CODE_TRUE */ "true",
 	/* XS_CODE_TYPEOF */ "typeof",
@@ -227,6 +250,7 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] = {
 	3 /* XS_CODE_CATCH_2 */,
 	5 /* XS_CODE_CATCH_4 */,
 	1 /* XS_CODE_CLASS */,
+	1 /* XS_CODE_CHECK_INSTANCE */,
 	2 /* XS_CODE_CODE_1 */,
 	3 /* XS_CODE_CODE_2 */,
 	5 /* XS_CODE_CODE_4 */,
@@ -253,7 +277,11 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] = {
 	1 /* XS_CODE_DELETE_SUPER_AT */,
 	1 /* XS_CODE_DIVIDE */,
 	1 /* XS_CODE_DUB */,
+	1 /* XS_CODE_DUB_AT */,
 	1 /* XS_CODE_END */,
+	1 /* XS_CODE_END_ARROW */,
+	1 /* XS_CODE_END_BASE */,
+	1 /* XS_CODE_END_DERIVED */,
 	1 /* XS_CODE_EQUAL */,
 	1 /* XS_CODE_EVAL */,
 	1 /* XS_CODE_EXCEPTION */,
@@ -268,7 +296,6 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] = {
 	3 /* XS_CODE_GET_CLOSURE_2 */,
 	0 /* XS_CODE_GET_EVAL */,
 	0 /* XS_CODE_GET_GLOBAL */,
-	1 /* XS_CODE_GET_HOME */,
 	2 /* XS_CODE_GET_LOCAL_1 */,
 	3 /* XS_CODE_GET_LOCAL_2 */,
 	0 /* XS_CODE_GET_PROPERTY */,
@@ -287,13 +314,20 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] = {
 	1 /* XS_CODE_LEFT_SHIFT */,
 	1 /* XS_CODE_LESS */,
 	1 /* XS_CODE_LESS_EQUAL */,
+	2 /* XS_CODE_LET_CLOSURE_1 */,
+	3 /* XS_CODE_LET_CLOSURE_2 */,
+	0 /* XS_CODE_LET_GLOBAL */,
+	2 /* XS_CODE_LET_LOCAL_1 */,
+	3 /* XS_CODE_LET_LOCAL_2 */,
 	3 /* XS_CODE_LINE */,
+	0 /* XS_CODE_METHOD */,
 	1 /* XS_CODE_MINUS */,
 	1 /* XS_CODE_MODULE */,
 	1 /* XS_CODE_MODULO */,
 	1 /* XS_CODE_MORE */,
 	1 /* XS_CODE_MORE_EQUAL */,
 	1 /* XS_CODE_MULTIPLY */,
+	0 /* XS_CODE_NAME */,
 	1 /* XS_CODE_NEW */,
 	0 /* XS_CODE_NEW_CLOSURE */,
 	0 /* XS_CODE_NEW_EVAL */,
@@ -312,9 +346,17 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] = {
 	3 /* XS_CODE_PULL_CLOSURE_2 */,
 	2 /* XS_CODE_PULL_LOCAL_1 */,
 	3 /* XS_CODE_PULL_LOCAL_2 */,
-	1 /* XS_CODE_RESULT */,
+	2 /* XS_CODE_REFRESH_CLOSURE_1 */,
+	3 /* XS_CODE_REFRESH_CLOSURE_2 */,
+	2 /* XS_CODE_REFRESH_LOCAL_1 */,
+	3 /* XS_CODE_REFRESH_LOCAL_2 */,
 	2 /* XS_CODE_RESERVE_1 */,
 	3 /* XS_CODE_RESERVE_2 */,
+	2 /* XS_CODE_RESET_CLOSURE_1 */,
+	3 /* XS_CODE_RESET_CLOSURE_2 */,
+	2 /* XS_CODE_RESET_LOCAL_1 */,
+	3 /* XS_CODE_RESET_LOCAL_2 */,
+	1 /* XS_CODE_RESULT */,
 	1 /* XS_CODE_RETHROW */,
 	2 /* XS_CODE_RETRIEVE_1 */,
 	3 /* XS_CODE_RETRIEVE_2 */,
@@ -326,7 +368,6 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] = {
 	3 /* XS_CODE_SET_CLOSURE_2 */,
 	0 /* XS_CODE_SET_EVAL */,
 	0 /* XS_CODE_SET_GLOBAL */,
-	1 /* XS_CODE_SET_HOME */,
 	2 /* XS_CODE_SET_LOCAL_1 */,
 	3 /* XS_CODE_SET_LOCAL_2 */,
 	0 /* XS_CODE_SET_PROPERTY */,
@@ -351,7 +392,10 @@ const txS1 gxCodeSizes[XS_CODE_COUNT] = {
 	1 /* XS_CODE_SWAP */,
 	0 /* XS_CODE_SYMBOL */,
 	1 /* XS_CODE_TARGET */,
+	1 /* XS_CODE_TEMPLATE */,
+	1 /* XS_CODE_THIS */,
 	1 /* XS_CODE_THROW */,
+	1 /* XS_CODE_TO_INSTANCE */,
 	1 /* XS_CODE_TRANSFER */,
 	1 /* XS_CODE_TRUE */,
 	1 /* XS_CODE_TYPEOF */,
@@ -402,14 +446,14 @@ txBoolean fxIsIdentifier(txString string)
 	return 1;
 }
 
-txBoolean fxIsIdentifierFirst(char c)
+txBoolean fxIsIdentifierFirst(txU4 c)
 {
-	return ((('A' <= c) && (c <= 'Z')) || (('a' <= c) && (c <= 'z')) || (c == '$') || (c == '_')) ? 1 : 0;
+	return ((('A' <= c) && (c <= 'Z')) || (('a' <= c) && (c <= 'z')) || (c == '$') || (c == '_') || ((c > 128) && !fxIsSpace(c))) ? 1 : 0;
 }
 
-txBoolean fxIsIdentifierNext(char c)
+txBoolean fxIsIdentifierNext(txU4 c)
 {
-	return ((('0' <= c) && (c <= '9')) || (('A' <= c) && (c <= 'Z')) || (('a' <= c) && (c <= 'z')) || (c == '$') || (c == '_')) ? 1 : 0;
+	return ((('0' <= c) && (c <= '9')) || (('A' <= c) && (c <= 'Z')) || (('a' <= c) && (c <= 'z')) || (c == '$') || (c == '_') || ((c > 128) && !fxIsSpace(c))) ? 1 : 0;
 }
 
 txU1* fsX2UTF8(txU4 c, txU1* p, txU4 theSize)
@@ -440,9 +484,9 @@ txU1* fsX2UTF8(txU4 c, txU1* p, txU4 theSize)
 	return p;
 }
 
-static txBoolean fxIsSpace(txU4 c)
+txBoolean fxIsSpace(txU4 c)
 {
-	static txU4 spaces[26] = {
+	static txU4 spaces[28] = {
 		0x00000009,
         0x0000000A,
         0x0000000B,
@@ -468,6 +512,8 @@ static txBoolean fxIsSpace(txU4 c)
 		0x0000202F,
 		0x0000205F,
 		0x00003000,
+		0x0000FEFF,
+		0xFFFFFFFF,
 		0x00000000,
 	};
 	txU4 *p = spaces, s;
@@ -509,17 +555,17 @@ txString fxSkipSpaces(txString string)
 txFlag fxIntegerToIndex(void* dtoa, txInteger theInteger, txIndex* theIndex)
 {
 	if (0 <= theInteger) {
-		*theIndex = theInteger;
+		*theIndex = (txIndex)theInteger;
 		return 1;
 	}
 	return 0;
 }
 
-txFlag fxNumberToIndex(void* dtoa, txNumber theNumber, txIndex* theIndex)
+txFlag fxNumberToIndex(void* dtoa, txNumber number, txIndex* theIndex)
 {
-	txInteger integer = (txInteger)theNumber;
+	txIndex integer = (txIndex)number;
 	txNumber check = integer;
-	if ((theNumber == check) && (0 <= integer)) {
+	if ((number == check) && (integer < 4294967295)) {
 		*theIndex = integer;
 		return 1;
 	}
@@ -530,16 +576,16 @@ txFlag fxStringToIndex(void* dtoa, txString theString, txIndex* theIndex)
 {
 	char buffer[256], c;
 	txNumber number;
-	txInteger integer;
+	txIndex integer;
 	txNumber check;
 
 	c = theString[0];
 	if (('+' != c) && ('-' != c) && ('.' != c) && !(('0' <= c) && ('9' >= c)))
 		return 0;
 	number = fxStringToNumber(dtoa, theString, 1);
-	integer = (txInteger)number;
+	integer = (txIndex)number;
 	check = integer;
-	if ((number == check) && (0 <= integer)) {
+	if ((number == check) && (integer < 4294967295)) {
 		fxNumberToString(dtoa, number, buffer, sizeof(buffer), 0, 0);
 		if (!c_strcmp(theString, buffer)) {
 			*theIndex = integer;
@@ -921,6 +967,8 @@ const txString gxIDStrings[XS_ID_COUNT] = {
 	"__dirname",
 	"__filename",
 	"new.target",
+	"TypedArray",
+	"cache",
 };
 
 #endif

@@ -22,6 +22,7 @@ static void fx_Proxy_revoke(txMachine* the);
 
 static txSlot* fxCheckProxyFunction(txMachine* the, txSlot* proxy, txID index);
 static void fxGetProxyPropertyAux(txMachine* the);
+static void fxEachProxyPropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property);
 static void fxSetProxyPropertyAux(txMachine* the);
 
 static void fx_Reflect_apply(txMachine* the);
@@ -70,12 +71,9 @@ void fxBuildProxy(txMachine* the)
 	mxProxyPropertySetter = *the->stack;
 	the->stack++;
 	
-	mxPush(mxObjectPrototype);
-	fxNewProxyInstance(the);
-	mxProxyPrototype = *the->stack;
-	slot = fxNewHostFunctionGlobal(the, fx_Proxy, 1, mxID(_Proxy), XS_GET_ONLY);
+	slot = fxNewHostFunctionGlobal(the, fx_Proxy, 2, mxID(_Proxy), XS_DONT_ENUM_FLAG);
 	slot = fxLastProperty(the, slot);
-	slot = fxNextSlotProperty(the, slot, &mxProxyPrototype, mxID(_prototype), XS_GET_ONLY);
+	//slot = fxNextSlotProperty(the, slot, &mxProxyPrototype, mxID(_prototype), XS_GET_ONLY);
 	slot = fxNextHostFunctionProperty(the, slot, fx_Proxy_revocable, 2, mxID(_revocable), XS_DONT_ENUM_FLAG);
 	the->stack++;
 
@@ -83,8 +81,8 @@ void fxBuildProxy(txMachine* the)
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	for (builder = gx_Reflect_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Reflect", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
-	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_Reflect), C_NULL);
+	slot = fxNextStringXProperty(the, slot, "Reflect", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_Reflect));
 	slot->flag = XS_DONT_ENUM_FLAG;
 	slot->kind = the->stack->kind;
 	slot->value = the->stack->value;
@@ -101,22 +99,21 @@ txSlot* fxNewProxyInstance(txMachine* the)
 	txSlot* prototype;
 	txSlot* instance;
 	txSlot* property;
+	txSlot* slot;
 	
-	prototype = the->stack->value.reference;
+	prototype = mxIsReference(the->stack) ? the->stack->value.reference : C_NULL;
 	
 	instance = fxNewSlot(the);
-	instance->flag = XS_VALUE_FLAG;
 	instance->kind = XS_INSTANCE_KIND;
 	instance->value.instance.garbage = C_NULL;
-	instance->value.instance.prototype = the->stack->value.reference;
+	instance->value.instance.prototype = C_NULL;
 	the->stack->kind = XS_REFERENCE_KIND;
 	the->stack->value.reference = instance;
 
 	property = instance->next = fxNewSlot(the);
-	property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	property->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	property->kind = XS_PROXY_KIND;
-	if (prototype->flag == XS_VALUE_FLAG) {
-		txSlot* slot = prototype->next;
+	if (prototype && ((slot = prototype->next)) && (slot->kind = XS_PROXY_KIND)) {
 		property->value.proxy.handler = slot->value.proxy.handler;
 		property->value.proxy.target = slot->value.proxy.target;
 	}
@@ -126,14 +123,15 @@ txSlot* fxNewProxyInstance(txMachine* the)
     }
 	
 	property = property->next = fxNewSlot(the);
-	property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	property->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	property->kind = XS_INTEGER_KIND;
 	
 	property = property->next = fxNewSlot(the);
-	property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	property->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	property->kind = XS_ACCESSOR_KIND;
 	property->value.accessor.getter = mxProxyPropertyGetter.value.reference;
 	property->value.accessor.setter = mxProxyPropertySetter.value.reference;
+	
 	return instance;
 }
 
@@ -150,12 +148,12 @@ void fx_Proxy(txMachine* the)
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
 	target = mxArgv(0)->value.reference;
-	if ((target->flag & XS_VALUE_FLAG) && (target->next->kind == XS_PROXY_KIND) && !target->next->value.proxy.handler)
+	if ((target->next) && (target->next->kind == XS_PROXY_KIND) && !target->next->value.proxy.handler)
 		mxTypeError("target is a revoked proxy");
 	if ((mxArgc < 2) || (mxArgv(1)->kind != XS_REFERENCE_KIND))
 		mxTypeError("handler is no object");
 	handler = mxArgv(1)->value.reference;
-	if ((handler->flag & XS_VALUE_FLAG) && (handler->next->kind == XS_PROXY_KIND) && !handler->next->value.proxy.handler)
+	if ((handler->next) && (handler->next->kind == XS_PROXY_KIND) && !handler->next->value.proxy.handler)
 		mxTypeError("handler is a revoked proxy");
 	proxy->value.proxy.target = target;
 	proxy->value.proxy.handler = handler;
@@ -171,26 +169,26 @@ void fx_Proxy_revocable(txMachine* the)
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
 	target = mxArgv(0)->value.reference;
-	if ((target->flag & XS_VALUE_FLAG) && (target->next->kind == XS_PROXY_KIND) && !target->next->value.proxy.handler)
+	if ((target->next) && (target->next->kind == XS_PROXY_KIND) && !target->next->value.proxy.handler)
 		mxTypeError("target is a revoked proxy");
 	if ((mxArgc < 2) || (mxArgv(1)->kind != XS_REFERENCE_KIND))
 		mxTypeError("handler is no object");
 	handler = mxArgv(1)->value.reference;
-	if ((handler->flag & XS_VALUE_FLAG) && (handler->next->kind == XS_PROXY_KIND) && !handler->next->value.proxy.handler)
+	if ((handler->next) && (handler->next->kind == XS_PROXY_KIND) && !handler->next->value.proxy.handler)
 		mxTypeError("handler is a revoked proxy");
 		
 	mxPush(mxObjectPrototype);
 	property = fxLastProperty(the, fxNewObjectInstance(the));
 	mxPullSlot(mxResult);
 	
-	mxPush(mxProxyPrototype);
+	mxPushUndefined();
 	instance = fxNewProxyInstance(the);
 	slot = instance->next;
 	slot->value.proxy.target = target;
 	slot->value.proxy.handler = handler;
 	property = fxNextSlotProperty(the, property, the->stack, mxID(_proxy), XS_GET_ONLY);
 	
-	slot = fxLastProperty(the, fxNewHostFunction(the, fx_Proxy_revoke, 0, mxID(_revoke)));
+	slot = fxLastProperty(the, fxNewHostFunction(the, fx_Proxy_revoke, 0, XS_NO_ID));
 	slot = fxNextSlotProperty(the, slot, the->stack + 1, mxID(_proxy), XS_GET_ONLY);
 	property = fxNextSlotProperty(the, property, the->stack, mxID(_revoke), XS_GET_ONLY);
 	
@@ -199,7 +197,7 @@ void fx_Proxy_revocable(txMachine* the)
 
 void fx_Proxy_revoke(txMachine* the)
 {
-	txSlot* property = fxGetProperty(the, mxFunction->value.reference, mxID(_proxy));
+	txSlot* property = fxGetProperty(the, mxFunction->value.reference, mxID(_proxy), XS_NO_ID, XS_ANY);
 	if (property && (property->kind == XS_REFERENCE_KIND)) {
 		txSlot* instance = property->value.reference;
 		txSlot* proxy = instance->next;
@@ -215,15 +213,26 @@ txSlot* fxCheckProxyFunction(txMachine* the, txSlot* proxy, txID index)
 {
 	txSlot* function;
 	if (!proxy->value.proxy.handler)
-		mxTypeError("proxy handler is no object");
+		mxTypeError("(proxy).%s: handler is no object", fxName(the, mxID(index)));
 	if (!proxy->value.proxy.target)
-		mxTypeError("proxy target is no object");
-	function = fxGetProperty(the, proxy->value.proxy.handler, mxID(index));
+		mxTypeError("(proxy).%s: target is no object", fxName(the, mxID(index)));
+	function = fxGetProperty(the, proxy->value.proxy.handler, mxID(index), XS_NO_ID, XS_ANY);
 	if (function) {
-		if (!mxIsReference(function) || !mxIsFunction(function->value.reference))
-			mxTypeError("proxy handler.%s is no function", fxName(the, mxID(index)));
+		if (mxIsUndefined(function))
+			function = C_NULL;
+		else if (!mxIsReference(function) || !mxIsFunction(function->value.reference))
+			mxTypeError("(proxy).%s: no function", fxName(the, mxID(index)));
 	}
 	return function;
+}
+
+txSlot* fxAccessProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex index)
+{
+	txSlot* proxy = instance->next;
+	txSlot* property = proxy->next;
+	property->value.at.id = id;
+	property->value.at.index = index;
+	return property->next;
 }
 
 void fxCallProxy(txMachine* the, txSlot* instance, txSlot* _this, txSlot* arguments)
@@ -263,20 +272,23 @@ void fxConstructProxy(txMachine* the, txSlot* instance, txSlot* arguments, txSlo
 		mxPushSlot(function);
 		fxCall(the);
 		mxPullSlot(mxResult);
+		if (!mxIsReference(mxResult))
+			mxTypeError("(proxy).construct: no object");
 	}
 	else 
 		fxConstructInstance(the, proxy->value.proxy.target, arguments, target);
 }
 
-txBoolean fxDefineProxyProperty(txMachine* the, txSlot* instance, txInteger id, txSlot* descriptor)
+txBoolean fxDefineProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex index, txSlot* slot, txFlag mask)
 {
+	txBoolean result;
 	txSlot* proxy = instance->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _defineProperty);
 	if (function) {
 		mxPushReference(proxy->value.proxy.target);
 		mxPushUndefined();
-		fxIDToSlot(the, id, the->stack);
-		mxPushSlot(descriptor);
+		fxKeyAt(the, id, index, the->stack);
+		fxDescribeProperty(the, slot, mask);
 		/* ARGC */
 		mxPushInteger(3);
 		/* THIS */
@@ -284,9 +296,64 @@ txBoolean fxDefineProxyProperty(txMachine* the, txSlot* instance, txInteger id, 
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		return fxToBoolean(the, the->stack++);
+		result = fxToBoolean(the, the->stack);
+		mxPop();
+		if (result) {
+			mxPushUndefined();
+			if (fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id, index, the->stack)) {
+				if (fxIsPropertyCompatible(the, the->stack, slot, mask)) {
+					if ((mask & XS_DONT_DELETE_FLAG) && (slot->flag & XS_DONT_DELETE_FLAG)) {
+						if (!(the->stack->flag & XS_DONT_DELETE_FLAG))
+							mxTypeError("(proxy).defineProperty: true with non-configurable descriptor for configurable property");
+					}
+				}
+				else
+					mxTypeError("(proxy).defineProperty: true with incompatible descriptor for existent property");
+			}
+			else if (fxIsInstanceExtensible(the, proxy->value.proxy.target)) {
+				if ((mask & XS_DONT_DELETE_FLAG) && (slot->flag & XS_DONT_DELETE_FLAG))
+					mxTypeError("(proxy).defineProperty: true with non-configurable descriptor for non-existent property");
+			}
+			else
+				mxTypeError("(proxy).defineProperty: true with descriptor for non-existent property of non-extensible object");
+			mxPop();
+		}
 	}
-	return fxDefineInstanceProperty(the, proxy->value.proxy.target, id, descriptor);
+	else
+		result = fxDefineInstanceProperty(the, proxy->value.proxy.target, id, index, slot, mask);
+	return result;
+}
+
+txBoolean fxDeleteProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex index)
+{
+	txBoolean result;
+	txSlot* proxy = instance->next;
+	txSlot* function = fxCheckProxyFunction(the, proxy, _deleteProperty);
+	if (function) {
+		mxPushReference(proxy->value.proxy.target);
+		mxPushUndefined();
+		fxKeyAt(the, id, index, the->stack);
+		/* ARGC */
+		mxPushInteger(2);
+		/* THIS */
+		mxPushReference(proxy->value.proxy.handler);
+		/* FUNCTION */
+		mxPushSlot(function);
+		fxCall(the);
+		result = fxToBoolean(the, the->stack);
+		mxPop();
+		if (result) {
+			mxPushUndefined();
+			if (fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id, index, the->stack)) {
+				if (the->stack->flag & XS_DONT_DELETE_FLAG)
+					mxTypeError("(proxy).deleteProperty: true for non-configurable property");
+			}
+			mxPop();
+		}
+	}
+	else
+		result = fxDeleteInstanceProperty(the, proxy->value.proxy.target, id, index);
+	return result;
 }
 
 void fxEachProxyProperty(txMachine* the, txSlot* target, txFlag flag, txStep step, txSlot* context, txSlot* instance) 
@@ -295,12 +362,12 @@ void fxEachProxyProperty(txMachine* the, txSlot* target, txFlag flag, txStep ste
 	txSlot* function = fxCheckProxyFunction(the, proxy, _ownKeys);
 	if (function) {
 		txSlot* list = fxNewInstance(the);
-		txInteger length;
+		txIndex length;
 		txSlot* reference;
 		txSlot* item;
-		txInteger index;
-		txSlot* key;
-		txInteger id;
+		txIndex index;
+		txSlot* at;
+		txSlot result;
 		mxPushReference(proxy->value.proxy.target);
 		/* ARGC */
 		mxPushInteger(1);
@@ -317,31 +384,60 @@ void fxEachProxyProperty(txMachine* the, txSlot* target, txFlag flag, txStep ste
 		index = 0;
 		while (index < length) {
 			mxPushSlot(reference);
-			fxGetID(the, index);
-			key = the->stack;
-			if ((key->kind == XS_STRING_KIND) || (key->kind == XS_STRING_X_KIND)) {
+			fxGetIndex(the, index);
+			at = the->stack;
+			if ((at->kind == XS_STRING_KIND) || (at->kind == XS_STRING_X_KIND)) {
 				if (flag & XS_EACH_STRING_FLAG) {
-					fxSlotToID(the, key, &id);
-					fxStepInstanceProperty(the, target, flag, step, context, id, C_NULL);
+					fxAt(the, at);
+					item = item->next = fxNewSlot(the);
+					mxPullSlot(item);
 				}
 			}
-			else if (key->kind == XS_SYMBOL_KIND) {
+			else if (at->kind == XS_SYMBOL_KIND) {
 				if (flag & XS_EACH_SYMBOL_FLAG) {
-					fxSlotToID(the, key, &id);
-					fxStepInstanceProperty(the, target, flag, step, context, id, C_NULL);
+					fxAt(the, at);
+					item = item->next = fxNewSlot(the);
+					mxPullSlot(item);
 				}
 			}
-			else {
-				mxTypeError("key is neither string nor symbol");
-			}
-			mxPop();
+			else
+				mxTypeError("(proxy).ownKeys: key is neither string nor symbol");
 			index++;
+		}
+		mxPop();
+		result.flag = fxIsInstanceExtensible(the, proxy->value.proxy.target) ? 0 : XS_DONT_PATCH_FLAG;
+		result.value.array.length = length;
+		result.value.array.address = list;
+		fxEachInstanceProperty(the, proxy->value.proxy.target, (flag & (XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG)) | XS_STEP_GET_OWN_FLAG, fxEachProxyPropertyStep, &result, proxy->value.proxy.target);
+		if ((result.flag & XS_DONT_PATCH_FLAG) && result.value.array.length)
+			mxTypeError("(proxy).ownKeys: key for non-existent property of non-extensible object");
+			
+		at = list->next;
+		while (at) {
+			fxStepInstanceProperty(the, target, flag, step, context, at->value.at.id, at->value.at.index, C_NULL);
+			at = at->next;
 		}
 		mxPop();
 	}
 	else {
 		fxEachInstanceProperty(the, target, flag, step, context, proxy->value.proxy.target);
 	}
+}
+
+void fxEachProxyPropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property)
+{
+	txSlot* at = context->value.array.address->next;
+	while (at) {
+		if ((at->value.at.id == id) && (at->value.at.index == index)) {
+			context->value.array.length--;
+			return;
+		}
+		at = at->next;
+	}
+	if (property->flag & XS_DONT_DELETE_FLAG)
+		mxTypeError("(proxy).ownKeys: no key for non-configurable property");
+	if (context->flag & XS_DONT_PATCH_FLAG)
+		mxTypeError("(proxy).ownKeys: no key for property of non-extensible object");
 }
 
 void fxEnumerateProxy(txMachine* the, txSlot* instance)
@@ -363,14 +459,16 @@ void fxEnumerateProxy(txMachine* the, txSlot* instance)
 		fxEnumerateInstance(the, proxy->value.proxy.target);
 }
 
-txSlot* fxGetProxyOwnProperty(txMachine* the, txSlot* instance, txInteger id)
+txBoolean fxGetProxyOwnProperty(txMachine* the, txSlot* instance, txID id, txIndex index, txSlot* slot)
 {
+	txBoolean result;
 	txSlot* proxy = instance->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _getOwnPropertyDescriptor);
 	if (function) {
+		txFlag mask;
 		mxPushReference(proxy->value.proxy.target);
 		mxPushUndefined();
-		fxIDToSlot(the, id, the->stack);
+		fxKeyAt(the, id, index, the->stack);
 		/* ARGC */
 		mxPushInteger(2);
 		/* THIS */
@@ -378,67 +476,69 @@ txSlot* fxGetProxyOwnProperty(txMachine* the, txSlot* instance, txInteger id)
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		if (the->stack->kind == XS_UNDEFINED_KIND)
-			return C_NULL;
-		if (the->stack->kind == XS_REFERENCE_KIND) {
-			txSlot* slot = the->stack->value.reference;
-			txSlot* configurable = fxGetProperty(the, slot, mxID(_configurable));
-			txSlot* enumerable = fxGetProperty(the, slot, mxID(_enumerable));
-			txSlot* get = fxGetProperty(the, slot, mxID(_get));
-			txSlot* set = fxGetProperty(the, slot, mxID(_set));
-			txSlot* value = fxGetProperty(the, slot, mxID(_value));
-			txSlot* writable = fxGetProperty(the, slot, mxID(_writable));
-			the->stack->flag = XS_NO_FLAG;
-			the->stack->kind = XS_UNDEFINED_KIND;
-			if (get || set) {
-				if (get) {
-					the->stack->value.accessor.getter = fxGetInstance(the, get);
-					if (!the->stack->value.accessor.getter || !mxIsFunction(the->stack->value.accessor.getter))
-						mxTypeError("get is no function");
-				}
-				if (set) {
-					the->stack->value.accessor.setter = fxGetInstance(the, set);
-					if (!the->stack->value.accessor.setter || !mxIsFunction(the->stack->value.accessor.setter))
-						mxTypeError("set is no function");
-				}
+		mxPullSlot(slot);
+		mxPushUndefined();
+		if (slot->kind == XS_UNDEFINED_KIND) {
+			if (fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id, index, the->stack)) {
+				if (the->stack->flag & XS_DONT_DELETE_FLAG)
+					mxTypeError("(proxy).getOwnPropertyDescriptor: no descriptor for non-configurable property");
+				if (!fxIsInstanceExtensible(the, proxy->value.proxy.target)) 
+					mxTypeError("(proxy).getOwnPropertyDescriptor: no descriptor for existent property of non-extensible object");
 			}
-			else {
-				if (value) {
-					the->stack->kind = value->kind;
-					the->stack->value = value->value;
-				}
-				if (!writable || !fxToBoolean(the, writable))
-					the->stack->flag |= XS_DONT_SET_FLAG;
-			}
-			if (!configurable || !fxToBoolean(the, configurable))
-				the->stack->flag |= XS_DONT_DELETE_FLAG;
-			if (!enumerable || !fxToBoolean(the, enumerable))
-				the->stack->flag |= XS_DONT_ENUM_FLAG;
-			return the->stack;
+			result = 0;
 		}
-		mxTypeError("proxy handler.getOwnPropertyDescriptor: invalid descriptor");
+		else {
+			mask = fxDescriptorToSlot(the, slot);
+			if (!(mask & XS_DONT_DELETE_FLAG)) {
+				mask |= XS_DONT_DELETE_FLAG;
+				slot->flag |= XS_DONT_DELETE_FLAG;
+			}
+			if (!(mask & XS_DONT_ENUM_FLAG)) {
+				mask |= XS_DONT_ENUM_FLAG;
+				slot->flag |= XS_DONT_ENUM_FLAG;
+			}
+			if (!(mask & (XS_GETTER_FLAG | XS_SETTER_FLAG))) {
+				if (!(mask & XS_DONT_SET_FLAG)) {
+					mask |= XS_DONT_SET_FLAG;
+					slot->flag |= XS_DONT_SET_FLAG;
+				}
+				if (slot->kind == XS_UNINITIALIZED_KIND)
+					slot->kind = XS_UNDEFINED_KIND;
+			}
+			if (fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id, index, the->stack)) {
+				if (fxIsPropertyCompatible(the, the->stack, slot, mask)) {
+					if ((mask & XS_DONT_DELETE_FLAG) && (slot->flag & XS_DONT_DELETE_FLAG)) {
+						if (!(the->stack->flag & XS_DONT_DELETE_FLAG))
+							mxTypeError("(proxy).getOwnPropertyDescriptor: non-configurable descriptor for configurable property");
+					}
+				}
+				else
+					mxTypeError("(proxy).getOwnPropertyDescriptor: incompatible descriptor for existent property");
+			}
+			else if (fxIsInstanceExtensible(the, proxy->value.proxy.target)) {
+				if ((mask & XS_DONT_DELETE_FLAG) && (slot->flag & XS_DONT_DELETE_FLAG))
+					mxTypeError("(proxy).getOwnPropertyDescriptor: non-configurable descriptor for non-existent property");
+			}
+			else
+				mxTypeError("(proxy).getOwnPropertyDescriptor: descriptor for non-existent property of non-extensible object");
+			result = 1;
+		}
+		mxPop();
 	}
-	return fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id);
+	else
+		result = fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id, index, slot);
+	return result;
 }
 
-txSlot* fxGetProxyProperty(txMachine* the, txSlot* instance, txInteger id)
+txBoolean fxGetProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex index, txSlot* receiver, txSlot* slot)
 {
 	txSlot* proxy = instance->next;
-	txSlot* property = proxy->next;
-	property->value.integer = id;
-	return property->next;
-}
-
-void fxGetProxyPropertyAux(txMachine* the)
-{
-	txSlot* proxy = mxThis->value.reference->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _get);
-	txInteger id = proxy->next->value.integer;
 	if (function) {
 		mxPushReference(proxy->value.proxy.target);
 		mxPushUndefined();
-		fxIDToSlot(the, id, the->stack);
-		mxPushSlot(mxThis);
+		fxKeyAt(the, id, index, the->stack);
+		mxPushSlot(receiver);
 		/* ARGC */
 		mxPushInteger(3);
 		/* THIS */
@@ -446,17 +546,38 @@ void fxGetProxyPropertyAux(txMachine* the)
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		mxPullSlot(mxResult);
+		mxPullSlot(slot);
+		mxPushUndefined();
+		if (fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id, index, the->stack)) {
+			txSlot* property = the->stack;
+			if (property->flag & XS_DONT_DELETE_FLAG) {
+				if (property->kind == XS_ACCESSOR_KIND) {
+					if ((property->value.accessor.getter == C_NULL) && (slot->kind != XS_UNDEFINED_KIND))
+						mxTypeError("(proxy).get: different getter for non-configurable property");
+				}
+				else {
+					if ((property->flag & XS_DONT_SET_FLAG) && (!fxIsSameValue(the, property, slot)))
+						mxTypeError("(proxy).get: different value for non-configurable, non-writable property");
+				}
+			}
+		}
+		mxPop();
+		return 1;
 	}
-	else {
-		mxPushReference(proxy->value.proxy.target);
-		fxGetID(the, id);
-		mxPullSlot(mxResult);
-	}
+	return fxGetInstanceProperty(the, proxy->value.proxy.target, id, index, receiver, slot);
 }
 
-void fxGetProxyPrototype(txMachine* the, txSlot* instance)
+void fxGetProxyPropertyAux(txMachine* the)
 {
+	txSlot* proxy = mxThis->value.reference->next;
+	txID id = proxy->next->value.at.id;
+	txIndex index = proxy->next->value.at.index;
+	fxGetProxyProperty(the, mxThis->value.reference, id, index, mxThis, mxResult);
+}
+
+txBoolean fxGetProxyPrototype(txMachine* the, txSlot* instance, txSlot* slot)
+{
+	txBoolean result;
 	txSlot* proxy = instance->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _getPrototypeOf);
 	if (function) {
@@ -468,22 +589,34 @@ void fxGetProxyPrototype(txMachine* the, txSlot* instance)
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		mxPullSlot(mxResult);
+		mxPullSlot(slot);
+		if ((slot->kind == XS_NULL_KIND) ||  (slot->kind == XS_REFERENCE_KIND)) {
+			if (!fxIsInstanceExtensible(the, proxy->value.proxy.target)) {
+				mxPushUndefined();
+				fxGetInstancePrototype(the, proxy->value.proxy.target, the->stack);
+				if (!fxIsSameValue(the, slot, the->stack))
+					mxTypeError("(proxy).getPrototypeOf: different prototype for non-extensible object");
+				mxPop();
+			}
+		}
+		else
+			mxTypeError("(proxy).getPrototypeOf: neither object nor null");
+		result = (slot->kind == XS_NULL_KIND) ? 0 : 1;
 	}
 	else
-		fxGetInstancePrototype(the, proxy->value.proxy.target);
+		result = fxGetInstancePrototype(the, proxy->value.proxy.target, slot);
+	return result;
 }
 
-txBoolean fxHasProxyProperty(txMachine* the, txSlot* instance, txInteger id)
+txBoolean fxHasProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex index)
 {
 	txBoolean result;
 	txSlot* proxy = instance->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _has);
 	if (function) {
-		fxBeginHost(the);
 		mxPushReference(proxy->value.proxy.target);
 		mxPushUndefined();
-		fxIDToSlot(the, id, the->stack);
+		fxKeyAt(the, id, index, the->stack);
 		/* ARGC */
 		mxPushInteger(2);
 		/* THIS */
@@ -491,16 +624,27 @@ txBoolean fxHasProxyProperty(txMachine* the, txSlot* instance, txInteger id)
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		result = fxToBoolean(the, the->stack++);
-		fxEndHost(the);
+		result = fxToBoolean(the, the->stack);
+		mxPop();
+		if (!result) {
+			mxPushUndefined();
+			if (fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id, index, the->stack)) {
+				if (the->stack->flag & XS_DONT_DELETE_FLAG)
+					mxTypeError("(proxy).has: false for non-configurable property");
+				 if (!fxIsInstanceExtensible(the, proxy->value.proxy.target)) 
+					mxTypeError("(proxy).has: false for property of not extensible object");
+			}
+			mxPop();
+		}
 	}
 	else
-		result = fxHasProperty(the, proxy->value.proxy.target, id);
+		result = fxHasInstanceProperty(the, proxy->value.proxy.target, id, index);
 	return result;
 }
 
-void fxIsProxyExtensible(txMachine* the, txSlot* instance)
+txBoolean fxIsProxyExtensible(txMachine* the, txSlot* instance)
 {
+	txBoolean result;
 	txSlot* proxy = instance->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _isExtensible);
 	if (function) {
@@ -512,14 +656,25 @@ void fxIsProxyExtensible(txMachine* the, txSlot* instance)
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		mxPullSlot(mxResult);
+		result = fxToBoolean(the, the->stack);
+		mxPop();
+		if (fxIsInstanceExtensible(the, proxy->value.proxy.target)) {
+			if (!result)
+				mxTypeError("(proxy).isExtensible: false for extensible object");
+		}
+		else {
+			if (result)
+				mxTypeError("(proxy).isExtensible: true for non-extensible object");
+		}
 	}
 	else
-		fxIsInstanceExtensible(the, proxy->value.proxy.target);
+		result = fxIsInstanceExtensible(the, proxy->value.proxy.target);
+	return result;
 }
 
-void fxPreventProxyExtensions(txMachine* the, txSlot* instance)
+txBoolean fxPreventProxyExtensions(txMachine* the, txSlot* instance)
 {
+	txBoolean result;
 	txSlot* proxy = instance->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _preventExtensions);
 	if (function) {
@@ -531,57 +686,29 @@ void fxPreventProxyExtensions(txMachine* the, txSlot* instance)
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		mxPullSlot(mxResult);
+		result = fxToBoolean(the, the->stack);
+		mxPop();
+		if (result) {
+			if (fxIsInstanceExtensible(the, proxy->value.proxy.target))
+				mxTypeError("(proxy).preventExtensions: true for extensible object");
+		}
 	}
 	else
-		fxPreventInstanceExtensions(the, proxy->value.proxy.target);
-}
-
-txBoolean fxRemoveProxyProperty(txMachine* the, txSlot* instance, txInteger id)
-{
-	txBoolean result;
-	txSlot* proxy = instance->next;
-	txSlot* function = fxCheckProxyFunction(the, proxy, _deleteProperty);
-	if (function) {
-		fxBeginHost(the);
-		mxPushReference(proxy->value.proxy.target);
-		mxPushUndefined();
-		fxIDToSlot(the, id, the->stack);
-		/* ARGC */
-		mxPushInteger(2);
-		/* THIS */
-		mxPushReference(proxy->value.proxy.handler);
-		/* FUNCTION */
-		mxPushSlot(function);
-		fxCall(the);
-		result = fxToBoolean(the, the->stack++);
-		fxEndHost(the);
-	}
-	else
-		result = fxRemoveProperty(the, proxy->value.proxy.target, id);
+		result = fxPreventInstanceExtensions(the, proxy->value.proxy.target);
 	return result;
 }
 
-txSlot* fxSetProxyProperty(txMachine* the, txSlot* instance, txInteger id)
+txBoolean fxSetProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex index, txSlot* slot, txSlot* receiver)
 {
+	txBoolean result;
 	txSlot* proxy = instance->next;
-	txSlot* property = proxy->next;
-	property->value.integer = id;
-	return property->next;
-}
-
-void fxSetProxyPropertyAux(txMachine* the)
-{
-	txSlot* proxy = mxThis->value.reference->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _set);
-	txInteger id = proxy->next->value.integer;
-	txSlot* value = mxArgv(0);
 	if (function) {
 		mxPushReference(proxy->value.proxy.target);
 		mxPushUndefined();
-		fxIDToSlot(the, id, the->stack);
-		mxPushSlot(value);
-		mxPushSlot(mxThis);
+		fxKeyAt(the, id, index, the->stack);
+		mxPushSlot(slot);
+		mxPushSlot(receiver);
 		/* ARGC */
 		mxPushInteger(4);
 		/* THIS */
@@ -589,17 +716,42 @@ void fxSetProxyPropertyAux(txMachine* the)
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		the->stack++;
+		result = fxToBoolean(the, the->stack);
+		mxPop();
+		if (result) {
+			mxPushUndefined();
+			if (fxGetInstanceOwnProperty(the, proxy->value.proxy.target, id, index, the->stack)) {
+				txSlot* property = the->stack;
+				if (property->flag & XS_DONT_DELETE_FLAG) {
+					if (property->kind == XS_ACCESSOR_KIND) {
+						if (property->value.accessor.setter == C_NULL)
+							mxTypeError("(proxy).set: true for non-configurable property with different setter");
+					}
+					else {
+						if ((property->flag & XS_DONT_SET_FLAG) && (!fxIsSameValue(the, property, slot)))
+							mxTypeError("(proxy).set: true for non-configurable, non-writable property with different value");
+					}
+				}
+			}
+			mxPop();
+		}
 	}
-	else {
-		mxPushSlot(value);
-		mxPushReference(proxy->value.proxy.target);
-		fxSetID(the, id);
-	}
+	else
+		result = fxSetInstanceProperty(the, proxy->value.proxy.target, id, index, slot, receiver);
+	return result;
 }
 
-void fxSetProxyPrototype(txMachine* the, txSlot* instance, txSlot* prototype)
+void fxSetProxyPropertyAux(txMachine* the)
 {
+	txSlot* proxy = mxThis->value.reference->next;
+	txID id = proxy->next->value.at.id;
+	txIndex index = proxy->next->value.at.index;
+	fxSetProxyProperty(the, mxThis->value.reference, id, index, mxArgv(0), mxThis);
+}
+
+txBoolean fxSetProxyPrototype(txMachine* the, txSlot* instance, txSlot* prototype)
+{
+	txBoolean result;
 	txSlot* proxy = instance->next;
 	txSlot* function = fxCheckProxyFunction(the, proxy, _setPrototypeOf);
 	if (function) {
@@ -612,33 +764,44 @@ void fxSetProxyPrototype(txMachine* the, txSlot* instance, txSlot* prototype)
 		/* FUNCTION */
 		mxPushSlot(function);
 		fxCall(the);
-		mxPullSlot(mxResult);
+		result = fxToBoolean(the, the->stack);
+		mxPop();
+		if (result) {
+			if (!fxIsInstanceExtensible(the, proxy->value.proxy.target)) {
+				mxPushUndefined();
+				fxGetInstancePrototype(the, proxy->value.proxy.target, the->stack);
+				if (!fxIsSameValue(the, prototype, the->stack))
+					mxTypeError("(proxy).setPrototypeOf: true for non-extensible object with different prototype");
+				mxPop();
+			}
+		}
 	}
 	else
-		fxSetInstancePrototype(the, proxy->value.proxy.target, prototype);
+		result = fxSetInstancePrototype(the, proxy->value.proxy.target, prototype);
+	return result;
 }
 
-void fxStepProxyProperty(txMachine* the, txSlot* instance, txFlag flag, txStep step, txSlot* context, txInteger id, txSlot* property)
+void fxStepProxyProperty(txMachine* the, txSlot* instance, txFlag flag, txStep step, txSlot* context, txID id, txIndex index, txSlot* property)
 {
 	txSlot* stack = the->stack;
-	if (flag & XS_STEP_GET_OWN_FLAG)
-		property = fxGetProxyOwnProperty(the, instance, id);
-	if (flag & XS_EACH_ENUMERABLE_FLAG) {
-		if (!property || (property->flag & XS_DONT_ENUM_FLAG))
+	mxPushUndefined();
+	property = the->stack;
+	if (flag & (XS_EACH_ENUMERABLE_FLAG | XS_STEP_GET_OWN_FLAG)) {
+		if (!fxGetProxyOwnProperty(the, instance, id, index, property))
+			goto bail;
+		if ((flag & XS_EACH_ENUMERABLE_FLAG) && (property->flag & XS_DONT_ENUM_FLAG))
 			goto bail;
 	}
 	if (flag & XS_STEP_GET_FLAG) {
-		if (!property)
-			goto bail;
 		mxPushReference(instance);
-		fxGetID(the, id);
+		fxGetAll(the, id, index);
 		property = the->stack;
 	}
-	(*step)(the, context, id, property);
+	(*step)(the, context, id, index, property);
 	if (flag & XS_STEP_DEFINE_FLAG) {
-		fxDescribeProperty(the, property);
+		fxDescribeProperty(the, property, XS_GET_ONLY);
 		property = the->stack;
-		fxDefineProxyProperty(the, instance, id, property);
+		fxDefineProxyProperty(the, instance, id, index, property, XS_GET_ONLY);
 	}
 bail:
 	the->stack = stack;
@@ -646,7 +809,7 @@ bail:
 
 void fx_Reflect_apply(txMachine* the)
 {
-	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND) || !(mxIsFunction(mxArgv(0)->value.reference) || mxIsProxy(mxArgv(0)->value.reference)))
+	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND) || !(mxIsCallable(mxArgv(0)->value.reference)))
 		mxTypeError("target is no function");
 	if ((mxArgc < 3) || (mxArgv(2)->kind != XS_REFERENCE_KIND))
 		mxTypeError("argumentsList is no object");
@@ -656,13 +819,13 @@ void fx_Reflect_apply(txMachine* the)
 void fx_Reflect_construct(txMachine* the)
 {
     txSlot* target;
-	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND) || !(mxIsFunction(mxArgv(0)->value.reference) || mxIsProxy(mxArgv(0)->value.reference)))
+	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND) || !(mxIsCallable(mxArgv(0)->value.reference)))
 		mxTypeError("target is no function");
 	if ((mxArgc < 2) || (mxArgv(1)->kind != XS_REFERENCE_KIND))
 		mxTypeError("argumentsList is no object");
 	if (mxArgc < 3)
 		target = mxArgv(0);
-	else if ((mxArgv(2)->kind != XS_REFERENCE_KIND) || !mxIsFunction(mxArgv(2)->value.reference))
+	else if ((mxArgv(2)->kind != XS_REFERENCE_KIND) || !mxIsCallable(mxArgv(2)->value.reference))
 		mxTypeError("newTarget is no function");
 	else
 		target = mxArgv(2);
@@ -671,28 +834,30 @@ void fx_Reflect_construct(txMachine* the)
 
 void fx_Reflect_defineProperty(txMachine* the)
 {
-	txInteger id;
+	txSlot* at;
+	txFlag mask;
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
 	if (mxArgc < 2)
 		mxTypeError("no key");
-    fxSlotToID(the, mxArgv(1), &id);
+	at = fxAt(the, mxArgv(1));
 	if ((mxArgc < 3) || (mxArgv(2)->kind != XS_REFERENCE_KIND))
 		mxTypeError("invalid descriptor");
-	mxResult->value.boolean = fxDefineInstanceProperty(the, mxArgv(0)->value.reference, id, mxArgv(2));
+	mask = fxDescriptorToSlot(the, mxArgv(2));
+	mxResult->value.boolean = fxDefineInstanceProperty(the, mxArgv(0)->value.reference, at->value.at.id, at->value.at.index, mxArgv(2), mask);
 	mxResult->kind = XS_BOOLEAN_KIND;
 }
 
 void fx_Reflect_deleteProperty(txMachine* the)
 {
-	txInteger id;
+	txSlot* at;
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
 	if (mxArgc < 2)
 		mxTypeError("no key");
-	fxSlotToID(the, mxArgv(1), &id);
+	at = fxAt(the, mxArgv(1));
+	mxResult->value.boolean = fxDeleteInstanceProperty(the, mxArgv(0)->value.reference, at->value.at.id, at->value.at.index);
 	mxResult->kind = XS_BOOLEAN_KIND;
-	mxResult->value.boolean = fxRemoveProperty(the, mxArgv(0)->value.reference, id);
 }
 
 void fx_Reflect_enumerate(txMachine* the)
@@ -704,32 +869,26 @@ void fx_Reflect_enumerate(txMachine* the)
 
 void fx_Reflect_get(txMachine* the)
 {
-	txInteger id;
+	txSlot* at;
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
 	if (mxArgc < 2)
 		mxTypeError("no key");
-	fxSlotToID(the, mxArgv(1), &id);
-	mxPushSlot(mxArgv(0));
-	fxGetID(the, id);
-	mxPullSlot(mxResult);
+	at = fxAt(the, mxArgv(1));
+	fxGetInstanceProperty(the, 	mxArgv(0)->value.reference, at->value.at.id, at->value.at.index, mxArgc < 3 ? mxArgv(0) : mxArgv(2), mxResult);
 }
 
 void fx_Reflect_getOwnPropertyDescriptor(txMachine* the)
 {
-	txSlot* instance;
-	txInteger id;
-	txSlot* property;
+	txSlot* at;
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
 	if (mxArgc < 2)
 		mxTypeError("no key");
-	fxSlotToID(the, mxArgv(1), &id);
-	instance = fxToInstance(the, mxArgv(0));
-	fxSlotToID(the, mxArgv(1), &id);
-	property = fxGetInstanceOwnProperty(the, instance, id);
-	if (property) {
-		fxDescribeProperty(the, property);
+	at = fxAt(the, mxArgv(1));
+	mxPushUndefined();
+	if (fxGetInstanceOwnProperty(the, mxArgv(0)->value.reference, at->value.at.id, at->value.at.index, the->stack)) {
+		fxDescribeProperty(the, the->stack, XS_GET_ONLY);
 		mxPullSlot(mxResult);
 	}
 	mxPop();
@@ -739,26 +898,27 @@ void fx_Reflect_getPrototypeOf(txMachine* the)
 {
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
-	fxGetInstancePrototype(the, mxArgv(0)->value.reference);
+	fxGetInstancePrototype(the, mxArgv(0)->value.reference, mxResult);
 }
 
 void fx_Reflect_has(txMachine* the)
 {
-	txInteger id;
+	txSlot* at;
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
 	if (mxArgc < 2)
 		mxTypeError("no key");
-	fxSlotToID(the, mxArgv(1), &id);
+	at = fxAt(the, mxArgv(1));
+	mxResult->value.boolean = fxHasInstanceProperty(the, mxArgv(0)->value.reference, at->value.at.id, at->value.at.index);
 	mxResult->kind = XS_BOOLEAN_KIND;
-	mxResult->value.boolean = fxHasProperty(the, mxArgv(0)->value.reference, id);
 }
 
 void fx_Reflect_isExtensible(txMachine* the)
 {
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
-	fxIsInstanceExtensible(the, mxArgv(0)->value.reference);
+	mxResult->value.boolean = fxIsInstanceExtensible(the, mxArgv(0)->value.reference);
+	mxResult->kind = XS_BOOLEAN_KIND;
 }
 
 void fx_Reflect_ownKeys(txMachine* the)
@@ -772,35 +932,22 @@ void fx_Reflect_preventExtensions(txMachine* the)
 {
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
-	fxPreventInstanceExtensions(the, mxArgv(0)->value.reference);
+	mxResult->value.boolean = fxPreventInstanceExtensions(the, mxArgv(0)->value.reference);
+	mxResult->kind = XS_BOOLEAN_KIND;
 }
 
 void fx_Reflect_set(txMachine* the)
 {
-	txInteger id;
+	txSlot* at;
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("target is no object");
 	if (mxArgc < 2)
 		mxTypeError("no key");
-	fxSlotToID(the, mxArgv(1), &id);
+	at = fxAt(the, mxArgv(1));
 	if (mxArgc < 3)
 		mxTypeError("no value");
-	mxPushSlot(mxArgv(2));
-	if (mxArgc < 4)
-		mxPushSlot(mxArgv(0));
-	else
-		mxPushSlot(mxArgv(3));
-	{
-		mxTry(the) {
-			fxSetID(the, id);
-			mxResult->kind = XS_BOOLEAN_KIND;
-			mxResult->value.boolean = 1;
-		}
-		mxCatch(the) {
-			mxResult->kind = XS_BOOLEAN_KIND;
-			mxResult->value.boolean = 0;
-		}
-	}
+	mxResult->value.boolean = fxSetInstanceProperty(the, mxArgv(0)->value.reference, at->value.at.id, at->value.at.index, mxArgv(2), mxArgc < 4 ? mxArgv(0) : mxArgv(3));
+	mxResult->kind = XS_BOOLEAN_KIND;
 }
 
 void fx_Reflect_setPrototypeOf(txMachine* the)
@@ -809,24 +956,29 @@ void fx_Reflect_setPrototypeOf(txMachine* the)
 		mxTypeError("target is no object");
 	if ((mxArgc < 2) || ((mxArgv(1)->kind != XS_NULL_KIND) && (mxArgv(1)->kind != XS_REFERENCE_KIND)))
 		mxTypeError("invalid prototype");
-	fxSetInstancePrototype(the, mxArgv(0)->value.reference, mxArgv(1));
+	mxResult->value.boolean = fxSetInstancePrototype(the, mxArgv(0)->value.reference, mxArgv(1));
+	mxResult->kind = XS_BOOLEAN_KIND;
 }
 
-txSlot* fxGetHostProperty(txMachine* the, txSlot* instance, txInteger id)
+txSlot* fxGetHostProperty(txMachine* the, txSlot* instance, txID id, txIndex index)
 {
 	txSlot* slot = mxHookInstance.value.reference;
-	slot->next->value.integer = id;
+	slot->next->value.at.id = id;
+	slot->next->value.at.index = index;
 	return slot->next->next;
 }
 
 void fx_Hook_get(txMachine* the)
 {
 	txSlot* slot = mxHookInstance.value.reference;
-	mxPushUndefined();
-	if (slot->next->value.integer >= 0)
-		mxPushInteger(slot->next->value.integer);
+	txID id = slot->next->value.at.id;
+	txIndex index = slot->next->value.at.index;
+	if (id) {
+		mxPushUndefined();
+		fxKeyAt(the, id, index, the->stack);
+	}
 	else
-		fxIDToSlot(the, slot->next->value.integer, the->stack);
+		mxPushUnsigned(index);
 	mxPushInteger(1);
 	mxPushSlot(mxThis);
 	fxCallID(the, mxID(_peek));

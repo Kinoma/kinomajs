@@ -24,7 +24,7 @@ SRC_DIR = $(XS6)/sources
 TMP_DIR_DBG = $(XS6)/tmp/mac/debug/xsr6
 TMP_DIR_RLS = $(XS6)/tmp/mac/release/xsr6
 
-C_OPTIONS = -fno-common $(MACOS_ARCH) $(MACOS_VERSION_MIN) -I$(INC_DIR) -I$(SRC_DIR) -I$(SRC_DIR)/pcre -I$(SRC_DIR)/tool -DmxParse=1 -DmxRun=1
+C_OPTIONS = -fno-common $(MACOS_ARCH) $(MACOS_VERSION_MIN) -I$(INC_DIR) -I$(SRC_DIR) -I$(SRC_DIR)/pcre -I$(SRC_DIR)/tool -DmxParse=1 -DmxRun=1 -DFSK_PCRE=1
 ifneq ("x$(SDKROOT)", "x")
 	C_OPTIONS += -isysroot $(SDKROOT)
 endif

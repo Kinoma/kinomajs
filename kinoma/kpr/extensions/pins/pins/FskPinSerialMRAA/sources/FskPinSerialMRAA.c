@@ -16,9 +16,10 @@
  */
 
 #include "FskPin.h"
+#include "FskMemory.h"
 #include "FskTime.h"
 
-#include "mraa/uart.h"
+#include "mraa.h"
 
 static Boolean mraaSerialCanHandle(SInt32 rxNumber, SInt32 txNumber, const char *name, char **remappedName);
 static FskErr mraaSerialNew(FskPinSerial *pin, SInt32 rxNumber, SInt32 txNumber, const char *name, SInt32 baud);
@@ -51,38 +52,57 @@ static void mraaCheckDataReady(FskTimeCallBack callback, const FskTime time, voi
 
 Boolean mraaSerialCanHandle(SInt32 rxNumber, SInt32 txNumber, const char *name, char **remappedName)
 {
-	return NULL != name;
+	Boolean success = true;
+
+	if (txNumber) {
+		success = mraa_pin_mode_test(txNumber, MRAA_PIN_UART);
+		if (!success)
+			fprintf(stderr, "tx pin %d can not handle UART\n", txNumber);
+	}
+	if (success && rxNumber) {
+		success = mraa_pin_mode_test(rxNumber, MRAA_PIN_UART);
+		if (!success)
+			fprintf(stderr, "rx pin %d can not handle UART\n", rxNumber);
+	}
+
+	return success;
 }
 
 FskErr mraaSerialNew(FskPinSerial *pin, SInt32 rxNumber, SInt32 txNumber, const char *name, SInt32 baud)
 {
 	FskErr err;
 	mraaSerial ms;
-	mraa_uart_context muc;
+	mraa_uart_context dev;
 
-	muc = mraa_uart_init_raw(name);
-	if (!muc)
+	if (mraa_get_platform_type() == MRAA_RASPBERRY_PI)
+		dev = mraa_uart_init_raw("/dev/ttyAMA0");
+	else
+		dev = mraa_uart_init(0);
+	if (!dev) {
 		return kFskErrOperationFailed;
+	}
 
-	if (MRAA_SUCCESS != mraa_uart_set_baudrate(muc, baud)) {
-		mraa_uart_stop(muc);
+	if (MRAA_SUCCESS != mraa_uart_set_baudrate(dev, baud)) {
+		mraa_uart_stop(dev);
 		return kFskErrOperationFailed;
 	}
 
 	err = FskMemPtrNewClear(sizeof(mraaSerialRecord), &ms);
 	if (err) {
-		mraa_uart_stop(muc);
+		mraa_uart_stop(dev);
 		return err;
 	}
 
-	ms->muc = muc;
+	ms->dev = dev;
 
+	*pin = (FskPinSerial)ms;
 	return kFskErrNone;
 }
 
 void mraaSerialDispose(FskPinSerial pin)
 {
 	mraaSerial ms = (mraaSerial)pin;
+
 	mraa_uart_stop(ms->dev);
 	FskTimeCallbackDispose(ms->callback);
 	FskMemPtrDispose(ms);
@@ -91,7 +111,9 @@ void mraaSerialDispose(FskPinSerial pin)
 FskErr mraaSerialWrite(FskPinSerial pin, SInt32 bufferSize, const UInt8 *bytes)
 {
 	mraaSerial ms = (mraaSerial)pin;
-	int result = mraa_uart_write(ms->dev, bytes, bufferSize);
+	int result;
+
+	result = mraa_uart_write(ms->dev, bytes, bufferSize);
 	return (result < 0) ? kFskErrOperationFailed : kFskErrNone;
 }
 
@@ -155,7 +177,13 @@ void mraaCheckDataReady(FskTimeCallBack callback, const FskTime time, void *para
 
 FskExport(FskErr) FskPinSerialMRAA_fskLoad(FskLibrary library)
 {
-	return FskExtensionInstall(kFskExtensionPinSerial, &gMRAAPinSerial);
+	mraa_result_t result;
+
+	result = mraa_init();
+	if ((result == MRAA_SUCCESS) || (result == MRAA_ERROR_PLATFORM_ALREADY_INITIALISED))
+		return FskExtensionInstall(kFskExtensionPinSerial, &gMRAAPinSerial);
+	else
+		return kFskErrOperationFailed;
 }
 
 FskExport(FskErr) FskPinSerialMRAA_fskUnload(FskLibrary library)

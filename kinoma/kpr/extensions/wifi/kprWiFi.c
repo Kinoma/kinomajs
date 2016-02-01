@@ -193,12 +193,12 @@ static FskErr parseStatusResults(char *response, char **parsed)
 	UInt32 i, lineCount;
 	char lineBuffer[1024];
 	char *json = NULL;
-	
+
 	bailIfError(parseWPALines(response, &lines, &lineCount));
 	bailIfError(FskMemPtrNew(4, &json));
 	json[0] = '{';
 	json[1] = 0;
-	
+
 	for (i = 0; i < lineCount; ++i) {
 		char *name, *value, *walker;
 		char *line = lines[i];
@@ -216,9 +216,9 @@ static FskErr parseStatusResults(char *response, char **parsed)
 			FskStrCat(json, ",");
 		FskStrCat(json, lineBuffer);
 	}
-	
+
 	FskStrCat(json, "}");
-	
+
 bail:
 	if (err)
 		FskMemPtrDisposeAt(&json);
@@ -234,7 +234,7 @@ static FskErr parseListNetworksResults(char *response, char **parsed)
 	UInt32 i, lineCount;
 	char **lines = NULL;
 	char *json = NULL;
-	
+
 	bailIfError(parseWPALines(response, &lines, &lineCount));
 	bailIfError(FskMemPtrNew(4, &json));
 	json[0] = '[';
@@ -266,7 +266,7 @@ static FskErr parseListNetworksResults(char *response, char **parsed)
 		FskStrCat(json, lineBuffer);
 	}
 	FskStrCat(json, "]");
-	
+
 bail:
 	if (err)
 		FskMemPtrDisposeAt(&json);
@@ -282,7 +282,7 @@ static FskErr parseScanResults(char *response, char **parsed)
 	char **lines = NULL;
 	char *json = NULL;
 	UInt32 i, lineCount;
-	
+
 	bailIfError(parseWPALines(response, &lines, &lineCount));
 	bailIfError(FskMemPtrNew(3, &json));
 	json[0] = '[';
@@ -309,6 +309,11 @@ static FskErr parseScanResults(char *response, char **parsed)
 			++walker;
 		*walker++ = 0;
 		ssid = walker;
+
+		// Don't include hidden networks
+		if (0 == FskStrCompare("\\x00", ssid))
+			continue;
+
 		snprintf(lineBuffer, sizeof(lineBuffer), kScanResultsTemplate, bssid, (unsigned long)FskStrToNum(frequency), (unsigned long)FskStrToNum(signal_level), flags, ssid);
 		bailIfError(FskMemPtrRealloc(FskStrLen(json) + FskStrLen(lineBuffer) + 4, &json));
 		if (1 != i)
@@ -316,7 +321,7 @@ static FskErr parseScanResults(char *response, char **parsed)
 		FskStrCat(json, lineBuffer);
 	}
 	FskStrCat(json, "]");
-	
+
 bail:
 	if (err)
 		FskMemPtrDisposeAt(&json);
@@ -376,7 +381,7 @@ FskErr KprWiFiLevel(char* request, char* response, UInt32 responseSize, UInt32 *
 	FskErr err = kFskErrNotFound;
 
  	fp = fopen("/proc/net/wireless", "r");
-    
+
     if (fp != NULL){
         while (fgets(line, sizeof(line)-1, fp) != NULL) {
             char *linePtr = FskStrStripHeadSpace(line);
@@ -411,7 +416,7 @@ FskErr KprWiFiLevel(char* request, char* response, UInt32 responseSize, UInt32 *
             }
         }
     }
-    
+
 	if (fp)
 		fclose(fp);
     if (pp)
@@ -429,7 +434,7 @@ FskErr KprWPACommand(char* request, char* response, UInt32 responseSize, UInt32*
 	int size = 0;
 	fd_set rfds;
 	char *json = NULL;
-	
+
 	FskMutexAcquire(gKprWPAMutex);
 	ctrl = g_ctrl;
 
@@ -457,7 +462,7 @@ FskErr KprWPACommand(char* request, char* response, UInt32 responseSize, UInt32*
 	};
     response[size] = 0;
 	*responseLength = (UInt32)size;
-	
+
 	if (!FskStrCompare(request, "STATUS")) {
 		bailIfError(parseStatusResults(response, &json));
 		FskStrCopy(response, json);
@@ -473,7 +478,7 @@ FskErr KprWPACommand(char* request, char* response, UInt32 responseSize, UInt32*
 		FskStrCopy(response, json);
 		*responseLength = FskStrLen(json);
 	}
-	
+
 	FskKprWiFiPrintfDebug("RESPONSE %s", response);
 bail:
 	FskMemPtrDispose(json);
@@ -491,7 +496,7 @@ FskErr KprWPAConfigure(FskAssociativeArray query, char* request, UInt32 requestS
 	UInt32 length;
 	long index = -1;
 	UInt32 scan = 1;
-	
+
 	reset = FskAssociativeArrayElementGetString(query, "reset");
 	if (!reset || !FskStrCompare(reset, "true")) {
 		char* ptr;
@@ -572,7 +577,7 @@ FskErr KprWPAConfigure(FskAssociativeArray query, char* request, UInt32 requestS
 		bailIfError(KprWPACommand(request, response, responseSize, &length));
 		bailIfError(FskStrCompareWithLength(response, "OK", 2));
 	}
-	
+
 	snprintf(request, requestSize, "AP_SCAN %lu", (unsigned long)scan);
 	bailIfError(KprWPACommand(request, response, responseSize, &length));
 	bailIfError(FskStrCompareWithLength(response, "OK", 2));
@@ -638,9 +643,9 @@ void KprWPAStop()
 
 static char* gWPAResponses[] = {
 	"{\"bssid\":\"00:11:22:33:44:55\", \"ssid\":\"Kinoma\", \"id\":0, \"mode\":\"station\", \"pairwise_cipher\":\"CCMP\", \"group_cipher\":\"TKIP\", \"key_mgmt\":\"WPA2-PSK\", \"wpa_state\":\"COMPLETED\", \"ip_address\":\"%s\", \"address\":\"66:55:44:33:22:11\"}",
-	
+
 	"[{\"network_id\":0, \"ssid\": \"Kinoma\", \"bssid\":\"any\", \"flags\":\"[CURRENT]\"}]",
-	
+
 	"[{\"bssid\": \"00:11:22:33:44:55\",\"frequency\": 2422, \"signal_level\": -62, \"flags\": \"[ESS]\", \"ssid\":\"Kinoma\"},\
 	  {\"bssid\": \"55:66:77:88:99:AA\",\"frequency\": 2422, \"signal_level\": -81, \"flags\": \"[WPA2-PSK-CCMP][ESS]\", \"ssid\":\"KinomaWPA\"},\
 	  {\"bssid\": \"55:66:77:88:99:AA\",\"frequency\": 2422, \"signal_level\": -64, \"flags\": \"[IBSS]\", \"ssid\":\"Brian's MacBook Air\"},\

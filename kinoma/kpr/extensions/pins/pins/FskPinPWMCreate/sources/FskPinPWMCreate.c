@@ -30,7 +30,9 @@ FskPinPWMDispatchRecord gCreatePWM = {
 	createPWMNew,
 	createPWMDispose,
 	createPWMSetDutyCycle,
-	createPWMGetDutyCycle
+	createPWMGetDutyCycle,
+    NULL,
+    NULL
 };
 
 typedef struct {
@@ -41,8 +43,10 @@ typedef struct {
 
 Boolean createPWMCanHandle(SInt32 number, const char *name, SInt32 *remappedNumber)
 {
-	if (NULL == name)
-		return FskHardwarePinsMux(number, kFskHardwarePinPWM) >= 0;
+    if (NULL == name){
+        SInt32 pinNum = FskHardwarePinsMux(number, kFskHardwarePinPWM);
+        if (pinNum >= 0 && pinNum < FRONTOFFSET) return true;
+    }
 
 	if (0 == FskStrCompare(name, "backlight"))
 		return true;

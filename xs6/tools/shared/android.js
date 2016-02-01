@@ -139,8 +139,8 @@ export default class Android {
 		var destination = tmp + "/ndk/project/jni" + path;
 		this.copyFile(source, destination, mapping);
 	}
-	copyNdkFile(tool, tmp, cmake, path, mapping) {
-		var source = (cmake ? tool.makePath + "/ndk" : tool.homePath + "/build/android/inNDK/Play") + path;
+	copyNdkFile(tool, tmp, path, mapping) {
+		var source = tool.homePath + "/build/android/inNDK/Play" + path;
 		var destination = tmp + "/ndk" + path;
 		this.copyFile(source, destination, mapping);
 	}
@@ -150,7 +150,7 @@ export default class Android {
 
 		// create directory structure
 		FS.mkdirSync(tmp + "/ndk");
-		this.copyNdkFile(tool, tmp, true, "/Application.mk", null);
+		this.copyNdkFile(tool, tmp, "/Application.mk", null);
 		
 		FS.mkdirSync(tmp + "/ndk/project");
 		var features = "";
@@ -162,7 +162,7 @@ export default class Android {
 		var versionCode = 1;
 		if (environment.ANDROID_VERSION_CODE)
 			versionCode = environment.ANDROID_VERSION_CODE;
-		this.copyNdkFile(tool, tmp, true, "/project/AndroidManifest.xml", [
+		this.copyNdkFile(tool, tmp, "/project/AndroidManifest.xml", [
 			{ "key": "#NAMESPACE#", "value": environment.NAMESPACE },
 			{ "key": "#VERSION#", "value": environment.VERSION },
 			{ "key": "#VERSION_MINIMUM#", "value": info.version.minimum },
@@ -176,10 +176,10 @@ export default class Android {
 			{ "key": "#ANDROID_VERSION_CODE#", "value": versionCode },
 		]);
 
-		this.copyNdkFile(tool, tmp, true, "/project/build.xml", [{ "key": "#KPR_APPLICATION#", "value": info.name }]);
-		this.copyNdkFile(tool, tmp, true, "/project/local.properties", null);
-		this.copyNdkFile(tool, tmp, false, "/project/proguard.cfg", null);
-		this.copyNdkFile(tool, tmp, false, "/project/project.properties", null);
+		this.copyNdkFile(tool, tmp, "/project/build.xml", [{ "key": "#KPR_APPLICATION#", "value": info.name }]);
+		this.copyNdkFile(tool, tmp, "/project/local.properties", null);
+		this.copyNdkFile(tool, tmp, "/project/proguard.cfg", null);
+		this.copyNdkFile(tool, tmp, "/project/project.properties", null);
 
 		var localPropertiesPath = process.getenv("HOME") + "/.android.keystore.info";
 		if (FS.existsSync(localPropertiesPath)) {
@@ -207,17 +207,17 @@ export default class Android {
 		this.copyDrawableFile(tool, tmp, "/drawable-xhdpi/ball.png");
 
 		FS.mkdirSync(tmp + "/ndk/project/res/layout");
-		this.copyNdkFile(tool, tmp, false, "/project/res/layout/main.xml", [ { "key": "com.kinoma.kinomaplay", "value": environment.NAMESPACE } ]);
-		this.copyNdkFile(tool, tmp, false, "/project/res/layout/splashscreen.xml", null);
-		this.copyNdkFile(tool, tmp, false, "/project/res/layout/web_r.xml", null);
-		this.copyNdkFile(tool, tmp, false, "/project/res/layout/web.xml", null);
+		this.copyNdkFile(tool, tmp, "/project/res/layout/main.xml", [ { "key": "com.kinoma.kinomaplay", "value": environment.NAMESPACE } ]);
+		this.copyNdkFile(tool, tmp, "/project/res/layout/splashscreen.xml", null);
+		this.copyNdkFile(tool, tmp, "/project/res/layout/web_r.xml", null);
+		this.copyNdkFile(tool, tmp, "/project/res/layout/web.xml", null);
 
 		FS.mkdirSync(tmp + "/ndk/project/res/values");
-		this.copyNdkFile(tool, tmp, true, "/project/res/values/strings.xml", [{ "key": "#APP_NAME#", "value": environment.NAME }]);
-		this.copyNdkFile(tool, tmp, false, "/project/res/values/theme.xml", null);
+		this.copyNdkFile(tool, tmp, "/project/res/values/strings.xml", [{ "key": "#APP_NAME#", "value": environment.NAME }]);
+		this.copyNdkFile(tool, tmp, "/project/res/values/theme.xml", null);
 		
-		FS.mkdirSync(tmp + "/ndk/project/res/xml");
-		this.copyNdkFile(tool, tmp, true, "/project/res/xml/kconfig.xml", null);
+//		FS.mkdirSync(tmp + "/ndk/project/res/xml");
+//		this.copyNdkFile(tool, tmp, "/project/res/xml/kconfig.xml", null);
 
 		// transform java sources
 		FS.mkdirSync(tmp + "/ndk/project/src");
@@ -245,7 +245,7 @@ export default class Android {
 		this.copyJavaFile(tool, tmp, javaPath, "RemoteControlReceiver.java", javaMapping);
 
 		FS.mkdirSync(tmp + "/ndk/project/jni");
-		this.copyNdkFile(tool, tmp, true, "/project/jni/Android.mk", [{ "key": "#OBJECT_BASE#", "value": info.base }]);
+		this.copyNdkFile(tool, tmp, "/project/jni/Android.mk", [{ "key": "#OBJECT_BASE#", "value": info.base }]);
 
 		var kinomaMapping = [
 			{ "key": "com_kinoma_kinomaplay", "value": info.base },

@@ -30,15 +30,15 @@ void FskCocoaTextUninitialize(void);
 FskErr FskCocoaTextNew(void **state);
 FskErr FskCocoaTextDispose(void *state);
 void FskCocoaTextGetFontList(void *state, char **fontList);
-void FskCocoaTextGetBounds(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache);
-void FskCocoaTextGetBoundsSubpixel(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, FskDimensionFloat dimension, FskTextFormatCache cache);
-Boolean FskCocoaTextFitWidth(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache);
+void FskCocoaTextGetBounds(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskTextFormatCache cache);
+void FskCocoaTextGetBoundsSubpixel(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskDimensionFloat dimension, FskTextFormatCache cache);
+Boolean FskCocoaTextFitWidth(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache);
 void FskCocoaTextGetFontInfo(void *state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache cache);
 Boolean FskCocoaTextFormatCacheNew(void *state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 void FskCocoaTextFormatCacheDispose(void *state, FskTextFormatCache cache);
-Boolean FskCocoaTextDraw(void *state, FskBitmap fskBitmap, const char *text, UInt32 textLength, FskConstRectangle fskRect, FskConstRectangle clipFskRect, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 horizontalAlignment, UInt16 verticalAlignment, const char *fontName, FskTextFormatCache cache);
-void FskCocoaTextGetLayout(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **unicodeTextPtr, UInt32 *unicodeLenPtr, FskFixed **layoutPtr, FskTextFormatCache cache);
-void FskCocoaTextGetGlyphs(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layoutPtr, float *widthPtr, float *heightPtr, FskTextFormatCache cache);
+Boolean FskCocoaTextDraw(void *state, FskBitmap fskBitmap, const char *text, UInt32 textLength, FskConstRectangle fskRect, FskConstRectangle clipFskRect, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 horizontalAlignment, UInt16 verticalAlignment, FskFixed textExtra, const char *fontName, FskTextFormatCache cache);
+void FskCocoaTextGetLayout(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **unicodeTextPtr, UInt32 *unicodeLenPtr, FskFixed **layoutPtr, FskTextFormatCache cache);
+void FskCocoaTextGetGlyphs(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layoutPtr, float *widthPtr, float *heightPtr, FskTextFormatCache cache);
 
 // audio
 #if TARGET_OS_IPHONE

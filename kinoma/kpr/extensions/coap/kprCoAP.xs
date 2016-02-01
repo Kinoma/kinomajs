@@ -197,6 +197,9 @@
             Size1          = 60
             -->
         </object>
+
+        <function name="get useChunk" c="KPR_CoAP_get_useChunk" enum="true"/>
+        <function name="set useChunk" c="KPR_CoAP_set_useChunk" enum="true"/>
     </object>
 
     <program c="KPR_CoAP_patch"/>

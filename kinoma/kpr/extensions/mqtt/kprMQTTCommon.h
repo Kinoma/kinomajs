@@ -74,6 +74,14 @@ UInt32 KprMemoryBufferCopyTo(KprMemoryBuffer self, void *dest);
 #define kMQTTMultiLevelSeparator '#'
 #define kMQTTSingleLevelSeparator '+'
 
+typedef enum {
+	kKprMQTTProtocol31 = 3,
+	kKprMQTTProtocol311 = 4,
+} KprMQTTProtocolVersion;
+
+extern const char *kKprMQTTProtocolSignature31;
+extern const char *kKprMQTTProtocolSignature311;
+
 enum {
 	kKprMQTTInvalidMessageId = 0,
 };
@@ -127,6 +135,7 @@ struct KprMQTTConnectMessageRecord {
 
 struct KprMQTTConnackMessageRecord {
 	UInt8 returnCode;
+	Boolean sesstionPresent;
 };
 
 struct KprMQTTPublishMessageRecord {
@@ -168,7 +177,8 @@ FskErr KprMQTTMessageNewWithType(KprMQTTMessage *it, UInt8 type);
 FskErr KprMQTTMessageDispose(KprMQTTMessage message);
 FskErr KprMQTTMessageDisposeAt(KprMQTTMessage *message);
 
-FskErr KprMQTTMessageAddSubscribeTopic(KprMQTTMessage message);
+FskErr KprMQTTMessageAddSubscribeTopic(KprMQTTMessage message, KprMQTTSubscribeTopic *it);
+KprMQTTSubscribeTopic KprMQTTMessageFirstSubscribeTopic(KprMQTTMessage message);
 KprMQTTSubscribeTopic KprMQTTMessageLastSubscribeTopic(KprMQTTMessage message);
 
 Boolean KprMQTTMatchTopic(const char *topic, const char *pattern);

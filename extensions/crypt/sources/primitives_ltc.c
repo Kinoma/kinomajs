@@ -50,6 +50,8 @@ static FskInstrumentedTypeRecord gDigestTypeInstrumentation = {
 static char *gSha1Name = "sha1";
 static char *gSha256Name = "sha256";
 static char *gSha512Name = "sha512";
+static char *gSha384Name = "sha384";
+static char *gSha224Name = "sha224";
 static char *gMd5Name = "md5";
 #endif
 
@@ -130,6 +132,60 @@ xs_sha512_constructor(xsMachine *the)
 	cryptThrow("kCryptUnimplemented");
 #endif
 }
+
+void
+xs_sha384_constructor(xsMachine *the)
+{
+#if !FSK_NO_SHA384
+	cryptDigest *dgst;
+	FskErr err;
+
+	if ((err = FskMemPtrNew(sizeof(cryptDigest), (FskMemPtr *)&dgst)) != kFskErrNone)
+		cryptThrowFSK(err);
+	if ((err = FskMemPtrNew(sizeof(crypt_hash_state), (FskMemPtr *)&dgst->ctx)) != kFskErrNone) {
+		FskMemPtrDispose(dgst);
+		cryptThrowFSK(err);
+	}
+	dgst->update = (cryptDigestUpdateProc)sha384_process;
+	dgst->close = (cryptDigestCloseProc)sha384_done;
+	dgst->create = (cryptDigestCreateProc)sha384_init;
+	dgst->blockSize = 64;
+	dgst->outputSize = 384/8;
+	(*dgst->create)(dgst->ctx);
+	FskInstrumentedItemNew(dgst, gSha384Name, &gDigestTypeInstrumentation);
+	xsSetHostData(xsThis, dgst);
+#else
+	cryptThrow("kCryptUnimplemented");
+#endif
+}
+
+void
+xs_sha224_constructor(xsMachine *the)
+{
+#if !FSK_NO_SHA224
+	cryptDigest *dgst;
+	FskErr err;
+
+	if ((err = FskMemPtrNew(sizeof(cryptDigest), (FskMemPtr *)&dgst)) != kFskErrNone)
+		cryptThrowFSK(err);
+	if ((err = FskMemPtrNew(sizeof(crypt_hash_state), (FskMemPtr *)&dgst->ctx)) != kFskErrNone) {
+		FskMemPtrDispose(dgst);
+		cryptThrowFSK(err);
+	}
+	dgst->update = (cryptDigestUpdateProc)sha224_process;
+	dgst->close = (cryptDigestCloseProc)sha224_done;
+	dgst->create = (cryptDigestCreateProc)sha224_init;
+	dgst->blockSize = 64;
+	dgst->outputSize = 224/8;
+	(*dgst->create)(dgst->ctx);
+	FskInstrumentedItemNew(dgst, gSha224Name, &gDigestTypeInstrumentation);
+	xsSetHostData(xsThis, dgst);
+#else
+	cryptThrow("kCryptUnimplemented");
+#endif
+}
+
+
 
 void
 xs_md5_constructor(xsMachine *the)

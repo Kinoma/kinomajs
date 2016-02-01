@@ -277,7 +277,7 @@ The xsbug application is located at `%F_HOME%\bin\win\Release\xsbug\xsbug.exe`
 
 Build the Balls sample application that is included in the KinomaJS respository.
 
-        $ cd ${F_HOME}
+        $ cd %F_HOME%
         $ kprconfig6 -x -m -p win %F_HOME%\kinoma\kpr\applications\balls\manifest.json
 
 The balls application is located at `%F_HOME%\bin\win\Release\balls\balls.exe`

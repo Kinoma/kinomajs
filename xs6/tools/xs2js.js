@@ -46,8 +46,6 @@ class OutputFile {
 		FS.writeSync(this.fd, s);
 	}
 	writeName(s) {
-		s = s.replace(".", "\\u002E");
-		s = s.replace(" ", "\\u0020");
 		FS.writeSync(this.fd, s);
 	}
 	writePathLine(path, line) {

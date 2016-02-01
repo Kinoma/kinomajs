@@ -72,15 +72,15 @@ static FskErr freeTypeNew(FskTextEngineState *state);
 static FskErr freeTypeDispose(FskTextEngineState state);
 static FskErr freeTypeFormatCacheNew(FskTextEngineState state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 static FskErr freeTypeFormatCacheDispose(FskTextEngineState state, FskTextFormatCache cache);
-static FskErr freeTypeBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-static FskErr freeTypeGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
+static FskErr freeTypeBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed textExtra, const char *fontName, FskTextFormatCache cache);
+static FskErr freeTypeGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
 static FskErr freeTypeGetFontInfo(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache formatCache);
-static FskErr freeTypeFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
+static FskErr freeTypeFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
 static FskErr freeTypeAddFontFile(FskTextEngineState state, const char *path);
 static FskErr freeTypeGetFontList(FskTextEngineState state, char **fontNames);
 static FskErr freeTypeDefaultFontSet(FskTextEngineState state, const char *defaultFace);
 static FskErr freeTypeSetFamilyMap(FskTextEngineState state, const char *map);
-static FskErr freeTypeGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
+static FskErr freeTypeGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
 
 static FskErr freeTypeSetZoom(void *stateIn, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 static FskErr freeTypeGetFractionalTextSize(void *stateIn, void *track, UInt32 propertyID, FskMediaPropertyValue property);
@@ -165,6 +165,7 @@ struct FskFTMappingStruct {
 	FskFTFace currentFace;
 	FskFTFace fallbackFace;
 	FskAssociativeArray familyCache;
+	FskAssociativeArray faceCache;
 };
 
 struct FskFTFamilyStruct {
@@ -190,6 +191,7 @@ struct FskFTFaceStruct {
 	FTC_ScalerRec scaler;
 	FTC_ImageTypeRec font;
 	SInt32	 	size;
+	char 		*postscriptName;
 	char		path[1];
 };
 
@@ -375,15 +377,32 @@ static FskFTFace sFskFTFindFont(const char *familyName, UInt32 textStyle, UInt32
 		closest = ((FskTextFormatCacheFT)formatCache)->fFace;
 	else if (gFskFTMapping) {
 		FskFTAlias alias;
-		// look in family cache
-		family = FskAssociativeArrayElementGetReference(gFskFTMapping->familyCache, familyName);
-		if (family)
-			goto gotFamily;
-		// look for installed font
-		for (family = gFskFTMapping->family; family; family = family->next) {
-			if (!FskStrCompareCaseInsensitive(familyName, family->name))
+		char* name = familyName;
+		do {
+			// look in caches
+			face = FskAssociativeArrayElementGetReference(gFskFTMapping->faceCache, name);
+			if (face)
+				goto gotFace;
+			family = FskAssociativeArrayElementGetReference(gFskFTMapping->familyCache, name);
+			if (family)
 				goto gotFamily;
-		}
+			// look for installed font
+			for (family = gFskFTMapping->family; family; family = family->next) {
+				for (face = family->face; face; face = face->next) {
+					if (face->postscriptName && !FskStrCompareCaseInsensitive(name, face->postscriptName)) {
+						// add to family cache
+						FskAssociativeArrayElementSetReference(gFskFTMapping->faceCache, name, face);
+						goto gotFace;
+					}
+				}
+				if (!FskStrCompareCaseInsensitive(name, family->name)) {
+					familyName = name;
+					goto gotFamily;
+				}
+			}
+			name += FskStrLen(name) + 1;
+		} while (*name);
+		
 		// look for system font
 		for (alias = gFskFTMapping->system; alias; alias = alias->next) {
 			if (!FskStrCompareCaseInsensitive(familyName, alias->name)) {
@@ -492,6 +511,7 @@ FskErr freeTypeAddFontFile(FskTextEngineState state, const char *fontFullPath)
 			err = FskMemPtrNewClear(sizeof(FskFTFaceRecord) + FskStrLen(fontFullPath) + 1, &fFace);
 			if (err)
 				goto bailFont;
+			fFace->postscriptName = FT_Get_Postscript_Name(ftFace);
 
 			// initialize face FTC_ImageTypeRec structure
 			fFace->font.face_id = (FTC_FaceID)fFace;
@@ -741,7 +761,7 @@ bail:
  * sFTStrikeNew
  ********************************************************************************/
 
-FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFace fFace, const char *text, UInt32 textLen, UInt32 textStyle, Boolean needImage, UInt32 maxWidth)
+FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFace fFace, const char *text, UInt32 textLen, UInt32 textStyle, FskFixed textExtra, Boolean needImage, UInt32 maxWidth)
 {
 #if USE_RECTS
 	return kFskErrNone;
@@ -754,6 +774,7 @@ FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFac
 	Boolean			doOblique = false;
 	UInt32			totalWidth = 0;
 	FT_Size ftSize = NULL;
+	FskFixed		cumulativeExtra = 0, extraAdvance;
 
 	*strikeOut = NULL;
 	if (kFskErrNone != FskMemPtrNewClear(sizeof(FskFTGlyphRecord) * (textLen + 1), &strike))
@@ -778,7 +799,7 @@ FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFac
 
 	use_kerning = (FT_Bool)FT_HAS_KERNING(fFace->ftFace);
 
-	for (n = 0, glyph = strike, aCount = 0; (n < textLen) && (FT_TRUNC_TO_INT(totalWidth) <= maxWidth); aCount++) {
+	for (n = 0, glyph = strike, aCount = 0; (n < textLen) && (FT_TRUNC_TO_INT(totalWidth) <= maxWidth); aCount++, cumulativeExtra += textExtra) {
 		int chars;
 		UInt32 uc;
 
@@ -807,7 +828,7 @@ FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFac
 			if (uc == 32)
 				glyph->advance = fFace->spaceWidth;	// is this enough? or are there other variables that get changed as a side effect of cache lookup and get glyph info
 			else if (uc == 9)
-				glyph->advance = 4 * fFace->spaceWidth;	// 4 time the space width
+				glyph->advance = 4 * fFace->spaceWidth;	// 4 times the space width
 			else if ((uc == 10) || (uc == 13))
 				glyph->index = -1;
 			else {
@@ -836,6 +857,11 @@ FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFac
 					}
 				}
 		}
+
+		extraAdvance = cumulativeExtra >> (16 - FT_FRACTIONAL_BITS);
+		glyph->advance += extraAdvance;
+		cumulativeExtra -= extraAdvance << (16 - FT_FRACTIONAL_BITS);
+
 		glyph++;
 	}
 
@@ -910,7 +936,7 @@ bail:
  * FskTextBox
  ********************************************************************************/
 
-FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache formatCacheIn)
+FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed textExtra, const char *fontName, FskTextFormatCache formatCacheIn)
 {
 	FskErr							err				= kFskErrNone;
 	FskTextEngineFreeType			state			= (FskTextEngineFreeType)stateIn;
@@ -966,7 +992,7 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 		}
 	}
 
-	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, true, kFskFreeTypeNoMaxWidth));
+	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, textExtra, true, kFskFreeTypeNoMaxWidth));
 	sFTGetStrikeBBox(state, fFace, strike, &strikeWidth, &strikeHeight);
 	bounds.x = bounds.y = 0;
 	bounds.width = FT_ROUND_TO_INT(strikeWidth);
@@ -985,7 +1011,7 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 		if (!formatCache || (false == formatCache->haveEllipsisWidth)) {
 			const char utf8Ellipsis[] = {0xe2, 0x80, 0xa6, 0};
 			// make a strike containing the truncation character
-			BAIL_IF_ERR(err = sFTStrikeNew(state, &tStrike, fFace, utf8Ellipsis, sizeof(utf8Ellipsis), textStyle, true, kFskFreeTypeNoMaxWidth));
+			BAIL_IF_ERR(err = sFTStrikeNew(state, &tStrike, fFace, utf8Ellipsis, sizeof(utf8Ellipsis), textStyle, 0, true, kFskFreeTypeNoMaxWidth));
 
 			if (formatCache) {
 				tStrike->discard = false;
@@ -1061,6 +1087,7 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 	}
 #endif /* !USE_RECTS */
 
+
 	//@@ center and right calculations are incorrect when dstRectFloat is non-NULL
 	switch (hAlign) {
 		case kFskTextAlignLeft:
@@ -1076,6 +1103,7 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 			pen_x = INT_TO_FT(dstRect->width - bounds.width);
 			break;
 	}
+
 
 	switch (vAlign) {
 		case kFskTextAlignTop:
@@ -1139,6 +1167,10 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 #else /* !USE_RECTS */
 
 	underlinestartx = pen_x;
+
+//@@				pen_x = FLOAT_TO_FT(modf(dstRectFloat->x, &i));
+
+//	printf("subpixel draw @ pen_x %d | %d, string %s\n", pen_x >> FT_FRACTIONAL_BITS, pen_x & 0x3f, text);
 	for (glyph = strike, pen_x += dstRectFloat ? FLOAT_TO_FT(dstRectFloat->x) : INT_TO_FT(dstRect->x); glyph->index >= 0; pen_x += glyph->advance, glyph++) {
 		FskPointRecord where;
 
@@ -1184,9 +1216,10 @@ FskErr freeTypeBox(FskTextEngineState stateIn, FskBitmap bits, const char *text,
 			for (repeat = 0; repeat < horizRepeat; repeat++) {
 				if (!(kFskTextOutline & textStyle)) {
 					if (dstRectFloat) {
-						int pen_x_f = (where.x << 16) + ((pen_x & 0x01f) << (16 - FT_FRACTIONAL_BITS));
-						if (pen_x & (1 << (FT_FRACTIONAL_BITS - 1)))
-							pen_x_f |= 0x1f;
+						int pen_x_f = (where.x << 16) | ((pen_x & 0x03f) << (16 - FT_FRACTIONAL_BITS));
+						if (pen_x & 1)
+							pen_x_f |= 0x3FF;
+
 						err = FskTransferAlphaBitmapFixed(freetypeBitmap, NULL, bits, pen_x_f, where.y << 16, &clip, color, (blendLevel >= 255) ? NULL : &modeParams);
 					}
 					else {
@@ -1280,7 +1313,7 @@ bail:
  * FskTextGetBounds
  ********************************************************************************/
 
-FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache formatCache)
+FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache formatCache)
 {
 #if USE_RECTS
 	int i;
@@ -1314,7 +1347,7 @@ FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char 
 	if (NULL == fFace)
 		return kFskErrParameterError;
 
-	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, false, kFskFreeTypeNoMaxWidth));
+	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, textExtra, false, kFskFreeTypeNoMaxWidth));
 	sFTGetStrikeBBox(state, fFace, strike, &strikeWidth, &strikeHeight);
 
 	if ((textStyle & kFskTextItalic) && !(fFace->style & kFskTextItalic)) {	/* If we had to oblique a plain font, we need to adjust the width */
@@ -1374,7 +1407,7 @@ bail:
  * FskTextGetLayout
  ********************************************************************************/
 
-FskErr freeTypeGetLayout(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+FskErr freeTypeGetLayout(FskTextEngineState stateIn, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName,
 							UInt16 **unicodeTextPtr, UInt32 *unicodeLenPtr, FskFixed **layoutPtr, FskTextFormatCache cache)
 {
 	FskTextEngineFreeType state = (FskTextEngineFreeType)stateIn;
@@ -1395,7 +1428,7 @@ FskErr freeTypeGetLayout(FskTextEngineState stateIn, FskBitmap bits, const char 
 	if (NULL == fFace)
 		return kFskErrParameterError;
 
-	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, false, kFskFreeTypeNoMaxWidth));
+	BAIL_IF_ERR(err = sFTStrikeNew(state, &strike, fFace, text, textLen, textStyle, textExtra, false, kFskFreeTypeNoMaxWidth));
 
 	for (glyph = strike, numGlyphs = 0; glyph->index >= 0; ++glyph)
 		++numGlyphs;
@@ -1614,7 +1647,7 @@ void FskTextFreeTypeUninitialize(void)
 	FskExtensionUninstall(kFskExtensionTextEngine, &gFskTextFreeTypeDispatch);
 }
 
-FskErr freeTypeFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache formatCache)
+FskErr freeTypeFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache formatCache)
 {
 	FskErr err = kFskErrNone;
 	UInt32 aSize, aBytes, aWidth;
@@ -1641,7 +1674,7 @@ FskErr freeTypeFitWidth(FskTextEngineState state, FskBitmap bits, const char *te
 
 	doRelease = true;
 
-	BAIL_IF_ERR(err = sFTStrikeNew((FskTextEngineFreeType)state, &strike, fFace, text, textLen, textStyle, false, width + 10));
+	BAIL_IF_ERR(err = sFTStrikeNew((FskTextEngineFreeType)state, &strike, fFace, text, textLen, textStyle, textExtra, false, width + 10));
 
 	width <<= FT_FRACTIONAL_BITS;
 	aWidth = 0;
@@ -1850,6 +1883,7 @@ FskErr FskFTMappingNew(FskFTMapping *it)
 
 	FskFTMapping mapping = NULL;
 	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(FskFTMappingRecord), &mapping));
+	mapping->faceCache = FskAssociativeArrayNew();
 	mapping->familyCache = FskAssociativeArrayNew();
 	*it = mapping;
 bail:
@@ -1892,6 +1926,7 @@ void FskFTMappingDispose(FskFTMapping mapping)
 		FskMemPtrDispose(alias->name);
 		FskMemPtrDispose(alias);
 	}
+	FskAssociativeArrayDispose(mapping->faceCache);
 	FskAssociativeArrayDispose(mapping->familyCache);
 	FskMemPtrDispose(mapping);
 }

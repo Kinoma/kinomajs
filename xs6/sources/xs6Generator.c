@@ -39,24 +39,25 @@ void fxBuildGenerator(txMachine* the)
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	for (builder = gx_Generator_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Generator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Generator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxGeneratorPrototype = *the->stack;
-	slot = fxLastProperty(the, fxNewHostConstructor(the, fx_Generator, 1, mxID(_Generator)));
-	slot = fxNextStringProperty(the, slot, "GeneratorFunction", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxLastProperty(the, fxNewHostConstructor(the, fx_Generator, 1, XS_NO_ID));
+	slot = fxNextStringXProperty(the, slot, "GeneratorFunction", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxGeneratorFunctionPrototype = *the->stack;
 	slot = fxNewHostConstructor(the, fx_GeneratorFunction, 1, mxID(_GeneratorFunction));
 	the->stack++;
 	
-	slot = fxGetProperty(the, mxGeneratorPrototype.value.reference, mxID(_constructor));
+	slot = fxGetProperty(the, mxGeneratorPrototype.value.reference, mxID(_constructor), XS_NO_ID, XS_OWN);
 	slot->flag |= XS_DONT_SET_FLAG;
 }
 
 txSlot* fxCheckGeneratorInstance(txMachine* the, txSlot* slot)
 {
 	if (slot->kind == XS_REFERENCE_KIND) {
-		slot = slot->value.reference;
-		if ((slot->flag & XS_VALUE_FLAG) && (slot->next->kind == XS_STACK_KIND))
-			return slot;
+		txSlot* instance = slot->value.reference;
+		slot = instance->next;
+		if (slot && (slot->flag & XS_INTERNAL_FLAG) && (slot->kind == XS_STACK_KIND))
+			return instance;
 	}
 	mxTypeError("this is no Generator instance");
 	return C_NULL;
@@ -73,7 +74,6 @@ txSlot* fxNewGeneratorInstance(txMachine* the)
 	prototype = the->stack->value.reference;
 
 	instance = fxNewSlot(the);
-	instance->flag = XS_VALUE_FLAG;
 	instance->kind = XS_INSTANCE_KIND;
 	instance->value.instance.garbage = C_NULL;
 	instance->value.instance.prototype = prototype;
@@ -81,17 +81,17 @@ txSlot* fxNewGeneratorInstance(txMachine* the)
 	the->stack->kind = XS_REFERENCE_KIND;
 
 	property = instance->next = fxNewSlot(the);
-	property->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	property->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	property->kind = XS_STACK_KIND;
 	property->ID = XS_NO_ID;
-	if (prototype->flag == XS_VALUE_FLAG) {
+	if (prototype->next) {
 		slot = prototype->next;
-		property->value.array.length = slot->value.array.length;
-		property->value.array.address = slot->value.array.address;
+		property->value.stack.length = slot->value.stack.length;
+		property->value.stack.address = slot->value.stack.address;
 	}
 	else {
-		property->value.array.length = 0;
-		property->value.array.address = C_NULL;
+		property->value.stack.length = 0;
+		property->value.stack.address = C_NULL;
     }
 	result = fxNewInstance(the);
 	result->value.instance.prototype = mxObjectPrototype.value.reference;
@@ -199,7 +199,7 @@ txSlot* fxNewGeneratorFunctionInstance(txMachine* the, txID name)
 	property = fxLastProperty(the, instance);
 	mxPush(mxGeneratorPrototype);
 	fxNewInstanceOf(the);
-	fxNextSlotProperty(the, property, the->stack, mxID(_prototype), XS_GET_ONLY);
+	fxNextSlotProperty(the, property, the->stack, mxID(_prototype), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
 	the->stack++;
 	
 	return instance;

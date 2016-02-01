@@ -49,17 +49,17 @@ static FskErr winTextDispose(FskTextEngineState state);
 static FskErr winTextFormatCacheNew(FskTextEngineState state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 static FskErr winTextFormatCacheDispose(FskTextEngineState state, FskTextFormatCache cache);
 static FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangleFloat boundsFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel,
-							UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-static FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
+							UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed textExtra, const char *fontName, FskTextFormatCache cache);
+static FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache);
 static FskErr winTextGetFontInfo(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache formatCache);
-static FskErr winTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags,
+static FskErr winTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags,
 								UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
 static FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
 								UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
 static FskErr winTextAddFontFile(FskTextEngineState state, const char *path);
 static FskErr winTextGetFontList(FskTextEngineState state, char **fontNames);
 static FskErr winTextSetFamilyMap(FskTextEngineState state, const char *map);
-static FskErr winTextGetLayout(FskTextEngineState fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+static FskErr winTextGetLayout(FskTextEngineState fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName,
 								UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
 
 static FskTextEngineDispatchRecord gFskTextWindowsDispatch = {
@@ -161,7 +161,7 @@ bail:
  * winTextBox
  ********************************************************************************/
 
-FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangleFloat boundsFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache formatCacheIn)
+FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangleFloat boundsFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed textExtra, const char *fontName, FskTextFormatCache formatCacheIn)
 {
 	FskTextFormatCacheGDI formatCache = (FskTextFormatCacheGDI)formatCacheIn;
 	RECT r;
@@ -174,6 +174,7 @@ FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UI
 	HGDIOBJ saveFont;
 	FskRectangleRecord clip;
 	unsigned char scratchBuffer[256];
+	int saveCharExtra;
 
 	// combine bounds and clip to total clip
 	if (NULL == clipRect) {
@@ -202,7 +203,7 @@ FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UI
 		else {
 			FskRectangleRecord b;
 
-			err = winTextGetBounds(state, bits, text, textLen, textSize, textStyle, fontName, &b, NULL, formatCacheIn);
+			err = winTextGetBounds(state, bits, text, textLen, textSize, textStyle, textExtra, fontName, &b, NULL, formatCacheIn);
 			if (err) return err;
 
 			err = FskBitmapNew(-b.width, b.height, kFskTextOffscreenFormat, &scratchBits);
@@ -219,6 +220,8 @@ FskErr winTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UI
 		saveFont = syncFont(textSize, textStyle, fontName, &font, state);
 	else
 		saveFont = SelectObject(dc, formatCache->font);
+
+	saveCharExtra = SetTextCharacterExtra(dc, textExtra >> 16);
 
 #if 0
 	switch (hAlign) {
@@ -473,6 +476,7 @@ done:
 		SelectObject(dc, saveFont);
 		DeleteObject(font);
 	}
+	SetTextCharacterExtra(dc, saveCharExtra);
 
 	return kFskErrNone;
 }
@@ -482,7 +486,7 @@ done:
  * winTextGetBounds
  ********************************************************************************/
 
-FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache formatCacheIn)
+FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache formatCacheIn)
 {
 	FskTextFormatCacheGDI formatCache = (FskTextFormatCacheGDI)formatCacheIn;
 	SIZE sz;
@@ -490,11 +494,14 @@ FskErr winTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *te
 	HDC dc = (bits && bits->hdc) ? bits->hdc : state->dc;
 	HGDIOBJ saveFont;
 	unsigned char scratchBuffer[256];
+	int saveCharExtra;
 
 	if (NULL == formatCache)
 		saveFont = syncFont(textSize, textStyle, fontName, &font, state);
 	else
 		saveFont = SelectObject(dc, formatCache->font);
+
+	saveCharExtra = SetTextCharacterExtra(dc, textExtra >> 16);
 
 	{
 	char *encodedText = (char *)scratchBuffer;
@@ -529,6 +536,7 @@ bail:
 		SelectObject(dc, saveFont);
 		DeleteObject(font);
 	}
+	SetTextCharacterExtra(dc, saveCharExtra);
 
 	return kFskErrNone;
 }
@@ -536,7 +544,7 @@ bail:
 
 #ifdef USE_CHARACTER_PLACEMENT
 
-FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName,
 						UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache formatCacheIn)
 {
 	FskErr					err			= kFskErrNone;
@@ -548,6 +556,7 @@ FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *te
 	HFONT					font;
 	DWORD					heightWidth;
 	HGDIOBJ					saveFont;
+	int						saveCharExtra;
 
 	/* Initialize return values for the error case */
 	FskMemSet(&results, 0, sizeof(GCP_RESULTS));
@@ -559,7 +568,10 @@ FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *te
 	saveFont = (NULL == formatCache)	? syncFont(textSize, textStyle, fontName, &font, state)
 										: SelectObject(dc, formatCache->font);
 
+	saveCharExtra = SetTextCharacterExtra(dc, textExtra >> 16);
+
 	/* Generate the unicode representation of the text */
+//@@
 	FskTextUTF8ToUnicode16NENoAlloc(text, textLen, NULL, &uniTextLen);		/* uniTextLen is set to the number of bytes needed */
 	BAIL_IF_ERR(err = FskMemPtrNew(uniTextLen, &uniText));
 	FskTextUTF8ToUnicode16NENoAlloc(text, textLen, uniText, &uniTextLen);	/* uniTextLen is set to the number of bytes needed */
@@ -610,6 +622,7 @@ bail:
 		SelectObject(dc, saveFont);
 		DeleteObject(font);
 	}
+	SetTextCharacterExtra(dc, saveCharExtra);
 
 	return err;
 }
@@ -618,7 +631,7 @@ bail:
 #else /* USE_UNISCRIBE */
 
 
-FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName,
 						UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache formatCacheIn)
 {
 	FskErr					err			= kFskErrNone;
@@ -653,6 +666,7 @@ FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *te
 	int						start, length;
 	HRESULT					hr;
 	SInt32					i, j, k;
+	int						saveCharExtra;
 
 	/* Initialize return values for the error case */
 	if (unicodeText)	*unicodeText	= NULL;
@@ -663,7 +677,10 @@ FskErr winTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *te
 	saveFont = (NULL == formatCache)	? syncFont(textSize, textStyle, fontName, &font, state)
 										: SelectObject(dc, formatCache->font);
 
+	saveCharExtra = SetTextCharacterExtra(dc, textExtra >> 16);
+
 	/* Generate the unicode representation of the text */
+//@@
 	FskTextUTF8ToUnicode16NENoAlloc(text, textLen, NULL, &uniTextLen);		/* uniTextLen is set to the number of bytes needed */
 	BAIL_IF_ERR(err = FskMemPtrNew(uniTextLen, &uniText));
 	FskTextUTF8ToUnicode16NENoAlloc(text, textLen, uniText, &uniTextLen);	/* uniTextLen is set to the number of bytes needed */
@@ -824,6 +841,7 @@ bail:
 		SelectObject(dc, saveFont);
 		DeleteObject(font);
 	}
+	SetTextCharacterExtra(dc, saveCharExtra);
 
 	return err;
 }
@@ -989,7 +1007,7 @@ FskErr winTextSetFamilyMap(FskTextEngineState state, const char *map)
 	return FskStrListDoCopy(map, &gFontFamilyMap);
 }
 
-FskErr winTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache formatCacheIn)
+FskErr winTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache formatCacheIn)
 {
 	FskTextFormatCacheGDI formatCache = (FskTextFormatCacheGDI)formatCacheIn;
 	FskErr err = kFskErrNone;
@@ -1001,11 +1019,14 @@ FskErr winTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *tex
 	int fitChars;
 	HGDIOBJ saveFont;
 	unsigned char scratchBuffer[256];
+	int saveCharExtra;
 
 	if (NULL == formatCache)
 		saveFont = syncFont(textSize, textStyle, fontName, &font, state);
 	else
 		saveFont = SelectObject(dc, formatCache->font);
+
+	saveCharExtra = SetTextCharacterExtra(dc, textExtra >> 16);
 
 	encodedText = (UInt16 *)scratchBuffer;
 	encodedTextLen = sizeof(scratchBuffer);
@@ -1068,6 +1089,8 @@ bail:
 		SelectObject(dc, saveFont);
 		DeleteObject(font);
 	}
+
+	SetTextCharacterExtra(dc, saveCharExtra);
 
 	return err;
 }

@@ -899,8 +899,10 @@ void Math_cameraDistances(xsMachine* the) {
 
 		if ((c > 5) && xsTest(xsArg(5)))
 			xsResult = xsArg(5);
-		else
+		else {
 			xsResult = xsNew1(xsGlobal, xsID_Array, xsNumber(numPts));
+			(void)xsCall0(xsResult, xsID_fill);
+		}
 		for (i=0; i < numPts; i++)
 			xsSetAt(xsResult, xsInteger(i), xsNumber(distances[i]));
 	}

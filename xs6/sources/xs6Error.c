@@ -34,49 +34,49 @@ void fxBuildError(txMachine* the)
 	mxPush(mxObjectPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostFunctionProperty(the, slot, fx_Error_toString, 0, mxID(_toString), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Error", mxID(_name), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Error", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
 	mxErrorPrototype = *the->stack;
 	prototype = fxNewHostConstructorGlobal(the, fx_Error, 1, mxID(_Error), XS_DONT_ENUM_FLAG);
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot = fxNextStringProperty(the, slot, "EvalError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "EvalError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxEvalErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_EvalError, 1, mxID(_EvalError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot = fxNextStringProperty(the, slot, "RangeError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "RangeError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxRangeErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_RangeError, 1, mxID(_RangeError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot = fxNextStringProperty(the, slot, "ReferenceError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "ReferenceError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxReferenceErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_ReferenceError, 1, mxID(_ReferenceError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot = fxNextStringProperty(the, slot, "SyntaxError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "SyntaxError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxSyntaxErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_SyntaxError, 1, mxID(_SyntaxError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot = fxNextStringProperty(the, slot, "TypeError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "TypeError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxTypeErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_TypeError, 1, mxID(_TypeError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
 	the->stack++;
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot = fxNextStringProperty(the, slot, "URIError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "URIError", mxID(_name), XS_DONT_ENUM_FLAG);
 	mxURIErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_URIError, 1, mxID(_URIError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
@@ -98,7 +98,7 @@ void fx_Error_aux(txMachine* the)
 	txSlot* aProperty;
 
 	if ((mxArgc > 0) && (mxArgv(0)->kind != XS_UNDEFINED_KIND)) {
-		aProperty = fxSetProperty(the, fxGetInstance(the, mxResult), mxID(_message), C_NULL);
+		aProperty = fxSetProperty(the, fxGetInstance(the, mxResult), mxID(_message), XS_NO_ID, XS_ANY);
 		aProperty->value.string = fxToString(the, mxArgv(0));
 		aProperty->kind = mxArgv(0)->kind;
 	}
@@ -127,7 +127,8 @@ void fx_Error_toString(txMachine* the)
 	else if (!c_strlen(message->value.string))
 		*mxResult = *name;
 	else {
-		*mxResult = *name;
+		fxCopyStringC(the, mxResult, "");
+		fxConcatString(the, mxResult, name);
 		fxConcatStringC(the, mxResult, ": ");
 		fxConcatString(the, mxResult, message);
 	}

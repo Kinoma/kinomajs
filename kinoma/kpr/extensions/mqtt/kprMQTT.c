@@ -33,12 +33,10 @@
 #include "kprMQTTBroker.h"
 #include "kprMQTT.h"
 
-#define kKprMQTTClientIdentifierMaxLength 23
-#define kKprMQTTClientIdentifierPrefix "KprMQTTClient-"
 #define isObject(x) xsIsInstanceOf(x, xsObjectPrototype)
 #define isString(x) xsIsInstanceOf(x, xsStringPrototype)
-#define isChunk(x) xsIsInstanceOf(x, xsChunkPrototype)
 #define isFunc(x) xsIsInstanceOf(x, xsFunctionPrototype)
+#define isArrayBuffer(x) xsIsInstanceOf(x, xsArrayBufferPrototype)
 #define hasCallback(x) xsFindResult(self->slot, xsID(x)) && isFunc(xsResult)
 
 //--------------------------------------------------
@@ -48,15 +46,15 @@
 struct KPR_MQTTClientRecord {
 	xsMachine* the;
 	xsSlot slot;
-	xsIndex* code;
 	KprMQTTClient client;
+	Boolean pending;
 };
 
 typedef struct KPR_MQTTClientRecord KPR_MQTTClientRecord;
 
-static void KPR_mqttclient_onConnect(KprMQTTClient client, UInt8 returnCode, void *refcon);
-static void KPR_mqttclient_onSubscribe(KprMQTTClient client, char *topic, UInt8 qos, void *refcon);
-static void KPR_mqttclient_onUnsubscribe(KprMQTTClient client, char *topic, void *refcon);
+static void KPR_mqttclient_onConnect(KprMQTTClient client, UInt8 returnCode, Boolean sessionPresent, void *refcon);
+static void KPR_mqttclient_onSubscribe(KprMQTTClient client, UInt16 token, KprMQTTSubscribeTopic request, KprMQTTSubscribeTopic result, void *refcon);
+static void KPR_mqttclient_onUnsubscribe(KprMQTTClient client, UInt16 token, KprMQTTSubscribeTopic request, void *refcon);
 static void KPR_mqttclient_onPublish(KprMQTTClient client, UInt16 token, void *refcon);
 static void KPR_mqttclient_onMessage(KprMQTTClient client, char *topic, KprMemoryBuffer payload, void *refcon);
 static void KPR_mqttclient_onDisconnect(KprMQTTClient client, Boolean cleanClose, void *refcon);
@@ -68,32 +66,17 @@ void KPR_MQTTClient(xsMachine* the)
 {
 	FskErr err;
 	KPR_MQTTClientRecord *self = NULL;
-	xsIntegerValue c = xsToInteger(xsArgc);
 	KprMQTTClient client = NULL;
-	char clientIdentifier[kKprMQTTClientIdentifierMaxLength + 1];
-	Boolean cleanSession = true;
+	char *clientIdentifier;
+	Boolean cleanSession;
 
-	if (c >= 1) {
-		char *arg = xsToString(xsArg(0));
-		UInt32 len = FskStrLen(arg);
+	if (xsToInteger(xsArgc) != 2) xsThrowIfFskErr(kFskErrParameterError);
 
-		if (len < 1 || len > kKprMQTTClientIdentifierMaxLength) xsThrowIfFskErr(kFskErrBadData);
-		FskStrCopy(clientIdentifier, arg);
-	} else {
-		char hex[9];
-		FskStrNumToHex(FskRandom(), hex, 8);
-		FskStrCopy(clientIdentifier, kKprMQTTClientIdentifierPrefix);
-		FskStrCat(clientIdentifier, hex);
-
-	}
-
-	if (c >= 2) {
-		cleanSession = xsToBoolean(xsArg(1));
-	}
+	clientIdentifier = xsToString(xsArg(0));
+	cleanSession = xsToBoolean(xsArg(1));
 
 	bailIfError(FskMemPtrNewClear(sizeof(KPR_MQTTClientRecord), &self));
-
-	bailIfError(KprMQTTClientNew(&client, clientIdentifier, cleanSession, self));
+	bailIfError(KprMQTTClientNew(&client, clientIdentifier, cleanSession, kKprMQTTProtocol311, self));
 
 	client->connectCallback = KPR_mqttclient_onConnect;
 	client->subscribeCallback = KPR_mqttclient_onSubscribe;
@@ -106,13 +89,10 @@ void KPR_MQTTClient(xsMachine* the)
 	self->client = client;
 	self->the = the;
 	self->slot = xsThis;
-	self->code = the->code;
 	xsSetHostData(self->slot, self);
-	// xsCall1(xsGet(xsGlobal, xsID_Object), xsID_seal, self->slot);
-
-	xsRemember(self->slot);
 
 bail:
+
 	if (err) {
 		KprMQTTClientDispose(client);
 		FskMemPtrDispose(self);
@@ -125,6 +105,14 @@ void KPR_mqttclient_destructor(void *it)
 	KPR_MQTTClientRecord *self = it;
 
 	if (self) {
+		self->client->connectCallback = NULL;
+		self->client->subscribeCallback = NULL;
+		self->client->unsubscribeCallback = NULL;
+		self->client->publishCallback = NULL;
+		self->client->messageCallback = NULL;
+		self->client->disconnectCallback = NULL;
+		self->client->errorCallback = NULL;
+
 		INVOKE_AFTER1(KprMQTTClientDispose, self->client);
 
 		FskMemPtrDispose(self);
@@ -134,67 +122,39 @@ void KPR_mqttclient_destructor(void *it)
 void KPR_mqttclient_connect(xsMachine* the)
 {
 	KPR_MQTTClientRecord *self = xsGetHostData(xsThis);
-	xsIntegerValue c = xsToInteger(xsArgc);
 	char *host;
 	UInt16 port;
 	KprMQTTClientConnectOptions options;
 
-	if (c >= 1) {
-		host = xsToString(xsArg(0));
-	} else {
-		host = "localhost";
-	}
+	if (xsToInteger(xsArgc) != 10) xsThrowIfFskErr(kFskErrParameterError);
 
-	if (c >= 2) {
-		port = xsToInteger(xsArg(1));
-	} else {
-		port = 1883;
-	}
+	host = xsToString(xsArg(0));
+	port = xsToInteger(xsArg(1));
 
-	options.isSecure = (port == 1884);
-	options.keepAlive = 60;
-	options.password = NULL;
-	options.username = NULL;
+	options.isSecure = xsToBoolean(xsArg(2));
+	options.keepAlive = xsToInteger(xsArg(3));
+	options.username = xsTest(xsArg(4)) ? xsToString(xsArg(4)) : NULL;
+	options.password = xsTest(xsArg(5)) ? xsToString(xsArg(5)) : NULL;
 	options.willIsRetained = false;
 	options.willQualityOfService = 0;
 	options.willTopic = NULL;
 	options.willPayload = NULL;
 	options.willPayloadLength = 0;
 
-	if (c >= 3) {
-		xsVars(1);
-		xsEnterSandbox();
-		{
-			if (xsHas(xsArg(2), xsID("secure"))) options.isSecure = xsToBoolean(the->scratch);
-			if (xsHas(xsArg(2), xsID("keepAlive"))) options.keepAlive = xsToInteger(the->scratch);
-			if (xsHas(xsArg(2), xsID("username"))) options.username = xsToString(the->scratch);
-			if (xsHas(xsArg(2), xsID("password"))) options.password = xsToString(the->scratch);
+	if (xsTest(xsArg(6))) {
+		options.willTopic = xsToString(xsArg(6));
+		options.willQualityOfService = xsToInteger(xsArg(7));
+		options.willIsRetained = xsToBoolean(xsArg(8));
 
-			if (xsHas(xsArg(2), xsID("will"))) {
-				xsVar(0) = the->scratch;
-
-				if (xsHas(xsVar(0), xsID("topic"))) options.willTopic = xsToString(the->scratch);
-				if (xsHas(xsVar(0), xsID("qos"))) options.willQualityOfService = xsToInteger(the->scratch);
-				if (xsHas(xsVar(0), xsID("retain"))) options.willIsRetained = xsToBoolean(the->scratch);
-
-				if (xsHas(xsVar(0), xsID("data"))) {
-					xsVar(0) = the->scratch;
-
-					if (isChunk(xsVar(0))) {
-						options.willPayload = xsGetHostData(xsVar(0));
-						options.willPayloadLength = xsToInteger(xsGet(xsVar(0), xsID_length));
-					} else {
-						options.willPayload = xsToString(xsVar(0));
-						options.willPayloadLength = FskStrLen(options.willPayload);
-					}
-				}
+		if (xsTest(xsArg(9))) {
+			if (isArrayBuffer(xsArg(9))) {
+				options.willPayload = xsToArrayBuffer(xsArg(9));
+				options.willPayloadLength = xsGetArrayBufferLength(xsArg(9));
+			} else {
+				options.willPayload = xsToString(xsArg(9));
+				options.willPayloadLength = FskStrLen(options.willPayload);
 			}
 		}
-		xsLeaveSandbox();
-	}
-
-	if (options.willQualityOfService > 2 || (options.willTopic && !KprMQTTIsValidTopic(options.willTopic, false))) {
-		xsThrowIfFskErr(kFskErrBadData);
 	}
 
 	xsThrowIfFskErr(KprMQTTClientConnect(self->client, host, port, &options));
@@ -218,83 +178,32 @@ void KPR_mqttclient_publish(xsMachine* the)
 {
 	KPR_MQTTClientRecord *self = xsGetHostData(xsThis);
 	FskErr err = kFskErrNone;
-	xsIntegerValue c = xsToInteger(xsArgc);
-	char *topic = NULL;
+	char *topic;
 	void *payload = NULL;
 	UInt32 payloadLength = 0;
-	UInt8 qos = 0;
-	Boolean retain = false, hasPayload = false, hasQos = false, hasRetain = false;
+	UInt8 qos;
+	Boolean retain;
 	UInt16 token;
 
-	/*
-	 Case 1.
-		topic, string_or_chunk, qos, retain
-	 Case 2
-		topic, { payload: string_or_chunk}, qos, retain
-	 Case 3
-		topic, { payload: string_or_chunk, qos: 0, retain: true }
-	 */
-	if (c < 1) goto invalidParams;
+	if (xsToInteger(xsArgc) != 4) xsThrowIfFskErr(kFskErrParameterError);
 
 	topic = xsToString(xsArg(0));
 
-	if (c >= 2) {
-		if (isChunk(xsArg(1))) {
-			payload = xsGetHostData(xsArg(1));
-			payloadLength = xsToInteger(xsGet(xsArg(1), xsID_length));
-		} else if (isObject(xsArg(1))) {
-			xsVars(1);
-
-			xsEnterSandbox();
-			{
-				hasPayload = xsHas(xsArg(1), xsID("data"));
-				if (hasPayload) xsVar(0) = the->scratch;
-
-				hasQos = xsHas(xsArg(1), xsID("qos"));
-				if (hasQos) qos = xsToInteger(the->scratch);
-
-				hasRetain = xsHas(xsArg(1), xsID("retain"));
-				if (hasRetain) retain = xsToInteger(the->scratch);
-			}
-			xsLeaveSandbox();
-
-			if (hasPayload) {
-				if (isChunk(xsVar(0))) {
-					payload = xsGetHostData(xsVar(0));
-					payloadLength = xsToInteger(xsGet(xsVar(0), xsID_length));
-				} else {
-					payload = xsToString(xsVar(0));
-					payloadLength = FskStrLen(payload);
-				}
-			}
+	if (xsTest(xsArg(1))) {
+		if (isArrayBuffer(xsArg(1))) {
+			payload = xsToArrayBuffer(xsArg(1));
+			payloadLength = xsGetArrayBufferLength(xsArg(1));
 		} else {
 			payload = xsToString(xsArg(1));
 			payloadLength = FskStrLen(payload);
 		}
 	}
 
-	if (c >= 3 && !hasQos) {
-		qos = xsToInteger(xsArg(2));
-	}
-
-	if (c >= 4 && !hasRetain) {
-		retain = xsToBoolean(xsArg(3));
-	}
-
-	if (!KprMQTTIsValidTopic(topic, false)) goto badParam;
-	if (qos > 2) goto badParam;
+	qos = xsToInteger(xsArg(2));
+	retain = xsToBoolean(xsArg(3));
 
 	bailIfError(KprMQTTClientPublish(self->client, topic, payload, payloadLength, qos, retain, &token));
 	xsResult = xsInteger(token);
-	goto bail;
-
-invalidParams:
-	err = kFskErrInvalidParameter;
-	goto bail;
-
-badParam:
-	err = kFskErrBadData;
-	goto bail;
 
 bail:
 	xsThrowIfFskErr(err);
@@ -305,32 +214,29 @@ void KPR_mqttclient_subscribe(xsMachine* the)
 	KPR_MQTTClientRecord *self = xsGetHostData(xsThis);
 	FskErr err = kFskErrNone;
 	xsIntegerValue c = xsToInteger(xsArgc);
-	char *topic = NULL;
-	UInt8 qos = 0;
+	char **topics = NULL;
+	UInt8 *qoss = NULL;
+	int i, count;
+	UInt16 token;
 
-	if (c < 1) goto invalidParams;
+	if (c == 0 || (c % 2) != 0) xsThrowIfFskErr(kFskErrParameterError);
 
-	topic = xsToString(xsArg(0));
-	if (!KprMQTTIsValidTopic(topic, true)) goto badParam;
+	count = c / 2;
 
-	if (c >= 2) {
-		qos = xsToInteger(xsArg(1));
+	bailIfError(FskMemPtrNew(sizeof(char*) * count, &topics));
+	bailIfError(FskMemPtrNew(sizeof(UInt8*) * count, &qoss));
+
+	for (i = 0; i < count; i++) {
+		topics[i] = xsToString(xsArg(i * 2));
+		qoss[i] = xsToInteger(xsArg(i * 2 + 1));
 	}
 
-	if (qos > 2) goto badParam;
-
-	bailIfError(KprMQTTClientSubscribeTopic(self->client, topic, qos));
-	goto bail;
-
-invalidParams:
-	err = kFskErrInvalidParameter;
-	goto bail;
-
-badParam:
-	err = kFskErrBadData;
-	goto bail;
+	bailIfError(KprMQTTClientSubscribeTopics(self->client, topics, qoss, count, &token));
+	xsResult = xsInteger(token);
 
 bail:
+	FskMemPtrDispose(topics);
+	FskMemPtrDispose(qoss);
 	xsThrowIfFskErr(err);
 }
 
@@ -339,279 +245,240 @@ void KPR_mqttclient_unsubscribe(xsMachine* the)
 	KPR_MQTTClientRecord *self = xsGetHostData(xsThis);
 	FskErr err = kFskErrNone;
 	xsIntegerValue c = xsToInteger(xsArgc);
-	char *topic = NULL;
+	char **topics = NULL;
+	int i, count;
+	UInt16 token;
 
-	if (c < 1) goto invalidParams;
+	if (c == 0) xsThrowIfFskErr(kFskErrParameterError);
 
-	topic = xsToString(xsArg(0));
-	if (!KprMQTTIsValidTopic(topic, true)) goto badParam;
+	count = c;
 
-	bailIfError(KprMQTTClientUnsubscribeTopic(self->client, topic));
-	goto bail;
+	bailIfError(FskMemPtrNew(sizeof(char*) * count, &topics));
 
-invalidParams:
-	err = kFskErrInvalidParameter;
-	goto bail;
+	for (i = 0; i < count; i++) {
+		topics[i] = xsToString(xsArg(i));
+	}
 
-badParam:
-	err = kFskErrBadData;
-	goto bail;
+	bailIfError(KprMQTTClientUnsubscribeTopics(self->client, topics, count, &token));
+	xsResult = xsInteger(token);
 
 bail:
+	FskMemPtrDispose(topics);
 	xsThrowIfFskErr(err);
 }
 
-static void KPR_mqttclient_deferredConnect(void *a, void *b, void *c UNUSED, void *d UNUSED)
+void KPR_mqttclient_get_protocolVersion(xsMachine *the)
 {
-	KPR_MQTTClientRecord *self = a;
-	UInt8 returnCode = (UInt8) b;
-
-	xsBeginHostSandboxCode(self->the, self->code);
-	xsVars(1);
-	if (hasCallback("onConnect")) {
-		xsTry {
-//			xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
-
-			(void)xsCallFunction1(xsResult, self->slot, xsInteger(returnCode));
-		}
-		xsCatch {
-		}
-	}
-	xsEndHostSandboxCode();
-}
-
-static void KPR_mqttclient_deferredSubscribe(void *a, void *b, void *c, void *d UNUSED)
-{
-	KPR_MQTTClientRecord *self = a;
-	char *topic = (char *) b;
-	UInt8 qos = (UInt8) c;
-
-	xsBeginHostSandboxCode(self->the, self->code);
-	xsVars(1);
-	if (hasCallback("onSubscribe")) {
-		xsTry {
-			(void)xsCallFunction2(xsResult, self->slot, xsString(topic), xsInteger(qos));
-		}
-		xsCatch {
-		}
-	}
-	xsEndHostSandboxCode();
-
-	FskMemPtrDispose(topic);
-}
-
-static void KPR_mqttclient_deferredUnsubscribe(void *a, void *b, void *c UNUSED, void *d UNUSED)
-{
-	KPR_MQTTClientRecord *self = a;
-	char *topic = (char *) b;
-
-	xsBeginHostSandboxCode(self->the, self->code);
-	xsVars(1);
-	if (hasCallback("onUnsubscribe")) {
-		xsTry {
-			(void)xsCallFunction1(xsResult, self->slot, xsString(topic));
-		}
-		xsCatch {
-		}
-	}
-	xsEndHostSandboxCode();
-
-	FskMemPtrDispose(topic);
-}
-
-static void KPR_mqttclient_deferredPublish(void *a, void *b, void *c UNUSED, void *d UNUSED)
-{
-	KPR_MQTTClientRecord *self = a;
-	UInt16 token = (UInt16) b;
-
-	xsBeginHostSandboxCode(self->the, self->code);
-	xsVars(1);
-	if (hasCallback("onPublish")) {
-		xsTry {
-			(void)xsCallFunction1(xsResult, self->slot, xsInteger(token));
-		}
-		xsCatch {
-		}
-	}
-	xsEndHostSandboxCode();
-}
-
-static void KPR_mqttclient_deferredMessage(void *a, void *b, void *c, void *d UNUSED)
-{
-	KPR_MQTTClientRecord *self = a;
-	char *topic = (char *) b;
-	KprMemoryBuffer payload = (KprMemoryBuffer) c;
-
-	xsBeginHostSandboxCode(self->the, self->code);
-	xsVars(1);
-	if (hasCallback("onMessage")) {
-		xsTry {
-			KPR_mqttmessage_newFromBuffer(the, &xsVar(0), payload);
-
-			(void)xsCallFunction2(xsResult, self->slot, xsString(topic), xsVar(0));
-		}
-		xsCatch {
-		}
-	}
-	xsEndHostSandboxCode();
-
-	FskMemPtrDispose(topic);
-}
-
-static void KPR_mqttclient_deferredDisconnect(void *a, void *b, void *c UNUSED, void *d UNUSED)
-{
-	KPR_MQTTClientRecord *self = a;
-	Boolean cleanClose = (Boolean) b;
-
-	xsBeginHostSandboxCode(self->the, self->code);
-	xsVars(1);
-	if (hasCallback("onDisconnect")) {
-		xsTry {
-			(void)xsCallFunction1(xsResult, self->slot, xsBoolean(cleanClose));
-		}
-		xsCatch {
-		}
-	}
-	xsEndHostSandboxCode();
-}
-
-
-static void KPR_mqttclient_deferredError(void *a, void *b, void *c, void *d UNUSED)
-{
-	KPR_MQTTClientRecord *self = a;
-	FskErr err = (FskErr) b;
-	char *reason = (char *) c;
-
-	xsBeginHostSandboxCode(self->the, self->code);
-	xsVars(1);
-	if (hasCallback("onError")) {
-		xsTry {
-			(void)xsCallFunction2(xsResult, self->slot, xsInteger(err), xsString(reason));
-		}
-		xsCatch {
-		}
-	}
-	xsEndHostSandboxCode();
-
-	FskMemPtrDispose(reason);
+	KPR_MQTTClientRecord *self = xsGetHostData(xsThis);
+	xsResult = xsString((char *) KprMQTTClientGetProtocolVersion(self->client));
 }
 
 #define DEFER3(xxx, a, b, c) FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)xxx, self, (void *)(a), (void *)(b), (void *)(c))
 #define DEFER2(xxx, a, b) DEFER3(xxx, a, b, NULL)
 #define DEFER1(xxx, a) DEFER3(xxx, a, NULL, NULL)
+#define DEFER0(xxx) DEFER3(xxx, NULL, NULL, NULL)
 
-static void KPR_mqttclient_onConnect(KprMQTTClient client UNUSED, UInt8 returnCode, void *refcon)
+static void KPR_mqttclient_deferredReleaseCallbacks(void *a, void *b UNUSED, void *c UNUSED, void *d UNUSED)
 {
-	KPR_MQTTClientRecord *self = refcon;
-	DEFER1(KPR_mqttclient_deferredConnect, (int) returnCode);
+	KPR_MQTTClientRecord *self = a;
+
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+
+	if (self->pending) {
+		self->pending = false;
+
+		if (xsToBoolean(xsCall0(xsThis, xsID("_callbackPending")))) {
+			xsCall0(xsThis, xsID("_releaseCallbacks"));
+		}
+	}
+	xsForget(self->slot);
+	xsEndHost();
 }
 
-static void KPR_mqttclient_onSubscribe(KprMQTTClient client UNUSED, char *topic, UInt8 qos, void *refcon)
+static void KPR_mqttclient_releaseCallbacksIfPending(xsMachine *the)
 {
-	KPR_MQTTClientRecord *self = refcon;
-	char *topic2 = FskStrDoCopy(topic);
-	if (topic2) {
-		DEFER2(KPR_mqttclient_deferredSubscribe, topic2, (int) qos);
+	KPR_MQTTClientRecord *self = xsGetHostData(xsThis);
+	if (!self->pending && xsToBoolean(xsCall0(xsThis, xsID("_callbackPending")))) {
+		self->pending = true;
+
+		DEFER0(KPR_mqttclient_deferredReleaseCallbacks);
+		xsBeginHost(self->the);
+		xsRemember(self->slot);
+		xsEndHost();
 	}
 }
 
-static void KPR_mqttclient_onUnsubscribe(KprMQTTClient client UNUSED, char *topic, void *refcon)
+static void KPR_mqttclient_onConnect(KprMQTTClient client UNUSED, UInt8 returnCode, Boolean sessionPresent, void *refcon)
 {
 	KPR_MQTTClientRecord *self = refcon;
-	char *topic2 = FskStrDoCopy(topic);
-	if (topic2) {
-		DEFER1(KPR_mqttclient_deferredUnsubscribe, topic2);
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+	if (hasCallback("_onConnect")) {
+		xsTry {
+			(void)xsCallFunction2(xsResult, xsThis, xsInteger(returnCode), xsBoolean(sessionPresent));
+			KPR_mqttclient_releaseCallbacksIfPending(the);
+		}
+		xsCatch {
+		}
 	}
+	xsEndHost();
+}
+
+static void KPR_mqttclient_onSubscribe(KprMQTTClient client UNUSED, UInt16 token, KprMQTTSubscribeTopic request, KprMQTTSubscribeTopic result, void *refcon)
+{
+	KPR_MQTTClientRecord *self = refcon;
+	KprMQTTSubscribeTopic st = result;
+
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+	xsVars(1);
+	if (hasCallback("_onSubscribe")) {
+		xsTry {
+			xsVar(0) = xsNew0(xsGlobal, xsID_Array);
+
+			while (st) {
+				(void)xsCall1(xsVar(0), xsID_push, xsInteger(st->qualityOfService));
+				st = st->next;
+			}
+
+			(void)xsCallFunction2(xsResult, xsThis, xsInteger(token), xsVar(0));
+			KPR_mqttclient_releaseCallbacksIfPending(the);
+		}
+		xsCatch {
+		}
+	}
+	xsEndHost();
+}
+
+static void KPR_mqttclient_onUnsubscribe(KprMQTTClient client UNUSED, UInt16 token, KprMQTTSubscribeTopic request, void *refcon)
+{
+	KPR_MQTTClientRecord *self = refcon;
+
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+	if (hasCallback("_onUnsubscribe")) {
+		xsTry {
+			(void)xsCallFunction1(xsResult, xsThis, xsInteger(token));
+			KPR_mqttclient_releaseCallbacksIfPending(the);
+		}
+		xsCatch {
+		}
+	}
+	xsEndHost();
 }
 
 static void KPR_mqttclient_onPublish(KprMQTTClient client UNUSED, UInt16 token, void *refcon)
 {
 	KPR_MQTTClientRecord *self = refcon;
-	DEFER1(KPR_mqttclient_deferredPublish, (int) token);
+
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+	if (hasCallback("_onPublish")) {
+		xsTry {
+			(void)xsCallFunction1(xsResult, xsThis, xsInteger(token));
+			KPR_mqttclient_releaseCallbacksIfPending(the);
+		}
+		xsCatch {
+		}
+	}
+	xsEndHost();
 }
 
 static void KPR_mqttclient_onMessage(KprMQTTClient client UNUSED, char *topic, KprMemoryBuffer payload, void *refcon)
 {
 	KPR_MQTTClientRecord *self = refcon;
-	FskErr err;
-	char *topic2 = NULL;
-	KprMemoryBuffer payload2 = NULL;
 
-	topic2 = FskStrDoCopy(topic);
-	bailIfNULL(topic2);
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+	xsVars(1);
+	if (hasCallback("_onMessage")) {
+		xsTry {
+			KPR_mqttmessage_newFromBuffer(the, &xsVar(0), payload);
 
-	bailIfError(KprMemoryBufferDuplicate(payload, &payload2))
-	DEFER2(KPR_mqttclient_deferredMessage, topic2, payload2);
+			(void)xsCallFunction2(xsResult, xsThis, xsString(topic), xsVar(0));
+			KPR_mqttclient_releaseCallbacksIfPending(the);
+		}
+		xsCatch {
+		}
+	}
+	xsEndHost();
+}
 
-	topic2 = NULL;
+static void KPR_mqttclient_onDisconnectDeferred(void *a, void *b, void *c UNUSED, void *d UNUSED)
+{
+	KPR_MQTTClientRecord *self = a;
+	Boolean cleanClose = b;
 
-bail:
-	FskMemPtrDispose(topic2);
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+	if (hasCallback("_onDisconnect")) {
+		xsTry {
+			(void)xsCallFunction1(xsResult, xsThis, xsBoolean(cleanClose));
+		}
+		xsCatch {
+		}
+	}
+	xsForget(self->slot);
+	xsEndHost();
 }
 
 static void KPR_mqttclient_onDisconnect(KprMQTTClient client UNUSED, Boolean cleanClose, void *refcon)
 {
 	KPR_MQTTClientRecord *self = refcon;
-	DEFER1(KPR_mqttclient_deferredDisconnect, (int) cleanClose);
+
+	DEFER1(KPR_mqttclient_onDisconnectDeferred, (int) cleanClose);
+
+	xsBeginHost(self->the);
+	xsRemember(self->slot);
+	xsEndHost();
 }
 
 static void KPR_mqttclient_onError(KprMQTTClient client UNUSED, FskErr err, char *reason, void *refcon)
 {
 	KPR_MQTTClientRecord *self = refcon;
-	DEFER2(KPR_mqttclient_deferredError, err, FskStrDoCopy(reason));
+
+	xsBeginHost(self->the);
+	xsThis = self->slot;
+	if (hasCallback("_onError")) {
+		xsTry {
+			(void)xsCallFunction2(xsResult, xsThis, xsInteger(err), xsString(reason));
+			KPR_mqttclient_releaseCallbacksIfPending(the);
+		}
+		xsCatch {
+		}
+	}
+	xsEndHost();
 }
 
 //--------------------------------------------------
 // MQTT Message Script Interface
 //--------------------------------------------------
 
-static void KPR_mqttmessage_newFromBuffer(xsMachine *the, xsSlot *object, KprMemoryBuffer buffer)
-{
-	*object = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID("MQTT")), xsID("_message")));
-	xsSetHostData(*object, buffer);
-}
-
-void KPR_mqttmessage_destructor(void *it)
-{
-	KprMemoryBuffer self = it;
-	if (self) {
-		KprMemoryBufferDispose(self);
-	}
-}
-
-void KPR_mqttmessage_get_length(xsMachine* the)
-{
-	KprMemoryBuffer self = xsGetHostData(xsThis);
-
-	if (self) {
-		xsResult = xsInteger(self->size);
-	} else {
-		xsThrowIfFskErr(kFskErrNoData);
-	}
-}
-
 void KPR_mqttmessage_get_data(xsMachine* the)
 {
-	KprMemoryBuffer self = xsGetHostData(xsThis);
-
-	if (self) {
-		xsResult = xsString(self->buffer);
-	} else {
-		xsThrowIfFskErr(kFskErrNoData);
-	}
+	xsVars(2);
+	xsVar(0) = xsGet(xsGlobal, xsID_String);
+	xsVar(1) = xsGet(xsThis, xsID("buffer"));
+	xsResult = xsCallFunction1(xsGet(xsVar(0), xsID_fromArrayBuffer), xsVar(0), xsVar(1));
 }
 
 void KPR_mqttmessage_get_binaryData(xsMachine* the)
 {
-	KprMemoryBuffer self = xsGetHostData(xsThis);
+	xsVars(1);
+	xsVar(0) = xsGet(xsThis, xsID_length);
+	xsResult = xsCall2(xsGet(xsThis, xsID("buffer")), xsID_slice, xsInteger(0), xsVar(0));
+}
 
-	if (self) {
-		FskMemPtr buffer;
-		xsThrowIfFskErr(KprMemoryBufferCopyBuffer(self, &buffer));
-		xsMemPtrToChunk(the, &xsResult, buffer, self->size, false);
-	} else {
-		xsThrowIfFskErr(kFskErrNoData);
-	}
+static void KPR_mqttmessage_newFromBuffer(xsMachine *the, xsSlot *object, KprMemoryBuffer buffer)
+{
+	*object = xsNewInstanceOf(xsObjectPrototype);
+
+	xsSet(*object, xsID("buffer"), xsArrayBuffer(buffer->buffer, buffer->size + 1));
+
+	xsNewHostProperty(*object, xsID("length"), xsInteger(buffer->size), xsDefault, xsDontScript);
+	xsNewHostProperty(*object, xsID("data"), xsNewHostFunction(KPR_mqttmessage_get_data, 0), xsIsGetter, xsDontScript | xsIsGetter);
+	xsNewHostProperty(*object, xsID("binaryData"), xsNewHostFunction(KPR_mqttmessage_get_binaryData, 0), xsIsGetter, xsDontScript | xsIsGetter);
 }
 
 //--------------------------------------------------
@@ -621,8 +488,8 @@ void KPR_mqttmessage_get_binaryData(xsMachine* the)
 struct KPR_MQTTBrokerRecord {
 	xsMachine* the;
 	xsSlot slot;
-	xsIndex* code;
 	KprMQTTBroker broker;
+	int port;
 };
 
 typedef struct KPR_MQTTBrokerRecord KPR_MQTTBrokerRecord;
@@ -651,11 +518,9 @@ void KPR_MQTTBroker(xsMachine* the)
 	self->broker = broker;
 	self->the = the;
 	self->slot = xsThis;
-	self->code = the->code;
 	xsSetHostData(self->slot, self);
 
-	xsRemember(self->slot);
-
+	self->port = port;
 	xsThrowIfFskErr(KprMQTTBrokerListen(self->broker, port, NULL));
 
 bail:
@@ -677,6 +542,13 @@ void KPR_mqttbroker_destructor(void *it)
 	}
 }
 
+void KPR_mqttbroker_get_port(xsMachine *the)
+{
+	KPR_MQTTBrokerRecord *self = xsGetHostData(xsThis);
+
+	xsResult = xsInteger(self->port);
+}
+
 void KPR_mqttbroker_get_clients(xsMachine* the)
 {
 
@@ -688,71 +560,23 @@ void KPR_mqttbroker_disconnect(xsMachine* the)
 }
 
 //--------------------------------------------------
-// MQTT Function Test
+// MQTT Function
 //--------------------------------------------------
 
-#if defined(RUN_UNITTEST) && RUN_UNITTEST
-
-//#include "kunit.h"
-//
-//ku_main();
-//ku_test(MQTT_common);
-//ku_test(MQTT_broker);
-//
-//void KPR_MQTT_test()
-//{
-//	ku_begin();
-//	ku_run(MQTT_common);
-//	ku_run(MQTT_broker);
-//	ku_finish();
-//}
-
-#endif
-
-//--------------------------------------------------
-// MQTT Script Patch
-//--------------------------------------------------
-
-void KPR_MQTT_patch(xsMachine* the)
+void KPR_mqtt_isValidTopic(xsMachine *the)
 {
-	xsResult = xsGet(xsGlobal, xsID("MQTT"));
-	xsNewHostProperty(xsResult, xsID("DISCONNECTED"), xsInteger(kKprMQTTStateDisconnected), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-	xsNewHostProperty(xsResult, xsID("CONNECTING"), xsInteger(kKprMQTTStateConnecting), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-	xsNewHostProperty(xsResult, xsID("HANDSHAKING"), xsInteger(kKprMQTTStateHandshaking), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
-	xsNewHostProperty(xsResult, xsID("ESTABLISHED"), xsInteger(kKprMQTTStateEstablished), xsDontDelete | xsDontSet, xsDontScript | xsDontDelete | xsDontSet);
+	Boolean isTopic = xsToBoolean(xsArg(1));
+	char *topic = xsToString(xsArg(0));
+
+	xsResult = xsBoolean(KprMQTTIsValidTopic(topic, isTopic));
 }
 
 //--------------------------------------------------
-// Service
+// DLL
 //--------------------------------------------------
-
-static void KprMQTTServiceStart(KprService self, FskThread thread, xsMachine* the);
-static void KprMQTTServiceStop(KprService self);
-static void KprMQTTServiceCancel(KprService self, KprMessage message);
-static void KprMQTTServiceInvoke(KprService self, KprMessage message);
-
-KprServiceRecord gMQTTService = {
-	NULL,
-	kprServicesThread,
-	"ws:",
-	NULL,
-	NULL,
-	KprServiceAccept,
-	KprMQTTServiceCancel,
-	KprMQTTServiceInvoke,
-	KprMQTTServiceStart,
-	KprMQTTServiceStop,
-	NULL,
-	NULL,
-	NULL
-};
 
 FskExport(FskErr) kprMQTT_fskLoad(FskLibrary library UNUSED)
 {
-	KprServiceRegister(&gMQTTService);
-#if defined(RUN_UNITTEST) && RUN_UNITTEST
-//	KPR_MQTT_test();
-#endif
 	return kFskErrNone;
 }
 
@@ -760,30 +584,4 @@ FskExport(FskErr) kprMQTT_fskUnload(FskLibrary library UNUSED)
 {
 	return kFskErrNone;
 }
-
-void KprMQTTServiceCancel(KprService service UNUSED, KprMessage message UNUSED)
-{
-}
-
-void KprMQTTServiceInvoke(KprService service UNUSED, KprMessage message)
-{
-	FskErr err = kFskErrNone;
-	if (KprMessageContinue(message)) {
-		if (err) {
-			message->error = err;
-			FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprMessageComplete, message, NULL, NULL, NULL);
-		}
-	}
-}
-
-void KprMQTTServiceStart(KprService self, FskThread thread, xsMachine* the)
-{
-	self->machine = the;
-	self->thread = thread;
-}
-
-void KprMQTTServiceStop(KprService self UNUSED)
-{
-}
-
 

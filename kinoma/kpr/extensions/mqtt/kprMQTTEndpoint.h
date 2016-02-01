@@ -34,6 +34,7 @@ typedef void (*KprMQTTEndpointErrorCallback)(KprMQTTEndpoint self, FskErr err, c
 
 struct KprMQTTEndpointRecord {
 	FskSocket socket;
+	KprMQTTProtocolVersion protocolVersion;
 	KprSocketReader reader;
 	KprSocketWriter writer;
 

@@ -819,7 +819,8 @@ void KPR_skin_get_fillColors(xsMachine *the)
 	if (!self->flags) {
 		xsIntegerValue i;
 		xsVars(1);
-		xsResult = xsNewInstanceOf(xsArrayPrototype);
+		xsResult = xsNew1(xsGlobal, xsID_Array, xsInteger(4));
+		(void)xsCall0(xsResult, xsID_fill);
 		for (i = 0; i < 4; i++) {
 			KprSerializeColor(the, &self->data.color.fill[i], &xsVar(0));
 			xsSetAt(xsResult, xsInteger(i), xsVar(0));

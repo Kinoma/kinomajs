@@ -707,8 +707,8 @@ void KPR_layer_get_corners(xsMachine *the)
 	KprLayer self = xsGetHostData(xsThis);
 	xsIntegerValue i;
 	xsVars(1);
-	xsResult = xsNewInstanceOf(xsArrayPrototype);
-	xsSet(xsResult, xsID_length, xsInteger(4));
+	xsResult = xsNew1(xsGlobal, xsID_Array, xsInteger(4));
+	(void)xsCall0(xsResult, xsID_fill);
 	for (i = 0; i < 4; i++) {
 		xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
 		xsNewHostProperty(xsVar(0), xsID_x, xsNumber(self->corners[i].x), xsDefault, xsDontScript);

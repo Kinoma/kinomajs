@@ -78,6 +78,7 @@ void KprStyleApply(KprStyle self, FskPort port)
 	if (!self->textFormat)
 		KprStyleFormat(self);
     FskPortTextFormatApply(port, self->textFormat);
+	FskPortSetTextExtra(port, self->textExtra);
 }
 
 KprStyle KprStyleCascade(KprStyle self, KprStyle father)
@@ -179,6 +180,13 @@ void KprStyleClearTextSize(KprStyle self)
 void KprStyleClearTextStyle(KprStyle self)
 {
 	self->flags &= ~kprTextStyle;
+	KprStyleInvalidate(self);
+}
+
+void KprStyleClearTextExtra(KprStyle self)
+{
+	self->flags &= ~kprTextExtra;
+	self->textExtra = 0;
 	KprStyleInvalidate(self);
 }
 
@@ -357,6 +365,10 @@ void KprStyleInherit(KprStyle self)
 	}
 	else
 		self->textStyle = father->textStyle;
+	if (flags & kprTextExtra)
+		self->textExtra = mother->textExtra;
+	else
+		self->textExtra = father->textExtra;
 	if (self->textFormat) {
 		FskPortTextFormatDispose(self->textFormat);
 		self->textFormat = NULL;
@@ -494,6 +506,13 @@ void KprStyleSetTextStyle(KprStyle self, UInt32 textStyle)
 	KprStyleInvalidate(self);
 }
 
+void KprStyleSetTextExtra(KprStyle self, FskFixed textExtra)
+{
+	self->textExtra = textExtra;
+	self->flags |= kprTextExtra;
+	KprStyleInvalidate(self);
+}
+
 KprStyle KprStyleUncascade(KprStyle self)
 {
 	if (self->mother)
@@ -522,6 +541,7 @@ FskErr KprShellDefaultStyles(KprShell self)
 	FskErr err = kFskErrNone;
 	char* font = NULL;
 	UInt32 size, style;
+	FskFixed extra;
 #if TARGET_OS_MAC && TARGET_OS_IPHONE
 	kprDefaultFont = "Helvetica\0";
 #elif TARGET_OS_LINUX && TARGET_OS_ANDROID
@@ -539,11 +559,13 @@ FskErr KprShellDefaultStyles(KprShell self)
 	FskPortGetTextFont(self->port, &font);
 	FskPortGetTextSize(self->port, &size);
 	FskPortGetTextStyle(self->port, &style);
+	FskPortGetTextExtra(self->port, &extra);
 	bailIfError(KprStyleNew(&self->style, (KprContext)self, NULL, NULL));
 	KprAssetBind(self->style);
 	KprStyleSetTextFont(self->style, font);
 	KprStyleSetTextSize(self->style, size);
 	KprStyleSetTextStyle(self->style, style);
+	KprStyleSetTextExtra(self->style, extra);
 	kprFitFonts = KprEnvironmentGetUInt32("fitFonts", 1);
 bail:
 	FskMemPtrDispose(font);
@@ -687,6 +709,8 @@ void KPR_Style(xsMachine *the)
 		KprStyleSetLineHeight(self, xsToInteger(xsArg(9)));
 	if ((c > 10) && xsTest(xsArg(10)))
 		KprStyleSetLineCount(self, xsToInteger(xsArg(10)));
+	if ((c > 11) && xsTest(xsArg(11)))
+		KprStyleSetTextExtra(self, 65536.0 * xsToNumber(xsArg(10)));
 }
 
 void KPR_style_get_colors(xsMachine *the)
@@ -694,11 +718,19 @@ void KPR_style_get_colors(xsMachine *the)
 	KprStyle self = xsGetHostData(xsThis);
 	xsIntegerValue i;
 	xsVars(1);
-	xsResult = xsNewInstanceOf(xsArrayPrototype);
+	xsResult = xsNew1(xsGlobal, xsID_Array, xsInteger(4));
+	(void)xsCall0(xsResult, xsID_fill);
 	for (i = 0; i < 4; i++) {
 		KprSerializeColor(the, &self->colors[i], &xsVar(0));
 		xsSetAt(xsResult, xsInteger(i), xsVar(0));
 	}
+}
+
+void KPR_style_get_extra(xsMachine *the)
+{
+	KprStyle self = xsGetHostData(xsThis);
+	if (self->flags & kprTextExtra)
+		xsResult = xsNumber(self->textExtra / 65536.0);
 }
 
 void KPR_style_get_font(xsMachine *the)
@@ -804,6 +836,15 @@ void KPR_style_get_verticalAlignment(xsMachine *the)
 	}
 }
 
+void KPR_style_set_extra(xsMachine *the)
+{
+	KprStyle self = xsGetHostData(xsThis);
+	if (xsTest(xsArg(0)))
+		KprStyleSetTextExtra(self, 65536 * xsToNumber(xsArg(0)));
+	else
+		KprStyleClearTextExtra(self);
+}
+
 #define kFskMediumFontSize 12
 void KPR_style_set_font(xsMachine *the)
 {
@@ -866,6 +907,10 @@ void KPR_style_set_font(xsMachine *the)
 					textStyle |= kFskTextItalic;
 				else if (!FskStrCompareWithLength(p, "small-caps", q - p))
 					{}
+				else if (!FskStrCompareWithLength(p, "strike", q - p))
+					textStyle |= kFskTextStrike;
+				else if (!FskStrCompareWithLength(p, "strikethrough", q - p))
+					textStyle |= kFskTextStrike;
 				else if (!FskStrCompareWithLength(p, "underline", q - p))
 					textStyle |= kFskTextUnderline;
 				else

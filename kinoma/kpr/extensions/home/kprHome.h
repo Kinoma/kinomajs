@@ -94,6 +94,7 @@ FskErr KprHomeAddUser(KprHome home, xsSlot completion);
 FskErr KprHomeRemoveUser(KprHome home, KprHomeUser user, xsSlot completion);
 
 FskErr KprHomeGetRooms(KprHome home, xsMachine *the);
+FskErr KprHomeGetRoomForEntireHome(KprHome home, xsMachine *the);
 FskErr KprHomeAddRoom(KprHome home, const char *name, xsSlot completion);
 FskErr KprHomeRemoveRoom(KprHome home, KprHomeRoom room, xsSlot completion);
 

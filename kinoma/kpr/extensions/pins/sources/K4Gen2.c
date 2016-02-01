@@ -173,6 +173,12 @@ int FskHardwarePinsMux(int physicalPinNum, FskHardwarePinFunction function){
 		break;
 	case kFskHardwarePinPWM:
 		value = pins[physicalPinNum].pwm;
+        if (value == MAXPIN){
+            value = pins[physicalPinNum].device;
+            if (value != MAXPIN){
+                value += FRONTOFFSET;
+            }
+        }
 		break;
 	case kFskHardwarePinI2CClock:
 		value = pins[physicalPinNum].i2cClock;

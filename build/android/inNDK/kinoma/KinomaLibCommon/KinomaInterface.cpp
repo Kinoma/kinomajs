@@ -265,11 +265,16 @@ void JAVANAME(KinomaPlay_doFskOnTextChanged)(JNIEnv* env, jclass clazz, jstring 
 	int i, j, adv;
 
 	if (gTEIgnoreChanged) {
-		FskInstrumentedTypePrintfDebug(&gAndroidTETypeInstrumentation, "IGNORING OnTextChanged %s start %d before %d count %d", afterStr, start, before, count);
+		FskInstrumentedTypePrintfDebug(&gAndroidTETypeInstrumentation, "IGNORING OnTextChanged start %d before %d count %d", start, before, count);
 		return;
 	}
 
 	afterStr = env->GetStringUTFChars(str, NULL);
+	if (!afterStr) {
+		FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "## OnTextChanged string is null\n");
+		return;
+	}
+
 	FskInstrumentedTypePrintfVerbose(&gAndroidTETypeInstrumentation, "OnTextChanged %s start %d before %d count %d", afterStr, start, before, count);
 
 	if (before == 0 && count == 0) {
@@ -280,6 +285,34 @@ void JAVANAME(KinomaPlay_doFskOnTextChanged)(JNIEnv* env, jclass clazz, jstring 
 	win = FskWindowGetActive();
 
 	loc = (char*)afterStr;
+
+	if (FskStrLen(loc)) {
+		FskInstrumentedTypePrintfVerbose(&gAndroidEventTypeInstrumentation, "got a OnTextChanged - last char of afterStr is %d", loc[FskStrLen(loc) - 1]);
+		if ((androidKeyboardType != 1) && (afterStr[FskStrLen(afterStr) - 1] == 10)) {
+			// return key and not multi-line text
+			FskEventCodeEnum cod;
+			FskEventModifierEnum mod = kFskEventModifierNone;
+			char utf[2];
+			utf[0] = 13;
+			utf[1] = '\0';
+			FskInstrumentedTypePrintfVerbose(&gAndroidEventTypeInstrumentation, " -- ### trying to blast a return\n");
+			cod = kFskEventKeyDown;
+			if (kFskErrNone == FskEventNew(&ev, cod, NULL, mod)) {
+				FskEventParameterAdd(ev, kFskEventParameterKeyUTF8, 2, &utf);
+				androidDoOrQueue(win, ev);
+			}
+			cod = kFskEventKeyUp;
+			if (kFskErrNone == FskEventNew(&ev, cod, NULL, kFskEventModifierNone)) {
+				FskEventParameterAdd(ev, kFskEventParameterKeyUTF8, 2, &utf);
+				androidDoOrQueue(win, ev);
+			}
+//			FskInstrumentedTypePrintfVerbose(&gAndroidEventTypeInstrumentation, " -- # calling doIMEEnable(0) since we issued a 'return'");
+//			doDismissKeyboard();
+			return;
+		}
+	}
+
+
 	adv = 0;
 	for (i=0; i<start; i++) {
 //		FskInstrumentedTypePrintfDebug(&gAndroidTETypeInstrumentation, "Looking at %s - adv is %d", &(loc[adv]), FskTextUTF8Advance((const unsigned char*)loc, adv, 1));

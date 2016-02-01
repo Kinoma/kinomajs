@@ -118,7 +118,7 @@ void fxBuildGlobal(txMachine* the)
 		fxNewHostFunctionGlobal(the, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 		the->stack++;
 	}
-	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_undefined), C_NULL);
+	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_undefined));
 	slot->flag = XS_GET_ONLY;
 	
 	mxPush(mxObjectPrototype);
@@ -138,7 +138,6 @@ txSlot* fxNewGlobalInstance(txMachine* the)
 	txSlot* instance;
 	txSlot* property;
 	instance = fxNewSlot(the);
-	instance->flag |= XS_VALUE_FLAG;
 	instance->kind = XS_INSTANCE_KIND;
 	instance->value.instance.garbage = C_NULL;
 	instance->value.instance.prototype = mxObjectPrototype.value.reference;
@@ -148,6 +147,7 @@ txSlot* fxNewGlobalInstance(txMachine* the)
 	c_memset(property->value.table.address, 0, the->keyCount * sizeof(txSlot*));
 	property->value.table.length = the->keyCount;
 	property->kind = XS_GLOBAL_KIND;
+	property->flag = XS_INTERNAL_FLAG;
 	return instance;
 }
 
@@ -158,7 +158,7 @@ txSlot* fxNewHostAccessorGlobal(txMachine* the, txCallback get, txCallback set, 
 		getter = fxNewHostFunction(the, get, 0, id);
 	if (set)
 		getter = fxNewHostFunction(the, set, 1, id);
-	property = fxSetGlobalProperty(the, mxGlobal.value.reference, id, C_NULL);
+	property = fxSetGlobalProperty(the, mxGlobal.value.reference, id);
 	property->flag = flag;
 	property->kind = XS_ACCESSOR_KIND;
 	property->value.accessor.getter = getter;
@@ -174,7 +174,7 @@ txSlot* fxNewHostConstructorGlobal(txMachine* the, txCallback call, txInteger le
 {
 	txSlot *function, *property;
 	function = fxNewHostConstructor(the, call, length, id);
-	property = fxSetGlobalProperty(the, mxGlobal.value.reference, id, C_NULL);
+	property = fxSetGlobalProperty(the, mxGlobal.value.reference, id);
 	property->flag = flag;
 	property->kind = the->stack->kind;
 	property->value = the->stack->value;
@@ -185,7 +185,7 @@ txSlot* fxNewHostFunctionGlobal(txMachine* the, txCallback call, txInteger lengt
 {
 	txSlot *function, *property;
 	function = fxNewHostFunction(the, call, length, id);
-	property = fxSetGlobalProperty(the, mxGlobal.value.reference, id, C_NULL);
+	property = fxSetGlobalProperty(the, mxGlobal.value.reference, id);
 	property->flag = flag;
 	property->kind = the->stack->kind;
 	property->value = the->stack->value;
@@ -212,6 +212,18 @@ txSlot* fxCheckIteratorInstance(txMachine* the, txSlot* slot)
 	return C_NULL;
 }
 
+void fxCloseIterator(txMachine* the, txSlot* iterator)
+{
+ 	mxPushInteger(0);
+   	mxPushSlot(iterator);
+	mxPushSlot(iterator);
+	fxGetID(the, mxID(_return));
+	if (the->stack->kind != XS_UNDEFINED_KIND)
+		fxCall(the);
+	else
+		the->stack += 3;
+}
+
 txSlot* fxNewIteratorInstance(txMachine* the, txSlot* iterable) 
 {
 	txSlot* instance;
@@ -222,9 +234,9 @@ txSlot* fxNewIteratorInstance(txMachine* the, txSlot* iterable)
 	result = fxNewObjectInstance(the);
 	property = fxNextUndefinedProperty(the, result, mxID(_value), XS_DONT_DELETE_FLAG | XS_DONT_SET_FLAG);
 	property = fxNextBooleanProperty(the, property, 0, mxID(_done), XS_DONT_DELETE_FLAG | XS_DONT_SET_FLAG);
-	property = fxNextSlotProperty(the, instance, the->stack, mxID(_result), XS_GET_ONLY);
-	property = fxNextSlotProperty(the, property, iterable, mxID(_iterable), XS_GET_ONLY);
-	property = fxNextIntegerProperty(the, property, 0, mxID(_index), XS_GET_ONLY);
+	property = fxNextSlotProperty(the, instance, the->stack, mxID(_result), XS_INTERNAL_FLAG | XS_GET_ONLY);
+	property = fxNextSlotProperty(the, property, iterable, mxID(_iterable), XS_INTERNAL_FLAG | XS_GET_ONLY);
+	property = fxNextIntegerProperty(the, property, 0, mxID(_index), XS_INTERNAL_FLAG | XS_GET_ONLY);
     the->stack++;
 	return instance;
 }
@@ -400,7 +412,7 @@ void fx_eval(txMachine* the)
 	aStream.slot = mxArgv(0);
 	aStream.offset = 0;
 	aStream.size = c_strlen(fxToString(the, mxArgv(0)));
-	fxRunScript(the, fxParseScript(the, &aStream, fxStringGetter, mxProgramFlag), &mxGlobal, C_NULL, C_NULL, C_NULL);
+	fxRunScript(the, fxParseScript(the, &aStream, fxStringGetter, mxProgramFlag | mxEvalFlag), &mxGlobal, C_NULL, C_NULL, C_NULL);
 	mxPullSlot(mxResult);
 }
 
@@ -637,11 +649,16 @@ void fxEncodeURI(txMachine* the, txString theSet)
 	while ((c = *src++)) {
 		if ((c < 128) && (theSet[(int)c]))
 			size += 1;
-		else
+		else {
+			if (c == 0xED) { // ucs2 D800-DFFF utf8 EDA080-EDBFBF
+				txU4 d = (*src << 8) | *(src + 1);
+				if ((0xA080 <= d) && (d <= 0xBFBF))
+					mxURIError("invalid string");
+			}
 			size += 3;
+		}
 	}
 	size += 1;
-
 	if (size == (src - (txU1*)mxArgv(0)->value.string)) {
 		mxResult->value.string = mxArgv(0)->value.string;
 		mxResult->kind = mxArgv(0)->kind;

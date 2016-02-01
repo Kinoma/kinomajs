@@ -83,17 +83,19 @@ void console_log(xsMachine* the)
 					xsIntegerValue length = xsToInteger(xsGet(xsArg(i), xsID("length"))), index;
 					fprintf(stdout,  "[");
 					for (index = 0; index < length; index++) {
-						xsVar(1) = xsGet(xsArg(i), (xsIndex)index);
 						if (comma)
 							fprintf(stdout,  ",");
 						else
 							comma = 1;
 						fprintf(stdout,  " ");
-						fxPush(xsVar(1));
-						fxPushCount(the, 1);
-						fxPush(xsThis);
-						fxPush(xsFunction);
-						fxCall(the);
+						if (xsHas(xsArg(i), (xsIndex)index)) {
+							xsVar(1) = xsGet(xsArg(i), (xsIndex)index);
+							fxPush(xsVar(1));
+							fxPushCount(the, 1);
+							fxPush(xsThis);
+							fxPush(xsFunction);
+							fxCall(the);
+						}
 					}
 					fprintf(stdout,  " ]");
 				}
@@ -167,17 +169,19 @@ void console_log_xsbug(xsMachine* the)
 					xsIntegerValue length = xsToInteger(xsGet(xsArg(i), xsID("length"))), index;
 					xsLog("[");
 					for (index = 0; index < length; index++) {
-						xsVar(1) = xsGet(xsArg(i), (xsIndex)index);
 						if (comma)
 							xsLog(",");
 						else
 							comma = 1;
 						xsLog(" ");
-						fxPush(xsVar(1));
-						fxPushCount(the, 1);
-						fxPush(xsThis);
-						fxPush(xsFunction);
-						fxCall(the);
+						if (xsHas(xsArg(i), (xsIndex)index)) {
+							xsVar(1) = xsGet(xsArg(i), (xsIndex)index);
+							fxPush(xsVar(1));
+							fxPushCount(the, 1);
+							fxPush(xsThis);
+							fxPush(xsFunction);
+							fxCall(the);
+						}
 					}
 					xsLog(" ]");
 				}
@@ -355,7 +359,6 @@ int main(int argc, char* argv[])
 	xsBeginHost(machine);
 	{
 		xsVars(2);
-		//xsStartProfiling();
 		{
 			xsTry {
 				xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
@@ -397,7 +400,7 @@ int main(int argc, char* argv[])
 				else if (program) {
 					xsVar(0) = xsNewHostFunction(print, 0);
 					xsSet(xsGlobal, xsID("print"), xsVar(0));
-					xsStartProfiling();
+					//xsStartProfiling();
 					while (argi < argc) {
 						if (argv[argi][0] != '-') {
 							xsElseError(realpath(argv[argi], path));
@@ -412,7 +415,7 @@ int main(int argc, char* argv[])
 						argi++;
 					}
 					fxRunLoop(the);
-					xsStopProfiling();
+					//xsStopProfiling();
 				}
 				else {
 					xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
@@ -465,9 +468,9 @@ int main(int argc, char* argv[])
 					extension = strrchr(name, '.');
 					if (extension)
 						*extension = 0;
-					xsStartProfiling();
+					//xsStartProfiling();
 					fxRunModule(the, name);
-					xsStopProfiling();
+					//xsStopProfiling();
 				}
 			}
 			xsCatch {
@@ -476,14 +479,14 @@ int main(int argc, char* argv[])
 				error = 1;
 			}
 		}
-		//xsStopProfiling();
 	}
 	xsEndHost(the);
 	xsDeleteMachine(machine);
 	fxUnmapArchive(archive);
 	if (!error && process_then_parameters) {
 	#if mxWindows
-		if (_spawnvp(_P_WAIT, process_then_parameters[0], process_then_parameters) < 0)
+		error =_spawnvp(_P_WAIT, process_then_parameters[0], process_then_parameters);
+		if (error < 0)
 			fprintf(stderr, "### Cannot execute %s!\n", process_then_parameters[0]);
 	#else
 		execvp(process_then_parameters[0], process_then_parameters);

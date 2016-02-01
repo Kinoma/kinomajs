@@ -26,9 +26,11 @@ static void fxStringAccessorSetter(txMachine* the);
 static void fx_String(txMachine* the);
 static void fx_String_fromArrayBuffer(txMachine* the);
 static void fx_String_fromCharCode(txMachine* the);
+static void fx_String_fromCodePoint(txMachine* the);
 static void fx_String_raw(txMachine* the);
 static void fx_String_prototype_charAt(txMachine* the);
 static void fx_String_prototype_charCodeAt(txMachine* the);
+static void fx_String_prototype_codePointAt(txMachine* the);
 static void fx_String_prototype_compare(txMachine* the);
 static void fx_String_prototype_concat(txMachine* the);
 static void fx_String_prototype_endsWith(txMachine* the);
@@ -42,6 +44,7 @@ static void fx_String_prototype_replace(txMachine* the);
 static void fx_String_prototype_search(txMachine* the);
 static void fx_String_prototype_slice(txMachine* the);
 static void fx_String_prototype_split(txMachine* the);
+static txSlot* fx_String_prototype_split_aux(txMachine* the, txSlot* theString, txSlot* theArray, txSlot* theItem, txInteger theStart, txInteger theStop);
 static void fx_String_prototype_startsWith(txMachine* the);
 static void fx_String_prototype_substr(txMachine* the);
 static void fx_String_prototype_substring(txMachine* the);
@@ -62,7 +65,7 @@ void fxBuildString(txMachine* the)
 	static const txHostFunctionBuilder gx_String_prototype_builders[] = {
 		{ fx_String_prototype_charAt, 1, _charAt },
 		{ fx_String_prototype_charCodeAt, 1, _charCodeAt },
-		{ fx_String_prototype_charCodeAt, 1, _codePointAt },
+		{ fx_String_prototype_codePointAt, 1, _codePointAt },
 		{ fx_String_prototype_compare, 1, _compare },
 		{ fx_String_prototype_concat, 1, _concat },
 		{ fx_String_prototype_endsWith, 1, _endsWith },
@@ -77,7 +80,7 @@ void fxBuildString(txMachine* the)
 		{ fx_String_prototype_search, 1, _search },
 		{ fx_String_prototype_slice, 2, _slice },
 		{ fx_String_prototype_split, 2, _split },
-		{ fx_String_prototype_startsWith, 2, _startsWith },
+		{ fx_String_prototype_startsWith, 1, _startsWith },
 		{ fx_String_prototype_substr, 1, _substr },
 		{ fx_String_prototype_substring, 2, _substring },
 		{ fx_String_prototype_toLowerCase, 0, _toLocaleLowerCase },
@@ -94,7 +97,7 @@ void fxBuildString(txMachine* the)
 	static const txHostFunctionBuilder gx_String_builders[] = {
 		{ fx_String_fromArrayBuffer, 1, _fromArrayBuffer },
 		{ fx_String_fromCharCode, 1, _fromCharCode },
-		{ fx_String_fromCharCode, 1, _fromCodePoint },
+		{ fx_String_fromCodePoint, 1, _fromCodePoint },
 		{ fx_String_raw, 1, _raw },
 		{ C_NULL, 0, 0 },
 	};
@@ -112,6 +115,7 @@ void fxBuildString(txMachine* the)
 	fxNewHostFunction(the, fxStringAccessorGetter, 0, XS_NO_ID);
 	fxNewHostFunction(the, fxStringAccessorSetter, 1, XS_NO_ID);
 	mxPushUndefined();
+	the->stack->flag = XS_DONT_DELETE_FLAG;
 	the->stack->kind = XS_ACCESSOR_KIND;
 	the->stack->value.accessor.getter = (the->stack + 2)->value.reference;
 	the->stack->value.accessor.setter = (the->stack + 1)->value.reference;
@@ -121,14 +125,17 @@ void fxBuildString(txMachine* the)
 	mxPush(mxIteratorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostFunctionProperty(the, slot, fx_String_prototype_iterator_next, 0, mxID(_next), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "String Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "String Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxPull(mxStringIteratorPrototype);
 }
 
 txSlot* fxGetStringProperty(txMachine* the, txSlot* instance, txInteger index)
 {
-	instance->next->next->value.integer = index;
-	return &mxStringAccessor;
+	if (instance->next->next->next->value.integer > index) {
+		instance->next->next->value.integer = index;
+		return &mxStringAccessor;
+	}
+	return C_NULL;
 }
 
 txBoolean fxRemoveStringProperty(txMachine* the, txSlot* instance, txInteger index)
@@ -138,10 +145,11 @@ txBoolean fxRemoveStringProperty(txMachine* the, txSlot* instance, txInteger ind
 
 txSlot* fxSetStringProperty(txMachine* the, txSlot* instance, txInteger index)
 {
-	if (instance->flag & XS_DONT_PATCH_FLAG)
-		return C_NULL;
-	instance->next->next->value.integer = index;
-	return &mxStringAccessor;
+	if (instance->next->next->next->value.integer > index) {
+		instance->next->next->value.integer = index;
+		return &mxStringAccessor;
+	}
+	return C_NULL;
 }
 
 txSlot* fxNewStringInstance(txMachine* the)
@@ -149,8 +157,7 @@ txSlot* fxNewStringInstance(txMachine* the)
 	txSlot* instance;
 	txSlot* property;
 	instance = fxNewObjectInstance(the);
-	instance->flag |= XS_VALUE_FLAG;
-	property = fxNextSlotProperty(the, instance, &mxEmptyString, XS_NO_ID, XS_GET_ONLY);
+	property = fxNextSlotProperty(the, instance, &mxEmptyString, XS_NO_ID, XS_INTERNAL_FLAG | XS_GET_ONLY);
 	property = fxNextIntegerProperty(the, property, 0, XS_NO_ID, XS_GET_ONLY);
 	property = fxNextIntegerProperty(the, property, 0, mxID(_length), XS_GET_ONLY);
 	return instance;
@@ -199,6 +206,7 @@ void fx_String(txMachine* the)
 	}
 	instance = mxThis->value.reference;
 	instance->next->value.string = slot->value.string;
+	instance->next->next->next->kind = XS_INTEGER_KIND;	
 	instance->next->next->next->value.integer = fxUnicodeLength(slot->value.string);	
 }
 
@@ -238,6 +246,13 @@ void fx_String_fromCharCode(txMachine* the)
 	aCount = mxArgc;
 	for (anIndex = 0; anIndex < aCount; anIndex++) {
 		c = fxToUnsigned(the, mxArgv(anIndex));
+		if ((0x0000D800 <= c) && (c <= 0x0000DBFF) && ((anIndex + 1) < aCount)) {
+			txU4 d = fxToUnsigned(the, mxArgv(anIndex + 1));
+			if ((0x0000DC00 <= d) && (d <= 0x0000DFFF)) {
+				c = 0x00010000 + ((c & 0x000003FF) << 10) + (d & 0x000003FF);
+				anIndex++;
+			}
+		}
 		if (c < 0x80)
 			aLength++;
 		else if (c < 0x800)
@@ -252,6 +267,13 @@ void fx_String_fromCharCode(txMachine* the)
 	p = (txU1*)mxResult->value.string;
 	for (anIndex = 0; anIndex < aCount; anIndex++) {
 		c = fxToUnsigned(the, mxArgv(anIndex));
+		if ((0x0000D800 <= c) && (c <= 0x0000DBFF) && ((anIndex + 1) < aCount)) {
+			txU4 d = fxToUnsigned(the, mxArgv(anIndex + 1));
+			if ((0x0000DC00 <= d) && (d <= 0x0000DFFF)) {
+				c = 0x00010000 + ((c & 0x000003FF) << 10) + (d & 0x000003FF);
+				anIndex++;
+			}
+		}
 		if (c < 0x80) {
 			*p++ = (txU1)c;
 		}
@@ -270,6 +292,60 @@ void fx_String_fromCharCode(txMachine* the)
 			*p++ = (txU1)(0x80 | ((c >> 6) & 0x3F));
 			*p++ = (txU1)(0x80 | (c  & 0x3F));
 		}
+	}	
+	*p = 0;
+}
+
+void fx_String_fromCodePoint(txMachine* the)
+{
+	txInteger length = 0;
+	txInteger count = mxArgc;
+	txInteger index = 0;
+	txU4 c; 
+	txU1* p;
+	while (index < count) {
+		txNumber number = fxToNumber(the, mxArgv(index));
+		txNumber check = c_trunc(number);
+		if (number != check)
+			mxRangeError("invalid code point %lf", number);
+		if ((number < 0) || (0x10FFFF < number))
+			mxRangeError("invalid code point %lf", number);
+		c = (txU4)number;
+		if (c < 0x80)
+			length++;
+		else if (c < 0x800)
+			length += 2;
+		else if (c < 0x10000)
+			length += 3;
+		else
+			length += 4;
+		index++;
+	}
+	mxResult->value.string = (txString)fxNewChunk(the, length + 1);
+	mxResult->kind = XS_STRING_KIND;
+	p = (txU1*)mxResult->value.string;
+	index = 0;
+	while (index < count) {
+		c = fxToUnsigned(the, mxArgv(index));
+		if (c < 0x80) {
+			*p++ = (txU1)c;
+		}
+		else if (c < 0x800) {
+			*p++ = (txU1)(0xC0 | (c >> 6));
+			*p++ = (txU1)(0x80 | (c & 0x3F));
+		}
+		else if (c < 0x10000) {
+			*p++ = (txU1)(0xE0 | (c >> 12));
+			*p++ = (txU1)(0x80 | ((c >> 6) & 0x3F));
+			*p++ = (txU1)(0x80 | (c & 0x3F));
+		}
+		else if (c < 0x200000) {
+			*p++ = (txU1)(0xF0 | (c >> 18));
+			*p++ = (txU1)(0x80 | ((c >> 12) & 0x3F));
+			*p++ = (txU1)(0x80 | ((c >> 6) & 0x3F));
+			*p++ = (txU1)(0x80 | (c  & 0x3F));
+		}
+		index++;
 	}	
 	*p = 0;
 }
@@ -402,6 +478,24 @@ void fx_String_prototype_charCodeAt(txMachine* the)
 		mxResult->kind = XS_NUMBER_KIND;
 	}
 }
+
+void fx_String_prototype_codePointAt(txMachine* the)
+{
+	txString string = fxCoerceToString(the, mxThis);
+	txInteger length = fxUnicodeLength(string);
+	txNumber at = (mxArgc > 0) ? fxToNumber(the, mxArgv(0)) : 0;
+	if (c_isnan(at))
+		at = 0;
+	if ((0 <= at) && (at < (txNumber)length)) {
+		txInteger offset = fxUnicodeToUTF8Offset(string, (txInteger)at);
+		length = fxUnicodeToUTF8Offset(string + offset, 1);
+		if ((offset >= 0) && (length > 0)) {
+			mxResult->value.integer = fxUnicodeCharacter(string + offset);
+			mxResult->kind = XS_INTEGER_KIND;
+		}
+	}
+}
+
 
 void fx_String_prototype_compare(txMachine* the)
 {
@@ -752,10 +846,16 @@ void fx_String_prototype_normalize(txMachine* the)
 void fx_String_prototype_repeat(txMachine* the)
 {
 	txString string = fxCoerceToString(the, mxThis), result;
-	txInteger length = c_strlen(string);
-	txInteger count = fxArgToInteger(the, 0, 0);
-	if (count < 0)
+	txInteger length = c_strlen(string), count;
+	txNumber COUNT = (mxArgc > 0) ? c_trunc(fxToNumber(the, mxArgv(0))) : 0;
+    if (COUNT < 0)
 		mxRangeError("count < 0");
+	else if (COUNT == C_INFINITY)
+		mxRangeError("count == Infinity");
+    else if (c_isnan(COUNT))
+        count = 0;
+    else
+        count = (txInteger)COUNT;
 	result = mxResult->value.string = (txString)fxNewChunk(the, (length * count) + 1);
 	mxResult->kind = XS_STRING_KIND;
 	if (length) {
@@ -888,61 +988,30 @@ void fx_String_prototype_search(txMachine* the)
 
 void fx_String_prototype_slice(txMachine* the)
 {
-	txString aString;
-	txInteger aLength;
-	txInteger aStart;
-	txInteger aStop;
-	txInteger anOffset;
-
-	aString = fxCoerceToString(the, mxThis);
-	aLength = fxUnicodeLength(aString);
-	aStart = 0;
-	aStop = aLength;
-	if ((mxArgc > 0) && (mxArgv(0)->kind != XS_UNDEFINED_KIND)) {
-		aStart = fxToInteger(the, mxArgv(0));
-		if (aStart < 0) {
-			aStart = aLength + aStart;
-			if (aStart < 0)
-				aStart = 0;
-		}
-		else if (aStart > aLength)
-			aStart = aLength;
-	}
-	if ((mxArgc > 1) && (mxArgv(1)->kind != XS_UNDEFINED_KIND)) {
-		aStop = fxToInteger(the, mxArgv(1));
-		if (aStop < 0) {
-			aStop = aLength + aStop;
-			if (aStop < 0)
-				aStop = 0;
-		}
-		else if (aStop > aLength)
-			aStop = aLength;
-	}
-	if (aStart < aStop) {
-		anOffset = fxUnicodeToUTF8Offset(aString, aStart);
-		aLength = fxUnicodeToUTF8Offset(aString + anOffset, aStop - aStart);
-		if ((anOffset >= 0) && (aLength > 0)) {
-			mxResult->value.string = (txString)fxNewChunk(the, aLength + 1);
-			c_memcpy(mxResult->value.string, mxThis->value.string + anOffset, aLength);
-			mxResult->value.string[aLength] = 0;
+	txString string = fxCoerceToString(the, mxThis);
+	txInteger length = fxUnicodeLength(string);
+	txNumber start = fxArgToIndex(the, 0, 0, length);
+	txNumber end = fxArgToIndex(the, 1, length, length);
+	if (start < end) {
+		txInteger offset = fxUnicodeToUTF8Offset(string, (txInteger)start);
+		length = fxUnicodeToUTF8Offset(string + offset, (txInteger)(end - start));
+		if ((offset >= 0) && (length > 0)) {
+			mxResult->value.string = (txString)fxNewChunk(the, length + 1);
+			c_memcpy(mxResult->value.string, mxThis->value.string + offset, length);
+			mxResult->value.string[length] = 0;
 			mxResult->kind = XS_STRING_KIND;
-		}
-		else {
-			mxResult->value.string = mxEmptyString.value.string;
-			mxResult->kind = mxEmptyString.kind;
+			return;
 		}
 	}
-	else {
-		mxResult->value.string = mxEmptyString.value.string;
-		mxResult->kind = mxEmptyString.kind;
-	}
+	mxResult->value.string = mxEmptyString.value.string;
+	mxResult->kind = mxEmptyString.kind;
 }
 
 void fx_String_prototype_split(txMachine* the)
 {
 	txString aString;
 	txInteger aLength;
-	txInteger aLimit;
+	txIndex aLimit;
 	txSlot* anArray;
 	txSlot* anItem;
 	txInteger anOffset;
@@ -953,7 +1022,6 @@ void fx_String_prototype_split(txMachine* the)
 
 	aString = fxCoerceToString(the, mxThis);
 	aLength = c_strlen(aString);
-	aLimit = fxArgToArrayLimit(the, 1);
 	if (mxArgc > 0) {
 		txSlot* regexp = mxArgv(0);
 		if (mxIsReference(regexp)) {
@@ -962,8 +1030,12 @@ void fx_String_prototype_split(txMachine* the)
 			if (the->stack->kind != XS_UNDEFINED_KIND) {
 				txSlot* function = the->stack;
 				mxPushSlot(mxThis);
-				mxPushInteger(aLimit);
-				mxPushInteger(2);
+				if (mxArgc > 1) {
+					mxPushSlot(mxArgv(1));
+					mxPushInteger(2);
+				}
+				else
+					mxPushInteger(1);
 				mxPushSlot(regexp);
 				mxPushSlot(function);
 				fxCall(the);
@@ -974,13 +1046,14 @@ void fx_String_prototype_split(txMachine* the)
 			the->stack++;
 		}
 	}	
+	aLimit = ((mxArgc > 1) && (!mxIsUndefined(mxArgv(1)))) ? (txIndex)fxToLength(the, mxArgv(1)) : 0xFFFFFFFF;
 	mxPush(mxArrayPrototype);
 	anArray = fxNewArrayInstance(the);
 	mxPullSlot(mxResult);
 	fxGetInstance(the, mxResult);
 	if (!aLimit)
 		goto bail;
-	anItem = anArray->next;
+	anItem = fxLastProperty(the, anArray);
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND)) {
 		fx_String_prototype_split_aux(the, mxThis, anArray, anItem, 0, aLength);
 		goto bail;
@@ -1064,7 +1137,7 @@ void fx_String_prototype_substr(txMachine* the)
 	txString string = fxCoerceToString(the, mxThis);
 	txInteger length = c_strlen(string);
 	txInteger size = fxUnicodeLength(string);
-	txInteger start = fxArgToIndex(the, 0, 0, size);
+	txInteger start = (txInteger)fxArgToIndex(the, 0, 0, size);
 	txInteger stop = (mxArgc > 1) ? start + fxToInteger(the, mxArgv(1)) : size;
 	if (start < stop) {
 		start = fxUnicodeToUTF8Offset(string, start);
@@ -1296,57 +1369,21 @@ void fx_String_prototype_toUpperCase(txMachine* the)
 
 void fx_String_prototype_trim(txMachine* the)
 {
-	txBoolean aFlag = 1;
-	txInteger aStart = 0;
-	txInteger aStop = 0;
-	txInteger aLength = 0;
-	txU1* aString;
-	txU4 aResult;
-	const txUTF8Sequence *aSequence;
-	txInteger aSize;
-
-	aString = (txU1*)fxCoerceToString(the, mxThis);
-	while ((aResult = *aString++)) {
-		for (aSequence = gxUTF8Sequences; aSequence->size; aSequence++) {
-			if ((aResult & aSequence->cmask) == aSequence->cval)
-				break;
-		}
-		aSize = aSequence->size - 1;
-		while (aSize > 0) {
-			aSize--;
-			aResult = (aResult << 6) | (*aString++ & 0x3F);
-		}
-		aResult &= aSequence->lmask;
-		aLength += aSequence->size;
-		if ((aResult == 0x00000009)
-		 || (aResult == 0x0000000A)
-		 || (aResult == 0x0000000B)
-		 || (aResult == 0x0000000C)
-		 || (aResult == 0x0000000D)
-		 || (aResult == 0x00000020)
-		 || (aResult == 0x000000A0)
-		 || (aResult == 0x00002028)
-		 || (aResult == 0x00002029)
-		 || (aResult == 0x0000FEFF))
-			aStop += aSequence->size;
-		else {
-			if (aFlag) {
-				aFlag = 0;
-				aStart = aStop;
-			}
-			aStop = 0;
-		}
+	txString string = fxCoerceToString(the, mxThis);
+	txString start = fxSkipSpaces(string);
+	txString current = start;
+	txString stop = current;
+	txInteger offset, length;
+	while (*current) {
+		stop = current + 1;
+		current = fxSkipSpaces(stop);
 	}
-//	if ((0 == aStart) && (0 == aStop))
-//		*mxResult = *mxThis;
-//	else
-	{
-		aLength -= aStart + aStop;
-		mxResult->value.string = (txString)fxNewChunk(the, aLength + 1);
-		c_memcpy(mxResult->value.string, mxThis->value.string + aStart, aLength);
-		mxResult->value.string[aLength] = 0;
-		mxResult->kind = XS_STRING_KIND;
-	}
+	offset = start - string;
+	length = stop - start;
+	mxResult->value.string = (txString)fxNewChunk(the, length + 1);
+	c_memcpy(mxResult->value.string, mxThis->value.string + offset, length);
+	mxResult->value.string[length] = 0;
+	mxResult->kind = XS_STRING_KIND;
 }
 
 void fx_String_prototype_valueOf(txMachine* the)
@@ -1363,12 +1400,9 @@ txSlot* fxCheckString(txMachine* the, txSlot* it)
 	if ((it->kind == XS_STRING_KIND) || (it->kind == XS_STRING_X_KIND))
 		result = it;
 	else if (it->kind == XS_REFERENCE_KIND) {
-		it = it->value.reference;
-		if (it->flag & XS_VALUE_FLAG) {
-			it = it->next;
-			if ((it->kind == XS_STRING_KIND) || (it->kind == XS_STRING_X_KIND))
-				result = it;
-		}
+		it = it->value.reference->next;
+		if (it && (it->flag & XS_INTERNAL_FLAG) && ((it->kind == XS_STRING_KIND) || (it->kind == XS_STRING_X_KIND)))
+			result = it;
 	}
 	return result;
 }
@@ -1418,15 +1452,18 @@ void fx_String_prototype_iterator_next(txMachine* the)
 	mxResult->value = result->value;
 }
 
-txInteger fxArgToPosition(txMachine* the, txInteger i, txInteger index, txInteger length)
+txInteger fxArgToPosition(txMachine* the, txInteger argi, txInteger index, txInteger length)
 {
-	if ((mxArgc > i) && (mxArgv(i)->kind != XS_UNDEFINED_KIND)) {
-		index = fxToInteger(the, mxArgv(i));
-		if (index < 0) {
+	if ((mxArgc > argi) && (mxArgv(argi)->kind != XS_UNDEFINED_KIND)) {
+		txNumber i = c_trunc(fxToNumber(the, mxArgv(argi)));
+		if (c_isnan(i))
+			i = 0;
+		if (i < 0)
 			index = 0;
-		}
-		else if (index > length)
+		else if (i > (txNumber)length)
 			index = length;
+		else
+			index = (txInteger)i;
 	}
 	return index;
 }
@@ -1437,7 +1474,7 @@ void fxPushSubstitutionString(txMachine* the, txSlot* string, txInteger size, tx
 	txInteger l;
 	txBoolean flag;
 	txByte c, d;
-	txInteger i;
+	txInteger i, j;
 	txSlot* capture;
 	txString s;
 	r = replace->value.string;
@@ -1468,9 +1505,16 @@ void fxPushSubstitutionString(txMachine* the, txSlot* string, txInteger size, tx
 					i = c - '0';
 					d = *r;
 					if (('0' <= d) && (d <= '9')) {
-						i = (i * 10) + d - '0';
-						r++;
+						j = (i * 10) + d - '0';
+						if ((0 < j) && (j <= count)) {
+							i = j;
+							r++;
+						}
+						else
+							d = 0;
 					}
+					else
+						d = 0;
 					if ((0 < i) && (i <= count)) {
 						capture = (captures + count - i);
 						if (capture->kind != XS_UNDEFINED_KIND)
@@ -1530,8 +1574,13 @@ void fxPushSubstitutionString(txMachine* the, txSlot* string, txInteger size, tx
 						i = c - '0';
 						d = *r;
 						if (('0' <= d) && (d <= '9')) {
-							i = (i * 10) + d - '0';
-							r++;
+							j = (i * 10) + d - '0';
+							if ((0 < j) && (j <= count)) {
+								i = j;
+								r++;
+							}
+							else
+								d = 0;
 						}
 						else
 							d = 0;

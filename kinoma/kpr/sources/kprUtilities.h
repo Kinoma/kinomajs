@@ -22,6 +22,7 @@
 #include "kpr.h"
 #include "FskNetUtils.h"
 #include "FskHeaders.h"
+#include "kprHTTPServer.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -172,30 +173,30 @@ FskAPI(Boolean) KprRetainableRelease(KprRetainable self);
 #define KprRetain(x) (KprRetainableRetain((x)->retainable), x)
 
 /** --------------------------------------------------
- * KprMemoryChunk
+ * KprMemoryBlock
  * --------------------------------------------------- */
 
-typedef struct KprMemoryChunkRecord KprMemoryChunkRecord, *KprMemoryChunk;
+typedef struct KprMemoryBlockRecord KprMemoryBlockRecord, *KprMemoryBlock;
 
-struct KprMemoryChunkRecord {
-	KprMemoryChunk next;
+struct KprMemoryBlockRecord {
+	KprMemoryBlock next;
 	UInt32 size;
 	KprRetainable retainable;
 };
 
-FskAPI(FskErr) KprMemoryChunkNew(UInt32 size, const void *data, KprMemoryChunk *it);
-FskAPI(FskErr) KprMemoryChunkDispose(KprMemoryChunk self);
-FskAPI(FskErr) KprMemoryChunkDisposeAt(KprMemoryChunk *it);
+FskAPI(FskErr) KprMemoryBlockNew(UInt32 size, const void *data, KprMemoryBlock *it);
+FskAPI(FskErr) KprMemoryBlockDispose(KprMemoryBlock self);
+FskAPI(FskErr) KprMemoryBlockDisposeAt(KprMemoryBlock *it);
 
-FskAPI(KprMemoryChunk) KprMemoryChunkRetain(KprMemoryChunk self);
+FskAPI(KprMemoryBlock) KprMemoryBlockRetain(KprMemoryBlock self);
 
-FskAPI(void) *KprMemoryChunkStart(KprMemoryChunk self);
-FskAPI(void) *KprMemoryChunkEnd(KprMemoryChunk self);
+FskAPI(void) *KprMemoryBlockStart(KprMemoryBlock self);
+FskAPI(void) *KprMemoryBlockEnd(KprMemoryBlock self);
 
-FskAPI(void *) KprMemoryChunkCopyTo(KprMemoryChunk self, void *dest);
-FskAPI(FskErr) KprMemoryChunkToScript(KprMemoryChunk self, xsMachine *the, xsSlot *ref);
+FskAPI(void *) KprMemoryBlockCopyTo(KprMemoryBlock self, void *dest);
+FskAPI(FskErr) KprMemoryBlockToChunk(KprMemoryBlock self, xsMachine *the, xsSlot *ref);
 
-FskAPI(Boolean) KprMemoryChunkIsSame(KprMemoryChunk a, KprMemoryChunk b);
+FskAPI(Boolean) KprMemoryBlockIsSame(KprMemoryBlock a, KprMemoryBlock b);
 
 /** --------------------------------------------------
  * KprSocketUtilities
@@ -267,7 +268,7 @@ FskAPI(FskErr) KprSocketReaderReadDataFrom(KprSocketReader self, void *buffer, U
 /** --------------------------------------------------
  * KprSocketWriter
  *
- * This class is for asynchronous socket sender with 
+ * This class is for asynchronous socket sender with
  * automatic socket saturation support, which means
  * if connection is sending too much data and socket
  * can not send such amount of data right now, it will
@@ -304,12 +305,12 @@ FskAPI(FskErr) KprSocketWriterDispose(KprSocketWriter writer);
 FskAPI(void) KprSocketWriterSetDestination(KprSocketWriter writer, UInt32 ip, UInt16 port); // For UDP
 
 FskAPI(void) KprSocketWriterSendBytes(KprSocketWriter writer, void *bytes, UInt32 size);
-FskAPI(void) KprSocketWriterSendChunk(KprSocketWriter writer, KprMemoryChunk chunk);
+FskAPI(void) KprSocketWriterSendChunk(KprSocketWriter writer, KprMemoryBlock chunk);
 
 /** --------------------------------------------------
  * KprSocketServer
  *
- * This class open the listing socket for each network 
+ * This class open the listing socket for each network
  * interface. Managing up/down of interfaces.
  *
  * @author Basuke Suzuki
@@ -319,18 +320,29 @@ FskAPI(void) KprSocketWriterSendChunk(KprSocketWriter writer, KprMemoryChunk chu
 typedef struct KprSocketServerRecord KprSocketServerRecord, *KprSocketServer;
 typedef struct KprPortListenerRecord KprPortListenerRecord, *KprPortListener;
 
-typedef FskErr (*KprSocketServerAcceptCallback)(KprSocketServer server, FskSocket skt, const char *interfaceName, void *refcon);
+typedef FskErr (*KprSocketServerAcceptCallback)(KprSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon);
+typedef void (*KprSocketServerInterfaceDroppedCallback)(KprSocketServer server, const char *interfaceName, int ip, void *refcon);
 
 struct KprSocketServerRecord {
 	KprPortListener listeners;
-//		FskNetInterfaceNotifier notifier;
+	KprNetworkInterfaceNotifier notifier;
 	UInt16 port;
 	Boolean all;
 	void *refcon;
 	char /* @weak */ *debugName;
 
 	KprSocketServerAcceptCallback acceptCallback;
+	KprSocketServerInterfaceDroppedCallback interfaceDroppedCallback;
 	KprSocketErrorCallback errorCallback;
+};
+
+struct KprPortListenerRecord {
+	KprPortListener next;
+	KprSocketServer /* @weak */ server;
+	FskSocket socket;
+	char *interfaceName;
+	int ip;
+	FskThreadDataHandler dataHandler;
 };
 
 FskAPI(FskErr) KprSocketServerNew(KprSocketServer *server, void *refcon);

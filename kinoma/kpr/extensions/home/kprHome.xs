@@ -235,6 +235,7 @@
             <function name="removeUser" params="user, complete" c="KPR_Home_home_removeUser"/>
 
             <function name="get rooms" c="KPR_Home_home_get_rooms" enum="false"/>
+            <function name="get roomForEntireHome" c="KPR_Home_home_get_room_for_entire_home" enum="false"/>
             <function name="addRoom" params="name, complete" c="KPR_Home_home_addRoom"/>
             <function name="removeRoom" params="room, complete" c="KPR_Home_home_removeRoom"/>
 

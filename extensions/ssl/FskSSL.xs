@@ -23,8 +23,8 @@
 		<number name="maxFragmentSize" value="16384"/>	<!-- maximum record layer framgment size (not a packet size): 2^14 -->
 
 		<object name="protocolVersion">
-			<number name="major" value="3"/>	<!-- highest version -->
-			<number name="minor" value="1"/>	<!-- the code is supporting 3.2 but it seems like no major service is compatible with 3.2 or higher so we take the safe side -->
+			<number name="major" value="3"/>
+			<number name="minor" value="1"/>
 
 			<function name="serialize" params="s">
 				s.writeChar(this.major);

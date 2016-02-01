@@ -572,6 +572,7 @@
 			<string name="color" pattern="@color"/>
 			<reference name="states" contents="kprGrammar.states" pattern="."/>
 			<string name="align" pattern="@align"/>
+			<number name="extra" patttern="@extra"/>
 			<string name="horizontal" value="null"/>
 			<number name="indentation" pattern="@indentation"/>
 			<number name="leading" pattern="@leading"/>
@@ -641,6 +642,8 @@
 					out.cat("bottom: ", this.margins.bottom, ", ");
 				if (this.lines)
 					out.cat("lines: ", this.lines, ", ");
+				if (this.extra)
+					out.cat("extra: ", this.extra, ", ");
 				out.cat("})");
 			</function>
 		</object>

@@ -21,7 +21,7 @@ static txBoolean fxGetNextIdentiferX(txParser* parser, txU4* value);
 static void fxGetNextNumber(txParser* parser, txNumber theNumber);
 static void fxGetNextNumberB(txParser* parser);
 static void fxGetNextNumberE(txParser* parser, int parseDot);
-static void fxGetNextNumberO(txParser* parser, int c);
+static void fxGetNextNumberO(txParser* parser, int c, int i);
 static void fxGetNextNumberX(txParser* parser);
 static void fxGetNextString(txParser* parser, int c);
 static txBoolean fxGetNextStringX(txParser* parser, int c, txU4* value);
@@ -68,7 +68,7 @@ static const txKeyword gxKeywords[XS_KEYWORD_COUNT] = {
 	{ "with", XS_TOKEN_WITH }
 };
 
-#define XS_STRICT_KEYWORD_COUNT 8
+#define XS_STRICT_KEYWORD_COUNT 9
 static const txKeyword gxStrictKeywords[XS_STRICT_KEYWORD_COUNT] = {
 	{ "implements", XS_TOKEN_IMPLEMENTS },
 	{ "interface", XS_TOKEN_INTERFACE },
@@ -77,7 +77,8 @@ static const txKeyword gxStrictKeywords[XS_STRICT_KEYWORD_COUNT] = {
 	{ "private", XS_TOKEN_PRIVATE },
 	{ "protected", XS_TOKEN_PROTECTED },
 	{ "public", XS_TOKEN_PUBLIC },
-	{ "static", XS_TOKEN_STATIC }
+	{ "static", XS_TOKEN_STATIC },
+	{ "yield", XS_TOKEN_YIELD }
 };
 
 void fxGetNextCharacter(txParser* parser)
@@ -94,7 +95,7 @@ void fxGetNextCharacter(txParser* parser)
 				break;
 		}
 		if (aSequence->size == 0) {
-			fxReportParserWarning(parser, "invalid UTF-8 character %d", aResult);
+			fxReportParserError(parser, "invalid character %d", aResult);
 			aResult = (txU4)C_EOF;
 		}
 		else {
@@ -137,12 +138,9 @@ void fxGetNextKeyword(txParser* parser)
 			}
 		}
 		if (c_strcmp("yield", parser->buffer) == 0) {
-			if ((parser->flags & mxGeneratorFlag) ){
+			if ((parser->flags & mxGeneratorFlag)){
 				parser->token2 = XS_TOKEN_YIELD;
 				return;
-			}
-			if ((parser->flags & mxStrictFlag)) {
-				fxReportParserError(parser, "invalid yield (strict mode)");
 			}
 		}	
 	}	
@@ -197,7 +195,7 @@ void fxGetNextNumber(txParser* parser, txNumber theNumber)
 void fxGetNextNumberB(txParser* parser)
 {
 	txNumber aNumber = 0;
-	int c;
+	int c, i = 0;
 	for (;;) {
 		fxGetNextCharacter(parser);
 		c = parser->character;
@@ -205,7 +203,10 @@ void fxGetNextNumberB(txParser* parser)
 			aNumber = (aNumber * 2) + (c - '0');
 		else
 			break;
+		i++;
 	}
+	if (i == 0)
+		fxReportParserError(parser, "invalid number");			
 	fxGetNextNumber(parser, aNumber);
 }
 
@@ -251,7 +252,7 @@ void fxGetNextNumberE(txParser* parser, int parseDot)
 	fxGetNextNumber(parser, fxStringToNumber(parser->dtoa, parser->buffer, 1));
 }
 
-void fxGetNextNumberO(txParser* parser, int c)
+void fxGetNextNumberO(txParser* parser, int c, int i)
 {
 	txNumber aNumber = c - '0';
 	for (;;) {
@@ -261,14 +262,17 @@ void fxGetNextNumberO(txParser* parser, int c)
 			aNumber = (aNumber * 8) + (c - '0');
 		else
 			break;
+		i++;
 	}
+	if (i == 0)
+		fxReportParserError(parser, "invalid number");			
 	fxGetNextNumber(parser, aNumber);
 }
 
 void fxGetNextNumberX(txParser* parser)
 {
 	txNumber aNumber = 0;
-	int c;
+	int c, i = 0;
 	for (;;) {
 		fxGetNextCharacter(parser);
 		c = parser->character;
@@ -280,7 +284,10 @@ void fxGetNextNumberX(txParser* parser)
 			aNumber = (aNumber * 16) + (10 + c - 'A');
 		else
 			break;
+		i++;
 	}
+	if (i == 0)
+		fxReportParserError(parser, "invalid number");			
 	fxGetNextNumber(parser, aNumber);
 }
 
@@ -290,16 +297,18 @@ void fxGetNextString(txParser* parser, int c)
 	txString q = p + parser->bufferSize - 1;
 	txString r, s;
 	char character;
-	txU4 t;
+	txU4 t, v;
+	txU1* u;
+	int i;
 	for (;;) {
 		if (parser->character == (txU4)C_EOF) {
 			fxReportParserError(parser, "end of file in string");			
 			break;
 		}
-		else if (parser->character == 10) {
+		else if ((parser->character == 10) || (parser->character == 0x2028) || (parser->character == 0x2029)) {
 			parser->line2++;
 			if (c == '`') {
-				p = (txString)fsX2UTF8(10, (txU1*)p, q - p);
+				p = (txString)fsX2UTF8(parser->character, (txU1*)p, q - p);
 				fxGetNextCharacter(parser);
 			}
 			else {
@@ -359,7 +368,7 @@ void fxGetNextString(txParser* parser, int c)
 	}	
 	*p = 0;
 	if (p == q)
-		fxReportParserWarning(parser, "string overflow");	
+		fxReportParserError(parser, "string overflow");	
 	parser->rawLength2 = p - parser->buffer;
 	parser->raw2 = fxNewParserString(parser, parser->buffer, parser->rawLength2);
 	if (parser->escaped2) {
@@ -372,8 +381,6 @@ void fxGetNextString(txParser* parser, int c)
 				character = *s++;
 				switch (character) {
 				case 10:
-					if (c == '`')
-						*p++ = 10;
 					character = *s++;
 					break;
 				case 'b':
@@ -414,6 +421,46 @@ void fxGetNextString(txParser* parser, int c)
 						}
 					}
 					else {
+						for (i = 0; i < 4; i++) {
+							if (fxGetNextStringX(parser, character, &t)) {
+								*p++ = character;
+								character = *s++;
+							}
+							else
+								break;
+						}
+						if (i == 4) {
+							if ((0x0000D800 <= t) && (t <= 0x0000DBFF) && (character == '\\') && (*s == 'u')) {
+								*p++ = character;
+								character = *s++;
+								*p++ = character;
+								character = *s++;
+								v = 0;
+								for (i = 0; i < 4; i++) {
+									if (fxGetNextStringX(parser, character, &v)) {
+										*p++ = character;
+										character = *s++;
+									}
+									else
+										break;
+								}
+								if (i == 4) {
+									if ((0x0000DC00 <= v) && (v <= 0x0000DFFF))
+										p = (txString)fsX2UTF8(0x00010000 + ((t & 0x03FF) << 10) + (v & 0x03FF), (txU1*)r, q - r);
+									else {
+										p = (txString)fsX2UTF8(t, (txU1*)r, q - r);
+										p = (txString)fsX2UTF8(v, (txU1*)p, q - p);
+									}
+								}
+								else
+									fxReportParserError(parser, "invalid escape sequence");			
+							}
+							else
+								p = (txString)fsX2UTF8(t, (txU1*)r, q - r);
+						}
+						else
+							fxReportParserError(parser, "invalid escape sequence");			
+						/*
 						if (fxGetNextStringX(parser, character, &t)) {
 							*p++ = character;
 							character = *s++;
@@ -429,7 +476,8 @@ void fxGetNextString(txParser* parser, int c)
 									}		
 								}		
 							}		
-						}		
+						}
+						*/	
 					}		
 					break;
 				case 'v':
@@ -441,6 +489,20 @@ void fxGetNextString(txParser* parser, int c)
 					t = 0;
 					*p++ = 'x';
 					character = *s++;
+					for (i = 0; i < 2; i++) {
+						if (fxGetNextStringX(parser, character, &t)) {
+							*p++ = character;
+							character = *s++;
+						}
+						else
+							break;
+					}
+					if (i == 2)
+						p = (txString)fsX2UTF8(t, (txU1*)r, q - r);
+					else
+						fxReportParserError(parser, "invalid escape sequence");			
+					/*
+					character = *s++;
 					if (fxGetNextStringX(parser, character, &t)) {
 						*p++ = character;
 						character = *s++;
@@ -448,7 +510,8 @@ void fxGetNextString(txParser* parser, int c)
 							p = (txString)fsX2UTF8(t, (txU1*)r, q - r);
 							character = *s++;
 						}		
-					}		
+					}
+					*/	
 					break;
 				case '0':
 				case '1':
@@ -466,13 +529,20 @@ void fxGetNextString(txParser* parser, int c)
 						*p++ = character;
 						character = *s++;
 					}
+					if (((t != 0) || ((p - r) > 1)) && ((parser->flags & mxStrictFlag) || (c == '`')))
+						fxReportParserError(parser, "invalid escape sequence (strict mode)");			
 					p = (txString)fsX2UTF8(t, (txU1*)r, q - r);
-					if ((parser->flags & mxStrictFlag))
-						fxReportParserError(parser, "octal escape sequence (strict mode)");			
 					break;
 				default:
-					*p++ = character;
-					character = *s++;
+					u = (unsigned char*)(s - 1);
+					if ((u[0] == 0xE2) && (u[1] == 0x80) && ((u[2] == 0xA8) || (u[2] == 0xA9))) { /* LS || PS */
+						s += 2;
+						character = *s++;
+					}
+					else {
+						*p++ = character;
+						character = *s++;
+					}
 					break;
 				}
 			}
@@ -564,6 +634,8 @@ void fxGetNextTokenAux(txParser* parser)
 			parser->token2 = XS_TOKEN_EOF;
 			break;
 		case 10:	
+		case 0x2028: // <LS>
+		case 0x2029: // <PS>	
 			parser->line2++;
 			fxGetNextCharacter(parser);
 			parser->crlf2 = 1;
@@ -613,7 +685,7 @@ void fxGetNextTokenAux(txParser* parser)
 				fxGetNextNumberE(parser, 0);
 			}
 			else if ((c == 'o') || (c == 'O')) {
-				fxGetNextNumberO(parser, '0');
+				fxGetNextNumberO(parser, '0', 0);
 			}
 			else if ((c == 'x') || (c == 'X')) {
 				fxGetNextNumberX(parser);
@@ -621,7 +693,7 @@ void fxGetNextTokenAux(txParser* parser)
 			else if (('0' <= c) && (c <= '7')) {
 				if ((parser->flags & mxStrictFlag))
 					fxReportParserError(parser, "octal number (strict mode)");			
-				fxGetNextNumberO(parser, c);
+				fxGetNextNumberO(parser, c, 1);
 			}
 			else {
 				parser->integer2 = 0;
@@ -852,8 +924,10 @@ void fxGetNextTokenAux(txParser* parser)
 			if (parser->character == '*') {
 				fxGetNextCharacter(parser);
 				for (;;) {
-					if (parser->character == (txU4)C_EOF)
+					if (parser->character == (txU4)C_EOF) {
+						fxReportParserError(parser, "end of file in comment");			
 						break;
+					}
 					else if (parser->character == 10) {
 						parser->line2++;
 						fxGetNextCharacter(parser);
@@ -879,7 +953,7 @@ void fxGetNextTokenAux(txParser* parser)
 				fxGetNextCharacter(parser);
 				p = parser->buffer;
 				q = p + parser->bufferSize - 1;
-				while ((parser->character != (txU4)C_EOF) && (parser->character != 10) && (parser->character != 13)) {
+				while ((parser->character != (txU4)C_EOF) && (parser->character != 10) && (parser->character != 13) && (parser->character != 0x2028) && (parser->character != 0x2029)) {
 					if (p < q)
 						*p++ = (char)parser->character;
 					fxGetNextCharacter(parser);
@@ -930,21 +1004,21 @@ void fxGetNextTokenAux(txParser* parser)
 			bail:
 				;
 			}
-			else if ((parser->crlf2) || (fxAcceptRegExp(parser))) {
+			else if (((parser->crlf2) || (fxAcceptRegExp(parser))) && ((parser->character != (txU4)C_EOF) && (parser->character != 10) && (parser->character != 13) && (parser->character != 0x2028) && (parser->character != 0x2029))) {
 				parser->token2 = XS_TOKEN_NULL;
 				p = parser->buffer;
 				q = p + parser->bufferSize - 1;
 				for (;;) {
 					if (p == q) {
-						fxReportParserWarning(parser, "regular expression overflow");			
+						fxReportParserError(parser, "regular expression overflow");			
 						break;
 					}
 					else if (parser->character == (txU4)C_EOF) {
-						fxReportParserWarning(parser, "end of file in regular expression");			
+						fxReportParserError(parser, "end of file in regular expression");			
 						break;
 					}
-					else if ((parser->character == 10) || (parser->character == 13)) {
-						fxReportParserWarning(parser, "end of line in regular expression");			
+					else if ((parser->character == 10) || (parser->character == 13) || (parser->character == 0x2028) || (parser->character == 0x2029)) {
+						fxReportParserError(parser, "end of line in regular expression");			
 						break;
 					}
 					else if (parser->character == '/') {
@@ -957,7 +1031,7 @@ void fxGetNextTokenAux(txParser* parser)
 						for (;;) {
 							fxGetNextCharacter(parser);
 							if (p == q) {
-								fxReportParserWarning(parser, "regular expression overflow");			
+								fxReportParserError(parser, "regular expression overflow");			
 								break;
 							}
 							else if (fxIsIdentifierNext((char)parser->character))
@@ -977,7 +1051,7 @@ void fxGetNextTokenAux(txParser* parser)
 						*p++ = (char)parser->character;
                         fxGetNextCharacter(parser);
                         if (p == q) {
-                            fxReportParserWarning(parser, "regular expression overflow");			
+                            fxReportParserError(parser, "regular expression overflow");			
                             break;
                         }
 					}
@@ -1033,13 +1107,13 @@ void fxGetNextTokenAux(txParser* parser)
 		default:
 			p = parser->buffer;
 			q = p + parser->bufferSize - 1;
-			if (fxIsIdentifierFirst((char)parser->character)) {
-				*p++ = (char)parser->character;
+			if (fxIsIdentifierFirst(parser->character)) {
+				p = (txString)fsX2UTF8(parser->character, (txU1*)p, q - p);				
 				fxGetNextCharacter(parser);
 			}
 			else if (parser->character == '\\') {
 				t = 0;
-				if (fxGetNextIdentiferX(parser, &t))
+				if (fxGetNextIdentiferX(parser, &t) && fxIsIdentifierFirst(t))
 					p = (txString)fsX2UTF8(t, (txU1*)p, q - p);				
 				else
 					p = C_NULL;
@@ -1049,16 +1123,16 @@ void fxGetNextTokenAux(txParser* parser)
 			if (p) {
 				for (;;) {
 					if (p == q) {
-						fxReportParserWarning(parser, "identifier overflow");			
+						fxReportParserError(parser, "identifier overflow");			
 						break;
 					}
-					if (fxIsIdentifierNext((char)parser->character)) {
-						*p++ = (char)parser->character;
+					if (fxIsIdentifierNext(parser->character)) {
+						p = (txString)fsX2UTF8(parser->character, (txU1*)p, q - p);				
 						fxGetNextCharacter(parser);
 					}
 					else if (parser->character == '\\') {
 						t = 0;
-						if (fxGetNextIdentiferX(parser, &t))
+						if (fxGetNextIdentiferX(parser, &t) && fxIsIdentifierNext(t))
 							p = (txString)fsX2UTF8(t, (txU1*)p, q - p);				
 						else {
 							p = C_NULL;
@@ -1073,7 +1147,7 @@ void fxGetNextTokenAux(txParser* parser)
 				}
 			}
 			if (!p) {
-				fxReportParserWarning(parser, "invalid character %d", parser->character);
+				fxReportParserError(parser, "invalid character %d", parser->character);
 				fxGetNextCharacter(parser);
 			}
 			break;
@@ -1194,7 +1268,7 @@ void fxGetNextTokenJSON(txParser* parser)
 				fxGetNextNumberE(parser, 0);
 			}
 			else if ((c == 'o') || (c == 'O')) {
-				fxGetNextNumberO(parser, '0');
+				fxGetNextNumberO(parser, '0', 0);
 			}
 			else if ((c == 'x') || (c == 'X')) {
 				fxGetNextNumberX(parser);
@@ -1273,7 +1347,7 @@ void fxGetNextTokenJSON(txParser* parser)
 				}
 			}
 			else {
-				fxReportParserWarning(parser, "invalid character %d", parser->character);
+				fxReportParserError(parser, "invalid character %d", parser->character);
 				fxGetNextCharacter(parser);
 			}
 			break;

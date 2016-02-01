@@ -232,11 +232,11 @@ FskErr FskTextDefaultFontSet(FskTextEngine fte, const char *defaultFace)
 	return (fte->dispatch->doSetDefaultFont)(fte->state, defaultFace);
 }
 
-FskErr FskTextBox(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache)
+FskErr FskTextBox(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle dstRect, FskConstRectangleFloat dstRectFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed textExtra, const char *fontName, FskTextFormatCache cache)
 {
 	#if FSKBITMAP_OPENGL
 		if (FskBitmapIsOpenGLDestinationAccelerated(bits))
-			return FskGLTextBox(fte, bits, text, textLen, dstRect, dstRectFloat, clipRect, color, blendLevel, textSize, textStyle, hAlign, vAlign, fontName, cache);
+			return FskGLTextBox(fte, bits, text, textLen, dstRect, dstRectFloat, clipRect, color, blendLevel, textSize, textStyle, hAlign, vAlign, textExtra, fontName, cache);
 	#endif /* FSKBITMAP_OPENGL */
 
 	#if SUPPORT_INSTRUMENTATION
@@ -247,25 +247,25 @@ FskErr FskTextBox(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 te
 		return kFskErrUnimplemented;
     
     FIX_TEXT_SIZE(fte, textSize);
-	return (fte->dispatch->doBox)(fte->state, bits, text, textLen, dstRect, dstRectFloat, clipRect, color, blendLevel, textSize, textStyle, hAlign, vAlign, fontName, cache);
+	return (fte->dispatch->doBox)(fte->state, bits, text, textLen, dstRect, dstRectFloat, clipRect, color, blendLevel, textSize, textStyle, hAlign, vAlign, textExtra, fontName, cache);
 }
 
-FskErr FskTextGetBounds(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache)
+FskErr FskTextGetBounds(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskDimensionFloat dimensions, FskTextFormatCache cache)
 {
 	if (NULL == fte->dispatch->doGetBounds)
 		return kFskErrUnimplemented;
     FIX_TEXT_SIZE(fte, textSize);
-	return (fte->dispatch->doGetBounds)(fte->state, bits, text, textLen, textSize, textStyle, fontName, bounds, dimensions, cache);
+	return (fte->dispatch->doGetBounds)(fte->state, bits, text, textLen, textSize, textStyle, textExtra, fontName, bounds, dimensions, cache);
 }
 
-FskErr FskTextGetLayout(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+FskErr FskTextGetLayout(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName,
 						UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache)
 {
 	if (NULL == fte->dispatch->doGetLayout)
 		return kFskErrUnimplemented;
 
     FIX_TEXT_SIZE(fte, textSize);
-	return (fte->dispatch->doGetLayout)(fte->state, bits, text, textLen, textSize, textStyle, fontName, unicodeText, unicodeLen, layout, cache);
+	return (fte->dispatch->doGetLayout)(fte->state, bits, text, textLen, textSize, textStyle, textExtra, fontName, unicodeText, unicodeLen, layout, cache);
 }
 
 FskErr FskTextGetFontList(FskTextEngine fte, char **fontNames)
@@ -275,13 +275,13 @@ FskErr FskTextGetFontList(FskTextEngine fte, char **fontNames)
 	return (fte->dispatch->doGetFontList)(fte->state, fontNames);
 }
 
-FskErr FskTextFitWidth(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache)
+FskErr FskTextFitWidth(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache)
 {
 	if (NULL == fte->dispatch->doFitWidth)
 		return kFskErrUnimplemented;
 
     FIX_TEXT_SIZE(fte, textSize);
-	return (fte->dispatch->doFitWidth)(fte->state, bits, text, textLen, textSize, textStyle, fontName, width, flags, fitBytesOut, fitCharsOut, cache);
+	return (fte->dispatch->doFitWidth)(fte->state, bits, text, textLen, textSize, textStyle, textExtra, fontName, width, flags, fitBytesOut, fitCharsOut, cache);
 }
 
 FskErr FskTextFormatCacheNew(FskTextEngine fte, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName)

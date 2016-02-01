@@ -33,9 +33,9 @@ enum {
 typedef struct KprMQTTClientRecord KprMQTTClientRecord, *KprMQTTClient;
 typedef struct KprMQTTClientConnectOptions KprMQTTClientConnectOptions;
 
-typedef void (*KprMQTTClientConnectCallback)(KprMQTTClient self, UInt8 returnCode, void *refcon);
-typedef void (*KprMQTTClientSubscribeCallback)(KprMQTTClient self, char *topic, UInt8 qos, void *refcon);
-typedef void (*KprMQTTClientUnsubscribeCallback)(KprMQTTClient self, char *topic, void *refcon);
+typedef void (*KprMQTTClientConnectCallback)(KprMQTTClient self, UInt8 returnCode, Boolean sessionPresent, void *refcon);
+typedef void (*KprMQTTClientSubscribeCallback)(KprMQTTClient self, UInt16 token, KprMQTTSubscribeTopic request, KprMQTTSubscribeTopic result, void *refcon);
+typedef void (*KprMQTTClientUnsubscribeCallback)(KprMQTTClient self, UInt16 token, KprMQTTSubscribeTopic request, void *refcon);
 typedef void (*KprMQTTClientPublishCallback)(KprMQTTClient self, UInt16 token, void *refcon);
 typedef void (*KprMQTTClientMessageCallback)(KprMQTTClient self, char *topic, KprMemoryBuffer payload, void *refcon);
 typedef void (*KprMQTTClientDisconnectCallback)(KprMQTTClient self, Boolean cleanClose, void *refcon);
@@ -44,6 +44,7 @@ typedef void (*KprMQTTClientErrorCallback)(KprMQTTClient self, FskErr err, char 
 struct KprMQTTClientRecord {
 	char *clientIdentifier;
 	Boolean cleanSession;
+	KprMQTTProtocolVersion protocolVersion;
 
 	char	*host;
 	UInt16 port;
@@ -89,7 +90,7 @@ struct KprMQTTClientConnectOptions {
 };
 
 
-FskErr KprMQTTClientNew(KprMQTTClient *it, char *clientIdentifier, Boolean cleanSession, void *refcon);
+FskErr KprMQTTClientNew(KprMQTTClient *it, char *clientIdentifier, Boolean cleanSession, KprMQTTProtocolVersion protocolVersion, void *refcon);
 FskErr KprMQTTClientDispose(KprMQTTClient self);
 
 FskErr KprMQTTClientConnect(KprMQTTClient self, char *host, UInt16 port, KprMQTTClientConnectOptions *options);
@@ -97,7 +98,11 @@ FskErr KprMQTTClientReconnect(KprMQTTClient self);
 FskErr KprMQTTClientDisconnect(KprMQTTClient self);
 
 FskErr KprMQTTClientPublish(KprMQTTClient self, char *topic, void *payload, UInt32 payloadLength, UInt8 qos, Boolean retain, UInt16 *token);
-FskErr KprMQTTClientSubscribeTopic(KprMQTTClient self, char *topic, UInt8 qos);
-FskErr KprMQTTClientUnsubscribeTopic(KprMQTTClient self, char *topic);
+FskErr KprMQTTClientSubscribeTopic(KprMQTTClient self, char *topic, UInt8 qos, UInt16 *token);
+FskErr KprMQTTClientSubscribeTopics(KprMQTTClient self, char **topics, UInt8 *qoss, int count, UInt16 *token);
+FskErr KprMQTTClientUnsubscribeTopic(KprMQTTClient self, char *topic, UInt16 *token);
+FskErr KprMQTTClientUnsubscribeTopics(KprMQTTClient self, char **topics, int count, UInt16 *token);
+
+const char *KprMQTTClientGetProtocolVersion(KprMQTTClient self);
 
 #endif

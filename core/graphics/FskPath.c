@@ -21,10 +21,11 @@
 #define __FSKBITMAP_PRIV__	/* To get access to the FskBitmap data structure */
 
 #include "FskPath.h"
-#include "FskPolygon.h"
-#include "FskUtilities.h"
 #include "FskClipLine2D.h"
 #include "FskLine.h"
+#include "FskMatrix.h"
+#include "FskPolygon.h"
+#include "FskUtilities.h"
 
 
 #include <math.h>
@@ -40,7 +41,26 @@
 #endif // PRAGMA_MARK_SUPPORTED
 
 
-#define MyMoveData(src, dst, size)		FskMemCopy(dst, src, size)	/* I'm one of those people who prefers to copy left to right */
+#if SUPPORT_INSTRUMENTATION
+	#define LOG_PARAMETERS
+	//#define LOG_CONTOURS
+	#define FskInstrumentedGlobalType(type)			(&(g##type##TypeInstrumentation))												/**< The data structure created with FskInstrumentedSimpleType(). */
+	#define FskInstrumentedTypeEnabled(type, level)	FskInstrumentedTypeHasListenersForLevel(FskInstrumentedGlobalType(type), level)	/**< Whether instrumentation will print anything. */
+	#define	LOGD(...)	FskPathPrintfDebug(__VA_ARGS__)										/**< Print debugging logs. */
+	#define	LOGI(...)	FskPathPrintfVerbose(__VA_ARGS__)									/**< Print information logs. */
+#else /* !SUPPORT_INSTRUMENTATION */
+	#define FskInstrumentedTypeEnabled(type, level)	(0)																				/**< Instrumentation will not print anything. */
+	#define LOGD(...)	do {} while(0)														/**< Don't print debugging logs. */
+	#define LOGI(...)	do {} while(0)														/**< Don't print information logs. */
+#endif /* SUPPORT_INSTRUMENTATION */
+#define		LOGE(...)	FskPathPrintfMinimal(__VA_ARGS__)									/**< Print error logs always, when instrumentation is on. */
+#define LOGD_ENABLED()	FskInstrumentedTypeEnabled(Path, kFskInstrumentationLevelDebug)		/**< Whether LOGD() will print anything. */
+#define LOGI_ENABLED()	FskInstrumentedTypeEnabled(Path, kFskInstrumentationLevelVerbose)	/**< Whether LOGI() will print anything. */
+#define LOGE_ENABLED()	FskInstrumentedTypeEnabled(Path, kFskInstrumentationLevelMinimal)	/**< Whether LOGE() will print anything. */
+
+FskInstrumentedSimpleType(Path, path);														/**< This declares the types needed for instrumentation. */
+
+
 
 
 /********************************************************************************
@@ -55,6 +75,7 @@
 typedef struct DRay2D {	double	x, y, dx, dy;	} DRay2D;
 
 
+#define MyMoveData(src,dst,size) FskMemCopy(dst, src, size)			/* I'm one of those people who prefers to copy left to right */
 #define UNUSED(x)				(void)(x)
 #define CeilFixedToInt(x)		(((x) + 0xFFFF) >> 16)
 #define FloorFixedToInt(x)		(((x)         ) >> 16)
@@ -77,6 +98,215 @@ typedef struct DRay2D {	double	x, y, dx, dy;	} DRay2D;
 
 
 
+
+/********************************************************************************
+ ********************************************************************************
+ ********************************************************************************
+ ***								Instrumentation							  ***
+ ********************************************************************************
+ ********************************************************************************
+ ********************************************************************************/
+
+#if SUPPORT_INSTRUMENTATION
+#include "FskPixelOps.h"
+static void LogBitmap(FskConstBitmap bm, const char *name) {
+	if (!bm)
+		return;
+	if (!name)
+		name = "BM";
+	LOGD("\t%s: bounds(%d, %d, %d, %d) depth=%u format=%s rowBytes=%d bits=%p alpha=%d premul=%d",
+		name, (int)bm->bounds.x, (int)bm->bounds.y, (int)bm->bounds.width, (int)bm->bounds.height, (unsigned)bm->depth,
+		FskBitmapFormatName(bm->pixelFormat), (int)bm->rowBytes, bm->bits, bm->hasAlpha, bm->alphaIsPremultiplied);
+}
+static void LogRect(FskConstRectangle r, const char *name) {
+	if (!r)
+		return;
+	if (!name)
+		name = "RECT";
+	LOGD("\t%s(%d, %d, %d, %d)", name, (int)r->x, (int)r->y, (int)r->width, (int)r->height);
+}
+static void LogLongString(const char *str, int indent, const char *name) {
+	const UInt32	kMaxCharsPerLine	= 1000;
+	UInt32			strSize				= FskStrLen(str);
+	const char		*sep;
+	UInt32			offset;
+	char			indentStr[24];
+
+	indentStr[indent] = 0;
+	for (offset = indent; offset--;)
+		indentStr[offset] = '\t';
+	if (name)	sep = ": ";
+	else		sep = name = "";
+	if (strSize <= kMaxCharsPerLine) {
+		LOGD("%*c%s%s%s", indent, ' ', name, sep, str);
+	}
+	else {
+		#define TRUNCATE_PATH_STRING
+		#ifdef TRUNCATE_PATH_STRING
+			LOGD("%s%s%s%.*s...", indentStr, name, sep, kMaxCharsPerLine, str);
+		#else /* KEEP_PATH_STRING */
+			const UInt32 kMaxCharsPerBreak = 160;
+			LOGD("%s%s%s%.*s", indentStr, name, sep, kMaxCharsPerBreak, str);
+			for (offset = kMaxCharsPerBreak; offset < strSize; offset += kMaxCharsPerBreak)
+			LOGD("\t%s%.*s", indentStr, kMaxCharsPerBreak, str + offset);
+		#endif /* TRUNCATE_PATH_STRING */
+	}
+}
+static void LogPath(FskConstPath path, const char *name) {
+	const UInt32		kCharsPerSeg	= 64;
+	FskGrowableStorage	str				= NULL;
+	FskErr				err;
+
+	if (!path)	return;
+	if (!name)	name = "PATH";
+
+	BAIL_IF_ERR(err = FskGrowableStorageNew(kCharsPerSeg * FskPathGetSegmentCount(path), &str));
+	BAIL_IF_ERR(err = FskPathString(path, 6, str));
+	LogLongString(FskGrowableStorageGetPointerToCString(str), 1, name);
+bail:
+	FskGrowableStorageDispose(str);
+}
+static const char* SpreadMethodNameFromCode(UInt32 spreadMethod) {
+	static const char *spreads[] = {
+		"transparent",
+		"padX|transparentY",
+		"repeatX|transparentY",
+		"reflectX|transparentY",
+		"transparentX|padY",
+		"pad",
+		"repeatX|padY",
+		"reflectX|padY",
+		"transparentX|repeatY",
+		"padX|repeatY",
+		"repeat",
+		"reflectX|repeatY",
+		"transparentX|reflectY",
+		"padX|reflectY",
+		"repeatX|reflectY",
+		"reflect"
+	};
+	return spreads[spreadMethod & 0xF];
+}
+static const char* EndCapsNameFromCode(UInt32 endCaps) {
+	switch (endCaps) {
+		case kFskLineEndCapRound:	return "round";
+		case kFskLineEndCapSquare:	return "square";
+		case kFskLineEndCapButt:	return "butt";
+		default:					return "UNKNOWN";
+	}
+}
+static const char* FillRuleNameFromCode(SInt32 fillRule) {
+	switch (fillRule) {
+		case kFskFillRuleNonZero:	return "nonzero";
+		case kFskFillRuleEvenOdd:	return "even-odd";
+		default:					return "UNKNOWN";
+	}
+}
+static void LogFixedMatrix3x2(const FskFixedMatrix3x2 *M, const char *name) {
+	if (!M)
+		return;
+	if (!name)	name = "MTX";
+	LOGD("\t%s: [[%g %g],[%g %g],[%g %g]]", name, M->M[0][0] * (1./65536.), M->M[0][1] * (1./65536.),
+		M->M[1][0] * (1./65536.), M->M[1][1] * (1./65536.), M->M[2][0] * (1./65536.), M->M[2][1] * (1./65536.));
+}
+static void LogGradientStops(UInt32 numStops, const FskGradientStop *stops) {
+	UInt32 i;
+	if (!numStops || !stops)
+		return;
+	for (i = 0; i < numStops; ++i, ++stops)
+		LOGD("\tstop[%u]: offset=%6.4f color={%3u %3u %3u %3u}", i, stops->offset * (1./1073741824.),
+			stops->color.r, stops->color.g, stops->color.b, stops->color.a);
+}
+static void LogDash(UInt32 dashCycles, const FskFixed *dash, FskFixed dashPhase) {
+	FskGrowableStorage	str					= NULL;
+	if (!dashCycles || !dash)
+		return;
+	if (kFskErrNone == FskGrowableStorageNew(dashCycles * 20, &str)) {
+		unsigned i;
+		for (i = 0; i < dashCycles; ++i) {
+			if (i)
+				FskGrowableStorageAppendF(str, ", ");
+			FskGrowableStorageAppendF(str, "{%.2f,%.2f} ", dash[2*i+0]/65536., dash[2*i+1]/65536.);
+		}
+	}
+	LOGD("\tdash[%u @ %.2f]: %s", dashCycles, dashPhase/65536., FskGrowableStorageGetPointerToCString(str));
+}
+static void LogColorSource(const FskColorSource *cs, const char *name) {
+	const FskColorSourceUnion *csu = (FskColorSourceUnion*)cs;
+	if (!csu)
+		return;
+	if (!name)	name = "COLORSOURCE";
+	switch (csu->so.type) {
+		case kFskColorSourceTypeConstant:
+			LOGD("\t%s: Constant(r=%u g=%u b=%u a=%u)", name, csu->cn.color.r, csu->cn.color.g, csu->cn.color.b, csu->cn.color.a);
+			break;
+		case kFskColorSourceTypeLinearGradient:
+			LOGD("\t%s: LinearGradient(gradientVector={{%g, %g}, {%g, %g}} gradientMatrix=%p spreadMethod=%s numStops=%u stops=%p)", name,
+				csu->lg.gradientVector[0].x * (1./65536.), csu->lg.gradientVector[0].y * (1./65536.),
+				csu->lg.gradientVector[1].x * (1./65536.), csu->lg.gradientVector[1].y * (1./65536.),
+				csu->lg.gradientMatrix, SpreadMethodNameFromCode(csu->lg.spreadMethod), csu->lg.numStops, csu->lg.gradientStops);
+			LogFixedMatrix3x2(csu->lg.gradientMatrix, "gradientMatrix");
+			LogGradientStops(csu->lg.numStops, csu->lg.gradientStops);
+			break;
+		case kFskColorSourceTypeRadialGradient:
+			LOGD("\t%s: RadialGradient(focus(x=%g y=%g r=%g) outer(x=%g y=%g r=%g) gradientMatrix=%p spreadMethod=%s numStops=%u stops=%p)", name,
+				csu->rg.focus.x  * (1./65536.), csu->rg.focus.y  * (1./65536.), csu->rg.focalRadius * (1./65536.),
+				csu->rg.center.x * (1./65536.), csu->rg.center.y * (1./65536.), csu->rg.radius      * (1./65536.),
+				csu->rg.gradientMatrix, SpreadMethodNameFromCode(csu->rg.spreadMethod), csu->rg.numStops, csu->rg.gradientStops);
+			LogFixedMatrix3x2(csu->rg.gradientMatrix, "gradientMatrix");
+			LogGradientStops(csu->rg.numStops, csu->rg.gradientStops);
+			break;
+		case kFskColorSourceTypeTexture:
+			LOGD("\t%s: Texture(bm=%p textureFrame=%p spreadMethod=%s)", name, csu->tx.texture, csu->tx.textureFrame, SpreadMethodNameFromCode(csu->tx.spreadMethod));
+			LogBitmap(csu->tx.texture, "textureBM");
+			LogFixedMatrix3x2(csu->tx.textureFrame, "textureFrame");
+			break;
+		default:
+			break;
+	}
+	LogDash(csu->so.dashCycles, csu->so.dash, csu->so.dashPhase);
+}
+static double AreaOfFixedPolygon(UInt32 numPts, const FskFixedPoint2D *pts) {
+	const FskFixedPoint2D *pmi;
+	double area;
+	for (pmi = pts + numPts - 1, area = 0.; numPts--; pmi = pts++)
+		area += (double)(pts->x + pmi->x) * (double)(pts->y - pmi->y);
+	return area * (.5f / 65536.);
+}
+static void LogContours(UInt32 numCtr, const UInt32 *numPts, const FskFixedPoint2D *pts) {
+	const UInt32		kMaxCharsPerLine	= 1000;
+	FskGrowableStorage	str					= NULL;
+	int					i;
+
+	if (kFskErrNone != FskGrowableStorageNew(kMaxCharsPerLine, &str))
+		return;
+	LOGD("\t<polygon numContours=\"%u\">", (unsigned)numCtr);
+	for (; numCtr--; ++numPts) {
+		FskGrowableStorageSetSize(str, 0);
+		FskGrowableStorageAppendF(str, "<contour numPoints=\"%u\" area=\"%.0f\">", (unsigned)(*numPts), AreaOfFixedPolygon(*numPts, pts));
+		for (i = *numPts; i-- > 0; ++pts)
+			FskGrowableStorageAppendF(str, " %.2f,%.2f", pts->x/65536., pts->y/65536.);
+		FskGrowableStorageAppendF(str, " </contour>");
+		LogLongString(FskGrowableStorageGetPointerToCString(str), 2, NULL);
+	}
+	LOGD("\t</polygon>");
+	FskGrowableStorageDispose(str);
+}
+static void LogPolyline(UInt32 numPts, const FskFixedPoint2D *pts) {
+	const UInt32		kMaxCharsPerLine	= 1000;
+	FskGrowableStorage	str					= NULL;
+	int					i;
+
+	if (kFskErrNone != FskGrowableStorageNew(kMaxCharsPerLine, &str))
+		return;
+	FskGrowableStorageAppendF(str, "<polyline numPoints=\"%u\">", (unsigned)numPts);
+	for (i = numPts; i-- > 0; ++pts)
+		FskGrowableStorageAppendF(str, " %.2f,%.2f", pts->x/65536., pts->y/65536.);
+	FskGrowableStorageAppendF(str, " </polyline>");
+	LogLongString(FskGrowableStorageGetPointerToCString(str), 1, NULL);
+	FskGrowableStorageDispose(str);
+}
+#endif /* SUPPORT_INSTRUMENTATION */
 
 
 /********************************************************************************
@@ -857,11 +1087,12 @@ FskGrowablePathGetLastPoint(FskGrowablePath grath, FskFixedPoint2D	*pt)
 			case kFskPathSegmentQuadraticBezierTo:			lastPt = &(((TaggedSegmentQuadraticBezierTo*)        segPtr)->data.p);	break;
 			case kFskPathSegmentCubicBezierTo:				lastPt = &(((TaggedSegmentCubicBezierTo*)			 segPtr)->data.p);	break;
 			case kFskPathSegmentRationalQuadraticBezierTo:	lastPt = &(((TaggedSegmentRationalQuadraticBezierTo*)segPtr)->data.p);	break;
+			case kFskPathSegmentEndGlyph:					lastPt = NULL;															break;
 			default:											break;
 		}
 	}
-	if (lastPt != NULL)	*pt = *lastPt;
-	else				err = kFskErrNoSubpath;
+	if  (lastPt == NULL)	err = kFskErrNoSubpath;
+	else if (pt != NULL)	*pt = *lastPt;
 	return err;
 }
 
@@ -1061,7 +1292,87 @@ FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(double x1, double y1,
 
 
 /********************************************************************************
- * FskGrowablePathAppendSegmentEllipticalArc
+ * FskGrowablePathAppendSegmentEllipse, as specified in the Canvas spec.
+ ********************************************************************************/
+
+FskErr FskGrowablePathAppendSegmentEllipse(double cx, double cy, double rx, double ry, double rotation, double startAngle, double endAngle, Boolean anticlockwise, FskGrowablePath path)
+{
+	SInt32					subDivisions;
+	double					ch, th, dAngle, hAngle;
+	double					M[3][2], C[2][2], P[2][2], Q[2][2], R[2][2];
+	Boolean					isCircle;
+	FskFixedPoint2D			p0, p1;
+
+	/* Compute coordinate frame.
+	 * | +rx * cos(rot)		+rx * sin(rot)	|
+	 * | -rx * sin(rot)		+ry * cos(rot)	|
+	 * | cx					cy				|
+	 */
+	M[0][0] =   M[1][1] = cos(rotation);
+	M[1][0] = -(M[0][1] = sin(rotation));
+	M[0][0] *= rx;
+	M[0][1] *= rx;
+	M[1][0] *= ry;
+	M[1][1] *= ry;
+	M[2][0] = cx;
+	M[2][1] = cy;
+
+	/* Get angles consistent */
+	dAngle = endAngle - startAngle;
+	if (anticlockwise) {																			/* Counterclockwise angles are negative */
+		if ((dAngle < -D_2PI) || ((dAngle > 0) && ((dAngle -= D_2PI) >= 0)))						/* Try to map angle into [-2pi, 0) */
+			endAngle = startAngle + (dAngle = -D_2PI);												/* Or saturate to -2pi if the magnitude is greater than 2pi */
+	}
+	else /* clockwise */ {																			/* Clockwise        angles are positive */
+		if ((dAngle > +D_2PI) || ((dAngle < 0) && ((dAngle += D_2PI) <= 0)))						/* Try to map angle into (0, +2pi] */
+			endAngle = startAngle + (dAngle = +D_2PI);												/* Or saturate to +2pi if the magnitude is greater than 2pi */
+	}
+	isCircle = fabs((fabs(dAngle) - D_2PI)) < 1.e-14;
+
+	/* Determine the number of subdivisions and transformation between them */
+	subDivisions = (SInt32)(fabs(dAngle * .5));														/* No more than 2 radians per segment */
+	dAngle /= (subDivisions + 1);
+	R[0][0] =   R[1][1] = cos(dAngle);
+	R[1][0] = -(R[0][1] = sin(dAngle));
+
+	/* Initialize first subdivision */
+	hAngle = dAngle * .5;
+	ch = cos(hAngle);																				/* All segments share the same w, since they are equally divided */
+	th = tan(hAngle);
+	C[0][0] = cos(startAngle);																		/* First point on  circle */
+	C[0][1] = sin(startAngle);
+	C[1][0] = C[0][0] - C[0][1] * th;																/* First point off circle */
+	C[1][1] = C[0][1] + C[0][0] * th;
+	FskDAffineTransform(C[0], M[0], P[0], 2, 2, 2);													/* Transformation into target frame */
+
+	/* If there was a previous point, join it to the start point with a line, otherwise move to the start point */
+	p1.x = (FskFixed)(P[0][0] * 65536);																/* Convert the first point to fixed point */
+	p1.y = (FskFixed)(P[0][1] * 65536);
+	if (kFskErrNone != FskGrowablePathGetLastPoint(path, &p0))										/* If there was no previous point, ... */
+		(void)FskGrowablePathAppendSegmentMoveTo(p1.x, p1.y, path);									/* ... move to the first point */
+	else if ((abs(p1.x - p0.x) + abs(p1.y - p0.y)) > 2)												/* If there was a previous point and it was sufficiently different ... */
+		(void)FskGrowablePathAppendSegmentLineTo(p1.x, p1.y, path);									/* ... draw a line from it to the first point */
+
+	/* If necessary, insert up to 3 additional rational quadratic Bezier segments */
+	for (; subDivisions--;) {
+		Q[0][0] = C[0][0]; Q[0][1] = C[0][1]; Q[1][0] = C[1][0]; Q[1][1] = C[1][1];					/* Save old C in Q, because FskDLinearTransform does not work in place */
+		FskDLinearTransform(Q[0], R[0], C[0], 2, 2, 2);												/* Rotate C */
+		Q[1][0] = P[1][0]; Q[1][1] = P[1][1];														/* Save old off-circle point */
+		FskDAffineTransform(C[0], M[0], P[0], 2, 2, 2);												/* Transformation into target frame */
+		(void)FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(Q[1][0], Q[1][1], ch, P[0][0], P[0][1], path);
+	}
+
+	if (isCircle)
+		endAngle = startAngle;																		/* Assure that we get the identical coordinates for the end */
+	C[0][0] = cos(endAngle);																		/* End point on circle */
+	C[0][1] = sin(endAngle);
+	FskDAffineTransform(C[0], M[0], P[0], 1, 2, 2);													/* Transformation into target frame */
+	return FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(P[1][0], P[1][1], ch, P[0][0], P[0][1], path);
+}
+
+
+/********************************************************************************
+ * FskGrowablePathAppendSegmentEllipticalArc, as specified in the SVG spec.
  *	This returns either:
  *		- 1 line segment
  *		- 1 or more homogeneous quadratic Bezier segments
@@ -1079,64 +1390,20 @@ FskGrowablePathAppendSegmentEllipticalArc(
 	FskGrowablePath			path
 )
 {
-	SInt32					subDivisions;
-	UInt32					offset;
-	double					cx, cy, theta1, dTheta, thetaE, ct, st, cr, sr;
-	double					pm[2], w;
-	FskFixedPoint2D			*p0;
-	double					x0, y0;
-	DRay2D					tanRay[2];
-	FskErr					err				= kFskErrNone;
-
-	/* Convert from degrees to radians here */
-	xAxisRotation *= D_RADIANS_PER_DEGREE;
+	FskErr			err	;
+	FskFixedPoint2D	p0;
+	double			cx, cy, theta1, dTheta, x0, y0;
 
 	/* Get the previous point */
-	offset = FskGrowableStorageGetSize(path);
-	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(path, offset - sizeof(FskFixedPoint2D), (void**)(void*)(&p0)));
-	x0 = p0->x / 65536.0;
-	y0 = p0->y / 65536.0;
-
+	BAIL_IF_ERR(err = FskGrowablePathGetLastPoint(path, &p0));
+	x0 = p0.x * (1. / 65536.);
+	y0 = p0.y * (1. / 65536.);
 	ConvertEllipticalArcFromEndpointToCenterParameterization(x0, y0, rx, ry, xAxisRotation, largeArcFlag, sweepFlag, x2, y2, &cx, &cy, &theta1, &dTheta);
-
-	if (dTheta == 0) {
-		err = FskGrowablePathAppendSegmentFloatLineTo(x2, y2, path);
-	}
-	else {
-
-		subDivisions = (SInt32)(fabs(dTheta) * 0.5);	/* No more than 2 radians per segment */
-		dTheta /= (subDivisions + 1);
-		w  = cos(dTheta * 0.5);							/* All segments share the same w, since they are equally divided */
-		cr = cos(xAxisRotation);
-		sr = sin(xAxisRotation);
-		ct = cos(theta1);
-		st = sin(theta1);
-		tanRay[0].x  =  x0;
-		tanRay[0].y  =  y0;
-		tanRay[0].dx = -rx * cr * st - ry * sr * ct;
-		tanRay[0].dy = -rx * sr * st + ry * cr * ct;
-		for (thetaE = theta1 + dTheta; subDivisions-- > 0; theta1 = thetaE, thetaE += dTheta, tanRay[0] = tanRay[1]) {
-			ct = cos(thetaE);
-			st = sin(thetaE);
-			tanRay[1].x  =  rx * cr * ct - ry * sr * st + cx;
-			tanRay[1].y  =  rx * sr * ct + ry * cr * st + cy;
-			tanRay[1].dx = -rx * cr * st - ry * sr * ct;
-			tanRay[1].dy = -rx * sr * st + ry * cr * ct;
-			IntersectRays2D(tanRay+0, tanRay+1, pm);
-			BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(pm[0], pm[1], w, tanRay[1].x, tanRay[1].y, path));
-		}
-		ct = cos(thetaE);
-		st = sin(thetaE);
-		tanRay[1].x  =  x2;
-		tanRay[1].y  =  y2;
-		tanRay[1].dx = -rx * cr * st - ry * sr * ct;
-		tanRay[1].dy = -rx * sr * st + ry * cr * ct;
-		IntersectRays2D(tanRay+0, tanRay+1, pm);
-		err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(pm[0], pm[1], w, x2, y2, path);
-	}
+	if (dTheta == 0)	err = FskGrowablePathAppendSegmentFloatLineTo(x2, y2, path);
+	else				err = FskGrowablePathAppendSegmentEllipse(cx, cy, rx, ry, xAxisRotation, theta1, theta1 + dTheta, dTheta < 0, path);
 
 bail:
-	return(err);
+	return err;
 }
 
 
@@ -1301,13 +1568,13 @@ FskGrowablePathAppendPathString(const char *pathStr, FskGrowablePath path)
 			case 'A':																				/* Absolute elliptical arc */
 				while (ParseDoubles(&pathStr, 7, num)) {
 					lastX = num[5];		lastY = num[6];
-					BAIL_IF_ERR(err = FskGrowablePathAppendSegmentEllipticalArc(num[0], num[1], num[2], (num[3] != 0), (num[4] != 0), lastX, lastY, path));
+					BAIL_IF_ERR(err = FskGrowablePathAppendSegmentEllipticalArc(num[0], num[1], num[2] * D_RADIANS_PER_DEGREE, (num[3] != 0), (num[4] != 0), lastX, lastY, path));
 				}
 				break;
 			case 'a':																				/* Relative elliptical arc */
 				while (ParseDoubles(&pathStr, 7, num)) {
 					lastX += num[5];		lastY += num[6];
-					BAIL_IF_ERR(err = FskGrowablePathAppendSegmentEllipticalArc(num[0], num[1], num[2], (num[3] != 0), (num[4] != 0), lastX, lastY, path));
+					BAIL_IF_ERR(err = FskGrowablePathAppendSegmentEllipticalArc(num[0], num[1], num[2] * D_RADIANS_PER_DEGREE, (num[3] != 0), (num[4] != 0), lastX, lastY, path));
 				}
 				break;
 			case 'Z':																				/* End path */
@@ -1320,6 +1587,14 @@ FskGrowablePathAppendPathString(const char *pathStr, FskGrowablePath path)
 				break;
 			case 'K':																				/* Absolute conic (rational quadratic) Bezier (our extension) */
 				while (ParseDoubles(&pathStr, 5, num)) {
+					BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(num[0], num[1], num[2], num[3], num[4], path));	/* x, y, w, x, y */
+					backX = num[0];		backY = num[1];
+					lastX = num[3];		lastY = num[4];
+				}
+			case 'k':																				/* Absolute conic (rational quadratic) Bezier (our extension) */
+				while (ParseDoubles(&pathStr, 5, num)) {
+					num[0] += lastX;	num[1] += lastY;
+					num[3] += lastX;	num[4] += lastY;
 					BAIL_IF_ERR(err = FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(num[0], num[1], num[2], num[3], num[4], path));	/* x, y, w, x, y */
 					backX = num[0];		backY = num[1];
 					lastX = num[3];		lastY = num[4];
@@ -1364,16 +1639,23 @@ DistanceFromSeparatedBezier2DBase(const FskFixedPoint2D *first, const FskFixedPo
 	p = latter + order - 2;
 	baseVec.x = p->x - first->x;
 	baseVec.y = p->y - first->y;
-	FskFixedVector2DNormalize(&baseVec.x);
-
-	for (i = order - 2, p--, d = 0; i--; p--) {
-		skewVec.x = p->x - first->x;
-		skewVec.y = p->y - first->y;
-		t = FskFractCrossProduct2D(&baseVec, &skewVec);
-		if (t < 0)
-			t = -t;
-		if (d < t)	/* Find maximum distance of control points from the base */
-			d = t;
+	if (FskFixedVector2DNormalize(&baseVec.x)) {
+		for (i = order - 2, p--, d = 0; i--; p--) {
+			skewVec.x = p->x - first->x;
+			skewVec.y = p->y - first->y;
+			t = FskFractCrossProduct2D(&baseVec, &skewVec);
+			if (t < 0)
+				t = -t;
+			if (d < t)	/* Find maximum distance of control points from the base */
+				d = t;
+		}
+	}
+	else {
+		for (i = order - 2, p--, d = 0; i--; p--) {
+			t = FskFixedHypot(p->x - first->x, p->y - first->y);
+			if (d < t)	/* Find maximum distance of control points from the base */
+				d = t;
+		}
 	}
 
 	return(d);
@@ -1700,13 +1982,14 @@ FskPathFill(
 	FskColorSourceUnion				csu;
 	FskFixedMatrix3x2				G;
 
-	#ifdef DEBUG_PATH
-		FskGrowableStorage str;
-		FskGrowableStorageNew(0, &str);
-		FskPathString(path, 0, str);
-		printf("path=%s\n", FskGrowableStorageGetPointerToCString(str));
-		FskGrowableStorageDispose(str);
-	#endif /* DEBUG_PATH */
+	#ifdef LOG_PARAMETERS
+		LOGD("PathFill(path=%p fillColor=%p fillRule=%s M=%p quality=%u clipRect=%p dstBM=%p", path, fillColor, FillRuleNameFromCode(fillRule), M, (unsigned)quality, clipRect, dstBM);
+		LogPath(path, "path");
+		LogColorSource(fillColor, "fillColor");
+		LogFixedMatrix3x2(M, "M");
+		LogRect(clipRect, "clipRect");
+		LogBitmap(dstBM, "dstBM");
+	#endif /* LOG_PARAMETERS */
 
 	pStart.x  = pStart.y = p0.x = p0.y = 0;
 	numSegs   = GetPathSegmentCount(path);
@@ -1768,6 +2051,9 @@ FskPathFill(
 																if ((numContours = FskGrowableArrayGetItemCount(numPointArray)) > 0) {
 																	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(numPointArray, 0, (void**)(void*)(&numPointList)));
 																	BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(ptArray,       0, (void**)(void*)(&points)));
+																	#ifdef LOG_CONTOURS
+																		LogContours(numContours, numPointList, points);
+																	#endif /* LOG_CONTOURS */
 																	if ((err = FskFillPolygonContours(numContours, numPointList, points, FskTransformColorSource(fillColor, M, &G, &csu, NULL),
 																		fillRule, NULL, quality, clipRect, dstBM)) < renderErr
 																	)
@@ -1790,6 +2076,9 @@ unknownSegmentType:
 	if ((numContours = FskGrowableArrayGetItemCount(numPointArray)) > 0) {
 		BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(numPointArray, 0, (void**)(void*)(&numPointList)));
 		BAIL_IF_ERR(err = FskGrowableArrayGetPointerToItem(ptArray,       0, (void**)(void*)(&points)));
+		#ifdef LOG_CONTOURS
+			LogContours(numContours, numPointList, points);
+		#endif /* LOG_CONTOURS */
 		if ((err = FskFillPolygonContours(numContours, numPointList, points, FskTransformColorSource(fillColor, M, &G, &csu, NULL), fillRule, NULL, quality, clipRect, dstBM)) < renderErr)
 			renderErr = err;
 	}
@@ -1830,6 +2119,16 @@ FskPathFrame(
 	FskColorSourceUnion				csu;
 	FskFixedMatrix3x2				G;
 
+	#ifdef LOG_PARAMETERS
+		LOGD("PathFrame(path=%p strokeWidth=%g jointSharpness=%g endCaps=%s frameColor=%p M=%p quality=%u clipRect=%p dstBM=%p",
+			path, strokeWidth/65536., jointSharpness/65536., EndCapsNameFromCode(endCaps), frameColor, M, (unsigned)quality, clipRect, dstBM);
+		LogPath(path, "path");
+		LogColorSource(frameColor, "frameColor");
+		LogFixedMatrix3x2(M, "M");
+		LogRect(clipRect, "clipRect");
+		LogBitmap(dstBM, "dstBM");
+	#endif /* LOG_PARAMETERS */
+
 	pStart.x  = pStart.y = p0.x = p0.y = 0;
 	nSegs     = GetPathSegmentCount(path);
 	segPtr    = GetConstPathSegments(path);
@@ -1865,6 +2164,9 @@ FskPathFrame(
 			{	const TaggedSegmentMoveTo						*moveTo = (const TaggedSegmentMoveTo*)(segPtr);
 																if ((n = FskGrowableArrayGetItemCount(ptArray)) >= 2) {
 																	BAIL_IF_ERR(err = FskGrowableFixedPoint2DArrayGetPointerToItem(ptArray, 0, (void**)(void*)(&points)));
+																	#ifdef LOG_CONTOURS
+																		LogPolyline(n, points);
+																	#endif /* LOG_CONTOURS */
 																	if ((err = FskFramePolyLine(n, points, strokeWidth, jointSharpness, endCaps, frameColor, NULL, quality, clipRect, dstBM)) < renderErr)
 																		if ((renderErr = err) < kFskErrNone)
 																			goto bail;
@@ -1901,6 +2203,9 @@ FskPathFrame(
 unknownSegmentType:
 	if ((n = FskGrowableFixedPoint2DArrayGetItemCount(ptArray)) >= 2) {
 		BAIL_IF_ERR(err = FskGrowableFixedPoint2DArrayGetPointerToItem(ptArray, 0, (void**)(void*)(&points)));
+		#ifdef LOG_CONTOURS
+			LogPolyline(n, points);
+		#endif /* LOG_CONTOURS */
 		if ((err = FskFramePolyLine(n, points, strokeWidth, jointSharpness, endCaps, FskTransformColorSource(frameColor, M, &G, &csu, &ndsh), NULL, quality, clipRect, dstBM)) < renderErr)
 			renderErr = err;
 	}

@@ -61,7 +61,8 @@ static void KPR_WebSocketServerClientWillDispose(KPR_WebSocketServerRecord *self
 static void KPR_websocketserver_setCallback(KPR_WebSocketServerRecord *self);
 static void KPR_websocketserver_timeToPing(FskTimeCallBack callback, const FskTime time, void *it);
 static void KPR_WebSocketServer_onLaunch(KprWebSocketServer server, void *refcon);
-static void KPR_WebSocketServer_onConnect(KprWebSocketServer server, FskSocket skt, void *refcon);
+static void KPR_WebSocketServer_onConnect(KprWebSocketServer server, FskSocket skt, const char *interface, int ip, void *refcon);
+static void KPR_WebSocketServer_onInterfaceDrop(KprWebSocketServer server, const char *interface, int ip, void *refcon);
 static void KPR_WebSocketServer_onError(KprWebSocketServer server, FskErr err, char *message, void *refcon);
 static void KPR_WebSocketServer_onClientClosing(KprWebSocketEndpoint endpoint, UInt16 code, char *reason, Boolean wasClean, void *refcon);
 static void KPR_WebSocketServer_onClientClose(KprWebSocketEndpoint endpoint, UInt16 code, char *reason, Boolean wasClean, void *refcon);
@@ -94,6 +95,7 @@ void KPR_websocketclient(void *it)
 	if (self) {
 		if (self->server) {
 			KPR_WebSocketServerClientWillDispose(self->server, self);
+			self->server = NULL;
 		}
 
 		self->endpoint->openCallback = NULL;
@@ -222,6 +224,7 @@ static void KPR_WebSocketClient_onClose(KprWebSocketEndpoint endpoint UNUSED, UI
 
 	xsBeginHostSandboxCode(self->the, self->code);
 	xsVars(1);
+
 	if (hasCallback("onclose")) {
 		xsTry {
 			KPR_WebSocketClient_buildCloseSlots(the, code, reason, wasClean);
@@ -413,6 +416,7 @@ void KPR_WebSocketServer(xsMachine* the)
 
 	server->launchCallback = KPR_WebSocketServer_onLaunch;
 	server->connectCallback = KPR_WebSocketServer_onConnect;
+	server->interfaceDropCallback = KPR_WebSocketServer_onInterfaceDrop;
 	server->errorCallback = KPR_WebSocketServer_onError;
 
 	FskTimeCallbackNew(&self->pingCallback);
@@ -433,13 +437,14 @@ bail:
 	xsThrowIfFskErr(err);
 }
 
-static FskErr KPR_WebSocketServerClientNew(KPR_WebSocketServerRecord *self, KPR_WebSocketClientRecord *client, FskSocket skt)
+static FskErr KPR_WebSocketServerClientNew(KPR_WebSocketServerRecord *self, KPR_WebSocketClientRecord *client, FskSocket skt, int ip)
 {
 	FskErr err;
 
 	client->server = self;
 	client->endpoint->closingCallback = KPR_WebSocketServer_onClientClosing;
 	client->endpoint->closeCallback = KPR_WebSocketServer_onClientClose;
+	client->endpoint->ip = ip;
 
 	bailIfError(KprWebSocketEndpointOpenWithSocket(client->endpoint, skt));
 
@@ -500,6 +505,22 @@ void KPR_websocketserver_set_pingTimeout(xsMachine* the)
 	self->pingTimeout = xsToNumber(xsArg(0));
 }
 
+void KPR_websocketserver_get_addresses(xsMachine *the)
+{
+	KPR_WebSocketServerRecord *self = xsGetHostData(xsThis);
+	KprPortListener interface = KprWebSocketServerGetInterface(self->server);
+	char str[23];
+
+	xsVars(1);
+	xsResult = xsNew0(xsGlobal, xsID_Array);
+	while (interface) {
+		FskNetIPandPortToString(interface->ip, 0, str);
+		xsVar(0) = xsString(str);
+		xsCall1(xsResult, xsID_push, xsVar(0));
+		interface = interface->next;
+	}
+}
+
 static void KPR_websocketserver_setCallback(KPR_WebSocketServerRecord *self)
 {
 	if (self->pingInterval > 0) {
@@ -549,7 +570,7 @@ static void KPR_WebSocketServer_onLaunch(KprWebSocketServer server UNUSED, void 
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KPR_WebSocketServer_onLaunchDeferred, self, NULL, NULL, NULL);
 }
 
-static void KPR_WebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskSocket skt, void *refcon)
+static void KPR_WebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskSocket skt, const char *interface, int ip, void *refcon)
 {
 	KPR_WebSocketServerRecord *self = refcon;
 	FskErr err = kFskErrNone;
@@ -570,7 +591,7 @@ static void KPR_WebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskS
 			if (handled) {
 				KPR_WebSocketClientRecord *rec = xsGetHostData(xsVar(0));
 
-				err = KPR_WebSocketServerClientNew(self, rec, skt);
+				err = KPR_WebSocketServerClientNew(self, rec, skt, ip);
 				if (err == kFskErrNone) {
 					skt = NULL;
 				}
@@ -583,6 +604,24 @@ static void KPR_WebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskS
 
 	FskNetSocketClose(skt);
 
+}
+
+static void KPR_WebSocketServer_onInterfaceDrop(KprWebSocketServer server UNUSED, const char *interface, int ip, void *refcon)
+{
+	KPR_WebSocketServerRecord *self = refcon;
+	KPR_WebSocketClientRecord *client;
+
+	client = self->clients;
+	while (client) {
+		if (client->endpoint->ip == ip) {
+			client->server = NULL;
+			client->endpoint->closingCallback = NULL;
+			client->endpoint->closeCallback = KPR_WebSocketClient_onClose;
+			KprWebSocketEndpointClose(client->endpoint, 1001, "network interface was dropped");
+		}
+
+		client = client->next;
+	}
 }
 
 static void KPR_WebSocketServer_onError(KprWebSocketServer server UNUSED, FskErr err, char *message, void *refcon)

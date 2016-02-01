@@ -257,6 +257,7 @@ FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the ty
 #define EPHEMERAL_TEXTURE_CACHE_SIZE		0	/**< This is the number of ephemeral texture objects kept around. 6 allows ping pong {Y,U,V}. */
 #define USE_PORT_POOL						1	/**< Saves disposed glPorts in a pool. */
 #define MAX_PORT_POOL_SIZE					16	/**< The maximum number of ports to keep in the port pool. */
+#define DEFAULT_TEXT_EXTRA					0	/**< The default value to feed to APIs. */
 
 
 #if GL_VERSION_2_0
@@ -8491,7 +8492,7 @@ static void FskTextGetUnicodeRangeStrikeBounds(FskConstGLTypeFace typeFace, UInt
 
 	for (cp = firstCodePoint; ; cp++) {
 		UnicodeCharToUTF8(cp, encodedText, &textBytes);
-		FskTextGetBounds(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &r, NULL, typeFace->cache);
+		FskTextGetBounds(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, DEFAULT_TEXT_EXTRA, typeFace->fontName, &r, NULL, typeFace->cache);
 		if (bounds->width  < r.width)
 			bounds->width  = r.width;
 		if (bounds->height < r.height)
@@ -8525,7 +8526,7 @@ static FskErr StrikeGlyph(FskConstGLTypeFace typeFace, FskGlyphStrike strike, Fs
 
 #if !USE_GLYPH
 	UnicodeCharToUTF8(strike->codePoint, encodedText, &textBytes);
-	err = FskTextGetBounds(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &bounds, NULL, typeFace->cache);
+	err = FskTextGetBounds(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, DEFAULT_TEXT_EXTRA, typeFace->fontName, &bounds, NULL, typeFace->cache);
 #else /* USE_GLYPH */
 	err = FskTextGlyphGetBounds(typeFace->fte, NULL, &strike->codePoint, 1, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &bounds, typeFace->cache);
 	strike->xoffset = FskFixedToFloat(bounds.x);
@@ -8560,7 +8561,7 @@ static FskErr StrikeGlyph(FskConstGLTypeFace typeFace, FskGlyphStrike strike, Fs
 					kFskTextAlignLeft, kFskTextAlignTop, typeFace->fontName, typeFace->cache);	/* Strike glyph into cell */
 #else /* !USE_GLYPH */
 	err = FskTextBox(typeFace->fte, bm, encodedText, textBytes, &bounds, NULL, NULL, &color, 255, typeFace->textSize, typeFace->textStyle,
-					kFskTextAlignLeft, kFskTextAlignTop, typeFace->fontName, typeFace->cache);	/* Strike glyph into cell */
+					kFskTextAlignLeft, kFskTextAlignTop, DEFAULT_TEXT_EXTRA, typeFace->fontName, typeFace->cache);	/* Strike glyph into cell */
 #endif /* !USE_GLYPH */
 bail:
 	#if GL_DEBUG
@@ -9000,7 +9001,7 @@ bail:
  * FskGLTextStrikeGlyphRange
  ********************************************************************************/
 
-static FskErr FskGLTextStrikeGlyphRange_(UInt16 firstCodePoint, UInt16 lastCodePoint, FskGLTypeFace typeFace) {
+static FskErr FskGLTextStrikeGlyphRange_(UInt16 firstCodePoint, UInt16 lastCodePoint, FskGLTypeFace typeFace, FskFixed textExtra) {
 	FskErr			err			= kFskErrNone,
 					stickyErr	= kFskErrNone;
 	FskGlyphStrike	strike;
@@ -9130,7 +9131,7 @@ bail:
 }
 
 #undef FskGLTextStrikeGlyphRange
-FskErr FskGLTextStrikeGlyphRange(UInt16 firstCodePoint, UInt16 lastCodePoint, FskGLTypeFace typeFace) {
+FskErr FskGLTextStrikeGlyphRange(UInt16 firstCodePoint, UInt16 lastCodePoint, FskGLTypeFace typeFace, FskFixed textExtra) {
 #if USE_GLYPH
 	char	encodedText[8];
 	UInt32	textBytes;
@@ -9141,14 +9142,14 @@ FskErr FskGLTextStrikeGlyphRange(UInt16 firstCodePoint, UInt16 lastCodePoint, Fs
 
 	for (codePoint = firstCodePoint; codePoint <= lastCodePoint; codePoint++) {
 		UnicodeCharToUTF8(codePoint, encodedText, &textBytes);
-		if ((err = FskTextGetGlyphs(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &glyphs, &numGlyphs, NULL, NULL, NULL, typeFace->cache)) != kFskErrNone)
+		if ((err = FskTextGetGlyphs(typeFace->fte, NULL, encodedText, textBytes, typeFace->textSize, typeFace->textStyle, textExtra, typeFace->fontName, &glyphs, &numGlyphs, NULL, NULL, NULL, typeFace->cache)) != kFskErrNone)
 			return err;
 		#ifdef LOG_TEXT
 			LogTextGetGlyphs(encodedText, textBytes, typeFace->textSize, typeFace->textStyle, typeFace->fontName, glyphs, numGlyphs);
 		#endif /* LOG_TEXT */
 		/* must be 1 glyph but just in case... */
 		for (i = 0; i < numGlyphs; i++) {
-			if ((err = FskGLTextStrikeGlyphRange_(glyphs[i], glyphs[i], typeFace)) != kFskErrNone) {
+			if ((err = FskGLTextStrikeGlyphRange_(glyphs[i], glyphs[i], typeFace, textExtra)) != kFskErrNone) {
 				FskMemPtrDispose(glyphs);
 				return err;
 			}
@@ -9159,7 +9160,7 @@ FskErr FskGLTextStrikeGlyphRange(UInt16 firstCodePoint, UInt16 lastCodePoint, Fs
 	}
 	return err;
 #else /* !USE_GLYPH */
-	return FskGLTextStrikeGlyphRange_(firstCodePoint, lastCodePoint, typeFace);
+	return FskGLTextStrikeGlyphRange_(firstCodePoint, lastCodePoint, typeFace, textExtra);
 #endif /* !USE_GLYPH */
 }
 
@@ -9301,9 +9302,9 @@ FskErr FskGLTypeFaceNew(const char *fontName, UInt32 textSize, UInt32 textStyle,
 	/* Also initialize the glyph strikes for Basic Latin. NB: start with the highest code point range to resize the glyph table only once. */
 #if !USE_GLYPH	/* On iOS, making the initial bitmap took up most of the startup time, and performance did not seem to be impacted. */
 	if (typeFace->numStrikes >= 32) {													/* If there is enough space, preload common glyphs */
-		err = FskGLTextStrikeGlyphRange(UNICODE_ELLIPSIS, UNICODE_ELLIPSIS, typeFace);	/* ellipsis (…) */
-		err = FskGLTextStrikeGlyphRange(0x0020, 0x0020, typeFace);						/* space */
-		//err = FskGLTextStrikeGlyphRange(0x0020, 0x007E, typeFace);					/* space ... ~ (Basic Latin) */
+		err = FskGLTextStrikeGlyphRange(UNICODE_ELLIPSIS, UNICODE_ELLIPSIS, typeFace, DEFAULT_TEXT_EXTRA);	/* ellipsis (…) */
+		err = FskGLTextStrikeGlyphRange(0x0020, 0x0020, typeFace, DEFAULT_TEXT_EXTRA);						/* space */
+		//err = FskGLTextStrikeGlyphRange(0x0020, 0x007E, typeFace, DEFAULT_TEXT_EXTRA);					/* space ... ~ (Basic Latin) */
 	}
 #endif /* !USE_GLYPH */
 	typeFace->lastStaticStrike = typeFace->lastStrikeIndex;
@@ -9428,7 +9429,7 @@ static void MeshAGlyph(FskConstGlyphStrike strike, const float texNorm[2], FskPo
  *	\return			the last X-coordinate.
  ********************************************************************************/
 
-static int TruncateTextMesh(UInt32 truncateStyle, FskGLTypeFace typeFace, float dstWidth,
+static int TruncateTextMesh(UInt32 truncateStyle, FskGLTypeFace typeFace, FskFixed textExtra, float dstWidth,
 	int stride, const float texNorm[2], UInt32 *numPtsPtr, float *xy, float *uv
 ) {
 	const int			glyphStride	= stride     * POINTS_PER_GLYPH;						/* The stride from one glyph to the next. */
@@ -9446,7 +9447,7 @@ static int TruncateTextMesh(UInt32 truncateStyle, FskGLTypeFace typeFace, float 
 
 #if USE_GLYPH
 	if (typeFace->ellipsisCode == 0)
-		(void)FskGLTextStrikeGlyphRange(UNICODE_ELLIPSIS, UNICODE_ELLIPSIS, typeFace);
+		(void)FskGLTextStrikeGlyphRange(UNICODE_ELLIPSIS, UNICODE_ELLIPSIS, typeFace, textExtra);
 	if (typeFace->ellipsisCode >= typeFace->glyphTabSize)
 		strike = &typeFace->strikes[0];
 	else
@@ -9519,19 +9520,19 @@ bail:
  * Assure that the necessary type face glyph strikes are loaded.
  ********************************************************************************/
 
-static FskErr CheckTypeFaceGlyphStrikes(const char *text, UInt32 textLen, FskGLTypeFace typeFace) {
+static FskErr CheckTypeFaceGlyphStrikes(const char *text, UInt32 textLen, FskGLTypeFace typeFace, FskFixed textExtra) {
 	FskErr		err			= kFskErrNone;
 #if USE_GLYPH
 	UInt16 *glyphs;
 	UInt32 numGlyphs, i;
-	BAIL_IF_ERR(err = FskTextGetGlyphs(typeFace->fte, NULL, text, textLen, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &glyphs, &numGlyphs, NULL, NULL, NULL, typeFace->cache));
+	BAIL_IF_ERR(err = FskTextGetGlyphs(typeFace->fte, NULL, text, textLen, typeFace->textSize, typeFace->textStyle, textExtra, typeFace->fontName, &glyphs, &numGlyphs, NULL, NULL, NULL, typeFace->cache));
 	#ifdef LOG_TEXT
 		LogTextGetGlyphs(text, textLen, typeFace->textSize, typeFace->textStyle, typeFace->fontName, glyphs, numGlyphs);
 	#endif /* LOG_TEXT */
 	for (i = 0; i < numGlyphs; i++) {
 		UInt16 gc = glyphs[i];
 		if (gc >= typeFace->glyphTabSize || typeFace->glyphTab[gc] == 0) {
-			BAIL_IF_ERR(err = FskGLTextStrikeGlyphRange_(glyphs[i], glyphs[i], typeFace));
+			BAIL_IF_ERR(err = FskGLTextStrikeGlyphRange_(glyphs[i], glyphs[i], typeFace, textExtra));
 		}
 	}
 #else /* !USE_GLYPH */
@@ -9540,7 +9541,7 @@ static FskErr CheckTypeFaceGlyphStrikes(const char *text, UInt32 textLen, FskGLT
 	while (text < endText) {
 		UInt16 uc = UTF8ToUnicodeChar(&text, NULL);						/* This automatically advances */
 		if (uc >= typeFace->glyphTabSize || 0 == typeFace->glyphTab[uc]) {
-			BAIL_IF_ERR(err = FskGLTextStrikeGlyphRange(uc, uc, typeFace));
+			BAIL_IF_ERR(err = FskGLTextStrikeGlyphRange(uc, uc, typeFace, textExtra));
 			typeFace->dirty = true;
 		}
 	}
@@ -9578,6 +9579,7 @@ static FskErr NewTextMesh(
 	const char			*text,
 	UInt32				textLen,
 	FskGLTypeFace		typeFace,
+	FskFixed			textExtra,
 	GLTextureRecord		*glyphTexture,
 	float				dstX,
 	float				dstY,
@@ -9607,14 +9609,14 @@ static FskErr NewTextMesh(
 	#if USE_GLYPH
 		UInt16		*glyphs = NULL;
 		FskFixed	*layout			= NULL;
-		BAIL_IF_ERR(err = FskTextGetGlyphs(typeFace->fte, NULL, text, textLen, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &glyphs, &numQuads, &layout, &textBounds.width, &textBounds.height, typeFace->cache));
+		BAIL_IF_ERR(err = FskTextGetGlyphs(typeFace->fte, NULL, text, textLen, typeFace->textSize, typeFace->textStyle, textExtra, typeFace->fontName, &glyphs, &numQuads, &layout, &textBounds.width, &textBounds.height, typeFace->cache));
 		#ifdef LOG_TEXT
 			LogTextGetGlyphs(text, textLen, typeFace->textSize, typeFace->textStyle, typeFace->fontName, glyphs, numQuads);
 		#endif /* LOG_TEXT */
 	#elif USE_LAYOUT
 		UInt16		*unicodeText	= NULL;
 		FskFixed	*layout			= NULL;
-		BAIL_IF_ERR(err = FskTextGetLayout(typeFace->fte, NULL, text, textLen, typeFace->textSize, typeFace->textStyle, typeFace->fontName, &unicodeText, &numQuads, &layout, typeFace->cache));
+		BAIL_IF_ERR(err = FskTextGetLayout(typeFace->fte, NULL, text, textLen, typeFace->textSize, typeFace->textStyle, textExtra, typeFace->fontName, &unicodeText, &numQuads, &layout, typeFace->cache));
 	#else /* !USE_LAYOUT */
 		numQuads = NumberOfUnicodeCharacters(text, textLen);
 	#endif /* USE_LAYOUT */
@@ -9679,7 +9681,7 @@ static FskErr NewTextMesh(
 #endif /* USE_GLYPH */
 	/* Insert an ellipsis if one of the truncate methods is requested, and the text is too wide; otherwise clip pixelwise */
 	if ((0 != (style & (kFskTextTruncateEnd | kFskTextTruncateCenter))) && ceilf(textBounds.width) > dstWidth) {
-		loc.x  = (float)TruncateTextMesh(style, typeFace, dstWidth, stride, texNorm, numPtsPtr, *xyPtr, *uvPtr);
+		loc.x  = (float)TruncateTextMesh(style, typeFace, textExtra, dstWidth, stride, texNorm, numPtsPtr, *xyPtr, *uvPtr);
 		numPts = *numPtsPtr;
 		textBounds.width = (SInt32)loc.x;
 	}
@@ -13058,6 +13060,7 @@ FskErr FskGLTextGlyphsLoad(
 	UInt32							textLen,
 	UInt32							textSize,
 	UInt32							textStyle,
+	FskFixed						textExtra,
 	const char						*fontName,
 	struct FskTextFormatCacheRecord	*cache
 ) {
@@ -13073,7 +13076,7 @@ FskErr FskGLTextGlyphsLoad(
 		BAIL_IF_NULL(typeFace, err, kFskErrNotFound);
 	}
 
-	BAIL_IF_ERR(err = CheckTypeFaceGlyphStrikes(text, textLen, typeFace));
+	BAIL_IF_ERR(err = CheckTypeFaceGlyphStrikes(text, textLen, typeFace, textExtra));
 bail:
 	return err;
 }
@@ -13156,6 +13159,7 @@ FskErr FskGLTextBox(
 	UInt32							textStyle,
 	UInt16							hAlign,
 	UInt16							vAlign,
+	FskFixed						textExtra,
 	const char						*fontName,
 	struct FskTextFormatCacheRecord	*cache
 ) {
@@ -13181,7 +13185,7 @@ FskErr FskGLTextBox(
 	BAIL_IF_ERR(err);
 	BAIL_IF_NULL(typeFace, err, kFskErrNotFound);
 
-	BAIL_IF_ERR(err = FskGLTextGetBounds(fte, NULL, text, textLen, textSize, textStyle, fontName, &bounds, cache));
+	BAIL_IF_ERR(err = FskGLTextGetBounds(fte, NULL, text, textLen, textSize, textStyle, textExtra, fontName, &bounds, cache));
 
 	BAIL_IF_ERR(err = FskGLDstPort(dstBM, &glPort));
 	tx = GetBitmapTexture(typeFace->bm);
@@ -13255,10 +13259,10 @@ FskErr FskGLTextBox(
 	modeParams.blendLevel = blendLevel;
 
 	if (dstRectFloat) {
-		BAIL_IF_ERR(err = NewTextMesh(text, textLen, typeFace, tx, dstRectFloat->x, dstRectFloat->y, dstRectFloat->width, dstRectFloat->height, bounds.height, TEXVERTEX_STRIDE, hAlign, vAlign, textStyle, &numPts, &xy, &uv));
+		BAIL_IF_ERR(err = NewTextMesh(text, textLen, typeFace, textExtra, tx, dstRectFloat->x, dstRectFloat->y, dstRectFloat->width, dstRectFloat->height, bounds.height, TEXVERTEX_STRIDE, hAlign, vAlign, textStyle, &numPts, &xy, &uv));
 	}
 	else {
-		BAIL_IF_ERR(err = NewTextMesh(text, textLen, typeFace, tx, (float)dstRect->x, (float)dstRect->y, (float)dstRect->width, (float)dstRect->height, bounds.height, TEXVERTEX_STRIDE, hAlign, vAlign, textStyle, &numPts, &xy, &uv));
+		BAIL_IF_ERR(err = NewTextMesh(text, textLen, typeFace, textExtra, tx, (float)dstRect->x, (float)dstRect->y, (float)dstRect->width, (float)dstRect->height, bounds.height, TEXVERTEX_STRIDE, hAlign, vAlign, textStyle, &numPts, &xy, &uv));
 	}
 
 	BAIL_IF_ZERO(numPts, err, kFskErrNothingRendered);
@@ -13295,6 +13299,7 @@ FskErr FskGLTextGetBounds(
 	UInt32				textLen,
 	UInt32				textSize,
 	UInt32				textStyle,
+	FskFixed			textExtra,
 	const char			*fontName,
 	FskRectangle		bounds,
 	struct FskTextFormatCacheRecord	*cache
@@ -13309,7 +13314,7 @@ FskErr FskGLTextGetBounds(
 	FskRectangleSetEmpty(&r);
 	if (bits) {}
 	BAIL_IF_NULL(typeFace = LookForTypeface(fontName, textSize, textStyle, fte, cache), err, kFskErrNotFound);
-	BAIL_IF_ERR(err = CheckTypeFaceGlyphStrikes(text, textLen, typeFace));
+	BAIL_IF_ERR(err = CheckTypeFaceGlyphStrikes(text, textLen, typeFace, textExtra));
 
 #if USE_GLYPH
 	/* no use of the bounding rect */

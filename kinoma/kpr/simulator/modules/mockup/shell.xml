@@ -503,8 +503,7 @@
 			else if (menu.items.length > 0)
 				this.deviceItem = menu.items[0];
 			else {
-				trace("NO DEVICES!\n");
-				throw;
+				throw new Error("NO DEVICES!")
 			}
 			menus.push(this.buildHostMenu());
 			menu = this.buildApplicationsMenu(data);
@@ -515,8 +514,7 @@
 			else if (menu.items.length > 0)
 				this.applicationItem = menu.items[0];
 			else {
-				trace("NO APPLICATIONS!\n");
-				throw;
+				throw new Error("NO APPLICATIONS!")
 			}
 			menu = this.buildCustomMenu(data);
 			if (menu) 

@@ -563,6 +563,10 @@ static const char* GLErrorStringFromCode(GLenum code) {
 			pat.pt.x = (_fskWindow->bits->bounds.width - 1) - pat.pt.y;
 			pat.pt.y = temp;
 		}
+		else if (180 == rotate) {
+			pat.pt.x = (_fskWindow->bits->bounds.width - 1) - pat.pt.x;
+			pat.pt.y = (_fskWindow->bits->bounds.height - 1) - pat.pt.y;
+		}
 	}
 
 	if (_fskWindow->port)

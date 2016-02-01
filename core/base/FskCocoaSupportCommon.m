@@ -642,7 +642,7 @@ createAttributedString(const char *text, UInt32 textLength, FskConstColorRGBA fs
 }
 
 static Boolean
-makeGlyphLayout(NSString *textString, CTLineRef line, CFIndex lineLength, LayoutInfo layout, FskTextFormatCache cache)
+makeGlyphLayout(NSString *textString, CTLineRef line, CFIndex lineLength, LayoutInfo layout, FskFixed textExtra, FskTextFormatCache cache)
 {
 #if IGNORE_TRAILING_SPACES
 	CFIndex *indices = NULL;
@@ -652,6 +652,7 @@ makeGlyphLayout(NSString *textString, CTLineRef line, CFIndex lineLength, Layout
 	CGSize adv;
 	CFIndex lineCount, lineIndex = 0;
 	Boolean err = true;
+	CTLineRef tLine = NULL;
 
 	lineCount = CTLineGetGlyphCount(line);
 	if ((layout->codes = (UInt16 *)FskMemPtrAlloc(sizeof(UInt16) * (UInt32)lineCount)) == NULL)
@@ -660,6 +661,23 @@ makeGlyphLayout(NSString *textString, CTLineRef line, CFIndex lineLength, Layout
 		goto bail;
 	CFArrayRef runs = CTLineGetGlyphRuns(line);
 	CFIndex runCount = CFArrayGetCount(runs);
+
+	if (textExtra) {
+		CGPoint position;
+		CGFloat width;
+		CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, runCount - 1);
+		CFIndex glyphCount = CTRunGetGlyphCount(run);
+		CTRunGetPositions(run, CFRangeMake(glyphCount - 1, 1), &position);
+		CTRunGetAdvances(run, CFRangeMake(glyphCount - 1, 1), &adv);
+		width = position.x + adv.width;
+
+		tLine = CTLineCreateJustifiedLine(line, 1, width + FskFixedToFloat(glyphCount * textExtra));
+		if (!tLine) goto bail;
+		line = tLine;
+		runs = CTLineGetGlyphRuns(line);
+		runCount = CFArrayGetCount(runs);
+	}
+
 	for (CFIndex j = 0, i = 0; j < runCount; j++) {
 		CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(runs, j);
 		CFIndex glyphCount = CTRunGetGlyphCount(run);
@@ -699,6 +717,7 @@ makeGlyphLayout(NSString *textString, CTLineRef line, CFIndex lineLength, Layout
 	err = false;
 
 bail:
+	if (tLine) CFRelease(tLine);
 	if (glyphs) FskMemPtrDispose(glyphs);
 	if (positions) FskMemPtrDispose(positions);
 #if IGNORE_TRAILING_SPACES
@@ -708,7 +727,7 @@ bail:
 }
 
 static Boolean
-makeTextLayout(NSString *textString, CTLineRef line, CFIndex lineLength, LayoutInfo layout, FskTextFormatCache cache)
+makeTextLayout(NSString *textString, CTLineRef line, CFIndex lineLength, LayoutInfo layout, FskFixed textExtra, FskTextFormatCache cache)
 {
 	if ((NSUInteger)lineLength > textString.length) return true;
 
@@ -735,7 +754,7 @@ makeTextLayout(NSString *textString, CTLineRef line, CFIndex lineLength, LayoutI
 }
 
 static void
-makeLayoutInfo(NSString *textString, CTLineRef line, CFIndex lineLength, LayoutInfo layout, FskTextFormatCache cache)
+makeLayoutInfo(NSString *textString, CTLineRef line, CFIndex lineLength, LayoutInfo layout, FskFixed textExtra, FskTextFormatCache cache)
 {
 	Boolean err = true;
 
@@ -744,9 +763,9 @@ makeLayoutInfo(NSString *textString, CTLineRef line, CFIndex lineLength, LayoutI
 	layout->layout = NULL;
 
 	if (layout->useGlyph)
-		err = makeGlyphLayout(textString, line, lineLength, layout, cache);
+		err = makeGlyphLayout(textString, line, lineLength, layout, textExtra, cache);
 	else
-		err = makeTextLayout(textString, line, lineLength, layout, cache);
+		err = makeTextLayout(textString, line, lineLength, layout, textExtra, cache);
 
 	if (err) {
 		if (layout->codes) FskMemPtrDisposeAt((FskMemPtr *)&layout->codes);
@@ -843,7 +862,7 @@ lineDeregister(FskTextEngineState state, LineList ll)
 }
 
 static BOOL
-createLine_(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, const char *fontName, FskTextFormatCache cache, CGFloat constraintWidth, CTLineRef *lineOut, SizeInfo sizeOut, BytesInfo bytesOut, LayoutInfo layoutOut, BOOL *cacheHit)
+createLine_(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskTextFormatCache cache, CGFloat constraintWidth, CTLineRef *lineOut, SizeInfo sizeOut, BytesInfo bytesOut, LayoutInfo layoutOut, BOOL *cacheHit)
 {
 	FskTextEngineState state = stateIn;
 	LineList ll = NULL;
@@ -930,6 +949,7 @@ createLine_(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGB
 		}
 		if ((err = FskMemPtrNewFromData(textLength, text, (FskMemPtr *)&ll->text)) != kFskErrNone)
 			goto bail;
+
 		ll->textLength = textLength;
 		ll->colorRGB = *fskColorRGB;
 		ll->blendLevel = blendLevel;
@@ -946,7 +966,7 @@ createLine_(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGB
 		[attrString release];
 		attrString = nil;
 		ll->layout.useGlyph = true;
-		makeLayoutInfo(ll->textString, ll->line, ll->lineLength, &ll->layout, cache);
+		makeLayoutInfo(ll->textString, ll->line, ll->lineLength, &ll->layout, textExtra, cache);
 		ll->size.width = ll->layout.width;
 		ll->size.ascent = cache->ascent;
 		ll->size.descent = cache->descent;
@@ -972,7 +992,7 @@ createLine_(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGB
 			ll->layout.useGlyph = layoutOut->useGlyph;
 			if (ll->layout.codes) FskMemPtrDisposeAt((FskMemPtr *)&ll->layout.codes);
 			if (ll->layout.layout) FskMemPtrDisposeAt((FskMemPtr *)&ll->layout.layout);
-			makeLayoutInfo(ll->textString, ll->line, ll->lineLength, &ll->layout, cache);
+			makeLayoutInfo(ll->textString, ll->line, ll->lineLength, &ll->layout, textExtra, cache);
 		}
 		if (ll->layout.codesLen > 0) {
 			if ((err = FskMemPtrNewFromData(sizeof(UInt16) * ll->layout.codesLen, ll->layout.codes, (FskMemPtr *)&layoutOut->codes)) != kFskErrNone)
@@ -1005,7 +1025,7 @@ bail:
 }
 
 static BOOL
-createLine(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, const char *fontName, FskTextFormatCache cache, CGFloat constraintWidth, CTLineRef *lineOut, SizeInfo sizeOut, BytesInfo bytesOut, LayoutInfo layoutOut)
+createLine(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskTextFormatCache cache, CGFloat constraintWidth, CTLineRef *lineOut, SizeInfo sizeOut, BytesInfo bytesOut, LayoutInfo layoutOut)
 {
 	BOOL ret, cacheHit;
 #if LOG_LINE_CACHE
@@ -1015,7 +1035,7 @@ createLine(void *stateIn, const char *text, UInt32 textLength, FskConstColorRGBA
 
 	gettimeofday(&t1, NULL);
 #endif /* LOG_LINE_CACHE */
-	ret = createLine_(stateIn, text, textLength, fskColorRGB, blendLevel, textSize, textStyle, fontName, cache, constraintWidth, lineOut, sizeOut, bytesOut, layoutOut, &cacheHit);
+	ret = createLine_(stateIn, text, textLength, fskColorRGB, blendLevel, textSize, textStyle, textExtra, fontName, cache, constraintWidth, lineOut, sizeOut, bytesOut, layoutOut, &cacheHit);
 #if LOG_LINE_CACHE
 	gettimeofday(&t2, NULL);
 	d1 = t1.tv_usec + t1.tv_sec * 1000 * 1000;
@@ -1187,7 +1207,7 @@ bail:
 	return;
 }
 
-void FskCocoaTextGetBounds(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskTextFormatCache cache)
+void FskCocoaTextGetBounds(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskTextFormatCache cache)
 {
 	SizeInfoRecord size;
 
@@ -1199,13 +1219,13 @@ void FskCocoaTextGetBounds(void *state, const char *text, UInt32 textLength, UIn
 	if ((text == NULL) || (textLength == 0)) goto bail;
 
 	//	fprintf(stderr, "FskCocoaTextGetBounds:\n");
-	createLine(state, text, textLength, NULL, 0, textSize, textStyle, fontName, cache, CGFLOAT_MAX, NULL, &size, NULL, NULL);
+	createLine(state, text, textLength, NULL, 0, textSize, textStyle, textExtra, fontName, cache, CGFLOAT_MAX, NULL, &size, NULL, NULL);
 
 bail:
 	FskRectangleSet(bounds, 0, 0, ceilf(size.width), roundf(size.height));
 }
 
-void FskCocoaTextGetBoundsSubpixel(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, FskDimensionFloat dimension, FskTextFormatCache cache)
+void FskCocoaTextGetBoundsSubpixel(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskDimensionFloat dimension, FskTextFormatCache cache)
 {
 	SizeInfoRecord size;
 
@@ -1213,13 +1233,13 @@ void FskCocoaTextGetBoundsSubpixel(void *state, const char *text, UInt32 textLen
 	size.height = 0.0;
 
 	if (text && textLength)
-		createLine(state, text, textLength, NULL, 0, textSize, textStyle, fontName, cache, CGFLOAT_MAX, NULL, &size, NULL, NULL);
+		createLine(state, text, textLength, NULL, 0, textSize, textStyle, textExtra, fontName, cache, CGFLOAT_MAX, NULL, &size, NULL, NULL);
 
 	dimension->width = size.width;
 	dimension->height = size.height;
 }
 
-static void MyTextGetLayout(Boolean useGlyph, void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **codePtr, UInt32 *codeLenPtr, FskFixed **layoutPtr, float *widthPtr, float *heightPtr, FskTextFormatCache cache)
+static void MyTextGetLayout(Boolean useGlyph, void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **codePtr, UInt32 *codeLenPtr, FskFixed **layoutPtr, float *widthPtr, float *heightPtr, FskTextFormatCache cache)
 {
 	LayoutInfoRecord layout;
 	SizeInfoRecord size;
@@ -1232,7 +1252,7 @@ static void MyTextGetLayout(Boolean useGlyph, void *state, const char *text, UIn
 	//NSLog(@"FskCocoaTextGetLayout: %s", debug_text(text, textLength));
 	if ((text == NULL) || (textLength == 0)) goto bail;
 
-	createLine(state, text, textLength, NULL, 0, textSize, textStyle, fontName, cache, CGFLOAT_MAX, NULL, &size, NULL, &layout);
+	createLine(state, text, textLength, NULL, 0, textSize, textStyle, textExtra, fontName, cache, CGFLOAT_MAX, NULL, &size, NULL, &layout);
 
 	if (widthPtr != NULL)
 		*widthPtr = size.width;
@@ -1252,7 +1272,7 @@ bail:
 		FskMemPtrDispose((FskMemPtr)layout.layout);	/* Dispose of laypout if not wanted */
 }
 
-void FskCocoaTextGetLayout(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **unicodeTextPtr, UInt32 *unicodeLenPtr, FskFixed **layoutPtr, FskTextFormatCache cache)
+void FskCocoaTextGetLayout(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **unicodeTextPtr, UInt32 *unicodeLenPtr, FskFixed **layoutPtr, FskTextFormatCache cache)
 {
 	FskTextFormatCache tmpCache = NULL;
 
@@ -1262,18 +1282,18 @@ void FskCocoaTextGetLayout(void *state, const char *text, UInt32 textLength, UIn
 		tmpCache = cache;
 	}
 
-	MyTextGetLayout(false, state, text, textLength, textSize, textStyle, fontName, unicodeTextPtr, unicodeLenPtr, layoutPtr, NULL, NULL, cache);
+	MyTextGetLayout(false, state, text, textLength, textSize, textStyle, textExtra, fontName, unicodeTextPtr, unicodeLenPtr, layoutPtr, NULL, NULL, cache);
 
 	if (tmpCache != NULL)
 		FskCocoaTextFormatCacheDispose(state, tmpCache);
 }
 
-void FskCocoaTextGetGlyphs(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layoutPtr, float *widthPtr, float *heightPtr, FskTextFormatCache cache)
+void FskCocoaTextGetGlyphs(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layoutPtr, float *widthPtr, float *heightPtr, FskTextFormatCache cache)
 {
-	MyTextGetLayout(true, state, text, textLength, textSize, textStyle, fontName, glyphsPtr, glyphsLenPtr, layoutPtr, widthPtr, heightPtr, cache);
+	MyTextGetLayout(true, state, text, textLength, textSize, textStyle, textExtra, fontName, glyphsPtr, glyphsLenPtr, layoutPtr, widthPtr, heightPtr, cache);
 }
 
-Boolean FskCocoaTextFitWidth(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache)
+Boolean FskCocoaTextFitWidth(void *state, const char *text, UInt32 textLength, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache)
 {
 	BytesInfoRecored bytes;
 	Boolean ret = false;
@@ -1286,7 +1306,7 @@ Boolean FskCocoaTextFitWidth(void *state, const char *text, UInt32 textLength, U
 	//NSLog(@"FskCocoaTextFitWidth: %s", debug_text(text, textLength));
 
 	//	fprintf(stderr, "FskCocoaTextFitWidth:\n");
-	ret = createLine(state, text, textLength, NULL, 0, textSize, textStyle, fontName, cache, width, NULL, NULL, &bytes, NULL);
+	ret = createLine(state, text, textLength, NULL, 0, textSize, textStyle, textExtra, fontName, cache, width, NULL, NULL, &bytes, NULL);
 
 bail:
 	if (fitBytesOut)
@@ -1322,7 +1342,7 @@ void FskCocoaTextGetFontInfo(void *state, FskTextFontInfo info, const char *font
 		FskCocoaTextFormatCacheDispose(state, tmpCache);
 }
 
-Boolean FskCocoaTextDraw(void *state, FskBitmap fskBitmap, const char *text, UInt32 textLength, FskConstRectangle fskRect, FskConstRectangle clipFskRect, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 horizontalAlignment, UInt16 verticalAlignment, const char *fontName, FskTextFormatCache cache)
+Boolean FskCocoaTextDraw(void *state, FskBitmap fskBitmap, const char *text, UInt32 textLength, FskConstRectangle fskRect, FskConstRectangle clipFskRect, FskConstColorRGBA fskColorRGB, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 horizontalAlignment, UInt16 verticalAlignment, FskFixed textExtra, const char *fontName, FskTextFormatCache cache)
 {
 	Boolean ret = false;
 	CGContextRef context;
@@ -1352,7 +1372,7 @@ Boolean FskCocoaTextDraw(void *state, FskBitmap fskBitmap, const char *text, UIn
 		FskColorRGBASet(&color, 255, 255, 255, 255);
 		modeParams.dataSize = sizeof(modeParams);
 		modeParams.blendLevel = blendLevel;
-		strikeThrough = FskCocoaTextDraw(state, tmp, text, textLength, fskRect, clipFskRect, &color, 255, textSize, textStyle, horizontalAlignment, verticalAlignment, fontName, cache)
+		strikeThrough = FskCocoaTextDraw(state, tmp, text, textLength, fskRect, clipFskRect, &color, 255, textSize, textStyle, horizontalAlignment, verticalAlignment, textExtra, fontName, cache)
 		&& (kFskErrNone == FskTransferAlphaBitmap(tmp, fskRect, fskBitmap, (FskConstPoint)fskRect, clipFskRect, fskColorRGB, &modeParams));
 		FskBitmapDispose(tmp);
 		return strikeThrough;
@@ -1368,7 +1388,7 @@ Boolean FskCocoaTextDraw(void *state, FskBitmap fskBitmap, const char *text, UIn
 	drawRect = CGRectMake(fskRect->x, fskBitmap->bounds.height - fskRect->y - fskRect->height, fskRect->width, fskRect->height);
 
 	//	fprintf(stderr, "FskCocoaTextDraw:\n");
-	if (!(ret = createLine(state, text, textLength, fskColorRGB, blendLevel, textSize, textStyle, fontName, cache, fskRect->width, &line, &size, NULL, NULL)))
+	if (!(ret = createLine(state, text, textLength, fskColorRGB, blendLevel, textSize, textStyle, textExtra, fontName, cache, fskRect->width, &line, &size, NULL, NULL)))
 		goto bail;
 
 #if 0	/* to align with GLText */
@@ -1637,13 +1657,13 @@ FskErr FskTextGlyphBox(FskTextEngine fte, FskBitmap bits, const UInt16 *codes, U
 	return kFskErrNone;
 }
 
-FskErr FskTextGetGlyphs(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layout, float *widthPtr, float *heightPtr, FskTextFormatCache cache)
+FskErr FskTextGetGlyphs(FskTextEngine fte, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **glyphsPtr, UInt32 *glyphsLenPtr, FskFixed **layout, float *widthPtr, float *heightPtr, FskTextFormatCache cache)
 {
 #if !USE_FRACTIONAL_TEXT_SIZE
 	textSize = ROUND_TEXTSIZE(textSize);
 #endif
 
-	FskCocoaTextGetGlyphs(fte->state, text, textLen, textSize, textStyle, fontName, glyphsPtr, glyphsLenPtr, layout, widthPtr, heightPtr, cache);
+	FskCocoaTextGetGlyphs(fte->state, text, textLen, textSize, textStyle, textExtra, fontName, glyphsPtr, glyphsLenPtr, layout, widthPtr, heightPtr, cache);
 	return kFskErrNone;
 }
 #endif /* USE_CORE_TEXT */

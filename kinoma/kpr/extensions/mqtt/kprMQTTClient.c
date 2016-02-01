@@ -27,6 +27,7 @@
 // MQTT Client
 //--------------------------------------------------
 
+#define kKprMQTTClientIdentifierPrefix "KprMQTTClient-"
 #define CALLBACK(x) if (self->x) self->x
 
 static FskErr KprMQTTClientOnConnect(FskSocket skt, void *refCon);
@@ -36,8 +37,8 @@ static void KprMQTTClientSendMessageViaDelivery(KprMQTTQueue queue, KprMQTTMessa
 
 static FskErr KprMQTTClientCreateConnectMessage(KprMQTTClient self, KprMQTTClientConnectOptions *options, KprMQTTMessage *message);
 static FskErr KprMQTTClientCreatePublishMessage(KprMQTTClient self, char *topic, void *payload, UInt32 payloadLength, UInt8 qos, Boolean retain, KprMQTTMessage *it);
-static FskErr KprMQTTClientCreateSubscribeMessage(KprMQTTClient self, char *topic, UInt8 qos, KprMQTTMessage *it);
-static FskErr KprMQTTClientCreateUnsubscribeMessage(KprMQTTClient self, char *topic, KprMQTTMessage *it);
+static FskErr KprMQTTClientCreateSubscribeMessages(KprMQTTClient self, char **topic, UInt8 *qos, int count, KprMQTTMessage *it);
+static FskErr KprMQTTClientCreateUnsubscribeMessages(KprMQTTClient self, char **topic, int count, KprMQTTMessage *it);
 static void KprMQTTClientHandleMessage(KprMQTTEndpoint endpoint, KprMQTTMessage message, void *refcon);
 static void KprMQTTClient_onEndpointError(KprMQTTEndpoint endpoint, FskErr err, char *reason, void *refcon);
 static void KprMQTTClientHandleError(KprMQTTClient self, FskErr err, char *reason);
@@ -46,10 +47,11 @@ static void KprMQTTClientResetKeepAliveTimer(KprMQTTClient self);
 static void KprMQTTClientIdle(FskTimeCallBack callback, const FskTime time, void *it);
 static void KprMQTTClientCheckPingResponse(FskTimeCallBack callback, const FskTime time, void *it);
 
-FskErr KprMQTTClientNew(KprMQTTClient* it, char *clientId, Boolean cleanSession, void *refcon)
+FskErr KprMQTTClientNew(KprMQTTClient* it, char *clientId, Boolean cleanSession, KprMQTTProtocolVersion protocolVersion, void *refcon)
 {
 	FskErr err = kFskErrNone;
 	KprMQTTClient self = NULL;
+	char generatedId[23];
 
 	bailIfError(FskMemPtrNewClear(sizeof(KprMQTTClientRecord), &self));
 
@@ -61,12 +63,28 @@ FskErr KprMQTTClientNew(KprMQTTClient* it, char *clientId, Boolean cleanSession,
 	FskTimeCallbackNew(&self->pingResponseCallaback);
 	bailIfNULL(self->pingResponseCallaback);
 
+	if (protocolVersion == kKprMQTTProtocol31) {
+		if (clientId == NULL || FskStrLen(clientId)) {
+			char hex[9];
+
+			FskStrCopy(generatedId, kKprMQTTClientIdentifierPrefix);
+
+			FskStrNumToHex(FskRandom(), hex, 8);
+			FskStrCat(generatedId, hex);
+
+			clientId = generatedId;
+		}
+	} else {
+		if (clientId == NULL) clientId = "";
+	}
+
 	self->clientIdentifier = FskStrDoCopy(clientId);
 	bailIfNULL(self->clientIdentifier);
 
-	self->cleanSession = cleanSession;
+	self->cleanSession = FskStrLen(self->clientIdentifier) > 0 ? cleanSession : true;
 	self->refcon = refcon;
 	self->state = kKprMQTTStateDisconnected;
+	self->protocolVersion = protocolVersion ? protocolVersion : kKprMQTTProtocol311;
 
 	KprMQTTQueueStart(self->queue);
 
@@ -158,6 +176,8 @@ static FskErr KprMQTTClientOnConnect(FskSocket skt, void *refCon)
 	}
 
 	bailIfError(KprMQTTEndpointNew(&self->endpoint, skt, self));
+
+	self->endpoint->protocolVersion = self->protocolVersion;
 	self->endpoint->messageCallback = KprMQTTClientHandleMessage;
 	self->endpoint->errorCallback = KprMQTTClient_onEndpointError;
 
@@ -219,6 +239,18 @@ static FskErr KprMQTTClientForceClose(KprMQTTClient self)
 	return kFskErrNone;
 }
 
+const char *KprMQTTClientGetProtocolVersion(KprMQTTClient self)
+{
+	switch (self->protocolVersion) {
+		case kKprMQTTProtocol31:
+			return "3.1";
+		case kKprMQTTProtocol311:
+			return "3.1.1";
+		default:
+			return "unknown";
+	}
+}
+
 // --- PUBLISH --------------------------------------
 
 FskErr KprMQTTClientPublish(KprMQTTClient self, char *topic, void *payload, UInt32 payloadLength, UInt8 qos, Boolean retain, UInt16 *token)
@@ -227,7 +259,7 @@ FskErr KprMQTTClientPublish(KprMQTTClient self, char *topic, void *payload, UInt
 	KprMQTTMessage message = NULL;
 
 	bailIfError(KprMQTTClientCreatePublishMessage(self, topic, payload, payloadLength, qos, retain, &message));
-	*token = message->messageId;
+	if (token) *token = message->messageId;
 
 	bailIfError(KprMQTTClientSendMessage(self, &message));
 
@@ -239,12 +271,19 @@ bail:
 
 // --- SUBSCRIBE TOPIC ------------------------------
 
-FskErr KprMQTTClientSubscribeTopic(KprMQTTClient self, char *topic, UInt8 qos)
+FskErr KprMQTTClientSubscribeTopic(KprMQTTClient self, char *topic, UInt8 qos, UInt16 *token)
+{
+	return KprMQTTClientSubscribeTopics(self, &topic, &qos, 1, token);
+}
+
+FskErr KprMQTTClientSubscribeTopics(KprMQTTClient self, char **topics, UInt8 *qoss, int count, UInt16 *token)
 {
 	FskErr err;
 	KprMQTTMessage message = NULL;
 
-	bailIfError(KprMQTTClientCreateSubscribeMessage(self, topic, qos, &message));
+	bailIfError(KprMQTTClientCreateSubscribeMessages(self, topics, qoss, count, &message));
+	if (token) *token = message->messageId;
+
 	bailIfError(KprMQTTClientSendMessage(self, &message));
 
 bail:
@@ -253,12 +292,19 @@ bail:
 	return err;
 }
 
-FskErr KprMQTTClientUnsubscribeTopic(KprMQTTClient self, char *topic)
+FskErr KprMQTTClientUnsubscribeTopic(KprMQTTClient self, char *topic, UInt16 *token)
+{
+	return KprMQTTClientUnsubscribeTopics(self, &topic, 1, token);
+}
+
+FskErr KprMQTTClientUnsubscribeTopics(KprMQTTClient self, char **topics, int count, UInt16 *token)
 {
 	FskErr err;
 	KprMQTTMessage message = NULL;
 
-	bailIfError(KprMQTTClientCreateUnsubscribeMessage(self, topic, &message));
+	bailIfError(KprMQTTClientCreateUnsubscribeMessages(self, topics, count, &message));
+	if (token) *token = message->messageId;
+
 	bailIfError(KprMQTTClientSendMessage(self, &message));
 
 bail:
@@ -309,8 +355,10 @@ static void KprMQTTClientSendMessageViaDelivery(KprMQTTQueue queue, KprMQTTMessa
 
 static FskErr KprMQTTClientCopyString(const char *src, char **dest)
 {
-	*dest = FskStrDoCopy(src);
-	if (*dest == NULL && src != NULL) return kFskErrMemFull;
+	if (src != NULL) {
+		*dest = FskStrDoCopy(src);
+		if (*dest == NULL) return kFskErrMemFull;
+	}
 	return kFskErrNone;
 }
 
@@ -376,22 +424,24 @@ bail:
 	return err;
 }
 
-static FskErr KprMQTTClientCreateSubscribeMessage(KprMQTTClient self, char *topic, UInt8 qos, KprMQTTMessage *it)
+static FskErr KprMQTTClientCreateSubscribeMessages(KprMQTTClient self, char **topic, UInt8 *qos, int count, KprMQTTMessage *it)
 {
 	FskErr err;
 	KprMQTTMessage message = NULL;
 	KprMQTTSubscribeTopic st;
+	int i;
 
 	bailIfError(KprMQTTMessageNewWithType(&message, kKprMQTTMessageTypeSUBSCRIBE));
 
 	message->messageId = KprMQTTQueueNextId(self->queue);
 
-	bailIfError(KprMQTTMessageAddSubscribeTopic(message));
-	st = KprMQTTMessageLastSubscribeTopic(message);
+	for (i = 0; i < count; i++) {
+		bailIfError(KprMQTTMessageAddSubscribeTopic(message, &st));
 
-	st->topic = FskStrDoCopy(topic);
-	bailIfNULL(st->topic);
-	st->qualityOfService = qos;
+		st->topic = FskStrDoCopy(*topic++);
+		bailIfNULL(st->topic);
+		st->qualityOfService = *qos++;
+	}
 
 	*it = message;
 	message = NULL;
@@ -401,21 +451,23 @@ bail:
 	return err;
 }
 
-static FskErr KprMQTTClientCreateUnsubscribeMessage(KprMQTTClient self, char *topic, KprMQTTMessage *it)
+static FskErr KprMQTTClientCreateUnsubscribeMessages(KprMQTTClient self, char **topic, int count, KprMQTTMessage *it)
 {
 	FskErr err;
 	KprMQTTMessage message = NULL;
 	KprMQTTSubscribeTopic st;
+	int i;
 
 	bailIfError(KprMQTTMessageNewWithType(&message, kKprMQTTMessageTypeUNSUBSCRIBE));
 
 	message->messageId = KprMQTTQueueNextId(self->queue);
 
-	bailIfError(KprMQTTMessageAddSubscribeTopic(message));
-	st = KprMQTTMessageLastSubscribeTopic(message);
+	for (i = 0; i < count; i++) {
+		bailIfError(KprMQTTMessageAddSubscribeTopic(message, &st));
 
-	st->topic = FskStrDoCopy(topic);
-	bailIfNULL(st->topic);
+		st->topic = FskStrDoCopy(*topic++);
+		bailIfNULL(st->topic);
+	}
 
 	*it = message;
 	message = NULL;
@@ -434,11 +486,12 @@ static void KprMQTTClientHandleMessage(KprMQTTEndpoint endpoint UNUSED, KprMQTTM
 	switch (message->type) {
 		case kKprMQTTMessageTypeCONNACK: {
 			UInt8 returnCode = message->t.connack.returnCode;
+			Boolean sessionPersist = message->t.connack.sesstionPresent;
 
 			if (returnCode == kKprMQTTMessageReturnCodeAccepted) {
 				self->state = kKprMQTTStateEstablished;
 			}
-			CALLBACK(connectCallback)(self, returnCode, self->refcon);
+			CALLBACK(connectCallback)(self, returnCode, sessionPersist, self->refcon);
 			if (returnCode != kKprMQTTMessageReturnCodeAccepted) {
 				KprMQTTClientForceClose(self);
 			}
@@ -453,7 +506,7 @@ static void KprMQTTClientHandleMessage(KprMQTTEndpoint endpoint UNUSED, KprMQTTM
 			CALLBACK(publishCallback)(self, message2->messageId, self->refcon);
 			break;
 		}
-			
+
 		case kKprMQTTMessageTypePUBREC: {
 			message2 = KprMQTTQueueOutboxGet(self->queue, message->messageId);
 			if (!message2) break;
@@ -464,44 +517,28 @@ static void KprMQTTClientHandleMessage(KprMQTTEndpoint endpoint UNUSED, KprMQTTM
 			bailIfError(KprMQTTClientSendMessage(self, &message3));
 			break;
 		}
-			
+
 		case kKprMQTTMessageTypeSUBACK: {
-			KprMQTTSubscribeTopic t;
-			char *topic;
-			UInt8 qos;
-
 			message2 = KprMQTTQueueOutboxGet(self->queue, message->messageId);
 			if (!message2) break;
 
-			t = KprMQTTMessageLastSubscribeTopic(message2);
-			topic = t->topic;
-
-			t = KprMQTTMessageLastSubscribeTopic(message);
-			qos = t->qualityOfService;
-
-			CALLBACK(subscribeCallback)(self, topic, qos, self->refcon);
+			CALLBACK(subscribeCallback)(self, message->messageId, KprMQTTMessageFirstSubscribeTopic(message2), KprMQTTMessageFirstSubscribeTopic(message), self->refcon);
 			break;
 		}
-			
+
 		case kKprMQTTMessageTypeUNSUBACK: {
-			KprMQTTSubscribeTopic t;
-			char *topic;
-
 			message2 = KprMQTTQueueOutboxGet(self->queue, message->messageId);
 			if (!message2) break;
 
-			t = KprMQTTMessageLastSubscribeTopic(message2);
-			topic = t->topic;
-
-			CALLBACK(unsubscribeCallback)(self, topic, self->refcon);
+			CALLBACK(unsubscribeCallback)(self, message->messageId, KprMQTTMessageFirstSubscribeTopic(message2), self->refcon);
 			break;
 		}
-			
+
 		case kKprMQTTMessageTypePINGRESP: {
 			FskTimeCallbackRemove(self->pingResponseCallaback);
 			break;
 		}
-			
+
 		case kKprMQTTMessageTypePUBLISH: {
 			struct KprMQTTPublishMessageRecord *p = &message->t.publish;
 
@@ -631,5 +668,4 @@ static void KprMQTTClientCheckPingResponse(FskTimeCallBack callback UNUSED, cons
 
 	KprMQTTClientForceClose(self);
 }
-
 

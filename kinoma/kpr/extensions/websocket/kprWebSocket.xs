@@ -42,6 +42,10 @@
 			<function name="set pingInterval" c="KPR_websocketserver_set_pingInterval"/>
 			<function name="get pingTimeout" c="KPR_websocketserver_get_pingTimeout"/>
 			<function name="set pingTimeout" c="KPR_websocketserver_set_pingTimeout"/>
+			<function name="get address">
+				return this.addresses.shift();
+			</function>
+			<function name="get addresses" c="KPR_websocketserver_get_addresses"/>
 
 			<null name="onconnect"/>
 			<null name="ondisconnecting"/>

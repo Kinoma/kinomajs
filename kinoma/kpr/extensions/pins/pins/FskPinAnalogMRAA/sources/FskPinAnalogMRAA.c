@@ -16,6 +16,7 @@
  */
 
 #include "FskPin.h"
+#include "FskMemory.h"
 
 #include "mraa/aio.h"
 
@@ -39,7 +40,11 @@ typedef struct {
 
 Boolean mraaAnalogCanHandle(SInt32 number, const char *name, SInt32 *remappedNumber)
 {
-	return NULL == name;
+	Boolean success = true;
+	success = mraa_pin_mode_test(number, MRAA_PIN_AIO);
+	if (!success)
+		fprintf(stderr, "pin %d is not Analog\n", number);
+	return success;
 }
 
 FskErr mraaAnalogNew(FskPinAnalog *pin, SInt32 number, const char *name)
@@ -88,7 +93,13 @@ FskErr mraaAnalogRead(FskPinAnalog pin, double *value)
 
 FskExport(FskErr) FskPinAnalogMRAA_fskLoad(FskLibrary library)
 {
-	return FskExtensionInstall(kFskExtensionPinAnalog, &gMRAAPinAnalog);
+	mraa_result_t result;
+
+	result = mraa_init();
+	if ((result == MRAA_SUCCESS) || (result == MRAA_ERROR_PLATFORM_ALREADY_INITIALISED))
+		return FskExtensionInstall(kFskExtensionPinAnalog, &gMRAAPinAnalog);
+	else
+		return kFskErrOperationFailed;
 }
 
 FskExport(FskErr) FskPinAnalogMRAA_fskUnload(FskLibrary library)

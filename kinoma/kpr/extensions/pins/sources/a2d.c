@@ -26,10 +26,7 @@
 
 void xs_a2d(void *a2d)
 {
-    if (!a2d) return;
-
 	FskPinAnalogDispose((FskPinAnalog)a2d);
-	FskMemPtrDispose(a2d);
 }
 
 void xs_a2d_init(xsMachine* the)

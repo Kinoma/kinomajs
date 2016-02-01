@@ -59,8 +59,8 @@ $(APP_DIR): $(ICNS) $(NIB) $(PLIST)
 $(APP_DIR)/fsk: $(TMP_DIR)/main.o $(OBJECTS)
 	$(CC) -mmacosx-version-min=$(SDKVER) -arch i386 -ObjC $(TMP_DIR)/main.o $(OBJECTS) $(LIBRARIES) -o $(APP_DIR)/fsk
 
-$(TMP_DIR)/main.o: $(HEADERS) $(F_HOME)/kinoma/kpr/patches/main.m
-	$(CC) $(F_HOME)/kinoma/kpr/patches/main.m $(C_OPTIONS) $(C_INCLUDES) -c -o $@
+$(TMP_DIR)/main.o: $(HEADERS) $(F_HOME)/xs6/patches/main.m
+	$(CC) $(F_HOME)/xs6/patches/main.m $(C_OPTIONS) $(C_INCLUDES) -c -o $@
 
 `;
 	}

@@ -194,13 +194,12 @@
 				var compLength = compressed.readChars(2);	// size
 				// block cipher only at the moment
 				if (cipher.enc) {
-					var tmps = new FskSSL.ChunkStream();
+					var iv;
 					if (!(session.protocolVersion.major == 3 && session.protocolVersion.minor == 1) && session.chosenCipher.cipherBlockSize) { // 3.2 or higher && block cipher
-						var iv = FskSSL.RNG(session.chosenCipher.cipherBlockSize);
-						tmps.writeChunk(iv);
+						iv = FskSSL.RNG(session.chosenCipher.cipherBlockSize);
 						cipher.enc.setIV(iv);
-						iv.free();
 					}
+					var tmps = new FskSSL.ChunkStream();
 					tmps.writeChunk(compressed.readChunk(compLength));
 					tmps.writeChunk(mac);
 					if (session.chosenCipher.cipherBlockSize) {
@@ -214,6 +213,10 @@
 					}
 					var fragment = cipher.enc.encrypt(tmps.getChunk());
 					tmps.close();
+					if (iv) {
+						iv.append(fragment);
+						fragment = iv;
+					}
 				}
 				else
 					var fragment = compressed.readChunk(compLength);

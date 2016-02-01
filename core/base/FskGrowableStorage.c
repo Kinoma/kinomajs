@@ -119,6 +119,44 @@ bail:
 }
 
 
+/***************************************************************************//**
+ * Find the location of a substring in another string.
+ * This is like FskStrStr or strstr, except it works with size-delimited strings,
+ * rather than NULL-terminated C strings. However, you could use it for C strings thusly:
+ *		MyMemMem(cstr1, FskStrLen(cstr1), cstr2, FskStrLen(cstr2));
+ *	\param[in]	big
+ *	\param[in]	big_len
+ *	\param[in]	little
+ *	\param[in]	little_len
+ *	\return		a pointer to the location of the little string in the big string;
+ *	\return		NULL, if the little string was not found.
+ *******************************************************************************/
+
+static const void*
+MyMemMem(const void *big, UInt32 big_len, const void *little, UInt32 little_len) {
+	const char *b0, *b1, *b, *l0, *l;
+	size_t n;
+
+	if (big_len < little_len)
+		return NULL;
+
+	l0 = (const char*)little;
+	b0 = (const char*)big;
+	b1 = b0 + big_len - little_len;
+	for (; b0 <= b1; b0++) {
+		if (*b0 == *l0) {
+			for (b = b0 + 1, l = l0 + 1, n = little_len - 1; n--; ++b, ++l)
+				if (*b != *l)
+					goto move_on;
+			return b0;
+		}
+	move_on:
+		continue;
+	}
+	return NULL;
+}
+
+
 
 #if 0
 #pragma mark -
@@ -496,6 +534,8 @@ FskGrowableStorageAppendF(FskGrowableStorage storage, const char *fmt, ...) {
 
 const char*
 FskGrowableStorageGetPointerToCString(FskGrowableStorage storage) {
+	if (!storage)
+		return "";
 	if (storage->size >= storage->maxSize) {
 		UInt32 maxSize = storage->maxSize;
 		if (kFskErrNone != ResizeGrowableStorage(storage, maxSize + 1))
@@ -504,6 +544,70 @@ FskGrowableStorageGetPointerToCString(FskGrowableStorage storage) {
 	}
 	storage->storage[storage->size] = 0;
 	return (const char*)(storage->storage);
+}
+
+
+/********************************************************************************
+ * FskGrowableStorageGetVprintfPointer
+ ********************************************************************************/
+
+const char*
+FskGrowableStorageGetVprintfPointer(FskGrowableStorage *pStorage, const char *fmt, va_list ap) {
+	FskErr err;
+	FskGrowableStorage storage;
+
+	BAIL_IF_NULL(pStorage, err, kFskErrInvalidParameter);
+	if ((storage = *pStorage) != NULL) {
+		err = FskGrowableStorageSetSize(storage, 0);
+	}
+	else {
+		err = FskGrowableStorageNew(0, pStorage);
+		storage = *pStorage;
+	}
+	BAIL_IF_ERR(err);
+	if (fmt)
+		BAIL_IF_ERR(err = FskGrowableStorageVAppendF(storage, fmt, ap));
+	return FskGrowableStorageGetPointerToCString(storage);
+bail:
+	return "";
+}
+
+
+/********************************************************************************
+ * FskGrowableStorageGetSprintfPointer
+ ********************************************************************************/
+
+const char*
+FskGrowableStorageGetSprintfPointer(FskGrowableStorage *pStorage, const char *fmt, ...) {
+	const char *str;
+	va_list ap;
+	va_start(ap, fmt);
+	str = FskGrowableStorageGetVprintfPointer(pStorage, fmt, ap);
+	va_end(ap);
+	return str;
+}
+
+
+/******************************************************************************
+ * FskGrowableStorageFindItem
+ *******************************************************************************/
+
+FskErr
+FskGrowableStorageFindItem(FskConstGrowableStorage storage, const void *item, UInt32 itemSize, UInt32 startingIndex, UInt32 *foundIndex) {
+	FskErr		err;
+	const void	*foundPtr;
+
+	*foundIndex = 0xFFFFFFFF;
+	BAIL_IF_FALSE(startingIndex <= storage->size && itemSize <= storage->size && startingIndex + itemSize <= storage->size, err, kFskErrItemNotFound);	/* Guard against wraparound */
+	if (NULL != (foundPtr = MyMemMem(storage->storage + startingIndex, storage->size - startingIndex, item, itemSize))) {
+		*foundIndex = (UInt8*)foundPtr - storage->storage;
+		err = kFskErrNone;
+	}
+	else {
+		err = kFskErrItemNotFound;
+	}
+bail:
+	return err;
 }
 
 
@@ -908,6 +1012,33 @@ static int CompareBlobStringsBySize(const FskBlobRecord *b0, const FskBlobRecord
 }
 
 
+/***************************************************************************//**
+ * CompareBlobsAlphabetically
+ * This yields the expected alphabetical sort.
+ *	\param[in]	blob1	the left  blob.
+ *	\param[in]	blob2	the right blob.
+ *	\return		0		if the strings are identical,
+ *	\return		<0		if blob1 comes before blob2.
+ *	\return		>0		if blob1 comes after  blob2.
+ *******************************************************************************/
+
+static int CompareBlobsAlphabetically(const FskBlobRecord *blob1, const FskBlobRecord *blob2) {
+	int i;
+
+	if      (blob1->size <= blob2->size &&
+			!(i = FskStrCompareWithLength((const char*)(blob1->data), (const char*)(blob2->data), blob1->size))
+	)
+		i = -1;
+	else if (blob1->size >= blob2->size &&
+			!(i = FskStrCompareWithLength((const char*)(blob1->data), (const char*)(blob2->data), blob2->size))
+	)
+		i = +1;
+	else
+		i = FskStrCompareWithLength((const char*)(blob1->data), (const char*)(blob2->data), blob1->size);
+	return i;
+}
+
+
 /********************************************************************************
  * FskGrowableBlobArrayNew
  ********************************************************************************/
@@ -935,6 +1066,7 @@ bail:
 	return err;
 }
 
+
 /********************************************************************************
  * FskGrowableBlobArrayNewFromString
  ********************************************************************************/
@@ -951,22 +1083,25 @@ FskGrowableBlobArrayNewFromString(char *str, UInt32 strSize, char delim, Boolean
 	BAIL_IF_NULL(str, err, kFskErrEmpty);
 	if (!strSize)	maxSize = (strSize = FskStrLen(str)) + 1;
 	else			maxSize = strSize;
-	dirDataSize = ALIGN_BLOB_SIZE(sizeof(BlobEntry) + dirDataSize);	/* Bump up to a multiple of 4 */
+	dirDataSize = ALIGN_BLOB_SIZE(sizeof(BlobEntry) + dirDataSize);			/* Bump up to a multiple of 4 */
 	for (numRecords = 0, s = str, i = strSize; i--; ++s)
 		if (*s == delim)
 			++numRecords;
 	if (s[-1] != delim) {
 		++numRecords;
-		maxSize = strSize;
+		maxSize = strSize;													/* No terminator on the last record */
 	}
 
 	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(struct FskGrowableBlobArrayRecord), (FskMemPtr*)(void*)(&array)));
 	BAIL_IF_ERR(err = FskGrowableArrayNew(dirDataSize, numRecords, &array->directory));
 	BAIL_IF_ERR(err = FskGrowableArraySetItemCount(array->directory, numRecords));
 	if (makeCopy) {
-		BAIL_IF_ERR(err = FskGrowableStorageNew(strSize, &array->data));
-		BAIL_IF_ERR(err = FskGrowableStorageSetSize(array->data, strSize));
+		if (maxSize == strSize)												/* If there is no terminator on the last record, ... */
+			++maxSize;														/* ... allocate an extra space for one */
+		BAIL_IF_ERR(err = FskGrowableStorageNew(maxSize, &array->data));
+		BAIL_IF_ERR(err = FskGrowableStorageSetSize(array->data, maxSize));
 		FskMemCopy(array->data->storage, str, strSize);
+		array->data->storage[strSize] = delim;								/* Make sure that the last record has a terminator */
 	}
 	else {
 		BAIL_IF_ERR(err = FskMemPtrNew(sizeof(struct FskGrowableStorageRecord), (FskMemPtr*)(void*)(&array->data)));
@@ -984,7 +1119,7 @@ FskGrowableBlobArrayNewFromString(char *str, UInt32 strSize, char delim, Boolean
 		for (; s < s1 && *s != delim; ++s) {}
 		dirPtr->size = s++ - s0 - dirPtr->offset;
 	}
-	array->compare = CompareBlobStringsBySize;
+	array->compare = CompareBlobsAlphabetically;
 
 bail:
 	if (err != kFskErrNone) {
@@ -1129,12 +1264,12 @@ InitBlobDirEntry(BlobEntry *dirPtr, FskGrowableBlobArray array, UInt32 itemSize,
 			array->flags &= ~BLOB_DIR_IDSORTED;													/* .. indicate potential out-of-order */
 		} else {																				/* otherwise ... */
 			++(array->lastID);																	/* ... generate a new one sequentially ... */
-			if (id != NULL)	*id = dirPtr->id;													/* ... and return it if desired */
 		}
 
 		dirPtr->id		= array->lastID;														/* Set the blob ID */
 		dirPtr->size	= itemSize;																/* Set blob's size */
 		dirPtr->offset	= offset;																/* Set blob's location */
+		if (id != NULL)	*id = dirPtr->id;														/* ... and return it if desired */
 	}
 	else if (id != NULL)	*id = 0;															/* Return a null id if data allocation was unsuccessful */
 
@@ -1303,9 +1438,9 @@ FskGrowableBlobArrayEditItem(FskGrowableBlobArray array, UInt32 index, UInt32 of
 	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToItem(array->data, dirPtr.be->offset, &oldBlob.vd));
 	newSize = offset + replBytes + tailSize;
 	BAIL_IF_ERR(err = FskMemPtrNew(newSize, &newBlob.vd));
-	if (offset)		FskMemCopy(newBlob.ch,						oldBlob.ch,					offset);
-	if (replBytes)	FskMemCopy(newBlob.ch + offset,				repl,						replBytes);
-	if (tailSize)	FskMemCopy(newBlob.ch + offset + replBytes,	oldBlob.ch + tailOffset,	tailSize);
+	if (offset)				FskMemCopy(newBlob.ch,						oldBlob.ch,					offset);
+	if (replBytes && repl)	FskMemCopy(newBlob.ch + offset,				repl,						replBytes);
+	if (tailSize)			FskMemCopy(newBlob.ch + offset + replBytes,	oldBlob.ch + tailOffset,	tailSize);
 	BAIL_IF_ERR(err = FskGrowableBlobArraySetSizeOfItem(array, index, newSize));
 	(void)FskGrowableBlobArrayGetPointerToItem(array, index, &oldBlob.vd, NULL, &dirPtr.vd);
 	FskMemCopy(oldBlob.vd, newBlob.vd, newSize);
@@ -1506,6 +1641,8 @@ FskErr
 FskGrowableBlobArraySetCompareFunction(FskGrowableBlobArray array, FskGrowableBlobCompare comp) {
 	if (!array)
 		return kFskErrNotDirectory;
+	if      (NULL    == comp)	comp = CompareBlobStringsBySize;
+	else if (1 == (long)comp)	comp = CompareBlobsAlphabetically;
 	array->compare = comp;
 	return kFskErrNone;
 }
@@ -2101,4 +2238,52 @@ bail:
 }
 
 
+/********************************************************************************
+ * FskGrowableCStringArrayNewFromString
+ ********************************************************************************/
+
+FskErr
+FskGrowableCStringArrayNewFromString(const char *str, UInt32 strSize, char delim, FskGrowableBlobArray *pArray)
+{
+	FskErr	err;
+	UInt32	i, z, *d;
+	char	*s;
+
+	if (delim == 0)
+		err = FskGrowableBlobArrayNewFromStringList((char*)str, 1, 0, pArray);
+	else
+		err = FskGrowableBlobArrayNewFromString((char*)str, strSize, delim, 1, 0, pArray);
+	BAIL_IF_ERR(err);
+	for (i = FskGrowableBlobArrayGetItemCount(*pArray); i--;) {
+		FskGrowableBlobArrayGetPointerToItem(*pArray, i, (void**)&s, &z, (void**)&d);
+		s[z] = 0;	/* Convert the delimiter to a null */
+		++d[-1];	/* Increase the size of the string to include the null terminator */
+	}
+
+bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGrowableCStringArrayInserPrintfItemAtPosition
+ ********************************************************************************/
+
+FskErr
+FskGrowableCStringArrayInserPrintfItemAtPosition(FskGrowableBlobArray array, UInt32 index, const char *fmt, ...)
+{
+	FskGrowableStorage	str	= NULL;
+	FskErr				err;
+	va_list				ap;
+
+	BAIL_IF_ERR(err = FskGrowableStorageNew(0, &str));
+	va_start(ap, fmt);
+	err = FskGrowableStorageVAppendF(str, fmt, ap);
+	va_end(ap);
+	if (kFskErrNone == err)
+		err = FskGrowableBlobArrayInsertItemAtPosition(array, index, NULL, FskGrowableStorageGetPointerToCString(str), FskGrowableStorageGetSize(str)+1, NULL);
+bail:
+	FskGrowableStorageDispose(str);
+	return err;
+}
 

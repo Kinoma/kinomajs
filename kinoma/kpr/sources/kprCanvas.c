@@ -538,7 +538,8 @@ static void KPR_canvasRenderingContext2D_getStyle(xsMachine *the, xsBooleanValue
 		c = csu->rg.numStops;
 		stop = csu->rg.gradientStops;
 getStops:
-		xsVar(0) = xsNew1(xsGlobal, xsID("Array"), xsInteger(c));
+		xsVar(0) = xsNew1(xsGlobal, xsID_Array, xsInteger(c));
+		(void)xsCall0(xsVar(0), xsID_fill);
 		for (i = 0; i < c; i++) {
 			xsVar(1) = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID("KPR")), xsID("canvasGradientStop")));
 			xsSet(xsVar(1), xsID("offset"), xsNumber(FskFractToFloat(stop->offset)));
@@ -827,6 +828,91 @@ void KPR_canvasRenderingContext2D_strokeRect(xsMachine *the)
 	FskCanvas2dStrokeRect(ctx, x, y, w, h);
 }
 
+// path API helpers
+static void KPR_cnv_moveTo(xsMachine *the, FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	xsNumberValue x = xsToNumber(xsArg(0));
+	xsNumberValue y = xsToNumber(xsArg(1));
+	(void)FskCanvas2dPathMoveTo(ctx, path, x, y);
+}
+
+static void KPR_cnv_lineTo(xsMachine *the, FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	xsNumberValue x = xsToNumber(xsArg(0));
+	xsNumberValue y = xsToNumber(xsArg(1));
+	(void)FskCanvas2dPathLineTo(ctx, path, x, y);
+}
+
+static void KPR_cnv_quadraticCurveTo(xsMachine *the, FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	xsNumberValue cpx = xsToNumber(xsArg(0));
+	xsNumberValue cpy = xsToNumber(xsArg(1));
+	xsNumberValue x   = xsToNumber(xsArg(2));
+	xsNumberValue y   = xsToNumber(xsArg(3));
+	(void)FskCanvas2dPathQuadraticCurveTo(ctx, path, cpx, cpy, x, y);
+}
+
+static void KPR_cnv_bezierCurveTo(xsMachine *the, FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	xsNumberValue cp1x = xsToNumber(xsArg(0));
+	xsNumberValue cp1y = xsToNumber(xsArg(1));
+	xsNumberValue cp2x = xsToNumber(xsArg(2));
+	xsNumberValue cp2y = xsToNumber(xsArg(3));
+	xsNumberValue x    = xsToNumber(xsArg(4));
+	xsNumberValue y    = xsToNumber(xsArg(5));
+	(void)FskCanvas2dPathBezierCurveTo(ctx, path, cp1x, cp1y, cp2x, cp2y, x, y);
+}
+
+static void KPR_cnv_arcTo(xsMachine *the, FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	xsNumberValue x1 = xsToNumber(xsArg(0));
+	xsNumberValue y1 = xsToNumber(xsArg(1));
+	xsNumberValue x2 = xsToNumber(xsArg(2));
+	xsNumberValue y2 = xsToNumber(xsArg(3));
+	xsNumberValue rx = xsToNumber(xsArg(4));
+	if (xsToInteger(xsArgc) > 5) {
+		xsNumberValue ry  = xsToNumber(xsArg(5));
+		xsNumberValue rot = xsToNumber(xsArg(6));
+		(void)FskCanvas2dPathEllipticalArcTo(ctx, path, x1, y1, x2, y2, rx, ry, rot);
+	}
+	else {
+		(void)FskCanvas2dPathArcTo(ctx, path, x1, y1, x2, y2, rx);
+	}
+}
+
+static void KPR_cnv_rect(xsMachine *the, FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	xsNumberValue x = xsToNumber(xsArg(0));
+	xsNumberValue y = xsToNumber(xsArg(1));
+	xsNumberValue w = xsToNumber(xsArg(2));
+	xsNumberValue h = xsToNumber(xsArg(3));
+	(void)FskCanvas2dPathRect(ctx, path, x, y, w, h);
+}
+
+static void KPR_cnv_arc(xsMachine *the, FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	xsNumberValue x          = xsToNumber(xsArg(0));
+	xsNumberValue y          = xsToNumber(xsArg(1));
+	xsNumberValue radius     = xsToNumber(xsArg(2));
+	xsNumberValue startAngle = xsToNumber(xsArg(3));
+	xsNumberValue endAngle   = xsToNumber(xsArg(4));
+	xsBooleanValue anticlockwise = (xsToInteger(xsArgc) > 5) ? xsTest(xsArg(5)) : 0;
+	(void)FskCanvas2dPathArc(ctx, path, x, y, radius, startAngle, endAngle, anticlockwise);
+}
+
+static void KPR_cnv_ellipse(xsMachine *the, FskCanvas2dContext ctx, FskCanvas2dPath path)
+{
+	xsNumberValue x          = xsToNumber(xsArg(0));
+	xsNumberValue y          = xsToNumber(xsArg(1));
+	xsNumberValue radiusX    = xsToNumber(xsArg(2));
+	xsNumberValue radiusY    = xsToNumber(xsArg(3));
+	xsNumberValue rotation   = xsToNumber(xsArg(4));
+	xsNumberValue startAngle = xsToNumber(xsArg(5));
+	xsNumberValue endAngle   = xsToNumber(xsArg(6));
+	xsBooleanValue anticlockwise = (xsToInteger(xsArgc) > 7) ? xsTest(xsArg(7)) : 0;
+	(void)FskCanvas2dPathEllipse(ctx, path, x, y, radiusX, radiusY, rotation, startAngle, endAngle, anticlockwise);
+}
+
 // path API
 void KPR_canvasRenderingContext2D_beginPath(xsMachine *the)
 {
@@ -843,72 +929,49 @@ void KPR_canvasRenderingContext2D_closePath(xsMachine *the)
 void KPR_canvasRenderingContext2D_moveTo(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
-	xsNumberValue x = xsToNumber(xsArg(0));
-	xsNumberValue y = xsToNumber(xsArg(1));
-	FskCanvas2dPathMoveTo(ctx, NULL, x, y);
+	KPR_cnv_moveTo(the, ctx, NULL);
 }
 
 void KPR_canvasRenderingContext2D_lineTo(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
-	xsNumberValue x = xsToNumber(xsArg(0));
-	xsNumberValue y = xsToNumber(xsArg(1));
-	FskCanvas2dPathLineTo(ctx, NULL, x, y);
+	KPR_cnv_lineTo(the, ctx, NULL);
 }
 
 void KPR_canvasRenderingContext2D_quadraticCurveTo(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
-	xsNumberValue cpx = xsToNumber(xsArg(0));
-	xsNumberValue cpy = xsToNumber(xsArg(1));
-	xsNumberValue x = xsToNumber(xsArg(2));
-	xsNumberValue y = xsToNumber(xsArg(3));
-	FskCanvas2dPathQuadraticCurveTo(ctx, NULL, cpx, cpy, x, y);
+	KPR_cnv_quadraticCurveTo(the, ctx, NULL);
 }
 
 void KPR_canvasRenderingContext2D_bezierCurveTo(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
-	xsNumberValue cp1x = xsToNumber(xsArg(0));
-	xsNumberValue cp1y = xsToNumber(xsArg(1));
-	xsNumberValue cp2x = xsToNumber(xsArg(2));
-	xsNumberValue cp2y = xsToNumber(xsArg(3));
-	xsNumberValue x = xsToNumber(xsArg(4));
-	xsNumberValue y = xsToNumber(xsArg(5));
-	FskCanvas2dPathBezierCurveTo(ctx, NULL, cp1x, cp1y, cp2x, cp2y, x, y);
+	KPR_cnv_bezierCurveTo(the, ctx, NULL);
 }
 
 void KPR_canvasRenderingContext2D_arcTo(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
-	xsNumberValue x1 = xsToNumber(xsArg(0));
-	xsNumberValue y1 = xsToNumber(xsArg(1));
-	xsNumberValue x2 = xsToNumber(xsArg(2));
-	xsNumberValue y2 = xsToNumber(xsArg(3));
-	xsNumberValue radius = xsToNumber(xsArg(4));
-	FskCanvas2dPathArcTo(ctx, NULL, x1, y1, x2, y2, radius);
+	KPR_cnv_arcTo(the, ctx, NULL);
 }
 
 void KPR_canvasRenderingContext2D_rect(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
-	xsNumberValue x = xsToNumber(xsArg(0));
-	xsNumberValue y = xsToNumber(xsArg(1));
-	xsNumberValue w = xsToNumber(xsArg(2));
-	xsNumberValue h = xsToNumber(xsArg(3));
-	FskCanvas2dPathRect(ctx, NULL, x, y, w, h);
+	KPR_cnv_rect(the, ctx, NULL);
 }
 
 void KPR_canvasRenderingContext2D_arc(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
-	xsNumberValue x = xsToNumber(xsArg(0));
-	xsNumberValue y = xsToNumber(xsArg(1));
-	xsNumberValue radius = xsToNumber(xsArg(2));
-	xsNumberValue startAngle = xsToNumber(xsArg(3));
-	xsNumberValue endAngle = xsToNumber(xsArg(4));
-	xsBooleanValue anticlockwise = (xsToInteger(xsArgc) > 5) ? xsTest(xsArg(5)) : 0;
-	FskCanvas2dPathArc(ctx, NULL, x, y, radius, startAngle, endAngle, anticlockwise);
+	KPR_cnv_arc(the, ctx, NULL);
+}
+
+void KPR_canvasRenderingContext2D_ellipse(xsMachine *the)
+{
+	FskCanvas2dContext ctx = xsGetHostData(xsThis);
+	KPR_cnv_ellipse(the, ctx, NULL);
 }
 
 static SInt32 GetFillRule(xsStringValue fillStr) {
@@ -1420,7 +1483,8 @@ void KPR_canvasRenderingContext2D_getLineDash(xsMachine *the)
 
 	bailIfError(FskCanvas2dGetLineDash(ctx, &len, &dash));
 	len *= 2;																	/* Convert from cycles to length */
-	xsResult = xsNew1(xsGlobal, xsID("Array"), xsInteger(len));
+	xsResult = xsNew1(xsGlobal, xsID_Array, xsInteger(len));
+	(void)xsCall0(xsResult, xsID_fill);
 	for (i = 0; i < len; i++)
 		xsSetAt(xsResult, xsInteger(i), xsNumber(dash[i]));
 bail:
@@ -1439,6 +1503,19 @@ void KPR_canvasRenderingContext2D_get_lineDashOffset(xsMachine *the)
 {
 	FskCanvas2dContext ctx = xsGetHostData(xsThis);
 	xsResult = xsNumber(FskCanvas2dGetLineDashOffset(ctx));
+}
+
+void KPR_canvasRenderingContext2D_set_imageSmoothingEnabled(xsMachine *the)
+{
+	FskCanvas2dContext ctx = xsGetHostData(xsThis);
+	xsBooleanValue quality = xsToBoolean(xsArg(0));
+	FskCanvas2dSetQuality(ctx, (UInt32)quality);
+}
+
+void KPR_canvasRenderingContext2D_get_imageSmoothingEnabled(xsMachine *the)
+{
+	FskCanvas2dContext ctx = xsGetHostData(xsThis);
+	xsResult = xsBoolean(FskCanvas2dGetQuality(ctx));
 }
 
 // path objects
@@ -1485,73 +1562,50 @@ void KPR_path2D_closePath(xsMachine *the)
 
 void KPR_path2D_moveTo(xsMachine *the)
 {
-	FskCanvas2dPath	path	= xsGetHostData(xsThis);
-	xsNumberValue	x		= xsToNumber(xsArg(0));
-	xsNumberValue	y		= xsToNumber(xsArg(1));
-	FskCanvas2dPathMoveTo(NULL, path, x, y);
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	KPR_cnv_moveTo(the, NULL, path);
 }
 
 void KPR_path2D_lineTo(xsMachine *the)
 {
-	FskCanvas2dPath	path	= xsGetHostData(xsThis);
-	xsNumberValue	x		= xsToNumber(xsArg(0));
-	xsNumberValue	y		= xsToNumber(xsArg(1));
-	FskCanvas2dPathLineTo(NULL, path, x, y);
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	KPR_cnv_lineTo(the, NULL, path);
 }
 
 void KPR_path2D_quadraticCurveTo(xsMachine *the)
 {
-	FskCanvas2dPath	path	= xsGetHostData(xsThis);
-	xsNumberValue	cpx		= xsToNumber(xsArg(0));
-	xsNumberValue	cpy		= xsToNumber(xsArg(1));
-	xsNumberValue	x 		= xsToNumber(xsArg(2));
-	xsNumberValue	y		= xsToNumber(xsArg(3));
-	FskCanvas2dPathQuadraticCurveTo(NULL, path, cpx, cpy, x, y);
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	KPR_cnv_quadraticCurveTo(the, NULL, path);
 }
 
 void KPR_path2D_bezierCurveTo(xsMachine *the)
 {
-	FskCanvas2dPath	path	= xsGetHostData(xsThis);
-	xsNumberValue	cp1x	= xsToNumber(xsArg(0));
-	xsNumberValue	cp1y	= xsToNumber(xsArg(1));
-	xsNumberValue	cp2x	= xsToNumber(xsArg(2));
-	xsNumberValue	cp2y	= xsToNumber(xsArg(3));
-	xsNumberValue	x		= xsToNumber(xsArg(4));
-	xsNumberValue	y		= xsToNumber(xsArg(5));
-	FskCanvas2dPathBezierCurveTo(NULL, path, cp1x, cp1y, cp2x, cp2y, x, y);
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	KPR_cnv_bezierCurveTo(the, NULL, path);
 }
 
 void KPR_path2D_arcTo(xsMachine *the)
 {
 	FskCanvas2dPath path = xsGetHostData(xsThis);
-	xsNumberValue x1		= xsToNumber(xsArg(0));
-	xsNumberValue y1		= xsToNumber(xsArg(1));
-	xsNumberValue x2		= xsToNumber(xsArg(2));
-	xsNumberValue y2		= xsToNumber(xsArg(3));
-	xsNumberValue radius	= xsToNumber(xsArg(4));
-	FskCanvas2dPathArcTo(NULL, path, x1, y1, x2, y2, radius);
+	KPR_cnv_arcTo(the, NULL, path);
 }
 
 void KPR_path2D_rect(xsMachine *the)
 {
 	FskCanvas2dPath path = xsGetHostData(xsThis);
-	xsNumberValue x = xsToNumber(xsArg(0));
-	xsNumberValue y = xsToNumber(xsArg(1));
-	xsNumberValue w = xsToNumber(xsArg(2));
-	xsNumberValue h = xsToNumber(xsArg(3));
-	FskCanvas2dPathRect(NULL, path, x, y, w, h);
+	KPR_cnv_rect(the, NULL, path);
 }
 
 void KPR_path2D_arc(xsMachine *the)
 {
-	FskCanvas2dPath	path = xsGetHostData(xsThis);
-	xsNumberValue	x				= xsToNumber(xsArg(0));
-	xsNumberValue	y				= xsToNumber(xsArg(1));
-	xsNumberValue	radius			= xsToNumber(xsArg(2));
-	xsNumberValue	startAngle		= xsToNumber(xsArg(3));
-	xsNumberValue	endAngle		= xsToNumber(xsArg(4));
-	xsBooleanValue	anticlockwise	= (xsToInteger(xsArgc) > 5) ? xsTest(xsArg(5)) : 0;
-	FskCanvas2dPathArc(NULL, path, x, y, radius, startAngle, endAngle, anticlockwise);
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	KPR_cnv_arc(the, NULL, path);
+}
+
+void KPR_path2D_ellipse(xsMachine *the)
+{
+	FskCanvas2dPath path = xsGetHostData(xsThis);
+	KPR_cnv_ellipse(the, NULL, path);
 }
 
 // imageData object

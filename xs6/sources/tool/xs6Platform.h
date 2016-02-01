@@ -238,7 +238,7 @@ typedef struct tm c_tm;
 #endif
 
 #define C_DBL_MAX DBL_MAX
-#define C_DBL_MIN DBL_MIN
+#define C_DBL_MIN (double)5e-324
 #define C_EPSILON (double)2.2204460492503130808472633361816e-16
 #define C_FP_INFINITE FP_INFINITE
 #define C_FP_NAN FP_NAN

@@ -124,7 +124,7 @@ void fxBuildMapSet(txMachine* the)
 			property = slot;
 	}
 	slot = fxNextSlotProperty(the, slot, property, mxID(_Symbol_iterator), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Map", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Map", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxMapPrototype = *the->stack;
 	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Map, 0, mxID(_Map), XS_DONT_ENUM_FLAG));
 	slot = fxNextHostAccessorProperty(the, slot, fx_species_get, C_NULL, mxID(_Symbol_species), XS_DONT_ENUM_FLAG);
@@ -133,17 +133,17 @@ void fxBuildMapSet(txMachine* the)
 	mxPush(mxIteratorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostFunctionProperty(the, slot, fx_Map_prototype_entries_next, 0, mxID(_next), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Map Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Map Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxPull(mxMapEntriesIteratorPrototype);
 	mxPush(mxIteratorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostFunctionProperty(the, slot, fx_Map_prototype_keys_next, 0, mxID(_next), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Map Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Map Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxPull(mxMapKeysIteratorPrototype);
 	mxPush(mxIteratorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostFunctionProperty(the, slot, fx_Map_prototype_values_next, 0, mxID(_next), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Map Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Map Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxPull(mxMapValuesIteratorPrototype);
 	
 	/* SET */
@@ -157,7 +157,7 @@ void fxBuildMapSet(txMachine* the)
 	}
 	slot = fxNextSlotProperty(the, slot, property, mxID(_keys), XS_DONT_ENUM_FLAG);
 	slot = fxNextSlotProperty(the, slot, property, mxID(_Symbol_iterator), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Set", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Set", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxSetPrototype = *the->stack;
 	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Set, 0, mxID(_Set), XS_DONT_ENUM_FLAG));
 	slot = fxNextHostAccessorProperty(the, slot, fx_species_get, C_NULL, mxID(_Symbol_species), XS_DONT_ENUM_FLAG);
@@ -166,17 +166,17 @@ void fxBuildMapSet(txMachine* the)
 	mxPush(mxIteratorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostFunctionProperty(the, slot, fx_Set_prototype_entries_next, 0, mxID(_next), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Set Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Set Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxPull(mxSetEntriesIteratorPrototype);
 	mxPush(mxIteratorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostFunctionProperty(the, slot, fx_Set_prototype_keys_next, 0, mxID(_next), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Set Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Set Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxPull(mxSetKeysIteratorPrototype);
 	mxPush(mxIteratorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextHostFunctionProperty(the, slot, fx_Set_prototype_keys_next, 0, mxID(_next), XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "Set Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Set Iterator", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxPull(mxSetValuesIteratorPrototype);
 
 	/* WEAK MAP */
@@ -184,7 +184,7 @@ void fxBuildMapSet(txMachine* the)
 	slot = fxLastProperty(the, fxNewWeakMapInstance(the));
 	for (builder = gx_WeakMap_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "WeakMap", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "WeakMap", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxWeakMapPrototype = *the->stack;
 	fxNewHostConstructorGlobal(the, fx_WeakMap, 0, mxID(_WeakMap), XS_DONT_ENUM_FLAG);
 	the->stack++;
@@ -194,7 +194,7 @@ void fxBuildMapSet(txMachine* the)
 	slot = fxLastProperty(the, fxNewWeakSetInstance(the));
 	for (builder = gx_WeakSet_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "WeakSet", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "WeakSet", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxWeakSetPrototype = *the->stack;
 	fxNewHostConstructorGlobal(the, fx_WeakSet, 0, mxID(_WeakSet), XS_DONT_ENUM_FLAG);
 	the->stack++;
@@ -203,9 +203,9 @@ void fxBuildMapSet(txMachine* the)
 txSlot* fxCheckMapInstance(txMachine* the, txSlot* slot)
 {
 	if (slot->kind == XS_REFERENCE_KIND) {
-		slot = slot->value.reference;
-		if ((slot->flag & XS_VALUE_FLAG) && (slot->next->kind == XS_MAP_KIND) && (slot != mxMapPrototype.value.reference))
-			return slot;
+		txSlot* instance = slot->value.reference;
+		if (((slot = instance->next)) && (slot->flag & XS_INTERNAL_FLAG) && (slot->kind == XS_MAP_KIND) && (instance != mxMapPrototype.value.reference))
+			return instance;
 	}
 	mxTypeError("this is no Map instance");
 	return C_NULL;
@@ -228,7 +228,6 @@ txSlot* fxNewMapInstance(txMachine* the)
 	txSlot* list;
 	txSlot** address;
 	map = fxNewSlot(the);
-	map->flag = XS_VALUE_FLAG;
 	map->kind = XS_INSTANCE_KIND;
 	map->value.instance.garbage = C_NULL;
 	map->value.instance.prototype = the->stack->value.reference;
@@ -239,12 +238,12 @@ txSlot* fxNewMapInstance(txMachine* the)
 	address = (txSlot**)fxNewChunk(the, 127 * sizeof(txSlot*));
 	c_memset(address, 0, 127 * sizeof(txSlot*));
 	/* TABLE */
-	table->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	table->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	table->kind = XS_MAP_KIND;
 	table->value.table.address = address;
 	table->value.table.length = 127;
 	/* LIST */
-	list->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	list->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	list->kind = XS_LIST_KIND;
 	list->value.list.first = C_NULL;
 	list->value.list.last = C_NULL;
@@ -490,9 +489,9 @@ void fx_Map_prototype_values_next(txMachine* the)
 txSlot* fxCheckSetInstance(txMachine* the, txSlot* slot)
 {
 	if (slot->kind == XS_REFERENCE_KIND) {
-		slot = slot->value.reference;
-		if ((slot->flag & XS_VALUE_FLAG) && (slot->next->kind == XS_SET_KIND) && (slot != mxSetPrototype.value.reference))
-			return slot;
+		txSlot* instance = slot->value.reference;
+		if (((slot = instance->next)) && (slot->flag & XS_INTERNAL_FLAG) && (slot->kind == XS_SET_KIND) && (instance != mxSetPrototype.value.reference))
+			return instance;
 	}
 	mxTypeError("this is no Set instance");
 	return C_NULL;
@@ -515,7 +514,6 @@ txSlot* fxNewSetInstance(txMachine* the)
 	txSlot* list;
 	txSlot** address;
 	set = fxNewSlot(the);
-	set->flag = XS_VALUE_FLAG;
 	set->kind = XS_INSTANCE_KIND;
 	set->value.instance.garbage = C_NULL;
 	set->value.instance.prototype = the->stack->value.reference;
@@ -526,12 +524,12 @@ txSlot* fxNewSetInstance(txMachine* the)
 	address = (txSlot**)fxNewChunk(the, 127 * sizeof(txSlot*));
 	c_memset(address, 0, 127 * sizeof(txSlot*));
 	/* TABLE */
-	table->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	table->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	table->kind = XS_SET_KIND;
 	table->value.table.address = address;
 	table->value.table.length = 127;
 	/* LIST */
-	list->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	list->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	list->kind = XS_LIST_KIND;
 	list->value.list.first = C_NULL;
 	list->value.list.last = C_NULL;
@@ -724,9 +722,9 @@ void fx_Set_prototype_values(txMachine* the)
 txSlot* fxCheckWeakMapInstance(txMachine* the, txSlot* slot)
 {
 	if (slot->kind == XS_REFERENCE_KIND) {
-		slot = slot->value.reference;
-		if ((slot->flag & XS_VALUE_FLAG) && (slot->next->kind == XS_WEAK_MAP_KIND) && (slot != mxWeakMapPrototype.value.reference))
-			return slot;
+		txSlot* instance = slot->value.reference;
+		if (((slot = instance->next)) && (slot->flag & XS_INTERNAL_FLAG) && (slot->kind == XS_WEAK_MAP_KIND) && (instance != mxWeakMapPrototype.value.reference))
+			return instance;
 	}
 	mxTypeError("this is no WeakMap instance");
 	return C_NULL;
@@ -749,7 +747,6 @@ txSlot* fxNewWeakMapInstance(txMachine* the)
 	txSlot* table;
 	txSlot** address;
 	map = fxNewSlot(the);
-	map->flag = XS_VALUE_FLAG;
 	map->kind = XS_INSTANCE_KIND;
 	map->value.instance.garbage = C_NULL;
 	map->value.instance.prototype = the->stack->value.reference;
@@ -759,7 +756,7 @@ txSlot* fxNewWeakMapInstance(txMachine* the)
 	address = (txSlot**)fxNewChunk(the, 128 * sizeof(txSlot*)); // one more slot for the collector weak table list
 	c_memset(address, 0, 128 * sizeof(txSlot*));
 	/* TABLE */
-	table->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	table->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	table->kind = XS_WEAK_MAP_KIND;
 	table->value.table.address = address;
 	table->value.table.length = 127;
@@ -846,9 +843,9 @@ void fx_WeakMap_prototype_set(txMachine* the)
 txSlot* fxCheckWeakSetInstance(txMachine* the, txSlot* slot)
 {
 	if (slot->kind == XS_REFERENCE_KIND) {
-		slot = slot->value.reference;
-		if ((slot->flag & XS_VALUE_FLAG) && (slot->next->kind == XS_WEAK_SET_KIND) && (slot != mxWeakSetPrototype.value.reference))
-			return slot;
+		txSlot* instance = slot->value.reference;
+		if (((slot = instance->next)) && (slot->flag & XS_INTERNAL_FLAG) && (slot->kind == XS_WEAK_SET_KIND) && (instance != mxWeakSetPrototype.value.reference))
+			return instance;
 	}
 	mxTypeError("this is no WeakSet instance");
 	return C_NULL;
@@ -871,7 +868,6 @@ txSlot* fxNewWeakSetInstance(txMachine* the)
 	txSlot* table;
 	txSlot** address;
 	set = fxNewSlot(the);
-	set->flag = XS_VALUE_FLAG;
 	set->kind = XS_INSTANCE_KIND;
 	set->value.instance.garbage = C_NULL;
 	set->value.instance.prototype = the->stack->value.reference;
@@ -881,7 +877,7 @@ txSlot* fxNewWeakSetInstance(txMachine* the)
 	address = (txSlot**)fxNewChunk(the, 128 * sizeof(txSlot*)); // one more slot for the collector weak table list
 	c_memset(address, 0, 128 * sizeof(txSlot*));
 	/* TABLE */
-	table->flag = XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
+	table->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	table->kind = XS_WEAK_SET_KIND;
 	table->value.table.address = address;
 	table->value.table.length = 127;
@@ -1139,7 +1135,7 @@ txU4 fxSumEntry(txMachine* the, txSlot* slot)
 			size = sizeof(txNumber);
 		}
 		else if (XS_SYMBOL_KIND == kind) {
-			address = (txU1*)&slot->value.ID;
+			address = (txU1*)&slot->value.symbol;
 			size = sizeof(txID);
 		}
 		else if (XS_REFERENCE_KIND == kind) {
@@ -1175,7 +1171,7 @@ txBoolean fxTestEntry(txMachine* the, txSlot* a, txSlot* b)
 		else if ((XS_STRING_KIND == a->kind) || (XS_STRING_X_KIND == a->kind))
 			result = c_strcmp(a->value.string, b->value.string) == 0;
 		else if (XS_SYMBOL_KIND == a->kind)
-			result = a->value.ID == b->value.ID;
+			result = a->value.symbol == b->value.symbol;
 		else if (XS_REFERENCE_KIND == a->kind)
 			result = a->value.reference == b->value.reference;
 	}

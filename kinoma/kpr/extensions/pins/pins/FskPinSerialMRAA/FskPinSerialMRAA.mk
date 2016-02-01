@@ -23,4 +23,8 @@
 
 <source name="FskPinSerialMRAA.c"/>
 
+<common>
+LIBRARIES += -lmraa
+</common>
+
 </makefile>

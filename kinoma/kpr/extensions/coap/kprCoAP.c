@@ -58,6 +58,10 @@ static void KPR_CoAP_message_get_query(xsMachine *the, KprCoAPMessage self);
 #define DEFER2(xxx, a, b) DEFER3(xxx, a, b, NULL)
 #define DEFER1(xxx, a) DEFER3(xxx, a, NULL, NULL)
 
+static Boolean gKPR_CoAP_useChunk = false;
+
+static void KPR_CoAP_warnChunkDeprecate(xsMachine *the, const char *domain);
+
 //--------------------------------------------------
 // CoAP.Client
 //--------------------------------------------------
@@ -135,6 +139,7 @@ void KPR_CoAP_client_createRequest(xsMachine *the)
 	KprCoAPMessage request;
 	char *uri;
 	int method;
+	int argc;
 
 	ENTER_FUNCTION();
 	clientH = xsGetHostData(xsThis);
@@ -142,10 +147,11 @@ void KPR_CoAP_client_createRequest(xsMachine *the)
 	err = kFskErrNone;
 	uri = NULL;
 	method = kKprCoAPRequestMethodGET;
+	argc = xsToInteger(xsArgc);
 
 	uri = xsToString(xsArg(0));
 
-	if (xsTest(xsArg(1))) {
+	if (argc > 1) {
 		if (xsTypeOf(xsArg(1)) == xsStringType) {
 			char *str = xsToString(xsArg(1));
 			KprCoAPMethodFromString(str, &method);
@@ -1552,17 +1558,23 @@ void KPR_CoAP_response_get_query(xsMachine *the)
 	EXIT_FUNCTION();
 }
 
-static KprCoAPContentFormat KPR_CoAP_getFormatAndContents(xsMachine *the, xsSlot slot, const void **ptr, UInt32 *length)
+static KprCoAPContentFormat KPR_CoAP_getFormatAndContents(xsMachine *the, const void **ptr, UInt32 *length)
 {
-	if (xsIsInstanceOf(slot, xsChunkPrototype)) {
-		*ptr = xsGetHostData(slot);
-		*length = xsToInteger(xsGet(slot, xsID_length));
+	if (xsTypeOf(xsArg(0)) == xsStringType) {
+		*ptr = xsToString(xsArg(0));
+		*length = FskStrLen(*ptr);
+		return kKprCoAPContentFormatPlainText;
+	} else if (xsIsInstanceOf(xsArg(0), xsChunkPrototype)) {
+		KPR_CoAP_warnChunkDeprecate(the, "request.payload");
+
+		*ptr = xsGetHostData(xsArg(0));
+		*length = xsToInteger(xsGet(xsArg(0), xsID_length));
+		return kKprCoAPContentFormatOctetStream;
+	} else {
+		*ptr = xsToArrayBuffer(xsArg(0));
+		*length = xsGetArrayBufferLength(xsArg(0));
 		return kKprCoAPContentFormatOctetStream;
 	}
-
-	*ptr = xsToString(slot);
-	*length = FskStrLen(*ptr);
-	return kKprCoAPContentFormatPlainText;
 }
 
 static void KPR_CoAP_message_is_confirmable(xsMachine *the, KprCoAPMessage self)
@@ -1650,11 +1662,13 @@ static void KPR_CoAP_message_get_messageId(xsMachine *the, KprCoAPMessage self)
 static void KPR_CoAP_message_get_token(xsMachine *the, KprCoAPMessage self)
 {
 	if (self->token) {
-		FskErr err;
-		err = KprMemoryChunkToScript(self->token, the, &xsResult);
-		xsThrowIfFskErr(err);
+		if (gKPR_CoAP_useChunk) {
+			xsThrowIfFskErr(KprMemoryBlockToChunk(self->token, the, &xsResult));
+		} else {
+			xsResult = xsArrayBuffer(KprMemoryBlockStart(self->token), self->token->size);
+		}
 	} else {
-		xsResult = xsUndefined;
+		xsResult = xsNull;
 	}
 }
 
@@ -1666,13 +1680,18 @@ static void KPR_CoAP_message_set_token(xsMachine *the, KprCoAPMessage self)
 
 	if (self->frozen) xsThrowIfFskErr(kFskErrBadState);
 
-	if (xsIsInstanceOf(xsArg(0), xsChunkPrototype)) {
-		data = xsGetHostData(xsArg(0));
-		len = xsToInteger(xsGet(xsArg(0), xsID_length));
-	} else {
+	if (xsTypeOf(xsArg(0)) == xsStringType) {
 		char *token = xsToString(xsArg(0));
 		len = FskStrLen(token);
 		data = token;
+	} else if (xsIsInstanceOf(xsArg(0), xsChunkPrototype)) {
+		if (!gKPR_CoAP_useChunk) KPR_CoAP_warnChunkDeprecate(the, "request.token");
+
+		data = xsGetHostData(xsArg(0));
+		len = xsToInteger(xsGet(xsArg(0), xsID_length));
+	} else {
+		data = xsToArrayBuffer(xsArg(0));
+		len = xsGetArrayBufferLength(xsArg(0));
 	}
 
 	err = KprCoAPMessageSetToken(self, (const void *) data, len);
@@ -1681,8 +1700,6 @@ static void KPR_CoAP_message_set_token(xsMachine *the, KprCoAPMessage self)
 
 static void KPR_CoAP_message_get_payload(xsMachine *the, KprCoAPMessage self)
 {
-	FskErr err;
-
 	if (self->payload) {
 		KprCoAPContentFormat format = KprCoAPMessageGetContentFormat(self);
 
@@ -1694,16 +1711,19 @@ static void KPR_CoAP_message_get_payload(xsMachine *the, KprCoAPMessage self)
 			case kKprCoAPContentFormatJson:
 			case kKprCoAPContentFormatXml:
 			case kKprCoAPContentFormatLinkFormat:
-				xsResult = xsString((char *) KprMemoryChunkStart(self->payload));
+				xsResult = xsString((char *) KprMemoryBlockStart(self->payload));
 				break;
 
 			default:
-				err = KprMemoryChunkToScript(self->payload, the, &xsResult);
-				xsThrowIfFskErr(err);
+				if (gKPR_CoAP_useChunk) {
+					xsThrowIfFskErr(KprMemoryBlockToChunk(self->payload, the, &xsResult));
+				} else {
+					xsResult = xsArrayBuffer(KprMemoryBlockStart(self->payload), self->payload->size);
+				}
 				break;
 		}
 	} else {
-		xsResult = xsUndefined;
+		xsResult = xsNull;
 	}
 }
 
@@ -1716,7 +1736,7 @@ static void KPR_CoAP_message_set_payload(xsMachine *the, KprCoAPMessage self)
 
 	if (self->frozen) xsThrowIfFskErr(kFskErrBadState);
 
-	format = KPR_CoAP_getFormatAndContents(the, xsArg(0), &payload, &length);
+	format = KPR_CoAP_getFormatAndContents(the, &payload, &length);
 
 	err = KprCoAPMessageSetPayload(self, payload, length);
 	xsThrowIfFskErr(err);
@@ -1750,7 +1770,7 @@ static void KPR_CoAP_message_setPayload(xsMachine *the, KprCoAPMessage self)
 
 	if (self->frozen) xsThrowIfFskErr(kFskErrBadState);
 
-	format = KPR_CoAP_getFormatAndContents(the, xsArg(0), &payload, &length);
+	format = KPR_CoAP_getFormatAndContents(the, &payload, &length);
 
 	err = KprCoAPMessageSetPayload(self, payload, length);
 	xsThrowIfFskErr(err);
@@ -1791,12 +1811,16 @@ static void KPR_CoAP_message_get_options(xsMachine *the, KprCoAPMessage self)
 				break;
 
 			case kKprCoAPMessageOptionFormatOpaque:
-				// @TODO maybe it is daingerous because if message was
-				// disposed before option value, it will crash.
-				xsVar(1) = xsNewInstanceOf(xsChunkPrototype);
-				xsSetHostData(xsVar(1), (void *) optRec->value.opaque.data);
-				xsSetHostDestructor(xsVar(1) , NULL);
-				xsSet(xsVar(1), xsID_length, xsInteger(optRec->value.opaque.length));
+				if (gKPR_CoAP_useChunk) {
+					// @TODO maybe it is daingerous because if message was
+					// disposed before option value, it will crash.
+					xsVar(1) = xsNewInstanceOf(xsChunkPrototype);
+					xsSetHostData(xsVar(1), (void *) optRec->value.opaque.data);
+					xsSetHostDestructor(xsVar(1) , NULL);
+					xsSet(xsVar(1), xsID_length, xsInteger(optRec->value.opaque.length));
+				} else {
+					xsVar(1) = xsArrayBuffer((void*) optRec->value.opaque.data, optRec->value.opaque.length);
+				}
 				break;
 
 			case kKprCoAPMessageOptionFormatUint:
@@ -1859,12 +1883,17 @@ static void KPR_CoAP_message_addOption(xsMachine *the, KprCoAPMessage self)
 			break;
 
 		case kKprCoAPMessageOptionFormatOpaque:
-			if (xsIsInstanceOf(xsArg(1), xsChunkPrototype)) {
+			if (xsTypeOf(xsArg(1)) == xsStringType) {
+				opaque = xsToString(xsArg(1));
+				length = FskStrLen(opaque);
+			} else if (xsIsInstanceOf(xsArg(1), xsChunkPrototype)) {
+				if (!gKPR_CoAP_useChunk) KPR_CoAP_warnChunkDeprecate(the, "message.addOption opaque");
+
 				opaque = xsGetHostData(xsArg(1));
 				length = xsToInteger(xsGet(xsArg(1), xsID_length));
 			} else {
-				opaque = xsToString(xsArg(1));
-				length = FskStrLen(opaque);
+				opaque = xsToArrayBuffer(xsArg(1));
+				length = xsGetArrayBufferLength(xsArg(1));
 			}
 			err = KprCoAPMessageAppendOpaqueOption(self, option, opaque, length);
 			break;
@@ -1914,6 +1943,8 @@ static void KPR_CoAP_message_get_uri(xsMachine *the, KprCoAPMessage self)
 {
 	if (self->uri) {
 		xsResult = xsString((char *) self->uri);
+	} else {
+		xsResult = xsNull;
 	}
 }
 
@@ -1921,6 +1952,8 @@ static void KPR_CoAP_message_get_host(xsMachine *the, KprCoAPMessage self)
 {
 	if (self->host) {
 		xsResult = xsString((char *) self->host);
+	} else {
+		xsResult = xsNull;
 	}
 }
 
@@ -1928,6 +1961,8 @@ static void KPR_CoAP_message_get_port(xsMachine *the, KprCoAPMessage self)
 {
 	if (self->port) {
 		xsResult = xsInteger(self->port);
+	} else {
+		xsResult = xsNull;
 	}
 }
 
@@ -1935,6 +1970,8 @@ static void KPR_CoAP_message_get_path(xsMachine *the, KprCoAPMessage self)
 {
 	if (self->path) {
 		xsResult = xsString((char *) self->path);
+	} else {
+		xsResult = xsNull;
 	}
 }
 
@@ -1942,7 +1979,35 @@ static void KPR_CoAP_message_get_query(xsMachine *the, KprCoAPMessage self)
 {
 	if (self->query) {
 		xsResult = xsString((char *) self->query);
+	} else {
+		xsResult = xsNull;
 	}
+}
+
+void KPR_CoAP_get_useChunk(xsMachine *the)
+{
+	ENTER_FUNCTION();
+	xsResult = xsBoolean(gKPR_CoAP_useChunk);
+	EXIT_FUNCTION();
+}
+
+void KPR_CoAP_set_useChunk(xsMachine *the)
+{
+	Boolean flag;
+	ENTER_FUNCTION();
+	flag = xsToBoolean(xsArg(0));
+	if (!gKPR_CoAP_useChunk && flag) {
+		KPR_CoAP_warnChunkDeprecate(the, "useChunk");
+	}
+	gKPR_CoAP_useChunk = flag;
+	EXIT_FUNCTION();
+}
+
+static void KPR_CoAP_warnChunkDeprecate(xsMachine *the, const char *domain)
+{
+	char buf[256];
+	sprintf(buf, "WARNING: %s: Chunk is deprecated. Will be dropped off soon. Use ArrayBuffer insted.\n", domain);
+	xsTrace(buf);
 }
 
 //--------------------------------------------------

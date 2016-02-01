@@ -46,60 +46,20 @@ class Manifest extends CMAKE.Manifest {
 	getPlatformVariables(tool, tmp, bin) {
 		var path = process.debug ? "$(F_HOME)/xs6/bin/mac/debug" : "$(F_HOME)/xs6/bin/mac/release";
 		return {
-			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/\${CONFIG_TYPE}/${this.tree.application}/${this.tree.application}.app`,
+			APP_DIR: tool.outputPath + "/bin/" + tool.platform + "/${CONFIG_TYPE}/" + this.tree.application + "/" + this.tree.application + ".app",
 			TMP_DIR: tmp,
 
-			APP_IPA: `${tool.outputPath}/bin/${tool.platform}/\${CONFIG_TYPE}/${this.tree.application}/${this.tree.application}.ipa`,
+			APP_IPA: tool.outputPath + "/bin/" + tool.platform + "/${CONFIG_TYPE}/" + this.tree.application + "/" + this.tree.application + ".ipa",
 			MANIFEST: tool.manifestPath,
 			PROVISION: this.ios.provisionPath,
 		};
 	}
 	getTargetRules(tool, file, tmp, bin) {
+		var application = this.tree.application;
+		var identity = this.ios.identityName;
+		var bundleIdentifier = this.ios.info.CFBundleIdentifier;
 		return `
-add_executable(${this.tree.application} MACOSX_BUNDLE \${SOURCES} \${FskPlatform_SOURCES} \${F_HOME}/kinoma/kpr/patches/main.m)
-target_link_libraries(${this.tree.application} \${LIBRARIES} \${OBJECTS} -ObjC)
-
-set(MACOSX_BUNDLE_INFO_PLIST \${TMP_DIR}/Info.plist)
-
-set_target_properties(${this.tree.application}
-	PROPERTIES
-	XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${this.ios.identityName}"
-	MACOSX_BUNDLE_GUI_IDENTIFIER ${this.ios.info.CFBundleIdentifier}
-	)
-
-add_custom_command(
-	TARGET ${this.tree.application}
-	POST_BUILD
-	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy \${TMP_DIR}/Info.plist \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy \${PROVISION} \${APP_DIR}/embedded.mobileprovision
-	)
-
-if(CMAKE_CONFIGURATION_TYPES)
-	add_custom_command(
-		TARGET ${this.tree.application}
-		POST_BUILD
-		COMMAND \${CMAKE_COMMAND} -E copy_directory \${APP_DIR} \${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_CFG_INTDIR}/${this.tree.application}.app
-		COMMAND \${CMAKE_COMMAND} -E copy \${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_CFG_INTDIR}/${this.tree.application}.app/${this.tree.application} \${APP_DIR}
-		)
-else()
-	add_custom_command(
-		TARGET ${this.tree.application}
-		POST_BUILD
-		COMMAND \${CMAKE_COMMAND} -E copy  $<TARGET_FILE:${this.tree.application}> \${APP_DIR}
-		COMMAND dsymutil $<TARGET_FILE:${this.tree.application}> -o $<TARGET_FILE:${this.tree.application}>.dSYM
-		)
-endif()
-
-add_custom_command(
-	TARGET ${this.tree.application}
-	POST_BUILD
-	COMMAND codesign -f -v -s ${this.ios.identityHash} --entitlements \${TMP_DIR}/Entitlements.plist \${TMP_DIR}/\${CMAKE_CFG_INTDIR}/${this.tree.application}.app
-	COMMAND codesign -f -v -s ${this.ios.identityHash} --entitlements \${TMP_DIR}/Entitlements.plist \${APP_DIR}
-	COMMAND xcrun -sdk iphoneos PackageApplication \${APP_DIR} -o \${APP_IPA}
-	VERBATIM
-	)
+BUILD(APPLICATION ${this.tree.application} IDENTITY "${this.ios.identityName}" IDENTIFIER this.ios.info.CFBundleIdentifier HASH ${this.ios.identityHash})
 `;
 	}
 };

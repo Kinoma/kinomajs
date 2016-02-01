@@ -16,13 +16,13 @@
 |     limitations under the License.
 -->
 <resources>
-    <string name="app_name">Kinoma Play</string>
+    <string name="app_name">#APP_NAME#</string>
 
 	<string name="finished_button">Finished</string>
 	<string name="web_return">Return</string>
-	<string name="main_fsk">Kinoma Play</string>
+	<string name="main_fsk">Kinoma #APP_NAME#</string>
 	
-	<string name="service_started">Kinoma Play started</string>
-	<string name="service_running">Kinoma Play running</string>
-	    
+	<string name="service_started">#APP_NAME# started</string>
+	<string name="service_running">#APP_NAME# running</string>
 </resources>
+

@@ -23,7 +23,9 @@
 #if SUPPORT_INSTRUMENTATION
    FskInstrumentedSimpleType(I2C, "I2C");
    // gI2CTypeInstrumentation
-   #define         DBG_I2C(...)   do { FskInstrumentedTypePrintfDebug (&gI2CTypeInstrumentation, __VA_ARGS__); } while(0);
+   //#define         DBG_I2C(...)   do { FskInstrumentedTypePrintfDebug (&gI2CTypeInstrumentation, __VA_ARGS__); } while(0);
+	//@BSF - fix me
+    #define         DBG_I2C(format, ...)
 #else
     #define         DBG_I2C(format, ...)
 #endif  // SUPPORT_INSTRUMENTATION
@@ -159,7 +161,7 @@ void xs_i2c_readByteDataSMB(xsMachine *the)
 	UInt8 command = (UInt8)xsToInteger(xsArg(0));
 	UInt8 byte;
 
-	DBG_I2C("xs_i2c_readByteDataSMB Reading byte from %u\n", reg);
+	DBG_I2C("xs_i2c_readByteDataSMB Reading byte from %u\n", command);
 
 	xsThrowIfNULL(i2c);
 
@@ -178,7 +180,7 @@ void xs_i2c_writeByteDataSMB(xsMachine *the)
     UInt8 command = (UInt8) xsToInteger(xsArg(0));
     UInt8 byte = (UInt8) xsToInteger(xsArg(1));
 
-	DBG_I2C("xs_i2c_writeByteDataSMB write byte %u from %u\n", byte, reg);
+	DBG_I2C("xs_i2c_writeByteDataSMB write byte %u from %u\n", byte, command);
 
 	xsThrowIfNULL(i2c);
 

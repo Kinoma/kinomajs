@@ -189,7 +189,6 @@ public class KinomaPlay extends Activity
     final int kGetOpenGL = 3;
     final int kSetKeyboard = 4;
     public native int callFskInt(int param, int val);
-    Boolean mBuildWantsGL = false;
 //#ifdefined C2D_MESSAGE
 	Boolean mRemoteNotificationRegistered = false;
     int getRemoteNotificationType() {
@@ -219,6 +218,7 @@ public class KinomaPlay extends Activity
     final int kAndroidSoftKeyboardTypeHTC = 0x1;
     final int kAndroidSoftKeyboardTypeGoogle = 0x2;
     int mSoftKeyboardType = 0;
+	int mFskKbdType = 0;
     Boolean mThereWasSomeMouseAction = false;
 
 	int mSDKVersion = 0;
@@ -484,67 +484,6 @@ public class KinomaPlay extends Activity
         }
     };
 
-	private void readKconfig(Activity activity)
-	    throws XmlPullParserException, IOException
-	{
-		StringBuffer stringBuffer = new StringBuffer();
-		Resources res = activity.getResources();
-		XmlResourceParser xpp = res.getXml(R.xml.kconfig);
-		xpp.next();
-		int eventType = xpp.getEventType();
-		Boolean gotVariable = false;
-		Boolean platformDoit = false;
-		String variableName = "";
-		String variableValue = "";
-
-		while (eventType != XmlPullParser.END_DOCUMENT) {
-			if(eventType == XmlPullParser.START_DOCUMENT) {
-	//			Log.i("kinoma", "--- Start XML ---");
-			}
-			else if(eventType == XmlPullParser.START_TAG) {
-				String tagName = xpp.getName();
-				gotVariable = false;
-
-				platformDoit = true;	// if there's no "platform" attribute, then assume this is okay
-//				Log.i("kinoma", "START_TAG: " + tagName);
-//				Log.i("kinoma", "attribute count: " + xpp.getAttributeCount());
-				if (tagName.contentEquals("variable")) {
-					gotVariable = true;
-					for (int i=0; i< xpp.getAttributeCount(); i++) {
-						String value = xpp.getAttributeValue(i);
-						String name = xpp.getAttributeName(i);
-
-						if (name.contentEquals("platform")) {			// if there's a platform tag, make sure it's android.
-							if (-1 == value.indexOf("android")) {
-								platformDoit = false;
-							}
-						}
-						if (name.contentEquals("name")) {
-							variableName = value;
-						}
-						if (name.contentEquals("value")) {
-							variableValue = value;
-						}
-//						Log.i("kinoma", "attribute: " + xpp.getAttributeName(i) + ", value: " + xpp.getAttributeValue(i));
-					}
-				}
-			}
-			else if(eventType == XmlPullParser.END_TAG) {
-//				Log.i("kinoma", "END_TAG: "+xpp.getName());
-				if (gotVariable && platformDoit) {
-					if (variableName.contentEquals("useGL")) {
-						if (variableValue.contentEquals("1"))
-							mBuildWantsGL = true;
-					}
-				}
-				gotVariable = false;
-				variableName = "";
-				variableValue = "";
-			}
-			eventType = xpp.next();
-		}
-	}
-
 	private static final long MILLISECONDS_PER_SECOND = 1000;
 	private static final long NANOSECONDS_PER_MILLISECOND = 1000000;
 	private static final long INTERVAL_TOLERANCE_MS = 2;
@@ -595,14 +534,6 @@ public class KinomaPlay extends Activity
 	public void onCreate(Bundle savedInstanceState)
 	{
 		super.onCreate(savedInstanceState);
-	    String stringXmlContent;
-	    try {
-	    	readKconfig(this);
-	    } catch (XmlPullParserException e) {
-	    	e.printStackTrace();
-	    } catch (IOException e) {
-	    	e.printStackTrace();
-	    }
 
 		setContentView(R.layout.main);
 
@@ -679,7 +610,7 @@ public class KinomaPlay extends Activity
 			mIsEmulator = true;
 
 		ViewGroup		mainViewGroup = (ViewGroup) LayoutInflater.from(this).inflate(R.layout.main, null);
-		if ( !mIsEmulator && mBuildWantsGL && ((gMajorVersion > 2) || ((gMajorVersion == 2) && (gMinorVersion >= 3)) ) )
+		if ( !mIsEmulator && ((gMajorVersion > 2) || ((gMajorVersion == 2) && (gMinorVersion >= 3)) ) )
 		{
 			FskViewGL			fskView = new FskViewGL( this, null );
 			Log.i("kinoma", "using OpenGL");
@@ -839,8 +770,25 @@ public class KinomaPlay extends Activity
 				CharSequence b;
 				public void onTextChanged(CharSequence s, int start, int before, int count) {
 					if (!mFskEditTextIgnoreChanges) {
-//						Log.i("Kinoma", "onTextChanged - new string: " + s.toString() + " start: " + start + " before: " + before + " count: " + count);
-						doFskOnTextChanged(s.toString(), start, before, count);
+						String str = s.toString();
+//						Log.i("Kinoma", "onTextChanged - new string: " + str + " start: " + start + " before: " + before + " count: " + count);
+						doFskOnTextChanged(str, start, before, count);
+						int len = str.length();
+						if (len > 0) {
+//Log.i("Kinoma", "#### onTextChanged - len " + len + " str: '" + str.substring(len-1, len) + "' ord: " + (int)str.charAt(len-1));
+							if ((str.charAt(len-1) == 10) && (mFskKbdType != 1))  {
+//Log.i("Kinoma", "##### onTextChanged - got a return - resetting text to " + str.substring(0, len-1));
+								int alt = mFskEditTextCur == 0 ? 1 : 0;
+								mFskEditTextIgnoreChanges = true;
+								mFskEditText[0].setText(str.substring(0, len-1));
+								mFskEditText[1].setText(str.substring(0, len-1));
+								mFskEditText[0].setSelection(len-1);
+								mFskEditText[1].setSelection(len-1);
+								mInputMethodMgr.restartInput(mFskEditText[alt]);
+								mFskEditTextCur = alt;
+								mFskEditTextIgnoreChanges = false;
+							}
+						}
 					}
 				}
 				public void afterTextChanged(Editable arg0) { }
@@ -2175,6 +2123,10 @@ private void createGpsDisabledAlert(){
 				mainRunloop.removeMessages(kTimerMessage);
 				mainRunloop.sendEmptyMessageDelayed(kTimerMessage, nextCallMS);
 			}
+
+			if (!mIdlePending && mInputMethodShown) {
+				mainRunloop.sendEmptyMessageDelayed(kTimerMessage, 100);
+			}
 		}
 	};
 
@@ -2835,12 +2787,12 @@ private void createGpsDisabledAlert(){
 		int alt = mFskEditTextCur == 0 ? 1 : 0;
 
 //		Log.i("Kinoma", "doSetKeyboardSelection alt: " + alt + " selBegin: " + selBegin + " - selEnd: " + selEnd + "len: " + len);
-		if (selBegin > len) selBegin = len;
-		if (selEnd > len) selEnd = len;
+		if (selBegin > len || (selBegin == -1)) selBegin = len;
+		if (selEnd > len || (selEnd == -1)) selEnd = len;
 
 		if ((selBegin == selEnd) && mThereWasSomeMouseAction) {
-//			Log.i("Kinoma", "	selBegin == selEnd " + selBegin + " -- I think it's a tap - remove suggestions");
-//			Log.i("Kinoma", "   setting alternate field's text to '" + curText + "' and selection to " + selBegin);
+			Log.i("Kinoma", "	selBegin == selEnd " + selBegin + " -- I think it's a tap - remove suggestions");
+			Log.i("Kinoma", "   setting alternate field's text to '" + curText + "' and selection to " + selBegin);
 			mFskEditTextIgnoreChanges = true;
 			mFskEditText[alt].selectAll();
 			mFskEditText[alt].setText(curText);
@@ -2855,11 +2807,11 @@ private void createGpsDisabledAlert(){
 		}
 		else {
 			if (selBegin == 0 && selEnd == len) {
-//				Log.i("Kinoma", "   setting selection ALL on current textfield '" + curText + "' from " + selBegin + " to " + selEnd);
+				Log.i("Kinoma", "   setting selection ALL on current textfield '" + curText + "' from " + selBegin + " to " + selEnd);
 				mFskEditText[mFskEditTextCur].selectAll();
 			}
 			else {
-//				Log.i("Kinoma", "   setting selection on current textfield '" + curText + "' from " + selBegin + " to " + selEnd);
+				Log.i("Kinoma", "   setting selection on current textfield '" + curText + "' from " + selBegin + " to " + selEnd);
 				mFskEditText[mFskEditTextCur].setSelection(selBegin, selEnd);
 			}
 		}
@@ -2909,6 +2861,7 @@ private void createGpsDisabledAlert(){
 	protected void doSetKeyboardStuff(int kbdType, String theContent) {
 		int androidInputType;
 
+		mFskKbdType = kbdType;
 //		Log.i("Kinoma", "doSetKeyboardStuff " + kbdType + " - theContent " + theContent);
 		mFskEditTextIgnoreChanges = true;
 		mFskEditText[0].setText(theContent);

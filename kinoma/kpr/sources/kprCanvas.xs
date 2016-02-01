@@ -117,6 +117,7 @@
 			<function name="arcTo" params="x1, y1, x2, y2, radius" c="KPR_canvasRenderingContext2D_arcTo" script="true"/>
 			<function name="rect" params="x, y, w, h" c="KPR_canvasRenderingContext2D_rect" script="true"/>
 			<function name="arc" params="x, y, radius, startAngle, endAngle, anticlockwise" c="KPR_canvasRenderingContext2D_arc" script="true"/>
+			<function name="ellipse" params="x, y, radiusX, radiusY, rotation, startAngle, endAngle, anticlockwise" c="KPR_canvasRenderingContext2D_ellipse" script="true"/>
 			<function name="fill" params="fillRule" c="KPR_canvasRenderingContext2D_fill" script="true"/>
 			<function name="stroke" params="" c="KPR_canvasRenderingContext2D_stroke" script="true"/>
 			<function name="clip" params="path, fillRule" c="KPR_canvasRenderingContext2D_clip" script="true"/>
@@ -158,6 +159,10 @@
 			<function name="clearHitRegions" c="KPR_canvasRenderingContext2D_clearHitRegions" script="true"/>
 			<!-- Extension functions to Canvas 2.0 for testing -->
 			<!--function name="pickHitRegion" params="x, y" c="KPR_canvasRenderingContext2D_pickHitRegion" script="true"/-->
+
+			<!-- quality -->
+			<function name="get imageSmoothingEnabled" c="KPR_canvasRenderingContext2D_get_imageSmoothingEnabled" script="true"/>
+			<function name="set imageSmoothingEnabled" params="on" c="KPR_canvasRenderingContext2D_set_imageSmoothingEnabled" script="true"/>
 
 		</object>
 
@@ -221,6 +226,7 @@
 			<function name="arcTo" params="x1, y1, x2, y2, radius" c="KPR_path2D_arcTo" script="true"/>
 			<function name="rect" params="x, y, w, h" c="KPR_path2D_rect" script="true"/>
 			<function name="arc" params="x, y, radius, startAngle, endAngle, anticlockwise" c="KPR_path2D_arc" script="true"/>
+			<function name="ellipse" params="x, y, radiusX, radiusY, rotation, startAngle, endAngle, anticlockwise" c="KPR_path2D_ellipse" script="true"/>
 		</object>
 	</patch>
 

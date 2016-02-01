@@ -438,8 +438,10 @@ int main(int argc, char* argv[])
 		#endif
 		}
 	}
-	if (parser->errorCount > 0)
+	if (parser->errorCount > 0) {
 		fprintf(stderr, "### %d error(s)\n", parser->errorCount);
+		parser->error = C_EINVAL;
+	}
 	else if (parser->warningCount > 0)
 		fprintf(stderr, "### %d warning(s)\n", parser->warningCount);
 	fxDeleteScript(script);

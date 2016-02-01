@@ -768,6 +768,7 @@ FskAPI(FskErr)	FskGLTextBox(
 	UInt32						textStyle,
 	UInt16						hAlign,
 	UInt16						vAlign,
+	FskFixed					textExtra,
 	const char					*fontName,
 	struct FskTextFormatCacheRecord	*cache
 );
@@ -789,6 +790,7 @@ FskAPI(FskErr) FskGLTextGlyphsLoad(
 	UInt32							textLen,
 	UInt32							textSize,
 	UInt32							textStyle,
+	FskFixed						textExtra,
 	const char						*fontName,
 	struct FskTextFormatCacheRecord	*cache
 );
@@ -836,6 +838,7 @@ FskAPI(FskErr) FskGLTextGetBounds(
 	UInt32				textLen,
 	UInt32				textSize,
 	UInt32				textStyle,
+	FskFixed			textExtra,
 	const char			*fontName,
 	FskRectangle		bounds,
 	struct FskTextFormatCacheRecord	*cache
@@ -946,7 +949,7 @@ FskAPI(FskErr)	FskGLTypeFaceNext(FskConstGLTypeFace *pTypeFace, const char **pFo
  *	\param[in,out]	typeFace		the typeface and related state.
  *	\return			kFskErrNone		if the strike was added successfully.
  **/
-FskAPI(FskErr) FskGLTextStrikeGlyphRange(UInt16 firstCodePoint, UInt16 lastCodePoint, FskGLTypeFace typeFace);
+FskAPI(FskErr) FskGLTextStrikeGlyphRange(UInt16 firstCodePoint, UInt16 lastCodePoint, FskGLTypeFace typeFace, FskFixed textExtra);
 
 
 /** Get the text strike bitmap.

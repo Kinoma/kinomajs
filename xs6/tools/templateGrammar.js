@@ -600,6 +600,7 @@ var _skin = {
 var _style = {
 	__proto__: _item,
 	id: "",
+	extra: 0,
 	font: "",
 	color: "",
 	states: _states,
@@ -673,6 +674,8 @@ var _style = {
 			out.cat("bottom: ", this.margins.bottom, ", ");
 		if (this.lines)
 			out.cat("lines: ", this.lines, ", ");
+		if (this.extra)
+			out.cat("extra: ", this.extra, ", ");
 		out.cat("})");
 	},
 };
@@ -937,7 +940,7 @@ var _content = {
 		this.printProperties(out);
 		out.cat("}});");
 		if (this.behaviors.length) {
-			out.line(this.id, ".behaviors = new Array(", this.behaviors.length, ");");
+			out.line(this.id, ".behaviors = new Array(", this.behaviors.length, ").fill();");
 			this.behaviors.forEach(out.printItem, out);
 		}
 	},
@@ -1685,6 +1688,7 @@ g.object(_skin, "xs0:skin", {
 });
 g.object(_style, "xs0:style", {
 	id: g.string("@id"),
+	extra: g.number("@extra"),
 	font: g.string("@font"),
 	color: g.string("@color"),
 	states: g.reference(".", _states),

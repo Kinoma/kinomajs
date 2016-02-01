@@ -591,7 +591,7 @@
                     //trace( "####     " + next + "=" + variables[next] + "\n" );
                     if( next == "modulePath" )
                     {
-                        var modifiedModulePath = variables[next].replace( "@", getBehavior().getUploadPath( temporary ) );
+                        var modifiedModulePath = variables[next].replace( /@/g, getBehavior().getUploadPath( temporary ) );
                         var modulePath = getBehavior().getSystemModulePath() != null ? getBehavior().getSystemModulePath() + ";" + modifiedModulePath : modifiedModulePath;
                         
                         setEnvironmentVariable( next, modulePath );

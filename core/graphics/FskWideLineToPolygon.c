@@ -71,7 +71,7 @@ InitLineSeg(const FskFixedPoint2D *p0, const FskFixedPoint2D *p1, const FskFixed
 	}
 	seg->par.x = seg->pt[1].x - seg->pt[0].x;
 	seg->par.y = seg->pt[1].y - seg->pt[0].y;
-	if ((seg->length = FskFixedVector2DNormalize(&seg->par.x)) == 0) {
+	if ((seg->length = FskFixedVector2DNormalize(&seg->par.x)) < (FIXED_ONE >> 7)) {	/* Consider segments shorter than 1/128 pixel to be degenerate */
 		seg->par.x = FRACT_ONE;
 		seg->par.y = 0;
 		ok = 0;

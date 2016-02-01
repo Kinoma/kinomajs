@@ -177,7 +177,7 @@ void fxWriteProfileGrammar(txMachine* the, txSlot* theProperty, txSlot* theList)
 	while (theProperty) {
 		if (theProperty->kind == XS_REFERENCE_KIND) {
 			anInstance = fxGetInstance(the, theProperty);
-			if (((anInstance->flag & XS_VALUE_FLAG) == 0) || (anInstance->next->kind != XS_ARRAY_KIND))
+			if ((!(anInstance->next)) || (anInstance->next->kind != XS_ARRAY_KIND))
 				fxWriteProfileProperty(the, theProperty, theList, -1);
 		}
 		theProperty = theProperty->next;
@@ -191,7 +191,7 @@ void fxWriteProfileGrammarArray(txMachine* the, txSlot* theProperty, txSlot* the
 	while (theProperty) {
 		if (theProperty->kind == XS_REFERENCE_KIND) {
 			anInstance = fxGetInstance(the, theProperty);
-			if ((anInstance->flag & XS_VALUE_FLAG) && (anInstance->next->kind == XS_ARRAY_KIND))
+			if ((anInstance->next) && (anInstance->next->kind == XS_ARRAY_KIND))
 				fxWriteProfileProperty(the, theProperty, theList, -1);
 		}
 		theProperty = theProperty->next;
@@ -245,12 +245,11 @@ void fxWriteProfileProperty(txMachine* the, txSlot* theProperty, txSlot* theList
 	theList->value.list.last->next = &aKey;
 	theList->value.list.last = &aKey;
 
-	aProperty = anInstance->next;
-	if (anInstance->flag & XS_VALUE_FLAG) {
+	if ((aProperty = anInstance->next)) {
 		switch (aProperty->kind) {
 		case XS_CALLBACK_KIND:
 		case XS_CODE_KIND:
-			aSlot = fxGetProperty(the, anInstance, mxID(_prototype));
+			aSlot = fxGetProperty(the, anInstance, mxID(_prototype), XS_NO_ID, XS_ANY);
 			if (aSlot && (aSlot->kind == XS_REFERENCE_KIND)) {
 				aSlot->ID = mxID(_prototype);
 				fxWriteProfileProperty(the, aSlot, theList, -1);
@@ -279,9 +278,6 @@ void fxWriteProfileProperty(txMachine* the, txSlot* theProperty, txSlot* theList
 					fxWriteProfileProperty(the, aSlot, theList, anIndex);
 				aSlot++;
 			}
-			aProperty = aProperty->next;
-			break;
-		default:
 			aProperty = aProperty->next;
 			break;
 		}

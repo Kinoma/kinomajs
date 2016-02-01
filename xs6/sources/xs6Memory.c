@@ -26,7 +26,9 @@
 #define mxFill 0
 #endif
 
+#if mxStress
 int gxStress = 0;
+#endif
 
 #define mxChunkFlag 0x80000000
 
@@ -45,183 +47,6 @@ static void fxSweepValue(txMachine* the, txSlot* theSlot);
 
 //#define mxNever 1
 #ifdef mxNever
-
-static void fxCheckChunk(txMachine* the, txKind theKind, void* theData)
-{
-	txChunk* aChunk;
-	txBlock* aBlock;
-	txByte* mByte;
-	txByte* nByte;
-
-	aChunk = (txChunk*)(((txByte*)(theData)) - sizeof(txChunk));
-	aBlock = the->firstBlock;
-	while (aBlock) {
-		mByte = ((txByte*)aBlock) + sizeof(txBlock);
-		nByte = aBlock->current;
-		if ((mByte <= ((txByte*)aChunk)) && ((((txByte*)aChunk) + aChunk->size) <= nByte)) {
-			if (aChunk->temporary)
-				fprintf(stderr, "### INVALID CHUNK %d %8.8X %8.8X\n", theKind, aChunk, aChunk->temporary);
-			return;
-		}
-		aBlock = aBlock->nextBlock;
-	}
-	if (the->sharedMachine) {
-		aBlock = the->sharedMachine->firstBlock;
-		while (aBlock) {
-			mByte = ((txByte*)aBlock) + sizeof(txBlock);
-			nByte = aBlock->current;
-			if ((mByte <= ((txByte*)aChunk)) && ((((txByte*)aChunk) + (aChunk->size & ~0x80000000)) <= nByte)) {
-				if (aChunk->temporary)
-					fprintf(stderr, "### INVALID SHARED CHUNK %d %8.8X %8.8X\n", theKind, aChunk, aChunk->temporary);
-				return;
-			}
-			aBlock = aBlock->nextBlock;
-		}
-	}
-	fprintf(stderr, "### UNKNOWN CHUNK %d %8.8X %8.8s\n", theKind, aChunk, aChunk);
-}
-
-static void fxCheckReference(txMachine* the, txKind theKind, txSlot* theSlot)
-{
-	txSlot* aSlot;
-	txSlot* bSlot;
-	
-	if ((the->stack <= theSlot) && (theSlot < the->stackTop))
-		return;
-	aSlot = the->firstHeap;
-	while (aSlot) {
-		bSlot = aSlot->value.reference;
-		if ((aSlot < theSlot) && (theSlot < bSlot))
-			return;
-		aSlot = aSlot->next;
-	}
-	if (the->sharedMachine) {
-		aSlot = the->sharedMachine->firstHeap;
-		while (aSlot) {
-			bSlot = aSlot->value.reference;
-			if ((aSlot < theSlot) && (theSlot < bSlot))
-				return;
-			aSlot = aSlot->next;
-		}
-	}
-	fprintf(stderr, "### UNKNOWN REFERENCE %d %8.8X\n", theKind, theSlot);
-}
-
-static void fxCheckValue(txMachine* the, txSlot* theSlot)
-{
-	txSlot* aSlot;
-	if (theSlot->flag & XS_MARK_FLAG) {
-		fprintf(stderr, "### MARKED SLOT %d %s", theSlot->kind, theSlot->value.string);
-//		fxDebugger(the, 0, 0);
-		}
-	switch (theSlot->kind) {
-	case XS_INSTANCE_KIND:
-		if (theSlot->flag & XS_SHARED_FLAG)
-			fprintf(stderr, "### SHARED INSTANCE %d %8.8X\n", theSlot->kind, theSlot);
-		aSlot = theSlot->value.instance.prototype;
-		if (aSlot)
-			fxCheckReference(the, theSlot->kind, aSlot);
-		break;
-	case XS_REFERENCE_KIND:
-		aSlot = theSlot->value.reference;
-		fxCheckReference(the, theSlot->kind, aSlot);
-		break;
-	case XS_REGEXP_KIND:
-		fxCheckChunk(the, theSlot->kind, theSlot->value.regexp.code);
-		fxCheckChunk(the, theSlot->kind, theSlot->value.regexp.offsets);
-		break;
-	case XS_STRING_KIND:
-		fxCheckChunk(the, theSlot->kind, theSlot->value.string);
-		break;
-	case XS_STACK_KIND:
-	case XS_ARRAY_KIND:
-		if (theSlot->value.array.cache)
-			fxCheckChunk(the, theSlot->kind, theSlot->value.array.cache);
-		break;
-	case XS_GLOBAL_KIND:
-		fxCheckChunk(the, theSlot->kind, theSlot->value.table.address);
-		break;
-	case XS_CODE_KIND:
-		fxCheckChunk(the, theSlot->kind, theSlot->value.code);
-		break;
-	case XS_KEY_KIND:
-		if (theSlot->value.key.string)
-			fxCheckChunk(the, theSlot->kind, theSlot->value.key.string);
-		break;
-	case XS_LIST_KIND:
-		aSlot = theSlot->value.list.first;
-		while (aSlot) {
-			fxCheckReference(the, theSlot->kind, aSlot);
-			if (aSlot->kind == XS_STRING_POINTER || aSlot->kind == XS_STRING_CONCAT || aSlot->kind == XS_STRING_CONCATBY || aSlot->kind == XS_STRING)
-				fxCheckChunk(the, theSlot->kind, aSlot->value.string);
-			aSlot = aSlot->next;
-		}
-		break;
-	}
-}
-
-extern void fxCheckMemory(txMachine* the);
-void fxCheckMemory(txMachine* the)
-{
-	txSlot** anArray;
-	txID anIndex;
-	txSlot* aSlot;
-	txSlot* bSlot;
-	txSlot* cSlot;
-	txBlock* aBlock;
-	txByte* mByte;
-	txByte* nByte;
-	txSize aSize;
-	
-	if ((the->collectFlag & XS_COLLECTING_FLAG) == 0)
-		return;
-	fprintf(stderr, "symbols\n");
-	anArray = the->keyArray;
-	anIndex = the->keyIndex;
-	while (anIndex) {
-		if ((aSlot = *anArray))
-			fxCheckReference(the, XS_KEY_KIND, aSlot);
-		anArray++;
-		anIndex--;
-	}
-	fprintf(stderr, "stack\n");
-	aSlot = the->stack;
-	while (aSlot < the->stackTop) {
-		fxCheckValue(the, aSlot);
-		aSlot++;
-	}
-	aSlot = the->cRoot;
-	while (aSlot) {
-		fxCheckValue(the, aSlot);
-		aSlot = aSlot->next;
-	}
-	fprintf(stderr, "heap\n");
-	aSlot = the->firstHeap;
-	while (aSlot) {
-		bSlot = aSlot + 1;
-		cSlot = aSlot->value.reference;
-		while (bSlot < cSlot) {
-			fxCheckValue(the, bSlot);
-			bSlot++;
-		}
-		aSlot = aSlot->next;
-	}
-	fprintf(stderr, "chunks\n");
-	aBlock = the->firstBlock;
-	while (aBlock) {
-		mByte = ((txByte*)aBlock) + sizeof(txBlock);
-		nByte = aBlock->current;
-		while (mByte < nByte) {
-			aSize = ((txChunk*)mByte)->size;
-			if (aSize & mxChunkFlag) {
-				aSize &= ~mxChunkFlag;
-				fprintf(stderr, "### MARKED CHUNK %8.8X %8.8s\n", mByte, mByte + sizeof(txChunk));
-			}
-			mByte += aSize;
-		}	
-		aBlock = aBlock->nextBlock;
-	}
-}
 
 txSize gxRenewChunkCases[4] = { 0, 0, 0, 0 };
 
@@ -582,7 +407,7 @@ void fxMark(txMachine* the, void (*theMarker)(txMachine*, txSlot*))
 	anIndex = the->aliasCount;
 	while (anIndex) {
 		if ((aSlot = *anArray))
-			if (!(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+			if (!(aSlot->flag & XS_MARK_FLAG))
 				fxMarkInstance(the, aSlot, theMarker);
 		anArray++;
 		anIndex--;
@@ -618,13 +443,13 @@ void fxMarkInstance(txMachine* the, txSlot* theCurrent, void (*theMarker)(txMach
 				switch (aProperty->kind) {
 				case XS_INSTANCE_KIND:
 					aTemporary = aProperty->value.instance.prototype;
-					if (aTemporary && !(aTemporary->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+					if (aTemporary && !(aTemporary->flag & XS_MARK_FLAG))
 						fxMarkInstance(the, aTemporary, theMarker);
 					aProperty = aProperty->next;
 					break;
 				case XS_REFERENCE_KIND:
 					aTemporary = aProperty->value.reference;
-					if (!(aTemporary->flag & (XS_MARK_FLAG | XS_SHARED_FLAG))) {
+					if (!(aTemporary->flag & XS_MARK_FLAG)) {
 						aProperty->value.reference = theCurrent;
 						theCurrent = aTemporary;
 						theCurrent->value.instance.garbage = aProperty;
@@ -663,7 +488,7 @@ void fxMarkReference(txMachine* the, txSlot* theSlot)
 	switch (theSlot->kind) {
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
-		if (!(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (!(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkReference);
 		break;
 	case XS_CLOSURE_KIND:
@@ -675,17 +500,18 @@ void fxMarkReference(txMachine* the, txSlot* theSlot)
 		break;
 	case XS_ACCESSOR_KIND:
 		aSlot = theSlot->value.accessor.getter;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkReference);
 		aSlot = theSlot->value.accessor.setter;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkReference);
 		break;
+	case XS_ARGUMENTS_SLOPPY_KIND:
+	case XS_ARGUMENTS_STRICT_KIND:
 	case XS_ARRAY_KIND:
-	case XS_PARAMETERS_KIND:
 	case XS_STACK_KIND:
 		if ((aSlot = theSlot->value.array.address)) {
-			txInteger aLength = theSlot->value.array.length;
+			txIndex aLength = (((txChunk*)(((txByte*)aSlot) - sizeof(txChunk)))->size) / sizeof(txSlot);
 			while (aLength) {
 				fxMarkReference(the, aSlot);
 				aSlot++;
@@ -693,22 +519,30 @@ void fxMarkReference(txMachine* the, txSlot* theSlot)
 			}
 		}
 		break;
+	case XS_HOME_KIND:
+		aSlot = theSlot->value.home.object;
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
+			fxMarkInstance(the, aSlot, fxMarkReference);
+		aSlot = theSlot->value.home.module;
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
+			fxMarkInstance(the, aSlot, fxMarkReference);
+		break;
 	case XS_HOST_KIND:
 		if ((theSlot->flag & XS_HOST_HOOKS_FLAG) && (theSlot->value.host.variant.hooks->marker))
 			(*theSlot->value.host.variant.hooks->marker)(theSlot->value.host.data, fxMarkReference);
 		break;
 	case XS_PROXY_KIND:
 		aSlot = theSlot->value.proxy.handler;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkReference);
 		aSlot = theSlot->value.proxy.target;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkReference);
 		break;
 	case XS_STAR_KIND:
 	case XS_WITH_KIND:
 		aSlot = theSlot->value.reference;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkReference);
 		break;
 		
@@ -759,7 +593,7 @@ void fxMarkValue(txMachine* the, txSlot* theSlot)
 		break;
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
-		if (!(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (!(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkValue);
 		break;
 	case XS_CLOSURE_KIND:
@@ -770,11 +604,12 @@ void fxMarkValue(txMachine* the, txSlot* theSlot)
 		}
 		break;
 		
+	case XS_ARGUMENTS_SLOPPY_KIND:
+	case XS_ARGUMENTS_STRICT_KIND:
 	case XS_ARRAY_KIND:
-	case XS_PARAMETERS_KIND:
 	case XS_STACK_KIND:
 		if ((aSlot = theSlot->value.array.address)) {
-			txInteger aLength = theSlot->value.array.length;
+			txIndex aLength = (((txChunk*)(((txByte*)aSlot) - sizeof(txChunk)))->size) / sizeof(txSlot);
 			while (aLength) {
 				fxMarkValue(the, aSlot);
 				aSlot++;
@@ -803,10 +638,10 @@ void fxMarkValue(txMachine* the, txSlot* theSlot)
 		break;
 	case XS_PROXY_KIND:
 		aSlot = theSlot->value.proxy.handler;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkValue);
 		aSlot = theSlot->value.proxy.target;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkValue);
 		break;
 	case XS_REGEXP_KIND:
@@ -816,16 +651,24 @@ void fxMarkValue(txMachine* the, txSlot* theSlot)
 	case XS_STAR_KIND:
 	case XS_WITH_KIND:
 		aSlot = theSlot->value.reference;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkValue);
 		break;
 		
 	case XS_ACCESSOR_KIND:
 		aSlot = theSlot->value.accessor.getter;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkValue);
 		aSlot = theSlot->value.accessor.setter;
-		if (aSlot && !(aSlot->flag & (XS_MARK_FLAG | XS_SHARED_FLAG)))
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
+			fxMarkInstance(the, aSlot, fxMarkValue);
+		break;
+	case XS_HOME_KIND:
+		aSlot = theSlot->value.home.object;
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
+			fxMarkInstance(the, aSlot, fxMarkValue);
+		aSlot = theSlot->value.home.module;
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
 			fxMarkInstance(the, aSlot, fxMarkValue);
 		break;
 	case XS_KEY_KIND:
@@ -1092,7 +935,7 @@ void fxShare(txMachine* the)
 		while (bSlot < cSlot) {
 			if (bSlot->kind == XS_INSTANCE_KIND) {
 				bSlot->ID = aliasCount++;
-				bSlot->flag |= XS_SHARED_FLAG; 
+				bSlot->flag |= XS_MARK_FLAG; 
 			}
 			
 			bSlot++;
@@ -1298,11 +1141,12 @@ void fxSweepValue(txMachine* the, txSlot* theSlot)
 		mxSweepChunk(theSlot->value.string, txString);
 		break;
 
+	case XS_ARGUMENTS_SLOPPY_KIND:
+	case XS_ARGUMENTS_STRICT_KIND:
 	case XS_ARRAY_KIND:
-	case XS_PARAMETERS_KIND:
 	case XS_STACK_KIND:
 		if ((aSlot = theSlot->value.array.address)) {
-			txInteger aLength = theSlot->value.array.length;
+			txIndex aLength = (((txChunk*)(((txByte*)aSlot) - sizeof(txChunk)))->size) / sizeof(txSlot);
 			while (aLength) {
 				fxSweepValue(the, aSlot);
 				aSlot++;

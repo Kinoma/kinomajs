@@ -17,6 +17,8 @@
 #include "kprMQTTCommon.h"
 #include "kprShell.h"
 
+const char *kKprMQTTProtocolSignature31 = "MQIsdp";
+const char *kKprMQTTProtocolSignature311 = "MQTT";
 
 FskErr KprMQTTMessageNew(KprMQTTMessage *it)
 {
@@ -125,7 +127,7 @@ void KprMQTTInvokeAfter(void *func, void *param1, void *param2, void *param3, vo
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)func, param1, param2, param3, param4);
 }
 
-FskErr KprMQTTMessageAddSubscribeTopic(KprMQTTMessage message)
+FskErr KprMQTTMessageAddSubscribeTopic(KprMQTTMessage message, KprMQTTSubscribeTopic *it)
 {
 	KprMQTTSubscribeTopic topic;
 	FskErr err;
@@ -134,7 +136,14 @@ FskErr KprMQTTMessageAddSubscribeTopic(KprMQTTMessage message)
 	if (err) return err;
 
 	FskListAppend(&message->t.other.topics, topic);
+	*it = topic;
+
 	return kFskErrNone;
+}
+
+KprMQTTSubscribeTopic KprMQTTMessageFirstSubscribeTopic(KprMQTTMessage message)
+{
+	return message->t.other.topics;
 }
 
 KprMQTTSubscribeTopic KprMQTTMessageLastSubscribeTopic(KprMQTTMessage message)

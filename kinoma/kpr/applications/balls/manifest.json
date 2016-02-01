@@ -88,7 +88,7 @@
 				"ssdpDiscoverSelf":"0",
 				"wifiEnabled":true,
 				"MTVROTATE":0,
-				
+
 			},
 			"fonts":{
 				"default": "Fira Sans",
@@ -184,7 +184,7 @@
 		"times":true,
 		"androidlog":false,
 		"kinds":[
-			
+
 		]
 	},
 }

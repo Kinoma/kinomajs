@@ -1385,6 +1385,7 @@ void KPR_content_bubble(xsMachine *the)
 	xsIndex id = xsID(xsToString(xsArg(0)));
 	xsVars(3);
 	xsVar(1) = xsNew1(xsGlobal, xsID_Array, xsNumber(c));
+	(void)xsCall0(xsVar(1), xsID_fill);
 	for (i = 1; i < c; i++)
 		xsSetAt(xsVar(1), xsInteger(i), xsArg(i));
 	while (content) {
@@ -1435,6 +1436,7 @@ void KPR_content_delegate(xsMachine *the)
 		xsVar(0) = xsAccess(self->slot);
 		if (xsFindResult(xsVar(0), id)) {
 			xsVar(1) = xsNew1(xsGlobal, xsID_Array, xsNumber(c));
+			(void)xsCall0(xsVar(1), xsID_fill);
 			xsSetAt(xsVar(1), xsInteger(0), xsThis);
 			for (i = 1; i < c; i++)
 				xsSetAt(xsVar(1), xsInteger(i), xsArg(i));
@@ -1475,6 +1477,7 @@ void KPR_content_distribute(xsMachine *the)
 	xsIndex id = xsID(xsToString(xsArg(0)));
 	xsVars(3);
 	xsVar(1) = xsNew1(xsGlobal, xsID_Array, xsNumber(c));
+	(void)xsCall0(xsVar(1), xsID_fill);
 	for (i = 1; i < c; i++)
 		xsSetAt(xsVar(1), xsInteger(i), xsArg(i));
 	(void)KPR_content_distributeAux(the, content, id);
@@ -2477,6 +2480,7 @@ void KPR_container_firstThat(xsMachine *the)
 	if (content) {
 		xsIndex id = xsID(xsToString(xsArg(0)));
 		xsVar(1) = xsNew1(xsGlobal, xsID_Array, xsNumber(c));
+		(void)xsCall0(xsVar(1), xsID_fill);
 		for (i = 1; i < c; i++)
 			xsSetAt(xsVar(1), xsInteger(i), xsArg(i));
 		while (content) {
@@ -2517,6 +2521,7 @@ void KPR_container_lastThat(xsMachine *the)
 	if (content) {
 		xsIndex id = xsID(xsToString(xsArg(0)));
 		xsVar(1) = xsNew1(xsGlobal, xsID_Array, xsNumber(c));
+		(void)xsCall0(xsVar(1), xsID_fill);
 		for (i = 1; i < c; i++)
 			xsSetAt(xsVar(1), xsInteger(i), xsArg(i));
 		while (content) {
@@ -2564,6 +2569,7 @@ void KPR_container_run(xsMachine *the)
 	if (self->shell) {
 		xsAssert(transition->container == NULL);
 		xsResult = xsNew1(xsGlobal, xsID_Array, xsNumber(c));
+		(void)xsCall0(xsResult, xsID_fill);
 		xsSetAt(xsResult, xsInteger(0), xsThis);
 		for (i = 1; i < c; i++)
 			xsSetAt(xsResult, xsInteger(i), xsArg(i));

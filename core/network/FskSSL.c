@@ -494,7 +494,7 @@ xs_handshake_finished_callback(xsMachine *the)
 	FskSSL *fssl = xsGetHostData(xsGet(xsThis, xsID("_hostData")));
 	int ac = xsToInteger(xsArgc);
 	FskSocket skt = ac > 0 && xsTest(xsArg(0)) ? (FskSocket)xsGetHostData(xsArg(0)): NULL;
-	FskErr err = ac > 1 && xsTypeOf(xsArg(0)) == xsIntegerType ? (FskErr)xsToInteger(xsArg(1)): kFskErrNone;
+	FskErr err = ac > 1 && xsTypeOf(xsArg(1)) == xsIntegerType ? (FskErr)xsToInteger(xsArg(1)): kFskErrNone;
 
 	if (fssl->socketCallback == NULL)
 		return;	/* callback is the only way to get a socket so no callback no socket */
@@ -545,7 +545,7 @@ FskSSLNew(void **fsslp, const char *host, int port, Boolean blocking, long flags
 		xsVar(1) = xsNew3(xsGet(xsGlobal, xsID("Stream")), xsID("Socket"), xsString((xsStringValue)host), xsInteger(port), xsVar(0));
 		fssl->socket = xsVar(1); xsRemember(fssl->socket);
 		xsVar(2) = xsNewInstanceOf(xsObjectPrototype);
-		xsSet(xsVar(2), xsID("server_name"), xsString(host));
+		xsSet(xsVar(2), xsID("server_name"), xsString((char *) host));
 		xsVar(1) = xsNew1(xsGet(xsGlobal, xsID("FskSSL")), xsID("Session"), xsVar(2));
 		fssl->ssl = xsVar(1); xsRemember(fssl->ssl);
 	} xsCatch {

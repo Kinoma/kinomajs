@@ -71,7 +71,7 @@ Boolean KprCoAPClientRequestMatchResponse(KprCoAPClientRequest self, KprCoAPMess
 
 	if (response->token && response->token->size > 0) {
 		if (self->message->token && self->message->token->size == response->token->size) {
-			if (KprMemoryChunkIsSame(response->token, self->message->token)) return true;
+			if (KprMemoryBlockIsSame(response->token, self->message->token)) return true;
 		}
 	}
 

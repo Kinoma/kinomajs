@@ -28,4 +28,33 @@ link_directories(${GLIB2_LIBRARY_DIRS})
 
 list(APPEND LIBRARIES ${GTK3_LIBRARIES} ${GLIB2_LIBRARIES})
 
+
+macro(BUILD)
+	set(oneValueArgs APPLICATION)
+	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+	add_executable(${KPR_APPLICATION} ${SOURCES} ${FskPlatform_SOURCES} ${TARGET_OBJECTS})
+	target_include_directories(${KPR_APPLICATION}  PRIVATE ${C_INCLUDES})
+	target_compile_definitions(${KPR_APPLICATION} PRIVATE ${C_DEFINITIONS})
+	target_compile_options(${KPR_APPLICATION} PRIVATE ${C_OPTIONS})
+	target_link_libraries(${KPR_APPLICATION} -Wl,--whole-archive -Wl,-Map,${TMP_DIR}/${KPR_APPLICATION}.map ${OBJECTS} ${LIBRARIES})
+
+	if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+		add_custom_command(
+			TARGET ${KPR_APPLICATION}
+			POST_BUILD
+			COMMAND ${TOOL_PREFIX}strip $<TARGET_FILE:${KPR_APPLICATION}>
+			)
+	endif()
+
+	add_custom_target(
+		Assemble
+		ALL
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${APP_DIR}
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${RES_DIR}/ ${APP_DIR}
+		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${KPR_APPLICATION}> ${APP_DIR}
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${TMP_DIR}/app ${APP_DIR}
+		DEPENDS ${KPR_APPLICATION} FskManifest.xsa
+		)
+endmacro()
 # vim: ft=cmake

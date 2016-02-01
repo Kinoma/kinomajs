@@ -2443,6 +2443,7 @@ void KPR_touches_peek(xsMachine* the)
 	while (link) {
 		if (link->id == id) {
 			xsResult = xsNew1(xsGlobal, xsID_Array, xsNumber(link->index));
+			(void)xsCall0(xsResult, xsID_fill);
 			for (i = 0, sample = &(link->samples[0]); i < link->index; i++, sample++) {
 				xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
 				xsNewHostProperty(xsVar(0), xsID_x, xsInteger(sample->x), xsDefault, xsDontScript);

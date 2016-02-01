@@ -27,6 +27,8 @@
 		<function name="SHA1" params="" prototype="Crypt.digest" c="xs_sha1_constructor"/>
 		<function name="SHA256" params="" prototype="Crypt.digest" c="xs_sha256_constructor"/>
 		<function name="SHA512" params="" prototype="Crypt.digest" c="xs_sha512_constructor"/>
+		<function name="SHA384" params="" prototype="Crypt.digest" c="xs_sha384_constructor"/>
+		<function name="SHA224" params="" prototype="Crypt.digest" c="xs_sha224_constructor"/>
 		<function name="MD5" params ="" prototype="Crypt.digest" c="xs_md5_constructor"/>
 
 		<object name="blockCipher" c="xs_blockCipher_destructor">

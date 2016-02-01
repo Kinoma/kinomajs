@@ -208,7 +208,7 @@ FskErr linuxSerialDataReady(FskPinSerial pin, FskPinSerialRepeatTriggerProc trig
 	if (NULL == ls->serialThread) {
 		ls->eventfd = eventfd(0, EFD_NONBLOCK);
 		if (ls->eventfd >= 0) {
-			err = FskThreadCreate(&ls->serialThread, serialThread, kFskThreadFlagsDefault, ls, "serial poller");
+			err = FskThreadCreate(&ls->serialThread, serialThread, kFskThreadFlagsJoinable, ls, "serial poller");
 			if (err) {
 				close(ls->eventfd);
 				ls->eventfd = -1;
@@ -301,7 +301,7 @@ void serialThread(void *param)
 	fds[1].fd = ls->ttyFile;
 	fds[1].events = POLLIN | POLLERR;
 
-//	FskThreadInitializationComplete(FskThreadGetCurrent());
+	FskThreadInitializationComplete(FskThreadGetCurrent());
 	while (!ls->killed) {
 		int bytesRead;
 

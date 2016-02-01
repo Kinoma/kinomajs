@@ -123,6 +123,7 @@ extern int gTESelectionEnd;
 extern int gTEIgnoreChanged;
 
 int gLastIME = 0;
+int androidKeyboardType = 0;
 
 char *doFetchContacts(int style);
 //void androidSetTransitionState(int state);
@@ -1655,6 +1656,7 @@ FskErr androidIMECallback(void *a, void *b, void *c, void *d) {
 			UInt32 keyboardType = (UInt32)d;
 			jstring jstrText;
 
+			androidKeyboardType = keyboardType;
 			gTEIgnoreChanged = 1;
 			if (text) {
 				jstrText = (*gEnv)->NewStringUTF(gEnv, text);

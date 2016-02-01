@@ -352,11 +352,12 @@ xsBooleanValue fxFindModuleLoadAsFile(xsMachine* the, xsStringValue base, xsStri
 
 xsBooleanValue fxFindModuleLoadNodeModules(xsMachine* the, xsStringValue base, xsStringValue name, xsIndex* id)
 {
-	char node[1024];
-	UInt32 nodeSize;
+	char node[1024], self[1024];
+	UInt32 nameLength, nodeSize;
 	xsStringValue* bases;
 	UInt32 c, i;
 	
+	nameLength = FskStrLen(name);
 	nodeSize = sizeof(node);
 	if (base) {
 		bases = &base;
@@ -369,13 +370,16 @@ xsBooleanValue fxFindModuleLoadNodeModules(xsMachine* the, xsStringValue base, x
 		i = 1;
 	}
 	while (i < c) {
-		UInt32 count = 1; // limit moves to the parent directory
-		xsStringValue slash;
+		UInt32 count, current;
+		xsStringValue *extension, slash;
 		FskStrNCopy(node, bases[i], nodeSize);
+		count = current = 1; // limit moves to the parent directory
 		do {
 			slash = FskStrRChr(node, '/');
 			if (slash) {
 				*slash = 0;
+				if (count == current)
+					FskStrCopy(self, slash + 1);
 				if (FskStrTail(node, "/node_modules") != 0)
 					FskStrNCopy(slash, "/node_modules/", nodeSize - (slash - node));
 				else if (FskStrTail(node, "/") != 0)
@@ -384,6 +388,26 @@ xsBooleanValue fxFindModuleLoadNodeModules(xsMachine* the, xsStringValue base, x
 					return 1;
 				if (fxFindModuleLoadAsDirectory(the, node, name, id))
 					return 1;
+				if (count == current) {
+					// xs compatibility search current path for files other than self
+					UInt32 selfLength = FskStrLen(self);
+					for (extension = gxExtensions; *extension; extension++) {
+						if (FskStrTail(self, *extension) == 0) {
+							UInt32 length = selfLength - FskStrLen(*extension);
+							//xsTrace("source: ");
+							//xsTrace(self);
+							//xsTrace("\ntarget: ");
+							//xsTrace(name);
+							//xsTrace("\n");
+							if (FskStrCompareCaseInsensitiveWithLength(self, name, length) != 0) {
+								*(slash + 1) = 0;
+								if (fxFindModuleLoadAsFile(the, node, name, id))
+									return 1;
+							}
+							//else xsDebugger();
+						}
+					}
+				}
 				*slash = 0;
 			}
 		} while ((count-- > 0) && (slash && (slash - node > 7))); // "file://"

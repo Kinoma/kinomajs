@@ -16,6 +16,7 @@
  */
 
 #include "FskPin.h"
+#include "FskMemory.h"
 
 #include "mraa/gpio.h"
 
@@ -46,14 +47,19 @@ typedef struct {
 	FskPinsDigitalDirection			direction;
 
 	FskPinDigitalRepeatTriggerProc	triggeredCallback;
-	void							*refCon
+	void							*refCon;
 } mraaDigitalRecord, *mraaDigital;
 
 static void mraaDigitalCallback(void *refCon);
 
 Boolean mraaDigitalCanHandle(SInt32 number, const char *name, SInt32 *remappedNumber)
 {
-	return NULL == name;
+	Boolean success = true;
+
+	success = mraa_pin_mode_test(number, MRAA_PIN_GPIO);
+	if (!success)
+		fprintf(stderr, "pin %d is not digital GPIO\n", number);
+	return success;
 }
 
 FskErr mraaDigitalNew(FskPinDigital *pin, SInt32 number, const char *name, FskPinsDigitalDirection direction)
@@ -114,7 +120,9 @@ FskErr mraaDigitalGetDirection(FskPinDigital pin, FskPinsDigitalDirection *direc
 FskErr mraaDigitalRead(FskPinDigital pin, Boolean *value)
 {
 	mraaDigital md = (mraaDigital)pin;
-	int result = mraa_gpio_read(md->context);
+	int result;
+
+	result = mraa_gpio_read(md->context);
 	if (-1 == result) return kFskErrOperationFailed;
 	*value = result != 0;
 	return kFskErrNone;
@@ -123,7 +131,9 @@ FskErr mraaDigitalRead(FskPinDigital pin, Boolean *value)
 FskErr mraaDigitalWrite(FskPinDigital pin, Boolean value)
 {
 	mraaDigital md = (mraaDigital)pin;
-	mraa_result_t result = mraa_gpio_write(md->context, value ? 1 : 0);
+	mraa_result_t result;
+
+	result = mraa_gpio_write(md->context, value ? 1 : 0);
 	return (MRAA_SUCCESS  == result) ? kFskErrNone : kFskErrOperationFailed;
 }
 
@@ -145,6 +155,7 @@ FskErr mraaDigitalRepeat(FskPinDigital pin, FskPinDigitalRepeatTriggerProc trigg
 void mraaDigitalCallback(void *refCon)
 {
 	mraaDigital md = (mraaDigital)refCon;
+
 	if (md->triggeredCallback)
 		(md->triggeredCallback)((FskPinDigital)md, md->refCon);
 }
@@ -155,7 +166,13 @@ void mraaDigitalCallback(void *refCon)
 
 FskExport(FskErr) FskPinDigitalMRAA_fskLoad(FskLibrary library)
 {
-	return FskExtensionInstall(kFskExtensionPinDigital, &gMRAAPinDigital);
+	mraa_result_t result;
+
+	result = mraa_init();
+	if ((result == MRAA_SUCCESS) || (result == MRAA_ERROR_PLATFORM_ALREADY_INITIALISED))
+		return FskExtensionInstall(kFskExtensionPinDigital, &gMRAAPinDigital);
+	else
+		return kFskErrOperationFailed;
 }
 
 FskExport(FskErr) FskPinDigitalMRAA_fskUnload(FskLibrary library)

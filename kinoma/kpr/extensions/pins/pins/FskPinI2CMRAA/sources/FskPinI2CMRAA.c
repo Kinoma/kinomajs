@@ -15,6 +15,7 @@
  *     limitations under the License.
  */
 #include "FskPin.h"
+#include "FskMemory.h"
 
 #include "mraa/i2c.h"		//@@
 
@@ -62,10 +63,11 @@ Boolean mraaI2CCanHandle(SInt32 sda, SInt32 sclk, SInt32 bus, SInt32 *remappedBu
 	return kFskPinI2CNoBus != bus;
 }
 
-FskErr mraaI2CNew(FskPinI2C *pin, SInt32 sda, SInt32 sclk, SInt32 bus);
+FskErr mraaI2CNew(FskPinI2C *pin, SInt32 sda, SInt32 sclk, SInt32 bus)
 {
 	mraaI2C mi2c;
 	mraa_i2c_context dev;
+	FskErr err;
 
 	dev = mraa_i2c_init(bus);
 	if (!dev) return kFskErrOperationFailed;
@@ -82,7 +84,7 @@ FskErr mraaI2CNew(FskPinI2C *pin, SInt32 sda, SInt32 sclk, SInt32 bus);
 	return kFskErrNone;
 }
 
-void mraaI2CDispose(FskPinI2C pin);
+void mraaI2CDispose(FskPinI2C pin)
 {
 	mraaI2C mi2c = (mraaI2C)pin;
 	mraa_i2c_stop(mi2c->dev);
@@ -100,7 +102,7 @@ FskErr mraaI2CReadByte(FskPinI2C pin, UInt8 *byte)
 {
 	mraaI2C mi2c = (mraaI2C)pin;
 	*byte = mraa_i2c_read_byte(mi2c->dev);
-	return kFskErNone;
+	return kFskErrNone;
 }
 
 FskErr mraaI2CReadBytes(FskPinI2C pin, SInt32 bufferSize, SInt32 *bytesRead, UInt8 *bytes)
@@ -148,7 +150,7 @@ FskErr mraaI2CReadDataBytes(FskPinI2C pin, UInt8 command, SInt32 bufferSize, SIn
 FskErr mraaI2CWriteDataByte(FskPinI2C pin, UInt8 command, UInt8 byte)
 {
 	mraaI2C mi2c = (mraaI2C)pin;
-	mraa_result_t result = mraa_i2c_write_byte_data(mi2c->dev, byte);
+	mraa_result_t result = mraa_i2c_write_byte_data(mi2c->dev, byte, command);
 	return (MRAA_SUCCESS == result) ? kFskErrNone : kFskErrOperationFailed;
 }
 
@@ -172,7 +174,13 @@ FskErr mraaI2CWriteDataBytes(FskPinI2C pin, UInt8 command, SInt32 count, const U
 
 FskExport(FskErr) FskPinI2CMRAA_fskLoad(FskLibrary library)
 {
-	return FskExtensionInstall(kFskExtensionPinI2C, &gMRAAPinI2C);
+	mraa_result_t result;
+
+	result = mraa_init();
+	if ((result == MRAA_SUCCESS) || (result == MRAA_ERROR_PLATFORM_ALREADY_INITIALISED))
+		return FskExtensionInstall(kFskExtensionPinI2C, &gMRAAPinI2C);
+	else
+		return kFskErrOperationFailed;
 }
 
 FskExport(FskErr) FskPinI2CMRAA_fskUnload(FskLibrary library)

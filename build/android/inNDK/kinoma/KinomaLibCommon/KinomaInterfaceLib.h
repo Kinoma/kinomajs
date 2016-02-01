@@ -396,6 +396,7 @@ extern FskInstrumentedTypeRecord	gAndroidEventTypeInstrumentation;
 extern FskMutex						gSurfaceChangedMutex;
 
 extern int usingOpenGL;
+extern int androidKeyboardType;
 
 FskErr androidWebViewCreate(FskBrowser browser);
 void androidWebViewDispose(FskBrowser browser);

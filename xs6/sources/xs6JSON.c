@@ -75,7 +75,7 @@ static void fxSerializeJSONIndent(txMachine* the, txJSONSerializer* theSerialize
 static void fxSerializeJSONInteger(txMachine* the, txJSONSerializer* theSerializer, txInteger theInteger);
 static void fxSerializeJSONName(txMachine* the, txJSONSerializer* theSerializer, txInteger* theFlag);
 static void fxSerializeJSONNumber(txMachine* the, txJSONSerializer* theSerializer, txNumber theNumber);
-static void fxSerializeJSONOwnProperty(txMachine* the, txSlot* theContext, txInteger theID, txSlot* theProperty);
+static void fxSerializeJSONOwnProperty(txMachine* the, txSlot* theContext, txID id, txIndex index, txSlot* theProperty);
 static void fxSerializeJSONProperty(txMachine* the, txJSONSerializer* theSerializer, txInteger* theFlag);
 static void fxSerializeJSONString(txMachine* the, txJSONSerializer* theStream, txString theString);
 
@@ -92,9 +92,9 @@ void fxBuildJSON(txMachine* the)
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	for (builder = gx_JSON_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
-	slot = fxNextStringProperty(the, slot, "JSON", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
-	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_JSON), C_NULL);
-	slot->flag = XS_GET_ONLY;
+	slot = fxNextStringXProperty(the, slot, "JSON", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_JSON));
+	slot->flag = XS_DONT_ENUM_FLAG;
 	slot->kind = the->stack->kind;
 	slot->value = the->stack->value;
 	the->stack++;
@@ -122,16 +122,13 @@ void fx_JSON_parse(txMachine* the)
 		}
 		slot = mxArgv(0);
 		if (slot->kind == XS_REFERENCE_KIND) {
-			slot = slot->value.reference;
-			if (slot->flag & XS_VALUE_FLAG) {
-				slot = slot->next;
-				if (slot->kind == XS_HOST_KIND) {
-					aParser->data = slot->value.host.data;
-					aParser->offset = 0;
-					mxPushSlot(mxArgv(0));
-					fxGetID(the, mxID(_length));
-					aParser->size = fxToInteger(the, the->stack++);
-				}
+			slot = slot->value.reference->next;
+			if (slot && (slot->flag & XS_INTERNAL_FLAG) && (slot->kind == XS_HOST_KIND)) {
+				aParser->data = slot->value.host.data;
+				aParser->offset = 0;
+				mxPushSlot(mxArgv(0));
+				fxGetID(the, mxID(_length));
+				aParser->size = fxToInteger(the, the->stack++);
 			}
 		}
 		if (!aParser->data) {
@@ -484,8 +481,8 @@ void fxParseJSONValue(txMachine* the, txJSONParser* theParser)
 void fxParseJSONObject(txMachine* the, txJSONParser* theParser)
 {
 	txSlot* anObject;
+	txSlot* at;
 	txSlot* aProperty;
-	txInteger anID;
 
 	fxGetNextJSONToken(the, theParser);
 	mxPush(mxObjectPrototype);
@@ -498,9 +495,9 @@ void fxParseJSONObject(txMachine* the, txJSONParser* theParser)
 			break;
 		}
 		mxPushString(theParser->string->value.string);
-		fxSlotToID(the, the->stack, &anID);
-		if (!theParser->reviver)
-			the->stack++;
+		at = fxAt(the, the->stack);
+		if (theParser->reviver)
+			mxPushString(theParser->string->value.string);
 		fxGetNextJSONToken(the, theParser);
 		if (theParser->token != XS_JSON_TOKEN_COLON) {
 			mxSyntaxError("missing :");
@@ -515,10 +512,11 @@ void fxParseJSONObject(txMachine* the, txJSONParser* theParser)
 			fxCall(the);
 		}
 		if (the->stack->kind != XS_UNDEFINED_KIND) {
-			aProperty = fxSetProperty(the, anObject, anID, C_NULL);
+			aProperty = fxSetProperty(the, anObject, at->value.at.id, at->value.at.index, XS_OWN);
 			aProperty->kind = the->stack->kind;
 			aProperty->value = the->stack->value;
 		}
+		the->stack++;
 		the->stack++;
 		if (theParser->token != XS_JSON_TOKEN_COMMA)
 			break;
@@ -539,7 +537,7 @@ void fxParseJSONArray(txMachine* the, txJSONParser* theParser)
 	mxPush(mxArrayPrototype);
 	anArray = fxNewArrayInstance(the);
 	aLength = 0;
-	anItem = anArray->next;
+	anItem = fxLastProperty(the, anArray);
 	for (;;) {
 		if (theParser->token == XS_JSON_TOKEN_RIGHT_BRACKET)
 			break;
@@ -719,12 +717,12 @@ void fxSerializeJSONNumber(txMachine* the, txJSONSerializer* theSerializer, txNu
 		fxSerializeJSONChars(the, theSerializer, "null");
 }
 
-void fxSerializeJSONOwnProperty(txMachine* the, txSlot* theContext, txInteger theID, txSlot* theProperty) 
+void fxSerializeJSONOwnProperty(txMachine* the, txSlot* theContext, txID id, txIndex index, txSlot* theProperty) 
 {
 	txJSONSerializer* theSerializer = theContext->value.regexp.code;
 	txInteger* theFlag = theContext->value.regexp.offsets;
-	if (theID < 0) {
-		txSlot* key = fxGetKey(the, (txID)theID);
+	if (id) {
+		txSlot* key = fxGetKey(the, id);
 		if (key && (key->flag & XS_DONT_ENUM_FLAG)) {
 			if (key->kind == XS_KEY_KIND) {
 				mxPushSlot(theProperty);
@@ -740,7 +738,7 @@ void fxSerializeJSONOwnProperty(txMachine* the, txSlot* theContext, txInteger th
 	}
 	else {
 		mxPushSlot(theProperty);
-		mxPushInteger(theID);
+		mxPushInteger((txInteger)index);
 		fxSerializeJSONProperty(the, theSerializer, theFlag);
 	}
 }
@@ -833,10 +831,9 @@ again:
 		break;
 	case XS_REFERENCE_KIND:
 		anInstance = fxGetInstance(the, aValue);
-		if (anInstance->flag & XS_VALUE_FLAG) {
-			aValue = anInstance->next;
-			if (aValue->kind != XS_PROXY_KIND)
-				goto again;
+		aValue = anInstance->next;
+		if (aValue && (aValue->flag & XS_INTERNAL_FLAG) && (aValue->kind != XS_PROXY_KIND)) {
+			goto again;
 		}
 		fxSerializeJSONName(the, theSerializer, theFlag);
 		anInstance->flag |= XS_LEVEL_FLAG;

@@ -170,6 +170,19 @@ FskAPI(FskErr)	FskGrowableStorageGetPointerToNewItem(FskGrowableStorage storage,
 FskAPI(FskErr)	FskGrowableStorageGetPointerToNewEndItem(FskGrowableStorage storage, UInt32 itemSize, void **ptr);
 
 
+/** Find the item in the storage, searching forward from the given starting index.
+ *	\param[in]	storage				the storage to be searched.
+ *	\param[in]	item				a pointer to the item to be found.
+ *	\param[in]	itemSize			the size of the item to be found.
+ *	\param[in]	startingIndex		the index at which to start searching for the item in the storage.
+ *	\param[in]	foundIndex			a place to store the location of the found index, or 0xFFFFFFFF if not found.
+ *	\return		kFskErrNone			if the item was found in the storage at the location *foundIndex.
+ *	\return		kFskErrItemNotFound	if the item was not found in the storage, in which case *foundIndex == 0xFFFFFFFF.
+ *	\todo		Implement RFind(), FindFirstOf(), FindFirstNotOf(), FindLastOf(), FindLastNotOf().
+ **/
+FskAPI(FskErr)	FskGrowableStorageFindItem(FskConstGrowableStorage storage, const void *item, UInt32 itemSize, UInt32 startingIndex, UInt32 *foundIndex);
+
+
 				/* Editing operations */
 
 
@@ -238,10 +251,52 @@ FskAPI(FskErr)	FskGrowableStorageAppendF(FskGrowableStorage storage, const char 
 ;
 
 
+/** Convenience method to produce a formatted string inline.
+ *	The storage at *pStorage is used to store the string, and is allocated if not already allocated.
+ *	This is designed to aid in producing diagnostics, where the storage is not allocated unless actually needed,
+ *	but once it is allocated, it can be reused for subsequent messages, though still a FskGrowableStorageDispose() is needed at the end.
+ *	\param[in,out]	pStorage	Pointer to a place where growable storage is saved.
+ *	\param[in]		fmt			The printf-style format for the string to be printed. NULL produces an empty string.
+ *	\param[in]		...			Arguments to be printed.
+ *	\return			The C-string stored int *pStorage. If there is an error, the string "" is returned.
+ *	\note	Usage example
+ *	\code
+ *		FskGrowableStorage tmpStr = NULL;
+ *		WriteDataToFile(data1, data1Size, FskGrowableStorageGetSprintfPointer(&tmpStr, "%s/image1-%.0fx%.0fr%.0f.png", dir, rx, ry, rot));
+ *		...
+ *		WriteDataToFile(data2, data2Size, FskGrowableStorageGetSprintfPointer(&tmpStr, "%s/image2-%.0fx%.0fr%.0f.png", dir, rx, ry, rot));
+ *		FskGrowableStorageDispose(&tmpStr);
+ *	\endcode
+ *	This is equivalent to
+ *	\code
+ *		str = (FskGrowableStorageSetSize(store,, 0), FskGrowableStorageAppendF(store, fmt, ...), FskGrowableStorageGetPointerToCString(store));
+ *	\endcode
+ *
+ **/
+FskAPI(const char*)	FskGrowableStorageGetSprintfPointer(FskGrowableStorage *pStorage, const char *fmt, ...)
+				#if defined(__GNUC__)
+					__attribute__ ((format(printf, 2, 3)))
+				#endif
+;
+
+
+/** Convenience method to produce a formatted string inline.
+ *	The storage at *pStorage is used to store the string, and is allocated if not already allocated.
+ *	\param[in]		fmt			The printf-style format for the string to be printed. NULL produces an empty string.
+ *	\param[in]		fmt			The printf-style format for the string to be printed.
+ *	\param[in]		ap			Arguments to be printed.
+ *	\return			The C-string stored int *pStorage. If there is an error, the string "" is returned.
+ **/
+FskAPI(const char*)	FskGrowableStorageGetVprintfPointer(FskGrowableStorage *pStorage, const char *fmt, va_list ap)
+				#if defined(__GNUC__)
+					__attribute__ ((format(printf, 2, 0)))
+				#endif
+;
+
 
 /** Return a C string pointer to the growable storage.
  *	\param[in]		storage		The growable storage object to be accessed.
- *	\return			a pointer to the storage, useable as a C-string.
+ *	\return			a pointer to the storage, useable as a C-string. The empty string is returned if storage==NULL.
  **/
 FskAPI(const char*)	FskGrowableStorageGetPointerToCString(FskGrowableStorage storage);
 
@@ -569,7 +624,7 @@ FskAPI(void)	FskGrowableBlobArrayDispose(FskGrowableBlobArray array);
  *	\param[in]	array	the array to be queried.
  *	\return		the number of items in the growable blob array.
  **/
-FskAPI(UInt32)	FskGrowableBlobArrayGetItemCount( FskConstGrowableBlobArray array);
+FskAPI(UInt32)	FskGrowableBlobArrayGetItemCount(FskConstGrowableBlobArray array);
 
 
 /** Set the number of items in the growable blob array.
@@ -579,7 +634,7 @@ FskAPI(UInt32)	FskGrowableBlobArrayGetItemCount( FskConstGrowableBlobArray array
  *	\param[in]		numItems	the desired number of items in the array.
  *	\return			kFskErrNone	if the operation was successful.
  **/
-FskAPI(FskErr)	FskGrowableBlobArraySetItemCount(      FskGrowableBlobArray array, UInt32 numItems);
+FskAPI(FskErr)	FskGrowableBlobArraySetItemCount(FskGrowableBlobArray array, UInt32 numItems);
 
 
 /** Get the size of the blob storage for a particular item in the growable blob array.
@@ -596,7 +651,7 @@ FskAPI(UInt32)	FskGrowableBlobArrayGetSizeOfItem(FskConstGrowableBlobArray array
  *	\param[in]		size	the desired size of the blob storage for the specified item in the array.
  *	\return			kFskErrNone	if the operation was successful.
  **/
-FskAPI(FskErr)	FskGrowableBlobArraySetSizeOfItem(     FskGrowableBlobArray array, UInt32 index, UInt32 size);
+FskAPI(FskErr)	FskGrowableBlobArraySetSizeOfItem(FskGrowableBlobArray array, UInt32 index, UInt32 size);
 
 
 				/* Directory access */
@@ -817,6 +872,8 @@ FskAPI(FskErr)	FskGrowableBlobArraySortItemsByID(FskGrowableBlobArray array);
 /** Set the blob comparison function. This is used in both FskGrowableBlobArraySortItems() and FskGrowableBlobArrayBSearchItems().
  *	\param[in,out]	array			the array to be sorted.
  *	\param[in]		comp			the comparison function to be used for sorting.
+ *									If NULL is supplied, the default sort is used: by size then lexicographically.
+ *									If 1 is supplied, a lexicographic sot is used.
  *	\return			kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableBlobArraySetCompareFunction(FskGrowableBlobArray array, FskGrowableBlobCompare comp);
@@ -1150,6 +1207,219 @@ FskErr		FskGrowableEquivalencesGetConstPointerToClass(FskConstGrowableEquivalenc
 FskErr	FskGrowableEquivalencesFindClassIDOfElement(FskConstGrowableEquivalences coll, FskBlobRecord *key, FskEquivalenceElementCompare compare, UInt32 *pID);
 #define FskGrowableEquivalencesFindClassIDOfElement(coll, key, compare, pID)	((kFskErrNone == (err = FskGrowableEquivalencesFindClassIndexOfElement(coll, key, compare, pID))) \
 																					? FskGrowableBlobArrayGetIDOfItem(coll, *pID, pID) : err)
+
+
+
+
+/********************************************************************************
+ ********************************************************************************
+ *****							Growable C String Array						*****
+ *****				A specialization of Growable Blob Array.				*****
+ ********************************************************************************
+ ********************************************************************************/
+
+
+typedef       struct FskGrowableBlobArrayRecord	*FskGrowableCStringArray;							/**< Pointer to a            record that represents a set of growable C string array. */
+typedef const struct FskGrowableBlobArrayRecord	*FskConstGrowableCStringArray;						/**< Pointer to an immutable record that represents a set of growable C string array. */
+
+
+				/* Constructor and destructor */
+
+
+/** Constructor for a growable C string array.
+ *	This allocates a data structure with zero strings, but preallocates storage for the expected number.
+ *	\param[in]	stringLength	the expected number of bytes to be used per string, counting the \0 terminator, for pre-allocation.
+ *	\param[out]	maxStrings		the expected number of strings of average size stringLength, for pre-allocation.
+ *	\param[out]	pStrings		a place to store the new growable C string array.
+ *	\bug	The initial compare function is by size then lexicographically, because this is implemented as a macro.
+ *			It can be changed to lexicographic by subsequently calling FskGrowableBlobArraySetCompareFunction(array, (FskGrowableBlobCompare)(1));
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayNew(UInt32 stringLength, UInt32 maxStrings, FskGrowableBlobArray *pStrings);
+#define			FskGrowableCStringArrayNew(stringLength, maxStrings, pStrings)	FskGrowableBlobArrayNew(stringLength, maxStrings, 0, pStrings)
+
+/** Constructor for a growable C string array.
+ *	The string is partitioned using the specified delimiter character into separate strings
+ *	\param[in]	str			the string.
+ *	\param[in]	strSize		the length of the string, or 0 to use FskStrLen() to find the length.
+ *	\param[in]	delim		the character used to separate records,typically '\n' for typical strings and '\0' for string lists.
+ *	\param[out]	pStrings		a place to store the new growable C string array.
+ *	\note	The initial compare function is lexicographic.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayNewFromString(const char *str, UInt32 strSize, char delim, FskGrowableBlobArray *pStrings);
+
+/** Dispose of a growable C string array.
+ *	\param[in]	array	the array to be disposed.
+ **/
+FskErr			FskGrowableCStringArrayDispose(FskGrowableBlobArray array);
+#define			FskGrowableCStringArrayDispose(array)	FskGrowableBlobArrayDispose(array)
+
+
+				/* Size and count */
+
+
+/** Get the number of items in the growable blob array.
+ *	\param[in]	array	the array to be queried.
+ *	\return		the number of items in the growable blob array.
+ **/
+FskAPI(UInt32)	FskGrowableCStringArrayGetItemCount(FskConstGrowableBlobArray array);
+#define			FskGrowableCStringArrayGetItemCount(array)	FskGrowableBlobArrayGetItemCount(array)
+
+
+/** Set the number of items in the growable blob array.
+ * If decreased, the storage of the last strings is deleted along with their directory entries.
+ * If increased, the new items have undefined entries in their directory and no blob storage.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		numItems	the desired number of items in the array.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArraySetItemCount(FskGrowableBlobArray array, UInt32 numItems);
+#define			FskGrowableCStringArraySetItemCount(array, numItems)	FskGrowableBlobArraySetItemCount(array, numItems)
+
+
+				/* Data access - new items. */
+
+
+/** Create a new item in the growable blob array at an arbitrary location, and return pointers to access it.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		index		the location where the item is to be created.
+ *	\param[in]		itemSize	the size of the blob storage to be allocated for the new item.
+ *	\param[out]		ptr			a location to store a pointer to the blob storage for the item.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayGetPointerToNewItem(FskGrowableBlobArray array, UInt32 index, UInt32 itemSize, char **ptr);
+#define			FskGrowableCStringArrayGetPointerToNewItem(array, index, itemSize, ptr)	FskGrowableBlobArrayGetPointerToNewItem(array, index, itemSize, NULL, (void**)ptr, NULL)
+
+
+/** Create a new item at the end of the the growable blob array , and return pointers to access it.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		itemSize	the size of the blob storage to be allocated for the new item.
+ *	\param[out]		ptr			a location to store a pointer to the blob storage   for the item.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayGetPointerToNewEndItem(FskGrowableBlobArray array, UInt32 itemSize, char **ptr);
+#define			FskGrowableCStringArrayGetPointerToNewEndItem(array, itemSize, ptr)	FskGrowableBlobArrayGetPointerToNewEndItem(array, itemSize, NULL, (void**)ptr, NULL)
+
+
+				/* Data access - existing items - from index */
+
+
+/** Get mutable pointers to the directory entry and blob storage for the specified item, specified by index, in the growable blob array.
+ *	\param[in]		array		the array to be modified.
+ *	\param[in]		index		the index of the object to be accessed.
+ *	\param[out]		ptr			a location to store a pointer to the storage for the string.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayGetPointerToItem(FskGrowableBlobArray array, UInt32 index, char **ptr);
+#define			FskGrowableCStringArrayGetPointerToItem(array, index, ptr)	FskGrowableBlobArrayGetPointerToItem(array, index, (void**)ptr, NULL, NULL)
+
+
+/** Get immutable pointers to the directory entry and blob storage for the specified item, specified by index, in the growable blob array.
+ *	\param[in]		array		the array to be modified.
+ *	\param[in]		index		the index of the object to be accessed.
+ *	\param[out]		ptr			a location to store a pointer to the storage for the string.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayGetConstPointerToItem(FskConstGrowableBlobArray array, UInt32 index, const char **ptr);
+#define			FskGrowableCStringArrayGetConstPointerToItem(array, index, ptr)		FskGrowableBlobArrayGetConstPointerToItem(array, index, (const void**)ptr, NULL, NULL)
+
+
+				/* Editing operations */
+
+
+/** Remove an item from the growable blob array.
+ *	This messes up all the indices, but IDs are the same.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		index		the index of the object to be removed.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(void)	FskGrowableCStringArrayRemoveItem(FskGrowableBlobArray array, UInt32 index);
+#define			FskGrowableCStringArrayRemoveItem(array, index)	FskGrowableBlobArrayRemoveItem(array, index)
+
+
+/** Append an item to the end of the growable blob array.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		str			the string to be copied into the new item.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayAppendItem(FskGrowableBlobArray array, const char *str);
+#define			FskGrowableCStringArrayAppendItem(array, str)	FskGrowableBlobArrayAppendItem(array, NULL, str, FskStrLen(str)+1, NULL)
+
+
+/** Insert an item at an arbitrary position in the growable blob array.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		index		the location where the item is to be created in the array.
+ *	\param[in]		str			the string to be copied into the new item.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayInsertItemAtPosition(FskGrowableBlobArray array, UInt32 index, const char *str);
+#define 		FskGrowableCStringArrayInsertItemAtPosition(array, index, str)	FskGrowableBlobArrayInsertItemAtPosition(array, index, NULL, str, FskStrLen(str)+1, NULL)
+
+
+/** Insert a printf item into the growable blob array.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		index		the location where the item is to be created in the array.
+ *	\param[in]		fmt			the printf format for into the new item.
+ *	\param[in]		...			the arguments for printf.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayInsertPrintfItemAtPosition(FskGrowableBlobArray array, UInt32 index, const char *fmt, ...)
+				#if defined(__GNUC__)
+					__attribute__ ((format(printf, 3, 4)))
+				#endif
+;
+
+
+/** Append a printf item to the growable blob array.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		fmt			the printf format for into the new item.
+ *	\param[in]		...			the arguments for printf.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayAppendPrintfItem(FskGrowableBlobArray array, const char *fmt, ...);
+#define			FskGrowableCStringArrayAppendPrintfItem(array, ...)	FskGrowableCStringArrayInsertPrintfItemAtPosition(array, FskGrowableBlobArrayGetItemCount(array), __VA_ARGS__)
+
+
+/** Replace an item at an arbitrary position in the growable C string array.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		index		the location where the item is to be created in the array.
+ *	\param[in]		str			the string to be copied into the item.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayReplaceItem(FskGrowableBlobArray array, UInt32 index, const char *str);
+#define			FskGrowableCStringArrayReplaceItem(array, index, str)	FskGrowableBlobArrayReplaceItem(array, index, NULL, str, FskStrLen(str)+1)
+
+
+/** Swap two elements in the growable C string array.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		index0		the index of one item.
+ *	\param[in]		index1		the index of the other item.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArraySwapItems(FskGrowableBlobArray array, UInt32 index0, UInt32 index1);
+#define	FskGrowableCStringArraySwapItems(array, index0, index1)	FskGrowableBlobArraySwapItems(array, index0, index1)
+
+
+/** Edit a string in the growable C string array.
+ *	\param[in,out]	array			the array to be modified.
+ *	\param[in]		index			the index of the item to be modified.
+ *	\param[in]		offset			the offset to where the data is to be replaced.
+ *	\param[in]		delBytes		the number of bytes to be deleted at the specified offset.
+ *	\param[in]		repl			the replBytes bytes of data to replace the delBytes bytes removed at offset.
+ *	\param[in]		replBytes		the number of bytes to replace the delBytes deleted at offset.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableCStringArrayEditItem(FskGrowableBlobArray array, UInt32 index, UInt32 offset, UInt32 delBytes, const char *repl);
+#define			FskGrowableCStringArrayEditItem(array, index, offset, delBytes, repl)	FskGrowableBlobArrayEditItem(array, index, offset, delBytes, repl, FskStrLen(repl)+1)
+
+
+/** Sort the array by the method previously set with FskGrowableBlobArraySetCompareFunction().
+ *	\param[in,out]	array			the array to be sorted.
+ *	\return			kFskErrNone					if the sort was completed successfully.
+ *	\return			kFskErrNotDirectory			if array==NULL.
+ *	\return			kFskErrExtensionNotFound	if the sort function was not previously set with FskGrowableBlobArraySetSortFunction().
+ **/
+FskAPI(FskErr)	FskGrowableCStringArraySortItems(FskGrowableBlobArray array);
+#define			FskGrowableCStringArraySortItems(array)	FskGrowableBlobArraySortItems(array)
 
 
 #ifdef __cplusplus

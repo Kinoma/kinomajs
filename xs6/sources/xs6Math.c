@@ -107,8 +107,8 @@ void fxBuildMath(txMachine* the)
 	slot = fxNextNumberProperty(the, slot, C_M_PI, mxID(_PI), XS_GET_ONLY);
 	slot = fxNextNumberProperty(the, slot, C_M_SQRT1_2, mxID(_SQRT1_2), XS_GET_ONLY);
 	slot = fxNextNumberProperty(the, slot, C_M_SQRT2, mxID(_SQRT2), XS_GET_ONLY);
-	slot = fxNextStringProperty(the, slot, "Math", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
-	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_Math), C_NULL);
+	slot = fxNextStringXProperty(the, slot, "Math", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, mxID(_Math));
 	slot->flag = XS_GET_ONLY;
 	slot->kind = the->stack->kind;
 	slot->value = the->stack->value;

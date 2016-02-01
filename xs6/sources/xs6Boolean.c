@@ -44,8 +44,7 @@ txSlot* fxNewBooleanInstance(txMachine* the)
 	txSlot* instance;
 	txSlot* property;
 	instance = fxNewObjectInstance(the);
-	instance->flag |= XS_VALUE_FLAG;
-	property = fxNextBooleanProperty(the, instance, 0, XS_NO_ID, XS_GET_ONLY);
+	property = fxNextBooleanProperty(the, instance, 0, XS_NO_ID, XS_INTERNAL_FLAG | XS_GET_ONLY);
 	return instance;
 }
 
@@ -88,7 +87,7 @@ txSlot* fxCheckBoolean(txMachine* the, txSlot* it)
 	else if (it->kind == XS_REFERENCE_KIND) {
 		txSlot* instance = it->value.reference;
 		it = instance->next;
-		if ((instance->flag & XS_VALUE_FLAG) && (it->kind == XS_BOOLEAN_KIND) && (instance != mxBooleanPrototype.value.reference))
+		if ((it) && (it->flag & XS_INTERNAL_FLAG) && (it->kind == XS_BOOLEAN_KIND))
 			result = it;
 	}
 	return result;

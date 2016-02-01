@@ -365,6 +365,19 @@ bail:
 	xsThrowIfFskErr(err);
 }
 
+void KPR_Home_home_get_room_for_entire_home(xsMachine *the)
+{
+	FskErr err = kFskErrNone;
+	KprHome home = xsGetHostData(xsThis);
+
+	xsEnterSandbox();
+	bailIfError(KprHomeGetRoomForEntireHome(home, the));
+	xsLeaveSandbox();
+
+bail:
+	xsThrowIfFskErr(err);
+}
+
 void KPR_Home_home_addRoom(xsMachine *the)
 {
 	FskErr err = kFskErrNone;

@@ -231,7 +231,7 @@ void fxBuildHost(txMachine* the)
 	property = fxNextSlotProperty(the, property, the->stack, fxID(the, "debug"), XS_GET_ONLY);
 	the->stack++;
 #endif
-	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, fxID(the, "xs"), C_NULL);
+	slot = fxSetGlobalProperty(the, mxGlobal.value.reference, fxID(the, "xs"));
 	slot->flag = XS_GET_ONLY;
 	slot->kind = the->stack->kind;
 	slot->value = the->stack->value;
@@ -982,7 +982,7 @@ void fxRunForIn(txMachine* the)
 			}
 			else {
 				slot->kind = XS_SYMBOL_KIND;
-				slot->value.ID = (txID)id;
+				slot->value.symbol = (txID)id;
 			}
 		}
 		slot++;

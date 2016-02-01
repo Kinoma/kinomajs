@@ -70,3 +70,53 @@ set(VERSION_MIN -miphoneos-version-min=6.0)
 if (CMAKE_GENERATOR STREQUAL "Xcode")
 	SET(APP_TYPE MACOSX_BUNDLE)
 endif ()
+
+macro(BUILD)
+	set(oneValueArgs APPLICATION IDENTITY IDENTIFIER HASH)
+	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+	add_executable(${LOCAL_APPLICATION} MACOSX_BUNDLE ${SOURCES} ${FskPlatform_SOURCES} ${F_HOME}/xs6/patches/main.m)
+	target_link_libraries(${LOCAL_APPLICATION} ${LIBRARIES} ${OBJECTS} -ObjC)
+
+	set(MACOSX_BUNDLE_INFO_PLIST ${TMP_DIR}/Info.plist)
+
+	set_target_properties(${LOCAL_APPLICATION}
+		PROPERTIES
+		XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${LOCAL_IDENTITY}"
+		MACOSX_BUNDLE_GUI_IDENTIFIER ${LOCAL_IDENTIFIER}
+		)
+
+	add_custom_command(
+		TARGET ${LOCAL_APPLICATION}
+		POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${APP_DIR}
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${RES_DIR}/ ${APP_DIR}
+		COMMAND ${CMAKE_COMMAND} -E copy ${TMP_DIR}/Info.plist ${APP_DIR}
+		COMMAND ${CMAKE_COMMAND} -E copy ${PROVISION} ${APP_DIR}/embedded.mobileprovision
+		)
+
+	if(CMAKE_CONFIGURATION_TYPES)
+		add_custom_command(
+			TARGET ${LOCAL_APPLICATION}
+			POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${LOCAL_APPLICATION}.app
+			COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${LOCAL_APPLICATION}.app/${LOCAL_APPLICATION} ${APP_DIR}
+			)
+	else()
+		add_custom_command(
+			TARGET ${LOCAL_APPLICATION}
+			POST_BUILD
+			COMMAND ${CMAKE_COMMAND} -E copy  $<TARGET_FILE:${LOCAL_APPLICATION}> ${APP_DIR}
+			COMMAND dsymutil $<TARGET_FILE:${LOCAL_APPLICATION}> -o $<TARGET_FILE:${LOCAL_APPLICATION}>.dSYM
+			)
+	endif()
+
+	add_custom_command(
+		TARGET ${LOCAL_APPLICATION}
+		POST_BUILD
+		COMMAND codesign -f -v -s ${LOCAL_HASH} --entitlements ${TMP_DIR}/Entitlements.plist ${TMP_DIR}/${CMAKE_CFG_INTDIR}/${LOCAL_APPLICATION}.app
+		COMMAND codesign -f -v -s ${LOCAL_HASH} --entitlements ${TMP_DIR}/Entitlements.plist ${APP_DIR}
+		COMMAND xcrun -sdk iphoneos PackageApplication ${APP_DIR} -o ${APP_IPA}
+		VERBATIM
+		)
+endmacro()

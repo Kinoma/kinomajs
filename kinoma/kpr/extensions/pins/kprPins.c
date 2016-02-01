@@ -508,8 +508,8 @@ static FskInstrumentedTypeRecord KprPinsListenerInstrumentation = { NULL, sizeof
 FskErr KprPinsListenerNew(KprPinsListener *it, KprPins pins, KprMessage message)
 {
 #ifdef DEVICE
-	#define globalsCount 40
-	static char* globals[globalsCount] = {"Behavior","blendColors","Canvas","Column","Container","Content","controlKey","Effect","Event","Files","FskMediaProperty","FskMediaReader","Handler","Host","HTTP","include","instrument","Label","launchURI","Layer","Layout","Line","localStorage","Media","Message","optionKey","Picture","Port","screenScale","Scroller","shiftKey","Skin","Sound","Style","system","Text","Texture","Thumbnail","touches","Transition"};
+	#define globalsCount 36
+	static char* globals[globalsCount] = {"Behavior","blendColors","Canvas","Column","Container","Content","Effect","Event","Files","FskMediaProperty","FskMediaReader","Handler","Host","HTTP","include","instrument","Label","launchURI","Layer","Layout","Line","localStorage","Media","Message","Picture","Port","Scroller","Skin","Sound","Style","system","Text","Texture","Thumbnail","touches","Transition"};
 	#define kprsCount 37
 	static char* kprs[kprsCount] = {"application","behavior","canvas","canvasGradient","canvasGradientStop","canvasLinearGradient","canvasPattern","canvasRadialGradient","canvasRenderingContext2D","column","container","content","dummy","effect","events","handler","host","imageData","label","layer","layout","line","MD5","media","message","picture","port","scroller","shell","skin","sound","style","text","textMetrics","texture","thumbnail","transition"};
 	xsAllocation allocation = {
@@ -540,11 +540,21 @@ FskErr KprPinsListenerNew(KprPinsListener *it, KprPins pins, KprMessage message)
 	xsBeginHost(self->the);
 	{
 		int i;
-		for (i = 0; i < globalsCount; i++)
-			xsDelete(xsGlobal, xsID(globals[i]));
+		for (i = 0; i < globalsCount; i++) {
+			xsTry {
+			xsSet(xsGlobal, xsID(globals[i]), xsUndefined);
+			}
+			xsCatch {
+			}
+		}
 		xsResult = xsGet(xsGlobal, xsID("KPR"));
-		for (i = 0; i < kprsCount; i++)
-			xsDelete(xsResult, xsID(kprs[i]));
+		for (i = 0; i < kprsCount; i++) {
+			xsTry {
+			xsSet(xsResult, xsID(kprs[i]), xsUndefined);
+			}
+			xsCatch {
+			}
+		}
 		self->pins = xsGet(xsGlobal, xsID("PINS"));
         xsCall1_noResult(xsGet(xsGet(xsGlobal, xsID("xs")), xsID("debug")), xsID("setBreakOnException"), xsBoolean(gBreakOnException));
         if (gBreakOnLaunch)

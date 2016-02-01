@@ -142,6 +142,7 @@
 
 		<object name="style" c="KPR_style">
 			<function name="get colors" c="KPR_style_get_colors"/>
+			<function name="get extra" c="KPR_style_get_extra"/>
 			<function name="get font" c="KPR_style_get_font"/>
 			<function name="get horizontalAlignment" c="KPR_style_get_horizontalAlignment"/>
 			<function name="get indentation" c="KPR_style_get_indentation"/>
@@ -151,6 +152,7 @@
 			<function name="get size" c="KPR_style_get_size"/>
 			<function name="get verticalAlignment" c="KPR_style_get_verticalAlignment"/>
 			
+			<function name="set extra" params="it" c="KPR_style_set_extra"/>
 			<function name="set font" params="it" c="KPR_style_set_font"/>
 			<function name="set horizontalAlignment" params="it" c="KPR_style_set_horizontalAlignment"/>
 			<function name="set indentation" params="it" c="KPR_style_set_indentation"/>

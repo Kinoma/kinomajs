@@ -1736,7 +1736,7 @@ strtod2
 #ifdef INFNAN_CHECK
 			/* Check for Nan and Infinity */
 			switch(c) {
-			  case 'i':
+			  //case 'i':
 			  case 'I':
 				if (match(&s,"nf")) {
 					--s;
@@ -3408,7 +3408,7 @@ txString fxNumberToString(void* dtoa, txNumber theValue, txString theBuffer, txS
 	count = stop - start;
 	result = theBuffer;
 	theSize--; // C string
-	if (sign) {
+	if (sign && theValue) {
 		*result++ = '-';
 		theSize--;
 	}
@@ -3564,37 +3564,33 @@ error:
 
 txNumber fxStringToNumber(void* dtoa, txString theString, txFlag whole)
 {
-	txNumber result = 0;
-	char c;
-	while ((c = *theString)) {
-		if ((c != ' ') && (c != '\f') && (c != '\n') && (c != '\r') && (c != '\t') && (c != '\v'))
-			break;
-		theString++;
-	}
+	txNumber result = whole ? 0 : NAN;
+	txString p = fxSkipSpaces(theString), q;
+	char c = *p;
 	if (c) {
-		char d = *(theString + 1);
+		txU4 d = *(p + 1);
 		if (whole && (c == '0') && ((d == 'B') || (d == 'b') || (d == 'O') || (d == 'o') || (d == 'X') || (d == 'x'))) {
-			theString += 2;
+			p += 2;
 			if ((d == 'B') || (d == 'b')) {
-				while ((c = *theString)) {
+				while ((c = *p)) {
 					if (('0' <= c) && (c <= '1'))
 						result = (result * 2) + (c - '0');
 					else
 						break;
-					theString++;
+					p++;
 				}
 			}
 			else if ((d == 'O') || (d == 'o')) {
-				while ((c = *theString)) {
+				while ((c = *p)) {
 					if (('0' <= c) && (c <= '7'))
 						result = (result * 8) + (c - '0');
 					else
 						break;
-					theString++;
+					p++;
 				}
 			}
 			else if ((d == 'X') || (d == 'x')) {
-				while ((c = *theString)) {
+				while ((c = *p)) {
 					if (('0' <= c) && (c <= '9'))
 						result = (result * 16) + (c - '0');
 					else if (('a' <= c) && (c <= 'f'))
@@ -3603,21 +3599,22 @@ txNumber fxStringToNumber(void* dtoa, txString theString, txFlag whole)
 						result = (result * 16) + (10 + c - 'A');
 					else
 						break;
-					theString++;
+					p++;
 				}
 			}
+            q = p;
 		}
-		else
-			result = strtod2(dtoa, theString, &theString);
+		else {
+			result = strtod2(dtoa, p, &q);
+			if ((p == q) && !whole)
+				result = NAN;
+		}
 		if (whole) {
-			while ((c = *theString)) {
-				if ((c != ' ') && (c != '\f') && (c != '\n') && (c != '\r') && (c != '\t') && (c != '\v'))
-					break;
-				theString++;
-			}
-			if (c)
+			p = fxSkipSpaces(q);
+			if (*p)
 				result = NAN;
 		}
 	}
 	return result;
 }
+

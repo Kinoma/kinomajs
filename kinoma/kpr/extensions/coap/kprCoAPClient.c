@@ -110,7 +110,7 @@ FskErr KprCoAPClientDispose(KprCoAPClient self)
 			endpoint = next;
 		}
 
-		KprMemoryChunkDispose(self->recycleTokens);
+		KprMemoryBlockDispose(self->recycleTokens);
 
 		KprCoAPReceiverDispose(self->receiver);
 		FskNetSocketClose(self->socket);
@@ -316,7 +316,7 @@ static void KprCoAPClientDisposeUnusedEndpoint(KprCoAPClient self)
 	// @TODO
 }
 
-static FskErr KprCoAPClientNextAutoToken(KprCoAPClient self, KprMemoryChunk *token)
+static FskErr KprCoAPClientNextAutoToken(KprCoAPClient self, KprMemoryBlock *token)
 {
 	FskErr err = kFskErrNone;
 	UInt32 max, value;
@@ -351,7 +351,7 @@ static FskErr KprCoAPClientNextAutoToken(KprCoAPClient self, KprMemoryChunk *tok
 	value = self->nextTokenId;
 	value = FskEndianU32_NtoL(value);
 
-	bailIfError(KprMemoryChunkNew(self->nextTokenBytes, &value, token));
+	bailIfError(KprMemoryBlockNew(self->nextTokenBytes, &value, token));
 
 	if (self->nextTokenId >= max) {
 		self->nextTokenBytes += 1;
@@ -369,12 +369,12 @@ FskErr KprCoAPClientStartRequest(KprCoAPClient self, UInt32 ipaddr, UInt16 port,
 	FskErr err = kFskErrNone;
 	KprCoAPClientRequest request = NULL;
 	KprCoAPEndpoint endpoint = NULL;
-	KprMemoryChunk generatedToken = NULL;
+	KprMemoryBlock generatedToken = NULL;
 
 	if (self->autoToken && message->token == NULL) {
 		bailIfError(KprCoAPClientNextAutoToken(self, &generatedToken));
 		message->token = KprRetain(generatedToken);
-		KprMemoryChunkDispose(generatedToken);
+		KprMemoryBlockDispose(generatedToken);
 	}
 
 	bailIfError(KprCoAPClientGetEndpoint(self, ipaddr, port, &endpoint));

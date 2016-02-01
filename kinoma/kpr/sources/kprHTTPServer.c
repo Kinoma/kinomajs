@@ -702,6 +702,7 @@ void KprHTTPTargetMessageSetResponseProtocol(KprMessage message, char* protocol)
 
 static FskNetInterface gNetworkInterface = NULL;
 static FskNetInterfaceNotifier gNetInterfaceNotifier = NULL;
+static KprNetworkInterfaceNotifier *gKprNotifiers = NULL;
 
 static void KprNetworkInterfaceAdd(FskNetInterface iface);
 static Boolean KprNetworkInterfaceIsLocal(FskNetInterface iface);
@@ -739,6 +740,14 @@ void KprNetworkInterfaceAdd(FskNetInterface iface)
 		sprintf(buffer, "xkpr:///network/interface/add?name=%s&ip=%s&MAC=%02x:%02x:%02x:%02x:%02x:%02x&local=%d", existing->name, ip, MAC[0], MAC[1], MAC[2], MAC[3], MAC[4], MAC[5], local);
 		bailIfError(KprMessageNew(&message, buffer));
 		KprMessageNotify(message);
+
+		{
+			KprNetworkInterfaceNotifier *notifier = gKprNotifiers;
+			while (notifier) {
+				notifier->added(iface, notifier->refcon);
+				notifier = notifier->next;
+			}
+		}
 	}
 bail:
 	FskMemPtrDispose(buffer);
@@ -800,9 +809,25 @@ void KprNetworkInterfaceNotifyConnect(Boolean setup)
 		unsigned char* MAC = (unsigned char*)gNetworkInterface->MAC;
 		FskNetIPandPortToString(gNetworkInterface->ip, 0, ip);
 		snprintf(buffer, sizeof(buffer), "xkpr:///network/connect?status=true&ip=%s&MAC=%02x:%02x:%02x:%02x:%02x:%02x", ip, MAC[0], MAC[1], MAC[2], MAC[3], MAC[4], MAC[5]);
+
+		{
+			KprNetworkInterfaceNotifier *notifier = gKprNotifiers;
+			while (notifier) {
+				notifier->connected(gNetworkInterface, notifier->refcon);
+				notifier = notifier->next;
+			}
+		}
 	}
 	else {
 		snprintf(buffer, sizeof(buffer), "xkpr:///network/connect?status=false");
+
+		{
+			KprNetworkInterfaceNotifier *notifier = gKprNotifiers;
+			while (notifier) {
+				notifier->disconnected(NULL, notifier->refcon);
+				notifier = notifier->next;
+			}
+		}
 	}
 	if (setup)
 		FskStrCat(buffer, "&setup=true");
@@ -831,6 +856,14 @@ void KprNetworkInterfaceRemove(FskNetInterface iface)
 		sprintf(buffer, "xkpr:///network/interface/remove?ip=%s&name=%s&local=%d", ip, existing->name, local);
 		bailIfError(KprMessageNew(&message, buffer));
 		KprMessageNotify(message);
+
+		{
+			KprNetworkInterfaceNotifier *notifier = gKprNotifiers;
+			while (notifier) {
+				notifier->removed(iface, notifier->refcon);
+				notifier = notifier->next;
+			}
+		}
 	}
 bail:
 	FskNetInterfaceDescriptionDispose(existing);
@@ -850,6 +883,16 @@ void KprNetworkInterfaceSetup()
 	}
 	KprNetworkInterfaceNotifyConnect(true);
 	gNetInterfaceNotifier = FskNetInterfaceAddNotifier(KprNetworkInterfaceCallback, NULL, "KprNetworkInterfaceCallback");
+}
+
+void KprNetworkInterfaceAddNotifier(KprNetworkInterfaceNotifier *notifier)
+{
+	FskListAppend(&gKprNotifiers, notifier);
+}
+
+void KprNetworkInterfaceRemoveNotifier(KprNetworkInterfaceNotifier *notifier)
+{
+	FskListRemove(&gKprNotifiers, notifier);
 }
 
 //--------------------------------------------------

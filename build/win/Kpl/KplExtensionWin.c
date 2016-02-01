@@ -1,0 +1,66 @@
+/*
+ *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
+#define __FSKEXTENSIONS_PRIV__
+#include "KplExtensions.h"
+
+#include "windows.h"
+#include "FskFiles.h"
+
+FskErr KplLibraryLoad(FskLibrary *libraryOut, const char *path)
+{
+	FskErr err;
+	FskLibrary library = NULL;
+	wchar_t *nativePath = NULL;
+
+	err = FskMemPtrNewClear(sizeof(FskLibraryRecord), (FskMemPtr *)&library);
+	if (err) goto bail;
+
+	err = FskFilePathToNative(path, (char **)&nativePath);
+	if (err) goto bail;
+
+	library->module = LoadLibraryW(nativePath); 
+	if (NULL == library->module)
+		err = kFskErrOperationFailed;
+
+bail:
+	FskMemPtrDispose(nativePath);
+
+	if (err) {
+		FskLibraryUnload(library);
+		library = NULL;
+	}
+	*libraryOut = library;
+	return err;
+}
+
+FskErr KplLibraryUnload(FskLibrary library)
+{
+	if (library) {
+		if (library->module)
+			FreeLibrary(library->module);
+		FskMemPtrDispose(library);
+	}
+	return kFskErrNone;
+}
+
+FskErr KplLibraryGetSymbolAddress(FskLibrary library, const char *symbol, void **address)
+{
+	*address = GetProcAddress(library->module, symbol);
+
+	return (NULL == *address) ? kFskErrUnknownElement : kFskErrNone;
+}
+

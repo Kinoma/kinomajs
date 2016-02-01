@@ -60,7 +60,8 @@ static const CompOp compProcTable[kFskNumPorterDuffCompositeModes][2] = {
 	{	FskAlphaBlackSourceAtopA32,			FskAlphaBlackSourceAtop32A		},
 	{	FskAlphaBlackDestinationAtopA32,	FskAlphaBlackDestinationAtop32A	},
 	{	FskAlphaBlackLighterA32,			FskAlphaBlackLighter32A			},
-	{	FskAlphaBlackXorA32,				FskAlphaBlackXor32A				}
+	{	FskAlphaBlackXorA32,				FskAlphaBlackXor32A				},
+	{	FskAlphaBlackSubtractA32,			FskAlphaBlackSubtract32A		}
 };
 
 
@@ -119,7 +120,7 @@ FskCompositeRect(
 	sBump = srcBM->rowBytes - dstR.width * pixelBytes;
 	dBump = dstBM->rowBytes - dstR.width * pixelBytes;
 
-	if (compositionMode < kFskNumAdobeCompositeModes) {												/* Adobe composition operators */
+	if (compositionMode < kFskNumAdobeCompositeModes) {										/* Adobe composition operators */
 		BlendOp blendop = blendProcTable[compositionMode];
 		const UInt8 *s = (const UInt8*)(srcBM->bits) + srcR.y * srcBM->rowBytes + srcR.x * pixelBytes;	/* Advance pixel pointer to the srcRect */
 		UInt8 *d =             (UInt8*)(dstBM->bits) + dstR.y * dstBM->rowBytes + dstR.x * pixelBytes;	/* Advance pixel pointer to the dstRect */
@@ -200,7 +201,7 @@ FskMatteCompositeRect(
 	}
 
 	BAIL_IF_FALSE(srcBM->pixelFormat == dstBM->pixelFormat, err, kFskErrUnimplemented);
-	BAIL_IF_FALSE(kFskCompositePreSourceOver <= compositionMode && compositionMode <= kFskCompositePreXor, err, kFskErrInvalidParameter);
+	BAIL_IF_FALSE(kFskCompositePreSourceOver <= compositionMode && compositionMode <= kFskCompositePreSubtract, err, kFskErrInvalidParameter);
 
 	/* Compute dst rect as the intersection of the source and destination. */
 	srcR = (srcRect != NULL) ? *srcRect : srcBM->bounds;									/* If a srcRect as given, use it, otherwise use the src bounds as the srcRect. */

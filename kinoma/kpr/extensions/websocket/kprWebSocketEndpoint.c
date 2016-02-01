@@ -110,6 +110,11 @@ bail:
 void KprWebSocketEndpointDispose(KprWebSocketEndpoint self)
 {
 	if (self) {
+		if (self->pendingSendCount > 0) {
+			self->disposeRequested = true;
+			return;
+		}
+
 		FskDebugStr("DISPOSE: KprWebSocketEndpoint\n");
 		if (self->socket) KprWebSocketEndpointDisconnect(self);
 
@@ -705,6 +710,25 @@ FskErr KprWebSocketEndpointSendPing(KprWebSocketEndpoint self)
 	return KprWebSocketEndpointSendRawFrame(self, kKprWebSocketOpcodePing, NULL, 0);
 }
 
+static void KprWebSocketEndpointSendBytesDeferred(void *a, void *b, void *c, void *d UNUSED)
+{
+	KprWebSocketEndpoint self = a;
+	void *buffer = b;
+	UInt32 length = c;
+
+	self->pendingSendCount--;
+
+	if (self->disposeRequested) {
+		if (self->pendingSendCount == 0) {
+			KprWebSocketEndpointDispose(self);
+		}
+	} else if (self->writer) {
+		KprSocketWriterSendBytes(self->writer, buffer, length);
+	}
+
+	FskMemPtrDispose(buffer);
+}
+
 static FskErr KprWebSocketEndpointSendRawFrame(KprWebSocketEndpoint self, UInt8 opcode, void *payload, UInt32 length)
 {
 	FskErr err = kFskErrNone;
@@ -718,10 +742,12 @@ static FskErr KprWebSocketEndpointSendRawFrame(KprWebSocketEndpoint self, UInt8 
 	}
 
 	bailIfError(KprWebSocketEndpointCreateFrame(true, opcode, self->doMask, payload, length, &frame, &frameLength));
-	KprSocketWriterSendBytes(self->writer, frame, frameLength);
-	
+	if (frame) {
+		FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprWebSocketEndpointSendBytesDeferred, self, frame, frameLength, NULL);
+		self->pendingSendCount++;
+	}
+
 bail:
-	if (frame) FskMemPtrDispose(frame);
 	return err;
 }
 

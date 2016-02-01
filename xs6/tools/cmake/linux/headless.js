@@ -14,7 +14,6 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-
 import * as FS from "fs";
 import * as MAKE from "cmake";
 
@@ -40,40 +39,12 @@ class Manifest extends MAKE.Manifest {
 		path += process.debug ? "/debug" : "/release";
 		return {
 			KPR_APPLICATION: this.tree.environment.KPR_BINARY_NAME ? this.tree.environment.KPR_BINARY_NAME : tool.application,
-
-			APP_DIR: `${tool.outputPath}/bin/${tool.platform}/$<CONFIGURATION>/${tool.application}`,
+			APP_DIR: tool.outputPath + "/bin/" + tool.platform + "/${CMAKE_BUILD_TYPE}/" + tool.application,
 		}
 	}
 	getTargetRules(tool) {
 		return `
-file(MAKE_DIRECTORY \${FREETYPE_DIR})
-
-add_subdirectory(\${F_HOME}/libraries/freetype/xs6 FreeType)
-
-add_executable(\${KPR_APPLICATION} \${SOURCES} \${FskPlatform_SOURCES} \${TARGET_OBJECTS})
-add_dependencies(\${KPR_APPLICATION} FreeType)
-target_include_directories(\${KPR_APPLICATION}  PRIVATE \${C_INCLUDES})
-target_compile_definitions(\${KPR_APPLICATION} PRIVATE \${C_DEFINITIONS})
-target_compile_options(\${KPR_APPLICATION} PRIVATE \${C_OPTIONS})
-target_link_libraries(\${KPR_APPLICATION} -Wl,--whole-archive -Wl,-Map,\${TMP_DIR}/\${KPR_APPLICATION}.map \${OBJECTS} \${LIBRARIES})
-
-if("\${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-	add_custom_command(
-			TARGET \${KPR_APPLICATION}
-			POST_BUILD
-			COMMAND \${TOOL_PREFIX}strip \$<TARGET_FILE:\${KPR_APPLICATION}>
-			)
-endif()
-
-add_custom_target(
-	Assemble
-	ALL
-	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy $<TARGET_FILE:\${KPR_APPLICATION}> \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${TMP_DIR}/app \${APP_DIR}
-	DEPENDS \${KPR_APPLICATION} FskManifest.xsa
-	)
+BUILD(APPLICATION ${tool.application})
 `;
 	}
 };

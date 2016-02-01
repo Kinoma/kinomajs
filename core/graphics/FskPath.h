@@ -262,8 +262,9 @@ FskAPI(void)			FskPathDispose(FskPath path);
 
 /** Get the last point in the path.
  *	\param[in]	path	the path to query.
- *	\param[out]	pt		a place to store the last point.
- *	\return		kFskErrNone		if the operation was completed successfully.
+ *	\param[out]	pt		a place to store the last point. Can be NULL if to merely test existence.
+ *	\return		kFskErrNone			if the operation was completed successfully.
+ *	\return		kFskErrNoSubpath	if no previous subpath exists, and therefore there is no last point.
 */
 FskAPI(FskErr)			FskGrowablePathGetLastPoint(FskGrowablePath path, FskFixedPoint2D	*pt);
 
@@ -415,18 +416,49 @@ FskAPI(FskErr)	FskGrowablePathAppendSegmentFloatCubicBezierTo(double x1, double 
  */
 FskAPI(FskErr)	FskGrowablePathAppendSegmentFloatRationalQuadraticBezierTo(double x1, double y1, double w1, double x, double y, FskGrowablePath path);
 
-/** Append an "elliptical arc to" segment to a growable path, with floating-point coordinates.
- *	\param[in]		rx				the X-radius of the arc.
- *	\param[in]		ry				the Y-radius of the arc.
- *	\param[in]		xAxisRotation	the rotation from the x-axis.
- *	\param[in]		largeArcFlag	the large arc flag.
- *	\param[in]		sweepFlag		the sweep flag.
+/** Append an "elliptical arc to" segment to a growable path, with floating-point coordinates, with interface that matches SVG.
+ * This joins the previous point to the endpoint (x2,y2) using a section of an ellipse which meets the following constraints:
+ *	- the arc starts at the current point
+ *	- the arc ends at point (x2, y2)
+ *	- the ellipse has the two radii (rx, ry)
+ *	- the x-axis of the ellipse is rotated by xAxisRotation relative to the x-axis of the current coordinate system.
+ * For most situations, there are actually four different arcs (two different ellipses, each with two different arc sweeps) that satisfy these constraints.
+ * largeArcFlag and sweepFlag indicate which one of the four arcs are drawn, as follows:
+ * Of the four candidate arc sweeps, two will represent an arc sweep of greater than or equal to 180 degrees (the "large arc"),
+ * and two will represent an arc sweep of less than or equal to 180 degrees (the "small arc").
+ * If largeArcFlag is '1', then one of the two larger arc sweeps will be chosen;
+ * otherwise, if largeArcFlag is '0', one of the smaller arc sweeps will be chosen,
+ * If sweep-flag is '1', then the arc will be drawn in a "positive-angle" direction (i.e., the ellipse formula x=cx+rx*cos(theta) and y=cy+ry*sin(theta)
+ * is evaluated such that theta starts at an angle corresponding to the current point and increases positively until the arc reaches (x2,y2)).
+ * A value of 0 causes the arc to be drawn in a "negative-angle" direction (i.e., theta starts at an angle value corresponding to the current point
+ * and decreases until the arc reaches (x2,y2)).
+ *	\param[in]		rx				the X-radius of the elliptical arc (before rotation).
+ *	\param[in]		ry				the Y-radius of the elliptical arc (before rotation).
+ *	\param[in]		xAxisRotation	the rotation from the x-axis, in degrees.
+ *	\param[in]		largeArcFlag	if true, chooses the arc that subtends the greater angle; otherwise chooses the smaller angle.
+ *	\param[in]		sweepFlag		if true, chooses the arc that sweeps in a positive angular direction; otherwise, chooses the negative angular sweep.
  *	\param[in]		x2				the X-coordinate of the endpoint.
  *	\param[in]		y2				the Y-coordinate of the endpoint.
  *	\param[in,out]	path			the path.
  *	\return			kFskErrNone		if the operation was completed successfully.
  */
 FskAPI(FskErr)	FskGrowablePathAppendSegmentEllipticalArc(double rx, double ry, double xAxisRotation, Boolean largeArcFlag, Boolean sweepFlag, double x2, double y2, FskGrowablePath path);
+
+
+/** Append an "elliptical arc to" segment to a growable path, with floating-point coordinates, with interface that matches Canvas.
+ *	\param[in]		cx				the center X of the guiding ellipse.
+ *	\param[in]		cy				the center Y of the guiding ellipse.
+ *	\param[in]		rx				the X-radius of the arc.
+ *	\param[in]		ry				the Y-radius of the arc.
+ *	\param[in]		rotation		the rotation of the guiding ellipse from the X-axis, in radians.
+ *	\param[in]		startAngle		the start angle of the arc in radians.
+ *	\param[in]		endAngle		the  end  angle of the arc in radians.
+ *	\param[in]		anticlockwise	if true, the arc is drawn counter-clockwise; otherwise it is drawn clockwise.
+ *	\param[in,out]	path			the path.
+ *	\return			kFskErrNone		if the operation was completed successfully.
+ */
+FskAPI(FskErr)	FskGrowablePathAppendSegmentEllipse(double cx, double cy, double rx, double ry, double rotation, double startAngle, double endAngle, Boolean anticlockwise, FskGrowablePath path);
+
 
 /** Append a path in string form to an existing growable path.
  *	This string is in the format specified by SVG:
@@ -453,7 +485,8 @@ FskAPI(FskErr)	FskGrowablePathAppendSegmentEllipticalArc(double rx, double ry, d
  *	In addition, we parse our own extensions:
  *		G				End glyph
  *		g				End glyph
- *		Kx,y,w,x,y		Conic (rational quadratic) Bezier
+ *		Kx,y,w,x,y		Absolute conic (rational quadratic) Bezier
+ *		kx,y,w,x,y		Relative conic (rational quadratic) Bezier
  *	This can be used in conjunction with FskPathString() to implement serialization.
  *	\param[in]		pathStr			the path string.
  *	\param[in,out]	path			the growable path.

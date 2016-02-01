@@ -35,11 +35,11 @@ static FskErr macTextNew(FskTextEngineState *state);
 static FskErr macTextDispose(FskTextEngineState state);
 static FskErr macTextFormatCacheNew(FskTextEngineState state, FskTextFormatCache *cache, FskBitmap bits, UInt32 textSize, UInt32 textStyle, const char *fontName);
 static FskErr macTextFormatCacheDispose(FskTextEngineState state, FskTextFormatCache cache);
-static FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangleFloat boundsFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache);
-static FskErr macTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimension, FskTextFormatCache cache);
+static FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle bounds, FskConstRectangleFloat boundsFloat, FskConstRectangle clipRect, FskConstColorRGBA color, UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed textExtra, const char *fontName, FskTextFormatCache cache);
+static FskErr macTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskDimensionFloat dimension, FskTextFormatCache cache);
 static FskErr macTextGetFontInfo(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache formatCache);
-static FskErr macTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
-static FskErr macTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
+static FskErr macTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytes, UInt32 *fitChars, FskTextFormatCache cache);
+static FskErr macTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache);
 
 static FskErr macTextAddFontFile(FskTextEngineState state, const char *path);
 static FskErr macTextGetFontList(FskTextEngineState state, char **fontNames);
@@ -112,11 +112,11 @@ FskErr macTextDispose(FskTextEngineState state)
  * FskTextBox
  ********************************************************************************/
 
-FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle r, FskConstRectangleFloat rFloat, FskConstRectangle clipRect, FskConstColorRGBA color,UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, const char *fontName, FskTextFormatCache cache)
+FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, FskConstRectangle r, FskConstRectangleFloat rFloat, FskConstRectangle clipRect, FskConstColorRGBA color,UInt32 blendLevel, UInt32 textSize, UInt32 textStyle, UInt16 hAlign, UInt16 vAlign, FskFixed textExtra, const char *fontName, FskTextFormatCache cache)
 {
 	FskErr err = kFskErrNone;
 
-	if (!FskCocoaTextDraw((void*)state, bits, text, textLen, r, clipRect, color, blendLevel, textSize, textStyle, hAlign, vAlign, fontName, cache))
+	if (!FskCocoaTextDraw((void*)state, bits, text, textLen, r, clipRect, color, blendLevel, textSize, textStyle, hAlign, vAlign, textExtra, fontName, cache))
 		err = kFskErrOperationFailed;
 
 	return err;
@@ -127,22 +127,22 @@ FskErr macTextBox(FskTextEngineState state, FskBitmap bits, const char *text, UI
  * FskTextGetBounds
  ********************************************************************************/
 
-FskErr macTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, FskRectangle bounds, FskDimensionFloat dimension, FskTextFormatCache cache)
+FskErr macTextGetBounds(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, FskRectangle bounds, FskDimensionFloat dimension, FskTextFormatCache cache)
 {
 	if (dimension) {
-		FskCocoaTextGetBoundsSubpixel((void*)state, text, textLen, textSize, textStyle, fontName, dimension, cache);
+		FskCocoaTextGetBoundsSubpixel((void*)state, text, textLen, textSize, textStyle, textExtra, fontName, dimension, cache);
 		FskRectangleSet(bounds, 0, 0, (SInt32)ceilf(dimension->width), (SInt32)roundf(dimension->height));
 	}
 	else
-		FskCocoaTextGetBounds((void*)state, text, textLen, textSize, textStyle, fontName, bounds, cache);
+		FskCocoaTextGetBounds((void*)state, text, textLen, textSize, textStyle, textExtra, fontName, bounds, cache);
 
 	return kFskErrNone;
 }
 
-static FskErr macTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName,
+static FskErr macTextGetLayout(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName,
 								UInt16 **unicodeText, UInt32 *unicodeLen, FskFixed **layout, FskTextFormatCache cache)
 {
-	FskCocoaTextGetLayout((void*)state, text, textLen, textSize, textStyle, fontName, unicodeText, unicodeLen, layout, cache);
+	FskCocoaTextGetLayout((void*)state, text, textLen, textSize, textStyle, textExtra, fontName, unicodeText, unicodeLen, layout, cache);
 	return kFskErrNone;
 }
 
@@ -157,9 +157,9 @@ FskErr macTextGetFontList(FskTextEngineState state, char **fontNames)
 	return kFskErrNone;
 }
 
-FskErr macTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache)
+FskErr macTextFitWidth(FskTextEngineState state, FskBitmap bits, const char *text, UInt32 textLen, UInt32 textSize, UInt32 textStyle, FskFixed textExtra, const char *fontName, UInt32 width, UInt32 flags, UInt32 *fitBytesOut, UInt32 *fitCharsOut, FskTextFormatCache cache)
 {
-	return FskCocoaTextFitWidth((void*)state, text, textLen, textSize, textStyle, fontName, width, flags, fitBytesOut, fitCharsOut, cache) ? kFskErrNone: kFskErrOperationFailed;
+	return FskCocoaTextFitWidth((void*)state, text, textLen, textSize, textStyle, textExtra, fontName, width, flags, fitBytesOut, fitCharsOut, cache) ? kFskErrNone: kFskErrOperationFailed;
 }
 
 FskErr macTextGetFontInfo(FskTextEngineState state, FskTextFontInfo info, const char *fontName, UInt32 textSize, UInt32 textStyle, FskTextFormatCache cache)

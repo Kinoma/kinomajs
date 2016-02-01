@@ -1978,20 +1978,20 @@ Boolean KprRetainableRelease(KprRetainable self)
 	return (self->retainCount == 0);
 }
 
-/** KprMemoryChunk */
+/** KprMemoryBlock */
 
-FskErr KprMemoryChunkNew(UInt32 size, const void *data, KprMemoryChunk *it)
+FskErr KprMemoryBlockNew(UInt32 size, const void *data, KprMemoryBlock *it)
 {
 	FskErr err = kFskErrNone;
-	KprMemoryChunk self = NULL;
+	KprMemoryBlock self = NULL;
 	char *p;
 
-	bailIfError(KprMemPtrNew(sizeof(KprMemoryChunkRecord) + size + 1, &self));
+	bailIfError(KprMemPtrNew(sizeof(KprMemoryBlockRecord) + size + 1, &self));
 	bailIfError(KprRetainableNew(&self->retainable));
 
 	self->next = NULL;
 	self->size = size;
-	p = KprMemoryChunkStart(self);
+	p = KprMemoryBlockStart(self);
 
 	if (data && size > 0) FskMemCopy(p, data, size);
 	p[size] = 0;
@@ -2005,56 +2005,56 @@ bail:
 	return err;
 }
 
-FskErr KprMemoryChunkDispose(KprMemoryChunk self)
+FskErr KprMemoryBlockDispose(KprMemoryBlock self)
 {
 	if (self && KprRetainableRelease(self->retainable)) {
-		KprMemoryChunkDispose(self->next);
+		KprMemoryBlockDispose(self->next);
 		KprRetainableDispose(self->retainable);
 		KprMemPtrDispose(self);
 	}
 	return kFskErrNone;
 }
 
-FskErr KprMemoryChunkDisposeAt(KprMemoryChunk *it)
+FskErr KprMemoryBlockDisposeAt(KprMemoryBlock *it)
 {
 	if (it) {
-		KprMemoryChunkDispose(*it);
+		KprMemoryBlockDispose(*it);
 		*it = NULL;
 	}
 	return kFskErrNone;
 }
 
-KprMemoryChunk KprMemoryChunkRetain(KprMemoryChunk self)
+KprMemoryBlock KprMemoryBlockRetain(KprMemoryBlock self)
 {
 	KprRetainableRetain(self->retainable);
 	return self;
 }
 
-void *KprMemoryChunkStart(KprMemoryChunk self)
+void *KprMemoryBlockStart(KprMemoryBlock self)
 {
 	UInt8 *p = (UInt8 *) self;
-	p += sizeof(KprMemoryChunkRecord);
+	p += sizeof(KprMemoryBlockRecord);
 	return p;
 }
 
-void *KprMemoryChunkEnd(KprMemoryChunk self)
+void *KprMemoryBlockEnd(KprMemoryBlock self)
 {
-	UInt8 *p = (UInt8 *) KprMemoryChunkStart(self);
+	UInt8 *p = (UInt8 *) KprMemoryBlockStart(self);
 	return p + self->size;
 }
 
-void *KprMemoryChunkCopyTo(KprMemoryChunk self, void *dest)
+void *KprMemoryBlockCopyTo(KprMemoryBlock self, void *dest)
 {
-	FskMemCopy(dest, KprMemoryChunkStart(self), self->size);
+	FskMemCopy(dest, KprMemoryBlockStart(self), self->size);
 	return (UInt8 *) dest + self->size;
 }
 
-FskErr KprMemoryChunkToScript(KprMemoryChunk self, xsMachine *the, xsSlot *ref)
+FskErr KprMemoryBlockToChunk(KprMemoryBlock self, xsMachine *the, xsSlot *ref)
 {
 	FskErr err;
 	FskMemPtr data = NULL;
 
-	bailIfError(KprMemPtrNewFromData(self->size, KprMemoryChunkStart(self), &data));
+	bailIfError(KprMemPtrNewFromData(self->size, KprMemoryBlockStart(self), &data));
 
 	xsMemPtrToChunk(the, ref, data, self->size, false);
 
@@ -2062,10 +2062,10 @@ bail:
 	return err;
 }
 
-Boolean KprMemoryChunkIsSame(KprMemoryChunk a, KprMemoryChunk b)
+Boolean KprMemoryBlockIsSame(KprMemoryBlock a, KprMemoryBlock b)
 {
 	if (a == NULL || b == NULL || a->size != b->size) return false;
-	return FskMemCompare(KprMemoryChunkStart(a), KprMemoryChunkStart(b), a->size) == 0;
+	return FskMemCompare(KprMemoryBlockStart(a), KprMemoryBlockStart(b), a->size) == 0;
 }
 
 /** KprSocketReader */
@@ -2446,13 +2446,10 @@ bail:
 
 /** KprSocketServer */
 
-struct KprPortListenerRecord {
-	KprPortListener next;
-	KprSocketServer /* @weak */ server;
-	FskSocket socket;
-	char *interfaceName;
-	FskThreadDataHandler dataHandler;
-};
+static void KprSocketServerInterfaceAdded(FskNetInterface ifc, void *refcon);
+static void KprSocketServerInterfaceRemoved(FskNetInterface ifc, void *refcon);
+static void KprSocketServerInterfaceConnected(FskNetInterface ifc, void *refcon);
+static void KprSocketServerInterfaceDisconnected(FskNetInterface ifc, void *refcon);
 
 FskErr KprPortListenerNew(KprSocketServer server, UInt16 port, const char *interfaceName, KprPortListener *it);
 FskErr KprPortListenerDispose(KprPortListener listener);
@@ -2464,6 +2461,13 @@ FskErr KprSocketServerNew(KprSocketServer *it, void *refcon)
 	KprSocketServer self = NULL;
 
 	bailIfError(KprMemPtrNewClear(sizeof(KprSocketServerRecord), &self));
+
+	self->notifier.refcon = self;
+	self->notifier.added = KprSocketServerInterfaceAdded;
+	self->notifier.removed = KprSocketServerInterfaceRemoved;
+	self->notifier.connected = KprSocketServerInterfaceConnected;
+	self->notifier.disconnected = KprSocketServerInterfaceDisconnected;
+	KprNetworkInterfaceAddNotifier(&self->notifier);
 
 	self->refcon = refcon;
 
@@ -2482,6 +2486,7 @@ FskErr KprSocketServerDispose(KprSocketServer self)
 			KprPortListenerDispose(self->listeners);
 		}
 
+		KprNetworkInterfaceRemoveNotifier(&self->notifier);
 		KprMemPtrDispose(self);
 	}
 	return kFskErrNone;
@@ -2523,6 +2528,53 @@ bail:
 	return err;
 }
 
+static KprPortListener KprSocketServerFindInterface(KprSocketServer self, const char *interfaceName)
+{
+	KprPortListener listener = self->listeners;
+
+	while (listener) {
+		if (FskStrCompare(interfaceName, listener->interfaceName)) break;
+		listener = listener->next;
+	}
+
+	return listener;
+}
+
+static void KprSocketServerInterfaceAdded(FskNetInterface ifc, void *refcon)
+{
+	KprSocketServer self = refcon;
+	KprPortListener	listener;
+
+	if (self->all) {
+		KprPortListenerNew(self, self->port, ifc->name, &listener);
+	}
+}
+
+static void KprSocketServerInterfaceRemoved(FskNetInterface ifc, void *refcon)
+{
+	KprSocketServer self = refcon;
+	KprPortListener	listener;
+
+	listener = KprSocketServerFindInterface(self, ifc->name);
+	if (listener) {
+		KprPortListenerDispose(listener);
+	}
+
+	if (self->interfaceDroppedCallback) {
+		self->interfaceDroppedCallback(self, ifc->name, ifc->ip, self->refcon);
+	}
+}
+
+static void KprSocketServerInterfaceConnected(FskNetInterface ifc, void *refcon)
+{
+	printf("CONNECTED %s\n", ifc->name);
+}
+
+static void KprSocketServerInterfaceDisconnected(FskNetInterface ifc, void *refcon)
+{
+	printf("DISCONNECTED\n");
+}
+
 static FskErr KprPortListenerAcceptNewConnection(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon);
 
 FskErr KprPortListenerNew(KprSocketServer server, UInt16 port, const char *interfaceName, KprPortListener *it)
@@ -2551,6 +2603,7 @@ FskErr KprPortListenerNew(KprSocketServer server, UInt16 port, const char *inter
 		err = kFskErrOperationFailed;
 		goto bail;
 	}
+	self->ip = ifc->ip;
 	err = FskNetSocketBind(skt, ifc->ip, port);
 	if (kFskErrNone != err) {
 		FskDebugStr("KprPortListenerNew - bind failed: %d port: %u", (int) err, (unsigned) port);
@@ -2609,7 +2662,7 @@ static FskErr KprPortListenerAcceptNewConnection(FskThreadDataHandler handler UN
 
 	bailIfError(FskNetAcceptConnection(self->socket, &skt, server->debugName));
 
-	bailIfError(server->acceptCallback(server, skt, self->interfaceName, server->refcon));
+	bailIfError(server->acceptCallback(server, skt, self->interfaceName, self->ip, server->refcon));
 	skt = NULL;
 
 bail:

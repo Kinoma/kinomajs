@@ -87,16 +87,16 @@ KprCoAPEndpoint KprCoAPEndpointRetain(KprCoAPEndpoint self)
 static FskErr KprCoAPEndpointSendMessage_(KprCoAPEndpoint self, KprCoAPMessage message)
 {
 	FskErr err = kFskErrNone;
-	KprMemoryChunk chunk = NULL;
+	KprMemoryBlock chunk = NULL;
 	int sent = 0;
 
 	bailIfError(KprCoAPMessageSerialize(message, &chunk));
 
-	err = FskNetSocketSendUDP(self->socket, KprMemoryChunkStart(chunk), chunk->size, &sent, self->ipaddr, self->port);
+	err = FskNetSocketSendUDP(self->socket, KprMemoryBlockStart(chunk), chunk->size, &sent, self->ipaddr, self->port);
 	FskTimeGetNow(&self->timestamp);
 
 bail:
-	KprMemoryChunkDispose(chunk);
+	KprMemoryBlockDispose(chunk);
 	return err;
 }
 

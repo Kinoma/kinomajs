@@ -26,7 +26,7 @@ extern "C" {
 typedef txS1 txByte;
 typedef txU1 txFlag;
 typedef txS2 txID;
-typedef txS4 txIndex;
+typedef txU4 txIndex;
 typedef txS1 txKind;
 typedef txS4 txSize;
 typedef txS4 txError;
@@ -47,8 +47,8 @@ typedef int (*txPutter)(txString, void*);
 #define XS_ATOM_SYMBOLS 0x53594D42 /* 'SYMB' */
 #define XS_ATOM_VERSION 0x56455253 /* 'VERS' */
 #define XS_MAJOR_VERSION 6
-#define XS_MINOR_VERSION 0
-#define XS_PATCH_VERSION 8
+#define XS_MINOR_VERSION 1
+#define XS_PATCH_VERSION 0
 
 typedef struct {
 	txS4 atomSize;
@@ -111,6 +111,7 @@ enum {
 	XS_CODE_CATCH_1,
 	XS_CODE_CATCH_2,
 	XS_CODE_CATCH_4,
+	XS_CODE_CHECK_INSTANCE,
 	XS_CODE_CLASS,
 	XS_CODE_CODE_1,
 	XS_CODE_CODE_2,
@@ -138,7 +139,11 @@ enum {
 	XS_CODE_DELETE_SUPER_AT,
 	XS_CODE_DIVIDE,
 	XS_CODE_DUB,
+	XS_CODE_DUB_AT,
 	XS_CODE_END,
+	XS_CODE_END_ARROW,
+	XS_CODE_END_BASE,
+	XS_CODE_END_DERIVED,
 	XS_CODE_EQUAL,
 	XS_CODE_EVAL,
 	XS_CODE_EXCEPTION,
@@ -153,7 +158,6 @@ enum {
 	XS_CODE_GET_CLOSURE_2,
 	XS_CODE_GET_EVAL,
 	XS_CODE_GET_GLOBAL,
-	XS_CODE_GET_HOME,
 	XS_CODE_GET_LOCAL_1,
 	XS_CODE_GET_LOCAL_2,
 	XS_CODE_GET_PROPERTY,
@@ -172,13 +176,20 @@ enum {
 	XS_CODE_LEFT_SHIFT,
 	XS_CODE_LESS,
 	XS_CODE_LESS_EQUAL,
+	XS_CODE_LET_CLOSURE_1,
+	XS_CODE_LET_CLOSURE_2,
+	XS_CODE_LET_GLOBAL,
+	XS_CODE_LET_LOCAL_1,
+	XS_CODE_LET_LOCAL_2,
 	XS_CODE_LINE,
+	XS_CODE_METHOD,
 	XS_CODE_MINUS,
 	XS_CODE_MODULE,
 	XS_CODE_MODULO,
 	XS_CODE_MORE,
 	XS_CODE_MORE_EQUAL,
 	XS_CODE_MULTIPLY,
+	XS_CODE_NAME,
 	XS_CODE_NEW,
 	XS_CODE_NEW_CLOSURE,
 	XS_CODE_NEW_EVAL,
@@ -197,9 +208,17 @@ enum {
 	XS_CODE_PULL_CLOSURE_2,
 	XS_CODE_PULL_LOCAL_1,
 	XS_CODE_PULL_LOCAL_2,
-	XS_CODE_RESULT,
+	XS_CODE_REFRESH_CLOSURE_1,
+	XS_CODE_REFRESH_CLOSURE_2,
+	XS_CODE_REFRESH_LOCAL_1,
+	XS_CODE_REFRESH_LOCAL_2,
 	XS_CODE_RESERVE_1,
 	XS_CODE_RESERVE_2,
+	XS_CODE_RESET_CLOSURE_1,
+	XS_CODE_RESET_CLOSURE_2,
+	XS_CODE_RESET_LOCAL_1,
+	XS_CODE_RESET_LOCAL_2,
+	XS_CODE_RESULT,
 	XS_CODE_RETHROW,
 	XS_CODE_RETRIEVE_1,
 	XS_CODE_RETRIEVE_2,
@@ -211,7 +230,6 @@ enum {
 	XS_CODE_SET_CLOSURE_2,
 	XS_CODE_SET_EVAL,
 	XS_CODE_SET_GLOBAL,
-	XS_CODE_SET_HOME,
 	XS_CODE_SET_LOCAL_1,
 	XS_CODE_SET_LOCAL_2,
 	XS_CODE_SET_PROPERTY,
@@ -236,7 +254,10 @@ enum {
 	XS_CODE_SWAP,
 	XS_CODE_SYMBOL,
 	XS_CODE_TARGET,
+	XS_CODE_TEMPLATE,
+	XS_CODE_THIS,
 	XS_CODE_THROW,
+	XS_CODE_TO_INSTANCE,
 	XS_CODE_TRANSFER,
 	XS_CODE_TRUE,
 	XS_CODE_TYPEOF,
@@ -258,7 +279,7 @@ enum {
 	XS_DONT_DELETE_FLAG = 2,
 	XS_DONT_ENUM_FLAG = 4,
 	XS_DONT_SET_FLAG = 8,
-	XS_STATIC_FLAG = 16,
+	XS_METHOD_FLAG = 16,
 	XS_GETTER_FLAG = 32,
 	XS_SETTER_FLAG = 64,
 };
@@ -301,6 +322,8 @@ enum {
 	
 	mxTailRecursionFlag = 1 << 24,
 	mxMethodFlag = 1 << 25,
+	mxNotSimpleParametersFlag = 1 << 26,
+	mxYieldFlag = 1 << 27,
 };
 
 extern const txString gxCodeNames[XS_CODE_COUNT];
@@ -309,8 +332,8 @@ extern const txUTF8Sequence gxUTF8Sequences[];
 extern void fxDeleteScript(txScript* script);
 
 extern txBoolean fxIsIdentifier(txString string);
-extern txBoolean fxIsIdentifierFirst(char c);
-extern txBoolean fxIsIdentifierNext(char c);
+extern txBoolean fxIsIdentifierFirst(txU4 c);
+extern txBoolean fxIsIdentifierNext(txU4 c);
 extern txU1* fsX2UTF8(txU4 c, txU1* p, txU4 theSize);
 extern txString fxSkipSpaces(txString string);
 
@@ -840,6 +863,8 @@ enum {
 	___dirname,
 	___filename,
 	_new_target,
+	_TypedArray,
+	_cache,
 	XS_ID_COUNT
 };
 #define XS_SYMBOL_ID_COUNT ___proto__

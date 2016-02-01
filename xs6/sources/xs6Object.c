@@ -46,12 +46,12 @@ static void fx_Object_preventExtensions(txMachine* the);
 static void fx_Object_seal(txMachine* the);
 static void fx_Object_setPrototypeOf(txMachine* the);
 
-static void fxAssignProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property);
-static void fxDefineProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property);
-static void fxFreezeProperty(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty);
-static void fxIsPropertyFrozen(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty);
-static void fxIsPropertySealed(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty);
-static void fxSealProperty(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty);
+static void fxAssignPropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property);
+static void fxDefinePropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property);
+static void fxFreezePropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property);
+static void fxIsPropertyFrozenStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property);
+static void fxIsPropertySealedStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property);
+static void fxSealPropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property);
 
 void fxBuildObject(txMachine* the)
 {
@@ -128,11 +128,9 @@ void fx_Object(txMachine* the)
 
 void fx_Object_prototype___proto__get(txMachine* the)
 {
-	txSlot* instance;
 	if ((mxThis->kind == XS_UNDEFINED_KIND) || (mxThis->kind == XS_NULL_KIND))
 		mxTypeError("invalid this");
-	instance = fxToInstance(the, mxThis);
-	fxGetInstancePrototype(the, instance);
+	fxGetInstancePrototype(the, fxToInstance(the, mxThis), mxResult);
 }
 
 void fx_Object_prototype___proto__set(txMachine* the)
@@ -144,24 +142,24 @@ void fx_Object_prototype___proto__set(txMachine* the)
 		mxTypeError("invalid prototype");
 	if (mxThis->kind == XS_REFERENCE_KIND) {
 		instance = mxThis->value.reference;
-		fxSetInstancePrototype(the, instance, mxArgv(0));
+		if (!fxSetInstancePrototype(the, instance, mxArgv(0)))
+			mxTypeError("invalid prototype");
 	}
 }
 
 void fx_Object_prototype_hasOwnProperty(txMachine* the)
 {
 	txSlot* instance;
-	txInteger id;
-	txSlot* property;
+	txSlot* at;
 	if ((mxThis->kind == XS_UNDEFINED_KIND) || (mxThis->kind == XS_NULL_KIND))
 		mxTypeError("invalid this");
 	if (mxArgc < 1)
 		mxTypeError("invalid key");
 	instance = fxToInstance(the, mxThis);
-	fxSlotToID(the, mxArgv(0), &id);
-	property = fxGetInstanceOwnProperty(the, instance, id);
+	at = fxAt(the, mxArgv(0));
+	mxPushUndefined();
+	mxResult->value.boolean = fxGetInstanceOwnProperty(the, instance, at->value.at.id, at->value.at.index, the->stack);
 	mxResult->kind = XS_BOOLEAN_KIND;
-	mxResult->value.boolean = (property) ? 1 : 0;
 	mxPop();
 }
 
@@ -190,18 +188,17 @@ void fx_Object_prototype_isPrototypeOf(txMachine* the)
 void fx_Object_prototype_propertyIsEnumerable(txMachine* the)
 {
 	txSlot* instance;
-	txInteger id;
-	txSlot* property;
+	txSlot* at;
 	if ((mxThis->kind == XS_UNDEFINED_KIND) || (mxThis->kind == XS_NULL_KIND))
 		mxTypeError("invalid this");
 	if (mxArgc < 1)
 		mxTypeError("invalid key");
 	mxResult->value.boolean = 0;
 	instance = fxToInstance(the, mxThis);
-	fxSlotToID(the, mxArgv(0), &id);
-	property = fxGetInstanceOwnProperty(the, instance, id);
+	at = fxAt(the, mxArgv(0));
+	mxPushUndefined();
+	mxResult->value.boolean = fxGetInstanceOwnProperty(the, instance, at->value.at.id, at->value.at.index, the->stack) && ((the->stack->flag & XS_DONT_ENUM_FLAG) == 0);
 	mxResult->kind = XS_BOOLEAN_KIND;
-	mxResult->value.boolean = (property && ((property->flag & XS_DONT_ENUM_FLAG) == 0)) ? 1 : 0;
 	mxPop();
 }
 
@@ -305,14 +302,13 @@ void fx_Object_prototype_toString(txMachine* the)
 		break;
 	case XS_REFERENCE_KIND:
 		instance = mxThis->value.reference;
-		if (instance->flag & XS_VALUE_FLAG) {
-			slot = instance->next;
+		if (((slot = instance->next)) && (slot->flag & XS_INTERNAL_FLAG)) {
 			switch (slot->kind) {
 			case XS_ARRAY_KIND:
-				tag = (instance != mxArrayPrototype.value.reference) ? "Array" : "Object";
+				tag = "Array";
 				break;
 			case XS_BOOLEAN_KIND:
-				tag = (instance != mxBooleanPrototype.value.reference) ? "Boolean" : "Object";
+				tag = "Boolean";
 				break;
 			case XS_CALLBACK_KIND:
 			case XS_CODE_KIND:
@@ -320,48 +316,32 @@ void fx_Object_prototype_toString(txMachine* the)
 				tag = "Function";
 				break;
 			case XS_DATE_KIND:
-				tag = (instance != mxDatePrototype.value.reference) ? "Date" : "Object";
+				tag = "Date";
 				break;
 			case XS_GLOBAL_KIND:
 				tag = "global";
 				break;
 			case XS_NUMBER_KIND:
-				tag = (instance != mxNumberPrototype.value.reference) ? "Number" : "Object";
+				tag = "Number";
 				break;
-			case XS_PARAMETERS_KIND:
+			case XS_ARGUMENTS_SLOPPY_KIND:
+			case XS_ARGUMENTS_STRICT_KIND:
 				tag = "Arguments";
 				break;
 			case XS_REGEXP_KIND:
-				tag = (instance != mxRegExpPrototype.value.reference) ? "RegExp" : "Object";
+				tag = "RegExp";
 				break;
 			case XS_STRING_KIND:
-				tag = (instance != mxStringPrototype.value.reference) ? "String" : "Object";
-				break;
-			case XS_SYMBOL_KIND:
-				tag = (instance != mxSymbolPrototype.value.reference) ? "Symbol" : "Object";
+			case XS_STRING_X_KIND:
+				tag = "String";
 				break;
             default:
                 tag = "Object";
                 break;
             }
 		}
-		else if (instance == mxErrorPrototype.value.reference)
-        	tag = "Object";
-		else if (instance == mxEvalErrorPrototype.value.reference)
-        	tag = "Object";
-		else if (instance == mxRangeErrorPrototype.value.reference)
-        	tag = "Object";
-		else if (instance == mxReferenceErrorPrototype.value.reference)
-        	tag = "Object";
-		else if (instance == mxSyntaxErrorPrototype.value.reference)
-        	tag = "Object";
-		else if (instance == mxTypeErrorPrototype.value.reference)
-        	tag = "Object";
-		else if (instance == mxURIErrorPrototype.value.reference)
-        	tag = "Object";
         else {
         	txSlot* prototype = mxErrorPrototype.value.reference;
-        	instance = instance->value.instance.prototype;
         	while (instance) {
         		if (instance == prototype)
         			break;
@@ -408,7 +388,7 @@ void fx_Object_assign(txMachine* the)
 		if ((mxArgv(i)->kind == XS_UNDEFINED_KIND) || (mxArgv(i)->kind == XS_NULL_KIND))
 			continue;
 		source = fxToInstance(the, mxArgv(i));
-		fxEachInstanceProperty(the, source, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxAssignProperty, target, source);
+		fxEachInstanceProperty(the, source, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxAssignPropertyStep, target, source);
 	}
 	*mxResult = *target;
 }
@@ -429,7 +409,7 @@ void fx_Object_create(txMachine* the)
 	instance = fxGetInstance(the, mxResult);
 	if ((mxArgc > 1) && (mxArgv(1)->kind != XS_UNDEFINED_KIND)) {
 		properties = fxToInstance(the, mxArgv(1));
-		fxEachInstanceProperty(the, properties, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxDefineProperty, instance, properties);
+		fxEachInstanceProperty(the, properties, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxDefinePropertyStep, instance, properties);
 	}
 }
 
@@ -443,23 +423,24 @@ void fx_Object_defineProperties(txMachine* the)
 		mxTypeError("invalid properties");
 	instance = fxGetInstance(the, mxArgv(0));
 	properties = fxToInstance(the, mxArgv(1));
-	fxEachInstanceProperty(the, properties, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxDefineProperty, instance, properties);
+	fxEachInstanceProperty(the, properties, XS_EACH_ENUMERABLE_FLAG | XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_GET_FLAG, fxDefinePropertyStep, instance, properties);
 	*mxResult = *mxArgv(0);
 }
 
 void fx_Object_defineProperty(txMachine* the)
 {
-	txSlot* instance;
-    txInteger id;
+	txSlot* at;
+	txFlag mask;
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_REFERENCE_KIND))
 		mxTypeError("invalid object");
 	if (mxArgc < 2)
 		mxTypeError("invalid key");
+	at = fxAt(the, mxArgv(1));
 	if ((mxArgc < 3) || (mxArgv(2)->kind != XS_REFERENCE_KIND))
 		mxTypeError("invalid descriptor");
-	instance = fxGetInstance(the, mxArgv(0));
-    fxSlotToID(the, mxArgv(1), &id);
-	fxDefineProperty(the, instance, id, mxArgv(2));
+	mask = fxDescriptorToSlot(the, mxArgv(2));
+	if(!fxDefineInstanceProperty(the, mxArgv(0)->value.reference, at->value.at.id, at->value.at.index, mxArgv(2), mask))
+		mxTypeError("invalid descriptor");
 	*mxResult = *mxArgv(0);
 }
 
@@ -470,7 +451,7 @@ void fx_Object_freeze(txMachine* the)
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
 			fxPreventInstanceExtensions(the, slot);
-			fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_DEFINE_FLAG, fxFreezeProperty, mxResult, slot);
+			fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_DEFINE_FLAG, fxFreezePropertyStep, mxResult, slot);
 		}
 		*mxResult = *mxArgv(0);
 	}
@@ -479,19 +460,21 @@ void fx_Object_freeze(txMachine* the)
 void fx_Object_getOwnPropertyDescriptor(txMachine* the)
 {
 	txSlot* instance;
-	txInteger id;
-	txSlot* property;
+	txSlot* at;
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid object");
-	if (mxArgc < 2)
-		mxTypeError("invalid key");
 	instance = fxToInstance(the, mxArgv(0));
-	fxSlotToID(the, mxArgv(1), &id);
-	property = fxGetInstanceOwnProperty(the, instance, id);
-	if (property) {
-		fxDescribeProperty(the, property);
+	if (mxArgc < 2)
+		mxPushUndefined();
+	else
+		mxPushSlot(mxArgv(1));
+	at = fxAt(the, the->stack);
+	mxPushUndefined();
+	if (fxGetInstanceOwnProperty(the, instance, at->value.at.id, at->value.at.index, the->stack)) {
+		fxDescribeProperty(the, the->stack, XS_GET_ONLY);
 		mxPullSlot(mxResult);
 	}
+	mxPop();
 	mxPop();
 }
 
@@ -513,7 +496,7 @@ void fx_Object_getPrototypeOf(txMachine* the)
 {
 	if ((mxArgc < 1) || (mxArgv(0)->kind == XS_UNDEFINED_KIND) || (mxArgv(0)->kind == XS_NULL_KIND))
 		mxTypeError("invalid object");
-	fxGetInstancePrototype(the, fxToInstance(the, mxArgv(0)));
+	fxGetInstancePrototype(the, fxToInstance(the, mxArgv(0)), mxResult);
 }
 
 void fx_Object_is(txMachine* the)
@@ -539,7 +522,7 @@ void fx_Object_isExtensible(txMachine* the)
 		txSlot* slot = mxArgv(0);
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
-			fxIsInstanceExtensible(the, slot);
+			mxResult->value.boolean = fxIsInstanceExtensible(the, slot);
 		}
 	}
 }
@@ -552,11 +535,9 @@ void fx_Object_isFrozen(txMachine* the)
 		txSlot* slot = mxArgv(0);
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
-			mxResult->value.boolean = 0;
-			fxIsInstanceExtensible(the, slot);
-			mxResult->value.boolean = mxResult->value.boolean ? 0 : 1;
+            mxResult->value.boolean = fxIsInstanceExtensible(the, slot) ? 0 : 1;
 			if (mxResult->value.boolean) {
-				fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG, fxIsPropertyFrozen, mxResult, slot);
+				fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG, fxIsPropertyFrozenStep, mxResult, slot);
 			}
 		}
 	}
@@ -570,11 +551,9 @@ void fx_Object_isSealed(txMachine* the)
 		txSlot* slot = mxArgv(0);
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
-			mxResult->value.boolean = 0;
-			fxIsInstanceExtensible(the, slot);
-			mxResult->value.boolean = mxResult->value.boolean ? 0 : 1;
+			mxResult->value.boolean = fxIsInstanceExtensible(the, slot) ? 0 : 1;
 			if (mxResult->value.boolean)
-				fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG, fxIsPropertySealed, mxResult, slot);
+				fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG, fxIsPropertySealedStep, mxResult, slot);
 		}
 	}
 }
@@ -605,7 +584,7 @@ void fx_Object_seal(txMachine* the)
 		if (slot->kind == XS_REFERENCE_KIND) {
 			slot = slot->value.reference;
 			fxPreventInstanceExtensions(the, slot);
-			fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_DEFINE_FLAG, fxSealProperty, mxResult, slot);
+			fxEachInstanceProperty(the, slot, XS_EACH_STRING_FLAG | XS_EACH_SYMBOL_FLAG | XS_STEP_GET_OWN_FLAG | XS_STEP_DEFINE_FLAG, fxSealPropertyStep, mxResult, slot);
 		}
 		*mxResult = *mxArgv(0);
 	}
@@ -620,62 +599,54 @@ void fx_Object_setPrototypeOf(txMachine* the)
 		mxTypeError("invalid prototype");
 	if (mxArgv(0)->kind == XS_REFERENCE_KIND) {
 		instance = mxArgv(0)->value.reference;
-		fxSetInstancePrototype(the, instance, mxArgv(1));
+		if (!fxSetInstancePrototype(the, instance, mxArgv(1)))
+			mxTypeError("invalid prototype");
 	}
 	*mxResult = *mxArgv(0);
 }
 
-void fxAssignProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property)
+void fxAssignPropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property)
 {
 	mxPushSlot(property);
 	mxPushSlot(context);
-	fxSetID(the, id);
+	fxSetAll(the, id, index);
 	mxPop();
 }
 
-void fxDefineDataProperty(txMachine* the, txSlot* instance, txInteger id, txSlot* value)
+void fxDefinePropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property)
 {
-	txSlot* slot;
-	mxPush(mxObjectPrototype);
-	slot = fxLastProperty(the, fxNewObjectInstance(the));
-	slot= fxNextBooleanProperty(the, slot, 1, mxID(_configurable), XS_NO_FLAG);
-	slot= fxNextBooleanProperty(the, slot, 1, mxID(_enumerable), XS_NO_FLAG);
-	slot= fxNextBooleanProperty(the, slot, 1, mxID(_writable), XS_NO_FLAG);
-	slot= fxNextSlotProperty(the, slot, value, mxID(_value), XS_NO_FLAG);
-	fxDefineProperty(the, instance, id, the->stack);
-	the->stack++;
-}
-
-void fxDefineProperty(txMachine* the, txSlot* context, txInteger id, txSlot* property)
-{
-	if (!fxDefineInstanceProperty(the, context, id, property))
+	txFlag mask;
+	mxPushSlot(property);
+	mask = fxDescriptorToSlot(the, the->stack);
+	if (!fxDefineInstanceProperty(the, context, id, index, the->stack, mask))
 		mxTypeError("property is not configurable");
+	mxPop();
 }
 
-void fxFreezeProperty(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty)
+void fxFreezePropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property)
 {
-	if (theProperty->kind != XS_ACCESSOR_KIND) 
-		theProperty->flag |= XS_DONT_SET_FLAG;
-	theProperty->flag |= XS_DONT_DELETE_FLAG;
+	if (property->kind != XS_ACCESSOR_KIND) 
+		property->flag |= XS_DONT_SET_FLAG;
+	property->flag |= XS_DONT_DELETE_FLAG;
 }
 
-void fxIsPropertyFrozen(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty)
+void fxIsPropertyFrozenStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property)
 {
-	if (theProperty->kind != XS_ACCESSOR_KIND) 
-		if (!(theProperty->flag & XS_DONT_SET_FLAG))
-			theResult->value.boolean = 0;
-	if (!(theProperty->flag & XS_DONT_DELETE_FLAG))
-		theResult->value.boolean = 0;
+	if (property->kind != XS_ACCESSOR_KIND) 
+		if (!(property->flag & XS_DONT_SET_FLAG))
+			context->value.boolean = 0;
+	if (!(property->flag & XS_DONT_DELETE_FLAG))
+		context->value.boolean = 0;
 }
 
-void fxIsPropertySealed(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty)
+void fxIsPropertySealedStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property)
 {
-	if (!(theProperty->flag & XS_DONT_DELETE_FLAG))
-		theResult->value.boolean = 0;
+	if (!(property->flag & XS_DONT_DELETE_FLAG))
+		context->value.boolean = 0;
 }
 
-void fxSealProperty(txMachine* the, txSlot* theResult, txInteger theID, txSlot* theProperty)
+void fxSealPropertyStep(txMachine* the, txSlot* context, txID id, txIndex index, txSlot* property)
 {
-	theProperty->flag |= XS_DONT_DELETE_FLAG;
+	property->flag |= XS_DONT_DELETE_FLAG;
 }
 

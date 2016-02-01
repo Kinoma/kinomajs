@@ -2881,9 +2881,6 @@ void rotateAndScalePoints(FskWindow win, FskPointAndTicks pts, UInt32 count)
 	SInt32 windowScale = FskWindowScaleGet(win);
 	UInt32 i;
 
-	if (180 == rotate)
-		rotate = 0;		// at 180, we render as 0
-
 	if ((FskIntToFixed(1) == scale) && (0 == rotate))
 		return;
 

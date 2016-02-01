@@ -34,7 +34,7 @@
 #define CALLBACK(x) if (self->x) self->x
 
 
-static FskErr KprMQTTEndpointPackMessage(KprMQTTMessage message, void **buffer, UInt32 *length);
+static FskErr KprMQTTEndpointPackMessage(KprMQTTEndpoint self, KprMQTTMessage message, void **buffer, UInt32 *length);
 
 enum {
 	kKprMQTTEndpoint_fixedHeaderState,
@@ -51,7 +51,7 @@ enum {
 	kKprMQTTEndpoint_connectUserNameState,
 	kKprMQTTEndpoint_connectPasswordState,
 
-	kKprMQTTEndpoint_returnCodeState,
+	kKprMQTTEndpoint_connackState,
 
 	kKprMQTTEndpoint_publishTopicState,
 	kKprMQTTEndpoint_publishMessageIdState,
@@ -86,7 +86,7 @@ static FskErr KprMQTTEndpoint_readConnectWillMessage(KprSocketReader reader, voi
 static FskErr KprMQTTEndpoint_readConnectUserName(KprSocketReader reader, void *refcon);
 static FskErr KprMQTTEndpoint_readConnectPassword(KprSocketReader reader, void *refcon);
 
-static FskErr KprMQTTEndpoint_readReturnCode(KprSocketReader reader, void *refcon);
+static FskErr KprMQTTEndpoint_readConnAck(KprSocketReader reader, void *refcon);
 
 static FskErr KprMQTTEndpoint_readPublishTopic(KprSocketReader reader, void *refcon);
 static FskErr KprMQTTEndpoint_readPublishMessageId(KprSocketReader reader, void *refcon);
@@ -121,7 +121,7 @@ static KprSocketReaderState states[] = {
 	{ kKprMQTTEndpoint_connectUserNameState, KprMQTTEndpoint_readConnectUserName },
 	{ kKprMQTTEndpoint_connectPasswordState, KprMQTTEndpoint_readConnectPassword },
 
-	{ kKprMQTTEndpoint_returnCodeState, KprMQTTEndpoint_readReturnCode },
+	{ kKprMQTTEndpoint_connackState, KprMQTTEndpoint_readConnAck },
 
 	{ kKprMQTTEndpoint_publishTopicState, KprMQTTEndpoint_readPublishTopic },
 	{ kKprMQTTEndpoint_publishMessageIdState, KprMQTTEndpoint_readPublishMessageId },
@@ -164,6 +164,7 @@ FskErr KprMQTTEndpointNew(KprMQTTEndpoint* it, FskSocket skt, void *refcon)
 
 	self->socket = skt;
 	FskNetSocketReceiveBufferSetSize(self->socket, kSocketBufferSize);
+	self->protocolVersion = kKprMQTTProtocol311;
 
 	bailIfError(KprSocketReaderNew(&self->reader, self->socket, states, sizeof(states) / sizeof(KprSocketReaderState), self));
 	self->reader->errorCallback = KprMQTTEndpoint_readError;
@@ -210,7 +211,7 @@ FskErr KprMQTTEndpointSendMessage(KprMQTTEndpoint self, KprMQTTMessage message)
 	void *buffer = NULL;
 	UInt32 size;
 
-	bailIfError(KprMQTTEndpointPackMessage(message, &buffer, &size));
+	bailIfError(KprMQTTEndpointPackMessage(self, message, &buffer, &size));
 	KprSocketWriterSendBytes(self->writer, buffer, size);
 
 bail:
@@ -260,17 +261,26 @@ static UInt32 kprMQTTEndpointRemainingLengthBytes(UInt32 length, UInt8 *p)
 	return (bytes > 0 ? bytes : 1);
 }
 
-static FskErr KprMQTTEndpointPackMessage(KprMQTTMessage message, void **buffer, UInt32 *length)
+static FskErr KprMQTTEndpointPackMessage(KprMQTTEndpoint self, KprMQTTMessage message, void **buffer, UInt32 *length)
 {
 	FskErr err;
 	UInt32 remainingLength, size;
 	KprMQTTSubscribeTopic topic;
 	UInt8 *p, flag;
+	const char *protocolSignature;
 
 	switch (message->type) {
 		case kKprMQTTMessageTypeCONNECT: {
 			struct KprMQTTConnectMessageRecord *p = &message->t.connect;
-			remainingLength = 12;
+			remainingLength = 4; // version (1 byte) + flag (1 byte) + keep alive (2 bytes)
+
+			if (self->protocolVersion == kKprMQTTProtocol31) {
+				protocolSignature = kKprMQTTProtocolSignature31;
+			} else {
+				protocolSignature = kKprMQTTProtocolSignature311;
+			}
+			remainingLength += KprMQTTEndpointPackedStringSize(protocolSignature);
+
 			remainingLength += KprMQTTEndpointPackedStringSize(p->clientIdentifier);
 			if (p->willTopic) {
 				remainingLength += KprMQTTEndpointPackedStringSize(p->willTopic);
@@ -343,10 +353,10 @@ static FskErr KprMQTTEndpointPackMessage(KprMQTTMessage message, void **buffer, 
 			struct KprMQTTConnectMessageRecord *cp = &message->t.connect;
 
 			// Protocol Signature
-			p += KprMQTTEndpointWriteString("MQIsdp", p);
+			p += KprMQTTEndpointWriteString(protocolSignature, p);
 
 			// Protocol Version
-			*p++ = 3;
+			*p++ = self->protocolVersion;
 
 			// Connect Flags
 			flag = 0;
@@ -380,9 +390,14 @@ static FskErr KprMQTTEndpointPackMessage(KprMQTTMessage message, void **buffer, 
 			break;
 		}
 
-		case kKprMQTTMessageTypeCONNACK:
-			p += KprMQTTEndpointWriteUInt16(message->t.connack.returnCode, p);
+		case kKprMQTTMessageTypeCONNACK: {
+			UInt8 flags = 0;
+			if (message->t.connack.sesstionPresent) flags |= 0x01;
+
+			*p++ = flags;
+			*p++ = message->t.connack.returnCode;
 			break;
+		}
 
 		case kKprMQTTMessageTypePUBLISH:
 			p += KprMQTTEndpointWriteString(message->t.publish.topic, p);
@@ -493,7 +508,7 @@ static FskErr KprMQTTEndpoint_dispatchByType(KprSocketReader reader, void *refco
 			break;
 
 		case kKprMQTTMessageTypeCONNACK:
-			nextState = kKprMQTTEndpoint_returnCodeState;
+			nextState = kKprMQTTEndpoint_connackState;
 			break;
 
 		case kKprMQTTMessageTypePUBLISH:
@@ -538,7 +553,11 @@ static FskErr KprMQTTEndpoint_readConnectSignature(KprSocketReader reader, void 
 	err = KprMQTTEndpoint_readString(self, &signature);
 	if (err != kFskErrNone) return err;
 
-	if (FskStrCompare(signature, "MQIsdp") != 0) {
+	if (FskStrCompare(signature, kKprMQTTProtocolSignature311) == 0) {
+		self->protocolVersion = kKprMQTTProtocol311;
+	} else if (FskStrCompare(signature, kKprMQTTProtocolSignature31) == 0) {
+		self->protocolVersion = kKprMQTTProtocol31;
+	} else {
 		err = kFskErrBadData;
 	}
 
@@ -557,7 +576,7 @@ static FskErr KprMQTTEndpoint_readConnectVersion(KprSocketReader reader, void *r
 	err = KprMQTTEndpoint_readUInt8(self, &version);
 	if (err != kFskErrNone) return err;
 
-	if (version != 3) {
+	if (version != self->protocolVersion) {
 		err = kFskErrBadData;
 	}
 
@@ -678,16 +697,17 @@ static FskErr KprMQTTEndpoint_readConnectPassword(KprSocketReader reader, void *
 	return err;
 }
 
-static FskErr KprMQTTEndpoint_readReturnCode(KprSocketReader reader, void *refcon)
+static FskErr KprMQTTEndpoint_readConnAck(KprSocketReader reader, void *refcon)
 {
 	KprMQTTEndpoint self = (KprMQTTEndpoint)refcon;
 	FskErr err = kFskErrNone;
-	UInt16 value;
+	UInt8 values[2];
 
-	err = KprMQTTEndpoint_readUInt16(self, &value);
+	err = KprMQTTEndpoint_readBytes(self, values, sizeof(values));
 	if (err != kFskErrNone) return err;
 
-	self->message->t.connack.returnCode = value;
+	self->message->t.connack.sesstionPresent = values[0] * 0x01;
+	self->message->t.connack.returnCode = values[1];
 
 	KprSocketReaderSetState(reader, kKprMQTTEndpoint_completeState);
 
@@ -770,9 +790,8 @@ static FskErr KprMQTTEndpoint_readSubscribeTopic(KprSocketReader reader, void *r
 	err = KprMQTTEndpoint_readString(self, &topic);
 	if (err != kFskErrNone) return err;
 
-	bailIfError(KprMQTTMessageAddSubscribeTopic(self->message));
+	bailIfError(KprMQTTMessageAddSubscribeTopic(self->message, &subscriptTopic));
 
-	subscriptTopic = KprMQTTMessageLastSubscribeTopic(self->message);
 	subscriptTopic->topic = topic;
 	topic = NULL;
 
@@ -828,9 +847,8 @@ static FskErr KprMQTTEndpoint_readSubackQoS(KprSocketReader reader, void *refcon
 	err = KprMQTTEndpoint_readUInt8(self, &qos);
 	if (err != kFskErrNone) return err;
 
-	bailIfError(KprMQTTMessageAddSubscribeTopic(self->message));
+	bailIfError(KprMQTTMessageAddSubscribeTopic(self->message, &subscriptTopic));
 
-	subscriptTopic = KprMQTTMessageLastSubscribeTopic(self->message);
 	subscriptTopic->qualityOfService = qos;
 
 	if (self->reading.readLength >= self->reading.remainingLength) {
@@ -864,9 +882,8 @@ static FskErr KprMQTTEndpoint_readUnsubscribeTopic(KprSocketReader reader, void 
 	err = KprMQTTEndpoint_readString(self, &topic);
 	if (err != kFskErrNone) return err;
 
-	bailIfError(KprMQTTMessageAddSubscribeTopic(self->message));
+	bailIfError(KprMQTTMessageAddSubscribeTopic(self->message, &subscriptTopic));
 
-	subscriptTopic = KprMQTTMessageLastSubscribeTopic(self->message);
 	subscriptTopic->topic = topic;
 	topic = NULL;
 

@@ -52,13 +52,25 @@ void xs_pwm_init(xsMachine* the)
 
 void xs_pwm_write(xsMachine* the)
 {
-
+    SInt32 argc;
 	FskErr err;
-	double value = xsToNumber(xsArg(0));
+    double dutyCyclePercent;
+    int dutyCycle;
+    int period;
     FskPinPWM pwm = xsGetHostData(xsThis);
     if (!pwm) return;
 
-	err = FskPinPWMSetDutyCycle(pwm, value);
+    argc = xsToInteger(xsArgc);
+    
+    if (argc == 1){
+        dutyCyclePercent = xsToNumber(xsArg(0));
+        err = FskPinPWMSetDutyCycle(pwm, dutyCyclePercent);
+    }else if(argc >= 2){
+        dutyCycle = xsToInteger(xsArg(0));
+        period = xsToInteger(xsArg(1));
+        err = FskPinPWMSetDutyCycleAndPeriod(pwm, dutyCycle, period);
+    }
+	
 	xsThrowDiagnosticIfFskErr(err, "PWM write of pin %d failed with error %d.", (int)-1, FskInstrumentationGetErrorString(err));
 }
 

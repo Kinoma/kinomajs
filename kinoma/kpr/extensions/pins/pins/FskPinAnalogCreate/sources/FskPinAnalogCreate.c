@@ -63,7 +63,7 @@ static const uint8_t a2dpins[8] = {0x16, 0x18, 0x1A, 0x1C, 0x1E, 0x20, 0x22, 0x2
 
 Boolean createFrontAnalogCanHandle(SInt32 number, const char *name, SInt32 *remappedNumber)
 {
-	return FskHardwarePinsMux(number, kFskHardwarePinADC) >= FRONTOFFSET;
+	return (66 >= number) && (number >= 51);
 }
 
 FskErr createFrontAnalogNew(FskPinAnalog *pin, SInt32 number, const char *name)
@@ -80,10 +80,10 @@ FskErr createFrontAnalogNew(FskPinAnalog *pin, SInt32 number, const char *name)
 		return err;
 	}
 
-	cfa->pin = FskHardwarePinsMux(number, kFskHardwarePinADC) - FRONTOFFSET;
+	cfa->pin = number - 51;
 	cfa->address = (cfa->pin < 8) ? a2dAddr1 : a2dAddr2;
-	cfa->pin &= 7;
-
+	cfa->pin = 7 - (cfa->pin & 7);
+//@@ this is odd.... this makes it an analog pin. seems like we should be checking that it is an analog pin, rather than forcing it
 	FskHardwarePinsDoMux(cfa->pin, cfa->address, 3);
 
 	*pin = (FskPinAnalog)cfa;
@@ -102,12 +102,12 @@ FskErr createFrontAnalogRead(FskPinAnalog pin, double *value)
 {
 	createFrontAnalog cfa = (createFrontAnalog)pin;
 	FskErr err;
-	UInt8 readValue;
+	UInt16 readValue;
 
 	err = FskPinI2CSetAddress(cfa->i2c, cfa->address);
 	if (err) return err;
 
-	err = FskPinI2CReadDataByte(cfa->i2c, a2dpins[cfa->pin], &readValue);
+	err = FskPinI2CReadDataWord(cfa->i2c, a2dpins[cfa->pin], &readValue);
 	if (err) return err;
 
 	*value = ((double)readValue) / 1023.0;
@@ -118,17 +118,17 @@ FskErr createFrontAnalogRead(FskPinAnalog pin, double *value)
 Boolean createBackAnalogCanHandle(SInt32 number, const char *name, SInt32 *remappedNumber)
 {
 	switch (number) {
-		case 38: *remappedNumber = 51; return true;
-		case 37: *remappedNumber = 52; return true;
-		case 40: *remappedNumber = 53; return true;
-		case 39: *remappedNumber = 54; return true;
-		case 44: *remappedNumber = 55; return true;
-		case 43: *remappedNumber = 56; return true;
-		case 48: *remappedNumber = 57; return true;
-		case 47: *remappedNumber = 58; return true;
+		case 38: *remappedNumber = 51; break;
+		case 37: *remappedNumber = 52; break;
+		case 40: *remappedNumber = 53; break;
+		case 39: *remappedNumber = 54; break;
+		case 44: *remappedNumber = 55; break;
+		case 43: *remappedNumber = 56; break;
+		case 48: *remappedNumber = 57; break;
+		case 47: *remappedNumber = 58; break;
 	}
 
-	return true;
+	return false;
 }
 
 /*

@@ -94,27 +94,13 @@ class Manifest extends CMAKE.Manifest {
 			TMP_DIR: tmp,
 			
 			APP_NAME: tool.application,
-			RESOURCE: FS.existsSync(resource) ? resource : "$(F_HOME)\\kinoma\\kpr\\cmake\\win\\resource.rc",
+			RESOURCE: FS.existsSync(resource) ? resource : "$(F_HOME)\\build\\win\\resource.rc",
 			// FskPlatform.mk
 			BUILD_TMP: tmp,
 		};
 	}
 	getTargetRules(tool) {
-		return `LIST(APPEND SOURCES \${RESOURCE})
-add_executable(\${APP_NAME} WIN32 \${SOURCES} \${FskPlatform_SOURCES})
-target_link_libraries(\${APP_NAME} \${LIBRARIES} \${OBJECTS})
-
-add_custom_target(
-	Assemble
-	ALL
-	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${RES_DIR}/ \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy_directory \${TMP_DIR}/app \$<TARGET_FILE_DIR:\${APP_NAME}>
-	COMMAND \${CMAKE_COMMAND} -E make_directory \${APP_DIR}
-	COMMAND \${CMAKE_COMMAND} -E copy \$<TARGET_FILE:\${APP_NAME}> \${APP_DIR}
-	DEPENDS \${APP_NAME} FskManifest.xsa
-	)
-`;
+		return "BUILD()";
 	}
 };
 

@@ -290,14 +290,14 @@ FskAPI(FskCanvas)	FskCanvas2dGetCanvas(FskCanvas2dContext ctx);
 
 
 /** Push state onto the state stack.
- *	\param[in]	ctx		The Canvas 2d context.
+ *	\param[in,out]	ctx		The Canvas 2d context.
  *	\return	kFskErrNone	if the state was saved successfully.
  */
 FskAPI(FskErr)	FskCanvas2dSave(FskCanvas2dContext ctx);
 
 
 /** Pop the state stack and restore state to its value prior to the the last Save.
- *	\param[in]	ctx		The Canvas 2d context.
+ *	\param[in,out]	ctx		The Canvas 2d context.
  *	\return	kFskErrNone	if the state was restored successfully.
  */
 FskAPI(FskErr)	FskCanvas2dRestore(FskCanvas2dContext ctx);
@@ -321,8 +321,8 @@ FskAPI(UInt32)	FskCanvas2dGetQuality(FskConstCanvas2dContext ctx);
 
 /** Set quality of the rendering.
  *	This is an enhancement beyond that in the Canvas 2d specification.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	quality	The desired quality: 0 for low quality, 1 for high quality.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		quality	The desired quality: 0 for low quality, 1 for high quality.
  *						The default is high quality.
  */
 FskAPI(void)	FskCanvas2dSetQuality(FskCanvas2dContext ctx, UInt32 quality);
@@ -334,25 +334,25 @@ FskAPI(void)	FskCanvas2dSetQuality(FskCanvas2dContext ctx, UInt32 quality);
 
 
 /** Scale the current transform.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	x		The scale to be applied to the X dimension.
- *	\param[in]	y		The scale to be applied to the Y dimension.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		x		The scale to be applied to the X dimension.
+ *	\param[in]		y		The scale to be applied to the Y dimension.
  */
 FskAPI(void)	FskCanvas2dScale(FskCanvas2dContext ctx, double x, double y);
 
 
 /** Rotate the current transform.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	angle	The angle by which to rotate.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		angle	The angle by which to rotate.
  *						This is specified in radians measured from the X-axis toward the Y-axis.
  */
 FskAPI(void)	FskCanvas2dRotate(FskCanvas2dContext ctx, double angle);
 
 
 /** Translate the current transform.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	x		The translation to be applied to the X dimension.
- *	\param[in]	y		The translation to be applied to the Y dimension.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		x		The translation to be applied to the X dimension.
+ *	\param[in]		y		The translation to be applied to the Y dimension.
  */
 FskAPI(void)	FskCanvas2dTranslate(FskCanvas2dContext ctx, double x, double y);
 
@@ -372,33 +372,33 @@ FskAPI(void)	FskCanvas2dTranslate(FskCanvas2dContext ctx, double x, double y);
 	\endverbatim
  *	Some call this "pre-" or "reverse" concatenation, and seems to be more natural in a procedural environment.
  *	It performs increasingly local transformations.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	a		the isotropic X scale.
- *	\param[in]	b		the X-to-Y skew.
- *	\param[in]	c		the Y-toX skew.
- *	\param[in]	d		the isotropic Y scale.
- *	\param[in]	e		the X-translation.
- *	\param[in]	f		the Y-translation.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		a		the isotropic X scale.
+ *	\param[in]		b		the X-to-Y skew.
+ *	\param[in]		c		the Y-toX skew.
+ *	\param[in]		d		the isotropic Y scale.
+ *	\param[in]		e		the X-translation.
+ *	\param[in]		f		the Y-translation.
  */
 FskAPI(void)	FskCanvas2dTransform(FskCanvas2dContext ctx, double a, double b, double c, double d, double e, double f);
 
 
 /** Set the current transform.
  *	The transform is set directly, not concatenated.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	a		the isotropic X scale.
- *	\param[in]	b		the X-to-Y skew.
- *	\param[in]	c		the Y-toX skew.
- *	\param[in]	d		the isotropic Y scale.
- *	\param[in]	e		the X-translation.
- *	\param[in]	f		the Y-translation.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		a		the isotropic X scale.
+ *	\param[in]		b		the X-to-Y skew.
+ *	\param[in]		c		the Y-toX skew.
+ *	\param[in]		d		the isotropic Y scale.
+ *	\param[in]		e		the X-translation.
+ *	\param[in]		f		the Y-translation.
  */
 FskAPI(void)	FskCanvas2dSetTransform(FskCanvas2dContext ctx, double a, double b, double c, double d, double e, double f);
 
 
 /** Get the current transform.
  *	\param[in]	ctx			The Canvas 2d context.
- *	\param[out]	transform	The current transform.
+ *	\param[out]		transform	The current transform.
  *	\note	Calling FskCanvas2dSetTransform() then FskCanvas2dGetTransform()
  *			may result in different values due to quantization in the implementation.
  */
@@ -407,13 +407,13 @@ FskAPI(void)	FskCanvas2dGetTransform(FskCanvas2dContext ctx, double transform[6]
 
 /** Set the current device transform.
  *	This is concatenated on the global side, i.e. post-concatenanation.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	a		the isotropic X scale.
- *	\param[in]	b		the X-to-Y skew.
- *	\param[in]	c		the Y-toX skew.
- *	\param[in]	d		the isotropic Y scale.
- *	\param[in]	e		the X-translation.
- *	\param[in]	f		the Y-translation.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		a		the isotropic X scale.
+ *	\param[in]		b		the X-to-Y skew.
+ *	\param[in]		c		the Y-toX skew.
+ *	\param[in]		d		the isotropic Y scale.
+ *	\param[in]		e		the X-translation.
+ *	\param[in]		f		the Y-translation.
  *	\return		kFskErrNone				if the system transform was set successfully.
  *	\return		kFskErrUnimplemented	if the class of transformation is not supported.
  *	\note		The intent is to use this to support current isotropic scaling by 1.0X, 1.5X, and 2.0X,
@@ -444,8 +444,8 @@ FskAPI(double)	FskCanvas2dGetGlobalAlpha(FskConstCanvas2dContext ctx);
 
 
 /** Set the global alpha.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	alpha		The desired global alpha.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		alpha		The desired global alpha.
  */
 FskAPI(void)	FskCanvas2dSetGlobalAlpha(FskCanvas2dContext ctx, double alpha);
 
@@ -459,8 +459,8 @@ FskAPI(UInt32)	FskCanvas2dGetGlobalCompositeOperation(FskConstCanvas2dContext ct
 
 
 /** Set the global composition operation.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	op			The desired Porter-Duff composition operation.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		op			The desired Porter-Duff composition operation.
  */
 FskAPI(void)	FskCanvas2dSetGlobalCompositeOperation(FskCanvas2dContext ctx, UInt32 op);
 
@@ -487,8 +487,8 @@ FskAPI(const FskColorSource*)	FskCanvas2dGetStrokeStyle(FskConstCanvas2dContext 
 
 
 /** Set the current stroke style as a color source.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	cs			The desired color source to be used for stroking paths.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		cs			The desired color source to be used for stroking paths.
  *	\see		FskColorSource
  *	\see		FskPolygon.h
  *	\bug		In this implementation,  dashes   are restricted to at most kCanvas2DMaxDashCycles (4) cycles.
@@ -509,8 +509,8 @@ FskAPI(const FskColorSource*)	FskCanvas2dGetFillStyle(FskConstCanvas2dContext ct
 
 
 /** Set the current fill style as a color source.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	cs			The desired color source to be used for filling paths.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		cs			The desired color source to be used for filling paths.
  *	\see		FskColorSource
  *	\see		FskPolygon.h
  *	\bug		In this implementation,  dashes   are restricted to at most kCanvas2DMaxDashCycles (4) cycles.
@@ -521,27 +521,27 @@ FskAPI(void)	FskCanvas2dSetFillStyle(FskCanvas2dContext ctx, const FskColorSourc
 
 
 /** Convenience interface to set the fill style to a constant color.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	color		Pointer to an FskColorRGBARecord that specifies the desired fill color.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		color		Pointer to an FskColorRGBARecord that specifies the desired fill color.
  */
 FskAPI(void)	FskCanvas2dSetFillStyleColor(  FskCanvas2dContext ctx, FskConstColorRGBA color);
 
 
 /** Convenience interface to set the stroke style to a constant color.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	color		Pointer to an FskColorRGBARecord that specifies the desired stroke color.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		color		Pointer to an FskColorRGBARecord that specifies the desired stroke color.
  */
 FskAPI(void)	FskCanvas2dSetStrokeStyleColor(FskCanvas2dContext ctx, FskConstColorRGBA color);
 
 
 /** Convenience interface to set the fill style to a linear gradient.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	x0			The X-coordinate of the beginning of the linear gradient.
- *	\param[in]	y0			The Y-coordinate of the beginning of the linear gradient.
- *	\param[in]	x1			The X-coordinate of the end of the linear gradient.
- *	\param[in]	y1			The Y-coordinate of the end of the linear gradient.
- *	\param[in]	numStops	The number of stops used to specify the gradient.
- *	\param[in]	stops		The color stops used to define the gradient.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		x0			The X-coordinate of the beginning of the linear gradient.
+ *	\param[in]		y0			The Y-coordinate of the beginning of the linear gradient.
+ *	\param[in]		x1			The X-coordinate of the end of the linear gradient.
+ *	\param[in]		y1			The Y-coordinate of the end of the linear gradient.
+ *	\param[in]		numStops	The number of stops used to specify the gradient.
+ *	\param[in]		stops		The color stops used to define the gradient.
  *	\return		kFskErrNone		If the gradient fill style was successfully set.
  *	\return		kFskErrTooMany	If too many stops were specified.
  *	\note		(x0,y0) and (x1,y1) set up a 1-dimensional coordinate system,
@@ -556,13 +556,13 @@ FskAPI(FskErr)	FskCanvas2dSetFillStyleLinearGradient(	FskCanvas2dContext ctx,
 
 
 /** Convenience interface to set the stroke style to a linear gradient.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	x0			The X-coordinate of the beginning of the linear gradient.
- *	\param[in]	y0			The Y-coordinate of the beginning of the linear gradient.
- *	\param[in]	x1			The X-coordinate of the end of the linear gradient.
- *	\param[in]	y1			The Y-coordinate of the end of the linear gradient.
- *	\param[in]	numStops	The number of stops used to specify the gradient.
- *	\param[in]	stops		The color stops used to define the gradient.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		x0			The X-coordinate of the beginning of the linear gradient.
+ *	\param[in]		y0			The Y-coordinate of the beginning of the linear gradient.
+ *	\param[in]		x1			The X-coordinate of the end of the linear gradient.
+ *	\param[in]		y1			The Y-coordinate of the end of the linear gradient.
+ *	\param[in]		numStops	The number of stops used to specify the gradient.
+ *	\param[in]		stops		The color stops used to define the gradient.
  *	\return		kFskErrNone		If the gradient stroke style was successfully set.
  *	\return		kFskErrTooMany	If too many stops were specified.
  *	\note		(x0,y0) and (x1,y1) set up a 1-dimensional coordinate system,
@@ -577,15 +577,15 @@ FskAPI(FskErr)	FskCanvas2dSetStrokeStyleLinearGradient(FskCanvas2dContext ctx,
 
 
 /** Convenience interface to set the fill style to a radial gradient.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	x0			The X-coordinate of the focus of the inner circle of the radial gradient.
- *	\param[in]	y0			The Y-coordinate of the focus of the inner circle of the radial gradient.
- *	\param[in]	r0			The radius of the inner circle of the radial gradient.
- *	\param[in]	x1			The X-coordinate of the center of the outer circle of the radial gradient.
- *	\param[in]	y1			The Y-coordinate of the center of the outer circle of the radial gradient.
- *	\param[in]	r1			The radius of the outer circle of the radial gradient.
- *	\param[in]	numStops	The number of stops used to specify the gradient.
- *	\param[in]	stops		The color stops used to define the gradient.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		x0			The X-coordinate of the focus of the inner circle of the radial gradient.
+ *	\param[in]		y0			The Y-coordinate of the focus of the inner circle of the radial gradient.
+ *	\param[in]		r0			The radius of the inner circle of the radial gradient.
+ *	\param[in]		x1			The X-coordinate of the center of the outer circle of the radial gradient.
+ *	\param[in]		y1			The Y-coordinate of the center of the outer circle of the radial gradient.
+ *	\param[in]		r1			The radius of the outer circle of the radial gradient.
+ *	\param[in]		numStops	The number of stops used to specify the gradient.
+ *	\param[in]		stops		The color stops used to define the gradient.
  *	\return		kFskErrNone		If the gradient fill style was successfully set.
  *	\return		kFskErrTooMany	If too many stops were specified.
  *	\note		(x0,y0,r0) and (x1,y1,r1) set up a 1-dimensional coordinate system,
@@ -601,15 +601,15 @@ FskAPI(FskErr)	FskCanvas2dSetFillStyleRadialGradient(	FskCanvas2dContext ctx,
 
 
 /** Convenience interface to set the stroke style to a radial gradient.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	x0			The X-coordinate of the focus of the inner circle of the radial gradient.
- *	\param[in]	y0			The Y-coordinate of the focus of the inner circle of the radial gradient.
- *	\param[in]	r0			The radius of the inner circle of the radial gradient.
- *	\param[in]	x1			The X-coordinate of the center of the outer circle of the radial gradient.
- *	\param[in]	y1			The Y-coordinate of the center of the outer circle of the radial gradient.
- *	\param[in]	r1			The radius of the outer circle of the radial gradient.
- *	\param[in]	numStops	The number of stops used to specify the gradient.
- *	\param[in]	stops		The color stops used to define the gradient.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		x0			The X-coordinate of the focus of the inner circle of the radial gradient.
+ *	\param[in]		y0			The Y-coordinate of the focus of the inner circle of the radial gradient.
+ *	\param[in]		r0			The radius of the inner circle of the radial gradient.
+ *	\param[in]		x1			The X-coordinate of the center of the outer circle of the radial gradient.
+ *	\param[in]		y1			The Y-coordinate of the center of the outer circle of the radial gradient.
+ *	\param[in]		r1			The radius of the outer circle of the radial gradient.
+ *	\param[in]		numStops	The number of stops used to specify the gradient.
+ *	\param[in]		stops		The color stops used to define the gradient.
  *	\return		kFskErrNone		If the gradient stroke style was successfully set.
  *	\return		kFskErrTooMany	If too many stops were specified.
  *	\note		(x0,y0,r0) and (x1,y1,r1) set up a 1-dimensional coordinate system,
@@ -625,20 +625,20 @@ FskAPI(FskErr)	FskCanvas2dSetStrokeStyleRadialGradient(FskCanvas2dContext ctx,
 
 
 /** Convenience interface to set the fill style to a pattern.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	repetition	What to do outside of the pattern's principal domain:
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		repetition	What to do outside of the pattern's principal domain:
  *							kFskCanvas2dPatternRepeatNone, kFskCanvas2dPatternRepeatX, kFskCanvas2dPatternRepeatY, kFskCanvas2dPatternRepeat.
- *	\param[in]	pattern		The image to be used as a pattern for filling.
+ *	\param[in]		pattern		The image to be used as a pattern for filling.
  *	\return		kFskErrNone		If the pattern fill style was successfully set.
  */
 FskAPI(FskErr)	FskCanvas2dSetFillStylePattern(  FskCanvas2dContext ctx, UInt32 repetition, FskConstBitmap pattern /*, const FskCanvasMatrix3x2d *M*/);
 
 
 /** Convenience interface to set the stroke style to a pattern.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	repetition	What to do outside of the pattern's principal domain:
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		repetition	What to do outside of the pattern's principal domain:
  *							kFskCanvas2dPatternRepeatNone, kFskCanvas2dPatternRepeatX, kFskCanvas2dPatternRepeatY, kFskCanvas2dPatternRepeat.
- *	\param[in]	pattern		The image to be used as a pattern for filling.
+ *	\param[in]		pattern		The image to be used as a pattern for filling.
  *	\return		kFskErrNone		If the pattern stroke style was successfully set.
  */
 FskAPI(FskErr)	FskCanvas2dSetStrokeStylePattern(FskCanvas2dContext ctx, UInt32 repetition, FskConstBitmap pattern /*, const FskCanvasMatrix3x2d *M*/);
@@ -658,8 +658,8 @@ FskAPI(double)	FskCanvas2dGetLineWidth(FskConstCanvas2dContext ctx);
 
 
 /** Set the current stroke line width.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	w			The desired stroke line width.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		w			The desired stroke line width.
  */
 FskAPI(void)	FskCanvas2dSetLineWidth(FskCanvas2dContext ctx, double w);
 
@@ -674,8 +674,8 @@ FskAPI(UInt32)	FskCanvas2dGetLineCap(FskConstCanvas2dContext ctx);
 
 
 /** Set the current type of cap used on ends of lines.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	lineCap		The desired type of line cap {kFskCanvas2dLineCapRound, kFskCanvas2dLineCapSquare, kFskCanvas2dLineCapButt};
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		lineCap		The desired type of line cap {kFskCanvas2dLineCapRound, kFskCanvas2dLineCapSquare, kFskCanvas2dLineCapButt};
  */
 FskAPI(void)	FskCanvas2dSetLineCap(FskCanvas2dContext ctx, UInt32 lineCap);
 
@@ -690,8 +690,8 @@ FskAPI(UInt32)	FskCanvas2dGetLineJoin(FskConstCanvas2dContext ctx);
 
 
 /** Set the current type of join used between linear segments.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	joinType	The type of join desired between linear segments.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		joinType	The type of join desired between linear segments.
  *	\return		The current type of join used between linear segments
  *				{ kFskCanvas2dLineJoinRound, kFskCanvas2dLineJoinBevel, kFskCanvas2dLineJoinMiter }.
  */
@@ -711,8 +711,8 @@ FskAPI(double)	FskCanvas2dGetMiterLimit(FskConstCanvas2dContext ctx);
 
 
 /** Set the current miter limit.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	miterLimit	The desired miter limit.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		miterLimit	The desired miter limit.
  */
 FskAPI(void)	FskCanvas2dSetMiterLimit(FskCanvas2dContext ctx, double miterLimit);
 
@@ -730,8 +730,8 @@ FskAPI(double)	FskCanvas2dGetShadowOffsetX(FskConstCanvas2dContext ctx);
 
 
 /** Set the current X component of the shadow offset.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	ox		The desired X component of the shadow offset.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		ox		The desired X component of the shadow offset.
  */
 FskAPI(void)	FskCanvas2dSetShadowOffsetX(FskCanvas2dContext ctx, double ox);
 
@@ -744,8 +744,8 @@ FskAPI(double)	FskCanvas2dGetShadowOffsetY(FskConstCanvas2dContext ctx);
 
 
 /** Set the current Y component of the shadow offset.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	oy		The desired Y component of the shadow offset.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		oy		The desired Y component of the shadow offset.
  */
 FskAPI(void)	FskCanvas2dSetShadowOffsetY(FskCanvas2dContext ctx, double oy);
 
@@ -759,8 +759,8 @@ FskAPI(double)	FskCanvas2dGetShadowBlur(FskConstCanvas2dContext ctx);
 
 
 /** Set the current Gaussian sigma for the shadow blur.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	blur	The desired value of Gaussian sigma to be use for shadow blurring.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		blur	The desired value of Gaussian sigma to be use for shadow blurring.
  */
 FskAPI(void)	FskCanvas2dSetShadowBlur(FskCanvas2dContext ctx, double blur);
 
@@ -773,8 +773,8 @@ FskAPI(FskConstColorRGBA)	FskCanvas2dGetShadowColor(FskConstCanvas2dContext ctx)
 
 
 /** Set the current shadow color.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	color	The desired shadow color.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		color	The desired shadow color.
  */
 FskAPI(void)	FskCanvas2dSetShadowColor(FskCanvas2dContext ctx, FskConstColorRGBA color);
 
@@ -869,32 +869,32 @@ FskAPI(FskErr)	FskCanvas2dPathNew(FskCanvas2dPath *pPath);
 
 
 /** Dispose a path.
- *	\param[out]	path		The path to dispose.
+ *	\param[in]	path		The path to dispose.
  */
 FskAPI(void)	FskCanvas2dPathDispose(FskCanvas2dPath path);
 
 
 /** Reset the path.
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
  *	\return		kFskErrNone	If the current path was successfully reset and initialized to the null path.
  */
 FskAPI(FskErr)	FskCanvas2dPathBegin(FskCanvas2dContext ctx, FskCanvas2dPath path);
 
 
 /** Close the given path to the most recent MoveTo or equivalent.
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
  *	\return		kFskErrNone	If the current path was successfully closed.
  */
 FskAPI(FskErr)	FskCanvas2dPathClose(FskCanvas2dContext ctx, FskCanvas2dPath path);
 
 
 /** Set the current point in the given path.
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	x			The desired X-coordinate of the current point.
- *	\param[in]	y			The desired Y-coordinate of the current point.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		x			The desired X-coordinate of the current point.
+ *	\param[in]		y			The desired Y-coordinate of the current point.
  *	\return		kFskErrNone	If the current point was successfully set.
  *	\note		The path is not implicitly closed.
  */
@@ -904,10 +904,10 @@ FskAPI(FskErr)	FskCanvas2dPathMoveTo(FskCanvas2dContext ctx, FskCanvas2dPath pat
 /** Append a linear segment to the given path.
  *	The segment extends from the current point to (x, y).
  *	Afterward, the current point is updated to (x, y).
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	x			The X-coordinate of the far end of the new linear segment.
- *	\param[in]	y			The Y-coordinate of the far end of the new linear segment.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		x			The X-coordinate of the far end of the new linear segment.
+ *	\param[in]		y			The Y-coordinate of the far end of the new linear segment.
  *	\return		kFskErrNone	If the linear segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathLineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y);
@@ -917,13 +917,13 @@ FskAPI(FskErr)	FskCanvas2dPathLineTo(FskCanvas2dContext ctx, FskCanvas2dPath pat
  *	The segment extends from the current point to (x, y),
  *	and its shape is controlled by the Bezier control point (cpx, cpy).
  *	Afterward, the current point is updated to (x, y).
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	cpx			The X-coordinate of the quadratic Bezier control point.
- *	\param[in]	cpy			The Y-coordinate of the quadratic Bezier control point.
- *	\param[in]	y			The Y-coordinate of the far end of the new quadratic Bezier segment.
- *	\param[in]	x			The X-coordinate of the far end of the new quadratic Bezier segment.
- *	\param[in]	y			The Y-coordinate of the far end of the new quadratic Bezier segment.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		cpx			The X-coordinate of the quadratic Bezier control point.
+ *	\param[in]		cpy			The Y-coordinate of the quadratic Bezier control point.
+ *	\param[in]		y			The Y-coordinate of the far end of the new quadratic Bezier segment.
+ *	\param[in]		x			The X-coordinate of the far end of the new quadratic Bezier segment.
+ *	\param[in]		y			The Y-coordinate of the far end of the new quadratic Bezier segment.
  *	\return		kFskErrNone	If the quadratic segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathQuadraticCurveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double cpx, double cpy, double x, double y);
@@ -932,14 +932,14 @@ FskAPI(FskErr)	FskCanvas2dPathQuadraticCurveTo(FskCanvas2dContext ctx, FskCanvas
 /** Append a cubic Bezier segment to the given path.
  *	The segment extends from the current point to (x, y).
  *	Afterward, the current point is updated to (x, y).
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	cp1x		The X-coordinate of the first  cubic Bezier control point.
- *	\param[in]	cp1y		The Y-coordinate of the first  cubic Bezier control point.
- *	\param[in]	cp2x		The X-coordinate of the second cubic Bezier control point.
- *	\param[in]	cp2y		The Y-coordinate of the second cubic Bezier control point.
- *	\param[in]	x			The X-coordinate of the far end of the new cubic Bezier segment.
- *	\param[in]	y			The Y-coordinate of the far end of the new cubic Bezier segment.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		cp1x		The X-coordinate of the first  cubic Bezier control point.
+ *	\param[in]		cp1y		The Y-coordinate of the first  cubic Bezier control point.
+ *	\param[in]		cp2x		The X-coordinate of the second cubic Bezier control point.
+ *	\param[in]		cp2y		The Y-coordinate of the second cubic Bezier control point.
+ *	\param[in]		x			The X-coordinate of the far end of the new cubic Bezier segment.
+ *	\param[in]		y			The Y-coordinate of the far end of the new cubic Bezier segment.
  *	\return		kFskErrNone	If the cubic segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathCubicCurveTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double cp1x, double cp1y, double cp2x, double cp2y, double x, double y);
@@ -950,14 +950,14 @@ FskAPI(FskErr)	FskCanvas2dPathCubicCurveTo(FskCanvas2dContext ctx, FskCanvas2dPa
  *	however, it is ambiguous because we have both quadratic and cubic (and linear) Bezier segments.
  *	The segment extends from the current point to (x, y).
  *	Afterward, the current point is updated to (x, y).
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	cp1x		The X-coordinate of the first  cubic Bezier control point.
- *	\param[in]	cp1y		The Y-coordinate of the first  cubic Bezier control point.
- *	\param[in]	cp2x		The X-coordinate of the second cubic Bezier control point.
- *	\param[in]	cp2y		The Y-coordinate of the second cubic Bezier control point.
- *	\param[in]	x			The X-coordinate of the far end of the new cubic Bezier segment.
- *	\param[in]	y			The Y-coordinate of the far end of the new cubic Bezier segment.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		cp1x		The X-coordinate of the first  cubic Bezier control point.
+ *	\param[in]		cp1y		The Y-coordinate of the first  cubic Bezier control point.
+ *	\param[in]		cp2x		The X-coordinate of the second cubic Bezier control point.
+ *	\param[in]		cp2y		The Y-coordinate of the second cubic Bezier control point.
+ *	\param[in]		x			The X-coordinate of the far end of the new cubic Bezier segment.
+ *	\param[in]		y			The Y-coordinate of the far end of the new cubic Bezier segment.
  *	\return		kFskErrNone	If the cubic segment was successfully appended.
  */
 #define	FskCanvas2dPathBezierCurveTo(ctx, path, cp1x, cp1y, cp2x, cp2y, x, y) FskCanvas2dPathCubicCurveTo(ctx, path, cp1x, cp1y, cp2x, cp2y, x, y)
@@ -973,108 +973,154 @@ FskAPI(FskErr)	FskCanvas2dPathCubicCurveTo(FskCanvas2dContext ctx, FskCanvas2dPa
  *	Note that the purpose of p2 is only to specify a guideline of tangency,
  *	and that no segment is drawn between the end point and p2.
  *	Once can consider this a fillet at (x1, y1).
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	x1			The X-coordinate of the "corner" of the arc.
- *	\param[in]	y1			The Y-coordinate of the "corner" of the arc.
- *	\param[in]	x2			Helps to specify the exit tangent X-component.
- *	\param[in]	y2			Helps to specify the exit tangent Y-component.
- *	\param[in]	radius		The radius of the arc (fillet).
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		x1			The X-coordinate of the "corner" of the arc.
+ *	\param[in]		y1			The Y-coordinate of the "corner" of the arc.
+ *	\param[in]		x2			Helps to specify the exit tangent X-component.
+ *	\param[in]		y2			Helps to specify the exit tangent Y-component.
+ *	\param[in]		radius		The radius of the arc (fillet).
  *	\return		kFskErrNone	If the circular arc segment was successfully appended.
  *	\par	Example: Rounded Rect(x0, y0, x1, y1, r)
  *	\code
- *	FskCanvas2dMoveTo(ctx, (x0+x1)*.5, y0);		// mid top edge
- *	FskCanvas2dArcTo(ctx, x1, y0, x1, y1, r);	// upper right corner
- *	FskCanvas2dArcTo(ctx, x1, y1, x0, y1, r);	// lower right corner
- *	FskCanvas2dArcTo(ctx, x0, y1, x0, y0, r);	// lower left corner
- *	FskCanvas2dArcTo(ctx, x0, y0, x1, y0, r);	// upper left corner
- *	FskCanvas2dClosePath(ctx);			// stroke back to mid top edge
+ *	FskCanvas2dPathMoveTo(ctx, NULL, x1-r, y0);					// start of first arc
+ *	FskCanvas2dPathArcTo( ctx, NULL, x1, y0, x1,   y0+r, r);	// upper right corner
+ *	FskCanvas2dPathArcTo( ctx, NULL, x1, y1, x1-r, y1,   r);	// lower right corner
+ *	FskCanvas2dPathArcTo( ctx, NULL, x0, y1, x0,   y1-r, r);	// lower left corner
+ *	FskCanvas2dPathArcTo( ctx, NULL, x0, y0, x0+r, y0,   r);	// upper left corner
+ *	FskCanvas2dPathClose(ctx, NULL);							// stroke back to first arc
+ *	\endcode
+ *	The following can also be used to generate rounded rects:
+ *	\code
+ *	FskCanvas2dPathMoveTo(ctx, NULL, x1-r, y0);					// start of first arc
+ *	FskCanvas2dPathArcTo( ctx, NULL, x1, y0, x1, y1, r);		// upper right corner
+ *	FskCanvas2dPathArcTo( ctx, NULL, x1, y1, x0, y1, r);		// lower right corner
+ *	FskCanvas2dPathArcTo( ctx, NULL, x0, y1, x0, y0, r);		// lower left corner
+ *	FskCanvas2dPathArcTo( ctx, NULL, x0, y0, x1, y0, r);		// upper left corner
+ *	FskCanvas2dPathClose(ctx, NULL);							// stroke back to first arc
  *	\endcode
  */
 FskAPI(FskErr)	FskCanvas2dPathArcTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x1, double y1, double x2, double y2, double radius);
 
 
+/** Append an elliptical  arc segment to the given path.
+ * Let The Arc be the shortest arc given by circumference of the ellipse that has radius radiusX on the major axis and radius radiusY on the minor axis,
+ * and whose semi-major axis is rotated rotation radians clockwise from the positive x-axis,
+ * and that has   one       point tangent to the half-infinite line that crosses the point (x0, y0) and ends at the point (x1, y1),
+ * and that has a different point tangent to the half-infinite line that ends at the point (x1, y1) and crosses the point (x2, y2).
+ * The points at which this ellipse touches these two lines are called the start and end tangent points respectively.
+ * The method must connect the point (x0, y0) to the start tangent point by a straight line, adding the start tangent point to the subpath,
+ * and then must connect the start tangent point to the end tangent point by The Arc, adding the end tangent point to the subpath.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		x1			The X-coordinate of the "corner" of the arc.
+ *	\param[in]		y1			The Y-coordinate of the "corner" of the arc.
+ *	\param[in]		x2			Helps to specify the exit tangent X-component.
+ *	\param[in]		y2			Helps to specify the exit tangent Y-component.
+ *	\param[in]		radiusX		The X-radius of the elliptical arc (fillet).
+ *	\param[in]		radiusY		The Y-radius of the elliptical arc.
+ *	\param[in]		rotation	The rotation of the elliptical arc.
+ *	\return		kFskErrNone	If the circular arc segment was successfully appended.
+ */
+FskAPI(FskErr)	FskCanvas2dPathEllipticalArcTo(FskCanvas2dContext ctx, FskCanvas2dPath path, double x1, double y1, double x2, double y2, double radiusX, double radiusY, double rotation);
+
+
 /** Append a circular arc to the given path.
  *	If a previous subpath exists, then a straight line is first drawn
  *	from the current point to the starting point on the arc.
- *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path	The path. NULL implies the path in the context.
- *	\param[in]	cx		The X-coordinate of the center of the arc.
- *	\param[in]	cy		The Y-coordinate of the center of the arc.
- *	\param[in]	radius	The radius of the arc.
- *	\param[in]	startAngle	The start angle of the arc.
- *	\param[in]	endAngle	The end angle of the arc.
- *	\param[in]	counterClockwise	If true,  draws the arc counterclockwise from the start angle to the end angle;
+ *	\param[in,out]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path	The path. NULL implies the path in the context.
+ *	\param[in]		cx		The X-coordinate of the center of the arc.
+ *	\param[in]		cy		The Y-coordinate of the center of the arc.
+ *	\param[in]		radius	The radius of the arc.
+ *	\param[in]		startAngle	The start angle of the arc.
+ *	\param[in]		endAngle	The end angle of the arc.
+ *	\param[in]		counterClockwise	If true,  draws the arc counterclockwise from the start angle to the end angle;
  *									if false, draws the arc        clockwise from the start angle to the end angle.
  *	\return		kFskErrNone	If the circular arc segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathArc(FskCanvas2dContext ctx, FskCanvas2dPath path, double cx, double cy, double radius, double startAngle, double endAngle, Boolean counterClockwise);
 
 
+/** Append an elliptical arc segment to the given path.
+ *	\param[in,out]	ctx				The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path			The path. NULL implies the path in the context.
+ *	\param[in]		cx				The X-coordinate of the center of the ellipse.
+ *	\param[in]		cy				The Y-coordinate of the center of the ellipse.
+ *	\param[in]		rx				The X-radius of the ellipse.
+ *	\param[in]		ry				The Y-radius of the ellipse.
+ *	\param[in]		rotation		The rotation of the ellipse.
+ *	\param[in]		startAngle		The start angle of the elliptical arc.
+ *	\param[in]		endAngle		The  end  angle of the elliptical arc.
+ *	\param[in]		anticlockwise	If true, draw the arc in a counterclockwise direction; otherwise draw in a clockwise direction.
+ */
+FskAPI(FskErr)	FskCanvas2dPathEllipse(FskCanvas2dContext ctx, FskCanvas2dPath path, double cx, double cy, double rx, double ry, double rotation, double startAngle, double endAngle, Boolean anticlockwise);
+
+
 /** Append a polyline segment to the given path.
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	numPts		The number of points.
- *	\param[in]	pt			The points.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		numPts		The number of points.
+ *	\param[in]		pt			The points.
  *	\return		kFskErrNone	If the polyline segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathPolylineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt);
 
 
 /** Append a quadratic B-spline segment to the given path.
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	numPts		The number of points.
- *	\param[in]	pt			The points.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		numPts		The number of points.
+ *	\param[in]		pt			The points.
  *	\return		kFskErrNone	If the quadratic segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathQuadraticBSplineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt);
 
 
 /** Append a cubic B-spline segment to the given path.
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path		The path. NULL implies the path in the context.
- *	\param[in]	numPts		The number of points.
- *	\param[in]	pt			The points.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path		The path. NULL implies the path in the context.
+ *	\param[in]		numPts		The number of points.
+ *	\param[in]		pt			The points.
  *	\return		kFskErrNone	If the cubic B-spline segment was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathCubicBSplineTo(FskCanvas2dContext ctx, FskCanvas2dPath path, UInt32 numPts, const double *pt);
 
 
 /** Append a rectangle to the given path.
- *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path	The path. NULL implies the path in the context.
- *	\param[in]	x		The left edge of the rectangle.
- *	\param[in]	y		The top edge of the rectangle.
- *	\param[in]	w		The width of the rectangle.
- *	\param[in]	h		The height of the rectangle.
+ *	\param[in,out]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path	The path. NULL implies the path in the context.
+ *	\param[in]		x		The left edge of the rectangle.
+ *	\param[in]		y		The top edge of the rectangle.
+ *	\param[in]		w		The width of the rectangle.
+ *	\param[in]		h		The height of the rectangle.
  *	\return		kFskErrNone	If the rectangle was successfully appended.
  */
 FskAPI(FskErr)	FskCanvas2dPathRect(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y, double w, double h);
 
 
 /** Parse a path string (as described in the SVG specification) and append it to the given path.
- *	\param[in]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
- *	\param[in]	path	The path. NULL implies the path in the context.
- *	\param[in]	pathStr	The path string.
+ *	\param[in,out]	ctx		The Canvas 2d context. Can be NULL if path is not NULL.
+ *	\param[in,out]	path	The path. NULL implies the path in the context.
+ *	\param[in]		pathStr	The path string.
  *	\return		kFskErrNone	If the operation was completed successfully.
  */
 FskAPI(FskErr)	FskCanvas2dPathAppendPathString(FskCanvas2dContext ctx, FskCanvas2dPath path, const char *pathStr);
 
 
 /** Append a path to the given path.
- *	\param[in]	ctx		The Canvas 2d context. Can be NULL if dst is not NULL.
- *	\param[in]	dst		The destination path. NULL implies the path in the context.
- *	\param[in]	src		The path to be appended to the dst path.
- *	\param[in]	M		A transformation matrix. NULL implies the identity.
+ *	\param[in,out]	ctx		The Canvas 2d context. Can be NULL if dst is not NULL.
+ *	\param[in,out]	dst		The destination path. NULL implies the path in the context.
+ *	\param[in]		src		The path to be appended to the dst path.
+ *	\param[in]		M		A transformation matrix. NULL implies the identity.
  *	\return		kFskErrNone	If the operation was completed successfully.
  */
 FskAPI(FskErr)	FskCanvas2dPathAppendPath(FskCanvas2dContext ctx, FskCanvas2dPath dst, FskConstCanvas2dPath src, const FskCanvasMatrix3x2d *M);
 
 
 /** Append an EndGlyph code to the path.
- *	\param[in]	ctx			The Canvas 2d context. Can be NULL if dst is not NULL.
- *	\param[in]	path		The destination path. NULL implies the path in the context.
+ *	\param[in,out]	ctx			The Canvas 2d context. Can be NULL if dst is not NULL.
+ *	\param[in]		path		The destination path. NULL implies the path in the context.
  *	\return		kFskErrNone	If the operation was completed successfully.
  */
 FskAPI(FskErr)	FskCanvas2dPathEndGlyph(FskCanvas2dContext ctx, FskCanvas2dPath path);
@@ -1099,9 +1145,9 @@ FskAPI(FskErr)	FskCanvas2dPathStroke(FskCanvas2dContext ctx, FskConstCanvas2dPat
 
 
 /** Intersect the given clip region with the given path, and update the current clip region.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	path		The clip path. NULL implies the path in the context.
- *	\param[in]	fillRule	The rule for filling { kFskCanvas2dFillRuleNonZero, kFskCanvas2dFillRuleEvenOdd, 0 },
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		path		The clip path. NULL implies the path in the context.
+ *	\param[in]		fillRule	The rule for filling { kFskCanvas2dFillRuleNonZero, kFskCanvas2dFillRuleEvenOdd, 0 },
  *							where kFskCanvas2dFillRuleNonZero=0 is the default.
  *	\return		kFskErrNone	If the clip region was successfully set.
  */
@@ -1109,7 +1155,7 @@ FskAPI(FskErr)	FskCanvas2dPathClip(FskCanvas2dContext ctx, FskConstCanvas2dPath 
 
 
 /** Reset the clip region to the largest infinite surface.
- *	\param[in]	ctx			The Canvas 2d context.
+ *	\param[in,out]	ctx			The Canvas 2d context.
  */
 FskAPI(void)	FskCanvas2dClipReset(FskCanvas2dContext ctx);
 
@@ -1150,8 +1196,8 @@ FskAPI(const struct FskFontAttributes*)	FskCanvas2dGetFont(FskCanvas2dContext ct
 
 
 /** Set the current font attributes.
- *	\param[in]	ctx		The Canvas 2d context.
- *	\param[in]	font	The desired font attributes.
+ *	\param[in,out]	ctx		The Canvas 2d context.
+ *	\param[in]		font	The desired font attributes.
  *	\return		kFskErrNone	If the font attributes were successfully set.
  */
 FskAPI(FskErr)	FskCanvas2dSetFont(FskCanvas2dContext ctx, const struct FskFontAttributes *font);
@@ -1166,8 +1212,8 @@ FskAPI(UInt32)	FskCanvas2dGetTextAlignment(FskConstCanvas2dContext ctx);
 
 
 /** Set the current text alignment.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	alignment	The desired text alignment.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		alignment	The desired text alignment.
  */
 FskAPI(void)	FskCanvas2dSetTextAlignment(FskCanvas2dContext ctx, UInt32 alignment);
 
@@ -1180,8 +1226,8 @@ UInt32 FskCanvas2dGetTextBaseline(FskConstCanvas2dContext ctx);
 
 
 /** Set the current text baseline.
- *	\param[in]	ctx			The Canvas 2d context.
- *	\param[in]	baseline	The desired text baseline.
+ *	\param[in,out]	ctx			The Canvas 2d context.
+ *	\param[in]		baseline	The desired text baseline.
  */
 FskAPI(void)	FskCanvas2dSetTextBaseline(FskCanvas2dContext ctx, UInt32 baseline);
 
@@ -1522,12 +1568,11 @@ struct FskCanvasDrawingStylesRecord;
 FskAPI(FskErr)	FskCanvas2dPathAppendByStrokingPath(FskCanvas2dContext ctx, FskCanvas2dPath dst, FskConstCanvas2dPath src, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M);
 FskAPI(FskErr)	FskCanvas2dPathAppendText(FskCanvas2dContext ctx, FskCanvas2dPath dst, const UInt16 *uniChars, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M, double x, double y, double maxWidth);
 FskAPI(FskErr)	FskCanvas2dPathAppendByStrokingText(FskCanvas2dContext ctx, FskCanvas2dPath dst, const UInt16 *uniChars, const struct FskCanvasDrawingStylesRecord *styles, const FskCanvasMatrix3x2d *M, double x, double y, double maxWidth);
-FFskAPI(FskErr)	FskCanvas2dPathEllipse(FskCanvas2dContext ctx, FskCanvas2dPath path, double x, double y, double radiusX, double radiusY, double rotation, double startAngle, double endAngle, Boolean anticlockwise);
 FskAPI(void)	FskCanvas2dSetTextDirection(FskCanvas2dContext ctx, SInt32 direction);
-skAPI(SInt32)	FskCanvas2dGetTextDirection(FskConstCanvas2dContext ctx);
+FskAPI(SInt32)	FskCanvas2dGetTextDirection(FskConstCanvas2dContext ctx);	// "ltr", "rtl", "inherit" (default: "inherit")
 FskAPI(Boolean)	FskCanvasProbablySupportsContext(const char *);
 FskAPI(void)	FskCanvasSetContext(FskCanvas2dContext ctx);
-FskAPI(FskErr)	FskCanvasToBlob(FskCanvas cnv, const char *type, float quality, UInt32 *numBytes, char **bytes);
+FskAPI(FskErr)	FskCanvasToBlob(FskCanvas cnv, UInt32 *numBytes, char **bytes, const char *type, ...);	// "image/png", "image/jpeg" (with qual arg=[0,1], "image/svg+xml"
 FskAPI(CanvasProxy)	FskCanvasTransferControlToProxy(FskCanvas cnv);
 
 #endif /* PUNT */

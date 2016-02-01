@@ -65,14 +65,13 @@ void fxBufferFrameName(txMachine* the, txString buffer, txSize size, txSlot* fra
 		function = function->value.reference;
 		if (mxIsFunction(function)) {
 			if (target->kind == XS_UNDEFINED_KIND) {
-				txSlot* home = mxFunctionInstanceHome(function);
-				if (home->kind == XS_REFERENCE_KIND) {
-					home = home->value.reference;
+				txSlot* home = mxFunctionInstanceHome(function)->value.home.object;
+				if (home) {
 					if (mxIsFunction(home)) {
 						fxBufferFunctionName(the, buffer, size, home, ".");
 					}
 					else {
-						txSlot* constructor = fxGetOwnProperty(the, home, mxID(_constructor));
+						txSlot* constructor = fxGetProperty(the, home, mxID(_constructor), XS_NO_ID, XS_OWN);
 						if (constructor) {
 							if (constructor->kind == XS_REFERENCE_KIND) {
 								constructor = constructor->value.reference;
@@ -96,20 +95,36 @@ void fxBufferFrameName(txMachine* the, txString buffer, txSize size, txSlot* fra
 
 void fxBufferFunctionName(txMachine* the, txString buffer, txSize size, txSlot* function, txString suffix)
 {
-	txSlot* slot = fxGetProperty(the, function, mxID(_name));
-	if (slot && ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND))) {
-		c_strncat(buffer, slot->value.string, size - c_strlen(buffer) - 1);
-		c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
+	txSlot* slot = mxFunctionInstanceCode(function);
+	if (slot->ID != XS_NO_ID) {
+		txSlot* key = fxGetKey(the, slot->ID);
+		if (key) {
+			if ((key->kind == XS_KEY_KIND) || (key->kind == XS_KEY_X_KIND)) {
+				c_strncat(buffer, key->value.key.string, size - c_strlen(buffer) - 1);
+				c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
+				return;
+			}
+			if ((key->kind == XS_STRING_KIND) || (key->kind == XS_STRING_X_KIND)) {
+				c_strncat(buffer, "[", size - c_strlen(buffer) - 1);
+				c_strncat(buffer, key->value.string, size - c_strlen(buffer) - 1);
+				c_strncat(buffer, "]", size - c_strlen(buffer) - 1);
+				c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
+				return;
+			}
+		}
 	}
+	c_strncat(buffer, "?", size - c_strlen(buffer) - 1);
+	c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
 }
 
 void fxBufferObjectName(txMachine* the, txString buffer, txSize size, txSlot* object, txString suffix)
 {
-	txSlot* slot = fxGetProperty(the, object, mxID(_Symbol_toStringTag));
-	if (slot && ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND))) {
+	txSlot* slot = fxGetProperty(the, object, mxID(_Symbol_toStringTag), XS_NO_ID, XS_ANY);
+	if (slot && ((slot->kind == XS_STRING_KIND) || (slot->kind == XS_STRING_X_KIND)) && slot->value.string[0])
 		c_strncat(buffer, slot->value.string, size - c_strlen(buffer) - 1);
-		c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
-	}
+	else
+		c_strncat(buffer, "?", size - c_strlen(buffer) - 1);
+	c_strncat(buffer, suffix, size - c_strlen(buffer) - 1);
 }
 
 txString fxConcatString(txMachine* the, txSlot* a, txSlot* b)

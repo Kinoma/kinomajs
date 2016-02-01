@@ -43,7 +43,7 @@ void fxBuildSymbol(txMachine* the)
 	for (builder = gx_Symbol_prototype_builders; builder->callback; builder++)
 		slot = fxNextHostFunctionProperty(the, slot, builder->callback, builder->length, mxID(builder->id), XS_DONT_ENUM_FLAG);
 	slot = fxNextHostFunctionProperty(the, slot, fx_Symbol_prototype_toPrimitive, 1, mxID(_Symbol_toPrimitive), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
-	slot = fxNextStringProperty(the, slot, "Symbol", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
+	slot = fxNextStringXProperty(the, slot, "Symbol", mxID(_Symbol_toStringTag), XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG);
 	mxSymbolPrototype = *the->stack;
 	slot = fxLastProperty(the, fxNewHostConstructorGlobal(the, fx_Symbol, 0, mxID(_Symbol), XS_DONT_ENUM_FLAG));
 	for (builder = gx_Symbol_builders; builder->callback; builder++)
@@ -67,8 +67,7 @@ txSlot* fxNewSymbolInstance(txMachine* the)
 	txSlot* instance;
 	txSlot* property;
 	instance = fxNewObjectInstance(the);
-	instance->flag |= XS_VALUE_FLAG;
-	property = fxNextSymbolProperty(the, instance, XS_NO_ID, XS_NO_ID, XS_GET_ONLY);
+	property = fxNextSymbolProperty(the, instance, XS_NO_ID, XS_NO_ID, XS_INTERNAL_FLAG | XS_GET_ONLY);
 	return instance;
 }
 
@@ -83,7 +82,7 @@ void fx_Symbol(txMachine* the)
 	if (mxArgc > 0) {
 		fxToString(the, mxArgv(0));
 		description = fxNewSlot(the);
-		description->kind = XS_STRING_KIND;
+		description->kind = mxArgv(0)->kind;
 		description->value.string = mxArgv(0)->value.string;
 	}
 	else
@@ -91,7 +90,7 @@ void fx_Symbol(txMachine* the)
 	the->keyArray[id] = description;
 	the->keyIndex++;
 	mxResult->kind = XS_SYMBOL_KIND;
-	mxResult->value.ID = 0x8000 | id;
+	mxResult->value.symbol = 0x8000 | id;
 }
 
 void fx_Symbol_for(txMachine* the)
@@ -134,7 +133,7 @@ void fx_Symbol_for(txMachine* the)
 		the->symbolTable[modulo] = result;
 	}
 	mxResult->kind = XS_SYMBOL_KIND;
-	mxResult->value.ID = result->ID;
+	mxResult->value.symbol = result->ID;
 }
 
 void fx_Symbol_keyFor(txMachine* the)
@@ -144,7 +143,7 @@ void fx_Symbol_keyFor(txMachine* the)
 	if (mxArgc < 1) mxSyntaxError("no sym parameter");
 	slot = fxCheckSymbol(the, mxArgv(0));
 	if (!slot) mxTypeError("sym is no symbol");
-	key = fxGetKey(the, slot->value.ID);
+	key = fxGetKey(the, slot->value.symbol);
 	if (key && ((key->flag & XS_DONT_ENUM_FLAG) == 0)) {
 		mxResult->kind = XS_STRING_KIND;
 		mxResult->value.string = key->value.key.string;
@@ -184,7 +183,7 @@ txSlot* fxCheckSymbol(txMachine* the, txSlot* it)
 	else if (it->kind == XS_REFERENCE_KIND) {
 		txSlot* instance = it->value.reference;
 		it = instance->next;
-		if ((instance->flag & XS_VALUE_FLAG) && (it->kind == XS_SYMBOL_KIND) && (instance != mxSymbolPrototype.value.reference))
+		if ((it) && (it->flag & XS_INTERNAL_FLAG) && (it->kind == XS_SYMBOL_KIND) && (instance != mxSymbolPrototype.value.reference))
 			result = it;
 	}
 	return result;
@@ -192,7 +191,7 @@ txSlot* fxCheckSymbol(txMachine* the, txSlot* it)
 
 void fxSymbolToString(txMachine* the, txSlot* slot)
 {
-	txSlot* key = fxGetKey(the, slot->value.ID);
+	txSlot* key = fxGetKey(the, slot->value.symbol);
 	fxCopyStringC(the, slot, "Symbol(");
 	if (key)
 		fxConcatStringC(the, slot, key->value.string);
@@ -357,10 +356,51 @@ txSlot* fxNewNameX(txMachine* the, txString theString)
 	return result;
 }
 
-void fxIDToSlot(txMachine* the, txInteger id, txSlot* slot)
+txSlot* fxAt(txMachine* the, txSlot* slot)
 {
-	if (id < 0) {
-		txSlot* key = fxGetKey(the, (txID)id);
+	txIndex index;
+	txString string;
+	txSlot* key;
+again:
+	if ((slot->kind == XS_INTEGER_KIND) && fxIntegerToIndex(the->dtoa, slot->value.integer, &index)) {
+		slot->value.at.id = 0;
+		slot->value.at.index = index;
+	}
+	else if ((slot->kind == XS_NUMBER_KIND) && fxNumberToIndex(the->dtoa, slot->value.number, &index)) {
+		slot->value.at.id = 0;
+		slot->value.at.index = index;
+	}
+	else if (slot->kind == XS_SYMBOL_KIND) {
+		slot->value.at.id = slot->value.symbol;
+		slot->value.at.index = XS_NO_ID;
+	}
+    else {
+        if (slot->kind == XS_REFERENCE_KIND) {
+            fxToPrimitive(the, slot, XS_STRING_HINT);
+            goto again;
+        }
+        string = fxToString(the, slot);
+        if (fxStringToIndex(the->dtoa, string, &index)) {
+            slot->value.at.id = 0;
+            slot->value.at.index = index;
+        }
+        else {
+            if (slot->kind == XS_STRING_X_KIND)
+                key = fxNewNameX(the, string);
+            else
+                key = fxNewName(the, slot);
+            slot->value.at.id = key->ID;
+            slot->value.at.index = XS_NO_ID;
+        }
+    }
+	slot->kind = XS_AT_KIND;
+	return slot;
+}
+
+void fxKeyAt(txMachine* the, txID id, txIndex index, txSlot* slot)
+{
+	if (id) {
+		txSlot* key = fxGetKey(the, id);
 		if (key && (key->flag & XS_DONT_ENUM_FLAG)) {
 			if (key->kind == XS_KEY_KIND) {
 				slot->kind = XS_STRING_KIND;
@@ -373,40 +413,39 @@ void fxIDToSlot(txMachine* the, txInteger id, txSlot* slot)
 		}
 		else {
 			slot->kind = XS_SYMBOL_KIND;
-			slot->value.ID = (txID)id;
+			slot->value.symbol = id;
 		}
 	}
 	else {
 		char buffer[16];
-		fxCopyStringC(the, slot, fxIntegerToString(the->dtoa, id, buffer, sizeof(buffer)));
+		fxCopyStringC(the, slot, fxNumberToString(the->dtoa, index, buffer, sizeof(buffer), 0, 0));
 	}
 }
 
-void fxSlotToID(txMachine* the, txSlot* slot, txInteger* id)
+
+txInteger fxSlotToIndex(txMachine* the, txSlot* slot, txIndex* index)
 {
 	txString string;
 	txSlot* key;
 again:
-	if ((slot->kind == XS_INTEGER_KIND) && fxIntegerToIndex(the->dtoa, slot->value.integer, id))
-		return;
-	if ((slot->kind == XS_NUMBER_KIND) && fxNumberToIndex(the->dtoa, slot->value.number, id))
-		return;
-	if (slot->kind == XS_SYMBOL_KIND) {
-		*id = slot->value.ID;
-		return;
-	}
+	if ((slot->kind == XS_INTEGER_KIND) && fxIntegerToIndex(the->dtoa, slot->value.integer, index))
+		return 0;
+	if ((slot->kind == XS_NUMBER_KIND) && fxNumberToIndex(the->dtoa, slot->value.number, index))
+		return 0;
+	if (slot->kind == XS_SYMBOL_KIND)
+		return slot->value.symbol;
 	if (slot->kind == XS_REFERENCE_KIND) {
 		fxToPrimitive(the, slot, XS_STRING_HINT);
 		goto again;
 	}
 	string = fxToString(the, slot);
-	if (!fxStringToIndex(the->dtoa, string, id)) {
-		if (slot->kind == XS_STRING_X_KIND)
-			key = fxNewNameX(the, string);
-		else
-			key = fxNewName(the, slot);
-		*id = key->ID;
-	}
+	if (fxStringToIndex(the->dtoa, string, index))
+		return 0;
+	if (slot->kind == XS_STRING_X_KIND)
+		key = fxNewNameX(the, string);
+	else
+		key = fxNewName(the, slot);
+	return key->ID;
 }
 
 void fxIDToString(txMachine* the, txInteger id, txString theBuffer, txSize theSize)

@@ -36,8 +36,9 @@
 #define kHeaderBufferSize 512
 #define kWebSocketServerIdentifier "Kinoma WebSocket Server/0.1"
 
-static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, void *refcon);
-static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt);
+static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon);
+static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interface, int ip, void *refcon);
+static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt, const char *interface, int ip);
 static void KprWebSocketServerRequestDispose(KprWebSocketServerRequest request);
 static FskErr KprWebSocketServerRequestDoRead(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon);
 
@@ -51,10 +52,6 @@ static void KprWebSocketServerGenerateUpgradeResponse(KprWebSocketServerRequest 
 
 //static int KprWebSocketServerInterfaceChanged(FskNetInterfaceRecord *ifc, UInt32 status, void *param);
 // Callbacks
-
-static void KprWebSocketServer_onLaunch(KprWebSocketServer server, void *refcon);
-static void KprWebSocketServer_onConnect(KprWebSocketServer server, FskSocket skt, void *refcon);
-static void KprWebSocketServer_onError(KprWebSocketServer server, FskErr err, char *message, void *refcon);
 
 //--------------------------------------------------
 // WebSocketServer
@@ -71,10 +68,6 @@ FskErr KprWebSocketServerNew(KprWebSocketServer* it, void *refCon)
 	self->stopped = false;
 	self->refCon = refCon;
 	self->owner = FskThreadGetCurrent();
-
-	self->launchCallback = KprWebSocketServer_onLaunch;
-	self->connectCallback = KprWebSocketServer_onConnect;
-	self->errorCallback = KprWebSocketServer_onError;
 
 //	self->interfaceNotifier = FskNetInterfaceAddNotifier(KprWebSocketServerInterfaceChanged, self, "websocket server");
 	return err;
@@ -105,6 +98,8 @@ FskErr KprWebSocketServerListen(KprWebSocketServer self, int port, char *interfa
 		
 		bailIfError(KprSocketServerNew(&server, self));
 		server->acceptCallback = KprWebSocketServerAcceptNewConnection;
+		server->interfaceDroppedCallback = KprWebSocketServerInterfaceDropped;
+
 		server->debugName = "WebSocket Server";
 
 		self->server = server;
@@ -112,10 +107,12 @@ FskErr KprWebSocketServerListen(KprWebSocketServer self, int port, char *interfa
 
 	bailIfError(KprSocketServerListen(self->server, port, interfaceName));
 
-	self->launchCallback(self, self->refCon);
+	if (self->launchCallback) {
+		self->launchCallback(self, self->refCon);
+	}
 
 bail:
-	if (err) {
+	if (err && self->errorCallback) {
 		self->errorCallback(self, err, "failed to launch", self->refCon);
 	}
 
@@ -127,7 +124,12 @@ UInt16 KprWebSocketServerGetPort(KprWebSocketServer self)
 	return self->server->port;
 }
 
-static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, void *refcon) {
+KprPortListener KprWebSocketServerGetInterface(KprWebSocketServer self)
+{
+	return self->server->listeners;
+}
+
+static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon) {
 	KprWebSocketServer self = refcon;
 	FskErr err = kFskErrNone;
 	KprWebSocketServerRequest request;
@@ -137,14 +139,24 @@ static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskS
 		goto bail;
 	}
 
-	bailIfError(KprWebSocketServerRequestNew(&request, self, skt));
+	bailIfError(KprWebSocketServerRequestNew(&request, self, skt, interfaceName, ip));
 	FskListAppend((FskList*)&self->activeRequests, request);
 
 bail:
 	return err;
 }
 
-static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt) {
+static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interface, int ip, void *refcon)
+{
+	KprWebSocketServer self = refcon;
+	printf("INTERFACE %s DROPPED.\n", interface);
+
+	if (self->interfaceDropCallback) {
+		self->interfaceDropCallback(self, interface, ip, self->refCon);
+	}
+}
+
+static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt, const char *interface, int ip) {
 	FskErr err = kFskErrNone;
 	KprWebSocketServerRequest request = NULL;
 
@@ -153,6 +165,10 @@ static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWeb
 	request->server = server;
 	request->skt = skt;
 	skt = NULL;
+
+	request->interface = FskStrDoCopy(interface);
+	bailIfNULL(request->interface);
+	request->ip = ip;
 
 	FskNetSocketGetRemoteAddress(request->skt, (UInt32 *)&request->requesterAddress, &request->requesterPort);
 	FskNetSocketMakeNonblocking(request->skt);
@@ -181,6 +197,7 @@ static void KprWebSocketServerRequestDispose(KprWebSocketServerRequest request) 
 		FskListRemove((FskList*)&request->server->activeRequests, request);
 		FskThreadRemoveDataHandler(&request->dataHandler);
 
+		FskMemPtrDispose((void *) request->interface);
 		FskNetSocketClose(request->skt);
 		FskHeaderStructDispose(request->requestHeaders);
 		FskHeaderStructDispose(request->responseHeaders);
@@ -237,8 +254,12 @@ static FskErr KprWebSocketServerHandleRequest(KprWebSocketServerRequest request)
 
 		FskThreadRemoveDataHandler(&request->dataHandler);
 		request->skt = NULL;
-		
-		self->connectCallback(self, skt, self->refCon);
+
+		if (self->connectCallback) {
+			self->connectCallback(self, skt, request->interface, request->ip, self->refCon);
+		} else {
+			FskNetSocketClose(skt);
+		}
 	}
 
 bail:
@@ -334,20 +355,5 @@ static void KprWebSocketServerGenerateUpgradeResponse(KprWebSocketServerRequest 
 			FskMemPtrDispose(encoded);
 		}
 	}
-}
-
-// Callbacks
-
-static void KprWebSocketServer_onLaunch(KprWebSocketServer server UNUSED, void *refcon UNUSED)
-{
-}
-
-static void KprWebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskSocket skt, void *refcon UNUSED)
-{
-	FskNetSocketClose(skt);
-}
-
-static void KprWebSocketServer_onError(KprWebSocketServer server UNUSED, FskErr err UNUSED, char *message UNUSED, void *refcon UNUSED)
-{
 }
 

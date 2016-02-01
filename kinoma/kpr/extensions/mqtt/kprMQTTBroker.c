@@ -29,7 +29,7 @@
 #include "kprMQTTBroker.h"
 
 #define kHeaderBufferSize 512
-#define kMQTTBrokerIdentifier "Kinoma MQTT Broker/0.1"
+#define kMQTTBrokerIdentifier "Kinoma MQTT Server/1.0"
 
 static FskErr KprMQTTBrokerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, void *refcon);
 
@@ -124,7 +124,7 @@ FskErr KprMQTTBrokerListen(KprMQTTBroker self, int port, char *interfaceName)
 	if (self->server) return kFskErrBadState;
 
 	bailIfError(KprSocketServerNew(&server, self));
-	server->debugName = "MQTT Broker";
+	server->debugName = "MQTT Server";
 	server->acceptCallback = KprMQTTBrokerAcceptNewConnection;
 
 	bailIfError(KprSocketServerListen(server, port, interfaceName));
@@ -165,12 +165,29 @@ bail:
 	return err;
 }
 
-static FskErr KprMQTTBrokerAuthorize(KprMQTTBroker self, KprMQTTBrokerClient client, KprMQTTMessage message, UInt8 *returnCode)
+static UInt8 KprMQTTBrokerAuthorize(KprMQTTBroker self, KprMQTTBrokerClient client, KprMQTTMessage message, Boolean *sesstionPresent)
 {
-	FskErr err = kFskErrNone;
 	struct KprMQTTConnectMessageRecord *mc = &message->t.connect;
 	KprMQTTBrokerClient oldClient;
-	int len;
+
+	if (!mc->clientIdentifier || FskStrLen(mc->clientIdentifier) == 0) {
+		char generatedId[10];
+
+		if (!mc->cleanSession) {
+			return kKprMQTTMessageReturnCodeIdentifierRejected;
+		}
+
+		generatedId[0] = 0xfe; // invalid unicode character which isolates these generated number from unicode name space.
+
+		do {
+			FskStrNumToHex(FskRandom(), &generatedId[1], 4);
+			FskStrNumToHex(FskRandom(), &generatedId[5], 4);
+		} while (KprMQTTBrokerFindClient(self, generatedId) != NULL);
+
+
+		FskMemPtrDispose(mc->clientIdentifier);
+		mc->clientIdentifier = FskStrDoCopy(generatedId);
+	}
 
 	oldClient = KprMQTTBrokerFindClient(self, mc->clientIdentifier);
 
@@ -180,9 +197,14 @@ static FskErr KprMQTTBrokerAuthorize(KprMQTTBroker self, KprMQTTBrokerClient cli
 	mc->clientIdentifier = NULL;
 	client->cleanSession = mc->cleanSession;
 
+	if (client->clientIdentifier == NULL) {
+		return kKprMQTTMessageReturnCodeIdentifierRejected;
+	}
+
 	if (oldClient) {
 		if (!client->cleanSession) {
 			KprMQTTBrokerClientTakeOver(client, oldClient);
+			*sesstionPresent = true;
 		}
 
 		KprMQTTBrokerClientDispose(oldClient);
@@ -212,22 +234,11 @@ static FskErr KprMQTTBrokerAuthorize(KprMQTTBroker self, KprMQTTBrokerClient cli
 		mc->willPayload = NULL;
 	}
 
-	if (client->clientIdentifier == NULL) {
-		*returnCode = kKprMQTTMessageReturnCodeIdentifierRejected;
-		return kFskErrNone;
-	}
-
 	client->willQoS = mc->willQualityOfService;
 	client->willRetain = mc->willIsRetained;
 	client->keepAlive = mc->keepAlive;
 
-	len = FskStrLen(client->clientIdentifier);
-	if (len < 1 || len > 23) {
-		*returnCode = kKprMQTTMessageReturnCodeIdentifierRejected;
-		return kFskErrNone;
-	}
-
-	return err;
+	return kKprMQTTMessageReturnCodeAccepted;
 }
 
 static FskErr KprMQTTBrokerSubscriptionNew(KprMQTTBroker self, const char *topicPattern, KprMQTTSubscription *it)
@@ -453,6 +464,7 @@ static KprMQTTSubscriber KprMQTTBrokerFindSubscriber(KprMQTTSubscription subscri
 static KprMQTTBrokerClient KprMQTTBrokerFindClient(KprMQTTBroker self, const char *identifier)
 {
 	KprMQTTBrokerClient client = self->clients;
+
 	while (client) {
 		if (FskStrCompare(identifier, client->clientIdentifier) == 0) return client;
 		client = client->next;
@@ -708,14 +720,16 @@ static void KprMQTTBrokerClient_beforeConnectMessage(KprMQTTEndpoint endpoint UN
 
 	switch (message->type) {
 		case kKprMQTTMessageTypeCONNECT: {
-			UInt8 returnCode = kKprMQTTMessageReturnCodeAccepted;
+			UInt8 returnCode;
+			Boolean sesstionPresent = false;
 
-			bailIfError(KprMQTTBrokerAuthorize(self->broker, self, message, &returnCode));
+			returnCode = KprMQTTBrokerAuthorize(self->broker, self, message, &sesstionPresent);
 
 			KprMQTTBrokerClientResetKeepAliveTimer(self);
 
 			bailIfError(KprMQTTMessageNewWithType(&message2, kKprMQTTMessageTypeCONNACK));
 			message2->t.connack.returnCode = returnCode;
+			message2->t.connack.sesstionPresent = sesstionPresent;
 
 			bailIfError(KprMQTTBrokerClientSendMessage(self, &message2));
 			if (returnCode != kKprMQTTMessageReturnCodeAccepted) {
@@ -735,7 +749,7 @@ bail:
 	KprMQTTMessageDispose(message2);
 
 	if (err) {
-		KprMQTTBrokerClientHandleError(self, err, "handling message");
+		KprMQTTBrokerClientHandleError(self, err, "authorization");
 	}
 }
 
@@ -761,8 +775,7 @@ static void KprMQTTBrokerClient_onMessage(KprMQTTEndpoint endpoint UNUSED, KprMQ
 			while (t1) {
 				bailIfError(KprMQTTBrokerSubscribe(self->broker, self->clientIdentifier, t1->topic, t1->qualityOfService));
 
-				bailIfError(KprMQTTMessageAddSubscribeTopic(message2));
-				t2 = KprMQTTMessageLastSubscribeTopic(message2);
+				bailIfError(KprMQTTMessageAddSubscribeTopic(message2, &t2));
 				t2->qualityOfService = t1->qualityOfService;
 
 				t1 = t1->next;

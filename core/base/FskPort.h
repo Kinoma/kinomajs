@@ -56,6 +56,7 @@ typedef FskErr (*vFskPortSetTextAlignment)(FskPort port, UInt16 hAlign, UInt16 v
 typedef FskErr (*vFskPortSetTextFont)(FskPort port, const char *fontName);
 typedef FskErr (*vFskPortSetTextSize)(FskPort port, UInt32 size);
 typedef FskErr (*vFskPortSetTextStyle)(FskPort port, UInt32 style);
+typedef FskErr (*vFskPortSetTextExtra)(FskPort port, FskFixed extra);
 typedef FskErr (*vFskPortSetGraphicsMode)(FskPort port, UInt32 graphicsMode, FskConstGraphicsModeParameters graphicsModeParameters);
 typedef void (*vFskPortScaleSet)(FskPort port, FskFixed scale);
 typedef FskErr (*vFskPortGetBitmap)(FskPort port, FskBitmap *bits);
@@ -81,6 +82,7 @@ struct FskPortVectorsRecord {
     vFskPortSetTextFont         doSetTextFont;
     vFskPortSetTextSize         doSetTextSize;
     vFskPortSetTextStyle        doSetTextStyle;
+    vFskPortSetTextExtra        doSetTextExtra;
     vFskPortSetGraphicsMode     doSetGraphicsMode;
     vFskPortScaleSet            doScaleSet;
     vFskPortGetBitmap           doGetBitmap;
@@ -112,6 +114,7 @@ typedef struct FskPortVectorsRecord *FskPortVectors;
     static FskErr prefix##SetTextFont(FskPort port, const char *textFont);    \
     static FskErr prefix##SetTextSize(FskPort port, UInt32 size);    \
     static FskErr prefix##SetTextStyle(FskPort port, UInt32 style);    \
+    static FskErr prefix##SetTextExtra(FskPort port, FskFixed extra);    \
     static FskErr prefix##SetGraphicsMode(FskPort port, UInt32 graphicsMode, FskConstGraphicsModeParameters graphicsModeParameters);    \
     static void prefix##ScaleSet(FskPort port, FskFixed scale); \
     static FskErr prefix##GetBitmap(FskPort port, FskBitmap *bits);
@@ -142,6 +145,7 @@ typedef struct FskPortVectorsRecord *FskPortVectors;
         prefix##SetTextFont,  \
         prefix##SetTextSize,  \
         prefix##SetTextStyle,  \
+        prefix##SetTextExtra,  \
         prefix##SetGraphicsMode,  \
         prefix##ScaleSet,  \
         prefix##GetBitmap  \
@@ -183,6 +187,7 @@ typedef struct FskPortVectorsRecord *FskPortVectors;
 		UInt16						textHAlign;
 		UInt16						textVAlign;
 		UInt32						textStyle;
+		FskFixed					textExtra;
 		FskTextFormatCache			textFormatCache;
 		Boolean						textFromFormat;
 
@@ -277,6 +282,9 @@ FskAPI(FskErr) FskPortGetTextStyle(FskPort port, UInt32 *style);
 
 FskAPI(FskErr) FskPortSetTextFont(FskPort port, const char *fontName);
 FskAPI(FskErr) FskPortGetTextFont(FskPort port, char **fontName);
+
+FskAPI(FskErr) FskPortSetTextExtra(FskPort port, FskFixed extra);
+FskAPI(FskErr) FskPortGetTextExtra(FskPort port, FskFixed *extra);
 
 FskAPI(FskErr) FskPortResetInvalidRectangle(FskPort port);
 FskAPI(FskErr) FskPortInvalidateRectangle(FskPort port, FskConstRectangle area);
@@ -398,6 +406,7 @@ enum {
 	kFskPortInstrMsgSetTextSize,
 	kFskPortInstrMsgSetTextStyle,
 	kFskPortInstrMsgSetTextFont,
+	kFskPortInstrMsgSetTextExtra,
 	kFskPortInstrMsgInvalidateRectangle,
 	kFskPortInstrMsgSetBitmap,
 	kFskPortInstrMsgBeginDrawing,

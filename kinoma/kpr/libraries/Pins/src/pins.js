@@ -533,6 +533,7 @@ function normalizeFrontConfig(config)
 			case this.digitalOut:
 			case this.i2cClock:
 			case this.i2cData:
+			case this.pwm:
 				return pin;
 			default:
 				return this.disconnected; 

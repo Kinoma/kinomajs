@@ -73,6 +73,8 @@ static void fxDumpCode(txS1* path, txS1** symbols, txUsage* usages, txS1** hosts
 		case XS_CODE_FILE:
 		case XS_CODE_FUNCTION:
 		case XS_CODE_GENERATOR:
+		case XS_CODE_METHOD:
+		case XS_CODE_NAME:
 			mxDecode2(p, s2);
 			if (s2 == XS_NO_ID) 
 				fprintf(stderr, "?");
@@ -94,6 +96,7 @@ static void fxDumpCode(txS1* path, txS1** symbols, txUsage* usages, txS1** hosts
 		case XS_CODE_GET_GLOBAL:
 		case XS_CODE_GET_PROPERTY:
 		case XS_CODE_GET_SUPER:
+		case XS_CODE_LET_GLOBAL:
 		case XS_CODE_NEW_EVAL:
 		case XS_CODE_NEW_GLOBAL:
 		case XS_CODE_SET_EVAL:
@@ -141,8 +144,8 @@ static void fxDumpCode(txS1* path, txS1** symbols, txUsage* usages, txS1** hosts
 				fprintf(stderr, "W");
 			else
 				fprintf(stderr, "w");
-			if (u1 & XS_STATIC_FLAG)
-				fprintf(stderr, "static");
+			if (u1 & XS_METHOD_FLAG)
+				fprintf(stderr, "method");
 			if (u1 & XS_GETTER_FLAG)
 				fprintf(stderr, " getter");
 			if (u1 & XS_SETTER_FLAG)
@@ -186,8 +189,14 @@ static void fxDumpCode(txS1* path, txS1** symbols, txUsage* usages, txS1** hosts
 		case XS_CODE_DELETE_LOCAL_1:
 		case XS_CODE_GET_CLOSURE_1:
 		case XS_CODE_GET_LOCAL_1:
+		case XS_CODE_LET_CLOSURE_1:
+		case XS_CODE_LET_LOCAL_1:
 		case XS_CODE_PULL_CLOSURE_1:
 		case XS_CODE_PULL_LOCAL_1:
+		case XS_CODE_REFRESH_CLOSURE_1:
+		case XS_CODE_REFRESH_LOCAL_1:
+		case XS_CODE_RESET_CLOSURE_1:
+		case XS_CODE_RESET_LOCAL_1:
 		case XS_CODE_SET_CLOSURE_1:
 		case XS_CODE_SET_LOCAL_1:
 		case XS_CODE_STORE_1:
@@ -200,8 +209,14 @@ static void fxDumpCode(txS1* path, txS1** symbols, txUsage* usages, txS1** hosts
 		case XS_CODE_DELETE_LOCAL_2:
 		case XS_CODE_GET_CLOSURE_2:
 		case XS_CODE_GET_LOCAL_2:
+		case XS_CODE_LET_CLOSURE_2:
+		case XS_CODE_LET_LOCAL_2:
 		case XS_CODE_PULL_CLOSURE_2:
 		case XS_CODE_PULL_LOCAL_2:
+		case XS_CODE_REFRESH_CLOSURE_2:
+		case XS_CODE_REFRESH_LOCAL_2:
+		case XS_CODE_RESET_CLOSURE_2:
+		case XS_CODE_RESET_LOCAL_2:
 		case XS_CODE_SET_CLOSURE_2:
 		case XS_CODE_SET_LOCAL_2:
 		case XS_CODE_STORE_2:

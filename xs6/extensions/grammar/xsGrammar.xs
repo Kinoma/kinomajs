@@ -166,6 +166,7 @@
 				this.io = io;
 				if (names) {
 					var c = this.length = names.length;
+					this.fill();
 					for (var i = 0; i < c; i++)
 						this[i] = Grammar.nameToID(names[i]);
 				}

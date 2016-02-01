@@ -41,6 +41,7 @@ enum {
 	kprTextSize = 1 << 14,
 	kprTextStyle = 1 << 15,
 	kprTextUnit = 1 << 16,
+	kprTextExtra = 1 << 17,
 	kprStyleInherited  = 1 << 30,
 	kprStyleDirty = 1 << 31
 };
@@ -65,6 +66,7 @@ struct KprStyleStruct {
 	char* textFont;
 	SInt32 textSize;
 	UInt32 textStyle;
+	UInt32 textExtra;
 	FskPortTextFormat textFormat;
 	UInt16 ascent; 
 	UInt16 descent;
@@ -87,6 +89,7 @@ FskAPI(void) KprStyleClearMarginBottom(KprStyle self);
 FskAPI(void) KprStyleClearTextFont(KprStyle self);
 FskAPI(void) KprStyleClearTextSize(KprStyle self);
 FskAPI(void) KprStyleClearTextStyle(KprStyle self);
+FskAPI(void) KprStyleClearTextExtra(KprStyle self);
 FskAPI(Boolean) KprStyleColorize(KprStyle self, FskPort port, double state);
 FskAPI(void) KprStyleGetInfo(KprStyle self, UInt16* ascent, UInt16* descent);
 FskAPI(void) KprStyleInherit(KprStyle self);
@@ -104,6 +107,7 @@ FskAPI(void) KprStyleSetMarginBottom(KprStyle self, SInt32 marginBottom);
 FskAPI(void) KprStyleSetTextFont(KprStyle self, char* textFont);
 FskAPI(void) KprStyleSetTextSize(KprStyle self, SInt32 textSize);
 FskAPI(void) KprStyleSetTextStyle(KprStyle self, UInt32 textStyle);
+FskAPI(void) KprStyleSetTextExtra(KprStyle self, FskFixed textExtra);
 FskAPI(KprStyle) KprStyleUncascade(KprStyle self);
 
 FskAPI(FskErr) KprShellDefaultStyles(KprShell self);

@@ -117,7 +117,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 {
 	txID anID;
 	txSlot* aSlot;
-	txIndex aLength;
+	txIndex aLength, index;
 	txSlot* aResult;
 	txSlot** aSlotAddress;
 	
@@ -171,7 +171,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 		break;
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
-		if ((aSlot->flag & XS_SHARED_FLAG) == 0) {
+		if (aSlot->ID == XS_NO_ID) {
 			if (aSlot->value.instance.garbage) {
 				theResult->value.reference = aSlot->value.instance.garbage;
 				theResult->kind = theSlot->kind;
@@ -197,11 +197,14 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 			c_memset(theResult->value.array.address, 0, aLength * sizeof(txSlot));
 			aSlot = theSlot->value.array.address;
 			aResult = theResult->value.array.address;
+			index = 0;
 			while (aLength) {
 				fxDemarshallSlot(the, aSlot, aResult, theSymbolMap, alien);
 				aLength--;
 				aSlot = aSlot->next;
+				*((txIndex*)aResult) = index;
 				aResult++;
+				index++;
 			}
 		}
 		break;
@@ -216,7 +219,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 		theResult->kind = theSlot->kind;
 		
 		aSlot = theSlot->next;
-		if (theResult->flag & XS_VALUE_FLAG) {
+		if (aSlot && (aSlot->flag & XS_INTERNAL_FLAG)) {
 			switch (aSlot->kind) {
 			case XS_ARRAY_KIND: theResult->value.instance.prototype = mxArrayPrototype.value.reference; break;
 			case XS_BOOLEAN_KIND: theResult->value.instance.prototype = mxBooleanPrototype.value.reference; break;
@@ -391,27 +394,41 @@ void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, tx
 		break;
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
-		if (alien || ((aSlot->flag & XS_SHARED_FLAG) == 0)) {
+		if (alien || (aSlot->ID == XS_NO_ID)) {
 			if (aSlot->value.instance.garbage)
 				aResult->value.reference = aSlot->value.instance.garbage;
 			else
 				fxMarshallSlot(the, aSlot, &(aResult->value.reference), theBuffer, alien);
 		}
 		break;
-	case XS_ARRAY_KIND:
-		aLength = theSlot->value.array.length;
-		aSlot = theSlot->value.array.address;
+	case XS_ARRAY_KIND:  {
+		txIndex length = theSlot->value.array.length;
+		txIndex size = fxGetArraySize(the, theSlot);
+		txSlot* slot = theSlot->value.array.address;
+		txSlot* limit = slot + size;
+		txIndex former = 0, current;	
 		aSlotAddress = &(aResult->value.array.address);
-		while (aLength) {
-			fxMarshallSlot(the, aSlot, aSlotAddress, theBuffer, alien);
-			aLength--;
-			aSlot++;
+		while (slot < limit) {
+			current = *((txIndex*)slot);
+			while (former < current) {
+				fxMarshallSlot(the, &mxUndefined, aSlotAddress, theBuffer, alien);
+				aSlotAddress = &((*aSlotAddress)->next);
+				former++;
+			}
+			fxMarshallSlot(the, slot, aSlotAddress, theBuffer, alien);
 			aSlotAddress = &((*aSlotAddress)->next);
+			slot++;
+			former++;
 		}
-		break;
+		while (former < length) {
+			fxMarshallSlot(the, &mxUndefined, aSlotAddress, theBuffer, alien);
+			aSlotAddress = &((*aSlotAddress)->next);
+			former++;
+		}
+		} break;
 	case XS_INSTANCE_KIND:
 		aResult->value.instance.garbage = theBuffer->link;
-		if ((!alien) && theSlot->value.instance.prototype && (theSlot->value.instance.prototype->flag & XS_SHARED_FLAG))
+		if ((!alien) && theSlot->value.instance.prototype && (theSlot->value.instance.prototype->ID >= 0))
 			aResult->value.instance.prototype = theSlot->value.instance.prototype;
 		else
 			aResult->value.instance.prototype = C_NULL;
@@ -492,19 +509,31 @@ void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer,
 	case XS_REFERENCE_KIND:
 		aSlot = theSlot->value.reference;
 		if ((aSlot->flag & XS_MARK_FLAG) == 0) {
-			if (alien || ((aSlot->flag & XS_SHARED_FLAG) == 0))
+			if (alien || (aSlot->ID == XS_NO_ID))
 				fxMeasureSlot(the, aSlot, theBuffer, alien);
 		}
 		break;
-	case XS_ARRAY_KIND:
-		aLength = theSlot->value.array.length;
-		aSlot = theSlot->value.array.address;
-		while (aLength) {
-			fxMeasureSlot(the, aSlot, theBuffer, alien);
-			aLength--;
-			aSlot++;
+	case XS_ARRAY_KIND: {
+		txIndex length = theSlot->value.array.length;
+		txIndex size = fxGetArraySize(the, theSlot);
+		txSlot* slot = theSlot->value.array.address;
+		txSlot* limit = slot + size;
+		txIndex former = 0, current;	
+		while (slot < limit) {
+			current = *((txIndex*)slot);
+			while (former < current) {
+				theBuffer->size += sizeof(txSlot);
+				former++;
+			}
+			fxMeasureSlot(the, slot, theBuffer, alien);
+			slot++;
+			former++;
 		}
-		break;
+		while (former < length) {
+			theBuffer->size += sizeof(txSlot);
+			former++;
+		}
+		} break;
 	case XS_INSTANCE_KIND:
 		theSlot->flag |= XS_MARK_FLAG;
 		theSlot->value.instance.garbage = C_NULL;

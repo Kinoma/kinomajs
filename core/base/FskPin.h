@@ -169,6 +169,9 @@ typedef struct {
 
 	FskErr		(*doSetDutyCycle)(FskPinPWM pin, double value);
 	FskErr		(*doGetDutyCycle)(FskPinPWM pin, double *value);
+    
+    FskErr		(*doSetDutyCycleAndPeriod)(FskPinPWM pin, UInt8 dutyCycle, UInt8 period);
+    FskErr		(*doGetDutyCycleAndPeriod)(FskPinPWM pin, UInt8 *dutyCycle, UInt8 *period);
 } FskPinPWMDispatchRecord, *FskPinPWMDispatch;
 
 struct FskPinPWMRecord {
@@ -181,6 +184,9 @@ FskAPI(FskErr) FskPinPWMNew(FskPinPWM *pin, SInt32 number, const char *name);
 
 #define FskPinPWMSetDutyCycle(pin, value) (pin->dispatch->doSetDutyCycle ? (pin->dispatch->doSetDutyCycle)(pin, value) : kFskErrUnimplemented)
 #define FskPinPWMGetDutyCycle(pin, value) (pin->dispatch->doGetDutyCycle ? (pin->dispatch->doGetDutyCycle)(pin, value) : kFskErrUnimplemented)
+
+#define FskPinPWMSetDutyCycleAndPeriod(pin, dutyCycle, period) (pin->dispatch->doSetDutyCycleAndPeriod ? (pin->dispatch->doSetDutyCycleAndPeriod)(pin, dutyCycle, period) : kFskErrUnimplemented)
+#define FskPinPWMGetDutyCycleAndPeriod(pin, dutyCycle, period) (pin->dispatch->doGetDutyCycleAndPeriod ? (pin->dispatch->doGetDutyCycleAndPeriod)(pin, dutyCycle, period) : kFskErrUnimplemented)
 
 /*
 	Serial Pin

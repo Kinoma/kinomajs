@@ -41,6 +41,10 @@ struct KprWebSocketEndpointStruct {
 	UInt8	state;
 	Boolean isSecure;
 
+	// @TBD quick and dirty fix for the Alain's websocket crash on close
+	UInt8	pendingSendCount; // @DIRTYHACK
+	Boolean disposeRequested; // @DIRTYHACK
+
 	Boolean doMask;
 	Boolean needMaskedFrame;
 	Boolean needNonMaskedFrame;
@@ -58,6 +62,7 @@ struct KprWebSocketEndpointStruct {
 	Boolean cleanClose;
 
 	FskSocket socket;
+	int		ip;
 	KprSocketReader reader;
 	KprSocketWriter writer;
 	Boolean cancelConnection;

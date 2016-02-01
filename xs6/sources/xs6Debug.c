@@ -577,7 +577,7 @@ void fxEchoHost(txMachine* the, txSlot* theInstance, txSlot* theList)
 				txSlot* aParentProperty = aParent->next;
 				while (aParentProperty) {
 					if ((aParentProperty->kind == XS_ACCESSOR_KIND) && (aParentProperty->value.accessor.getter)) {
-						txSlot* anInstanceProperty = fxGetProperty(the, anInstance, aParentProperty->ID);
+						txSlot* anInstanceProperty = fxGetProperty(the, anInstance, aParentProperty->ID, XS_NO_ID, XS_ANY);
 						if (!anInstanceProperty) {
 							txSlot* aFunction = aParentProperty->value.accessor.getter;
 							if (mxIsFunction(aFunction)) {
@@ -588,7 +588,7 @@ void fxEchoHost(txMachine* the, txSlot* theInstance, txSlot* theList)
 								/* FUNCTION */
 								mxPushReference(aFunction);
 								fxCall(the);
-								anInstanceProperty = fxSetProperty(the, anInstance, aParentProperty->ID, C_NULL);
+								anInstanceProperty = fxSetProperty(the, anInstance, aParentProperty->ID, XS_NO_ID, XS_ANY);
 								anInstanceProperty->kind = the->stack->kind;
 								anInstanceProperty->value = the->stack->value;
 								the->stack++;
@@ -691,11 +691,6 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 				fxEcho(the, " flags=\"+");
 		}
 		fxEcho(the, "CEW");
-#ifndef mxSDK
-		fxEcho(the, " s");
-		if ((theInstance->ID < 0) && (aParent->flag & XS_SHARED_FLAG))
-			fxEcho(the, "*");
-#endif
 		fxEcho(the, "\"");
 		if (aParent->flag & XS_LEVEL_FLAG)
 			fxEcho(the, "/>");
@@ -710,7 +705,7 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 	}
 
 	aProperty = theInstance->next;
-	if (theInstance->flag & XS_VALUE_FLAG) {
+	if (aProperty && (aProperty->flag & XS_INTERNAL_FLAG)) {
 		switch (aProperty->kind) {
 		case XS_CALLBACK_KIND:
 		case XS_CODE_KIND:
@@ -722,9 +717,6 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 			aProperty = aProperty->next;
 			if (aProperty->kind != XS_NULL_KIND)
 				fxEchoProperty(the, aProperty, theList, "(home)", -1, C_NULL);
-			aProperty = aProperty->next;
-			if (aProperty->kind != XS_NULL_KIND)
-				fxEchoProperty(the, aProperty, theList, "(module)", -1, C_NULL);
 			aProperty = aProperty->next;
 		#ifdef mxProfile
 			aProperty = aProperty->next;
@@ -834,10 +826,10 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 		else {
 			if (aSlot->kind == XS_ARRAY_KIND) {
 				txSlot* item = aProperty->value.array.address;
-				txIndex c = aProperty->value.array.length, i;
+				txIndex c = fxGetArraySize(the, aProperty), i;
 				for (i = 0; i < c; i++) {
-					if (item->ID)
-						fxEchoProperty(the, item, theList, "[", i, "]");
+					txIndex index = *((txIndex*)item);
+					fxEchoProperty(the, item, theList, "[", index, "]");
 					item++;
 				}
 			}
@@ -931,6 +923,40 @@ void fxEchoPathLine(txMachine* the, txString thePath, txInteger theLine)
 	}
 }
 
+void fxEchoInstanceProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txSlot* theInstance)
+{
+	if (theInstance) {
+		if (theInstance->flag & XS_LEVEL_FLAG) {
+			txSlot* aFirst = theList->value.list.first;
+			txSlot* aLast = theInstance->value.instance.garbage->next;
+			txBoolean aDot = 0;
+			fxEcho(the, " value=\"");
+			while (aFirst && (aFirst != aLast)) {
+				if (aFirst->value.key.string) {
+					if (aDot)
+						fxEcho(the, ".");
+					fxEchoString(the, aFirst->value.key.string);
+					aDot = 1;
+				}
+				aFirst = aFirst->next;
+			}
+			fxEcho(the, "\"/>");
+		}
+		else {
+			if (theProperty->flag & XS_DEBUG_FLAG) {
+				fxEcho(the, ">");
+				fxEchoInstance(the, theInstance, theList);
+				fxEcho(the, "</property>");
+			}
+			else
+				fxEcho(the, "/>");
+		}
+	}
+	else {
+		fxEcho(the, " value=\"null\"/>");
+	}
+}
+
 void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txString thePrefix, txInteger theIndex, txString theSuffix)
 {
 	char aName[256];
@@ -955,10 +981,6 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 	else {
 		fxIDToString(the, theProperty->ID, aName, sizeof(aName));
 	}
-#ifdef mxSDK
-	if (c_strncmp(aName, "__xs__", 6) == 0)
-		return;
-#endif
 
 	if (theProperty->kind == XS_CLOSURE_KIND)
 		theProperty = theProperty->value.closure;
@@ -974,6 +996,8 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 	if (theProperty->flag & XS_DEBUG_FLAG)
 		fxEcho(the, "-");
 	else if (theProperty->kind == XS_ACCESSOR_KIND)
+		fxEcho(the, "+");
+	else if (theProperty->kind == XS_HOME_KIND)
 		fxEcho(the, "+");
 	else if (theProperty->kind == XS_PROXY_KIND)
 		fxEcho(the, "+");
@@ -995,7 +1019,7 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 		fxEcho(the, "W");
 	else
 		fxEcho(the, "w");
-	if ((theProperty->kind == XS_REFERENCE_KIND) && (anInstance->flag & XS_SHARED_FLAG))
+	if ((theProperty->kind == XS_REFERENCE_KIND) && (anInstance->ID >= 0))
 		fxEcho(the, ".");
 	fxEcho(the, "\"");
 
@@ -1061,6 +1085,19 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 			else {
 				fxEcho(the, " value=\"undefined\"/>");
 			}
+			fxEcho(the, "</property>");
+		}
+		else
+			fxEcho(the, "/>");
+		break;
+	case XS_HOME_KIND:
+		fxEchoAddress(the, theProperty);
+		if (theProperty->flag & XS_DEBUG_FLAG) {
+			fxEcho(the, ">");
+			fxEcho(the, "<property flags=\" \" name=\"(object)\"");
+			fxEchoInstanceProperty(the, theProperty, theList, theProperty->value.home.object);
+			fxEcho(the, "<property flags=\" \" name=\"(module)\"");
+			fxEchoInstanceProperty(the, theProperty, theList, theProperty->value.home.module);
 			fxEcho(the, "</property>");
 		}
 		else
@@ -1160,7 +1197,7 @@ void fxEchoProperty(txMachine* the, txSlot* theProperty, txSlot* theList, txStri
 		fxEcho(the, "'\"/>");
 		break;
 	case XS_SYMBOL_KIND:
-		anInstance = fxGetKey(the, theProperty->value.ID);
+		anInstance = fxGetKey(the, theProperty->value.symbol);
 		fxEcho(the, " value=\"Symbol(");
 		if (anInstance)
 			fxEchoString(the, anInstance->value.string);
@@ -1306,16 +1343,9 @@ void fxListFiles(txMachine* the)
 	fxEcho(the, "<files>");
 	aFile = mxFiles.value.list.first;
 	while (aFile)	{
-#ifdef mxSDK
-        txString aPath = aFile->value.reference->value.key.string;
-		if (c_strstr(aPath, "/applications/")) {
-#endif
 		fxEcho(the, "<file  path=\"");
 		fxEchoString(the, aFile->value.reference->value.key.string);
 		fxEcho(the, "\"/>");
-#ifdef mxSDK
-		}
-#endif
 		aFile = aFile->next;
 	}
 	fxEcho(the, "</files>");
@@ -1454,7 +1484,7 @@ void fxListModules(txMachine* the)
 				fxEcho(the, ">");
 				slot = mxModuleURI(module);
 				if (slot->kind == XS_SYMBOL_KIND) {
-					key = fxGetKey(the, slot->value.ID);
+					key = fxGetKey(the, slot->value.symbol);
 					fxEcho(the, "<property flags=\" cew\" name=\"(uri)\" value=\"");
 					fxEchoString(the, key->value.key.string);
 					fxEcho(the, "\"/>");
