@@ -380,7 +380,7 @@ On Mac OS X, the KinomaJS build uses **Homebrew** to manage installation and mai
 4. Install Java, and the Android SDK and NDK
 
         $ brew cask install java
-        $ brew install android-sdk android-ndk
+        $ brew install android-sdk android-ndk ant
         
 5. Set up two environment variables to point to the Android SDK and Android NDK install locations.
 
