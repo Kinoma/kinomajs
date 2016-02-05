@@ -61,8 +61,8 @@ static void KPR_WebSocketServerClientWillDispose(KPR_WebSocketServerRecord *self
 static void KPR_websocketserver_setCallback(KPR_WebSocketServerRecord *self);
 static void KPR_websocketserver_timeToPing(FskTimeCallBack callback, const FskTime time, void *it);
 static void KPR_WebSocketServer_onLaunch(KprWebSocketServer server, void *refcon);
-static void KPR_WebSocketServer_onConnect(KprWebSocketServer server, FskSocket skt, const char *interface, int ip, void *refcon);
-static void KPR_WebSocketServer_onInterfaceDrop(KprWebSocketServer server, const char *interface, int ip, void *refcon);
+static void KPR_WebSocketServer_onConnect(KprWebSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon);
+static void KPR_WebSocketServer_onInterfaceDrop(KprWebSocketServer server, const char *interfaceName, int ip, void *refcon);
 static void KPR_WebSocketServer_onError(KprWebSocketServer server, FskErr err, char *message, void *refcon);
 static void KPR_WebSocketServer_onClientClosing(KprWebSocketEndpoint endpoint, UInt16 code, char *reason, Boolean wasClean, void *refcon);
 static void KPR_WebSocketServer_onClientClose(KprWebSocketEndpoint endpoint, UInt16 code, char *reason, Boolean wasClean, void *refcon);
@@ -508,16 +508,16 @@ void KPR_websocketserver_set_pingTimeout(xsMachine* the)
 void KPR_websocketserver_get_addresses(xsMachine *the)
 {
 	KPR_WebSocketServerRecord *self = xsGetHostData(xsThis);
-	KprPortListener interface = KprWebSocketServerGetInterface(self->server);
+	KprPortListener ifc = KprWebSocketServerGetInterface(self->server);
 	char str[23];
 
 	xsVars(1);
 	xsResult = xsNew0(xsGlobal, xsID_Array);
-	while (interface) {
-		FskNetIPandPortToString(interface->ip, 0, str);
+	while (ifc) {
+		FskNetIPandPortToString(ifc->ip, 0, str);
 		xsVar(0) = xsString(str);
 		xsCall1(xsResult, xsID_push, xsVar(0));
-		interface = interface->next;
+		ifc = ifc->next;
 	}
 }
 
@@ -570,7 +570,7 @@ static void KPR_WebSocketServer_onLaunch(KprWebSocketServer server UNUSED, void 
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KPR_WebSocketServer_onLaunchDeferred, self, NULL, NULL, NULL);
 }
 
-static void KPR_WebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskSocket skt, const char *interface, int ip, void *refcon)
+static void KPR_WebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskSocket skt, const char *interfaceName, int ip, void *refcon)
 {
 	KPR_WebSocketServerRecord *self = refcon;
 	FskErr err = kFskErrNone;
@@ -606,7 +606,7 @@ static void KPR_WebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskS
 
 }
 
-static void KPR_WebSocketServer_onInterfaceDrop(KprWebSocketServer server UNUSED, const char *interface, int ip, void *refcon)
+static void KPR_WebSocketServer_onInterfaceDrop(KprWebSocketServer server UNUSED, const char *interfaceName, int ip, void *refcon)
 {
 	KPR_WebSocketServerRecord *self = refcon;
 	KPR_WebSocketClientRecord *client;

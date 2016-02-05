@@ -34,8 +34,8 @@ typedef struct KprWebSocketServerRequestStruct KprWebSocketServerRequestRecord, 
 // Callbacks
 
 typedef void (*KprWebSocketServerLaunchCallback)(KprWebSocketServer self, void *refcon);
-typedef void (*KprWebSocketServerConnectCallback)(KprWebSocketServer self, FskSocket sock, const char *interface, int ip, void *refcon);
-typedef void (*KprWebSocketServerInterfaceDropCallback)(KprWebSocketServer self, const char *interface, int ip, void *refcon);
+typedef void (*KprWebSocketServerConnectCallback)(KprWebSocketServer self, FskSocket sock, const char *interfaceName, int ip, void *refcon);
+typedef void (*KprWebSocketServerInterfaceDropCallback)(KprWebSocketServer self, const char *interfaceName, int ip, void *refcon);
 typedef void (*KprWebSocketServerErrorCallback)(KprWebSocketServer self, FskErr err, char *message, void *refcon);
 
 struct KprWebSocketServerStruct {
@@ -61,7 +61,7 @@ struct KprWebSocketServerRequestStruct {
 	int requesterPort;
 	FskHeaders *requestHeaders;
 	FskStrParsedUrl parts;
-	const char *interface;
+	const char *interfaceName;
 	int ip;
 
 	FskHeaders *responseHeaders;

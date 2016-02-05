@@ -344,7 +344,15 @@ MQTT.Client = class @ "KPR_mqttclient_destructor" {
 	}
 
 	_onSubscribe(pid, result) {
-		this._promise.resolve('sub:' + pid, result);
+		var allFailed = result.every(val => val == 128);
+		if (result.length == 1) result = result[0];
+		var key = 'sub:' + pid;
+
+		if (!allFailed) {
+			this._promise.resolve(key, result);
+		} else {
+			this._promise.reject(key, result);
+		}
 
 		this._reserveCallback('onSubscribe', [pid, result]);
 	}

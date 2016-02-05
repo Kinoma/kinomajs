@@ -37,8 +37,8 @@
 #define kWebSocketServerIdentifier "Kinoma WebSocket Server/0.1"
 
 static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon);
-static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interface, int ip, void *refcon);
-static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt, const char *interface, int ip);
+static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interfaceName, int ip, void *refcon);
+static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt, const char *interfaceName, int ip);
 static void KprWebSocketServerRequestDispose(KprWebSocketServerRequest request);
 static FskErr KprWebSocketServerRequestDoRead(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon);
 
@@ -146,17 +146,17 @@ bail:
 	return err;
 }
 
-static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interface, int ip, void *refcon)
+static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interfaceName, int ip, void *refcon)
 {
 	KprWebSocketServer self = refcon;
-	printf("INTERFACE %s DROPPED.\n", interface);
+	printf("INTERFACE %s DROPPED.\n", interfaceName);
 
 	if (self->interfaceDropCallback) {
-		self->interfaceDropCallback(self, interface, ip, self->refCon);
+		self->interfaceDropCallback(self, interfaceName, ip, self->refCon);
 	}
 }
 
-static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt, const char *interface, int ip) {
+static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt, const char *interfaceName, int ip) {
 	FskErr err = kFskErrNone;
 	KprWebSocketServerRequest request = NULL;
 
@@ -166,8 +166,8 @@ static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWeb
 	request->skt = skt;
 	skt = NULL;
 
-	request->interface = FskStrDoCopy(interface);
-	bailIfNULL(request->interface);
+	request->interfaceName = FskStrDoCopy(interfaceName);
+	bailIfNULL(request->interfaceName);
 	request->ip = ip;
 
 	FskNetSocketGetRemoteAddress(request->skt, (UInt32 *)&request->requesterAddress, &request->requesterPort);
@@ -197,7 +197,7 @@ static void KprWebSocketServerRequestDispose(KprWebSocketServerRequest request) 
 		FskListRemove((FskList*)&request->server->activeRequests, request);
 		FskThreadRemoveDataHandler(&request->dataHandler);
 
-		FskMemPtrDispose((void *) request->interface);
+		FskMemPtrDispose((void *) request->interfaceName);
 		FskNetSocketClose(request->skt);
 		FskHeaderStructDispose(request->requestHeaders);
 		FskHeaderStructDispose(request->responseHeaders);
@@ -256,7 +256,7 @@ static FskErr KprWebSocketServerHandleRequest(KprWebSocketServerRequest request)
 		request->skt = NULL;
 
 		if (self->connectCallback) {
-			self->connectCallback(self, skt, request->interface, request->ip, self->refCon);
+			self->connectCallback(self, skt, request->interfaceName, request->ip, self->refCon);
 		} else {
 			FskNetSocketClose(skt);
 		}

@@ -31,7 +31,7 @@
 #define kHeaderBufferSize 512
 #define kMQTTBrokerIdentifier "Kinoma MQTT Server/1.0"
 
-static FskErr KprMQTTBrokerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, void *refcon);
+static FskErr KprMQTTBrokerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon);
 
 static KprMQTTSubscription KprMQTTBrokerFindSubscription(KprMQTTBroker self, const char *topicPattern);
 static KprMQTTSubscriber KprMQTTBrokerFindSubscriber(KprMQTTSubscription subscription, const char *client);
@@ -149,7 +149,7 @@ static void KprMQTTBrokerHandleError(KprMQTTBroker self, FskErr err, char *reaso
 	CALLBACK(errorCallback)(self, err, reason, self->refCon);
 }
 
-static FskErr KprMQTTBrokerAcceptNewConnection(KprSocketServer server UNUSED, FskSocket skt, const char *interfaceName UNUSED, void *refcon) {
+static FskErr KprMQTTBrokerAcceptNewConnection(KprSocketServer server UNUSED, FskSocket skt, const char *interfaceName UNUSED, int ip UNUSED, void *refcon) {
 	KprMQTTBroker self = refcon;
 	FskErr err = kFskErrNone;
 	KprMQTTBrokerClient client = NULL;
