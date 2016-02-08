@@ -774,13 +774,11 @@ FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFac
 	Boolean			doOblique = false;
 	UInt32			totalWidth = 0;
 	FT_Size ftSize = NULL;
-	FskFixed		cumulativeExtra = 0, extraAdvance;
+	FskFixed		cumulativeExtra = 0;
 
 	*strikeOut = NULL;
-	if (kFskErrNone != FskMemPtrNewClear(sizeof(FskFTGlyphRecord) * (textLen + 1), &strike))
+	if (kFskErrNone != FskMemPtrNewClear(sizeof(FskFTGlyphRecord) * (textLen + 1), &strike))		//@@ confirm: doesn't need to be Clear
 		return kFskErrMemFull;
-
-	strike[textLen].index = -1;		// set sentinel
 
 	if (textStyle & kFskTextBold) {
 		if (!(fFace->style & kFskTextBold)) {
@@ -799,7 +797,7 @@ FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFac
 
 	use_kerning = (FT_Bool)FT_HAS_KERNING(fFace->ftFace);
 
-	for (n = 0, glyph = strike, aCount = 0; (n < textLen) && (FT_TRUNC_TO_INT(totalWidth) <= maxWidth); aCount++, cumulativeExtra += textExtra) {
+	for (n = 0, glyph = strike, aCount = 0; (n < textLen) && (FT_TRUNC_TO_INT(totalWidth) <= maxWidth); aCount++) {
 		int chars;
 		UInt32 uc;
 
@@ -811,6 +809,9 @@ FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFac
 			BAIL(kFskErrBadData);
 		}
 		n += chars;
+
+		cumulativeExtra += textExtra;
+
 		glyph->fallback = false;
 		glyph->chars = chars;
 		glyph->uc = uc;
@@ -844,23 +845,26 @@ FskErr sFTStrikeNew(FskTextEngineFreeType state, FskFTGlyph *strikeOut, FskFTFac
 			glyph->advance += INT_TO_FT(horizRepeat - 1);
 
 			totalWidth += glyph->advance;
-				ftSize = sFskFTFaceGetSize(glyph->face);
-				use_kerning = (FT_Bool)FT_HAS_KERNING(glyph->face->ftFace);
-				// kerning not supported by FreeType Cache Sub-System
-				// use_kerning is always false
-				if (use_kerning && (glyph != strike) && glyph[-1].index) {
-					if (glyph->face == glyph[-1].face) {
-						FT_Vector delta;
-						FT_Get_Kerning(glyph->face->ftFace, glyph[-1].index, glyph->index, ft_kerning_default, &delta);
-						glyph[-1].advance += delta.x;
-						totalWidth += fFace->spaceKern;
-					}
+			ftSize = sFskFTFaceGetSize(glyph->face);
+			use_kerning = (FT_Bool)FT_HAS_KERNING(glyph->face->ftFace);
+			// kerning not supported by FreeType Cache Sub-System
+			// use_kerning is always false
+			if (use_kerning && (glyph != strike) && glyph[-1].index) {
+				if (glyph->face == glyph[-1].face) {
+					FT_Vector delta;
+					FT_Get_Kerning(glyph->face->ftFace, glyph[-1].index, glyph->index, ft_kerning_default, &delta);
+					glyph[-1].advance += delta.x;
+					totalWidth += fFace->spaceKern;
 				}
+			}
 		}
 
-		extraAdvance = cumulativeExtra >> (16 - FT_FRACTIONAL_BITS);
-		glyph->advance += extraAdvance;
-		cumulativeExtra -= extraAdvance << (16 - FT_FRACTIONAL_BITS);
+		if (n < textLen) {	// apply extra to all glyph's except last in strike
+			FskFixed extraAdvance = cumulativeExtra >> (16 - FT_FRACTIONAL_BITS);
+			glyph->advance += extraAdvance;
+			totalWidth += extraAdvance;
+			cumulativeExtra -= extraAdvance << (16 - FT_FRACTIONAL_BITS);
+		}
 
 		glyph++;
 	}
