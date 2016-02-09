@@ -2144,17 +2144,15 @@ private void createGpsDisabledAlert(){
 //	@Override
 	public boolean dispatchTouchEvent(MotionEvent event)
 	{
-		if (isWebviewTouchEvent(event)) {
-			mWebViewActivated = true;
+		if (!gInitialized || ((0 != mViewingWeb) && isWebviewTouchEvent(event))) {
+			if (0 != mViewingWeb)
+				mWebViewActivated = true;
 			return super.dispatchTouchEvent(event);
 		}
 		mWebViewActivated = false;
 
 		int j = 0, max;
 		int action = event.getAction();
-
-		if (!gInitialized || (0 != mViewingWeb))
-			return super.dispatchTouchEvent(event);
 
 		final int yOffset = mIsFullscreen ? 0 : mVerticalOffset;
 		final int pointerCount = event.getPointerCount();
@@ -3131,6 +3129,7 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 		@Override
 		public void onPageStarted(WebView view, String url, Bitmap favicon) {
 //			Log.i("Kinoma", "onPageStarted " + url);
+			mViewingWeb = 1;
 			super.onPageStarted(view, url, favicon);
 
 			if (null != mRedirectTo) {
@@ -3445,6 +3444,7 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 		WebSettings webSettings = webView.getSettings();
 		webSettings.setJavaScriptEnabled(true);
 
+		mViewingWeb = 1;
 		webView.setWebViewClient(new WebViewClient() {
 			@Override
 			public boolean shouldOverrideUrlLoading(WebView view, String url) {
@@ -3459,6 +3459,7 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 			@Override
 			public void onPageStarted(WebView view, String url, Bitmap favicon) {
 				Integer webviewId = fetchWebViewId(view);
+				mViewingWeb = 1;
 				if (webviewId != null) {
 					Log.i("Kinoma", String.format("onPageStarted(%d) ", webviewId));
 					webviewHandleLoading(webviewId);
@@ -3517,6 +3518,7 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 	private void webviewDispose(int webviewId) {
 		Log.i("Kinoma", String.format("webviewDispose(%d)", webviewId));
 		WebView webView = fetchWebView(webviewId);
+		mViewingWeb = 0;
 		if (webView != null) {
 			mWebViewMap.remove(webviewId);
 			mWebViewReverseMap.remove(webView);
@@ -3556,6 +3558,7 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 	private void webviewDetach(int webviewId) {
 		Log.i("Kinoma", String.format("webviewDetach(%d)", webviewId));
 		WebView webView = fetchWebView(webviewId);
+		mViewingWeb = 0;
 		if (webView != null) {
 			if (webView.getParent() != null) {
 				((ViewGroup)mMain).removeView(webView);
