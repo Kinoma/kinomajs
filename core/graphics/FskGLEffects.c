@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -1256,6 +1256,16 @@ static const char gGaussianBlurFragmentShaderL[] = {
 	"	gl_FragColor = acc;\n"
 	"}\n"
 };
+static const char gGaussianBlurFragmentShaderN[] = {
+	"uniform	"MEDIUMP"	vec3		coeff;\n"											/* g0 = 1/(sigma*sqrt(2*pi)), g1=exp(-1/(2*sigma^2)), g2=exp(-1/(sigma^2)) */
+	"uniform	"LOWP"		int			rad;\n"												/* Radius of filter extent */
+	"uniform	"LOWP"		sampler2D	srcBM;\n"											/* Source texture */
+	"uniform	"HIGHP"		vec2		srcDelta;\n"										/* Delta between successive samples. {dx, dy} */
+	"varying	"HIGHP"		vec2		srcCoord;\n"										/* Central source coordinate. {x, y} */
+	"void main() {\n"
+	"	gl_FragColor = texture2D(srcBM, srcCoord + float(rad) * srcDelta * 0.) + coeff[0] * 0.;\n"		/* Not a blur, for feeble GPUs */
+	"}\n"
+};
 #else /* TARGET_OS_WIN32 */
 static const char gGaussianBlurFragmentShaderW[] = {										/* Shader for ANGLE on Windows */
 	"uniform	"MEDIUMP"	vec3		coeff;\n"											/* g0 = 1/(sigma*sqrt(2*pi)), g1=exp(-1/(2*sigma^2)), g2=exp(-1/(sigma^2)) */
@@ -1307,6 +1317,15 @@ static const char gDilateFragmentShaderL[] = {
 	"	}\n"
 	"}\n"
 };
+static const char gDilateFragmentShaderN[] = {
+	"uniform	"LOWP"		int			rad;\n"												/* Radius of effect */
+	"uniform	"LOWP"		sampler2D	srcBM;\n"											/* Source texture */
+	"varying	"HIGHP"		vec2		srcCoord;\n"										/* Central source coordinate. {x, y} */
+	"uniform	"HIGHP"		vec2		srcDelta;\n"										/* Delta between successive samples. {dx, dy} */
+	"void main() {\n"
+	"	gl_FragColor = texture2D(srcBM, srcCoord + float(rad) * srcDelta * 0.);\n"			/* Not a dilate, for feeble GPUs */
+	"}\n"
+};
 #else /* TARGET_OS_WIN32 */
 static const char gDilateFragmentShaderW[] = {												/* Shader for ANGLE on Windows */
 	"uniform	"LOWP"		int			rad;\n"												/* Radius of effect */
@@ -1352,6 +1371,15 @@ static const char gErodeFragmentShaderL[] = {
 	"		gl_FragColor = min(gl_FragColor, texture2D(srcBM, srcCoord + float(r) * srcDelta));\n"	/* Next source pixel in the positive direction */
 	"		gl_FragColor = min(gl_FragColor, texture2D(srcBM, srcCoord - float(r) * srcDelta));\n"	/* Next source pixel in the negative direction */
 	"	}\n"
+	"}\n"
+};
+static const char gErodeFragmentShaderN[] = {
+	"uniform	"LOWP"		int			rad;\n"												/* Radius of effect */
+	"uniform	"LOWP"		sampler2D	srcBM;\n"											/* Source texture */
+	"varying	"HIGHP"		vec2		srcCoord;\n"										/* Central source coordinate. {x, y} */
+	"uniform	"HIGHP"		vec2		srcDelta;\n"										/* Delta between successive samples. {dx, dy} */
+	"void main() {\n"
+	"	gl_FragColor = texture2D(srcBM, srcCoord + float(rad) * srcDelta * 0.);\n"			/* Not an erode, for feeble GPUs */
 	"}\n"
 };
 #else /* TARGET_OS_WIN32 */
@@ -1401,6 +1429,15 @@ static const char gBoxBlurFragmentShaderL[] = {
 	"		acc += texture2D(srcBM, srcCoord - float(r) * srcDelta.xy);\n"
 	"	}\n"
 	"	gl_FragColor = acc * srcDelta.z;\n"
+	"}\n"
+};
+static const char gBoxBlurFragmentShaderN[] = {
+	"uniform	"LOWP"		int			rad;\n"												/* Radius of filter extent */
+	"uniform	"LOWP"		sampler2D	srcBM;\n"											/* Source texture */
+	"uniform	"HIGHP"		vec3		srcDelta;\n"										/* Delta between successive samples, plus norm. {dx, dy, norm} */
+	"varying	"HIGHP"		vec2		srcCoord;\n"										/* Central source coordinate. {x, y} */
+	"void main() {\n"
+	"	gl_FragColor = texture2D(srcBM, srcCoord + float(rad) * srcDelta.xy * 0.);\n"		/* Not a blur, for feeble GPUs */
 	"}\n"
 };
 #else /* TARGET_OS_WIN32 */
@@ -3782,7 +3819,7 @@ FskErr FskGLEffectsInit(void) {
 	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	#if !TARGET_OS_WIN32
 		if (!gEffectsGlobals.hasHighPrecision)	err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidGaussianBlurProgram,
-																				gGaussianBlurFragmentShaderL, gGaussianBlurFragmentShaderU, NULL);
+																				gGaussianBlurFragmentShaderL, gGaussianBlurFragmentShaderU, gGaussianBlurFragmentShaderN, NULL);
 		else									err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidGaussianBlurProgram,
 																				gGaussianBlurFragmentShaderH, gGaussianBlurFragmentShaderV, NULL);
 	#else /* TARGET_OS_WIN32 */
@@ -3793,7 +3830,11 @@ FskErr FskGLEffectsInit(void) {
 	BAIL_IF_ERR(err);
 	BAIL_IF_ZERO(gEffectsGlobals.gidGaussianBlurProgram, err, kFskErrGLShader);
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianBlurMatrix   = glGetUniformLocation(gEffectsGlobals.gidGaussianBlurProgram,	matrix_str),	err, kFskErrGLShader);
-	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianBlurCoeff    = glGetUniformLocation(gEffectsGlobals.gidGaussianBlurProgram,	coeff_str),		err, kFskErrGLShader);
+    #if __PI2_GL__
+	    gEffectsGlobals.gidGaussianBlurCoeff    = glGetUniformLocation(gEffectsGlobals.gidGaussianBlurProgram,	coeff_str);
+    #else
+	    BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianBlurCoeff    = glGetUniformLocation(gEffectsGlobals.gidGaussianBlurProgram,	coeff_str),		err, kFskErrGLShader);
+    #endif
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianBlurRadius   = glGetUniformLocation(gEffectsGlobals.gidGaussianBlurProgram,	rad_str),		err, kFskErrGLShader);
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianBlurSrcBM    = glGetUniformLocation(gEffectsGlobals.gidGaussianBlurProgram,	srcBM_str),		err, kFskErrGLShader);
 	BAIL_IF_NEGATIVE(gEffectsGlobals.gidGaussianBlurSrcDelta = glGetUniformLocation(gEffectsGlobals.gidGaussianBlurProgram,	srcDelta_str),	err, kFskErrGLShader);
@@ -3813,7 +3854,7 @@ FskErr FskGLEffectsInit(void) {
 	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	#if !TARGET_OS_WIN32
 		err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidBoxBlurProgram,
-										gBoxBlurFragmentShaderL, gBoxBlurFragmentShaderU, NULL);
+										gBoxBlurFragmentShaderL, gBoxBlurFragmentShaderU, gBoxBlurFragmentShaderN, NULL);
 	#else /* TARGET_OS_WIN32 */
 		err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidBoxBlurProgram,
 										gBoxBlurFragmentShaderW, NULL);
@@ -3839,7 +3880,7 @@ FskErr FskGLEffectsInit(void) {
 	/* Initialize Dilate shader, program and attributes */
 	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	#if !TARGET_OS_WIN32
-		err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidDilateProgram, gDilateFragmentShaderL, gDilateFragmentShaderU, NULL);
+		err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidDilateProgram, gDilateFragmentShaderL, gDilateFragmentShaderU, gDilateFragmentShaderN, NULL);
 	#else /* TARGET_OS_WIN32 */
 		err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidDilateProgram, gDilateFragmentShaderW, NULL);
 	#endif /* TARGET_OS_WIN32 */
@@ -3864,7 +3905,7 @@ FskErr FskGLEffectsInit(void) {
 	/* Initialize Erode shader, program and attributes */
 	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	#if !TARGET_OS_WIN32
-		err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidErodeProgram, gErodeFragmentShaderL, gErodeFragmentShaderU, NULL);
+		err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidErodeProgram, gErodeFragmentShaderL, gErodeFragmentShaderU, gErodeFragmentShaderN, NULL);
 	#else /* TARGET_OS_WIN32 */
 		err = InitFragmentShaderProgram(vertexShader, fragmentShader, &gEffectsGlobals.gidErodeProgram, gErodeFragmentShaderW, NULL);
 	#endif /* TARGET_OS_WIN32 */

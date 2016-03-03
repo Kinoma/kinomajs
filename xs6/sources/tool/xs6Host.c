@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -184,12 +184,13 @@ void fxBuildKeys(txMachine* the)
 		(*archive->keys)(the);
 	else {
 	#ifdef mxParse
-		txSlot* code = &mxIDs;
+		txSlot* callback = &mxIDs;
 		txID c, i;
 		if (archive) {
 			c = archive->symbolCount;
-			code->value.code = (txByte *)fxNewChunk(the, c * sizeof(txID));
-			code->kind = XS_CODE_KIND;	
+			callback->value.callback.address = C_NULL;
+			callback->value.callback.IDs = (txID*)fxNewChunk(the, c * sizeof(txID));
+			callback->kind = XS_CALLBACK_KIND;	
 			for (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {
 				txString string = archive->symbols[i];
 				txID id = the->keyIndex;
@@ -205,8 +206,9 @@ void fxBuildKeys(txMachine* the)
 			}
 		}
 		else {
-			code->value.code = (txByte *)fxNewChunk(the, XS_ID_COUNT * sizeof(txID));
-			code->kind = XS_CODE_KIND;	
+			callback->value.callback.address = C_NULL;
+			callback->value.callback.IDs = (txID*)fxNewChunk(the, XS_ID_COUNT * sizeof(txID));
+			callback->kind = XS_CALLBACK_KIND;	
 			for (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {
 				txID id = the->keyIndex;
 				txSlot* description = fxNewSlot(the);

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -1721,6 +1721,7 @@ void fxPrefixExpression(txParser* parser)
 			//if ((parser->flags & mxStrictFlag) && (parser->root->description->token == XS_TOKEN_ACCESS)) {
 			//	fxReportParserError(parser, "no reference (strict mode)");
 			//}
+			fxCheckReference(parser, aToken);
 			fxPushNodeStruct(parser, 1, aToken, aLine);
 		}
 		else
@@ -2218,7 +2219,7 @@ void fxGroupExpression(txParser* parser)
 	else {
 		if (aCount == 0)
 			fxReportParserError(parser, "missing expression");
-		else if (aCount > 1) {
+		else /*if (aCount > 1)*/ {
 			fxPushNodeList(parser, aCount);
 			fxPushNodeStruct(parser, 1, XS_TOKEN_EXPRESSIONS, aLine);
 		}
@@ -2945,7 +2946,19 @@ void fxRestBinding(txParser* parser, txToken theToken)
 void fxCheckReference(txParser* parser, txToken theToken)
 {
 	txNode* node = parser->root;
-	txToken aToken = node->description->token;
+	txToken aToken = node ? node->description->token : XS_NO_TOKEN;
+	if (aToken == XS_TOKEN_EXPRESSIONS) {
+		txNode* item = ((txExpressionsNode*)node)->items->first;
+		if (item && !item->next) {
+			aToken = item->description->token;
+			if ((aToken == XS_TOKEN_ACCESS) || (aToken == XS_TOKEN_MEMBER) || (aToken == XS_TOKEN_MEMBER_AT) || (aToken == XS_TOKEN_UNDEFINED)) {
+				item->next = node->next;
+				node = parser->root = item;
+			}
+			else
+				aToken = XS_TOKEN_EXPRESSIONS;
+		}
+	}
 	if (aToken == XS_TOKEN_ACCESS) {
 		fxCheckStrictSymbol(parser, ((txAccessNode*)node)->symbol);
 		return;
@@ -2974,7 +2987,7 @@ void fxCheckReference(txParser* parser, txToken theToken)
         else
 			fxReportReferenceError(parser, "no reference");
 	}
-	else
+	else if (theToken != XS_TOKEN_DELETE)
 		fxReportReferenceError(parser, "no reference");
 }
 

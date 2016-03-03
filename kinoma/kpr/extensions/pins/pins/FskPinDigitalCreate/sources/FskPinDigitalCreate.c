@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,11 @@
 #include "kprPins.h"
 
 #include "FskMemory.h"
+
+static const int pinGo = 0x03;
+
+static int pinConfigRegs[8] = { 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B };
+
 
 static Boolean createBackDigitalCanHandle(SInt32 number, const char *name, SInt32 *remappedNumber);
 FskPinDigitalDispatchRecord gCreateBackPinDigital = {
@@ -116,12 +121,26 @@ void createFrontDigitalDispose(FskPinDigital pin)
 
 FskErr createFrontDigitalSetDirection(FskPinDigital pin, FskPinsDigitalDirection direction)
 {
+	FskErr err;
+	UInt8 check = 1;
 	createFrontDigital cfd = (createFrontDigital)pin;
 
+	err = FskPinI2CSetAddress(cfd->i2c, cfd->address);
+	if (err) return err;
+
 	if (kFskPinDigitalDirectionIn == direction)
-		FskHardwarePinsDoMux(cfd->pinNumber, cfd->address, 4);
+		err = FskPinI2CWriteDataByte(cfd->i2c, pinConfigRegs[cfd->pinNumber], 4);
 	else if (kFskPinDigitalDirectionOut == direction)
-		FskHardwarePinsDoMux(cfd->pinNumber, cfd->address, 5);
+		err = FskPinI2CWriteDataByte(cfd->i2c, pinConfigRegs[cfd->pinNumber], 5);
+	if (err) return err;
+
+	err = FskPinI2CWriteDataByte(cfd->i2c, pinGo, 1);
+	if (err) return err;
+
+	while (check > 0){
+		err = FskPinI2CReadDataByte(cfd->i2c, pinGo, &check);
+		if (err) return err;
+	}
 
 	cfd->direction = direction;
 
@@ -141,12 +160,18 @@ FskErr createFrontDigitalRead(FskPinDigital pin, Boolean *value)
 {
 	createFrontDigital cfd = (createFrontDigital)pin;
 	FskErr err;
+	int readFrom;
 	UInt8 b;
+
+	if (cfd->direction == kFskPinDigitalDirectionOut)
+		readFrom = FFDIGITALOUT;
+	else
+		readFrom = FFDIGITALIN;
 
 	err = FskPinI2CSetAddress(cfd->i2c, cfd->address);
 	if (err) return err;
 
-	err = FskPinI2CReadDataByte(cfd->i2c, FFDIGITALIN, &b);
+	err = FskPinI2CReadDataByte(cfd->i2c, readFrom, &b);
 	if (err) return err;
 
 	*value = (b & (1 << cfd->pinNumber)) ? true : false;

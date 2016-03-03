@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,12 +30,6 @@
 #include "kprURL.h"
 #include "kprShell.h"
 
-struct KprTextLinkStruct {
-	KprSlotPart;
-	KprContentPart;
-};
-
-static FskErr KprTextLinkNew(KprTextLink *it);
 static void KprTextLinkInvalidated(void* it, FskRectangle area);
 
 #if SUPPORT_INSTRUMENTATION
@@ -303,10 +297,10 @@ FskErr KprTextConcatContent(KprText self, KprContent content, UInt16 adjustment)
 		self->first = content;
 	self->last = content;
 	content->container = (KprContainer)self;
-	coordinates->horizontal &= ~kprLeftRight;
+	//coordinates->horizontal &= ~kprLeftRight;
 	coordinates->left = 0;
 	coordinates->right = 0;
-	coordinates->vertical &= ~kprTopBottom;
+	//coordinates->vertical &= ~kprTopBottom;
 	coordinates->top = 0;
 	coordinates->bottom = 0;
 	if (self->shell)
@@ -716,8 +710,9 @@ void KprTextFitHorizontally(void* it)
 				self->bounds.width = self->textWidth;
 			}
 		}
-		else {	
-			KprTextFormat(self, self->bounds.width, &height);
+		else {
+			if (self->bounds.width > 0)
+				KprTextFormat(self, self->bounds.width, &height);
 			if (self->flags & kprTextEditable) {
 				if (height == 0) {
 					FskRectangleRecord bounds;
@@ -737,21 +732,13 @@ void KprTextFitHorizontally(void* it)
 		self->coordinates.height = height;
 		self->flags |= kprHeightChanged;
 	}
-	while (content) {
-		(*content->dispatch->fitHorizontally)(content);
-		content = content->next;
-	}
+	self->flags |= kprContentsPlaced;
 }
 
 void KprTextFitVertically(void* it) 
 {
 	KprText self = it;
-	KprContent content = self->first;
 	KprContentFitVertically(it);
-	while (content) {
-		(*content->dispatch->fitVertically)(content);
-		content = content->next;
-	}
 	self->flags |= kprContentsPlaced;
 }
 
@@ -825,12 +812,14 @@ void KprTextMeasureHorizontally(void* it)
 
 void KprTextMeasureVertically(void* it) 
 {
+/*
 	KprText self = it;
 	KprContent content = self->first;
 	while (content) {
 		(*content->dispatch->measureVertically)(content);
 		content = content->next;
 	}
+*/
 }
 
 void KprTextPlace(void* it) 
@@ -864,10 +853,12 @@ void KprTextPlaced(void* it)
 
 void KprTextReflowing(void* it, UInt32 flags)
 {
-	KprContainer self = it;
+	KprText self = it;
 	KprContainer container = self->container;
-	if (flags & (kprPositionChanged | kprSizeChanged))
+	if (flags & (kprPositionChanged | kprSizeChanged)) {
 		self->flags |= kprSizeChanged;
+		self->textWidth = -1;
+	}
 	else
 		self->flags |= kprContentsChanged;
 	self->flags |= kprContentsPlaced;
@@ -1227,11 +1218,32 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 				}
 			}
 			else {
-				FskRectangle bounds = &(run->item.content->bounds);
-				KprCoordinates coordinates = &(run->item.content->coordinates);
-				bounds->width = coordinates->width;
-				bounds->height = coordinates->height;
-				if (run->item.adjustment >= kprTextFloatLeft) {
+				KprContent content = run->item.content;
+				FskRectangle bounds = &(content->bounds);
+				KprCoordinates coordinates = &(content->coordinates);
+				if ((coordinates->horizontal & kprLeftRight) == kprLeftRight)
+					bounds->width = lineBounds.width - coordinates->left - coordinates->right;
+				(*content->dispatch->fitHorizontally)(content);
+				(*content->dispatch->measureVertically)(content);
+				if ((coordinates->vertical & kprTopBottom) == kprTopBottom) {
+					if (coordinates->width && coordinates->height)
+						bounds->height = ((coordinates->height * lineBounds.width) / coordinates->width) - coordinates->top - coordinates->bottom;
+					else
+						bounds->height = 0;
+				}
+				(*content->dispatch->fitVertically)(content);
+				if (run->item.adjustment == kprTextFloatLeftRight) {
+					bounds->x = 0;
+					bounds->y = lineBounds.y;
+					KprTextFormatLine(self, text, style, true, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth);
+					startOffset = stopOffset = firstOffset = offset + advance;
+					breakWidth = 0;
+					textWidth = 0;
+					startRun = stopRun = run;
+					bailIfError(FskGrowableArrayAppendItem(self->stateBuffer, (void *)run));
+					lineBounds.y = bounds->y + bounds->height;
+				}
+				else if (run->item.adjustment >= kprTextFloatLeft) {
 					if (lineBounds.width < breakWidth + textWidth) {
 						 // @@ lineCount ?
 						if (breakWidth) {
@@ -1299,6 +1311,7 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 					stopOffset = offset;
 					stopRun = run;
 				}
+				KprContentPlacing(content);
 			}
 			run++;
 		}

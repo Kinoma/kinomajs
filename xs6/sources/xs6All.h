@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -89,7 +89,7 @@ typedef union {
 	struct { txSlot* address; txIndex length; } array;
 	struct { txByte* address; txInteger length; } arrayBuffer;
 	struct { txCallback address; txID* IDs; } callback;
-	txByte* code;
+	struct { txByte* address; txSlot* closures; } code;
 	struct { txInteger offset; txInteger size; } dataView;
 	struct { void* data; union { txDestructor destructor; txHostHooks* hooks; } variant; } host;
 	struct { txSlot* handler; txSlot* target; } proxy;
@@ -317,12 +317,10 @@ mxExport txBoolean fxHasIndex(txMachine* the, txIndex index);
 mxExport txBoolean fxHasOwnID(txMachine*, txInteger);
 mxExport void fxGetAll(txMachine* the, txInteger id, txIndex index);
 mxExport void fxGetAt(txMachine*);
-mxExport void fxGetClosure(txMachine* the, txInteger theID);
 mxExport void fxGetID(txMachine*, txInteger);
 mxExport void fxGetIndex(txMachine*, txIndex);
 mxExport void fxSetAll(txMachine* the, txInteger id, txIndex index);
 mxExport void fxSetAt(txMachine*);
-mxExport void fxSetClosure(txMachine* the, txInteger theID);
 mxExport void fxSetID(txMachine*, txInteger);
 mxExport void fxSetIndex(txMachine*, txIndex);
 mxExport void fxDefineAll(txMachine* the, txID id, txIndex index, txFlag flag, txFlag mask);
@@ -845,6 +843,7 @@ enum {
 	XS_ACCESSOR_KIND,
 	XS_AT_KIND,
 	XS_ENTRY_KIND,
+	XS_ERROR_KIND,
 	XS_HOME_KIND,
 	XS_KEY_KIND,
 	XS_KEY_X_KIND,
@@ -1182,16 +1181,15 @@ enum {
 #define mxVarv(THE_INDEX) (the->frame -2 - THE_INDEX)
 
 #define mxFunctionInstanceCode(INSTANCE) 		((INSTANCE)->next)
-#define mxFunctionInstanceClosures(INSTANCE) 	((INSTANCE)->next->next)
-#define mxFunctionInstanceHome(INSTANCE) 		((INSTANCE)->next->next->next)
+#define mxFunctionInstanceHome(INSTANCE) 		((INSTANCE)->next->next)
 #ifdef mxProfile
-#define mxFunctionInstanceProfile(INSTANCE) 	((INSTANCE)->next->next->next->next)
+#define mxFunctionInstanceProfile(INSTANCE) 	((INSTANCE)->next->next->next)
 #ifndef mxNoFunctionLength
-#define mxFunctionInstanceLength(INSTANCE)		((INSTANCE)->next->next->next->next->next)
+#define mxFunctionInstanceLength(INSTANCE)		((INSTANCE)->next->next->next->next)
 #endif
 #else
 #ifndef mxNoFunctionLength
-#define mxFunctionInstanceLength(INSTANCE)		((INSTANCE)->next->next->next->next)
+#define mxFunctionInstanceLength(INSTANCE)		((INSTANCE)->next->next->next)
 #endif
 #endif
 
@@ -1421,7 +1419,7 @@ enum {
 #define mxErrorPrototypes(THE_ERROR) (the->stackTop[-mxErrorPrototypeStackIndex-(THE_ERROR)])
 
 
-#define mxID(_ID) (((txID*)(mxIDs.value.code))[_ID])
+#define mxID(_ID) (mxIDs.value.callback.IDs[_ID])
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -3761,6 +3761,11 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 	
 	private static int shiftPriorityAndSave(final WifiManager wifiMgr) {
 		final List<WifiConfiguration> configurations = wifiMgr.getConfiguredNetworks();
+
+		if (configurations == null) {
+			return 0;
+		}
+
 		sortByPriority(configurations);
 		final int size = configurations.size();
 		for(int i = 0; i < size; i++) {
@@ -3774,6 +3779,11 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 
 	private static int getMaxPriority(final WifiManager wifiManager) {
 		final List<WifiConfiguration> configurations = wifiManager.getConfiguredNetworks();
+
+		if (configurations == null) {
+			return 0;
+		}
+
 		int pri = 0;
 		for(final WifiConfiguration config : configurations) {
 			if(config.priority > pri) {
@@ -3836,19 +3846,21 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 		WifiManager wifiManager = (WifiManager)this.getSystemService(WIFI_SERVICE);
 		WifiInfo wifiInfo = wifiManager.getConnectionInfo();
 		netId = wifiInfo.getNetworkId ();
+		ssid = "\"" + ssid + "\"";
 
 		//search for the same network, bypass addNetwork if existing.
 		List<WifiConfiguration> networkList = wifiManager.getConfiguredNetworks();
-		ssid = "\"" + ssid + "\"";
-		for (int i = 0; i < networkList.size(); i++) {
-			WifiConfiguration c = networkList.get(i);
-			//Log.i("kinoma", "----->SSID: " + c.SSID + "," + ssid + ", netId: " + c.networkId + ", priority:" + c.priority);
-			if (c.SSID.equals(ssid)){
-				existing = true;
-				newNetId = c.networkId;
-				wifiConfig = c;
-				//TODO: Do not need update key(password) here? How about key changed?
-				break;
+		if (networkList != null) {
+			for (int i = 0; i < networkList.size(); i++) {
+				WifiConfiguration c = networkList.get(i);
+				//Log.i("kinoma", "----->SSID: " + c.SSID + "," + ssid + ", netId: " + c.networkId + ", priority:" + c.priority);
+				if (c.SSID.equals(ssid)){
+					existing = true;
+					newNetId = c.networkId;
+					wifiConfig = c;
+					//TODO: Do not need update key(password) here? How about key changed?
+					break;
+				}
 			}
 		}
 
@@ -3948,6 +3960,11 @@ Log.i("Kinoma", " - enable is -1, force KeyboardEnableStage");
 		WifiManager wifiManager = (WifiManager)this.getSystemService(WIFI_SERVICE);
 
 		List<WifiConfiguration> networkList = wifiManager.getConfiguredNetworks();
+
+		if (networkList == null) {
+			return;
+		}
+
 		for (int i = 0; i < networkList.size(); i++) {
 			WifiConfiguration wifiConfig = networkList.get(i);
 

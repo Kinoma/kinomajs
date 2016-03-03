@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -345,7 +345,7 @@ bail:
 int KprSSDPNetworkInterfaceNotifier(struct FskNetInterfaceRecord* iface, UInt32 status, void* param)
 {
 	FskErr err = kFskErrNone;
-	FskDebugStr("KprSSDPInterfaceNotifier %s -> %d", iface->name, status);
+	FskDebugStr("KprSSDPInterfaceNotifier %s -> %lu", iface->name, status);
 	switch (status) {
 		case kFskNetInterfaceStatusNew:
 			KprSSDPNetworkInterfaceAdd(iface, true);
@@ -913,6 +913,26 @@ void KprSSDPRemoveDiscovery(KprSSDP self, KprSSDPDiscovery discovery)
 	KprSSDPDiscoveryDispose(discovery);
 }
 
+FskErr KprSSDPRemoveDiscoveryByUUID(char* uuid)
+{
+	KprSSDP self = gSSDP;
+	KprSSDPDiscovery discovery = NULL;
+	FskAssociativeArrayIterator iterate = NULL, next = FskAssociativeArrayIteratorNew(self->discoveries);
+	
+	FskInstrumentedItemPrintfVerbose(self, "KprSSDPRemoveDiscoveryByUUID %s", uuid);
+	while (next) {
+		iterate = next;
+		discovery = (KprSSDPDiscovery)iterate->value;
+		next = FskAssociativeArrayIteratorNext(iterate);
+		if (!FskStrCompare(discovery->uuid, uuid))
+			KprSSDPRemoveDiscovery(self, discovery);
+	}
+	FskAssociativeArrayIteratorDispose(iterate);
+	FskMemPtrDispose(uuid);
+	KprSSDPPrintDiscoveries(self);
+	return kFskErrNone;
+}
+
 FskErr KprSSDPRemoveDiscoveryByLocation(char* location)
 {
 	KprSSDP self = gSSDP;
@@ -1122,7 +1142,7 @@ void KprSSDPSendPacketDefault(KprSSDP self, KprSSDPPacket packet)
 				packet = packet->device->alive;
 				FskTimeGetNow(&packet->when);
 				FskTimeAddMS(&packet->when, kKprSSDPPacketSpreading);
-				FskInstrumentedItemPrintfVerbose(self, "schedule alive for %d.%03d for %s", packet->when.seconds, packet->when.useconds / 1000, packet->device->type);
+				FskInstrumentedItemPrintfVerbose(self, "schedule alive for %ld.%03ld for %s", packet->when.seconds, packet->when.useconds / 1000, packet->device->type);
 				KprSSDPSchedulePacket(self, packet);
 			}
 			else	// final byebye, dispose device
@@ -1190,7 +1210,7 @@ void KprSSDPSendPacketSearch(KprSSDP self, KprSSDPPacket packet)
 	FskNetIPandPortToString(ssdpInterface->ip, 0, ip);
 	snprintf(buffer, sizeof(buffer), message->text, ip);
 	if (ssdpInterface->ready) {
-		FskInstrumentedItemPrintfVerbose(ssdpInterface, "%s -> U %d.%d.%d.%d:%d - %s %s %s", ip,
+		FskInstrumentedItemPrintfVerbose(ssdpInterface, "%s -> U %ld.%ld.%ld.%ld:%ld - %s %s %s", ip,
 			(packet->ip >> 24) & 255, (packet->ip >> 16) & 255, (packet->ip >> 8) & 255, packet->ip & 255, packet->port,
 			kKprSSDPType2String(packet->type), kKprSSDPVariant2String(message->variant), packet->device->type);
 		FskInstrumentedItemPrintfDebug(ssdpInterface, "%s", buffer);
@@ -1301,7 +1321,7 @@ FskErr KprSSDPProcessNotify(KprSSDP self, KprSSDPInterface ssdpInterface UNUSED,
 
 	discovery = (KprSSDPDiscovery)FskAssociativeArrayElementGetReference(self->discoveries, tag);
 
-	FskInstrumentedItemPrintfVerbose(ssdpInterface, "%d.%d.%d.%d <- %s %d.%d.%d.%d:%d - %s %s %s", (ssdpInterface->ip >> 24) & 255, (ssdpInterface->ip >> 16) & 255, (ssdpInterface->ip >> 8) & 255, ssdpInterface->ip & 255,
+	FskInstrumentedItemPrintfVerbose(ssdpInterface, "%lu.%lu.%lu.%lu <- %s %lu.%lu.%lu.%lu:%lu - %s %s %s", (ssdpInterface->ip >> 24) & 255, (ssdpInterface->ip >> 16) & 255, (ssdpInterface->ip >> 8) & 255, ssdpInterface->ip & 255,
 		multicast ? "M" : "U",
 		(ip >> 24) & 255, (ip >> 16) & 255, (ip >> 8) & 255, ip & 255, port,
 		nts, nt, location ? location : "");
@@ -1442,7 +1462,7 @@ FskErr KprSSDPProcessSearch(KprSSDP self, KprSSDPInterface ssdpInterface, UInt32
 		
 		if (!st)
 			BAIL(kFskErrBadData);
-		FskInstrumentedItemPrintfVerbose(ssdpInterface, "%d.%d.%d.%d <- M %d.%d.%d.%d:%d - ssdp:discover %s", (ssdpInterface->ip >> 24) & 255, (ssdpInterface->ip >> 16) & 255, (ssdpInterface->ip >> 8) & 255, ssdpInterface->ip & 255,
+		FskInstrumentedItemPrintfVerbose(ssdpInterface, "%lu.%lu.%lu.%lu <- M %lu.%lu.%lu.%lu:%lu - ssdp:discover %s", (ssdpInterface->ip >> 24) & 255, (ssdpInterface->ip >> 16) & 255, (ssdpInterface->ip >> 8) & 255, ssdpInterface->ip & 255,
 			(ip >> 24) & 255, (ip >> 16) & 255, (ip >> 8) & 255, ip & 255, port,
 			st);
 		if (!FskStrCompare(st, "ssdp:all"))
@@ -1687,7 +1707,7 @@ FskErr KprSSDPDeviceSendByebye(KprSSDPDevice self, KprSSDP ssdp)
 			for (repeat = ssdp->byebyeRepeat; repeat; repeat--) {
 				for (message = packet->messages; message; message = message->next) {
 					buffer = message->text;
-					FskInstrumentedItemPrintfVerbose(ssdpInterface, "%d.%d.%d.%d -> M - %s %s %s",
+					FskInstrumentedItemPrintfVerbose(ssdpInterface, "%lu.%lu.%lu.%lu -> M - %s %s %s",
 						(ssdpInterface->ip >> 24) & 255, (ssdpInterface->ip >> 16) & 255, (ssdpInterface->ip >> 8) & 255, ssdpInterface->ip & 255,
 						kKprSSDPType2String(packet->type), kKprSSDPVariant2String(message->variant), packet->device->type);
 					FskInstrumentedItemPrintfDebug(ssdpInterface, "%s", buffer);
@@ -2116,7 +2136,7 @@ FskErr KprSSDPInterfaceConnect(KprSSDPInterface self, Boolean notify)
 	KprSSDP ssdp = self->ssdp;
 	UInt32 ttl = ssdp->ttl;
 	
-	FskInstrumentedItemPrintfDebug(self, "KprSSDPInterface %s: trying %08X %d!\n", self->title, self->ip, self->status);
+	FskInstrumentedItemPrintfDebug(self, "KprSSDPInterface %s: trying %08lX %lu!\n", self->title, self->ip, self->status);
 
 	FskTimeCallbackRemove(self->timer);
 	bailIfError(FskNetSocketNewUDP(&self->multicast, "ssdp multicast socket"));

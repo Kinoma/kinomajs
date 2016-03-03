@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -268,9 +268,8 @@ FskAPI(Boolean)	FskCanvasIsAccelerated(FskConstCanvas2dContext ctx);
  *						except for "image/jpeg". Quality varies from 0 to 1.
  *	\param[out]	dataURL	The resultant data:url-encoded image, newly allocated. Dispose with FskMemPtrDispose();
  *	\return		kFskErrNone	if the data:URL was successfully created.
- *	\bug		We only implement "image/jpeg", not PNG nor SVG.
+ *	\note		We implement "image/jpeg", "image/png" and "image/bmp", but not "image/svg+xml".
  *	\warning	This can generate strings that are longer than 1024, which is the suggested maximum length of HTML attributes.
- *	\todo		Implement PNG and SVG.
  */
 FskAPI(FskErr)	FskCanvasToDataURL(FskCanvas cnv, const char *type, float quality, char **dataURL);
 
@@ -592,7 +591,6 @@ FskAPI(FskErr)	FskCanvas2dSetStrokeStyleLinearGradient(FskCanvas2dContext ctx,
  *				where an offset of 0 corresponds to (x0,y0,r0) and (an offset of 1 corresponds to (x1, y1,r1).
  *				Offsets between 0 and 1 are linearly interpolated between (x0,y0,r0) and (x1,y1,r1).
  *	\bug		Only kCanvas2DMaxGradientStops (6) gradient stops are currently accommodated.
- *	\todo		Implement r0 != 0.
  *	\todo		Accommodate an arbitrary number of gradient stops.
  */
 FskAPI(FskErr)	FskCanvas2dSetFillStyleRadialGradient(	FskCanvas2dContext ctx,
@@ -616,7 +614,6 @@ FskAPI(FskErr)	FskCanvas2dSetFillStyleRadialGradient(	FskCanvas2dContext ctx,
  *				where an offset of 0 corresponds to (x0,y0,r0) and (an offset of 1 corresponds to (x1, y1,r1).
  *				Offsets between 0 and 1 are linearly interpolated between (x0,y0,r0) and (x1,y1,r1).
  *	\bug		Only kCanvas2DMaxGradientStops (6) gradient stops are currently accommodated.
- *	\todo		Implement r0 != 0.
  *	\todo		Accommodate an arbitrary number of gradient stops.
  */
 FskAPI(FskErr)	FskCanvas2dSetStrokeStyleRadialGradient(FskCanvas2dContext ctx,

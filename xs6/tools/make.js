@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,6 +46,8 @@ export class Makefile {
 		this.separate = tree.separate;
 		this.sources = tree.sources;
 		this.xs = tree.xs;
+		this.jsDestinationPath = tree.jsDestinationPath;
+		this.jsSourcePath = tree.jsSourcePath;
 	}
 	generateRule(tool, file, path) {
 		var parts = tool.splitPath(path);
@@ -63,7 +65,7 @@ export class Makefile {
 			else
 				file.write("\n\t$(AS) $(AS_OPTIONS) ");
 			file.write(path);
-			file.write(" -o $@\n");
+			file.write(" -o '$@'\n");
 		}
 		else if (parts.extension == ".gas7") {
 			file.write("$(TMP_DIR)/");
@@ -76,7 +78,7 @@ export class Makefile {
 			file.write(path);
 			file.write("\n\t$(AS_V7) $(AS_V7_OPTIONS) ");
 			file.write(path);
-			file.write(" -o $@\n");
+			file.write(" -o '$@'\n");
 		}
 		else if (parts.extension == ".wmmx") {
 			file.write("$(TMP_DIR)/");
@@ -89,7 +91,7 @@ export class Makefile {
 			file.write(path);
 			file.write("\n\t$(AS_WMMX) $(AS_WMMX_OPTIONS) ");
 			file.write(path);
-			file.write(" -o $@\n");
+			file.write(" -o '$@'\n");
 		}
 		else {
 			file.write("$(TMP_DIR)/");
@@ -111,7 +113,7 @@ export class Makefile {
 			file.write("$(C_INCLUDES) ");
 			file.write("$(");
 			file.write(this.name);
-			file.write("_C_INCLUDES) -c -o $@\n");
+			file.write("_C_INCLUDES) -c -o '$@'\n");
 		}
 	}
 	generateRules(tool, file) {
@@ -133,7 +135,7 @@ export class Makefile {
 		file.write("-Wl,-soname,lib" + this.name + ".so $(SEPARATE_LINK_OPTIONS) ");
 		file.write("$(SEPARATE_LIBRARIES) $(" + this.name + "_LIBRARIES) ");
 		file.write("$(" + this.name + "_OBJECTS) ");
-		file.write("-o $@\n");
+		file.write("-o '$@'\n");
 	}
 	generateVariable(tool, file, path) {
 		var parts = tool.splitPath(path);
@@ -184,7 +186,7 @@ export class Makefile {
 		else {
 			for (let item of this.cIncludes) {
 				file.write(" \\\n\t-I");
-				file.write(item);
+				file.write(tool.escapeMakePath(item));
 			}
 		}
 		file.write(" \\\n\t-I$(TMP_DIR)/");
@@ -200,7 +202,7 @@ export class Makefile {
 		file.write(this.name + "_HEADERS = ");
 		for (let item of this.headers) {
 			file.write(" \\\n\t");
-			file.write(item);
+			file.write(tool.escapeMakePath(item));
 		}
 		file.write("\n");
 		if (this.sources.length) {
@@ -213,7 +215,7 @@ export class Makefile {
 			file.write(this.name + "_LIBRARIES = ")
 			for (let library of this.libraries) {
 				file.write(" \\\n\t");
-				file.write(library);
+				file.write(tool.escapeMakePath(library));
 			}
 			file.write(" \n");
 		}
@@ -408,11 +410,8 @@ export class Manifest {
 			file.write("% : %.c\n");
 			file.write("%.o : %.c\n");
 		}
-		this.generatePlatformVariables(tool, file, tmp, bin);
+		this.generatePlatformVariables(tool, file, tool.escapeMakePath(tmp), tool.escapeMakePath(bin));
 
-		file.write("TMP_DIR = ");
-		file.write(tmp);
-		file.write("\n");
 		file.write("SUPPORT_XS_DEBUG=" + (tool.debug || this.tree.xsdebug.enabled || tool.xsdebug ? 1 : 0) + "\n");
 		file.write("SUPPORT_XS_PROFILE=" + (this.tree.xsprofile.enabled ? 1 : 0) + "\n");
 	
@@ -481,9 +480,9 @@ export class Manifest {
 	}
 	generateManifestRules(tool, file) {
 		file.line("$(TMP_DIR)/FskManifest.o: $(HEADERS) ", tool.manifestPath);
-		file.line("\t$(CC) $(TMP_DIR)/FskManifest.c $(C_OPTIONS) $(C_INCLUDES) -c -o $@");
+		file.line("\t$(CC) $(TMP_DIR)/FskManifest.c $(C_OPTIONS) $(C_INCLUDES) -c -o '$@'");
 		file.line("$(TMP_DIR)/FskManifest.xs.o: $(HEADERS) $(TMP_DIR)/FskManifest.xs.c");
-		file.line("\t$(CC) $(TMP_DIR)/FskManifest.xs.c $(C_OPTIONS) $(C_INCLUDES) -c -o $@");
+		file.line("\t$(CC) $(TMP_DIR)/FskManifest.xs.c $(C_OPTIONS) $(C_INCLUDES) -c -o '$@'");
 	}
 	generatePlatformVariables(tool, file, tmp, bin) {
 		var variables = this.getPlatformVariables(tool, tmp, bin);
@@ -509,25 +508,35 @@ export class Manifest {
 			else
 				file.line("\t$(XSC) ", item.sourcePath, " -o $(TMP_DIR)", tool.slash, parts.directory);
 		}
+		for (let makefile of this.makefiles) {
+			if (makefile.jsSourcePath && makefile.jsDestinationPath) {
+				let parts = tool.splitPath(makefile.jsDestinationPath);
+				file.line("$(TMP_DIR)", tool.slash, makefile.jsDestinationPath, ".xsb : ", makefile.jsSourcePath);
+				if (tool.debug)
+					file.line("\t$(XSC) -c -d -e ", makefile.jsSourcePath, " -o $(TMP_DIR)", tool.slash, parts.directory);
+				else
+					file.line("\t$(XSC) -c -e ", makefile.jsSourcePath, " -o $(TMP_DIR)", tool.slash, parts.directory);
+			}
+		}
 		for (let path of this.tree.directoryPaths) {
-			file.write("$(APP_DIR)");
+			file.write("$(RES_DIR)");
 			file.write(tool.slash);
 			file.write(path);
 			if (tool.windows) {
-				file.write(":\n\tif not exist $(APP_DIR)");
+				file.write(":\n\tif not exist $(RES_DIR)");
 				file.write(tool.slash);
 				file.write(path);
-				file.write("/$(NULL) mkdir $(APP_DIR)");
+				file.write("/$(NULL) mkdir $(RES_DIR)");
 			}
 			else
-				file.write(" :\n\tmkdir -p $(APP_DIR)");
+				file.write(" :\n\tmkdir -p $(RES_DIR)");
 			file.write(tool.slash);
 			file.write(path);
 			file.write("\n");
 		}
 		
 		for (let item of this.tree.otherPaths) {
-			file.write("$(APP_DIR)");
+			file.write("$(RES_DIR)");
 			file.write(tool.slash);
 			file.write(item.destinationPath);
 			file.write(": ");
@@ -537,7 +546,7 @@ export class Manifest {
 			else
 				file.write("\n\tcp -p ");
 			file.write(item.sourcePath);
-			file.write(" $(APP_DIR)");
+			file.write(" $(RES_DIR)");
 			file.write(tool.slash);
 			file.write(item.destinationPath);
 			file.write("\n");
@@ -561,17 +570,25 @@ export class Manifest {
 			file.write(item.destinationPath);
 			file.write(".xsb");
 		}
+		for (let makefile of this.makefiles) {
+			if (makefile.jsSourcePath && makefile.jsDestinationPath) {
+				file.write(" \\\n\t$(TMP_DIR)");
+				file.write(tool.slash);
+				file.write(makefile.jsDestinationPath);
+				file.write(".xsb");
+			}
+		}
 		file.write("\n");
 		file.write("FOLDERS =");
 		for (let path of this.tree.directoryPaths) {
-			file.write(" \\\n\t$(APP_DIR)");
+			file.write(" \\\n\t$(RES_DIR)");
 			file.write(tool.slash);
 			file.write(path);
 		}
 		file.write("\n");
 		file.write("FILES =");
 		for (let item of this.tree.otherPaths) {
-			file.write(" \\\n\t$(APP_DIR)");
+			file.write(" \\\n\t$(RES_DIR)");
 			file.write(tool.slash);
 			file.write(item.destinationPath);
 		}
@@ -598,7 +615,7 @@ export class Manifest {
 	}
 	generateXSRules(tool, file) {
 		file.line("$(TMP_DIR)", tool.slash, "FskManifest.xs.c: $(MODULES)");
-		file.line("\t$(XSL) $(MODULES) -a FskManifest -b $(TMP_DIR) -o $(APP_DIR)");
+		file.line("\t$(XSL) $(MODULES) -a FskManifest -b $(TMP_DIR) -o $(RES_DIR)");
 		
 		file.line("$(TMP_DIR)", tool.slash,"FskManifest.xsb: $(TMP_DIR)", tool.slash, "FskManifest.js");
 		file.line("\t$(XSC) $(TMP_DIR)", tool.slash ,"FskManifest.js -c -d -e -p -o $(TMP_DIR)");

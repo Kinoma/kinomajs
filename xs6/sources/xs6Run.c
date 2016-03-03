@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -483,7 +483,7 @@ void fxRunID(txMachine* the, txSlot* generator, txID id)
 		offset = variable->value.stack.length;
 		mxOverflow(offset);
 		c_memcpy(mxStack, variable->value.stack.address, offset * sizeof(txSlot));
-		mxCode = (mxStack++)->value.reference->next->value.code;
+		mxCode = (mxStack++)->value.reference->next->value.code.address;
 		offset = (mxStack++)->value.integer;
 		while (offset) {
 			jump = c_malloc(sizeof(txJump));
@@ -641,11 +641,15 @@ XS_CODE_JUMP:
 				slot = mxFrameResult;
 				goto XS_CODE_END_ALL;
 			}
-			variable = mxFunctionInstanceClosures(slot);
-			mxPushKind(variable->kind);
-			mxStack->value = variable->value;
+			variable = slot->next->value.code.closures;
+			if (variable) {
+				mxPushKind(XS_REFERENCE_KIND);
+				mxStack->value.reference = variable;
+			}
+			else
+				mxPushKind(XS_NULL_KIND);
 			mxScope = mxStack;
-			mxCode = slot->next->value.code;
+			mxCode = slot->next->value.code.address;
 			byte = *((txU1*)mxCode);
 			mxBreak;
 		mxCase(XS_CODE_CALL_TAIL)
@@ -758,7 +762,7 @@ XS_CODE_JUMP:
 			*mxFrameResult = *mxStack;
 			slot = mxFrameArgv(-1);
 			mxPushKind(XS_INTEGER_KIND);
-			mxStack->value.integer = mxCode - mxFrameFunction->value.reference->next->value.code;;
+			mxStack->value.integer = mxCode - mxFrameFunction->value.reference->next->value.code.address;
 			mxPushKind(XS_INTEGER_KIND);
 			mxStack->value.integer = slot - mxScope;
 			mxPushKind(XS_INTEGER_KIND);
@@ -789,7 +793,7 @@ XS_CODE_JUMP:
 			generator->next->next->value.reference->next->next->value.boolean = 0; // done
 			slot = mxFrameArgv(-1);
 			mxPushKind(XS_INTEGER_KIND);
-			mxStack->value.integer = mxCode - mxFrameFunction->value.reference->next->value.code;;
+			mxStack->value.integer = mxCode - mxFrameFunction->value.reference->next->value.code.address;;
 			mxPushKind(XS_INTEGER_KIND);
 			mxStack->value.integer = slot - mxScope;
 			mxPushKind(XS_INTEGER_KIND);
@@ -800,7 +804,7 @@ XS_CODE_JUMP:
 			while (jump != yieldJump) {
 				txJump* nextJump = jump->nextJump;
 				mxPushKind(XS_INTEGER_KIND);
-				mxStack->value.integer = jump->code - mxFrameFunction->value.reference->next->value.code;
+				mxStack->value.integer = jump->code - mxFrameFunction->value.reference->next->value.code.address;
 				mxPushKind(XS_INTEGER_KIND);
 				mxStack->value.integer = slot - jump->scope;
 				mxPushKind(XS_INTEGER_KIND);
@@ -1525,9 +1529,8 @@ XS_CODE_JUMP:
 			slot->kind = XS_WITH_KIND;
 			slot->value.reference = C_NULL;
 			mxRestoreState;
-			variable = mxFunctionInstanceClosures((mxStack + 1)->value.reference);
-			variable->kind = XS_REFERENCE_KIND;
-			variable->value.reference = mxStack->value.reference;
+			variable = mxFunctionInstanceCode((mxStack + 1)->value.reference);
+			variable->value.code.closures = mxStack->value.reference;
 			mxNextCode(1);
 			mxBreak;
 			
@@ -2179,15 +2182,15 @@ XS_CODE_JUMP:
 			mxSkipCode(5);
 		XS_CODE_CODE:
 			mxSaveState;
-			scratch.value.code = (txByte*)fxNewChunk(the, offset);
+			scratch.value.code.address = (txByte*)fxNewChunk(the, offset);
 			mxRestoreState;
-			c_memcpy(scratch.value.code, mxCode, offset);
+			c_memcpy(scratch.value.code.address, mxCode, offset);
 			variable = mxStack->value.reference;
 			slot = mxFunctionInstanceCode(variable);
-			slot->value.code = scratch.value.code;
+			slot->value.code.address = scratch.value.code.address;
 #ifndef mxNoFunctionLength
 			slot = mxFunctionInstanceLength(variable);
-			slot->value.integer = *(scratch.value.code + 1);
+			slot->value.integer = *(scratch.value.code.address + 1);
 #endif
 			mxNextCode(offset);
 			mxBreak;
@@ -2206,7 +2209,7 @@ XS_CODE_JUMP:
 			variable = mxStack->value.reference;
 			slot = mxFunctionInstanceCode(variable);
 			slot->kind = XS_CODE_X_KIND;
-			slot->value.code = mxCode;
+			slot->value.code.address = mxCode;
 #ifndef mxNoFunctionLength
 			slot = mxFunctionInstanceLength(variable);
 			slot->value.integer = *(mxCode + 1);
@@ -3106,6 +3109,7 @@ void fxRunEval(txMachine* the)
 	txStringStream aStream;
 	txUnsigned flags;
 	txSlot* home;
+	txSlot* closures;
 	if (the->stack->value.integer == 0)
 		the->stack->kind = XS_UNDEFINED_KIND;
 	else {
@@ -3118,7 +3122,12 @@ void fxRunEval(txMachine* the)
 			if (the->frame->flag & XS_STRICT_FLAG)
 				flags |= mxStrictFlag;
 			home = mxFunctionInstanceHome(mxFunction->value.reference);
-			fxRunScript(the, fxParseScript(the, &aStream, fxStringGetter, flags), mxThis, the->frame - 1, home->value.home.object, C_NULL);
+			closures = the->frame - 1;
+			if (closures->kind == XS_REFERENCE_KIND)
+				closures = closures->value.reference;
+			else
+				closures = C_NULL;
+			fxRunScript(the, fxParseScript(the, &aStream, fxStringGetter, flags), mxThis, closures, home->value.home.object, C_NULL);
 			aStream.slot->kind = the->stack->kind;
 			aStream.slot->value = the->stack->value;
 			the->stack++;
@@ -3283,7 +3292,7 @@ void fxRunInstance(txMachine* the, txSlot* instance)
 }
 
 
-void fxRunScript(txMachine* the, txScript* script, txSlot* _this, txSlot* environment, txSlot* object, txSlot* module)
+void fxRunScript(txMachine* the, txScript* script, txSlot* _this, txSlot* closures, txSlot* object, txSlot* module)
 {
 	if (script) {
 		mxTry(the) {
@@ -3297,14 +3306,15 @@ void fxRunScript(txMachine* the, txScript* script, txSlot* _this, txSlot* enviro
 				c += *((txU1*)p);
 				p++;
 				mxPushUndefined();
-				the->stack->value.code = fxNewChunk(the, c * sizeof(txID));
-				the->stack->kind = XS_CODE_KIND;
+				the->stack->value.callback.address = C_NULL;
+				the->stack->value.callback.IDs = (txID*)fxNewChunk(the, c * sizeof(txID));
+				the->stack->kind = XS_CALLBACK_KIND;
 				for (i = 0; i < c; i++) {
 					txSlot* key = fxNewNameC(the, (txString)p);
-					((txID*)the->stack->value.code)[i] = key->ID;
+					the->stack->value.callback.IDs[i] = key->ID;
 					p += c_strlen((char*)p) + 1;
 				}
-				fxRemapIDs(the, script->codeBuffer, script->codeSize, (txID*)the->stack->value.code);
+				fxRemapIDs(the, script->codeBuffer, script->codeSize, the->stack->value.callback.IDs);
 			}	
 			else {
 				mxPush(mxIDs);
@@ -3321,10 +3331,10 @@ void fxRunScript(txMachine* the, txScript* script, txSlot* _this, txSlot* enviro
 				the->stack->ID = XS_NO_ID;
 				/* FUNCTION */
 				mxPush(mxFunctionPrototype);
-				instance = fxNewFunctionInstance(the, environment ? mxID(_eval) : XS_NO_ID);
+				instance = fxNewFunctionInstance(the, closures ? mxID(_eval) : XS_NO_ID);
 				instance->next->kind = XS_CALLBACK_KIND;
 				instance->next->value.callback.address = script->callback;
-				instance->next->value.callback.IDs = (txID*)property->value.code;
+				instance->next->value.callback.IDs = property->value.callback.IDs;
 				property = mxFunctionInstanceHome(instance);
 				property->value.home.object = object;
 				property->value.home.module = module;
@@ -3356,12 +3366,8 @@ void fxRunScript(txMachine* the, txScript* script, txSlot* _this, txSlot* enviro
 			mxPush(mxFunctionPrototype);
 			instance = fxNewFunctionInstance(the, XS_NO_ID);
 			instance->next->kind = XS_CODE_X_KIND;
-			instance->next->value.code = script->codeBuffer;
-			if (environment) {
-				property = mxFunctionInstanceClosures(instance);
-				property->kind = environment->kind;
-				property->value = environment->value;
-			}
+			instance->next->value.code.address = script->codeBuffer;
+			instance->next->value.code.closures = closures;
 			property = mxFunctionInstanceHome(instance);
 			property->value.home.object = object;
 			property->value.home.module = module;

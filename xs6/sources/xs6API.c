@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -583,11 +583,6 @@ txSlot* fxNewHostFunction(txMachine* the, txCallback theCallback, txInteger theL
 	property->value.callback.address = theCallback;
 	property->value.callback.IDs = (txID*)the->code;
 
-	/* CLOSURE */
-	property = property->next = fxNewSlot(the);
-	property->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
-	property->kind = XS_NULL_KIND;
-
 	/* HOME */
 	property = property->next = fxNewSlot(the);
 	property->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
@@ -799,35 +794,6 @@ txString fxName(txMachine* the, txID theID)
 	if (aKey)
 		return aKey->value.key.string;
 	return C_NULL;
-}
-
-void fxGetClosure(txMachine* the, txInteger theID)
-{
-	txSlot* closures = mxFunctionInstanceClosures(the->stack->value.reference);
-	txSlot* slot = fxGetProperty(the, closures->value.reference, theID, XS_NO_ID, XS_OWN);
-	if (slot) {
-		if (slot->kind == XS_CLOSURE_KIND)
-			slot = slot->value.closure;
-		the->stack->kind = slot->kind;
-		the->stack->value = slot->value;
-	}
-	else
-		the->stack->kind = XS_UNDEFINED_KIND;
-}
-
-void fxSetClosure(txMachine* the, txInteger theID)
-{
-	txSlot* closures = mxFunctionInstanceClosures(the->stack->value.reference);
-	txSlot* slot = fxGetProperty(the, closures->value.reference, theID, XS_NO_ID, XS_OWN);
-	the->stack++;
-	if (slot) {
-		if (slot->kind == XS_CLOSURE_KIND)
-			slot = slot->value.closure;
-		slot->kind = the->stack->kind;
-		slot->value = the->stack->value;
-	}
-	else
-		mxDebugID(XS_TYPE_ERROR, "C: xsSet %s: not extensible", theID);
 }
 
 /* Properties */
@@ -1071,7 +1037,6 @@ void fxDefineAll(txMachine* the, txID id, txIndex index, txFlag flag, txFlag mas
 void fxDefineAt(txMachine* the, txFlag flag, txFlag mask)
 {
 	txSlot* at = fxAt(the, the->stack++);
-	txSlot* instance = fxToInstance(the, the->stack);
 	fxDefineAll(the, at->value.at.id, at->value.at.index, flag, mask);
 }
 
@@ -1476,8 +1441,9 @@ txMachine* fxCreateMachine(txCreation* theCreation, void* theArchive, txString t
 			mxPushUndefined();
 			/* mxEmptyCode */
 			mxPushUndefined();
-			the->stack->value.code = (txByte *)fxNewChunk(the, sizeof(gxNoCode));
-			c_memcpy(the->stack->value.code, gxNoCode, sizeof(gxNoCode));
+			the->stack->value.code.address = (txByte *)fxNewChunk(the, sizeof(gxNoCode));
+			c_memcpy(the->stack->value.code.address, gxNoCode, sizeof(gxNoCode));
+			the->stack->value.code.closures = C_NULL;
 			the->stack->kind = XS_CODE_KIND;	
 			/* mxEmptyString */
 			mxPushStringC("");
@@ -1917,7 +1883,7 @@ txMachine* fxBeginHost(txMachine* the)
 	the->stack->ID = XS_NO_ID;
 	the->stack->kind = XS_INTEGER_KIND;
 	the->scope = the->stack;
-	the->code = mxIDs.value.code;
+	the->code = (txByte*)mxIDs.value.callback.IDs;
 	return the;
 }
 

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -121,6 +121,8 @@ FskDrawClippedJaggedLine(
    	min = dy << 1;
     mip = min - (dx << 1);
 	mu  = (FskFixed)(((FskInt64)f0 * dy - (FskInt64)(g0 << 1) * dx + (1 << 15)) >> 16) + min - dx;
+	if (kFskErrNone != FskBitmapWriteBegin(dstBM, NULL, NULL, NULL))
+		return;
 	px = (char*)(dstBM->bits) + (j0 - dstBM->bounds.y) * rb + (i0 - dstBM->bounds.x) * pb;
 
 
@@ -170,5 +172,7 @@ FskDrawClippedJaggedLine(
 				else {			px += pin;	mu += min;	}
 			}
 		}	break;
+
 	}
+	FskBitmapWriteEnd(dstBM);
 }

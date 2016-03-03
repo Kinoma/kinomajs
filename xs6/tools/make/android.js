@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -73,6 +73,10 @@ class Manifest extends MAKE.Manifest {
 			LINK: "arm-linux-androideabi-g++",
 			STRIP: "arm-linux-androideabi-strip",
 
+			APP_DIR: bin,
+			RES_DIR: bin,
+			TMP_DIR: tmp,
+
 			OSS: "$(F_HOME)/build/android/OSS/",
 			OSS2: "$(F_HOME)/build/android/OSS2/",
 
@@ -87,15 +91,13 @@ class Manifest extends MAKE.Manifest {
 
 			NDK_PLATFORM_VER: "14",
 			NDK_PLATFORM: "platforms/android-$(NDK_PLATFORM_VER)/arch-arm/usr/lib",
-			NDK_TOOLCHAIN_VERSION: "4.9",
+			NDK_TOOLCHAIN_VERSION: "4.4.3",
 
 			KEYSTORE: "$(TMP_DIR)/$(KPR_APPLICATION)-release.keystore",
 			KEYSTORE_ALIAS: "$(KPR_APPLICATION)",
 
 			FREETYPE_PLATFORM_C_OPTIONS: "--sysroot=$(ANDROID_NDK)/platforms/android-$(NDK_PLATFORM_VER)/arch-arm",
-
-			APP_DIR: bin,
-			
+	
 			NAME: environment.NAME,
 			NAMESPACE: environment.NAMESPACE,
 			VERSION: environment.VERSION,

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,9 @@
  *     limitations under the License.
  */
 #include "xs6All.h"
+#if mxFsk
+#include "FskEnvironment.h"
+#endif
 
 static void fxVReportException(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments);
 
@@ -31,7 +34,6 @@ static void fxEchoFrame(txMachine* the, txSlot* theFrame, txSlot* theList);
 static void fxEchoFrameName(txMachine* the, txSlot* theFrame);
 static void fxEchoFramePathLine(txMachine* the, txSlot* theFrame);
 static void fxEchoHost(txMachine* the, txSlot* theInstance, txSlot* theList);
-static void fxEchoID(txMachine* the, txID theID);
 static void fxEchoInteger(txMachine* the, txInteger theInteger);
 static void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList);
 static void fxEchoNumber(txMachine* the, txNumber theNumber);
@@ -152,14 +154,15 @@ void fxDebugCommand(txMachine* the)
 			fxListBreakpoints(the);
 		}
 		else if (fxDebugLoopTest(&p, "set-breakpoints")) {
-            r = p;
+			fxClearAllBreakpoints(the);
+			r = p;
 			while (r) {
 				r = c_strstr(r, "<breakpoint ");
 				if (!r)
 					goto bail;
 				q = fxDebugLoopValue(&r, "path");
 				fxSetBreakpoint(the, q, fxDebugLoopValue(&r, "line"));
-                p = r;
+				p = r;
 			}
 			fxEchoStart(the);
 			fxListBreakpoints(the);
@@ -618,24 +621,6 @@ void fxEchoHost(txMachine* the, txSlot* theInstance, txSlot* theList)
     fxEchoProperty(the, aProperty, theList, "(host)", -1, C_NULL);
 }
 
-void fxEchoID(txMachine* the, txID theID)
-{
-	txSlot* aKey;
-	char aBuffer[32];
-
-	if (theID != XS_NO_ID) {
-		aKey = fxGetKey(the, theID);
-		if (aKey)
-			fxEchoString(the, aKey->value.key.string);
-		else {
-			fxIntegerToString(the->dtoa, theID, aBuffer, sizeof(aBuffer));
-			fxEcho(the, aBuffer);
-		}
-	}
-	else
-		fxEcho(the, "?");
-}
-
 void fxEchoInteger(txMachine* the, txInteger theInteger)
 {
 	char aBuffer[256];
@@ -711,9 +696,6 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 		case XS_CODE_KIND:
 		case XS_CODE_X_KIND:
 			fxEchoProperty(the, aProperty, theList, "(function)", -1, C_NULL);
-			aProperty = aProperty->next;
-			if (aProperty->kind != XS_NULL_KIND)
-				fxEchoProperty(the, aProperty, theList, "(closure)", -1, C_NULL);
 			aProperty = aProperty->next;
 			if (aProperty->kind != XS_NULL_KIND)
 				fxEchoProperty(the, aProperty, theList, "(home)", -1, C_NULL);
@@ -1610,6 +1592,9 @@ void fxListModules(txMachine* the)
 
 void fxLogin(txMachine* the)
 {
+#if mxFsk
+	txString name;
+#endif		
 	if (!fxIsConnected(the)) {
 		fxConnect(the);
 		if (!fxIsConnected(the))
@@ -1617,11 +1602,19 @@ void fxLogin(txMachine* the)
 	}
 	fxReadBreakpoints(the);
 	fxEchoStart(the);
-	fxEcho(the, "<login  name=\"");
+	fxEcho(the, "<login name=\"");
 	if (the->name)
 		fxEchoString(the, the->name);
 	else
 		fxEchoString(the, "xslib");
+	fxEcho(the, "\" value=\"");
+#if mxFsk
+	name = FskEnvironmentGet("NAME");
+	if (name)
+		fxEchoString(the, name);
+	else
+#endif		
+		fxEcho(the, "XS6");
 	fxEcho(the, "\"/>");
 	fxListBreakpoints(the);
 	fxEchoStop(the);

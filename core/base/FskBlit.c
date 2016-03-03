@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -109,7 +109,7 @@ FskErr FskRectangleFill(FskBitmap dst, FskConstRectangle r, FskConstColorRGBA co
 	if (NULL != modeParams) {
 		blendLevel = modeParams->blendLevel;
         if (blendLevel <= 0)											/* Totally transparent: */
-            goto bail;													/* all done! */
+            return kFskErrNone;											/* all done! */
     }
 
 	#if FSKBITMAP_OPENGL

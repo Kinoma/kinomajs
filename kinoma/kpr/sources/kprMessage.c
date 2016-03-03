@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -910,7 +910,7 @@ void KPR_message_get_requestChunk(xsMachine *the)
 	void* data;
 	UInt32 size; 
 	KprMessageGetRequestBody(self, &data, &size);
-	xsTrace("message.requestChunk deprecated, use requestBuffer\n");
+// 	xsTrace("message.requestChunk deprecated, use requestBuffer\n");
 	if (data && size) {
 		xsResult = xsNew1(xsGlobal, xsID_Chunk, xsInteger(size));
 		FskMemCopy(xsGetHostData(xsResult), data, size);
@@ -944,7 +944,7 @@ void KPR_message_get_responseChunk(xsMachine *the)
 	KprMessage self = xsGetHostData(xsThis);
 	void* data;
 	UInt32 size; 
-	xsTrace("message.responseChunk deprecated, use responseBuffer\n");
+// 	xsTrace("message.responseChunk deprecated, use responseBuffer\n");
 	KprMessageGetResponseBody(self, &data, &size);
 	if (data && size) {
 		xsResult = xsNew1(xsGlobal, xsID_Chunk, xsInteger(size));

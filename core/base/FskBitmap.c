@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,6 +70,17 @@
 		doFormatMessageBitmap,
 		gInstrumentationBitmapValues
 	};
+	#ifdef DEBUG_LEAKS	/* Not designed to be left on, because it will leak */
+		const char* BitmapNameString(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat) {
+			char bmpName[40];
+			snprintf(bmpName, sizeof(bmpName), "%dx%d %s", (int)width, (int)height, FskBitmapFormatName(pixelFormat));
+			return FskStrDoCopy(bmpName);	/* Warning: these will leak */
+		}
+	#else /* DEBUG_LEAKS */
+		#define BitmapNameString(width, height, format)	NULL
+	#endif /* DEBUG_LEAKS */
+#else /* SUPPORT_INSTRUMENTATION */
+	#define BitmapNameString(width, height, format)	NULL
 #endif /* SUPPORT_INSTRUMENTATION */
 
 
@@ -141,7 +152,7 @@ FskErr FskBitmapNew(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat
 		err = FskMemPtrNewClear(sizeof(FskBitmapRecord) + colorPad, (FskMemPtr *)&bits);
 		BAIL_IF_ERR(err);
 
-		FskInstrumentedItemNew(bits, NULL, &gBitmapTypeInstrumentation);
+		FskInstrumentedItemNew(bits, BitmapNameString(width, height, pixelFormat), &gBitmapTypeInstrumentation);
 
 		bits->rowBytes = (width * depth) / 8;
 		if (bits->rowBytes % 4)
@@ -214,7 +225,7 @@ FskErr FskBitmapNew(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat
         err = FskMemPtrNewClear(sizeof(FskBitmapRecord), (FskMemPtr *)&bits);
         BAIL_IF_ERR(err);
 
-        FskInstrumentedItemNew(bits, NULL, &gBitmapTypeInstrumentation);
+        FskInstrumentedItemNew(bits, BitmapNameString(width, height, pixelFormat), &gBitmapTypeInstrumentation);
 
         if (!FskCocoaBitmapCreate(bits, pixelFormat, width, height)) {
 			BAIL(kFskErrMemFull);
@@ -333,7 +344,7 @@ FskErr FskBitmapNew(SInt32 width, SInt32 height, FskBitmapFormatEnum pixelFormat
 					bits->bits =(char*)ALIGNED_POINTER((char*)(bits->bitsToDispose), ALIGN_PIXEL_BYTES);
 				}
 			#endif /* FSKBITMAP_DOUBLE_ALLOC */
-			FskInstrumentedItemNew(bits, NULL, &gBitmapTypeInstrumentation);
+			FskInstrumentedItemNew(bits, BitmapNameString(width, height, pixelFormat), &gBitmapTypeInstrumentation);
 		}
 
 		if (!bits->rowBytes)
@@ -387,7 +398,7 @@ FskErr FskBitmapNewWrapper(SInt32 width, SInt32 height, FskBitmapFormatEnum pixe
 	bits->rowBytes = rowBytes;
 	bits->bits = baseAddr;
 
-	FskInstrumentedItemNew(bits, NULL, &gBitmapTypeInstrumentation);
+	FskInstrumentedItemNew(bits, BitmapNameString(width, height, pixelFormat), &gBitmapTypeInstrumentation);
 	FskInstrumentedItemSendMessageNormal(bits, kFskBitmapInstrMsgInitializeWrapper, bits);
 
 	*bitsOut = bits;

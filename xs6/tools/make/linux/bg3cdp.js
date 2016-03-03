@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -65,6 +65,9 @@ class Manifest extends MAKE.Manifest {
 			XSL: "$(F_HOME)/xs6/bin/linux/debug/xsl6",
 
 			APP_DIR: bin,
+			RES_DIR: bin,
+			TMP_DIR: tmp,
+
 			FREETYPE_DIR: "$(TMP_DIR)/freetype-$(FREETYPE_VERSION)",
 		}
 	}

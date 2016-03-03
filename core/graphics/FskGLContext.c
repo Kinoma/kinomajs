@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,6 +79,7 @@
 #if SUPPORT_INSTRUMENTATION
 
 	#define LOG_PARAMETERS
+	//#define LOG_ALL
 
 	#include "FskInstrumentation.h"
 	#define GLCONTEXT_DEBUG	1
@@ -302,6 +303,37 @@ FskErr FskGLContextNewFromCurrentContext(FskGLContext *pCtx) {
 	err = FskGLContextNewFromEGL(display, surface, context, pCtx);									/* We validate the display and context here */
 
 bail:
+	return err;
+}
+
+
+/********************************************************************************
+ * FskGLContextGetCurrentContext - EGL
+ ********************************************************************************/
+
+FskErr FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext *pCtx) {
+	FskErr			err		= kFskErrNone;
+	FskGLContext	ctx		= NULL;
+	EGLContext		context;
+	EGLDisplay		display;
+	EGLSurface		surface;
+
+	#ifdef LOG_PARAMETERS
+		LOGD("FskGLContextGetCurrentContext(storage=%p pCtx=%p)", storage, pCtx);
+	#endif /* LOG_PARAMETERS */
+
+	FskMemSet(storage, 0, sizeof(*storage));
+	display	= eglGetCurrentDisplay();																/* Get the current display, surface and context */
+	surface = eglGetCurrentSurface(EGL_DRAW);
+	context = eglGetCurrentContext();
+	BAIL_IF_FALSE(EGL_NO_CONTEXT != context && EGL_NO_DISPLAY != display && EGL_NO_SURFACE != surface, err, kFskErrNotAccelerated);
+	ctx = (FskGLContext)storage;
+	ctx->display = display;
+	ctx->surface = surface;
+	ctx->context = context;
+
+bail:
+	if (pCtx)	*pCtx = ctx;
 	return err;
 }
 
@@ -586,6 +618,46 @@ bail:
 
 
 /********************************************************************************
+ * FskGLContextGetCurrentContext - CGL
+ ********************************************************************************/
+
+FskErr FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext *pCtx) {
+	FskErr			err		= kFskErrNone;
+	FskGLContext	ctx		= NULL;
+	CGLContextObj	context;
+	GLint			fb, att, buf;
+
+	#ifdef LOG_PARAMETERS
+		LOGD("FskGLContextGetCurrentContext(storage=%p pCtx=%p)", storage, pCtx);
+	#endif /* LOG_PARAMETERS */
+
+	FskMemSet(storage, 0, sizeof(*storage));
+	context = CGLGetCurrentContext();
+	#ifdef LOG_ALL
+		LOGD("CGLGetCurrentContext() returns %p", context);
+	#endif /* LOG_ALL */
+	BAIL_IF_NULL(context, err, kFskErrNotAccelerated);
+	fb = -1;	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fb);
+	att = 0;	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &att);
+	buf = 0;	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &buf);
+	#ifdef LOG_ALL
+		LOGD("FskGLContextGetCurrentContext; fb=%d att=%d buf=%d", fb, att, buf);
+	#endif /* LOG_ALL */
+	BAIL_IF_FALSE(-1 != fb, err, kFskErrNotAccelerated);
+	ctx = (FskGLContext)storage;
+	ctx->context		= context;
+	ctx->framebuffer	= fb;
+	ctx->attachmentType	= att;
+	ctx->fbTexture		= buf;
+	(void)glGetError();		/* Clear errors */
+
+bail:
+	if (pCtx)	*pCtx = ctx;
+	return err;
+}
+
+
+/********************************************************************************
  * FskGLContextDispose - Mac
  ********************************************************************************/
 
@@ -790,6 +862,43 @@ FskErr FskGLContextNewFromCurrentContext(FskGLContext *pCtx) {
 
 bail:
 	return err;
+}
+
+
+/********************************************************************************
+ * FskGLContextGetCurrentContext - iPhone
+ ********************************************************************************/
+
+FskErr FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext *pCtx) {
+#if 1
+	return kFskErrUnimplemented;
+#else
+	FskErr			err		= kFskErrNone;
+	FskGLContext	ctx		= NULL;
+	EAGLContext		*context;
+	GLint			fb, att, buf;
+
+	#ifdef LOG_PARAMETERS
+		LOGD("FskGLContextGetCurrentContext(storage=%p pCtx=%p)", storage, pCtx);
+	#endif /* LOG_PARAMETERS */
+
+	FskMemSet(storage, 0, sizeof(*storage));
+	BAIL_IF_NULL((context = FskEAGLContextGetCurrent()), err, kFskErrNotAccelerated);
+	fb = -1;	glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fb);
+	att = 0;	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &att);
+	buf = 0;	glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &buf);
+	BAIL_IF_FALSE(-1 != fb, err, kFskErrNotAccelerated);
+	ctx = (FskGLContext)storage;
+	ctx->context		= context;
+	ctx->framebuffer	= fb;
+	ctx->attachmentType	= att;
+	ctx->fbTexture		= buf;
+	(void)glGetError();		/* Clear errors */
+
+bail:
+	if (pCtx)	*pCtx = ctx;
+	return err;
+#endif
 }
 
 

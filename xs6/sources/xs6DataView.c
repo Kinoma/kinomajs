@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -349,8 +349,11 @@ txBoolean fxCheckLength(txMachine* the, txSlot* slot, txInteger* index)
 {
 	txNumber number = fxToNumber(the, slot);
 	txNumber check = c_trunc(number);
-	*index = fxToInteger(the, slot);
-	return ((number == check) && (0 <= number)) ? 1 : 0;
+	if ((number == check) && (0 <= number) && (number <= 0x7FFFFFFF)) {
+		*index = (txInteger)number;
+		return 1 ;
+	}
+	return 0;
 }
 
 txBoolean fxCheckOffset(txMachine* the, txSlot* slot, txNumber* offset)

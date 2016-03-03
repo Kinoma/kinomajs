@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,7 +52,6 @@ static void console_log(xsMachine* the);
 
 static void KPR_elementLoop(void* params)
 {
-	FskErr err = kFskErrNone;
 	KprElementHost self = params;
 	FskThreadInitializationComplete(FskThreadGetCurrent());
 	xsBeginHost(self->machine);
@@ -74,8 +73,9 @@ static void KPR_elementLoop(void* params)
 			xsVar(1) = xsNewHostFunction(PINS_repeat, 3);
 			xsSet(xsVar(0), xsID("repeat"), xsVar(1));
 			xsSet(xsGlobal, xsID("PINS"), xsVar(0));
-			
-			xsCall1(xsGlobal, xsID("require"), xsString("application"));
+
+			xsVar(0) = xsGet(xsGlobal, xsID("require"));
+			xsCall1(xsVar(0), xsID("weak"), xsString("application"));
 		}
 		xsCatch {
 			xsStringValue message = xsToString(xsException);
@@ -88,7 +88,7 @@ static void KPR_elementLoop(void* params)
 	xsDeleteMachine(self->machine);
 	fxUnmapArchive(self->archive);
 	FskMemPtrDispose(self);
-bail:
+
 	return;
 }
 
@@ -130,7 +130,6 @@ void KPR_elementHost_debugger(xsMachine* the)
 
 void KPR_elementHost_launch(xsMachine* the)
 {
-	KprElementHost self = xsGetHostData(xsThis);
 }
 
 void KPR_elementHost_purge(xsMachine* the)
@@ -141,6 +140,12 @@ void KPR_elementHost_purge(xsMachine* the)
 void KPR_elementHost_quit(xsMachine* the)
 {
 
+}
+
+void KPR_elementHost_wake(xsMachine* the)
+{
+	KprElementHost self = xsGetHostData(xsThis);
+	FskThreadWake(self->thread);
 }
 
 typedef struct KprElementCallbackStruct KprElementCallbackRecord, *KprElementCallback;
@@ -178,7 +183,6 @@ void PINS_configure_callback(void* configuration)
 
 void PINS_configure(xsMachine* the)
 {
-	KprElementCallback self;
 	void* configuration = xsMarshallAlien(xsArg(0));
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)PINS_configure_callback, configuration, NULL, NULL, NULL);
 	FskMutexAcquire(gElementHostMutex);
@@ -206,7 +210,6 @@ void PINS_invoke_callback(void* path, void* object)
 
 void PINS_invoke(xsMachine* the)
 {
-	KprElementCallback self;
 	void* path = xsMarshallAlien(xsArg(0));
 	void* object = xsMarshallAlien(xsArg(1));
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)PINS_invoke_callback, path, object, NULL, NULL);
@@ -235,7 +238,6 @@ void PINS_repeat_callback(void* path, void* object)
 
 void PINS_repeat(xsMachine* the)
 {
-	KprElementCallback self;
 	void* path = xsMarshallAlien(xsArg(0));
 	void* object = xsMarshallAlien(xsArg(1));
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)PINS_repeat_callback, path, object, NULL, NULL);

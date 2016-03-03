@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,6 +43,7 @@ static FskErr linuxI2CWriteDataByte(FskPinI2C pin, UInt8 command, UInt8 byte);
 static FskErr linuxI2CWriteDataWord(FskPinI2C pin, UInt8 command, UInt16 word);
 static FskErr linuxI2CWriteDataBytes(FskPinI2C pin, UInt8 command, SInt32 count, const UInt8 *bytes);
 static FskErr linuxI2CProcessCall(FskPinI2C pin, UInt8 command, UInt16 input, UInt16 *output);
+static FskErr linuxI2CWriteQuick(FskPinI2C pin, UInt8 byte);
 
 FskPinI2CDispatchRecord gLinuxPinI2C = {
 	linuxI2CCanHandle,
@@ -59,7 +60,8 @@ FskPinI2CDispatchRecord gLinuxPinI2C = {
 	linuxI2CWriteDataByte,
 	linuxI2CWriteDataWord,
 	linuxI2CWriteDataBytes,
-	linuxI2CProcessCall
+	linuxI2CProcessCall,
+	linuxI2CWriteQuick
 };
 
 typedef struct {
@@ -278,6 +280,14 @@ FskErr linuxI2CProcessCall(FskPinI2C pin, UInt8 command, UInt16 input, UInt16 *o
     *output = data.word & 0x0ffff;
 
 	return kFskErrNone;
+}
+
+FskErr linuxI2CWriteQuick(FskPinI2C pin, UInt8 byte)
+{
+	linuxI2C li2c = (linuxI2C)pin;
+	int result = doI2C(i2c_fd[li2c->bus], byte, 0, I2C_SMBUS_QUICK, NULL);
+
+	return (result < 0) ? kFskErrOperationFailed : kFskErrNone;
 }
 
 /*

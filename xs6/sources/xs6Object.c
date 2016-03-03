@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -318,6 +318,9 @@ void fx_Object_prototype_toString(txMachine* the)
 			case XS_DATE_KIND:
 				tag = "Date";
 				break;
+			case XS_ERROR_KIND:
+				tag = "Error";
+				break;
 			case XS_GLOBAL_KIND:
 				tag = "global";
 				break;
@@ -341,13 +344,7 @@ void fx_Object_prototype_toString(txMachine* the)
             }
 		}
         else {
-        	txSlot* prototype = mxErrorPrototype.value.reference;
-        	while (instance) {
-        		if (instance == prototype)
-        			break;
-        		instance = instance->value.instance.prototype;
-        	}
-            tag = (instance) ? "Error" : "Object";
+            tag = "Object";
         }
 		break;
 	default:

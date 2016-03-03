@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -55,22 +55,22 @@ void xs_pwm_write(xsMachine* the)
     SInt32 argc;
 	FskErr err;
     double dutyCyclePercent;
-    int dutyCycle;
-    int period;
+    double dutyCycle;
+    double period;
     FskPinPWM pwm = xsGetHostData(xsThis);
     if (!pwm) return;
 
     argc = xsToInteger(xsArgc);
-    
+
     if (argc == 1){
         dutyCyclePercent = xsToNumber(xsArg(0));
         err = FskPinPWMSetDutyCycle(pwm, dutyCyclePercent);
     }else if(argc >= 2){
-        dutyCycle = xsToInteger(xsArg(0));
-        period = xsToInteger(xsArg(1));
+        dutyCycle = xsToNumber(xsArg(0));
+        period = xsToNumber(xsArg(1));
         err = FskPinPWMSetDutyCycleAndPeriod(pwm, dutyCycle, period);
     }
-	
+
 	xsThrowDiagnosticIfFskErr(err, "PWM write of pin %d failed with error %d.", (int)-1, FskInstrumentationGetErrorString(err));
 }
 

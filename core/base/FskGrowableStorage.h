@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -173,7 +173,7 @@ FskAPI(FskErr)	FskGrowableStorageGetPointerToNewEndItem(FskGrowableStorage stora
 /** Find the item in the storage, searching forward from the given starting index.
  *	\param[in]	storage				the storage to be searched.
  *	\param[in]	item				a pointer to the item to be found.
- *	\param[in]	itemSize			the size of the item to be found.
+ *	\param[in]	itemSize			the size of the item to be found. If 0, then FskStrLen(item) is used instead.
  *	\param[in]	startingIndex		the index at which to start searching for the item in the storage.
  *	\param[in]	foundIndex			a place to store the location of the found index, or 0xFFFFFFFF if not found.
  *	\return		kFskErrNone			if the item was found in the storage at the location *foundIndex.
@@ -198,7 +198,7 @@ FskAPI(void)	FskGrowableStorageRemoveItem(FskGrowableStorage storage, UInt32 off
 /** Append an item to the end of the growable storage.
  *	\param[in,out]	storage		The growable storage object to be modified.
  *	\param[in]		item		The item to be appended to the growable storage object.
- *	\param[in]		itemSize	The size of the item to be appended.
+ *	\param[in]		itemSize	The size of the item to be appended. If 0, then FskStrLen(item) is used instead.
  *	\return			kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableStorageAppendItem(FskGrowableStorage storage, const void *item, UInt32 itemSize);
@@ -208,7 +208,7 @@ FskAPI(FskErr)	FskGrowableStorageAppendItem(FskGrowableStorage storage, const vo
  *	\param[in,out]	storage		The growable storage object to be modified.
  *	\param[in]		offset		The offset location where the object is to be inserted into the growable storage object.
  *	\param[in]		item		The item to be inserted into the growable storage object.
- *	\param[in]		itemSize	The size of the item to be inserted.
+ *	\param[in]		itemSize	The size of the item to be inserted. If 0, then FskStrLen(item) is used instead.
  *	\return			kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableStorageInsertItemAtPosition(FskGrowableStorage storage, UInt32 offset, const void *item, UInt32 itemSize);
@@ -219,7 +219,7 @@ FskAPI(FskErr)	FskGrowableStorageInsertItemAtPosition(FskGrowableStorage storage
  *	\param[in]		item		The item to be inserted into the growable storage object.
  *	\param[in]		offset		The offset location where the object is to be replaced in the growable storage object.
  *	\param[in]		oldSize		The size of the item to be replaced.
- *	\param[in]		newSize		The size of the new item to take the place of the old one.
+ *	\param[in]		newSize		The size of the new item to take the place of the old one. If 0, then FskStrLen(item) is used instead.
  *	\return			kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableStorageReplaceItem(FskGrowableStorage storage, const void *item, UInt32 offset, UInt32 oldSize, UInt32 newSize);

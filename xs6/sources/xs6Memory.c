@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -519,6 +519,12 @@ void fxMarkReference(txMachine* the, txSlot* theSlot)
 			}
 		}
 		break;
+	case XS_CODE_KIND:
+	case XS_CODE_X_KIND:
+		aSlot = theSlot->value.code.closures;
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
+			fxMarkInstance(the, aSlot, fxMarkReference);
+		break;
 	case XS_HOME_KIND:
 		aSlot = theSlot->value.home.object;
 		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
@@ -627,7 +633,12 @@ void fxMarkValue(txMachine* the, txSlot* theSlot)
 			mxMarkChunk(theSlot->value.callback.IDs);
 		break;
 	case XS_CODE_KIND:
-		mxMarkChunk(theSlot->value.code);
+		mxMarkChunk(theSlot->value.code.address);
+		/* continue */
+	case XS_CODE_X_KIND:
+		aSlot = theSlot->value.code.closures;
+		if (aSlot && !(aSlot->flag & XS_MARK_FLAG))
+			fxMarkInstance(the, aSlot, fxMarkValue);
 		break;
 	case XS_GLOBAL_KIND:
 		mxMarkChunk(theSlot->value.table.address);
@@ -1000,7 +1011,7 @@ void fxSweep(txMachine* the)
 		if ((aSlot->flag & XS_C_FLAG) == 0) {
 			bSlot = (aSlot + 3)->value.reference->next;
 			if (bSlot->kind == XS_CODE_KIND) {
-				mByte = bSlot->value.code;
+				mByte = bSlot->value.code.address;
 				pByte = (txByte*)(((txChunk*)(mByte - sizeof(txChunk)))->temporary);
 				if (pByte) {
 					pByte += sizeof(txChunk);
@@ -1027,7 +1038,7 @@ void fxSweep(txMachine* the)
 			aSlot = jump->frame;
 			bSlot = (aSlot + 3)->value.reference->next;
 			if (bSlot->kind == XS_CODE_KIND) {
-				mByte = bSlot->value.code;
+				mByte = bSlot->value.code.address;
 				pByte = (txByte*)(((txChunk*)(mByte - sizeof(txChunk)))->temporary);
 				if (pByte) {
 					pByte += sizeof(txChunk);
@@ -1164,7 +1175,7 @@ void fxSweepValue(txMachine* the, txSlot* theSlot)
 			mxSweepChunk(theSlot->value.callback.IDs, txID*);
 		break;
 	case XS_CODE_KIND:
-		mxSweepChunk(theSlot->value.code, txByte*);
+		mxSweepChunk(theSlot->value.code.address, txByte*);
 		break;
 	case XS_GLOBAL_KIND:
 		mxSweepChunk(theSlot->value.table.address, txSlot**);

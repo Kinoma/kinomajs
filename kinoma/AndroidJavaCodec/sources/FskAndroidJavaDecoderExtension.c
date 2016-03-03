@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,30 +63,27 @@ int use_hardware_on_this_device( char *model_number, int android_version, int av
 }
 
 char *modelName  = NULL;
+int android_version = 0;
 FskExport(FskErr) FskAndroidJavaDecoder_fskLoad(FskLibrary library)
 {
 	FskErr err = kFskErrNone;
-	int android_version = 0;
 	char *osVersion  = NULL;
     struct stat st;
 
 	ANDROID_GET_VERSION(modelName, osVersion, android_version, err);
     BAIL_IF_ERR(err);
     
-    if (android_version < ANDROID_JELLY) {
+    if (android_version < ANDROID_LOLLIPOP) {
 		BAIL(kFskErrUnimplemented);
 	}
 
-//    if( use_hardware_on_this_device( modelName, android_version, VIDEO_DECODER ) || stat("/sdcard/jmcV", &st) == 0 )
-    if( 1 )
-    {
-        FskImageDecompressorInstall(&AndroidJavaVideoDecodeDecompressor);
-    }
+// 	if( use_hardware_on_this_device( modelName, android_version, VIDEO_DECODER ) || stat("/sdcard/jmcV", &st) == 0 )
+	FskImageDecompressorInstall(&AndroidJavaVideoDecodeDecompressor);
 
-    if( 0 /*use_hardware_on_this_device( modelName, android_version, AUDIO_DECODER ) || stat("/sdcard/jmcA", &st) == 0*/ )
-    {
-        FskAudioDecompressorInstall(&AndroidJavaAudioDecodeDecompressor);
-    }
+// 	if( 0 /*use_hardware_on_this_device( modelName, android_version, AUDIO_DECODER ) || stat("/sdcard/jmcA", &st) == 0*/ )
+// 	{
+// 		FskAudioDecompressorInstall(&AndroidJavaAudioDecodeDecompressor);
+// 	}
 
 bail:
 	return err;
@@ -96,7 +93,7 @@ bail:
 FskExport(FskErr) FskAndroidJavaDecoder_fskUnload(FskLibrary library)
 {
 	FskImageDecompressorUninstall(&AndroidJavaVideoDecodeDecompressor);
-	FskAudioDecompressorUninstall(&AndroidJavaAudioDecodeDecompressor);
+// 	FskAudioDecompressorUninstall(&AndroidJavaAudioDecodeDecompressor);
 
 	return kFskErrNone;
 }

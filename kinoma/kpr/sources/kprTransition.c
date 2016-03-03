@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -336,7 +336,7 @@ void Math_sineEaseOut(xsMachine* the)
 void Math_sineEaseInOut(xsMachine* the)
 {
 	double fraction = xsToNumber(xsArg(0));
-	xsResult = xsNumber(-1/2 * (cos(PI * fraction) - 1));
+	xsResult = xsNumber(-1.0 / 2.0 * (cos(PI * fraction) - 1));
 }
 
 void Math_circularEaseIn(xsMachine* the)

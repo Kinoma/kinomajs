@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -67,6 +67,7 @@ FskPinI2CDispatchRecord gCreatePinI2C = {
 	createI2CWriteDataByte,
 	createI2CWriteDataWord,
 	createI2CWriteDataBytes,
+	NULL,
 	NULL
 };
 
@@ -83,6 +84,10 @@ Boolean createI2CCanHandle(SInt32 sda, SInt32 sclk, SInt32 bus, SInt32 *remapped
 
 	if ((kFskPinI2CNoBus != bus) && (bus < 100))
 		return false;
+
+	if (bus > 100){
+		return true;
+	}
 
 	sdaDev = FskHardwarePinsMux(sda, kFskHardwarePinI2CData);
 	clkDev = FskHardwarePinsMux(sclk, kFskHardwarePinI2CClock);

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -323,7 +323,7 @@ void xs_infoset_scan(xsMachine* the)
 			xsVar(LINE) = xsInteger(XML_GetCurrentLineNumber(self.expat));
 			xsVar(VALUE) = xsString((char*)XML_ErrorString(XML_GetErrorCode(self.expat)));
 			if (xsHas(xsThis, xsID_reportError))
-				xsCall3(xsThis, xsID_reportError, xsVar(PATH), xsVar(LINE), xsVar(VALUE));
+				xsCall3_noResult(xsThis, xsID_reportError, xsVar(PATH), xsVar(LINE), xsVar(VALUE));
 			xsThrow(xsNewInstanceOf(xsSyntaxErrorPrototype));
 		}
 		c_free(self.textBuffer);
@@ -385,7 +385,7 @@ void scanEntity(void *data, const XML_Char *entityName, int is_parameter_entity)
 	else {
 		xsVar(LINE) = xsInteger(XML_GetCurrentLineNumber(self->expat));
 		xsVar(VALUE) = xsString((xsStringValue)entityName);
-		xsCall3(xsThis, xsID_reportError, xsVar(PATH), xsVar(LINE), xsVar(VALUE));
+		xsCall3_noResult(xsThis, xsID_reportError, xsVar(PATH), xsVar(LINE), xsVar(VALUE));
 		scanCharacter(data, entityName, c_strlen(entityName));
 	}
 }

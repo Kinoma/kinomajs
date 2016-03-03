@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,8 @@
 #define __XS6SCRIPT__
 
 #include "xs6Common.h"
+
+typedef void (*txReport)(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments);
 
 typedef txS2 txToken;
 typedef txS2 txTokenFlag;
@@ -584,6 +586,8 @@ struct sxParser {
 	int errorCount;
 	txSymbol* errorSymbol;
 	int warningCount;
+	txReport reportError;
+	txReport reportWarning;
 	
 	txSymbol* symbolMapPath;
 	int* lines;

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -77,6 +77,8 @@ void fxInitializeParser(txParser* parser, void* console, txSize bufferSize, txSi
 	parser->yieldSymbol = fxNewParserSymbol(parser, "yield");
 	
 	parser->errorSymbol = NULL;
+	parser->reportError = fxVReportError;
+	parser->reportWarning = fxVReportWarning;
 }
 
 void* fxNewParserChunkClear(txParser* parser, txSize size)
@@ -138,7 +140,7 @@ void fxReportParserError(txParser* parser, txString theFormat, ...)
 	if (!parser->errorSymbol)
 		parser->errorSymbol = parser->SyntaxErrorSymbol;
 	c_va_start(arguments, theFormat);
-    fxVReportError(parser->console, parser->path ? parser->path->string : C_NULL, parser->line, theFormat, arguments);
+    (*parser->reportError)(parser->console, parser->path ? parser->path->string : C_NULL, parser->line, theFormat, arguments);
 	c_va_end(arguments);
 }
 
@@ -149,7 +151,7 @@ void fxReportReferenceError(txParser* parser, txString theFormat, ...)
 	if (!parser->errorSymbol)
 		parser->errorSymbol = parser->ReferenceErrorSymbol;
 	c_va_start(arguments, theFormat);
-    fxVReportError(parser->console, parser->path ? parser->path->string : C_NULL, parser->line, theFormat, arguments);
+    (*parser->reportError)(parser->console, parser->path ? parser->path->string : C_NULL, parser->line, theFormat, arguments);
 	c_va_end(arguments);
 }
 
@@ -158,7 +160,7 @@ void fxReportParserWarning(txParser* parser, txString theFormat, ...)
 	c_va_list arguments;
 	parser->warningCount++;
 	c_va_start(arguments, theFormat);
-	fxVReportWarning(parser->console, parser->path ? parser->path->string : C_NULL, parser->line, theFormat, arguments);
+	(*parser->reportWarning)(parser->console, parser->path ? parser->path->string : C_NULL, parser->line, theFormat, arguments);
 	c_va_end(arguments);
 }
 
@@ -169,7 +171,7 @@ void fxReportLineReferenceError(txParser* parser, txInteger line, txString theFo
 	if (!parser->errorSymbol)
 		parser->errorSymbol = parser->ReferenceErrorSymbol;
 	c_va_start(arguments, theFormat);
-	fxVReportError(parser->console, parser->path ? parser->path->string : C_NULL, line, theFormat, arguments);
+	(*parser->reportError)(parser->console, parser->path ? parser->path->string : C_NULL, line, theFormat, arguments);
 	c_va_end(arguments);
 }
 
@@ -180,7 +182,7 @@ void fxReportLineError(txParser* parser, txInteger line, txString theFormat, ...
 	if (!parser->errorSymbol)
 		parser->errorSymbol = parser->SyntaxErrorSymbol;
 	c_va_start(arguments, theFormat);
-	fxVReportError(parser->console, parser->path ? parser->path->string : C_NULL, line, theFormat, arguments);
+	(*parser->reportError)(parser->console, parser->path ? parser->path->string : C_NULL, line, theFormat, arguments);
 	c_va_end(arguments);
 }
 

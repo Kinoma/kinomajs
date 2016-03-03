@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -569,10 +569,18 @@ txBoolean fxGetProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex 
 
 void fxGetProxyPropertyAux(txMachine* the)
 {
-	txSlot* proxy = mxThis->value.reference->next;
-	txID id = proxy->next->value.at.id;
-	txIndex index = proxy->next->value.at.index;
-	fxGetProxyProperty(the, mxThis->value.reference, id, index, mxThis, mxResult);
+	txSlot* instance = mxThis->value.reference;
+	while (instance) {
+		if (mxIsProxy(instance))
+			break;
+		instance = instance->value.instance.prototype;
+	}
+	if (instance) {
+		txSlot* proxy = instance->next;
+		txID id = proxy->next->value.at.id;
+		txIndex index = proxy->next->value.at.index;
+		fxGetProxyProperty(the, instance, id, index, mxThis, mxResult);
+	}
 }
 
 txBoolean fxGetProxyPrototype(txMachine* the, txSlot* instance, txSlot* slot)
@@ -743,10 +751,18 @@ txBoolean fxSetProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex 
 
 void fxSetProxyPropertyAux(txMachine* the)
 {
-	txSlot* proxy = mxThis->value.reference->next;
-	txID id = proxy->next->value.at.id;
-	txIndex index = proxy->next->value.at.index;
-	fxSetProxyProperty(the, mxThis->value.reference, id, index, mxArgv(0), mxThis);
+	txSlot* instance = mxThis->value.reference;
+	while (instance) {
+		if (mxIsProxy(instance))
+			break;
+		instance = instance->value.instance.prototype;
+	}
+	if (instance) {
+		txSlot* proxy = instance->next;
+		txID id = proxy->next->value.at.id;
+		txIndex index = proxy->next->value.at.index;
+		fxSetProxyProperty(the, instance, id, index, mxArgv(0), mxThis);
+	}
 }
 
 txBoolean fxSetProxyPrototype(txMachine* the, txSlot* instance, txSlot* prototype)

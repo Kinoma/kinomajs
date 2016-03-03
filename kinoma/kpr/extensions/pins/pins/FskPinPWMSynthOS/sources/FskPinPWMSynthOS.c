@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,8 +27,8 @@ static FskErr createFrontPWMNew(FskPinPWM *pin, SInt32 number, const char *name)
 void createFrontPWMDispose(FskPinPWM pin);
 static FskErr createFrontPWMSetDutyCycle(FskPinPWM pin, double value);
 static FskErr createFrontPWMGetDutyCycle(FskPinPWM pin, double *value);
-static FskErr createFrontPWMSetDutyCycleAndPeriod(FskPinPWM pin, UInt8 dutyCycle, UInt8 period);
-static FskErr createFrontPWMGetDutyCycleAndPeriod(FskPinPWM pin, UInt8 *dutyCycle, UInt8 *period);
+static FskErr createFrontPWMSetDutyCycleAndPeriod(FskPinPWM pin, double dutyCycle, double period);
+static FskErr createFrontPWMGetDutyCycleAndPeriod(FskPinPWM pin, double *dutyCycle, double *period);
 
 //Front PWM
 
@@ -47,12 +47,12 @@ FskPinPWMDispatchRecord gCreateFrontPWM = {
 
 typedef struct createFrontPWMRecord{
     FskPinPWMRecord                 pd;
-    
+
     FskPinI2C                       i2c;
     UInt8                           position;
     UInt8                           slaveAddress;
     UInt16                          pinNum;
-    
+
     struct createFrontPWMRecord     *mirror;
 } createFrontPWMRecord, *createFrontPWM;
 
@@ -78,7 +78,7 @@ static void addPWMToArray(createFrontPWM cfpwm, createFrontPWM array[]){
     int i = 0;
     Boolean placed = false;
     UInt8 lower = 0;
-    
+
     for (i = 0; i < FRONTPWMCOUNT; i++){
         if (placed == false && array[i] == NULL){
             array[i] = cfpwm;
@@ -100,7 +100,7 @@ static void addPWMToArray(createFrontPWM cfpwm, createFrontPWM array[]){
 static Boolean removePWMFromArray(createFrontPWM cfpwm, createFrontPWM array[]){
     int i = 0;
     Boolean found = false;
-    
+
     if (cfpwm->mirror != NULL){
         for (i = 0; i < FRONTPWMCOUNT; i++){
             if (array[i] == cfpwm){
@@ -110,7 +110,7 @@ static Boolean removePWMFromArray(createFrontPWM cfpwm, createFrontPWM array[]){
         }
         return false;
     }
-    
+
     for (i = 0; i < FRONTPWMCOUNT; i++){
         if (array[i] == cfpwm){
             array[i] = NULL;
@@ -126,11 +126,11 @@ static Boolean removePWMFromArray(createFrontPWM cfpwm, createFrontPWM array[]){
 
 static createFrontPWM checkForMirror(UInt16 pinNum, createFrontPWM array[]){
     int i = 0;
-    
+
     for (i = 0; i < FRONTPWMCOUNT; i++){
         if (array[i] != NULL && array[i]->pinNum == pinNum) return array[i];
     }
-    
+
     return NULL;
 }
 
@@ -142,7 +142,7 @@ FskErr createFrontPWMNew(FskPinPWM *pin, SInt32 number, const char *name){
     UInt8 *counter;
     createFrontPWM *addTo = NULL;
     createFrontPWM mirror = NULL;
-    
+
     if (number < 8){
         pinNum = number;
         slaveAddress = 0x20;
@@ -156,18 +156,21 @@ FskErr createFrontPWMNew(FskPinPWM *pin, SInt32 number, const char *name){
     }
 
     mirror = checkForMirror(pinNum, addTo);
-    
+
     if (mirror == NULL) if (*counter >= FRONTPWMCOUNT) return kFskErrTooMany;
-    
+
     err = FskMemPtrNewClear(sizeof(createFrontPWMRecord), &cfpwm);
     if (err) return err;
-    
+
     err = FskPinI2CNew(&cfpwm->i2c, 0, 0, 0);
     if (err){
         FskMemPtrDispose(cfpwm);
         return err;
     }
-    
+
+	cfpwm->pinNum = pinNum;
+	cfpwm->slaveAddress = slaveAddress;
+
     if (mirror == NULL){
         (*counter)++;
         addPWMToArray(cfpwm, addTo);
@@ -175,10 +178,7 @@ FskErr createFrontPWMNew(FskPinPWM *pin, SInt32 number, const char *name){
         cfpwm->mirror = mirror;
         mirror->mirror = cfpwm;
     }
-    
-    cfpwm->slaveAddress = slaveAddress;
-    cfpwm->pinNum = pinNum;
-    
+
     *pin = (FskPinPWM)cfpwm;
     return err;
 }
@@ -196,49 +196,59 @@ void createFrontPWMDispose(FskPinPWM pin){
         decrement = removePWMFromArray(cfpwm, rightPWMs);
         if (decrement) rightCount--;
     }
-    
+
     FskMemPtrDispose(cfpwm);
 }
 
 static FskErr createFrontPWMSetDutyCycle(FskPinPWM pin, double value){
-    UInt16 dutyCycle;
-    
+    double dutyCycle;
+
     dutyCycle = FRONTPWMDEFAULTPERIOD * value;
     return createFrontPWMSetDutyCycleAndPeriod(pin, dutyCycle, FRONTPWMDEFAULTPERIOD);
 }
 
 static FskErr createFrontPWMGetDutyCycle(FskPinPWM pin, double *value){
-    UInt8 dutyCycle, period;
+    double dutyCycle, period;
     FskErr err;
-    
+
     err = createFrontPWMGetDutyCycleAndPeriod(pin, &dutyCycle, &period);
-    *value = ((double)dutyCycle) / ((double)period);
+    *value = dutyCycle / period;
     return err;
 }
 
-static FskErr createFrontPWMSetDutyCycleAndPeriod(FskPinPWM pin, UInt8 dutyCycle, UInt8 period){
+static FskErr createFrontPWMSetDutyCycleAndPeriod(FskPinPWM pin, double dutyCycle, double period){
     createFrontPWM cfpwm = (createFrontPWM)pin;
     FskErr err;
-    
-    if (dutyCycle > period) dutyCycle = period;
+	UInt8 dutyCycleToWrite, periodToWrite;
+
+	if (dutyCycle > period) dutyCycle = period;
+
+	dutyCycleToWrite = (UInt8)( (dutyCycle * (1000.0/128.0)) + 0.5);
+	periodToWrite = (UInt8)( (period * (1000.0/128.0)) + 0.5);
+
     err = FskPinI2CSetAddress(cfpwm->i2c, cfpwm->slaveAddress);
     if (err != kFskErrNone) return err;
-    err = FskPinI2CWriteDataByte(cfpwm->i2c, periodRegister[cfpwm->position], period);
+    err = FskPinI2CWriteDataByte(cfpwm->i2c, periodRegister[cfpwm->position], periodToWrite);
     if (err != kFskErrNone) return err;
-    err = FskPinI2CWriteDataByte(cfpwm->i2c, dutyCycleRegister[cfpwm->position], dutyCycle);
+    err = FskPinI2CWriteDataByte(cfpwm->i2c, dutyCycleRegister[cfpwm->position], dutyCycleToWrite);
     return err;
 }
 
-static FskErr createFrontPWMGetDutyCycleAndPeriod(FskPinPWM pin, UInt8 *dutyCycle, UInt8 *period){
+static FskErr createFrontPWMGetDutyCycleAndPeriod(FskPinPWM pin, double *dutyCycle, double *period){
     createFrontPWM cfpwm = (createFrontPWM)pin;
     FskErr err;
-    
+	UInt8 dutyCycleReg, periodReg;
+
     err = FskPinI2CSetAddress(cfpwm->i2c, cfpwm->slaveAddress);
     if (err != kFskErrNone) return err;
-    err = FskPinI2CReadDataByte(cfpwm->i2c, periodRegister[cfpwm->position], period);
+    err = FskPinI2CReadDataByte(cfpwm->i2c, periodRegister[cfpwm->position], &periodReg);
     if (err != kFskErrNone) return err;
-    err = FskPinI2CReadDataByte(cfpwm->i2c, dutyCycleRegister[cfpwm->position], dutyCycle);
-    return err;
+    err = FskPinI2CReadDataByte(cfpwm->i2c, dutyCycleRegister[cfpwm->position], &dutyCycleReg);
+
+	*dutyCycle = dutyCycleReg * (128.0/1000.0);
+	*period = periodReg * (128.0/1000.0);
+
+	return err;
 }
 
 

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -358,6 +358,7 @@ void fxSend(txMachine* the)
 
 void fxSetAddress(txMachine* the, char* theAddress)
 {
+	setenv("XSBUG_HOST", theAddress, 1);
 }
 
 void fxSetAutomatic(txMachine* the, txBoolean theAutomatic)

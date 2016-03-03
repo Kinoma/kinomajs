@@ -53,6 +53,7 @@
 			"$(KPR_HOME)/libraries/Controls/src/*",
 			"$(KPR_HOME)/libraries/Creations/src/*",
 			"$(KDT_HOME)/kpr/simulator/modules/*",
+			"$(APP_HOME)/simulator/*",
 			"$(F_HOME)/xs6/bin/mac/debug/modules/mc.xsa",
 			"$(F_HOME)/xs6/bin/mac/debug/modules/mc.so",
 		],

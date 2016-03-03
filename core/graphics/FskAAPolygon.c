@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -1249,7 +1249,9 @@ FskAAPolygonContours(
 							};
 	FskInitSpanProc			initSpan;
 
-	FskBitmapWriteBegin(dstBM, NULL, NULL, NULL);
+	if (kFskErrNone != (err = FskBitmapWriteBegin(dstBM, NULL, NULL, NULL)))
+		return err;
+
 	/* Determine composite clipping region */
 	if (clipRect == NULL)	dstRect = dstBM->bounds;
 	else					if (!FskRectangleIntersect(&dstBM->bounds, clipRect, &dstRect)) return kFskErrNothingRendered;

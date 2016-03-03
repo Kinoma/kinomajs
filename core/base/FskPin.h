@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -124,6 +124,7 @@ typedef struct {
 	FskErr		(*doWriteDataBytes)(FskPinI2C pin, UInt8 command, SInt32 count, const UInt8 *bytes);
 
 	FskErr		(*doProcessCall)(FskPinI2C pin, UInt8 command, UInt16 input, UInt16 *output);
+	FskErr		(*doWriteQuick)(FskPinI2C pin, UInt8 byte);
 } FskPinI2CDispatchRecord, *FskPinI2CDispatch;
 
 #define kFskPinI2CNoBus (-1)
@@ -153,6 +154,7 @@ FskAPI(FskErr) FskPinI2CNew(FskPinI2C *pin, SInt32 sda, SInt32 sclk, SInt32 bus)
 #define FskPinI2CWriteDataBytes(pin, command, count, bytes) (pin->dispatch->doWriteDataBytes ? (pin->dispatch->doWriteDataBytes)(pin, command, count, bytes) : kFskErrUnimplemented)
 
 #define FskPinI2CProcessCall(pin, command, input, output) (pin->dispatch->doProcessCall ? (pin->dispatch->doProcessCall)(pin, command, input, output) : kFskErrUnimplemented)
+#define FskPinI2CWriteQuick(pin, byte) (pin->dispatch->doWriteQuick ? (pin->dispatch->doWriteQuick)(pin, byte) : kFskErrUnimplemented)
 
 /*
 	PWM Pin
@@ -169,9 +171,9 @@ typedef struct {
 
 	FskErr		(*doSetDutyCycle)(FskPinPWM pin, double value);
 	FskErr		(*doGetDutyCycle)(FskPinPWM pin, double *value);
-    
-    FskErr		(*doSetDutyCycleAndPeriod)(FskPinPWM pin, UInt8 dutyCycle, UInt8 period);
-    FskErr		(*doGetDutyCycleAndPeriod)(FskPinPWM pin, UInt8 *dutyCycle, UInt8 *period);
+
+    FskErr		(*doSetDutyCycleAndPeriod)(FskPinPWM pin, double dutyCycle, double period);
+    FskErr		(*doGetDutyCycleAndPeriod)(FskPinPWM pin, double *dutyCycle, double *period);
 } FskPinPWMDispatchRecord, *FskPinPWMDispatch;
 
 struct FskPinPWMRecord {

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -640,8 +640,10 @@ txSlot* fxSetArrayLength(txMachine* the, txSlot* array, txIndex length)
 	array->value.array.address = chunk;
 	if ((array->flag & XS_INTERNAL_FLAG) && (array->kind == XS_ARRAY_KIND))
 		array->next->value.number = array->value.array.length;
-	if (success)
+	if (success) {
+		the->scratch.kind = XS_UNDEFINED_KIND;
 		return &the->scratch;
+	}
 	return C_NULL;
 }
 

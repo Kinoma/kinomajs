@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -284,7 +284,11 @@ static FskErr KprMQTTEndpointPackMessage(KprMQTTEndpoint self, KprMQTTMessage me
 			remainingLength += KprMQTTEndpointPackedStringSize(p->clientIdentifier);
 			if (p->willTopic) {
 				remainingLength += KprMQTTEndpointPackedStringSize(p->willTopic);
-				remainingLength += p->willPayload->size + sizeof(UInt16);
+
+				remainingLength += sizeof(UInt16);
+				if (p->willPayload) {
+					remainingLength += p->willPayload->size;
+				}
 			}
 			remainingLength += KprMQTTEndpointPackedStringSize(p->username);
 			remainingLength += KprMQTTEndpointPackedStringSize(p->password);
@@ -376,7 +380,7 @@ static FskErr KprMQTTEndpointPackMessage(KprMQTTEndpoint self, KprMQTTMessage me
 			// Payload
 			p += KprMQTTEndpointWriteString(cp->clientIdentifier, p);
 			if (cp->willTopic) {
-				UInt32 len = cp->willPayload->size;
+				UInt32 len = (cp->willPayload ? cp->willPayload->size : 0);
 
 				p += KprMQTTEndpointWriteString(cp->willTopic, p);
 				p += KprMQTTEndpointWriteUInt16(len, p);

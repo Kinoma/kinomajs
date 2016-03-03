@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -384,6 +384,9 @@ class Tool extends TOOL {
 			FS.mkdirSync(path);
 		return path;
 	}
+	escapeMakePath(path) {
+		return path.replace(/ /i, '\\ ');
+	}
 	filterManifest(manifest) {
 		if (!("build" in manifest))
 			manifest.build = {};
@@ -599,7 +602,11 @@ class Tool extends TOOL {
 				destinationPath = parts.name;
 			else
 				destinationPath += this.slash + parts.name;
-			if (tree.sources.find(path => path == sourcePath)) {
+			if (tree.sources.find(path => {
+				let regex = new RegExp(path);
+				let result = regex.exec(sourcePath);
+				return result
+			})) {
 				tree.otherPaths.push({
 					sourcePath: sourcePath,
 					destinationPath: destinationPath + parts.extension,
@@ -624,6 +631,10 @@ class Tool extends TOOL {
 						sourcePath: sourcePath,
 						destinationPath: destinationPath,
 					});
+					break;
+				case ".mk":
+					parts.jsDestinationPath = destinationPath;
+					this.processMakefile(tree, parts, sourcePath, false);
 					break;
 				default:
 					tree.otherPaths.push({
@@ -661,6 +672,10 @@ class Tool extends TOOL {
 				makefileTree.cOptions = [];
 			if (!("headers" in makefileTree))
 				makefileTree.headers = [];
+			if (!("jsDestinationPath" in makefileTree))
+				makefileTree.destinationPath = null;
+			if (!("jsSourcePath" in makefileTree))
+				makefileTree.destinationPath = null;
 			if (!("libraries" in makefileTree))
 				makefileTree.libraries = [];
 			if (!("sources" in makefileTree))
@@ -701,6 +716,15 @@ class Tool extends TOOL {
 					this.packages.length = index;
 				}
 			}
+			return;
+		}
+		parts.extension = ".js";
+		makefileTree.jsSourcePath = this.resolveFilePath(this.joinPath(parts));
+		if (makefileTree.jsSourcePath) {
+			parts.extension = ".c";
+			path = this.resolveFilePath(this.joinPath(parts));
+			if (path)
+				this.insertUnique(makefileTree.sources, path);
 		}
 	}
 	resolveDirectoryPath(path) {

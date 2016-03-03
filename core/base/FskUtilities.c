@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -876,7 +876,7 @@ char *FskGetApplicationPath(void)
 #if !TARGET_OS_IPHONE
 		if (0 == FskStrCompare(aBuffer + FskStrLen(aBuffer) - 4, ".app")) {
 #if FSK_EMBED
-			FskStrCat(aBuffer, "/Contents/MacOS/");
+			FskStrCat(aBuffer, "/Contents/Resources/");
 #else
 			aSlash = FskStrRChr(aBuffer, '/');
 			if (aSlash)

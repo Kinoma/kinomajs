@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -387,12 +387,6 @@ typedef short xsIndex;
 	fxGetID(the, _ID), \
 	fxPop())
 
-#define xsGetClosure(_ID) \
-	(xsOverflow(-1), \
-	fxPush(xsFunction), \
-	fxGetClosure(the, _ID), \
-	fxPop())
-
 #define xsGetAt(_THIS,_AT) \
 	(xsOverflow(-2), \
 	fxPush(_THIS), \
@@ -405,13 +399,6 @@ typedef short xsIndex;
 	fxPush(_SLOT), \
 	fxPush(_THIS), \
 	fxSetID(the, _ID), \
-	the->stack++)
-
-#define xsSetClosure(_ID,_SLOT) \
-	(xsOverflow(-2), \
-	fxPush(_SLOT), \
-	fxPush(xsFunction), \
-	fxSetClosure(the, _ID), \
 	the->stack++)
 
 #define xsSetAt(_THIS,_AT,_SLOT) \
@@ -1172,11 +1159,9 @@ mxImport xsBooleanValue fxHasID(xsMachine*, xsIntegerValue);
 mxImport xsBooleanValue fxHasOwnID(xsMachine*, xsIntegerValue);
 mxImport void fxGet(xsMachine*, xsSlot*, xsIntegerValue);
 mxImport void fxGetAt(xsMachine*);
-mxImport void fxGetClosure(xsMachine*, xsIntegerValue);
 mxImport void fxGetID(xsMachine*, xsIntegerValue);
 mxImport void fxSet(xsMachine*, xsSlot*, xsIntegerValue);
 mxImport void fxSetAt(xsMachine*);
-mxImport void fxSetClosure(xsMachine*, xsIntegerValue);
 mxImport void fxSetID(xsMachine*, xsIntegerValue);
 mxImport void fxDeleteAt(xsMachine*);
 mxImport void fxDeleteID(xsMachine*, xsIntegerValue);

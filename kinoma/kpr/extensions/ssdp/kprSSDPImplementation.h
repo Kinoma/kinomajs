@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,6 +63,7 @@ FskAPI(KprSSDPDevice) KprSSDPGetDevice(char* uuid);
 FskAPI(FskErr) KprSSDPRemoveDevice(char* uuid);
 // Discovery
 FskAPI(FskErr) KprSSDPRemoveDiscoveryByLocation(char* location);
+FskAPI(FskErr) KprSSDPRemoveDiscoveryByUUID(char* uuid);
 // Filter
 FskAPI(FskErr) KprSSDPAddFilter(KprSSDPFilter filter);
 FskAPI(FskErr) KprSSDPRemoveFilter(KprSSDPFilter filter);

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -162,7 +162,7 @@ export class Makefile extends MAKE.Makefile {
 		file.line("fix_flags(FLAGS CMAKE_C_FLAGS)\n");
 		if (this.headers.length) {
 			for (let item of this.headers)
-				file.line("list(APPEND ", this.name, "_HEADERS ", toCMakePath(tool, item), ")");
+				file.line("list(APPEND ", this.name, "_HEADERS \"", toCMakePath(tool, item), "\")");
 			file.line();
 		}
 		if (this.sources.length) {
@@ -375,6 +375,9 @@ export class Manifest extends MAKE.Manifest {
 			file.line("\t\"", toCMakePath(tool, item.destinationPath), ".xsb\"");
 		for (let item of this.tree.jsPaths)
 			file.line("\t\"", toCMakePath(tool, item.destinationPath), ".xsb\"");
+		for (let makefile of this.makefiles)
+			if (makefile.jsSourcePath && makefile.jsDestinationPath)
+				file.line("\t\"", toCMakePath(tool, makefile.jsDestinationPath), ".xsb\"");
 		file.line("\t)\n");
 	}
 	generateTargetRules(tool, file) {
@@ -451,6 +454,15 @@ export class Manifest extends MAKE.Manifest {
 			file.line("xsc(SOURCE_FILE \"", sourcePath, "\" DESTINATION \"${TMP_DIR}/", directory, "\" OPTIONS ${XSC_FLAGS})");
 		}
 		file.line();
+		for (let makefile of this.makefiles) {
+			if (makefile.jsSourcePath && makefile.jsDestinationPath) {
+				let parts = tool.splitPath(makefile.jsDestinationPath);
+				let sourcePath = toCMakePath(tool, makefile.jsSourcePath);
+				let destinationPath = toCMakePath(tool, makefile.jsDestinationPath);
+				let directory = toCMakePath(tool, parts.directory);
+				file.line("xsc(SOURCE_FILE \"", sourcePath, "\" DESTINATION \"${TMP_DIR}/", directory, "\" OPTIONS ${XSC_FLAGS} COMPILE)");
+			}
+		}
 		for (let item of this.tree.otherPaths) {
 			let sourcePath = toCMakePath(tool, item.sourcePath);
 			let destinationPath = toCMakePath(tool, item.destinationPath);

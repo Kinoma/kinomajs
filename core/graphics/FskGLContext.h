@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,6 +34,12 @@ struct FskGLContextRecord;										/**< Opaque    GL context data type. */
 typedef struct FskGLContextRecord		FskGLContextRecord;		/**< Opaque    GL context data type. */
 typedef struct FskGLContextRecord		*FskGLContext;			/**< Mutable   GL context object.    */
 typedef const struct FskGLContextRecord	*FskConstGLContext;		/**< Immutable GL context object.    */
+
+/** Storage for context. */
+struct FskGLContextStorage {
+	void *storage[8];											/**< Storage large enough to store the GL context on any platform. */
+};
+typedef struct FskGLContextStorage FskGLContextStorage;			/**< Storage large enough to store the GL context on any platform. */
 
 
 /**	Create a new GL offscreen context.
@@ -73,7 +79,17 @@ FskAPI(FskErr)		FskGLContextMakeCurrent(FskConstGLContext ctx);
 /** Create an FskGLContext from the currently active Open GL context.
  **	\return		kFskErrNone	if the operation succeeded.
  **/
-FskAPI(FskErr)	FskGLContextNewFromCurrentContext(FskGLContext *pCtx);
+FskAPI(FskErr)		FskGLContextNewFromCurrentContext(FskGLContext *pCtx);
+
+
+/**	Get the current GL context for use in a subsequent FskGLContextMakeCurrent() call.
+ **	\param[in]	storage	a pointer to storage for the GL context.
+ **	\param[out]	pCtx	a place to store the resultant context. This can be NULL, because we merely set *pCtx = (FskGLContext)storage;
+ **	\return		kFskErrNone				if the operation completed successfully.
+ **	\return		kFskErrNotAccelerated	if there is no currently active GL context.
+ **	\note		Do not call FskGLContextDispose() with the value returned in pCtx; it is intended only for interfacing to FskGLContextMakeCurrent().
+ **/
+FskAPI(FskErr)		FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext *pCtx);
 
 
 #if TARGET_OS_ANDROID || TARGET_OS_KPL || defined(__linux__) || (FSK_OPENGLES_ANGLE == 1) || defined(EGL_VERSION)

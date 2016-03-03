@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -13375,13 +13375,16 @@ FskErr FskGLPerspectiveTransformBitmap(
 	P[0][0] =  1.f;		P[2][2] = 1.f;
 	P[0][1] =  0.f;		P[0][2] = 0.f;		P[1][0] = 0.f;		P[1][2] = 0.f;		P[2][0] = 0.f;
 	P[1][1] = -1.f;																					/* Flip Y in src */
-	#ifdef PIXELS_ARE_POINTS
-		P[2][1] = (float)(srcBM->bounds.height-1);
-	#else /* PIXELS_ARE_SQUARES */
-		P[2][1] = (float)(srcBM->bounds.height);
-	#endif /* PIXELS_ARE_SQUARES */
+	P[2][1] = (float)(srcBM->bounds.height-1);
 
 	SLinearTransform(P[0], M[0], N[0], 3, 3, 3);
+	N[2][2] += (N[0][2] + N[1][2])           * -0.5f;												/* Adjust by 0.5 pixels */
+	N[2][1] += (N[2][2] - N[0][1] - N[1][1]) *  0.5f;
+	N[2][0] += (N[2][2] - N[0][0] - N[1][0]) *  0.5f;
+	N[1][1] += N[1][2] * 0.5f;
+	N[1][0] += N[1][2] * 0.5f;
+	N[0][1] += N[0][2] * 0.5f;
+	N[0][0] += N[0][2] * 0.5f;
 	#if GLES_VERSION < 2
 	{	float G[4][4];
 		glMatrixMode(GL_MODELVIEW);
@@ -13513,8 +13516,13 @@ FskErr FskGLProjectBitmap(
 		if (srcRect)	FskRectangleIntersect(srcRect, &srcBM->bounds, &srcBounds);
 		srcPts[0].x = srcPts[3].x = FskIntToFixed(srcBounds.x);
 		srcPts[0].y = srcPts[1].y = FskIntToFixed(srcBounds.y);
+	#ifdef PIXELS_ARE_POINTS
 		srcPts[1].x = srcPts[2].x = FskIntToFixed(srcBounds.x + srcBounds.width  - 1);
 		srcPts[2].y = srcPts[3].y = FskIntToFixed(srcBounds.y + srcBounds.height - 1);
+	#else /* PIXELS_ARE_SQUARES */
+		srcPts[1].x = srcPts[2].x = FskIntToFixed(srcBounds.x + srcBounds.width);
+		srcPts[2].y = srcPts[3].y = FskIntToFixed(srcBounds.y + srcBounds.height);
+	#endif /* PIXELS_ARE_SQUARES */
 		err = FskGLPerspectiveTransformBitmap(srcBM, 4, srcPts, dstBM, dstClip, M, opColor, mode, modeParams);
 	}
 	PRINT_IF_ERROR(err, __LINE__, "FskGLPerspectiveTransformBitmap");

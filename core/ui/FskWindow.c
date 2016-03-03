@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -2661,8 +2661,8 @@ Boolean checkWindowBitmapSize(FskWindow win)
 			FskGLPortDispose(glPort);					/* Otherwise it will leak */
 		#endif /* FSKBITMAP_OPENGL */
 		#if SUPPORT_INSTRUMENTATION
-			FskInstrumentedItemPrintfDebug(win, "ERROR: checkWindowBitmapSize failed to allocate a bitmap (%d x %d format: %d)",
-										   -(int)newWidth, (int)newHeight, (unsigned int)getScreenPixelFormat());
+			FskInstrumentedItemPrintfDebug(win, "ERROR: checkWindowBitmapSize failed to allocate a bitmap (%d x %d format: %u): %s",
+										   -(int)newWidth, (int)newHeight, (unsigned)getScreenPixelFormat(), FskInstrumentationGetErrorString(err));
 		#endif /* SUPPORT_INSTRUMENTATION */
 		return false;		// bad scene
 	}

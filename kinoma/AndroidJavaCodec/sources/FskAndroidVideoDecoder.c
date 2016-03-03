@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,10 @@
 #include "FskEndian.h"
 #include "FskBitmap.h"
 #include "QTReader.h"
+#include "FskArch.h"
 #include <jni.h>
+
+#include <dlfcn.h>
 
 #if SUPPORT_INSTRUMENTATION
 #include "FskPlatformImplementation.h"
@@ -76,6 +79,7 @@ static int nv12tile_index_matrix_uv[NV12T_MAX_ROW][NV12T_MAX_COL];
 #endif
 
 extern char *modelName;
+extern int	android_version;
 static int g_mime;
 enum frame_type {
 	MIME_AVC = 0,
@@ -140,6 +144,19 @@ typedef struct
 
 	int					debug_input_frame_count;
 	int					debug_output_frame_count;
+	
+	int					soft_mode;
+	int					has_soft_mode;
+	void				*soft_state;
+	FskErr (*soft_CanHandle)(UInt32 format, const char *mime, const char *extension, Boolean *canHandle);
+	FskErr (*soft_New)(FskImageDecompress deco, UInt32 format, const char *mime, const char *extension);
+	FskErr (*soft_Dispose)(void *state, FskImageDecompress deco);
+	FskErr (*soft_DecompressFrames)(void *state, FskImageDecompress deco, const void *data, UInt32 dataSize, FskInt64 *decodeTime, UInt32 *compositionTimeOffset, FskInt64 *compositionTime, UInt32 frameType);
+	FskErr (*soft_Flush)(void *state, FskImageDecompress deco);
+	FskErr (*soft_GetMetaData)(void *stateIn, FskImageDecompress deco, UInt32 metadata, UInt32 index, FskMediaPropertyValue value, UInt32 *flags);
+	FskErr (*soft_SetSampleDescription)(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
+	FskErr (*soft_SetPreferredPixelFormat)(void *state, void *track, UInt32 propertyID, FskMediaPropertyValue property);
+	FskErr (*soft_SetRotation)(void *stateIn, void *track, UInt32 propertyID, FskMediaPropertyValue property);
 
 	//env JNI
 	JNIEnv				*jniEnv;
@@ -192,6 +209,195 @@ typedef struct
 #endif
 
 } FskAndroidJavaVideoDecode;
+
+static void *avc_lib_handle				= NULL;
+static void *mp4_lib_handle				= NULL;
+
+static void *SoftAvcCanHandle			= NULL;
+static void *SoftAvcNew					= NULL;
+static void *SoftAvcDispose				= NULL;
+static void *SoftAvcDecompressFrames	= NULL;
+static void *SoftAvcFlush				= NULL;
+static void *SoftAvcGetMetaData			= NULL;
+static void *SoftAvcSetSampleDescription= NULL;
+static void *SoftAvcSetPreferredPixelFormat= NULL;
+static void *SoftAvcSetRotation			= NULL;
+static void *SoftAvcLoadLib				= NULL;
+
+static void *SoftMp4CanHandle			= NULL;
+static void *SoftMp4New					= NULL;
+static void *SoftMp4Dispose				= NULL;
+static void *SoftMp4DecompressFrames	= NULL;
+static void *SoftMp4Flush				= NULL;
+static void *SoftMp4GetMetaData			= NULL;
+static void *SoftMp4SetSampleDescription= NULL;
+static void *SoftMp4SetPreferredPixelFormat= NULL;
+static void *SoftMp4SetRotation			= NULL;
+static void *SoftMp4LoadLib				= NULL;
+
+#define TYPE_CanHandle				FskErr (*)(UInt32 , const char *, const char *, Boolean *)												
+#define TYPE_New					FskErr (*)(FskImageDecompress, UInt32, const char *, const char *)
+#define TYPE_Dispose				FskErr (*)(void *, FskImageDecompress )													
+#define TYPE_DecompressFrame		FskErr (*)(void *, FskImageDecompress, const void *, UInt32, FskInt64 *, UInt32 *, FskInt64 *, UInt32 )
+#define TYPE_Flush					FskErr (*)(void *, FskImageDecompress)		
+#define TYPE_GetMetaData			FskErr (*)(void *, FskImageDecompress, UInt32, UInt32, FskMediaPropertyValue, UInt32 *)
+#define TYPE_SetSampleDescription	FskErr (*)(void *, void *, UInt32 , FskMediaPropertyValue )
+#define TYPE_SetPreferredPixelFormat FskErr (*)(void *, void *, UInt32 , FskMediaPropertyValue )
+#define TYPE_SetRotation			FskErr (*)(void *, void *, UInt32 , FskMediaPropertyValue )
+#define TYPE_LoadLib				FskErr (*)()
+
+static FskErr load_avc_pv()
+{	
+	FskErr err = kFskErrNone;
+	
+	if( avc_lib_handle != NULL )
+		goto bail;		//already initialized
+
+	if( avc_lib_handle == NULL )
+	{
+		if( android_version >= ANDROID_ICE )
+		{
+			dlog( " opening libkinomaavcdecon2.so\n");
+			avc_lib_handle = dlopen( "libkinomaavcdecon2.so", RTLD_NOW );
+		}
+		else
+		{
+			dlog( " opening libkinomaavcdecpv.so\n");
+			avc_lib_handle = dlopen( "libkinomaavcdecpv.so", RTLD_NOW );
+		}
+	}
+	
+	if (avc_lib_handle == NULL)
+	{
+		dlog( "failed\n"); 
+		err = kFskErrNotFound;
+	}	
+	else
+	{
+		dlog( "succeeded\n"); 
+	}	
+	if( err ) goto bail;
+	//BAIL_IF_ERR(err );
+	
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeCanHandle",			SoftAvcCanHandle, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeNew",					SoftAvcNew, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeDispose",				SoftAvcDispose, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeDecompressFrame",		SoftAvcDecompressFrames, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeFlush",				SoftAvcFlush, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeGetMetaData",			SoftAvcGetMetaData, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeSetSampleDescription",	SoftAvcSetSampleDescription, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeSetPreferredPixelFormat",	SoftAvcSetPreferredPixelFormat, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avcDecodeSetRotation",			SoftAvcSetRotation, 1 );
+	ANDROID_LOAD_FUNC( avc_lib_handle, "avc_load_lib",					SoftAvcLoadLib, 1 );
+	
+	dlog( "calling SoftAvcLoadLib\n"); 
+	err = ((TYPE_LoadLib)SoftAvcLoadLib)();
+	BAIL_IF_ERR( err );
+	
+bail:
+	if( 
+	    SoftAvcCanHandle			== NULL ||
+		SoftAvcNew					== NULL ||
+		SoftAvcDispose				== NULL ||
+		SoftAvcDecompressFrames		== NULL ||
+		SoftAvcFlush				== NULL ||
+		SoftAvcGetMetaData			== NULL ||
+	    SoftAvcSetSampleDescription	== NULL ||
+		SoftAvcSetPreferredPixelFormat	== NULL ||
+		SoftAvcSetRotation			== NULL ||
+		SoftAvcLoadLib				== NULL
+	   )
+	{
+	    SoftAvcCanHandle			= NULL;
+		SoftAvcNew					= NULL;
+		SoftAvcDispose				= NULL;
+		SoftAvcDecompressFrames		= NULL;
+		SoftAvcFlush				= NULL;
+		SoftAvcGetMetaData			= NULL;
+		SoftAvcSetSampleDescription	= NULL;
+		SoftAvcSetPreferredPixelFormat	= NULL;
+		SoftAvcSetRotation			= NULL;
+		SoftAvcLoadLib				= NULL;
+		
+		if( avc_lib_handle != NULL )
+		{
+			dlclose(avc_lib_handle);
+			avc_lib_handle	= NULL;
+		}
+	}
+
+	return err;
+}
+
+static FskErr load_mp4_pv()
+{	
+	FskErr err = kFskErrNone;
+	
+	if( mp4_lib_handle != NULL )
+		goto bail;
+	
+	dlog( "loading libkinomamp4decpv.so"); 
+	mp4_lib_handle = dlopen("libkinomamp4decpv.so", RTLD_NOW);
+	
+	if (mp4_lib_handle == NULL)
+	{
+		dlog( "failed\n"); 
+        BAIL(kFskErrNotFound );
+	}
+	else
+	{
+		dlog( "succeeded\n"); 
+	}
+	
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeCanHandle",			SoftMp4CanHandle, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeNew",					SoftMp4New, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeDispose",				SoftMp4Dispose, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeDecompressFrame",		SoftMp4DecompressFrames, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeFlush",				SoftMp4Flush, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeGetMetaData",			SoftMp4GetMetaData, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeSetSampleDescription",	SoftMp4SetSampleDescription, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeSetPreferredPixelFormat",	SoftMp4SetPreferredPixelFormat, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4DecodeSetRotation",			SoftMp4SetRotation, 1 );
+	ANDROID_LOAD_FUNC( mp4_lib_handle, "mp4_pv_load_lib",				SoftMp4LoadLib, 1 );
+	
+	dlog( "calling SoftMp4LoadLib\n"); 
+	err = ((TYPE_LoadLib)SoftMp4LoadLib)();
+	BAIL_IF_ERR( err );
+	
+bail:
+	if( 
+	   SoftMp4CanHandle				== NULL ||
+	   SoftMp4New					== NULL ||
+	   SoftMp4Dispose				== NULL ||
+	   SoftMp4DecompressFrames		== NULL ||
+	   SoftMp4Flush					== NULL ||
+	   SoftMp4GetMetaData			== NULL ||
+	   SoftMp4SetSampleDescription	== NULL ||
+	   SoftMp4SetPreferredPixelFormat	== NULL ||
+	   SoftMp4SetRotation			== NULL ||
+	   SoftMp4LoadLib				== NULL
+	   )
+	{
+	    SoftMp4CanHandle			= NULL;
+		SoftMp4New					= NULL;
+		SoftMp4Dispose				= NULL;
+		SoftMp4DecompressFrames		= NULL;
+		SoftMp4Flush				= NULL;
+		SoftMp4GetMetaData			= NULL;
+		SoftMp4SetSampleDescription	= NULL;
+		SoftMp4SetPreferredPixelFormat	= NULL;
+		SoftMp4SetRotation			= NULL;
+		SoftMp4LoadLib				= NULL;
+
+		if( mp4_lib_handle != NULL )
+		{
+			dlclose(mp4_lib_handle);
+			mp4_lib_handle	= NULL;
+		}
+	}	
+	
+	return err;
+}
 
 static FskErr func_queue_in( FskListMutex func_item_list, FskImageDecompressComplete completionFunction, void *completionRefcon, int frame_number, int drop, FskInt64 decode_time )
 {
@@ -858,6 +1064,57 @@ FskErr AndroidJavaVideoDecodeNew(FskImageDecompress deco, UInt32 format, const c
 
 //	fp = fopen("/sdcard/jstream.avc", "wb");
 
+// 	init software decoder
+	state->soft_mode = 0;
+	state->has_soft_mode = 0;
+	state->soft_state = NULL;
+	FskErr load_avc_err = load_avc_pv();
+	FskErr load_mp4_err = load_mp4_pv();
+	if( load_avc_err == kFskErrNone && g_mime == MIME_AVC )
+	{
+		state->soft_CanHandle			= (TYPE_CanHandle)			SoftAvcCanHandle;
+		state->soft_New					= (TYPE_New)				SoftAvcNew;
+		state->soft_Dispose				= (TYPE_Dispose)			SoftAvcDispose;
+		state->soft_DecompressFrames	= (TYPE_DecompressFrame)	SoftAvcDecompressFrames;
+		state->soft_Flush				= (TYPE_Flush)				SoftAvcFlush;
+		state->soft_GetMetaData			= (TYPE_GetMetaData)		SoftAvcGetMetaData;
+		state->soft_SetSampleDescription= (TYPE_SetSampleDescription)SoftAvcSetSampleDescription;
+		state->soft_SetPreferredPixelFormat= (TYPE_SetPreferredPixelFormat)SoftAvcSetPreferredPixelFormat;
+		state->soft_SetRotation			= (TYPE_SetRotation)		SoftAvcSetRotation;
+		state->has_soft_mode = 1;
+	}
+	else if( load_mp4_err == 0 && g_mime == MIME_M4V )
+	{
+		state->soft_CanHandle			= (TYPE_CanHandle)			SoftMp4CanHandle;
+		state->soft_New					= (TYPE_New)				SoftMp4New;
+		state->soft_Dispose				= (TYPE_Dispose)			SoftMp4Dispose;
+		state->soft_DecompressFrames	= (TYPE_DecompressFrame)	SoftMp4DecompressFrames;
+		state->soft_Flush				= (TYPE_Flush)				SoftMp4Flush;
+		state->soft_GetMetaData			= (TYPE_GetMetaData)		SoftMp4GetMetaData;
+		state->soft_SetSampleDescription= (TYPE_SetSampleDescription)SoftMp4SetSampleDescription;
+		state->soft_SetPreferredPixelFormat= (TYPE_SetPreferredPixelFormat)SoftMp4SetPreferredPixelFormat;
+		state->soft_SetRotation			= (TYPE_SetRotation)		SoftMp4SetRotation;
+		state->has_soft_mode = 1;
+	}
+	
+	//state->has_soft_mode = 0;
+	if( state->has_soft_mode )
+	{
+		dlog("calling soft_New()\n" );	
+		FskErr soft_err = state->soft_New( deco, format, mime, extension);
+		if( soft_err != kFskErrNone )
+		{
+			dlog("failed\n" );	
+			state->has_soft_mode = 0;
+		}	
+		else
+		{
+			dlog("succeeded\n" );	
+			state->soft_state = deco->state;
+			deco->state		  = state;
+		}
+	}
+
 bail:
 	if (kFskErrNone != err)
 		AndroidJavaVideoDecodeDispose(state, deco);
@@ -876,6 +1133,12 @@ FskErr AndroidJavaVideoDecodeDispose(void *stateIn, FskImageDecompress deco)
 
 	dlog( "\n###########################################################################################\n" );
 	dlog( "into AndroidJavaVideoDecodeDispose\n" );
+	
+	if( state->soft_state != NULL )
+	{
+		dlog("%x disposing soft decoder\n", (int)state );	
+		state->soft_Dispose(state->soft_state, deco);
+	}
 
 	if (NULL != state)
 	{
@@ -1360,6 +1623,26 @@ static int size_to_start_code(unsigned char *data, int data_size, int start_code
 	return used_bytes;
 }
 
+static int activate_soft_decoder_mode(unsigned char *data, int width, int height, int colorfmt)
+{
+	int soft_mode = 0;
+	unsigned char *buf = data;
+	
+	if (colorfmt == 19 || colorfmt == 21 || colorfmt == 0x7f000100) { //YUV420Base
+		if (buf[0] == 0 && buf[1] == 0 && buf[width] == 0 && buf[width+1] == 0
+		 && buf[width-2] == 0 && buf[width-1] == 0 && buf[2*width-2] == 0 && buf[2*width-1] == 0
+		 && buf[(height-2)*width] == 0 && buf[(height-2)*width+1] == 0 && buf[(height-1)*width] == 0 && buf[(height-1)*width+1] == 0
+		 && buf[(height-1)*width-2] == 0 && buf[(height-1)*width-1] == 0 && buf[(height*width)-2] == 0 && buf[(height*width)-1] == 0) {
+		 	dlog( "all zero frame found! turn to software decoder\n" );
+		 	soft_mode = 1;
+		 }
+	} else { //TODO
+		;
+	}
+	
+	return soft_mode;
+}
+
 FskErr AndroidJavaVideoDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const void *data_in, UInt32 dataSize_in, FskInt64 *decodeTime, UInt32 *compositionTimeOffset, FskInt64 *compositionTime, UInt32 frameType)
 {
 	FskAndroidJavaVideoDecode		*state			= (FskAndroidJavaVideoDecode *)stateIn;
@@ -1379,6 +1662,18 @@ FskErr AndroidJavaVideoDecodeDecompressFrame(void *stateIn, FskImageDecompress d
 	unsigned char		*fdata			= NULL;
 	unsigned char		*esds			= NULL;
 	int					esds_size		= 0;
+    
+    //use software decoder
+    if( state->has_soft_mode && state->soft_mode )
+    {
+        dlog("%x calling state->soft_DecompressFrames\n", (int)stateIn);
+        FskErr soft_err = state->soft_DecompressFrames( state->soft_state, deco, data, data_size, decodeTime, compositionTimeOffset, compositionTime, frameType);
+        if( soft_err != kFskErrNone )
+        {
+            dlog("%x soft decoder returns an error: %d\n", (int)stateIn, (int)soft_err);
+        }
+        return soft_err;
+    }
 
 	dlog( "\n###########################################################################################\n" );
 	dlog( "into AndroidJavaVideoDecodeDecompressFrame, dataSize: %d, is_startcode: %d, drop_frame: %d, immediate_frame: %d, sync_frame: %d, is_eos: %d\n",
@@ -1808,6 +2103,7 @@ FskErr AndroidJavaVideoDecodeDecompressFrame(void *stateIn, FskImageDecompress d
 // 					state->strideH = (state->strideH % 16) ? (state->strideH / 16 + 1) * 16 : state->strideH;
 					dlog( "decoder lies about width when it's not integer times of 16, (%d, %d) \n", state->strideW, state->strideH);
 				}
+				state->soft_mode = activate_soft_decoder_mode(Outbuf, state->display_height, state->strideW, state->color_format);
 				send_out_one_pic(state, Outbuf, state->display_width, state->display_height, state->strideW, state->strideH, state->wr_size, state->color_format);
 				(*jniEnv)->DeleteLocalRef(jniEnv, obj_bbf);
                 (*jniEnv)->CallVoidMethod(jniEnv, state->mMediaCodecCore, state->F_MediaReleaseOutputBuffer_ID);
@@ -1865,6 +2161,13 @@ FskErr AndroidJavaVideoDecodeFlush(void *stateIn, FskImageDecompress deco )
 	FskErr				err		= kFskErrNone;
 	FskThread self          = FskThreadGetCurrent();
 	JNIEnv *jniEnv			= (JNIEnv *)self->jniEnv;
+    
+    if( state->has_soft_mode && state->soft_mode )
+    {
+        dlog("%x calling state->soft_Flush\n", (int)stateIn);
+        FskErr soft_err = state->soft_Flush( state->soft_state, deco);
+        return soft_err;
+    }
 
 	dlog( "\n###########################################################################################\n" );
 	dlog( "into AndroidJavaVideoDecodeFlush\n");
@@ -1909,6 +2212,26 @@ FskErr AndroidJavaVideoDecodeGetMetaData(void *stateIn, FskImageDecompress deco,
 	UInt32		  frame_type = 0;
 	int			  is_startcode = 1;
 	FskErr		  err = kFskErrNone;
+
+	if( index == 9 )//we need another avc decoder to accomplish this
+	{
+		if( SoftAvcGetMetaData == NULL )
+		{
+			err = load_avc_pv();
+			if( err ) goto bail;
+			//BAIL_IF_ERR( err );
+		}
+		
+		if ( SoftAvcGetMetaData == NULL )
+		{
+			dlog( " can't find symbol avcDecodeGetMetaData()\n");
+			return kFskErrUnimplemented;
+		}
+
+		dlog( " calling symbol avcDecodeGetMetaData()\n");
+		err = (*((TYPE_GetMetaData)SoftAvcGetMetaData))(stateIn, deco, metadata, index, value, flags);
+		return err;
+	}
 
 	dlog( "\n###########################################################################################\n" );
 	dlog( "into AndroidJavaVideoDecodeGetMetaData, indec: %d\n", (int)index );
@@ -1957,6 +2280,17 @@ bail:
 FskErr AndroidJavaVideoDecodeSetSampleDescription(void *stateIn, void *track, UInt32 propertyID, FskMediaPropertyValue property)
 {
 	FskAndroidJavaVideoDecode *state = (FskAndroidJavaVideoDecode *)stateIn;
+	
+	if (state->has_soft_mode)
+	{
+		dlog("%x calling state->soft_SetSampleDescription\n", (int)stateIn);
+		FskErr soft_err = state->soft_SetSampleDescription( state->soft_state, track, propertyID, property);
+		if( soft_err != kFskErrNone )
+		{
+			dlog("%x soft decoder returns an error: %d\n", (int)stateIn, (int)soft_err);
+			return soft_err;
+		}
+	}
 
 	if( state->bad_state )
 	{
@@ -1995,9 +2329,20 @@ FskErr AndroidJavaVideoDecodeSetPreferredPixelFormat( void *stateIn, void *track
 	FskAndroidJavaVideoDecode *state = (FskAndroidJavaVideoDecode *)stateIn;
 	FskBitmapFormatEnum prefered_yuvFormat = kFskBitmapFormatUnknown;
 	UInt32 i,count = property->value.integers.count;
+	
+	if (state->has_soft_mode)
+	{
+		dlog("%x calling state->soft_SetPreferredPixelFormat\n", (int)stateIn);
+		FskErr soft_err = state->soft_SetPreferredPixelFormat( state->soft_state, track, propertyID, property);
+		if( soft_err != kFskErrNone )
+		{
+			dlog("%x soft decoder returns an error: %d\n", (int)stateIn, (int)soft_err);
+			return soft_err;
+		}
+	}
 
 	dlog( "\n###########################################################################################\n" );
-	dlog( "into vmetaDecodeSetPreferredPixelFormat, propertyID: %d, propertyType: %d, count: %d\n", (int)propertyID, (int)property->type, (int)count);
+	dlog( "into AndroidJavaVideoDecodeSetPreferredPixelFormat, propertyID: %d, propertyType: %d, count: %d\n", (int)propertyID, (int)property->type, (int)count);
 	dlog( "prefered_yuvFormat: %d/%d/%d/%d/%d\n", (int)property->value.integers.integer[0],(int)property->value.integers.integer[1],(int)property->value.integers.integer[2],(int)property->value.integers.integer[3],(int)property->value.integers.integer[4]);
 
 	if( state->bad_state )
@@ -2066,6 +2411,17 @@ FskErr AndroidJavaVideoDecodeSetRotation(void *stateIn, void *track, UInt32 prop
 
 	if( state->dst_pixel_format == kFskBitmapFormatYUV420 )
 		return kFskErrNone;
+	
+	if (state->has_soft_mode)
+	{
+		dlog("%x calling state->soft_SetRotation\n", (int)stateIn);
+		FskErr soft_err = state->soft_SetRotation( state->soft_state, track, propertyID, property);
+		if( soft_err != kFskErrNone )
+		{
+			dlog("%x soft decoder returns an error: %d\n", (int)stateIn, (int)soft_err);
+			return soft_err;
+		}
+	}
 
 	state->rotation_float = (float)property->value.number;
 

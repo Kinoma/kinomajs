@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -100,12 +100,7 @@ FskErr linuxDigitalNew(FskPinDigital *pin, SInt32 number, const char *name, FskP
 
 	FskListMutexAppend(gLinuxDigitalPins, &ld->next);
 
-	snprintf(buffer, sizeof(buffer), "/sys/class/gpio/gpio%d/edge", ld->pin);
-	file = open(buffer, O_WRONLY);
-	if (file >= 0) {
-		ld->canInterrupt = write(file, "both", 5) > 0;
-		close(file);
-	}
+	ld->canInterrupt = false;
 
 	*pin = (FskPinDigital)ld;
 	return linuxDigitalSetDirection((FskPinDigital)ld, direction);
@@ -132,15 +127,6 @@ FskErr linuxDigitalSetDirection(FskPinDigital pin, FskPinsDigitalDirection direc
 	int file = -1;
 	char buffer[50];
 
-	if (kFskPinDigitalDirectionUndefined != direction) {
-		snprintf(buffer, sizeof(buffer), "/sys/class/gpio/gpio%d/direction", ld->pin);
-		f = fopen(buffer, "w+");
-		if (!f) return kFskErrFileNotFound;
-		fprintf(f, (kFskPinDigitalDirectionIn == direction) ? "in" : "out");
-		fclose(f);
-		f = NULL;
-	}
-
 	if (ld->file >= 0) {
 		close(ld->file);
 		ld->file = -1;
@@ -153,6 +139,32 @@ FskErr linuxDigitalSetDirection(FskPinDigital pin, FskPinsDigitalDirection direc
 		goto bail;
 	}
 	ld->file = file;
+
+	if (kFskPinDigitalDirectionUndefined != direction) {
+		snprintf(buffer, sizeof(buffer), "/sys/class/gpio/gpio%d/direction", ld->pin);
+		f = fopen(buffer, "w+");
+		if (!f) return kFskErrFileNotFound;
+
+		if (direction == kFskPinDigitalDirectionOut){
+			Boolean value;
+			err = linuxDigitalRead(pin, &value);
+			fprintf(f, value ? "high" : "low");
+		}else if (direction == kFskPinDigitalDirectionIn){
+			int edgeFile = -1;
+
+			snprintf(buffer, sizeof(buffer), "/sys/class/gpio/gpio%d/edge", ld->pin);
+			edgeFile = open(buffer, O_WRONLY);
+			if (edgeFile >= 0) {
+				ld->canInterrupt = write(edgeFile, "both", 5) > 0;
+				close(edgeFile);
+			}
+
+			fprintf(f, "in");
+		}
+
+		fclose(f);
+		f = NULL;
+	}
 
 bail:
 	if (err)
@@ -288,7 +300,7 @@ void gpioThread(void *param)
 					break;
 				}
 				seed = gGPIOPollersSeed;
-				
+
 				fds[0].fd = gGPIOEventFD;
 				fds[0].events = POLLIN | POLLERR | POLLHUP;
 				fdsInUse = 1;

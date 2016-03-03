@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,7 +35,8 @@ enum {
 	kprTextTextMiddle = 7,
 	kprTextTextBottom = 8,
 	kprTextFloatLeft = 9,
-	kprTextFloatRight = 10
+	kprTextFloatRight = 10,
+	kprTextFloatLeftRight = 11
 };
 
 typedef struct {
@@ -132,6 +133,11 @@ struct KprTextStruct {
 	FskGraphicsModeParameters graphicsModeParameters;
 };
 
+struct KprTextLinkStruct {
+	KprSlotPart;
+	KprContentPart;
+};
+
 FskAPI(FskErr) KprTextNew(KprText* it,  KprCoordinates coordinates, KprSkin skin, KprStyle style, char* text);
 FskAPI(FskErr) KprTextBegin(KprText self);
 FskAPI(FskErr) KprTextBeginBlock(KprText self, KprStyle style, KprTextLink link);
@@ -148,6 +154,8 @@ UInt32 KprTextHitOffset(KprText self, SInt32 x, SInt32 y);
 FskAPI(FskErr) KprTextInsertString(KprText self, char* string);
 FskAPI(FskErr) KprTextInsertStringWithLength(KprText self, char* text, SInt32 length);
 FskAPI(FskErr) KprTextSelect(KprText self, SInt32 selectionOffset, UInt32 selectionLength);
+
+FskAPI(FskErr) KprTextLinkNew(KprTextLink *it);
 
 #ifdef __cplusplus
 }

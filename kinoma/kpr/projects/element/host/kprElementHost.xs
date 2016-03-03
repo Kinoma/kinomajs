@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<package>
 <!--
-|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2010-2016 Marvell International Ltd.
 |     Copyright (C) 2002-2010 Kinoma, Inc.
 |
 |     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-<package><program><![CDATA[
+<program><![CDATA[
 
 const disconnected = 0;
 const power3_3V = 1;
@@ -36,6 +36,7 @@ class ElementHost @ "KPR_elementHost" {
 	launch() @ "KPR_elementHost_launch";
 	purge() @ "KPR_elementHost_purge";
 	quit() @ "KPR_elementHost_quit";
+	wake() @ "KPR_elementHost_wake";
 };
 
 class PinsBase {
@@ -55,11 +56,19 @@ var PINS = {
 		A2D: class extends PinsBase {
 		},
 		Analog: class extends PinsBase {
+			read() {
+				return 0;
+			}
 		},
 		Digital: class extends PinsBase {
 			constructor(it) {
 				super(it);
 				this.direction = it.direction;
+			}
+			read() {
+				return 1;
+			}
+			write(value) {
 			}
 		},
 		Ground: class extends PinsBase {
@@ -102,7 +111,7 @@ var PINS = {
 			}
 		},
 	},
-	
+
 	close() {
 		var behaviors = this.behaviors;
 		for (m in behaviors)
@@ -152,11 +161,12 @@ var PINS = {
 		this.behaviors = behaviors;
 		shell.delegate("onPinsConfigure", configurations);
 		this.configurations = configurations;
+		this.pinmux = null;
 		return configurations;
 	},
 	invoke(path, object) {
 		if (path == "getPinMux") {
-			result = this.configurationToMux(this.configurations);
+			var result = this.pinmux ? this.pinmux : this.configurationToMux(this.configurations);;
 			shell.delegate("onPinsInvoke", path, object, result);
 			return result;
 		}
@@ -170,8 +180,11 @@ var PINS = {
 			return result;
 		}
 		if (path == "setPinMux") {
-			// ?
+			this.pinmux = object;
 			return;
+		}
+		if (path == "configuration") {
+			return this.configurations;
 		}
 		var behaviors = this.behaviors;
 		var result;
@@ -252,10 +265,10 @@ var PINS = {
 	},
 	configurationToMux(configurations) {
 		var mux = {
-				leftPins: [ 0,0,0,0,0,0,0,0 ],
-				rightPins: [ 0,0,0,0,0,0,0,0 ],
-				leftVoltage: ("leftVoltage" in configurations) ? config.leftVoltage : undefined,
-				rightVoltage: ("rightVoltage" in configurations) ? config.rightVoltage : undefined
+			leftPins: [ 0,0,0,0,0,0,0,0 ],
+			rightPins: [ 0,0,0,0,0,0,0,0 ],
+			leftVoltage: 3.3,
+			rightVoltage: 3.3
 		};
 
 		for (var i in configurations) {

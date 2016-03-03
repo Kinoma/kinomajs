@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -116,7 +116,7 @@ mxExport void fxNewFunction(txMachine*, txString, txInteger, txString, txInteger
 static int fxNewFunctionStreamGetter(void* it);
 mxExport txMachine* fxNewMachine(txAllocation*, xsGrammar*, void*);
 mxExport void fxRunForIn(txMachine* the);
-static void fxRunForInProperty(txMachine* the, txSlot* limit, txInteger id, txSlot* property);
+static void fxRunForInProperty(txMachine* the, txSlot* limit, txID id, txIndex index, txSlot* property);
 mxExport void fxSandbox(txMachine* the);
 mxExport txInteger fxScript(txMachine* the);
 
@@ -251,15 +251,16 @@ void fxDisposeParserChunks(txParser* parser)
 void fxBuildKeys(txMachine* the)
 {
 	txArchive* archive = the->archive;
-	txSlot* code = &mxIDs;
+	txSlot* callback = &mxIDs;
 	txID c, i;
 	if (archive) {
 		if (archive->keys)
 			(*archive->keys)(the);
 		else {
 			c = archive->symbolCount;
-			code->value.code = (txByte *)fxNewChunk(the, c * sizeof(txID));
-			code->kind = XS_CODE_KIND;	
+			callback->value.callback.address = C_NULL;
+			callback->value.callback.IDs = (txID*)fxNewChunk(the, c * sizeof(txID));
+			callback->kind = XS_CALLBACK_KIND;	
 			for (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {
 				txString string = archive->symbols[i];
 				txID id = the->keyIndex;
@@ -276,8 +277,9 @@ void fxBuildKeys(txMachine* the)
 		}
 	}
 	else {
-		code->value.code = (txByte *)fxNewChunk(the, XS_ID_COUNT * sizeof(txID));
-		code->kind = XS_CODE_KIND;	
+		callback->value.callback.address = C_NULL;
+		callback->value.callback.IDs = (txID*)fxNewChunk(the, XS_ID_COUNT * sizeof(txID));
+		callback->kind = XS_CALLBACK_KIND;	
 		for (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {
 			txID id = the->keyIndex;
 			txSlot* description = fxNewSlot(the);
@@ -990,7 +992,7 @@ void fxRunForIn(txMachine* the)
 	limit->kind = XS_NULL_KIND;
 }
 
-void fxRunForInProperty(txMachine* the, txSlot* limit, txInteger id, txSlot* property) 
+void fxRunForInProperty(txMachine* the, txSlot* limit, txID id, txIndex index, txSlot* property) 
 {
 	txSlot* slot = the->stack;
 	while (slot < limit) {

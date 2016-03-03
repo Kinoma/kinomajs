@@ -1,5 +1,5 @@
 <!--
-|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2010-2016 Marvell International Ltd.
 |     Copyright (C) 2002-2010 Kinoma, Inc.
 |
 |     Licensed under the Apache License, Version 2.0 (the "License");
@@ -443,14 +443,10 @@
                 {
                     url = mergeURI( applicationInfo.url, "./" + hwpModulePath + "/" );
 
-                    if( Files.exists( url ) == Files.directoryType )
-                    {
-                        
-                        if( modulePath == null )
-                            modulePath = url;
-                        else
-                            modulePath = modulePath + ";" + url.slice( 7 );
-                    }    
+		    if( modulePath == null )
+		        modulePath = url;
+		    else
+		        modulePath = modulePath + ";" + url.slice( 7 );
                 }
                 
                 setEnvironmentVariable( "modulePath", modulePath );

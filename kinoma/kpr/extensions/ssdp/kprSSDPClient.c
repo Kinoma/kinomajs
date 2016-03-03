@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -88,7 +88,7 @@ FskErr KprSSDPClientRemove(KprSSDPClient self, const char* uuid)
 	FskErr err = kFskErrNone;
 	char* it = FskStrDoCopy(uuid);
 	bailIfNULL(it);
-	FskThreadPostCallback(KprHTTPGetThread(), (FskThreadCallback)KprSSDPRemoveDiscoveryByLocation, it, NULL, NULL, NULL);
+	FskThreadPostCallback(KprHTTPGetThread(), (FskThreadCallback)KprSSDPRemoveDiscoveryByUUID, it, NULL, NULL, NULL);
 bail:
 	return err;
 }

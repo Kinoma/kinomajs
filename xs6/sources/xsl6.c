@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -851,11 +851,12 @@ int main(int argc, char* argv[])
 			
 				fprintf(file, "static void xsHostKeys(txMachine* the)\n");
 				fprintf(file, "{\n");
-				fprintf(file, "\ttxSlot* code = &mxIDs;\n");
+				fprintf(file, "\ttxSlot* callback = &mxIDs;\n");
 				fprintf(file, "\ttxInteger i;\n");
 				fprintf(file, "\tmxCheck(the, the->nameModulo == %d);\n", modulo);
-				fprintf(file, "\tcode->value.code = (txByte *)fxNewChunk(the, %d * sizeof(txID));\n", c);
-				fprintf(file, "\tcode->kind = XS_CODE_KIND;\n");
+				fprintf(file, "\tcallback->value.callback.address = NULL;\n", c);
+				fprintf(file, "\tcallback->value.callback.IDs = (txID*)fxNewChunk(the, %d * sizeof(txID));\n", c);
+				fprintf(file, "\tcallback->kind = XS_CALLBACK_KIND;\n");
 				fprintf(file, "\tfor (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {\n");
 				fprintf(file, "\t\ttxSlot *description = (txSlot *)xs_keys[i];\n");
 				fprintf(file, "\t\tthe->keyArray[i] = description;\n");

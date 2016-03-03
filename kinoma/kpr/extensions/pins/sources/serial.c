@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,8 +38,21 @@ void xs_serial(void *data)
 {
     FskSerialIO sio = data;
     if (sio) {
+		FskMutex mutex = sio->mutex;
+		Boolean notifyPending;
+
         FskPinSerialDispose(sio->pin);
-        FskMemPtrDispose(sio);
+		sio->pin = NULL;
+
+		FskMutexAcquire(mutex);
+			sio->terminated = true;
+			notifyPending = sio->notifyPending;
+		FskMutexRelease(mutex);
+
+		if (!notifyPending) {
+			FskMutexDispose(mutex);
+			FskMemPtrDispose(sio);
+		}
     }
 }
 
@@ -47,6 +60,7 @@ void xs_serial_init(xsMachine* the)
 {
     FskErr err;
     FskSerialIO sio;
+	FskMutex mutex;
     SInt32 rxPin = 0, txPin = 0;
     SInt32 baud = xsToInteger(xsGet(xsThis, xsID("baud")));
     const char *path = NULL;
@@ -64,9 +78,12 @@ void xs_serial_init(xsMachine* the)
             txPin = xsToInteger(xsGet(xsThis, xsID("tx")));
     }
 
+	xsThrowIfFskErr(FskMutexNew(&mutex, "xsserial"));
+
     xsThrowIfFskErr(FskMemPtrNewClear(sizeof(FskSerialIORecord) + (path ? FskStrLen(path) : 0), (FskMemPtr *)&sio));
     sio->rxNum = rxPin;
     sio->txNum = txPin;
+	sio->mutex = mutex;
     if (path)
         FskStrCopy(sio->path, path);
 
@@ -74,6 +91,7 @@ void xs_serial_init(xsMachine* the)
 
 	err = FskPinSerialNew(&sio->pin, rxPin, txPin, path, baud);
     if (err) {
+		FskMutexDispose(mutex);
         FskMemPtrDispose(sio);
         xsThrowDiagnosticIfFskErr(err, "Serial initialization failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
     }
@@ -294,17 +312,30 @@ void xs_serial_repeat(xsMachine *the)
 void serialPinDataReady(FskPinSerial pin, void *refCon)
 {
 	FskSerialIO sio = refCon;
+
+	FskMutexAcquire(sio->mutex);
 	if (!sio->notifyPending) {
 		sio->notifyPending = true;
 		FskThreadPostCallback(sio->pinsThread, serialDataReady, sio, NULL, NULL, NULL);
 	}
+	FskMutexRelease(sio->mutex);
 }
 
 void serialDataReady(void *arg0, void *arg1, void *arg2, void *arg3)
 {
 	FskSerialIO sio = arg0;
-	sio->notifyPending = false;
-	KprPinsPollerRun(sio->poller);
+
+	FskMutexAcquire(sio->mutex);
+	if (!sio->terminated) {
+		sio->notifyPending = false;
+		KprPinsPollerRun(sio->poller);
+		FskMutexRelease(sio->mutex);
+	}
+	else {
+		FskMutexRelease(sio->mutex);
+		FskMutexDispose(sio->mutex);
+		FskMemPtrDispose(sio);
+	}
 }
 
 #endif /* USESERIAL */

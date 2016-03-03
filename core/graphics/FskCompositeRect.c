@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -186,17 +186,18 @@ FskMatteCompositeRect(
 	FskConstPoint		dstLoc
 ) {
 	FskErr				err			= kFskErrNone;
+	const UInt32		*s			= NULL;
+	UInt32				*d			= NULL;
+	const UInt8			*m			= NULL;
 	FskRectangleRecord	srcR, dstR;
-	int					w, h, sBump, dBump;
+	SInt32				w, h, sBump, dBump, mBump;
 	CompOp				compOp;
-	const UInt32		*s;
-	UInt32				*d;
 
-	FskBitmapReadBegin((FskBitmap)srcBM,   NULL, NULL, NULL);
-	FskBitmapWriteBegin(dstBM,   NULL, NULL, NULL);
+	BAIL_IF_ERR(err = FskBitmapReadBegin((FskBitmap)srcBM,   (const void**)&s, &sBump, NULL));
+	BAIL_IF_ERR(err = FskBitmapWriteBegin(dstBM,   (void**)&d, &dBump, NULL));
 
 	if (matteBM) {
-		FskBitmapReadBegin((FskBitmap)matteBM, NULL, NULL, NULL);
+		FskBitmapReadBegin((FskBitmap)matteBM, (const void**)&m, &mBump, NULL);
 		BAIL_IF_FALSE(matteBM->bounds.width == srcBM->bounds.width && matteBM->bounds.height == srcBM->bounds.height, err, kFskErrMismatch);
 	}
 
@@ -238,13 +239,13 @@ FskMatteCompositeRect(
 			return kFskErrUnsupportedPixelType;												/* Only 32-bit pixels supported at this time */
 	}
 
-	sBump =   srcBM->rowBytes - dstR.width * sizeof(*s);
-	dBump =   dstBM->rowBytes - dstR.width * sizeof(*d);
-	s = (const UInt32*)((const char*)(srcBM->bits) + srcR.y * srcBM->rowBytes + srcR.x * sizeof(*s));						/* Advance to the srcRect location */
-	d =       (UInt32*)((      char*)(dstBM->bits) + dstR.y * dstBM->rowBytes + dstR.x * sizeof(*d));						/* Advance to the dstRect location */
+	s = (const UInt32*)((const char*)s + srcR.y * sBump + srcR.x * sizeof(*s));				/* Advance to the srcRect location */
+	d =       (UInt32*)((      char*)d + dstR.y * dBump + dstR.x * sizeof(*d));				/* Advance to the dstRect location */
+	sBump -= dstR.width * sizeof(*s);
+	dBump -= dstR.width * sizeof(*d);
 	if (matteBM) {
-		const UInt8	*m = (const UInt8* )((const char*)(matteBM->bits) + srcR.y * matteBM->rowBytes + srcR.x * sizeof(*m));	/* Advance to the srcRect location */
-		int	mBump = matteBM->rowBytes - dstR.width * sizeof(*m);
+		m = (const UInt8*)((const char*)m + srcR.y * mBump + srcR.x * sizeof(*m));			/* Advance to the srcRect location */
+		mBump -= dstR.width * sizeof(*m);
 		for (h = dstR.height; h--;	m += mBump,
 									s = (const UInt32*)((const char*)s + sBump),
 									d = (UInt32*)((char*)d + dBump)
@@ -262,9 +263,9 @@ FskMatteCompositeRect(
 
 
 bail:
-	if (matteBM)	FskBitmapReadEnd((FskBitmap)matteBM);
-	FskBitmapWriteEnd(dstBM);
-	FskBitmapReadEnd((FskBitmap)srcBM);
+	if (m)	FskBitmapReadEnd((FskBitmap)matteBM);
+	if (d)	FskBitmapWriteEnd(dstBM);
+	if (s)	FskBitmapReadEnd((FskBitmap)srcBM);
 	return err;
 }
 

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -787,13 +787,8 @@ void fxResolveModules(txMachine* the)
 	while (module) {
 		txSlot* function = mxModuleFunction(module);
 		if (function->kind == XS_REFERENCE_KIND) {
-			closures = mxFunctionInstanceClosures(function->value.reference);
-			fxNewInstance(the);
-			closures->kind = the->stack->kind;
-			closures->value = the->stack->value;
-			closure = closures->value.reference;
-			the->stack++;
-			closure = closure->next = fxNewSlot(the);
+			closures = fxNewInstance(the);
+			closure = closures->next = fxNewSlot(the);
 			closure->kind = XS_WITH_KIND;
 			closure->value.reference = C_NULL;
 			transfer = mxModuleTransfers(module)->value.reference->next;
@@ -809,6 +804,8 @@ void fxResolveModules(txMachine* the)
 				}
 				transfer = transfer->next;
 			}
+			function->value.reference->next->value.code.closures = closures;
+			the->stack++;
 		}
 		module = module->next;
 	}

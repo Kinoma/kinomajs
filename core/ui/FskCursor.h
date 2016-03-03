@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -40,8 +40,6 @@ FskAPI(void) FskCursorHide(FskRectangle obscure);
 FskAPI(FskErr) FskCursorSetShape(UInt32 shape);
 FskAPI(FskCursor) FskCursorFind(UInt32 id);
 
-
-#define PIN(x,minx,maxx)	((x>maxx)?x=maxx : (x<minx)?x=minx : x)
 
 #ifdef __cplusplus
 }

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,7 +70,7 @@ txBoolean fxIsBaseFunctionInstance(txMachine* the, txSlot* slot)
 	slot = slot->next;
 	if (XS_CALLBACK_KIND == slot->kind)
 		return 1;
-	if (((XS_CODE_KIND == slot->kind) || (XS_CODE_X_KIND == slot->kind)) && (XS_CODE_BEGIN_STRICT_DERIVED != *(slot->value.code)))
+	if (((XS_CODE_KIND == slot->kind) || (XS_CODE_X_KIND == slot->kind)) && (XS_CODE_BEGIN_STRICT_DERIVED != *(slot->value.code.address)))
 		return 1;
 	return 0;
 }
@@ -105,12 +105,8 @@ txSlot* fxNewFunctionInstance(txMachine* the, txID name)
 	property = instance->next = fxNewSlot(the);
 	property->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
 	property->kind = mxEmptyCode.kind;
-	property->value.code = mxEmptyCode.value.code;
-
-	/* CLOSURE */
-	property = property->next = fxNewSlot(the);
-	property->flag = XS_INTERNAL_FLAG | XS_DONT_DELETE_FLAG | XS_DONT_ENUM_FLAG | XS_DONT_SET_FLAG;
-	property->kind = XS_NULL_KIND;
+	property->value.code.address = mxEmptyCode.value.code.address;
+	property->value.code.closures = C_NULL;
 
 	/* HOME */
 	property = property->next = fxNewSlot(the);
@@ -279,7 +275,7 @@ void fx_Function_prototype_arguments(txMachine* the)
 {
 	txSlot* instance = fxCheckFunctionInstance(the, mxThis);
 	txSlot* code = mxFunctionInstanceCode(instance);
-	if ((code->kind == XS_CALLBACK_KIND) || (*code->value.code != XS_CODE_BEGIN_SLOPPY) || (the->frame->next->flag & XS_STRICT_FLAG))
+	if ((code->kind == XS_CALLBACK_KIND) || (*code->value.code.address != XS_CODE_BEGIN_SLOPPY) || (the->frame->next->flag & XS_STRICT_FLAG))
 		mxTypeError("no arguments");
 }
 
@@ -301,7 +297,7 @@ void fx_Function_prototype_bind(txMachine* the)
 	slot = mxFunctionInstanceCode(instance);
 	slot->kind = XS_CALLBACK_KIND;
 	slot->value.callback.address = fx_Function_prototype_bound;
-	slot->value.callback.IDs = (txID*)mxIDs.value.code;
+	slot->value.callback.IDs = mxIDs.value.callback.IDs;
 	
 #ifndef mxNoFunctionLength
 	mxPushSlot(mxThis);
@@ -436,7 +432,7 @@ void fx_Function_prototype_caller(txMachine* the)
 {
 	txSlot* instance = fxCheckFunctionInstance(the, mxThis);
 	txSlot* code = mxFunctionInstanceCode(instance);
-	if ((code->kind == XS_CALLBACK_KIND) || (*code->value.code != XS_CODE_BEGIN_SLOPPY) || (the->frame->next->flag & XS_STRICT_FLAG))
+	if ((code->kind == XS_CALLBACK_KIND) || (*code->value.code.address != XS_CODE_BEGIN_SLOPPY) || (the->frame->next->flag & XS_STRICT_FLAG))
 		mxTypeError("no caller (strict mode)");
 }
 
@@ -444,7 +440,6 @@ void fx_Function_prototype_hasInstance(txMachine* the)
 {	
 	txSlot* instance;
 	txSlot* prototype;
-	txSlot* reference;
 	mxResult->kind = XS_BOOLEAN_KIND;
 	mxResult->value.boolean = 0;
 	if (mxArgc == 0)

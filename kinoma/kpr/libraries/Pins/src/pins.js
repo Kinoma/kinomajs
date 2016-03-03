@@ -1,6 +1,6 @@
 //@module
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -257,9 +257,14 @@ exports.share = function(shares, advertise)
 			}
 
 //@@ port is random below. can it be 0?
-			zeroconfShare = new Zeroconf.Advertisement("_kinoma_pins._tcp.", ("name" in advertise) ? advertise.name : "Shared Pins", 8080, txt);
-			zeroconfShare.behavior = new Behavior;
-			zeroconfShare.start();
+		    try {
+		        zeroconfShare = new Zeroconf.Advertisement("_kinoma_pins._tcp.", ("name" in advertise) ? advertise.name : "Shared Pins", 8080, txt);
+		        zeroconfShare.behavior = new Behavior;
+		        zeroconfShare.start();
+		    }
+		    catch (e) {
+		        trace("Zeroconf mdns responder not found. Please see http://www.kinoma.com/0conf for troubleshooting information.\n");
+		    }
 		});
 	}
 

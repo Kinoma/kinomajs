@@ -1,6 +1,6 @@
 //@module
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,6 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-
 THEME = require("themes/sample/theme");
 var theme = require("themes/flat/theme");
 for( var i in theme )
@@ -215,6 +214,11 @@ var MessageList = Container.template($ =>  ({
 		onCreate(container) {
 			//this.log = "";
 		}
+		onPinsClose(container) {
+			var scroller = container.first;
+			var column = scroller.first;
+			column.empty();
+		}
 		onPinsError(container, path, object, error) {
 			this.addInput(container, path, object);
 			this.add(container, new Text({ left:20, skin:messageErrorSkin, string:error }));
@@ -296,6 +300,8 @@ class ShellBehavior extends Behavior {
 		this.readPreferences();
 		shell.updateMenus();
 		this.host.launch();
+		shell.interval = 25;
+		shell.start();
 	}
 	onInvoke(shell, message) {
 		if (message.name == "quit")
@@ -305,6 +311,7 @@ class ShellBehavior extends Behavior {
 		var states = new Array(32);
 		states.fill(0);
 		shell.last.distribute("onConfigure", states);
+		this.LOG.behavior.onPinsClose(this.LOG);
 	}
 	onPinsConfigure(shell, configurations) {
 		var states = new Array(16);
@@ -363,6 +370,9 @@ class ShellBehavior extends Behavior {
 	onQuit() {
 		this.host.quit();
 		this.writePreferences();
+	}
+	onTimeChanged(target) {
+		this.host.wake();
 	}
 	onTouchBegan(target, id, x, y) {
 	}

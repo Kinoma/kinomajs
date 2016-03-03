@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -969,7 +969,7 @@ void fxObjectNodeBind(void* it, void* param)
 			node->flags |= item->flags & (mxMethodFlag | mxGetterFlag | mxSetterFlag);
 		}
 		else if (value->description->token == XS_TOKEN_CLASS) {
-			txFunctionNode* node = (txFunctionNode*)(((txClassNode*)value)->constructor);
+//			txFunctionNode* node = (txFunctionNode*)(((txClassNode*)value)->constructor);
 		}
 		fxNodeDispatchBind(item, param);
 		item = item->next;

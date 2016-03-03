@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,6 +49,7 @@ FskPinI2CDispatchRecord gMRAAPinI2C = {
 	mraaI2CWriteDataByte,
 	mraaI2CWriteDataWord,
 	mraaI2CWriteDataBytes,
+	NULL,
 	NULL
 };
 
@@ -60,7 +61,23 @@ typedef struct {
 
 Boolean mraaI2CCanHandle(SInt32 sda, SInt32 sclk, SInt32 bus, SInt32 *remappedBus)
 {
-	return kFskPinI2CNoBus != bus;
+	Boolean success = true;
+
+	if (kFskPinI2CNoBus == bus)
+		success = false;
+	return success;
+
+	if (success) {
+		success = mraa_pin_mode_test(sda, MRAA_PIN_I2C);
+		if (!success)
+			fprintf(stderr, "sda pin %d is not I2C\n", sda);
+	}
+	if (success) {
+		success = mraa_pin_mode_test(sclk, MRAA_PIN_I2C);
+		if (!success)
+			fprintf(stderr, "sclk pin %d is not I2C\n", sclk);
+	}
+	return success;
 }
 
 FskErr mraaI2CNew(FskPinI2C *pin, SInt32 sda, SInt32 sclk, SInt32 bus)

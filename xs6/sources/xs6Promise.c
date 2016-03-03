@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -163,11 +163,11 @@ txSlot* fxNewPromiseAlready(txMachine* the)
 txSlot* fxNewPromiseFunction(txMachine* the, txSlot* already, txSlot* promise, txSlot* function)
 {
 	txSlot* result;
-	txSlot* closures;
+	txSlot* object;
 	txSlot* slot;
 	result = fxNewHostFunction(the, fxCallPromise, 1, XS_NO_ID);
-	closures = fxNewInstance(the);
-	slot = closures->next = fxNewSlot(the);
+	object = fxNewInstance(the);
+	slot = object->next = fxNewSlot(the);
 	slot->kind = XS_CLOSURE_KIND;
 	slot->value.closure = already;
 	slot = slot->next = fxNewSlot(the);
@@ -176,9 +176,8 @@ txSlot* fxNewPromiseFunction(txMachine* the, txSlot* already, txSlot* promise, t
 	slot = slot->next = fxNewSlot(the);
 	slot->kind = XS_REFERENCE_KIND;
 	slot->value.reference = function;
-	slot = mxFunctionInstanceClosures(result);
-	slot->kind = XS_REFERENCE_KIND;
-	slot->value.reference = closures;
+	slot = mxFunctionInstanceHome(result);
+	slot->value.home.object = object;
 	the->stack++;
 	return result;
 }
@@ -186,11 +185,11 @@ txSlot* fxNewPromiseFunction(txMachine* the, txSlot* already, txSlot* promise, t
 txSlot* fxNewPromiseFunctionAll(txMachine* the, txSlot* already, txSlot* array, txInteger index, txSlot* count, txSlot* promise, txSlot* function)
 {
 	txSlot* result;
-	txSlot* closures;
+	txSlot* object;
 	txSlot* slot;
 	result = fxNewHostFunction(the, fxCallPromiseAll, 1, XS_NO_ID);
-	closures = fxNewInstance(the);
-	slot = closures->next = fxNewSlot(the);
+	object = fxNewInstance(the);
+	slot = object->next = fxNewSlot(the);
 	slot->kind = XS_CLOSURE_KIND;
 	slot->value.closure = already;
 	slot = slot->next = fxNewSlot(the);
@@ -208,31 +207,30 @@ txSlot* fxNewPromiseFunctionAll(txMachine* the, txSlot* already, txSlot* array, 
 	slot = slot->next = fxNewSlot(the);
 	slot->kind = XS_REFERENCE_KIND;
 	slot->value.reference = function;
-	slot = mxFunctionInstanceClosures(result);
-	slot->kind = XS_REFERENCE_KIND;
-	slot->value.reference = closures;
+	slot = mxFunctionInstanceHome(result);
+	slot->value.home.object = object;
 	the->stack++;
 	return result;
 }
 
 void fxBuildPromiseCapability(txMachine* the)
 {
-	txSlot* closures = mxFunctionInstanceClosures(mxFunction->value.reference);
-	txSlot* instance;
+	txSlot* slot = mxFunctionInstanceHome(mxFunction->value.reference);
+	txSlot* object = slot->value.home.object;
 	txSlot* resolveFunction;
 	txSlot* rejectFunction;
-	if (mxIsReference(closures)) {
-		instance = closures->value.reference;
-		resolveFunction = instance->next;
+	if (object) {
+		resolveFunction = object->next;
 		rejectFunction = resolveFunction->next;
 		if (!mxIsUndefined(resolveFunction) || !mxIsUndefined(rejectFunction))
 			mxTypeError("executor already called");
 	}
 	else {
-		instance = fxNewInstance(the);
-		resolveFunction = instance->next = fxNewSlot(the);
+		object = fxNewInstance(the);
+		resolveFunction = object->next = fxNewSlot(the);
 		rejectFunction = resolveFunction->next = fxNewSlot(the);
-		mxPullSlot(closures);
+		slot->value.home.object = object;
+        mxPop();
 	}
 	if (mxArgc > 0) {
 		resolveFunction->kind = mxArgv(0)->kind;
@@ -246,8 +244,7 @@ void fxBuildPromiseCapability(txMachine* the)
 
 void fxCallPromise(txMachine* the)
 {
-	txSlot* slot;
-	slot = mxFunctionInstanceClosures(mxFunction->value.reference)->value.reference->next;
+	txSlot* slot = mxFunctionInstanceHome(mxFunction->value.reference)->value.home.object->next;
 	if (slot->value.closure->value.boolean)
 		return;
 	slot->value.closure->value.boolean = 1;
@@ -269,10 +266,9 @@ void fxCallPromise(txMachine* the)
 
 void fxCallPromiseAll(txMachine* the)
 {
-	txSlot* slot;
+	txSlot* slot = mxFunctionInstanceHome(mxFunction->value.reference)->value.home.object->next;
 	txSlot* array;
 	txSlot* count;
-	slot = mxFunctionInstanceClosures(mxFunction->value.reference)->value.reference->next;
 	if (slot->value.closure->value.boolean)
 		return;
 	slot->value.closure->value.boolean = 1;
@@ -307,25 +303,24 @@ void fxCallPromiseAll(txMachine* the)
 
 void fxCheckPromiseCapability(txMachine* the, txSlot* capability, txSlot** resolveFunction, txSlot** rejectFunction)
 {
-	txSlot* slot = mxFunctionInstanceClosures(capability);
-	txSlot* closures;
-	if (!mxIsReference(slot))
+	txSlot* slot = mxFunctionInstanceHome(capability)->value.home.object;
+	txSlot* function;
+	if (!slot)
 		mxTypeError("executor not called");
-	closures = slot->value.reference;	
-	slot = closures->next;
+	slot = slot->next;
 	if (!mxIsReference(slot))
 		mxTypeError("resolve is no object");
-	slot = slot->value.reference;	
-	if (!mxIsFunction(slot))
+	function = slot->value.reference;	
+	if (!mxIsFunction(function))
 		mxTypeError("resolve is no function");
-	*resolveFunction = slot;
-	slot = closures->next->next;
+	*resolveFunction = function;
+	slot = slot->next;
 	if (!mxIsReference(slot))
 		mxTypeError("reject is no object");
-	slot = slot->value.reference;	
-	if (!mxIsFunction(slot))
+	function = slot->value.reference;	
+	if (!mxIsFunction(function))
 		mxTypeError("reject is no function");
-	*rejectFunction = slot;
+	*rejectFunction = function;
 }
 
 void fxOnRejectedPromise(txMachine* the)

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -85,7 +85,7 @@ void xs_i2c_init(xsMachine *the)
         FskPinI2CDispose(pin);
         xsError(err);
     }
-    
+
     xsSetHostData(xsThis, i2c);
 
 	i2c->pin = pin;
@@ -149,9 +149,8 @@ void xs_i2c_writeQuickSMB(xsMachine *the)
 
     FskPinI2CSetAddress(i2c->pin, i2c->address);
 
-//@@    err = FskI2CWriteQuickSMB(i2c->bus, byte);
-err = kFskErrOperationFailed;		//@@
-    xsThrowDiagnosticIfFskErr(err, "I2C writeQuickSMB failed with error %s %s.", FskInstrumentationGetErrorString(err), i2c->diagnosticID);
+	err = FskPinI2CWriteQuick(i2c->pin, byte);
+    xsThrowDiagnosticIfFskErr(err, "I2C writeQuick failed with error %s %s.", FskInstrumentationGetErrorString(err), i2c->diagnosticID);
 }
 
 void xs_i2c_readByteDataSMB(xsMachine *the)
@@ -233,7 +232,7 @@ void xs_i2c_readWordDataSMB(xsMachine *the)
     UInt8 command = (UInt8)xsToInteger(xsArg(0));
 	FskErr err;
     UInt16 val;
-  
+
     DBG_I2C("xs_i2c_readWordDataSMB Call SMB to register %d\n", command);
 
 	xsThrowIfNULL(i2c);
@@ -326,7 +325,7 @@ void xs_i2c_readBlock(xsMachine *the)
                 format = 1;
         }
     }
-    
+
     if (2 == format) {
         xsResult = xsArrayBuffer(data, readCount);
     }
@@ -339,7 +338,7 @@ void xs_i2c_readBlock(xsMachine *the)
         for (i = 0; i < readCount; i++)
             xsSet(xsResult, i, xsInteger(data[i]));
     }
-    
+
 bail:
     if (err)
 		xsError(err);
@@ -409,7 +408,7 @@ unsigned char *writeOne(xsMachine *the, xsI2C i2c, xsSlot *slot, unsigned char *
             *bufPtr++ = (char)value;
             }
             break;
-        
+
         case xsStringType: {
             char *text = xsToString(*slot);
             SInt32 dataSize = FskStrLen(text);
@@ -449,12 +448,12 @@ unsigned char *writeOne(xsMachine *the, xsI2C i2c, xsSlot *slot, unsigned char *
             else
                 xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "I2C unsupported argument type passed to write %s.", i2c->diagnosticID);
             break;
-        
+
         default:
             xsThrowDiagnosticIfFskErr(kFskErrInvalidParameter, "I2C unsupported argument type passed to write %s.", i2c->diagnosticID);
             break;
     }
-    
+
     return bufPtr;
 }
 

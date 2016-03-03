@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -100,8 +100,9 @@ ResizeGrowableStorage(FskGrowableStorage storage, UInt32 size)
 	FskErr	err	= kFskErrNone;
 
 	if (size > storage->maxSize) {
-		UInt32	maxSize = (size + (BLOCK_SIZE-1)) & (~(BLOCK_SIZE-1));	/* coerce to multiple of BLOCK_SIZE */
-		FskMemPtr		p		= storage->storage;
+		UInt32		maxSize = (size + (BLOCK_SIZE-1)) & (~(BLOCK_SIZE-1));	/* coerce to multiple of BLOCK_SIZE */;
+		FskMemPtr	p = storage->storage;
+		BAIL_IF_ZERO(maxSize, err, kFskErrMemFull);							/* This happens when size >= 4294966785 */
 		#ifndef BAD_REALLOC
 			BAIL_IF_ERR(err = FskMemPtrRealloc(maxSize, &p));
 		#else /* BAD_REALLOC */
@@ -109,7 +110,7 @@ ResizeGrowableStorage(FskGrowableStorage storage, UInt32 size)
 			FskMemMove(p, storage->storage, storage->maxSize);
 			FskMemPtrDispose(storage->storage);
 		#endif /* BAD_REALLOC */
-		storage->storage = p;											/* Only replace the pointer and maxSize if FskMemPtrRealloc was successful */
+		storage->storage = p;												/* Only replace the pointer and maxSize if FskMemPtrRealloc was successful */
 		storage->maxSize = maxSize;
 	}
 	storage->size = size;
@@ -304,6 +305,7 @@ FskGrowableStorageAppendItem(FskGrowableStorage storage, const void *item, UInt3
 	UInt32	storageSize;
 
 	FskAssert(storage);
+	if (!itemSize) itemSize = FskStrLen(item);
 	storageSize = storage->size;
 	BAIL_IF_ERR(err = ResizeGrowableStorage(storage, storageSize + itemSize));
 	FskMemMove(storage->storage + storageSize, item, itemSize);
@@ -368,6 +370,7 @@ FskGrowableStorageInsertItemAtPosition(FskGrowableStorage storage, UInt32 offset
 	FskErr	err		= kFskErrNone;
 	void	*p;
 
+	if (!itemSize) itemSize = FskStrLen(item);
 	BAIL_IF_ERR(err = FskGrowableStorageGetPointerToNewItem(storage, offset, itemSize, &p));
 	FskMemMove(p, item, itemSize);
 
@@ -403,6 +406,7 @@ FskGrowableStorageReplaceItem(FskGrowableStorage storage, const void *item, UInt
 	UInt32	storageSize;
 
 	FskAssert(storage);
+	if (!newSize) newSize = FskStrLen(item);
 	storageSize = storage->size;
 	if (newSize > oldSize) {
 		BAIL_IF_ERR(err = ResizeGrowableStorage(storage, storageSize + newSize - oldSize));
@@ -598,6 +602,8 @@ FskGrowableStorageFindItem(FskConstGrowableStorage storage, const void *item, UI
 	const void	*foundPtr;
 
 	*foundIndex = 0xFFFFFFFF;
+	if (!itemSize )
+		itemSize = FskStrLen(item);
 	BAIL_IF_FALSE(startingIndex <= storage->size && itemSize <= storage->size && startingIndex + itemSize <= storage->size, err, kFskErrItemNotFound);	/* Guard against wraparound */
 	if (NULL != (foundPtr = MyMemMem(storage->storage + startingIndex, storage->size - startingIndex, item, itemSize))) {
 		*foundIndex = (UInt8*)foundPtr - storage->storage;
@@ -754,8 +760,10 @@ FskErr
 FskGrowableArrayAppendItem(FskGrowableArray array, const void *item)
 {
 	FskErr err;
+	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
 	if (kFskErrNone == (err = FskGrowableStorageAppendItem(&array->storage, item, array->itemSize)))
 		array->numItems++;
+bail:
 	return err;
 }
 
@@ -768,8 +776,10 @@ FskErr
 FskGrowableArrayAppendItems(FskGrowableArray array, const void *items, UInt32 numItems)
 {
 	FskErr err;
+	BAIL_IF_NULL(array, err, kFskErrNotDirectory);
 	if (kFskErrNone == (err = FskGrowableStorageAppendItem(&array->storage, items, array->itemSize * numItems)))
 		array->numItems += numItems;
+bail:
 	return err;
 }
 
@@ -2266,11 +2276,11 @@ bail:
 
 
 /********************************************************************************
- * FskGrowableCStringArrayInserPrintfItemAtPosition
+ * FskGrowableCStringArrayInsertPrintfItemAtPosition
  ********************************************************************************/
 
 FskErr
-FskGrowableCStringArrayInserPrintfItemAtPosition(FskGrowableBlobArray array, UInt32 index, const char *fmt, ...)
+FskGrowableCStringArrayInsertPrintfItemAtPosition(FskGrowableBlobArray array, UInt32 index, const char *fmt, ...)
 {
 	FskGrowableStorage	str	= NULL;
 	FskErr				err;

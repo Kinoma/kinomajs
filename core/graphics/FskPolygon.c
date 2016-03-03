@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -538,6 +538,7 @@ FillJaggyPolygonContours(
 	for (n = nContours, np = nPts, totPts = 0; n--; )
 		totPts += *np++;
 
+	span.disposeSpanData = span.spanData = NULL;
 	FskInitSpan(&span, dstBM, sizeof(LinkedEdge));										/* Generic span init */
 	initSpan =  initProcs[((n = colorSource->type) <= kFskColorSourceTypeMax) ? n : 0];
 	if ((err = (*initSpan)(&span, dstBM, M, 0, colorSource)) != kFskErrNone)			/* Specialized span init - this may bump up the edge size */
@@ -551,7 +552,9 @@ FillJaggyPolygonContours(
 	for (numEdges = 0, pe = pEdges; nContours--; pts += *nPts++, numEdges += n, pe += n)
 		BAIL_IF_NEGATIVE(n = TransformClipAndMakeEdges(*nPts, pts, M, &dstRect, &span, pe), err, kFskErrMemFull);
 	BAIL_IF_FALSE(numEdges >= 2, err, kFskErrNothingRendered);
+	BAIL_IF_ERR(err = FskBitmapWriteBegin(dstBM, NULL, NULL, NULL));
 	err = ScanConvertLinkedEdges(numEdges, pEdges, fillRule, &span);
+	FskBitmapWriteEnd(dstBM);
 
 bail:
 	if (pEdges != edges)

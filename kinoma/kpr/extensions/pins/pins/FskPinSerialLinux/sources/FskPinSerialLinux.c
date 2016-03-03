@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,7 +70,6 @@ static void serialThread(void *param);
 
 Boolean linuxSerialCanHandle(SInt32 rxNumber, SInt32 txNumber, const char *name, char **remappedName)
 {
-printf("linuxSerialCanHandle rx %d, tx %d, name %s\n", (int)rxNumber, (int)txNumber, name);
 	return NULL != name;
 }
 

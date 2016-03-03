@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -2250,7 +2250,7 @@ static Boolean doFormatMessageFskThread(FskInstrumentedType dispatch, UInt32 msg
 	FskThread cur = FskThreadGetCurrent();
 
 
-	if (cur && cur->name && cur->name[0]) {
+	if (cur && cur->name[0]) {
 		int sz;
 		sz = snprintf(buffer, bufferSize, "[%s] ", cur->name);
 		bufferSize -= sz;

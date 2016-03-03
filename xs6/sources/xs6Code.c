@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -1487,11 +1487,11 @@ void fxAccessNodeCodeDelete(void* it, void* param)
 	if (self->flags & mxStrictFlag)
 		fxReportLineError(coder->parser, self->line, "delete identifier (strict code)");
 	if (!declaration)
-		fxCoderAddSymbol(param, 0, (coder->evalFlag) ? XS_CODE_DELETE_EVAL : XS_CODE_DELETE_GLOBAL, self->symbol);
+		fxCoderAddSymbol(param, 1, (coder->evalFlag) ? XS_CODE_DELETE_EVAL : XS_CODE_DELETE_GLOBAL, self->symbol);
 	else if (declaration->flags & mxDeclareNodeClosureFlag)
-		fxCoderAddIndex(param, 0, XS_CODE_DELETE_CLOSURE_1, declaration->index);
+		fxCoderAddIndex(param, 1, XS_CODE_DELETE_CLOSURE_1, declaration->index);
 	else
-		fxCoderAddIndex(param, 0, XS_CODE_DELETE_LOCAL_1, declaration->index);
+		fxCoderAddIndex(param, 1, XS_CODE_DELETE_LOCAL_1, declaration->index);
 }
 
 void fxAccessNodeCodePostfix(void* it, void* param, txPostfixExpressionNode* compound) 

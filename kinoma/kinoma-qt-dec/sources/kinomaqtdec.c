@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -997,7 +997,7 @@ static FskErr send_out_frame_sync( kinomaQTDecode *state, FskImageDecompress dec
 				dlog("copy 'WITH' padding data");
 				for (i = 0; i < height; i++) {
 					memcpy(	(void *)dstPtr, (void *)src_y, dst_row );
-					dstPtr += dst_row;
+					dstPtr += dst_y_rb;
 					src_y  += stride;
 				}
 			}
@@ -1180,7 +1180,7 @@ static FskErr send_out_frame_async( kinomaQTDecode	*state, CVPixelBufferRef pixe
 				dlog("copy 'WITH' padding data");
 				for (i = 0; i < height; i++) {
 					memcpy(	(void *)dstPtr, (void *)src_y, dst_row );
-					dstPtr += dst_row;
+					dstPtr += dst_y_rb;
 					src_y  += stride;
 				}
 			}

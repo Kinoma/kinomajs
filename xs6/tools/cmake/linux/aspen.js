@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,7 +14,6 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-
 import * as FS from "fs";
 import * as MAKE from "cmake";
 

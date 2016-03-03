@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -180,7 +180,11 @@ void fxCreateInstance(txMachine* the, txSlot* function, txSlot* target)
 				fxNewProxyInstance(the);
 				return;
 			}	
-			mxTypeError("no prototype");
+			if (function->next->ID == mxID(_ArrayBuffer)) {
+				*the->stack = mxArrayBufferPrototype;
+			}	
+			else
+				mxTypeError("no prototype");
 			//*the->stack = mxObjectPrototype;
 		}
 		fxNewInstanceOf(the);

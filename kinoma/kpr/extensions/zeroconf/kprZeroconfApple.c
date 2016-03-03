@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -336,7 +336,7 @@ FskErr KprZeroconfPlatformAdvertisementStart(KprZeroconfAdvertisement self)
 		DNSServiceRef serviceRef;
 		FskAssociativeArrayIterator iterator = FskAssociativeArrayIteratorNew(self->txt);
 
-		FskInstrumentedItemPrintfDebug(advertisement, "DNSServiceRegister %s %s %d\n", self->serviceName, self->serviceType, self->port);
+		FskInstrumentedItemPrintfDebug(advertisement, "DNSServiceRegister %s %s %lu\n", self->serviceName, self->serviceType, self->port);
 		while (iterator) {
 			UInt32 nameLength = FskStrLen(iterator->name);
 			UInt32 valueLength = FskStrLen(iterator->value);
@@ -399,7 +399,7 @@ void DNSSD_API KprZeroconfPlatformGetAddrInfoCallBack(DNSServiceRef serviceRef, 
 		FskInstrumentedItemPrintfDebug(browser, "KprZeroconfPlatformResolveCallBack returned %d\n", errorCode);
 	}
 	else {
-		KprZeroconfServiceInfo serviceInfo = NULL;
+		int addr;
 #if TARGET_OS_WIN32
 		char ip[256];
 		if (address && address->sa_family == AF_INET) {
@@ -410,9 +410,13 @@ void DNSSD_API KprZeroconfPlatformGetAddrInfoCallBack(DNSServiceRef serviceRef, 
 		char ip[INET_ADDRSTRLEN];
 		inet_ntop(AF_INET, &(((struct sockaddr_in *)address)->sin_addr), ip, INET_ADDRSTRLEN);
 #endif
-		FskInstrumentedItemPrintfDebug(browser, "GETADDRINFO: %s %s is at %s -> %s:%d", self->serviceType, service->name, hostname, ip, service->port);
-		KprZeroconfServiceInfoNew(&serviceInfo, serviceType, service->name, hostname, ip, service->port, service->txt);
-		KprZeroconfBrowserServiceUp(self, serviceInfo);
+		FskNetStringToIPandPort(ip, &addr, NULL);
+		if (FskNetIsLocalNetwork(addr)) {
+			KprZeroconfServiceInfo serviceInfo = NULL;
+			FskInstrumentedItemPrintfDebug(browser, "GETADDRINFO: %s %s is at %s -> %s:%lu", self->serviceType, service->name, hostname, ip, service->port);
+			KprZeroconfServiceInfoNew(&serviceInfo, serviceType, service->name, hostname, ip, service->port, service->txt);
+			KprZeroconfBrowserServiceUp(self, serviceInfo);
+		}
 		FskListRemove(&browser->services, service);
 		KprZeroconfPlatformServiceDispose(service);
 	}

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,6 +35,7 @@ class Manifest extends MAKE.Manifest {
 			XSL: path + "/xsl6",
 			
 			APP_DIR: bin + ".app/Contents/MacOS",
+			RES_DIR: bin + ".app/Contents/Resources",
 			TMP_DIR: tmp,
 			
 			ICNS: FS.existsSync(icns) ? icns : "$(F_HOME)/build/mac/fsk.icns",
@@ -50,9 +51,9 @@ all: $(APP_DIR) $(APP_DIR)/fsk $(FOLDERS) $(FILES)
 
 $(APP_DIR): $(ICNS) $(NIB) $(PLIST)
 	mkdir -p $(APP_DIR)
-	mkdir -p $(APP_DIR)/../Resources/English.lproj
-	cp -rf $(ICNS) $(APP_DIR)/../Resources
-	cp -rf $(NIB) $(APP_DIR)/../Resources/English.lproj
+	mkdir -p $(RES_DIR)/English.lproj
+	cp -rf $(ICNS) $(RES_DIR)
+	cp -rf $(NIB) $(RES_DIR)/English.lproj
 	cp -rf $(PLIST) $(APP_DIR)/../Info.plist
 	echo APPLTINY > $(APP_DIR)/../PkgInfo
 
@@ -60,7 +61,7 @@ $(APP_DIR)/fsk: $(TMP_DIR)/main.o $(OBJECTS)
 	$(CC) -mmacosx-version-min=$(SDKVER) -arch i386 -ObjC $(TMP_DIR)/main.o $(OBJECTS) $(LIBRARIES) -o $(APP_DIR)/fsk
 
 $(TMP_DIR)/main.o: $(HEADERS) $(F_HOME)/xs6/patches/main.m
-	$(CC) $(F_HOME)/xs6/patches/main.m $(C_OPTIONS) $(C_INCLUDES) -c -o $@
+	$(CC) $(F_HOME)/xs6/patches/main.m $(C_OPTIONS) $(C_INCLUDES) -c -o '$@'
 
 `;
 	}

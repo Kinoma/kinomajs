@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2010-2016 Marvell International Ltd.
 |     Copyright (C) 2002-2010 Kinoma, Inc.
 |
 |     Licensed under the Apache License, Version 2.0 (the "License");
@@ -196,7 +196,7 @@ MQTT.Client = class @ "KPR_mqttclient_destructor" {
 			secure = !!(options.secure);
 
 			keepAlive = options.keepAlive;
-			if (keepAlive === true) {
+			if (keepAlive === true || keepAlive === undefined) {
 				keepAlive = 60;
 			} else if (keepAlive === false) {
 				keepAlive = 0;
@@ -372,8 +372,13 @@ MQTT.Client = class @ "KPR_mqttclient_destructor" {
 	}
 
 	_reserveCallback(name, args) {
-		if (this[name]) {
-			this._callbacksHolding.push([name, args]);
+		let behavior = this.behavior;
+		let nameForBehavior = 'onMQTTClient' + name.substring(2);
+
+		if (behavior && behavior[nameForBehavior]) {
+			this._callbacksHolding.push([behavior, behavior[nameForBehavior], [this].concat(args)]);
+		} else if (this[name]) {
+			this._callbacksHolding.push([this, this[name], args]);
 		}
 	}
 
@@ -382,9 +387,9 @@ MQTT.Client = class @ "KPR_mqttclient_destructor" {
 	}
 
 	_releaseCallbacks() {
-		this._callbacksHolding.forEach(([name, args]) => {
+		this._callbacksHolding.forEach(([context, fn, args]) => {
 			try {
-				this[name].apply(this, args);
+				fn.apply(context, args);
 			} catch (e) {
 			}
 		});

@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,6 +54,7 @@ endmacro()
 # SOURCE_DIR: Directory to search for source files
 # SOURCE: Path under SOURCE_DIR to find the file without the .js
 macro(XSC)
+	set(options COMPILE)
 	set(oneValueArgs SOURCE_DIR SOURCE SOURCE_FILE DESTINATION)
 	set(multiValueArgs OPTIONS)
 	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -71,10 +72,13 @@ macro(XSC)
 	if(XS_BUILD)
 		set(DEPENDS xsc)
 	endif()
+	if(LOCAL_COMPILE)
+		set(COMPILE_OPTIONS -c -e)
+	endif()
 	add_custom_command(
 		OUTPUT ${OUTPUT}
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTDIR}
-		COMMAND ${XSC} ${LOCAL_OPTIONS} ${SOURCE_FILE} -o ${OUTDIR}
+		COMMAND ${XSC} ${LOCAL_OPTIONS} ${COMPILE_OPTIONS} ${SOURCE_FILE} -o ${OUTDIR}
 		DEPENDS ${SOURCE_FILE} ${DEPENDS}
 		)
 endmacro()

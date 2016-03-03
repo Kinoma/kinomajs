@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,6 +42,7 @@ void fxBuildError(txMachine* the)
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringXProperty(the, slot, "EvalError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
 	mxEvalErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_EvalError, 1, mxID(_EvalError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
@@ -49,6 +50,7 @@ void fxBuildError(txMachine* the)
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringXProperty(the, slot, "RangeError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
 	mxRangeErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_RangeError, 1, mxID(_RangeError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
@@ -56,6 +58,7 @@ void fxBuildError(txMachine* the)
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringXProperty(the, slot, "ReferenceError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
 	mxReferenceErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_ReferenceError, 1, mxID(_ReferenceError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
@@ -63,6 +66,7 @@ void fxBuildError(txMachine* the)
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringXProperty(the, slot, "SyntaxError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
 	mxSyntaxErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_SyntaxError, 1, mxID(_SyntaxError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
@@ -70,6 +74,7 @@ void fxBuildError(txMachine* the)
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringXProperty(the, slot, "TypeError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
 	mxTypeErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_TypeError, 1, mxID(_TypeError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
@@ -77,6 +82,7 @@ void fxBuildError(txMachine* the)
 	mxPush(mxErrorPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
 	slot = fxNextStringXProperty(the, slot, "URIError", mxID(_name), XS_DONT_ENUM_FLAG);
+	slot = fxNextStringXProperty(the, slot, "", mxID(_message), XS_DONT_ENUM_FLAG);
 	mxURIErrorPrototype = *the->stack;
 	instance = fxNewHostConstructorGlobal(the, fx_URIError, 1, mxID(_URIError), XS_DONT_ENUM_FLAG);
 	instance->value.instance.prototype = prototype;
@@ -95,13 +101,12 @@ void fx_Error(txMachine* the)
 
 void fx_Error_aux(txMachine* the)
 {
-	txSlot* aProperty;
-
-	if ((mxArgc > 0) && (mxArgv(0)->kind != XS_UNDEFINED_KIND)) {
-		aProperty = fxSetProperty(the, fxGetInstance(the, mxResult), mxID(_message), XS_NO_ID, XS_ANY);
-		aProperty->value.string = fxToString(the, mxArgv(0));
-		aProperty->kind = mxArgv(0)->kind;
-	}
+	txSlot* slot = fxLastProperty(the, fxToInstance(the, mxResult));
+	slot = slot->next = fxNewSlot(the);
+	slot->flag = XS_INTERNAL_FLAG | XS_GET_ONLY;
+	slot->kind = XS_ERROR_KIND;
+	if ((mxArgc > 0) && (mxArgv(0)->kind != XS_UNDEFINED_KIND))
+		slot = fxNextSlotProperty(the, slot, mxArgv(0), mxID(_message), XS_DONT_ENUM_FLAG);
 }
 
 void fx_Error_toString(txMachine* the)

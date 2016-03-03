@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,30 +21,38 @@ macro(BUILD)
 	set(oneValueArgs APPLICATION NAMESPACE YEAR)
 	cmake_parse_arguments(LOCAL "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-	add_executable(${LOCAL_APPLICATION} MACOSX_BUNDLE ${SOURCES} ${FskPlatform_SOURCES} ${F_HOME}/xs6/patches/main.m)
-	target_link_libraries(${LOCAL_APPLICATION} ${LIBRARIES} ${OBJECTS} -ObjC)
-	target_include_directories(${LOCAL_APPLICATION} PUBLIC ${C_INCLUDES})
-	target_compile_definitions(${LOCAL_APPLICATION} PUBLIC ${C_DEFINITIONS})
-	target_compile_options(${LOCAL_APPLICATION} PUBLIC ${C_OPTIONS})
+	string(REPLACE " " "_" APPLICATION ${LOCAL_APPLICATION})
 
-	set(MACOSX_BUNDLE_INFO_STRING "Kinoma Simulator 2.0.0 Copyright © ${LOCAL_YEAR} Marvell Semiconductor, Inc.")
+	add_executable(${APPLICATION} MACOSX_BUNDLE ${SOURCES} ${FskPlatform_SOURCES} ${F_HOME}/xs6/patches/main.m)
+	target_link_libraries(${APPLICATION} ${LIBRARIES} ${OBJECTS} -ObjC)
+	target_include_directories(${APPLICATION} PUBLIC ${C_INCLUDES})
+	target_compile_definitions(${APPLICATION} PUBLIC ${C_DEFINITIONS})
+	target_compile_options(${APPLICATION} PUBLIC ${C_OPTIONS})
+
+	set_target_properties(${APPLICATION} PROPERTIES OUTPUT_NAME "${LOCAL_APPLICATION}")
+
+	set(MACOSX_BUNDLE_INFO_STRING "${LOCAL_APPLICATION} 2.0.0 Copyright © ${LOCAL_YEAR} Marvell Semiconductor, Inc.")
 	set(MACOSX_BUNDLE_ICON_FILE "fsk.icns")
 	set(MACOSX_BUNDLE_GUI_IDENTIFIER "${LOCAL_NAMESPACE}")
-	set(MACOSX_BUNDLE_LONG_VERSION_STRING "Kinoma Simulator 2.0.0")
-	set(MACOSX_BUNDLE_BUNDLE_NAME "Kinoma Simulator")
+	set(MACOSX_BUNDLE_LONG_VERSION_STRING "${LOCAL_APPLICATION} 2.0.0")
+	set(MACOSX_BUNDLE_BUNDLE_NAME "${LOCAL_APPLICATION}")
 	set(MACOSX_BUNDLE_SHORT_VERSION_STRING "2.0.0")
 
+	set(APP_RES_DIR ${APP_DIR}/../Resources)
+	# set(BINARY_DIR
+
+
 	add_custom_command(
-		TARGET ${LOCAL_APPLICATION}
+		TARGET ${APPLICATION}
 		POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${APP_DIR}
-		COMMAND ${CMAKE_COMMAND} -E copy_directory ${RES_DIR}/ ${APP_DIR}
-		COMMAND ${CMAKE_COMMAND} -E copy ${ICNS} ${APP_DIR}/../Resources/fsk.icns
-		COMMAND ${CMAKE_COMMAND} -E copy_directory ${NIB} ${APP_DIR}/../Resources/English.lproj/fsk.nib
-		COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR}/../Resources ${BUILD_APP_DIR}/../Resources
-		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${LOCAL_APPLICATION}> ${APP_DIR}
-		COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR} ${BUILD_APP_DIR}
-		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE_DIR:${LOCAL_APPLICATION}>/../Info.plist ${APP_DIR}/../
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${RES_DIR}/ ${APP_RES_DIR}
+		COMMAND ${CMAKE_COMMAND} -E rename ${APP_DIR}/FskManifest.xsa ${APP_RES_DIR}/FskManifest.xsa
+		COMMAND ${CMAKE_COMMAND} -E copy ${ICNS} ${APP_RES_DIR}/fsk.icns
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${NIB} ${APP_RES_DIR}/English.lproj/fsk.nib
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_RES_DIR} ${BUILD_APP_DIR}/../Resources
+		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${APPLICATION}> ${APP_DIR}
+		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE_DIR:${APPLICATION}>/../Info.plist ${APP_DIR}/../
 		COMMAND ${CMAKE_COMMAND} -E echo "APPLTINY" > ${APP_DIR}/../PkgInfo
 		)
 endmacro()

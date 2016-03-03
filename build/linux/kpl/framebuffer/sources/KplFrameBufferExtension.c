@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -181,6 +181,7 @@ FskErr fbGetEGLContext(void **displayOut, void **surfaceOut, void **contextOut, 
 #ifndef ANDROID_PLATFORM
     int  g_Width = 0;
 	int	g_Height = 0;
+    // This is code path for devices use Vivante GL library over Linux such as BG
     nativeDisp = (EGLNativeDisplayType) fbGetDisplay(NULL);
     nativeWin = (EGLNativeWindowType) fbCreateWindow(nativeDisp, 0, 0, g_Width, g_Height );
     printf( "nativeDisp: 0x%x, g_Width: %d g_Height: %d\n", nativeDisp, g_Width, g_Height );
@@ -188,11 +189,13 @@ FskErr fbGetEGLContext(void **displayOut, void **surfaceOut, void **contextOut, 
     fbGetWindowGeometry(nativeWin, &winx, &winy, &winw, &winh );
     printf( "Dimensions: %d,%d,%d,%d\n", winx, winy, winw, winh );
 #else
+    // This is code path for devices that uses Android GL library such as 988, 1088, etc
     nativeWin = (EGLNativeWindowType) android_createDisplaySurface();
 #endif
 
-	BAIL_IF_FALSE(EGL_NO_DISPLAY != (display = eglGetDisplay((NativeDisplayType)EGL_DEFAULT_DISPLAY)), err, kFskErrGraphicsContext);
-	BAIL_IF_FALSE(                  eglInitialize(display, NULL, NULL), err, kFskErrGraphicsContext);	/* (display, &major, &minor) */
+	BAIL_IF_FALSE(EGL_NO_DISPLAY != (display = eglGetDisplay((NativeDisplayType)
+                        EGL_DEFAULT_DISPLAY)), err, kFskErrGraphicsContext);
+	BAIL_IF_FALSE(eglInitialize(display, NULL, NULL), err, kFskErrGraphicsContext);	/* (display, &major, &minor) */
 	BAIL_IF_FALSE(eglChooseConfig(display, attribList, NULL, 0, &numConfigs), err, kFskErrGraphicsContext);
 	BAIL_IF_ZERO(numConfigs, err, kFskErrMismatch);
 	BAIL_IF_ERR(err = FskMemPtrNew(numConfigs * sizeof(*config), (FskMemPtr*)(void*)(&config)));
