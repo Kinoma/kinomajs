@@ -21,9 +21,9 @@
  * Bluetooth v4.2 - UART Transport Layer
  */
 
-var Utils = require("/lowpan/common/utils");
+var Utils = require("../../common/utils");
 var Ringbuffer = Utils.Ringbuffer;
-var Buffers = require("/lowpan/common/buffers");
+var Buffers = require("../../common/buffers");
 var SerialBuffer = Buffers.SerialBuffer;
 var ByteBuffer = Buffers.ByteBuffer;
 

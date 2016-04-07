@@ -587,9 +587,9 @@ class Tool extends TOOL {
 			let names = FS.readDirSync(sourcePath);
 			if (flag) {
 				if (destinationPath == ".")
-					destinationPath = parts.name;
+					destinationPath = parts.name + parts.extension;
 				else
-					destinationPath += this.slash + parts.name;
+					destinationPath += this.slash + parts.name + parts.extension;
 			}
 			this.insertUniqueDirectory(tree.directoryPaths, destinationPath);
 			sourcePath += this.slash;

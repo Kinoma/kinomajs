@@ -1165,7 +1165,8 @@ void fx_Array_prototype_every(txMachine* the)
 	mxResult->value.boolean = 1;
 	while (index < length) {
 		if (fxCallThisItem(the, function, index, C_NULL)) {
-			mxResult->value.boolean = fxToBoolean(the, the->stack++);
+			mxResult->value.boolean = fxToBoolean(the, the->stack);
+			mxPop();
 			if (!mxResult->value.boolean)
 				break;
 		}
@@ -1332,7 +1333,8 @@ void fx_Array_prototype_forEach(txMachine* the)
 	txIndex index = 0;
 	txSlot* function = fxArgToCallback(the, 0);
 	while (index < length) {
-		fxCallThisItem(the, function, index, C_NULL);
+		if (fxCallThisItem(the, function, index, C_NULL))
+			mxPop();
 		index++;
 	}
 }
@@ -1469,6 +1471,7 @@ void fx_Array_prototype_map(txMachine* the)
 				slot->kind = the->stack->kind;
 				slot->value = the->stack->value;
 				resultLength++;
+				mxPop();
 			}
 			index++;
 		}
@@ -1814,7 +1817,8 @@ void fx_Array_prototype_some(txMachine* the)
 	mxResult->value.boolean = 0;
 	while (index < length) {
 		if (fxCallThisItem(the, function, index, C_NULL)) {
-			mxResult->value.boolean = fxToBoolean(the, the->stack++);
+			mxResult->value.boolean = fxToBoolean(the, the->stack);
+			mxPop();
 			if (mxResult->value.boolean)
 				break;
 		}

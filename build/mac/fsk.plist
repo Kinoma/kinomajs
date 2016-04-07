@@ -25,7 +25,7 @@
 	<key>CFBundleGetInfoString</key>
 	<string>Kinoma Simulator 2.0.0 Copyright © 2011 Marvell Semiconductor, Inc.</string>
 	<key>ATSApplicationFontsPath</key>
-	<string>../MacOS/fonts</string>
+	<string>fonts/</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>

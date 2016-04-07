@@ -106,6 +106,11 @@ FskErr fbGetScreenBitmap(FskBitmap *bitmap)
 	return kFskErrNone;
 }
 #if SUPPORT_OPENGLES
+
+#if __PI2_GL__
+#include "bcm_host.h"
+#endif
+
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
@@ -114,6 +119,10 @@ FskErr fbGetScreenBitmap(FskBitmap *bitmap)
 #ifdef ANDROID_PLATFORM
     // #include <ui/FramebufferNativeWindow.h>
     extern EGLNativeWindowType android_createDisplaySurface(void);
+#endif
+
+#ifdef RASPBERRY_PI
+	extern int gScreenWidth, gScreenHeight;
 #endif
 
 #define GLES_VERSION	2
@@ -177,6 +186,7 @@ FskErr fbGetEGLContext(void **displayOut, void **surfaceOut, void **contextOut, 
 	attribList = configAttribs8888;
 #endif	
 
+#ifndef __PI2_GL__
     // Init native window
 #ifndef ANDROID_PLATFORM
     int  g_Width = 0;
@@ -205,6 +215,63 @@ FskErr fbGetEGLContext(void **displayOut, void **surfaceOut, void **contextOut, 
             config[0], nativeWin, NULL)), err, kFskErrGraphicsContext);
 	BAIL_IF_FALSE(EGL_NO_CONTEXT != (context = eglCreateContext(display, config[0], EGL_NO_CONTEXT, ctxAttr)), err, kFskErrGraphicsContext);
 	BAIL_IF_FALSE(EGL_FALSE      != eglMakeCurrent(display, surface, surface, context), err, kFskErrGraphicsContext);
+#else   // else of NOT __PI2_GL__ == __PI2_GL__ is defined.
+    // This is code path for Raspbarry PI2.
+    int  g_Width = 0;
+	int	g_Height = 0;
+    static EGL_DISPMANX_WINDOW_T nativewindow;
+
+    DISPMANX_ELEMENT_HANDLE_T dispman_element;
+    DISPMANX_DISPLAY_HANDLE_T dispman_display;
+    DISPMANX_UPDATE_HANDLE_T dispman_update;
+
+    VC_RECT_T dst_rect;
+    VC_RECT_T src_rect;
+
+    bcm_host_init();
+
+	BAIL_IF_FALSE(EGL_NO_DISPLAY != (display = eglGetDisplay(
+                                    (NativeDisplayType)EGL_DEFAULT_DISPLAY)),
+                                    err, kFskErrGraphicsContext);
+	BAIL_IF_FALSE(eglInitialize(display, NULL, NULL), 
+                                    err, kFskErrGraphicsContext);
+	BAIL_IF_FALSE(eglChooseConfig(display, attribList, NULL, 0, 
+                                    &numConfigs), err, kFskErrGraphicsContext);
+	BAIL_IF_ERR(err = FskMemPtrNew(numConfigs * sizeof(*config), 
+                                    (FskMemPtr*)(void*)(&config)));
+	BAIL_IF_FALSE(eglChooseConfig(display, attribList, config, 1, 
+                                    &numConfigs), err, kFskErrGraphicsContext);
+	BAIL_IF_FALSE(EGL_NO_CONTEXT!=(context=eglCreateContext(display, config[0],
+                    EGL_NO_CONTEXT, ctxAttr)), err, kFskErrGraphicsContext);
+
+    int32_t success = 0;
+    success = graphics_get_display_size(0 /* LCD */, &g_Width, &g_Height);
+    // assert( success >= 0 );
+    dst_rect.x = 0;
+    dst_rect.y = 0;
+    dst_rect.width = g_Width;
+    dst_rect.height = g_Height;
+
+    src_rect.x = 0;
+    src_rect.y = 0;
+    src_rect.width = g_Width << 16;
+    src_rect.height = g_Height << 16;
+    dispman_display = vc_dispmanx_display_open( 0 /* LCD */);
+    dispman_update = vc_dispmanx_update_start( 0 );
+    dispman_element = vc_dispmanx_element_add ( dispman_update, dispman_display,
+      0/*layer*/, &dst_rect, 0/*src*/,
+      &src_rect, DISPMANX_PROTECTION_NONE, 0 /*alpha*/, 0/*clamp*/, 0/*transform*/);
+         
+    nativewindow.element = dispman_element;
+    nativewindow.width = g_Width;
+    nativewindow.height = g_Height;
+    gScreenWidth = g_Width;
+    gScreenHeight = g_Height;
+	BAIL_IF_FALSE(EGL_NO_SURFACE !=	(surface = eglCreateWindowSurface(display,
+            config[0], nativeWin, NULL)), err, kFskErrGraphicsContext);
+	BAIL_IF_FALSE(EGL_FALSE!=eglMakeCurrent(display, surface, surface, context), err, kFskErrGraphicsContext);
+
+#endif // __PI2_GL__
 
 bail:
 	if (err) {

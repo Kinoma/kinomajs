@@ -123,6 +123,30 @@
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 					},
 				},
+				"pi":{
+					"build":{
+						"DEVICE":true,
+					},
+					"extensions":{
+						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+					},
+				},
+				"beaglebone":{
+					"build":{
+						"DEVICE":true,
+					},
+					"extensions":{
+						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+					},
+				},
+				"pi_gl":{
+					"build":{
+						"DEVICE":true,
+					},
+					"extensions":{
+						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+					},
+				},
 				"bg3cdp":{
 					"build":{
 						"DEVICE":true,

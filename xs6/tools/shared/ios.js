@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,6 +53,8 @@ class IOS {
 			info.CFBundleName = environment.NAME;
 		if (!("CFBundleVersion" in info))
 			info.CFBundleVersion = environment.VERSION;
+		if (!("CFBundleShortVersionString" in info))
+			info.CFBundleShortVersionString = environment.VERSION;
 		if (!("UIDeviceFamily" in info))
 			info.UIDeviceFamily = [ 1, 2 ];
 		if (!("UIRequiredDeviceCapabilities" in info))
@@ -61,14 +63,32 @@ class IOS {
 			info.UISupportedInterfaceOrientations = [ "UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"];
 		if (!("UISupportedInterfaceOrientations~ipad" in info))
 			info["UISupportedInterfaceOrientations~ipad"] = [ "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"];
+		if (!("UIRrequiresFullScreen" in info))
+			info.UIRrequiresFullScreen = true;
 		info.CFBundleExecutable = "fsk";
-		if (!("CFBundleIdentifier" in info)) {
+		if (!("CFBundleIdentifier" in info))
 			info.CFBundleIdentifier = this.entitlements["application-identifier"].replace(`${this.entitlements['com.apple.developer.team-identifier']}.`, "");
-			tool.report(info.CFBundleIdentifier);
-		}
+		if (!("ITSAppUsesNonExemptEncryption" in info))
+			info.ITSAppUsesNonExemptEncryption = false;
+		info.MinimumOSVersion = "6.0";
+		// Required for App Store
+		var sdkVersion = tool.execute("xcodebuild -sdk iphoneos -version");
+		var xcodeVersion = tool.execute("xcodebuild -version");
+		info.CFBundlePackageType = "APPL";
+		info.BuildMachineOSBuild = tool.execute("sw_vers -buildVersion").trim();
+		info.DTCompiler = "com.apple.compilers.llvm.clang.1_0";
+		info.DTPlatformBuild = sdkVersion.match(/SDKVersion: (.*)/)[1];
+		info.DTSDKBuild = sdkVersion.match(/ProductBuildVersion: (.*)/)[1];
+		info.DTSDKName = "iphoneos" + info.DTPlatformBuild;
+		info.DTXcode = "0" + xcodeVersion.match(/Xcode (.*)/)[1].replace(/\./g, '');
+		info.DTXcodeBuild = xcodeVersion.match(/Build version (.*)/)[1];
 		info.NSAppTransportSecurity = { NSAllowsArbitraryLoads: true };
 		info.CFBundleSupportedPlatforms = [ "iPhoneOS" ];
 		info.LSRequiresIPhoneOS = true;
+		info.CFBundleIconFiles = [];
+		for (let file of this.tree.otherPaths)
+			if (file.destinationPath.match(/icon.*\.png/))
+				info.CFBundleIconFiles.push(file.destinationPath);
 		this.info = info;
 	}
 	findIdentity(tool) {

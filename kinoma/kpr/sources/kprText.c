@@ -730,7 +730,7 @@ void KprTextFitHorizontally(void* it)
 	KprTextMeasureSelection(it);
 	if (!(self->coordinates.vertical & kprHeight)) {
 		self->coordinates.height = height;
-		self->flags |= kprHeightChanged;
+		KprContentReflow((KprContent)self, kprHeightChanged);
 	}
 	self->flags |= kprContentsPlaced;
 }

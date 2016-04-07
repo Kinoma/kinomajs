@@ -21,7 +21,7 @@
  * Bluetooth v4.2 - GATT - Device Information Service
  */
 
-var Utils = require("/lowpan/common/utils");
+var Utils = require("../../common/utils");
 
 var BTUtils = require("../core/btutils");
 var UUID = BTUtils.UUID;

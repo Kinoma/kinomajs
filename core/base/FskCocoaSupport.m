@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -795,6 +795,20 @@ void FskCocoaCursorSet(FskWindow fskWindow, UInt32 cursorShape)
 }
 
 #pragma mark --- menu (primitives) ---
+static NSMenuItem *sEditMenuItem = nil;
+static NSUInteger sEditMenuAuxItemCount = 0;
+static NSInteger sEditMenuDefaultItemCount = 0;
+#define EDIT_MENU_TITLE		@"Edit"
+
+#if defined(MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_10_7 <= MAC_OS_X_VERSION_MAX_ALLOWED)
+static SInt32 sMenuIDForFullScreen = -1;
+#define FULL_SCREEN_MENU_ITEM_TAG	(-2)
+#define ENTER_FULL_SCREEN_TITLE		@"Enter Full Screen"	// @@ Localize
+#define EXIT_FULL_SCREEN_TITLE		@"Exit Full Screen"
+#define VIEW_MENU_TITLE		@"View"
+#define WINDOW_MENU_TITLE	@"Window"
+#endif
+
 void CocoaMenuBarClear()
 {
 	NSMenu			*mainMenu, *applicationMenu;
@@ -827,22 +841,68 @@ void CocoaMenuBarClear()
 		}
 
 		while (menu = [menuEnumerator nextObject])
+		{
+			if (menu == sEditMenuItem) {
+				NSArray *subMenuItemArray = menu.submenu.itemArray;
+
+				subMenuItemArray = [subMenuItemArray subarrayWithRange:NSMakeRange(0, subMenuItemArray.count - sEditMenuAuxItemCount)];
+				for (menuItem in subMenuItemArray) {
+					[menu.submenu removeItem:menuItem];
+				}
+			}
 			[mainMenu removeItem:menu];
+		}
+
+		sEditMenuDefaultItemCount = -1;	// menu is overwritten by the application.
+#if defined(MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_10_7 <= MAC_OS_X_VERSION_MAX_ALLOWED)
+		sMenuIDForFullScreen = -1;
+#endif
 	}
 }
+
+#if defined(MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_10_7 <= MAC_OS_X_VERSION_MAX_ALLOWED)
+static void
+CocoaMenuAddFullScreenMenuItem(UInt32 menuID, NSMenu *menu)
+{
+	NSMenuItem *fullScreenItem;
+
+	fullScreenItem = [[NSMenuItem alloc] initWithTitle:ENTER_FULL_SCREEN_TITLE
+										 action:@selector(handleToggleFullScreenAction:)
+										 keyEquivalent:@"f"];
+	[fullScreenItem setKeyEquivalentModifierMask:NSCommandKeyMask | NSControlKeyMask];
+	[fullScreenItem setTag:FULL_SCREEN_MENU_ITEM_TAG];
+	[menu addItem:fullScreenItem];
+	[fullScreenItem release];
+	sMenuIDForFullScreen = (SInt32)menuID;
+}
+#endif
 
 void CocoaMenuAdd(UInt32 menuID, char *title)
 {
 	NSMenu		*menu;
 	NSMenuItem 	*menuItem;
 	NSString	*string;
+	Boolean		isEditMenu;
 
 	if (title == NULL) return;
 
 	// add the menu
 	string = [NSString stringWithUTF8String:title];
+	isEditMenu = [string isEqualToString:EDIT_MENU_TITLE];
+	if (isEditMenu && (sEditMenuItem != nil)) {
+		[[NSApp mainMenu] addItem:sEditMenuItem];
+		return;
+	}
 	menuItem = [[[NSMenuItem alloc] init] autorelease];
+	if (isEditMenu) {
+		sEditMenuItem = [menuItem retain];
+	}
 	menu = [[[NSMenu alloc] initWithTitle:string] autorelease];
+#if defined(MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_10_7 <= MAC_OS_X_VERSION_MAX_ALLOWED)
+	if ((sMenuIDForFullScreen < 0) && ([string isEqualToString:VIEW_MENU_TITLE] || [string isEqualToString:WINDOW_MENU_TITLE])) {
+		CocoaMenuAddFullScreenMenuItem(menuID, menu);
+	}
+#endif
 	[menu setDelegate:[NSApp delegate]];
 	[menu setAutoenablesItems: NO];
 	[menuItem setSubmenu:menu];
@@ -854,7 +914,7 @@ void CocoaMenuAdd(UInt32 menuID, char *title)
 void CocoaMenuItemAdd(UInt32 menuID, UInt32 menuItemID, char *title, char *key, char *command)
 {
 	NSMenu		*menu;
-	NSMenuItem	*menuItem;
+	NSMenuItem	*menuItem, *mainMenuItem;
 	NSString	*keyString;
 	int			numberOfItems;
 	BOOL		addItem = YES, addSeparator = NO, deleteLastMenuItem = NO, applicationMenuItem = NO;
@@ -863,7 +923,8 @@ void CocoaMenuItemAdd(UInt32 menuID, UInt32 menuItemID, char *title, char *key, 
 
 	if (title == NULL) return;
 
-	menu = [[[NSApp mainMenu] itemWithTag:(menuID + 1)] submenu];
+	mainMenuItem = [[NSApp mainMenu] itemWithTag:(menuID + 1)];
+	menu = mainMenuItem.submenu;
 	numberOfItems = [menu numberOfItems];
 	if (key && (p = FskStrRChr(key, '+'))) {
 		if (FskStrStr(key, "Shift")) mask |= NSShiftKeyMask;
@@ -894,7 +955,12 @@ void CocoaMenuItemAdd(UInt32 menuID, UInt32 menuItemID, char *title, char *key, 
 	}
 
 	if (deleteLastMenuItem && (numberOfItems > 0))
-		[menu removeItemAtIndex:(numberOfItems - 1)];
+	{
+		if (mainMenuItem == sEditMenuItem)
+			[menu removeItemAtIndex:(numberOfItems - sEditMenuAuxItemCount - 1)];
+		else
+			[menu removeItemAtIndex:(numberOfItems - 1)];
+	}
 
 	// add the menu item
 	if (addItem)
@@ -912,6 +978,22 @@ void CocoaMenuItemAdd(UInt32 menuID, UInt32 menuItemID, char *title, char *key, 
 
 			[menu insertItem:menuItem atIndex:0];
 		}
+		else if (mainMenuItem == sEditMenuItem)
+		{
+			numberOfItems = menu.numberOfItems;
+			[menu insertItem:menuItem atIndex:(numberOfItems - sEditMenuAuxItemCount)];
+		}
+#if defined(MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_10_7 <= MAC_OS_X_VERSION_MAX_ALLOWED)
+		else if ((SInt32)menuID == sMenuIDForFullScreen)
+		{
+			numberOfItems = menu.numberOfItems;
+			if (numberOfItems == 1) {	// Only "Enter Full Screen" is added
+				[menu insertItem:[NSMenuItem separatorItem] atIndex:0];
+				numberOfItems++;
+			}
+			[menu insertItem:menuItem atIndex:(numberOfItems - 2)];
+		}
+#endif
 		else
 			[menu addItem:menuItem];
 	}
@@ -920,11 +1002,32 @@ void CocoaMenuItemAdd(UInt32 menuID, UInt32 menuItemID, char *title, char *key, 
 void CocoaMenuItemAddSeparator(UInt32 menuID)
 {
 	NSMenu		*menu;
+	NSMenuItem	*menuItem;
+	NSInteger	numberOfItems;
 
-	menu = [[[NSApp mainMenu] itemWithTag:(menuID + 1)] submenu];
+	menuItem = [[NSApp mainMenu] itemWithTag:(menuID + 1)];
+	menu = [menuItem submenu];
 
 	// add the menu item separator
-	[menu addItem:[NSMenuItem separatorItem]];
+	if (menuItem == sEditMenuItem)
+	{
+		numberOfItems = menu.numberOfItems;
+		[menu insertItem:[NSMenuItem separatorItem] atIndex:(numberOfItems - sEditMenuAuxItemCount)];
+	}
+#if defined(MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_10_7 <= MAC_OS_X_VERSION_MAX_ALLOWED)
+	else if ((SInt32)menuID == sMenuIDForFullScreen)
+	{
+		numberOfItems = menu.numberOfItems;
+		if (numberOfItems == 1)	// Only "Enter Full Screen" is added
+		{
+			[menu insertItem:[NSMenuItem separatorItem] atIndex:0];
+			numberOfItems++;
+		}
+		[menu insertItem:[NSMenuItem separatorItem] atIndex:(numberOfItems - 2)];
+	}
+#endif
+	else
+		[menu addItem:[NSMenuItem separatorItem]];
 }
 
 void CocoaMenuItemSetEnable(UInt32 menuID, UInt32 menuItemID, Boolean enable)
@@ -975,6 +1078,84 @@ void CocoaMenuItemSendAction(UInt32 menuID, UInt32 menuItemID)
 
 	// send action
 	[menu performActionForItemAtIndex:[menu indexOfItem:menuItem]];
+}
+
+// This function is called before both Mac and applications will launch.
+void CocoaMenuSetupDefaultMenuItems()
+{
+	NSMenu *subMenu;
+	NSArray *menuArray;
+	NSMenuItem *menu;
+
+	menuArray = [NSApp mainMenu].itemArray;
+
+	for (NSInteger i = 0; i < (NSInteger)menuArray.count; i++)
+	{
+		menu = [menuArray objectAtIndex:i];
+		if (menu.tag != i)
+			menu.tag = i;
+
+		if ([menu.title isEqualToString:EDIT_MENU_TITLE])
+		{
+			// count items in default "Edit" menu
+			sEditMenuItem = [menu retain];
+			sEditMenuDefaultItemCount = menu.submenu.itemArray.count;
+		}
+#if defined(MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_10_7 <= MAC_OS_X_VERSION_MAX_ALLOWED)
+		else if ([menu.title isEqualToString:VIEW_MENU_TITLE] || [menu.title isEqualToString:WINDOW_MENU_TITLE])
+		{
+			// add "Enter Full Screen" item menu into default menu.
+			subMenu = menu.submenu;
+			if (subMenu.numberOfItems > 0)
+				[subMenu addItem:[NSMenuItem separatorItem]];
+			CocoaMenuAddFullScreenMenuItem((SInt32)menu.tag, subMenu);
+		}
+#endif
+	}
+}
+
+// This function is called just after the application has launched.
+// 1) Menus may have been overwritten by the application.
+// 2) "Start Dictation..." and "Emoji & Symbols" menu items may have been added by OS.
+void CocoaMenuSetupEditMenuItems()
+{
+	NSArray *subMenuArray;
+	NSMenuItem *subMenuItem;
+
+	if (sEditMenuItem == nil) return;
+
+	subMenuArray = sEditMenuItem.submenu.itemArray;
+
+	if (sEditMenuDefaultItemCount >= 0)	// menu is not overwrtten while startup
+		sEditMenuAuxItemCount = subMenuArray.count - sEditMenuDefaultItemCount;
+	else
+	{								// menu is overwritten
+		int i, j;
+
+		// count menu items added by OS.
+		for (i = (int)subMenuArray.count - 1, j = 0; i >= 0; i--, j++)
+		{
+			subMenuItem = [subMenuArray objectAtIndex:i];
+			if (subMenuItem.action == @selector(handleMenuAction:))
+				break;
+		}
+		sEditMenuAuxItemCount = j;
+	}
+}
+
+void CocoaMenuUpdateFullScreenTitle(Boolean fullScreen)
+{
+#if defined(MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_10_7 <= MAC_OS_X_VERSION_MAX_ALLOWED)
+	NSMenu *menu;
+	NSMenuItem *menuItem;
+
+	if (sMenuIDForFullScreen < 0)
+		return;
+
+	menu = [[[NSApp mainMenu] itemWithTag:(sMenuIDForFullScreen + 1)] submenu];
+	menuItem = [menu itemWithTag:FULL_SCREEN_MENU_ITEM_TAG];
+	menuItem.title = fullScreen ? EXIT_FULL_SCREEN_TITLE : ENTER_FULL_SCREEN_TITLE;
+#endif
 }
 
 #pragma mark --- bitmap ---

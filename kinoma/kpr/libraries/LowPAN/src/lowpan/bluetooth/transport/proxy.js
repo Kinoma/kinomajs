@@ -33,14 +33,12 @@ exports.sendCommand = function (command) {
 	/* Do not use TypedArray directly */
 	command.buffer = (command.data != null) ? command.data.buffer : null;
 	command.data = null;
-	application.invoke(new MessageWithObject("pins:/" + _bll + "/sendCommand", command));
-//	Pins.invoke("pins:/" + _bll + "/sendCommand", command);
+	Pins.invoke("/" + _bll + "/sendCommand", command);
 };
 
 exports.sendACLData = function (acl) {
 	/* Do not use TypedArray directly */
 	acl.buffer = (acl.data != null) ? acl.data.buffer : null;
 	acl.data = null;
-	application.invoke(new MessageWithObject("pins:/" + _bll + "/sendACLData", acl));
-//	Pins.invoke("pins:/" + _bll + "/sendACLData", acl);
+	Pins.invoke("/" + _bll + "/sendACLData", acl);
 };

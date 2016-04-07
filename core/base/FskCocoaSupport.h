@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -91,6 +91,9 @@ extern "C" {
 	FskAPI(void) CocoaMenuItemSetCheck(UInt32 menuID, UInt32 menuItemID, Boolean check);
 	FskAPI(void) CocoaMenuItemSetTitle(UInt32 menuID, UInt32 menuItemID, char *title);
 	FskAPI(void) CocoaMenuItemSendAction(UInt32 menuID, UInt32 menuItemID);
+	FskAPI(void) CocoaMenuSetupDefaultMenuItems();
+	FskAPI(void) CocoaMenuSetupEditMenuItems();
+	FskAPI(void) CocoaMenuUpdateFullScreenTitle(Boolean fullScreen);
 
 	// bitmap
 	Boolean FskCocoaBitmapCreate(FskBitmap fskBitmap, UInt32 pixelFormat, SInt32 width, SInt32 height);

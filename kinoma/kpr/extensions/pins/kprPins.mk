@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2010-2016 Marvell International Ltd.
 |     Copyright (C) 2002-2010 Kinoma, Inc.
 |
 |     Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,6 +36,22 @@
 <common>
 C_OPTIONS += -DDEVICE -DUSEA2D -DUSEGPIO -DUSEI2C -DK4GEN2 -DUSEPWM -DUSESERIAL -DUSESPI
 XSC_OPTIONS += -t DEVICE -t USEA2D -t USEGPIO -t USEI2C -t K4GEN2 -t USEPWM -t USESERIAL -t USESPI
+</common>
+</platform>
+
+<platform name="linux/edison,linux/pi_gl,linux/pi,linux/beaglebone">
+<source name="i2c.c"/>
+<source name="i2cdev.c"/>
+<source name="a2d.c"/>
+<source name="gpio.c"/>
+<source name="pwm.c"/>
+<source name="serial.c"/>
+<!-- source name="ttySerial.c"/-->
+<!-- source name="spi.c"/ -->
+<!-- source name="spidev.c"/ -->
+<common>
+C_OPTIONS += -DDEVICE -DUSEA2D -DUSEGPIO -DUSEI2C -DUSEPWM -DUSESERIAL
+XSC_OPTIONS += -t DEVICE -t USEA2D -t USEGPIO -t USEI2C -t USEPWM -t USESERIAL
 </common>
 </platform>
 

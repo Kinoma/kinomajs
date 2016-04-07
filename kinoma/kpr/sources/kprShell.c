@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -218,7 +218,11 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 			FskPortScaleSet(port, (FskFixed)(scale * 65536));
 		}
 		FskWindowGetSize(window, (UInt32*)&bounds->width, (UInt32*)&bounds->height);
-		FskWindowSetSizeConstraints(window, 320, 240, 3200, 2400);
+		FskWindowSetSizeConstraints(window, 
+			KprEnvironmentGetUInt32("windowMinWidth", 320), 
+			KprEnvironmentGetUInt32("windowMinHeight", 240), 
+			KprEnvironmentGetUInt32("windowMaxWidth", 3200), 
+			KprEnvironmentGetUInt32("windowMaxHeight", 2400));
 	}
 	
 	creation.initialChunkSize = (xsIntegerValue)KprEnvironmentGetUInt32("initialChunkSize", 256 * 1024);
@@ -292,6 +296,9 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 		FskPortSetGraphicsMode(self->port, kFskGraphicsModeAlpha | kFskGraphicsModeBilinear, NULL);
 		FskWindowEventSetHandler(self->window, self->handler, self);
 	}
+#if TARGET_OS_MAC && !TARGET_OS_IPHONE
+	CocoaMenuSetupDefaultMenuItems();
+#endif
 	
 	xsCall1_noResult(xsGlobal, xsID("require"), xsString(self->url));
 
@@ -797,6 +804,7 @@ void KprShellDumpTextures(KprShell self)
 
 Boolean KprShellEventHandler(FskEvent event, UInt32 eventCode, FskWindow window UNUSED, void *it)
 {
+    static int activation = 0;
 	Boolean result = false;
 	KprShell self = it;
     FskTimeRecord time;
@@ -805,27 +813,31 @@ Boolean KprShellEventHandler(FskEvent event, UInt32 eventCode, FskWindow window 
 			KprShellClose(self);
 			break;
 		case kFskEventWindowActivated:
-			if (self->flags & kprWindowActive) break;
-			self->flags |= kprWindowActive;
-#ifdef KPR_NETWORKINTERFACE
-			KprNetworkInterfaceActivate(1);
-#endif
-			if (gShell->applicationChain.first)
-				kprDelegateActivated(gShell->applicationChain.first->content, 1);
-			kprDelegateActivated(gShell, 1);
-			(*self->dispatch->activated)(self, 1);
+            activation++;
+            if (activation == 1) {
+                self->flags |= kprWindowActive;
+    #ifdef KPR_NETWORKINTERFACE
+                KprNetworkInterfaceActivate(1);
+    #endif
+                if (gShell->applicationChain.first)
+                    kprDelegateActivated(gShell->applicationChain.first->content, 1);
+                kprDelegateActivated(gShell, 1);
+                (*self->dispatch->activated)(self, 1);
+            }
 			break;
 		case kFskEventWindowDeactivated:
-			if (!(self->flags & kprWindowActive)) break;
-			self->flags &= ~kprWindowActive;
-			(*self->dispatch->activated)(self, 0);
-			kprDelegateActivated(gShell, 0);
-			if (gShell->applicationChain.first)
-				kprDelegateActivated(gShell->applicationChain.first->content, 0);
-#ifdef KPR_NETWORKINTERFACE
-			KprNetworkInterfaceActivate(0);
-#endif
-			//FskNotificationPost(kFskNotificationGLContextLost);
+            activation--;
+            if (activation == 0) {
+                self->flags &= ~kprWindowActive;
+                (*self->dispatch->activated)(self, 0);
+                kprDelegateActivated(gShell, 0);
+                if (gShell->applicationChain.first)
+                    kprDelegateActivated(gShell->applicationChain.first->content, 0);
+    #ifdef KPR_NETWORKINTERFACE
+                KprNetworkInterfaceActivate(0);
+    #endif
+                //FskNotificationPost(kFskNotificationGLContextLost);
+            }
 			break;
 
 		case kFskEventWindowUpdate: {
@@ -1479,7 +1491,7 @@ void KprShellMenuStatus(KprShell self, FskEvent event)
 								checked = xsTest(xsResult);
                             {
 #if TARGET_OS_MAC
-                                CocoaMenuItemSetEnable(i, id, enabled);
+                                CocoaMenuItemSetEnable(i, id, enabled && (self->flags & kprWindowActive));
                                 CocoaMenuItemSetCheck(i, id, checked);
                                 CocoaMenuItemSetTitle(i, id, xsToString(xsGet(xsVar(2), xsID("title"))));
 #elif TARGET_OS_WIN32

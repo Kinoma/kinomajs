@@ -246,7 +246,13 @@ FskErr FskGLOffscreenContextNew(UInt32 width, UInt32 height, FskBitmapFormatEnum
 		ctx->surface = eglCreatePbufferSurface(ctx->display, cfg, pbufAttribs);
 	}
 	BAIL_IF_FALSE(EGL_NO_SURFACE != ctx->surface, err, kFskErrEGLBadSurface);
-	BAIL_IF_FALSE(EGL_NO_CONTEXT != (ctx->context = eglCreateContext(ctx->display, cfg, (share ? share->context : NULL), contextAttribs)),	err, kFskErrEGLBadContext);
+	//BAIL_IF_FALSE(EGL_NO_CONTEXT != (ctx->context = eglCreateContext(ctx->display, cfg, (share ? share->context : NULL), contextAttribs)), err, kFskErrEGLBadContext);
+	ctx->context = eglCreateContext(ctx->display, cfg, (share ? share->context : NULL), contextAttribs);
+	if (EGL_NO_CONTEXT == ctx->context) {
+		if (kFskErrNone == (err = FskErrorFromEGLError(eglGetError())))
+			err = kFskErrEGLBadContext;
+		BAIL(err);
+	}
 
 bail:
 	if (err) {	FskGLContextDispose(*pCtx, false); *pCtx = NULL; }

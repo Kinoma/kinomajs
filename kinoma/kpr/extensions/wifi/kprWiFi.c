@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,7 +45,7 @@ KprServiceRecord gWiFiService = {
 #define kRequestSize 0x200
 #define kResponseSize 0x4000
 
-#if  MINITV
+#if MINITV || RASPBERRY_PI || EDISON
 #include <sys/un.h>
 #include <sys/socket.h>
 #include <net/if.h>
@@ -64,7 +64,7 @@ struct wpa_ctrl {
 	UInt32 responseSize;
 };
 
-#ifdef BG3CDP
+#if BG3CDP || RASPBERRY_PI || EDISON
 #define CONFIG_CTRL_IFACE "/var/run/wpa_supplicant/wlan0"
 #else
 #define CONFIG_CTRL_IFACE "/var/run/wpa_supplicant/mlan0"
@@ -311,7 +311,7 @@ static FskErr parseScanResults(char *response, char **parsed)
 		ssid = walker;
 
 		// Don't include hidden networks
-		if (0 == FskStrCompare("\\x00", ssid))
+		if (ssid == FskStrStr(ssid, "\\x00"))
 			continue;
 
 		snprintf(lineBuffer, sizeof(lineBuffer), kScanResultsTemplate, bssid, (unsigned long)FskStrToNum(frequency), (unsigned long)FskStrToNum(signal_level), flags, ssid);
@@ -833,29 +833,29 @@ void KprWiFiInvoke(KprService service, KprMessage message)
 			bailIfError(KprMacAddr(request, response, responseSize, &length));
 		}
 		else if (FskStrCompareWithLength("p2p_start", message->parts.name, message->parts.nameLength) == 0) {
-            fprintf(stderr, "p2p_start: \n");
-            #ifdef BG3CDP
+            fprintf(stderr, "kprWiFi ===== > p2p_start: \n");
+            #if BG3CDP || RASPBERRY_PI || EDISON
 			    int ret = system("system/wifi.sh p2p_start");
 			    sprintf(response, "{\"status\": %d}", ret);
             #else
 			    FskStrCopy(response, "{\"status\": \"Error: command unsupported in non-bg3.\"}");
             #endif
 			length = FskStrLen(response);
-            fprintf(stderr, "p2p_start: response=%s\n", response);
+            fprintf(stderr, "kprWiFi ===== > p2p_start: response=%s\n", response);
 		}
 		else if (FskStrCompareWithLength("p2p_stop", message->parts.name, message->parts.nameLength) == 0) {
-            #ifdef BG3CDP
+            #if BG3CDP || RASPBERRY_PI || EDISON
 			    int ret = system("system/wifi.sh p2p_stop");
 			    sprintf(response, "{\"status\": %d}", ret);
             #else
 			    FskStrCopy(response, "{\"status\": \"Error: command unsupported in non-bg3.\"}");
             #endif
 			length = FskStrLen(response);
-            fprintf(stderr, "p2p_stop: response=%s\n", response);
+            fprintf(stderr, "kprWiFi ===== > p2p_stop: response=%s\n", response);
 		}
 		else if (FskStrCompareWithLength("udhcpc_restart", message->parts.name, message->parts.nameLength) == 0) {
 			fprintf(stderr, "kprWiFi ===== > udhcpc_restart: \n");
-            #ifdef BG3CDP
+            #if BG3CDP || RASPBERRY_PI || EDISON
 			    int ret = system("system/wifi.sh udhcpc_restart");
 			    sprintf(response, "{\"status\": %d}", ret);
             #else

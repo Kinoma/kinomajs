@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -475,8 +475,10 @@ static void KprCoAPServerInterfaceInvalidateEndpoint(KprCoAPServerInterface self
 {
 	KprCoAPServerInvalidateEndpoint(self->server, endpoint);
 
-	FskListRemove(&self->endpoints, endpoint);
-	KprCoAPEndpointDispose(endpoint);
+	if (FskListContains(self->endpoints, endpoint)) {
+		FskListRemove(&self->endpoints, endpoint);
+		KprCoAPEndpointDispose(endpoint);
+	}
 }
 
 static void KprCoAPServerInterface_retryCallback(KprCoAPEndpoint endpoint, KprCoAPMessage message, UInt32 retryCount, void *refcon)

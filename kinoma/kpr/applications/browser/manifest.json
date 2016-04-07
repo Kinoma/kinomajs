@@ -1,0 +1,86 @@
+{
+	"build":{
+		"F_EXTENSIONS":"$(F_HOME)/extensions",
+		"F_KINOMA":"$(F_HOME)/kinoma",
+		"KDT_HOME":"$(F_KINOMA)/kpr/projects/kdt",
+		"KPL_HOME":"$(F_HOME)/build/linux/kpl",
+		"KPR_HOME":"$(F_KINOMA)/kpr",
+		"IHOME_HOME":"$(KPR_HOME)/applications/browser",
+	},
+	"environment":{
+		"VERSION":"1.2.1",
+		"ANDROID_VERSION_CODE":"13",
+		"NAME":"browser",
+		"NAMESPACE":"net.ultimatetrip.browser",
+		"ORIENTATION_TYPE":"portrait",
+		"CA_list":"ca-bundle.crt",
+		"useSSDP":"0",
+		"httpServerPort":"1234",
+		"modulePath":"[applicationPath]modules/",
+		"screenScale":"1",
+		"httpPoolSize":"5",
+		"httpCacheSize":"197",
+		"httpCookiesSize":"197",
+		"httpKeychainSize":"197",
+		"httpLocalStorageSize":"197",
+		"textureCacheSize":"2500000",
+		"initialChunkSize":"393216",
+		"incrementalChunkSize":"16384",
+		"displayFPS":"0",
+		"useGL":"1",
+	},
+	"extensions":{
+		"fsZip":"$(F_EXTENSIONS)/fsZip/fsZip.mk",
+		"Crypt":"$(F_EXTENSIONS)/crypt/Crypt.mk",
+		"FskSSLAll":"$(F_EXTENSIONS)/ssl/FskSSLAll.mk",
+		"FskJPEGDecode":"$(F_EXTENSIONS)/FskJPEGDecode/FskJPEGDecode.mk",
+		"FskPNGDecode":"$(F_EXTENSIONS)/FskPNGDecode/FskPNGDecode.mk",
+		"mediareader":"$(F_KINOMA)/mediareader/mediareader.mk",
+		"kpr":"$(KPR_HOME)/kpr.mk",
+		"FskMediaReaderWave":"$(F_KINOMA)/mediareader/readers/wave/FskMediaReaderWave.mk",
+		"curve25519":"$(F_KINOMA)/kpr/extensions/curve25519/curve25519.mk",
+		"browser":"$(F_KINOMA)/kpr/extensions/browser/kprBrowser.mk"
+	},
+	"resources":{
+		".":[
+			"$(F_HOME)/data/sslcert/ca-bundle.crt",
+		],
+	},
+	"platforms":{
+		"android":{
+			"environment":{
+				"modulePath": "[applicationPath]res/raw/kinoma.jet/modules/",
+				"shellPath": "[applicationPath]res/raw/kinoma.jet/program/deviceShell.xsb",
+				"fontsPath":"[applicationPath]res/raw/kinoma.jet/fonts/",
+				"applicationDstPath":"[applicationPath]res/raw/",
+				"debugger": "10.0.0.99:5002",
+			},
+			"info": {
+				"permissions":[
+				],
+				"orientation":"portrait"
+			},
+			"separate":{
+				"libandroidakvm3.so": "$(F_KINOMA)/androidakvm/androidakvm3.mk",
+			},
+			"resources":{
+				"program":[
+					"$(IHOME_HOME)/src",
+					"$(IHOME_HOME)/deviceShell.xml"
+				],
+			},
+		},
+	},
+	"instrument":{
+		"log":"",
+		"syslog":"",
+		"trace":true,
+		"threads":true,
+		"times":true,
+		"androidlog":true,
+		"kinds":[
+			{ "type":"xs", "messages":"debug" },
+		]
+	},
+}
+

@@ -1,0 +1,58 @@
+apply plugin: "com.android.model.native"
+
+model {
+    android {
+        compileSdkVersion 'android-17'
+        ndk {
+            moduleName "KinomaLib"
+            CFlags.add("-g")
+            CFlags.add("-D__FSK_LAYER__=1")
+            CFlags.add("-DSUPPORT_XS_DEBUG=0")
+            CFlags.add("-DTARGET_OS_ANDROID=1")
+            CFlags.add("-DOBJECTBASE=Java_com_kinoma_kinomaplay_")
+            CFlags.add("-DUSE_JAVACLASS=1")
+            CFlags.add("-DHAVE_ENDIAN_H=1")
+            CFlags.add("-I#TMPDIR#")
+            CFlags.add("-I#F_HOME#/xs6/patches")
+            CFlags.add("-I#F_HOME#/core/base")
+            CFlags.add("-I#F_HOME#/core/graphics")
+            CFlags.add("-I#F_HOME#/core/managers")
+            CFlags.add("-I#F_HOME#/core/misc")
+            CFlags.add("-I#F_HOME#/core/network")
+            CFlags.add("-I#F_HOME#/core/ui")
+            CFlags.add("-I#F_HOME#/xs6/includes")
+
+            CFlags.each { cppFlags.add(it) }
+            cppFlags.add("-frtti")
+
+            ldFlags.add("-L#F_HOME#/build/android/OSS/lib/")
+            ldFlags.add("-mthumb")
+
+            ldLibs.add("c")
+            ldLibs.add("gcc")
+            ldLibs.add("m")
+            ldLibs.add("stdc++")
+            ldLibs.add("EGL")
+            ldLibs.add("GLESv2")
+            ldLibs.add("dl")
+            ldLibs.add("log")
+            ldLibs.add("android")
+        }
+        sources {
+            main {
+                jni {
+                    dependencies {
+                        project ":modules:Fsk"
+                    }
+                }
+            }
+        }
+        productFlavors {
+            create("arm") {
+                ndk.abiFilters.add("armeabi")
+            }
+        }
+    }
+}
+
+// vim: sw=4:ts=4:et:cin

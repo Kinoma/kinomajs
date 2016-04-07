@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -485,6 +485,7 @@ void xs_mediareader_extract(xsMachine *the)
 	xsVar(2) = xsNew1(xsGlobal, xsID_ArrayBuffer, xsInteger(dataSize));
 	FskMemMove(xsToArrayBuffer(xsVar(2)), data, (SInt32)dataSize);
 	xsSet(xsResult, xsID("buffer"), xsVar(2));
+	FskMemPtrDispose(data);
 }
 
 void xs_mediareader_getMetadata(xsMachine *the)

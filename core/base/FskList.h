@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -84,7 +84,7 @@ FskAPI(FskErr) FskListMutexDispose(FskListMutex list);
 
 FskAPI(void) FskListMutexPrepend(FskListMutex list, FskListElement element);
 FskAPI(void) FskListMutexAppend(FskListMutex list, FskListElement element);
-FskAPI(void) FskListMutexRemove(FskListMutex list, FskListElement element);
+FskAPI(Boolean) FskListMutexRemove(FskListMutex list, FskListElement element);
 FskAPI(FskListElement) FskListMutexRemoveFirst(FskListMutex list);
 FskAPI(FskListElement) FskListMutexRemoveLast(FskListMutex list);
 FskAPI(FskListElement) FskListMutexGetNext(FskListMutex list, FskListElement element);

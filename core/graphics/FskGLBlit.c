@@ -1231,14 +1231,11 @@ static FskErr GetFskGLError() {
 
 #ifdef EGL_VERSION
 
-/****************************************************************************//**
- * Convert the given EGL error code to a Fsk error code.
- *	\param[in]	eglErr		the EGL error code.
- *	\return		kFskErrNone	if there was no error.
- *							otherwise, returns the equivalent Fsk error code.
+/********************************************************************************
+ * FskErrorFromEGLError
  ********************************************************************************/
-static FskErr FskErrorFromEGLError(EGLint eglErr) {
-	struct ELU { EGLint eglErr; FskErr fskErr; };
+FskErr FskErrorFromEGLError(int eglErr) {
+	struct ELU { int eglErr; FskErr fskErr; };
 	static const struct ELU lookupTab[] = {
 		{ EGL_SUCCESS,				kFskErrNone					},	/* Function succeeded. */
 		{ EGL_NOT_INITIALIZED,		kFskErrEGLNotInitialized	},	/* EGL is not initialized, or could not be initialized, for the specified display. */
@@ -1270,10 +1267,11 @@ static FskErr FskErrorFromEGLError(EGLint eglErr) {
  *	\return	kFskErrNone	if there was no error.
  *						otherwise, returns the equivalent Fsk error code.
  ********************************************************************************/
-static FskErr GetFskEGLError() {
+static FskErr GetFskEGLError(void) {
 	return FskErrorFromEGLError(eglGetError());
 }
-#endif /* TARGET_OS_ANDROID || TARGET_OS_LINUX */
+
+#endif /* EGL_VERSION */
 
 
 #if 0 && GLES_VERSION == 2
@@ -11059,8 +11057,14 @@ FskErr FskGLBlitContextMakeCurrent(FskGLBlitContext blitContext) {
  ********************************************************************************/
 
 FskGLBlitContext FskGLBlitContextGetCurrent(void) {
-	if (!gGLGlobalAssets.blitContext)
-		InitGlobalGLAssets();
+	if (!gGLGlobalAssets.blitContext) {
+		if (kFskErrNone != InitGlobalGLAssets()) {
+			#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
+				LOGD("FskGLBlitContextGetCurrent() returns NULL");
+			#endif /* LOG_PARAMETERS */
+			return NULL;
+		}
+	}
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
 		LOGD("FskGLBlitContextGetCurrent() returns %p[glContext=%p]", gGLGlobalAssets.blitContext, gGLGlobalAssets.blitContext->glContext);
@@ -11084,6 +11088,22 @@ FskErr FskGLBlitContextSwapCurrent(FskGLBlitContext *pBlitContext) {
 
 	*pBlitContext = ctx;
 	return err;
+}
+
+
+/********************************************************************************
+ * FskGLBlitContextGetGLContext
+ ********************************************************************************/
+
+FskErr FskGLBlitContextGetGLContext(FskGLBlitContext blitContext, struct FskGLContextRecord **glContext) {
+	if (blitContext && gGLGlobalAssets.isInited) {
+		*glContext = blitContext->glContext;
+		return kFskErrNone;
+	}
+	else {
+		*glContext = NULL;
+		return kFskErrGraphicsContext;
+	}
 }
 
 

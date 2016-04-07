@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,6 +18,7 @@
 #define __FSKECMASCRIPT_PRIV__
 
 #import "FskCocoaWindow.h"
+#import "FskCocoaSupport.h"
 #import "FskCocoaView.h"
 #import "FskECMAScript.h"
 #import "FskEvent.h"
@@ -125,6 +126,17 @@
 	}
 
 	[self hideCursor];
+}
+
+- (IBAction)handleToggleFullScreenAction:(id)sender
+{
+	Boolean isFullScreen;
+
+	if (_fskWindow == NULL) return;
+
+	FskCocoaWindowToggleFullScreen(_fskWindow);
+	FskCocoaWindowIsFullScreen(_fskWindow, &isFullScreen);
+	CocoaMenuUpdateFullScreenTitle(isFullScreen);
 }
 
 - (void)hideCursor

@@ -21,14 +21,15 @@
  * Bluetooth v4.2 - Public BLL API
  */
 
-var GAP = require("bluetooth/core/gap");
-var UART = require("bluetooth/transport/uart");
-var BTUtils = require("bluetooth/core/btutils");
+var GAP = require("./bluetooth/core/gap");
+var UART = require("./bluetooth/transport/uart");
+var BTUtils = require("./bluetooth/core/btutils");
 var UUID = BTUtils.UUID;
 var BluetoothAddress = BTUtils.BluetoothAddress;
 
-var Utils = require("/lowpan/common/utils");
-var Buffers = require("/lowpan/common/buffers");
+var Utils = require("./common/utils");
+var Logger = Utils.Logger;
+var Buffers = require("./common/buffers");
 var ByteBuffer = Buffers.ByteBuffer;
 
 var GATT = GAP.GATT;
@@ -37,8 +38,8 @@ var ATT = GATT.ATT;
 const DEFAULT_MTU = 158;
 const LOGGING_ENABLED = false;
 
-var logger = new Utils.Logger("BGAPI");
-logger.loggingLevel = Utils.Logger.Level.INFO;
+var logger = new Logger("BGAPI");
+logger.loggingLevel = Logger.Level.INFO;
 
 // ----------------------------------------------------------------------------------
 // Pins Configuration
@@ -47,35 +48,48 @@ logger.loggingLevel = Utils.Logger.Level.INFO;
 var _notification = null;
 var _repeat = null;
 
+function pollTransport() {
+	let responses = UART.receive();
+	for (var i = 0; i < responses.length; i++) {
+		GAP.HCI.transportReceived(responses[i]);
+	}
+}
+
 exports.configure = function () {
 	Utils.Logger.setOutputEnabled(LOGGING_ENABLED);
 	this.notification = _notification = PINS.create({
 		type: "Notification"
 	});
 	this.serial = UART.open();
-	_repeat = PINS.repeat("serial", this, function () {
-		var responses = UART.receive();
-		for (var i = 0; i < responses.length; i++) {
-			GAP.HCI.transportReceived(responses[i]);
-		}
-	});
+	_repeat = PINS.repeat("serial", this, pollTransport);
 	GAP.activate(UART, _gapApplication, _storage);
 };
 
 exports.close = function () {
-	logger.debug("Disconnect all bearers...");
-	_gapApplication.forEachContext(context => {
-		context.disconnect(0x15);
-	});
-	logger.debug("Reset HCI");
-	GAP.HCI.Controller.reset();
-	logger.debug("Close BLL objects");
-	_repeat.close();
-	UART.close();
+	logger.debug("Closing BLL");
 	_notification.close();
+	_notification = null;
+	let closed = false;
+	_gapApplication.close(() => {
+		logger.debug("Shutdown");
+		GAP.HCI.Controller.reset({
+			commandComplete: (opcode, response) => {
+				_repeat.close();
+				UART.close();
+				closed = true;
+			}
+		});
+	});
+	while (!closed) {
+		pollTransport();
+	}
+	logger.info("Exit");
 };
 
 function doNotification(notification) {
+	if (_notification == null) {
+		return;
+	}
 	if (notification.notification == "gap/discover") {
 		/* Suppress Logging... */
 		logger.trace("Notification: " + JSON.stringify(notification));
@@ -145,6 +159,26 @@ class BondingStorage {
 class GAPApplication {
 	constructor() {
 		this._contexts = new Array();
+		this._closing = false;
+		this._closeCallback = null;
+	}
+	close(callback = null) {
+		this._closing = true;
+		this._closeCallback = callback;
+		logger.debug("Disconnect all bearers...");
+		let num = 0;
+		this.forEachContext(context => {
+			context.disconnect(0x15);
+			num++;
+		});
+		if (num == 0) {
+			logger.debug("No bearers are active");
+			if (callback != null) {
+				callback();
+			}
+		} else {
+			logger.debug("" + num + " disconnetion is pending.");
+		}
 	}
 	registerContext(context) {
 		for (let i = 0; i < this._contexts.length; i++) {
@@ -157,6 +191,16 @@ class GAPApplication {
 	}
 	unregisterContext(index) {
 		this._contexts[index] = null;
+		if (this._closing) {
+			let num = 0;
+			this.forEachContext(context => num++);
+			if (num == 0) {
+				logger.debug("All bearers are disconnected.");
+				if (this._closeCallback != null) {
+					this._closeCallback();
+				}
+			}
+		}
 	}
 	forEachContext(func) {
 		for (let i = 0; i < this._contexts.length; i++) {
@@ -252,6 +296,7 @@ class GAPContextDelegate {
 		throw new Error(msg);
 	}
 	disconnected() {
+		logger.debug("Disconnected: index=" + this._index);
 		this._gapApp.unregisterContext(this._index);
 		doNotification({
 			notification: "gap/disconnect",
@@ -281,6 +326,31 @@ class ATTBearerDelegate {
 		});
 	}
 }
+
+exports.enableLogging = function (params) {
+	Utils.Logger.setOutputEnabled(params.enabled);
+	if ("bll" in params) {
+		logger.loggingLevel = Logger.Level[params.bll];
+	}
+	if ("gap" in params) {
+		GAP.setLoggingLevel(Logger.Level[params.gap]);
+	}
+	if ("hci" in params) {
+		GAP.HCI.setLoggingLevel(Logger.Level[params.hci]);
+	}
+	if ("l2cap" in params) {
+		GAP.L2CAP.setLoggingLevel(Logger.Level[params.l2cap]);
+	}
+	if ("gatt" in params) {
+		GATT.setLoggingLevel(Logger.Level[params.gatt]);
+	}
+	if ("att" in params) {
+		ATT.setLoggingLevel(Logger.Level[params.att]);
+	}
+	if ("sm" in params) {
+		GAP.SM.setLoggingLevel(Logger.Level[params.sm]);
+	}
+};
 
 // ----------------------------------------------------------------------------------
 // API - GAP
@@ -339,7 +409,7 @@ exports.gapConnect = function (params) {
 
 exports.gapSetScanResponseData = function (params) {
 	logger.debug("gapSetScanResponseData");
-	GAP.HCI.LE.setScanResponseData(serializeAD(params));
+	GAP.setScanResponseData(serializeAD(params));
 };
 
 exports.gapStartAdvertising = function (params) {
@@ -433,8 +503,8 @@ exports.smPasskeyEntry = function (params) {
 
 	logger.debug("smPasskeyEntry");
 
-	var bearer = _gapApplication.getContext(index).bearer;
-	bearer.security.passkeyEntry(params.passkey);
+	var security = _gapApplication.getContext(index).security;
+	security.passkeyEntry(params.passkey);
 };
 
 // ----------------------------------------------------------------------------------

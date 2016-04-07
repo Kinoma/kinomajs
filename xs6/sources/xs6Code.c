@@ -1389,7 +1389,8 @@ void fxNodeDispatchCode(void* it, void* param)
 {
 	txNode* self = it;
 	txCoder* coder = param;
-	fxCoderAddLine(coder, 0, XS_CODE_LINE, self); 
+	if (self->line >= 0)
+		fxCoderAddLine(coder, 0, XS_CODE_LINE, self); 
 	(*self->description->dispatch->code)(it, param);
 }
 
@@ -1397,7 +1398,8 @@ void fxNodeDispatchCodeAssign(void* it, void* param)
 {
 	txNode* self = it;
 	txCoder* coder = param;
-	fxCoderAddLine(coder, 0, XS_CODE_LINE, self); 
+	if (self->line >= 0)
+		fxCoderAddLine(coder, 0, XS_CODE_LINE, self); 
 	(*self->description->dispatch->codeAssign)(self, param);
 }
 
@@ -1405,7 +1407,8 @@ void fxNodeDispatchCodeReference(void* it, void* param)
 {
 	txNode* self = it;
 	txCoder* coder = param;
-	fxCoderAddLine(coder, 0, XS_CODE_LINE, self); 
+	if (self->line >= 0)
+		fxCoderAddLine(coder, 0, XS_CODE_LINE, self); 
 	(*self->description->dispatch->codeReference)(self, param);
 }
 
@@ -3158,11 +3161,12 @@ void fxSwitchNodeCode(void* it, void* param)
 {
 	txSwitchNode* self = it;
 	txCoder* coder = param;
-	txTargetCode* breakTarget = fxCoderCreateTarget(coder);
+	txTargetCode* breakTarget;
 	txCaseNode* caseNode;
 	txCaseNode* defaultNode = NULL;
 	fxNodeDispatchCode(self->expression, param);
 	fxScopeCodingBlock(self->scope, param);
+	breakTarget = fxCoderCreateTarget(coder);
 	breakTarget->label = fxNewParserChunkClear(coder->parser, sizeof(txLabelNode));
 	breakTarget->nextTarget = coder->firstBreakTarget;
 	coder->firstBreakTarget = breakTarget;
@@ -3196,8 +3200,8 @@ void fxSwitchNodeCode(void* it, void* param)
 	}
 	fxCoderAdd(param, 0, coder->firstBreakTarget);
 	coder->firstBreakTarget = breakTarget->nextTarget;
-	fxCoderAddByte(param, -1, XS_CODE_POP);
 	fxScopeCoded(self->scope, param);
+	fxCoderAddByte(param, -1, XS_CODE_POP);
 }
 
 void fxTemplateNodeCode(void* it, void* param) 

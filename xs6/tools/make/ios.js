@@ -26,8 +26,8 @@ class Manifest extends MAKE.Manifest {
 	}
 	generate(tool, tmp, bin) {
 		this.ios.findIdentity(tool);
-		this.ios.completeInfo();
 		this.ios.addResources(tool);
+		this.ios.completeInfo(tool);
 		super.generate(tool, tmp, bin);
 		FS.writeFileSync(tmp + "/Entitlements.plist", PLIST.stringify(this.ios.entitlements));
 		FS.writeFileSync(tmp + "/Info.plist", PLIST.stringify(this.ios.info));

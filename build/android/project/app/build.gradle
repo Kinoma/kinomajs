@@ -1,0 +1,53 @@
+apply plugin: 'com.android.model.application'
+
+model {
+    android {
+        compileSdkVersion 'android-17'
+        buildToolsVersion '#BUILD_TOOLS_VERSION#'
+
+        defaultConfig {
+            applicationId "#NAMESPACE#"
+            minSdkVersion.apiLevel 9
+            targetSdkVersion.apiLevel 17
+            versionCode #ANDROID_VERSION_CODE#
+            versionName "#VERSION#"
+
+            buildConfigFields {
+                create() {
+                    type "int"
+                    name "VALUE"
+                    value "1"
+                }
+            }
+        }
+
+        sources {
+            main {
+                jniLibs {
+                    dependencies {
+                        project ":modules:Fsk"
+                        project ":modules:KinomaLib"
+                    }
+                }
+            }
+        }
+
+        buildTypes {
+            release {
+                minifyEnabled false
+                signingConfig = $("android.signingConfigs.Kinoma")
+            }
+        }
+    }
+
+    android.signingConfigs {
+        create("Kinoma") {
+            storeFile file("#KEYSTORE#")
+            storePassword "#KEYSTORE_PASS#"
+            keyAlias "#KEYSTORE_ALIAS#"
+            keyPassword "#KEYSTORE_PASS#"
+        }
+    }
+}
+
+// vim: sw=4:ts=4:et:cin

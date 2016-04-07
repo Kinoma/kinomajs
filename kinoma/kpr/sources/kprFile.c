@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -142,11 +142,17 @@ void KprFILEServiceInvoke(KprService service UNUSED, KprMessage message)
 				xsEndHostSandboxCode();
 			}
 			else if (kFskDirectoryItemIsFile == info.filetype) {
+				KprStream stream = message->stream;
 				FskInt64 size;
 				bailIfError(FskFileOpen(path, kFskFilePermissionReadOnly, &fref));
 				bailIfError(FskFileGetSize(fref, &size));
 				bailIfError(FskMemPtrNew(size, &message->response.body));
 				bailIfError(FskFileRead(fref, size, message->response.body, &message->response.size));
+				if (stream && stream->dispatch->receive) {
+					(*stream->dispatch->receive)(stream, message, gFILEService.machine, message->response.body, message->response.size);
+					FskMemPtrDisposeAt(&message->response.body);
+					message->response.size = 0;
+				}
 				KprMessageTransform(message, gFILEService.machine);
 			}
 			else

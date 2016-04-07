@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -86,8 +86,8 @@ FskAPI(FskErr)	FskGLInit(void *v);
  **/
 FskAPI(FskErr)	FskGLShutdown(void);
 
-#if TARGET_OS_ANDROID || TARGET_OS_LINUX || (TARGET_OS_KPL && (FSK_OPENGLES_KPL == 1)) || (defined(_MSC_VER) && (FSK_OPENGLES_ANGLE == 1))
 
+#if defined(EGL_VERSION) || TARGET_OS_ANDROID || TARGET_OS_LINUX || (TARGET_OS_KPL && (FSK_OPENGLES_KPL == 1)) || (defined(_MSC_VER) && (FSK_OPENGLES_ANGLE == 1))
 
 /** Record the context generated outside of the APIs in this file.
  *	\param[in]	eglDisplay	the EGL display.
@@ -103,7 +103,15 @@ FskAPI(FskErr)		FskGLSetEGLContext(void *eglDisplay, void *eglSurface, void *egl
  */
 FskAPI(FskErr)		FskGLSetNativeWindow(void *aWin);
 
-#endif /* TARGET_OS */
+/** Convert the given EGL error code to a Fsk error code.
+ *	\param[in]	eglErr		the EGL error code.
+ *	\return		kFskErrNone	if there was no error.
+ *							otherwise, returns the equivalent Fsk error code.
+ */
+FskAPI(FskErr)		FskErrorFromEGLError(int eglErr);
+
+#endif /* EGL_VERSION */
+
 
 /** Record the native screen FBO.
  *	\param[in]	fbo	the default FBO.
@@ -365,6 +373,15 @@ FskAPI(FskGLBlitContext) FskGLBlitContextGetCurrent(void);
  *				FskGLBlitContextMakeCurrent(newContext);
  **/
 FskAPI(FskErr)	FskGLBlitContextSwapCurrent(FskGLBlitContext *pBlitContext);
+
+
+/** Get the GL context from the blit context.
+ *	\param[in]	blitContext	the blit context;
+ *	\param[out]	glContext	place to store the pointer to the GL context.
+ *	\return	kFskErrNone				if the operation was successful.
+ *	\return	kFskErrGraphicsContext	if the given blit context was invalid.
+ **/
+FskAPI(FskErr)	FskGLBlitContextGetGLContext(FskGLBlitContext blitContext, struct FskGLContextRecord **glContext);
 
 
 /*********************************************************************************

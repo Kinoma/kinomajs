@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2010-2016 Marvell International Ltd.
 |     Copyright (C) 2002-2010 Kinoma, Inc.
 |
 |     Licensed under the Apache License, Version 2.0 (the "License");
@@ -888,8 +888,8 @@
           				{ type : "spacer", width : 8 },
         				{ label : ".", width : 44 },
         				{ label : ",", width : 44 },
-        				{ label : "?", width : 44 },
-        				{ label : "!", width : 44 },
+        				{ label : "`", width : 44 },
+        				{ label : "~", width : 44 },
         				{ label : "'", width : 44 },
            				{ type : "spacer", width : 8 },
          				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
@@ -1122,8 +1122,8 @@
           				{ type : "spacer", width : 8 },
         				{ label : ".", width : 44 },
         				{ label : ",", width : 44 },
-        				{ label : "?", width : 44 },
-        				{ label : "!", width : 44 },
+        				{ label : "`", width : 44 },
+        				{ label : "~", width : 44 },
         				{ label : "'", width : 44 },
            				{ type : "spacer", width : 8 },
          				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     
@@ -1321,8 +1321,8 @@
           				{ type : "spacer", width : 8 },
         				{ label : ".", width : 44 },
         				{ label : ",", width : 44 },
-        				{ label : "?", width : 44 },
-        				{ label : "!", width : 44 },
+        				{ label : "`", width : 44 },
+        				{ label : "~", width : 44 },
         				{ label : "'", width : 44 },
            				{ type : "spacer", width : 8 },
          				{ type : "glyphButton", autoRepeat : true, skin : deleteKeySkin, actionOnTouchBegan : true, width : 40, action : function(button) { button.bubble("onDeleteCharacter") }  },     

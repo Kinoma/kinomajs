@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -78,11 +78,11 @@ export default class Android {
 		appPath = appPath.join("/");
 		var source = appPath + path;
 		if (!FS.existsSync(source))
-			source = tool.homePath + "/build/android/inNDK/Play/project/res" + path;
-		var destination = tmp + "/ndk/project/res" + path;
+			source = tool.homePath + "/build/android/project/app/src/main/res" + path;
+		var destination = tmp + "/ndk/project/app/src/main/res" + path;
 		FS.copyFileSync(source, destination);
 	}
-	copyFile(source, destination, mapping) {
+	copyFile(tool, source, destination, mapping) {
 		if (mapping) {
 			var buffer = FS.readFileSync(source).toString();
 			mapping.forEach(function(map) {
@@ -107,7 +107,7 @@ export default class Android {
 			"RECEIVE_SMS",
 			"SEND_SMS"
 		];
-		var source = tool.homePath + "/build/android/inNDK/Play/project/src/com/kinoma/kinomaplay/" + name;
+		var source = tool.homePath + "/build/android/project/app/src/main/java/com/kinoma/kinomaplay/" + name;
 		var destination = tmp + "/ndk" + path + "/" + name;
 		var buffer = FS.readFileSync(source).toString();
 		mapping.forEach(function(map) {
@@ -137,12 +137,12 @@ export default class Android {
 	copyKinomaFile(tool, tmp, path, mapping) {
 		var source = tool.homePath + "/build/android/inNDK/kinoma" + path;
 		var destination = tmp + "/ndk/project/jni" + path;
-		this.copyFile(source, destination, mapping);
+		this.copyFile(tool, source, destination, mapping);
 	}
 	copyNdkFile(tool, tmp, path, mapping) {
-		var source = tool.homePath + "/build/android/inNDK/Play" + path;
-		var destination = tmp + "/ndk" + path;
-		this.copyFile(source, destination, mapping);
+		var source = tool.homePath + "/build/android/project" + path;
+		var destination = tmp + "/ndk/project" + path;
+		this.copyFile(tool, source, destination, mapping);
 	}
 	generateNdk(tool, tmp, bin) {
 		var environment = this.tree.environment;
@@ -150,9 +150,11 @@ export default class Android {
 
 		// create directory structure
 		FS.mkdirSync(tmp + "/ndk");
-		this.copyNdkFile(tool, tmp, "/Application.mk", null);
 		
 		FS.mkdirSync(tmp + "/ndk/project");
+		FS.mkdirSync(tmp + "/ndk/project/app");
+		FS.mkdirSync(tmp + "/ndk/project/app/src");
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main");
 		var features = "";
 		for (let feature in info.features)
 			features += '\t<uses-feature android:name="' + feature + '" android:required="' + info.features[feature] + '"/>\n';
@@ -162,7 +164,7 @@ export default class Android {
 		var versionCode = 1;
 		if (environment.ANDROID_VERSION_CODE)
 			versionCode = environment.ANDROID_VERSION_CODE;
-		this.copyNdkFile(tool, tmp, "/project/AndroidManifest.xml", [
+		this.copyNdkFile(tool, tmp, "/app/src/main/AndroidManifest.xml", [
 			{ "key": "#NAMESPACE#", "value": environment.NAMESPACE },
 			{ "key": "#VERSION#", "value": environment.VERSION },
 			{ "key": "#VERSION_MINIMUM#", "value": info.version.minimum },
@@ -176,57 +178,89 @@ export default class Android {
 			{ "key": "#ANDROID_VERSION_CODE#", "value": versionCode },
 		]);
 
-		this.copyNdkFile(tool, tmp, "/project/build.xml", [{ "key": "#KPR_APPLICATION#", "value": info.name }]);
-		this.copyNdkFile(tool, tmp, "/project/local.properties", null);
-		this.copyNdkFile(tool, tmp, "/project/proguard.cfg", null);
-		this.copyNdkFile(tool, tmp, "/project/project.properties", null);
+		this.copyNdkFile(tool, tmp, "/build.gradle", null);
+		this.copyNdkFile(tool, tmp, "/gradle.properties", null);
+		this.copyNdkFile(tool, tmp, "/gradlew", null);
+		this.copyNdkFile(tool, tmp, "/gradlew.bat", null);
+		this.copyNdkFile(tool, tmp, "/local.properties", [
+			{ "key": "#ANDROID_SDK#", "value": process.getenv("ANDROID_SDK") },
+			{ "key": "#ANDROID_NDK#", "value": process.getenv("ANDROID_NDK") }
+		]);
+		this.copyNdkFile(tool, tmp, "/settings.gradle", null);
+
+		FS.mkdirSync(tmp + "/ndk/project/gradle");
+		FS.mkdirSync(tmp + "/ndk/project/gradle/wrapper");
+		this.copyNdkFile(tool, tmp, "/gradle/wrapper/gradle-wrapper.jar");
+		this.copyNdkFile(tool, tmp, "/gradle/wrapper/gradle-wrapper.properties");
+
+		var buildTools = FS.readDirSync(process.getenv("ANDROID_SDK") + "/build-tools");
+		var buildToolsVersion = buildTools[buildTools.length - 1]
+
+		var keystore = process.getenv("HOME") + "/.android/debug.keystore";
+		var keystore_pass = "android";
+		var keystore_alias = "androiddebugkey";
 
 		var localPropertiesPath = process.getenv("HOME") + "/.android.keystore.info";
 		if (FS.existsSync(localPropertiesPath)) {
-			var buffer = FS.readFileSync(tmp + "/ndk/project/local.properties");
-			buffer += FS.readFileSync(localPropertiesPath);
-			FS.writeFileSync(tmp + "/ndk/project/local.properties", buffer);
-		}
+		 	var buffer = FS.readFileSync(localPropertiesPath);
+			var json = JSON.parse(buffer);
+			if (json) {
+				keystore = json.keystore;
+				keystore_pass = json.password;
+				keystore_alias = json.alias;
+			}
+		 }
 
-		FS.mkdirSync(tmp + "/ndk/project/res");
+		this.copyNdkFile(tool, tmp, "/app/build.gradle", [
+			{ "key": "#ANDROID_VERSION_CODE#", "value": versionCode },
+			{ "key": "#BUILD_TOOLS_VERSION#", "value": buildToolsVersion },
+			{ "key": "#NAMESPACE#", "value": environment.NAMESPACE },
+			{ "key": "#VERSION#", "value": environment.VERSION },
+			{ "key": "#KEYSTORE#", "value": keystore },
+			{ "key": "#KEYSTORE_PASS#", "value": keystore_pass },
+			{ "key": "#KEYSTORE_ALIAS#", "value": keystore_alias }
+		]);
+		this.copyNdkFile(tool, tmp, "/app/proguard-rules.pro");
 
-		FS.mkdirSync(tmp + "/ndk/project/res/drawable");
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/res");
+
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/res/drawable");
 		this.copyDrawableFile(tool, tmp, "/drawable/icon.png");
 		this.copyDrawableFile(tool, tmp, "/drawable/splashscreen.png");
 		this.copyDrawableFile(tool, tmp, "/drawable/web_return_icon.png");
-		FS.mkdirSync(tmp + "/ndk/project/res/drawable-hdpi");
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/res/drawable-hdpi");
 		this.copyDrawableFile(tool, tmp, "/drawable-hdpi/ball.png");
 		this.copyDrawableFile(tool, tmp, "/drawable-hdpi/icon.png");
-		FS.mkdirSync(tmp + "/ndk/project/res/drawable-ldpi");
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/res/drawable-ldpi");
 		this.copyDrawableFile(tool, tmp, "/drawable-hdpi/ball.png");
 		this.copyDrawableFile(tool, tmp, "/drawable-ldpi/icon.png");
-		FS.mkdirSync(tmp + "/ndk/project/res/drawable-mdpi");
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/res/drawable-mdpi");
 		this.copyDrawableFile(tool, tmp, "/drawable-hdpi/ball.png");
 		this.copyDrawableFile(tool, tmp, "/drawable-mdpi/icon.png");
-		FS.mkdirSync(tmp + "/ndk/project/res/drawable-xhdpi");
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/res/drawable-xhdpi");
 		this.copyDrawableFile(tool, tmp, "/drawable-xhdpi/ball.png");
 
-		FS.mkdirSync(tmp + "/ndk/project/res/layout");
-		this.copyNdkFile(tool, tmp, "/project/res/layout/main.xml", [ { "key": "com.kinoma.kinomaplay", "value": environment.NAMESPACE } ]);
-		this.copyNdkFile(tool, tmp, "/project/res/layout/splashscreen.xml", null);
-		this.copyNdkFile(tool, tmp, "/project/res/layout/web_r.xml", null);
-		this.copyNdkFile(tool, tmp, "/project/res/layout/web.xml", null);
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/res/layout");
+		this.copyNdkFile(tool, tmp, "/app/src/main/res/layout/main.xml", [ { "key": "com.kinoma.kinomaplay", "value": environment.NAMESPACE } ]);
+		this.copyNdkFile(tool, tmp, "/app/src/main/res/layout/splashscreen.xml", null);
+		this.copyNdkFile(tool, tmp, "/app/src/main/res/layout/web_r.xml", null);
+		this.copyNdkFile(tool, tmp, "/app/src/main/res/layout/web.xml", null);
 
-		FS.mkdirSync(tmp + "/ndk/project/res/values");
-		this.copyNdkFile(tool, tmp, "/project/res/values/strings.xml", [{ "key": "#APP_NAME#", "value": environment.NAME }]);
-		this.copyNdkFile(tool, tmp, "/project/res/values/theme.xml", null);
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/res/values");
+		this.copyNdkFile(tool, tmp, "/app/src/main/res/values/strings.xml", [{ "key": "#APP_NAME#", "value": environment.NAME }]);
+		this.copyNdkFile(tool, tmp, "/app/src/main/res/values/theme.xml", null);
 		
-//		FS.mkdirSync(tmp + "/ndk/project/res/xml");
-//		this.copyNdkFile(tool, tmp, "/project/res/xml/kconfig.xml", null);
+//		FS.mkdirSync(tmp + "/ndk/project/src/main/res/xml");
+//		this.copyNdkFile(tool, tmp, "/project/src/main/res/xml/kconfig.xml", null);
 
-		// transform java sources
-		FS.mkdirSync(tmp + "/ndk/project/src");
+		// // transform java sources
+		FS.mkdirSync(tmp + "/ndk/project/app/src/main/java");
 		var namespace = environment.NAMESPACE.split(".");
-		for (let i = 0, c = namespace.length, path = tmp + "/ndk/project/src"; i < c; i++) {
+		for (let i = 0, c = namespace.length, path = tmp + "/ndk/project/app/src/main/java"; i < c; i++) {
 			path += "/" + namespace[i];
 			FS.mkdirSync(path);
 		}
-		var javaPath = "/project/src/" + namespace.join("/");
+		var javaPath = "/project/app/src/main/java/" + namespace.join("/");
 		var javaMapping = [
 			{ "key": "com.kinoma.kinomaplay", "value": environment.NAMESPACE },
 			{ "key": "Kinoma Play", "value": "Kinoma " + environment.NAME },
@@ -244,24 +278,32 @@ export default class Android {
 		this.copyJavaFile(tool, tmp, javaPath, "Play2Android.java", javaMapping);
 		this.copyJavaFile(tool, tmp, javaPath, "RemoteControlReceiver.java", javaMapping);
 
-		FS.mkdirSync(tmp + "/ndk/project/jni");
-		this.copyNdkFile(tool, tmp, "/project/jni/Android.mk", [{ "key": "#OBJECT_BASE#", "value": info.base }]);
-
 		var kinomaMapping = [
 			{ "key": "com_kinoma_kinomaplay", "value": info.base },
-			{ "key": "com/kinoma/kinomaplay", "value": info.path }
+			{ "key": "com/kinoma/kinomaplay", "value": info.path },
+			{ "key": "#F_HOME#", "value": tool.homePath },
+			{ "key": "#TMPDIR#", "value": tool.tmpPath }
 		];
-		FS.mkdirSync(tmp + "/ndk/project/jni/KinomaLibCommon");
-		this.copyKinomaFile(tool, tmp, "/KinomaLibCommon/KinomaFiles.c", kinomaMapping);
-		this.copyKinomaFile(tool, tmp, "/KinomaLibCommon/KinomaInterface.cpp", kinomaMapping);
-		this.copyKinomaFile(tool, tmp, "/KinomaLibCommon/KinomaInterfaceLib.h", kinomaMapping);
-		this.copyKinomaFile(tool, tmp, "/KinomaLibCommon/KinomaLib.c", kinomaMapping);
 		
-		FS.mkdirSync(tmp + "/ndk/project/jni/KinomaLibG");
-		this.copyKinomaFile(tool, tmp, "/KinomaLibG/gingerbreadStuff.cpp", kinomaMapping);
-		
-		FS.mkdirSync(tmp + "/ndk/project/jni/libFsk");
-		this.copyKinomaFile(tool, tmp, "/libFsk/mainHelper.c", kinomaMapping);
+		FS.mkdirSync(tmp + "/ndk/project/modules");
+		FS.mkdirSync(tmp + "/ndk/project/modules/Fsk");
+		FS.mkdirSync(tmp + "/ndk/project/modules/Fsk/src");
+		FS.mkdirSync(tmp + "/ndk/project/modules/Fsk/src/main");
+		FS.mkdirSync(tmp + "/ndk/project/modules/Fsk/src/main/jni");
 
+		this.copyNdkFile(tool, tmp, "/modules/Fsk/build.gradle", kinomaMapping);
+		this.copyNdkFile(tool, tmp, "/modules/Fsk/src/main/jni/mainHelper.c", kinomaMapping);
+
+		FS.mkdirSync(tmp + "/ndk/project/modules/KinomaLib");
+		FS.mkdirSync(tmp + "/ndk/project/modules/KinomaLib/src");
+		FS.mkdirSync(tmp + "/ndk/project/modules/KinomaLib/src/main");
+		FS.mkdirSync(tmp + "/ndk/project/modules/KinomaLib/src/main/jni");
+
+		this.copyNdkFile(tool, tmp, "/modules/KinomaLib/build.gradle", kinomaMapping);
+		this.copyNdkFile(tool, tmp, "/modules/KinomaLib/src/main/jni/KinomaFiles.c", kinomaMapping);
+		this.copyNdkFile(tool, tmp, "/modules/KinomaLib/src/main/jni/KinomaInterface.cpp", kinomaMapping);
+		this.copyNdkFile(tool, tmp, "/modules/KinomaLib/src/main/jni/KinomaInterfaceLib.h", kinomaMapping);
+		this.copyNdkFile(tool, tmp, "/modules/KinomaLib/src/main/jni/KinomaLib.c", kinomaMapping);
+		this.copyNdkFile(tool, tmp, "/modules/KinomaLib/src/main/jni/gingerbreadStuff.cpp", kinomaMapping);
 	}
 };

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -90,8 +90,13 @@ do{\
 
 #define GET_W_H( token_list, index, w, h ) \
 do{\
-    jsmntok_t *t_h = token_list + index + 2;\
-    jsmntok_t *t_w = token_list + index + 4;\
+    int end = index + 4; \
+    int find = index; \
+    JSON_FIND_STRING( token_list, end, "width", find );\
+    jsmntok_t *t_w = token_list + find + 1;\
+    find = index; \
+    JSON_FIND_STRING( token_list, end, "height", find );\
+    jsmntok_t *t_h = token_list + find + 1;\
     char h_string[8] ={0};\
     char w_string[8] ={0};\
     index+=5;\

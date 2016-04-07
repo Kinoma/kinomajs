@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -342,9 +342,9 @@ txFlag fxNumberToIndex(void* dtoa, txNumber theNumber, txIndex* theIndex);
 txFlag fxStringToIndex(void* dtoa, txString theString, txIndex* theIndex);
 
 /* ? */
-extern void fxVReport(void* console, txString theFormat, c_va_list theArguments);
-extern void fxVReportError(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments);
-extern void fxVReportWarning(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments);
+mxExport void fxVReport(void* console, txString theFormat, c_va_list theArguments);
+mxExport void fxVReportError(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments);
+mxExport void fxVReportWarning(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments);
 
 /* xs_dtoa.c */
 extern void* fxNew_dtoa();

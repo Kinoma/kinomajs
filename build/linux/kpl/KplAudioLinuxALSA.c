@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,7 +30,11 @@ if (status < 0) goto bail; }
 #define bailIfError(X) { (err = (X));\
 if (err != kFskErrNone) goto bail; }
 
+#if RASPBERRY_PI
+#define kAlsaDeviceName "plughw:0,0"
+#else
 #define kAlsaDeviceName "plug:dmix"
+#endif
 
 typedef struct KplAudioOutBlockStruct KplAudioOutBlockRecord, *KplAudioOutBlock;
 
@@ -540,8 +544,9 @@ static void KplAudioThread(void* refCon)
 		if ((frames = snd_pcm_writei(pcm, audio->data, audio->period)) < 0) {
 			snd_pcm_recover(pcm, frames, 0);
 		}
-		else
+		else {
 			audio->played += frames;
+		}
 	}
 
     /*

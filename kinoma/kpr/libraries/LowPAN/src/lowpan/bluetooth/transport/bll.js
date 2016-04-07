@@ -21,7 +21,7 @@
  * Bluetooth v4.2 - UART Transport Layer (BLL Wrapper)
  */
 
-var UART = require("uart");
+var UART = require("./uart");
 
 var _notification = null;
 var _repeat = null;

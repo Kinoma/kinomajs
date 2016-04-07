@@ -174,13 +174,19 @@ class Logger {
 		this._name = name;
 		this._loggingLevel = Level.INFO;
 		if (binding == null) {
-			binding = msg => trace(msg + "\n");
+			if (Logger._defaultBinding != null) {
+				binding = Logger._defaultBinding;
+			} else {
+				binding = msg => trace(msg + "\n");
+			}
 		}
 		this._onLogging = binding;
-		Logger._outputEnabled = true;
 	}
 	static setOutputEnabled(enabled) {
 		Logger._outputEnabled = enabled;
+	}
+	static setDefaultBinding(binding) {
+		Logger._defaultBinding = binding;
 	}
 	set loggingLevel(loggingLevel) {
 		this._loggingLevel = loggingLevel;
@@ -206,6 +212,8 @@ class Logger {
 		this.log(Level.ERROR, str);
 	}
 }
+Logger._outputEnabled = true;
+Logger._defaultBinding = null;
 Logger.Level = Level;
 exports.Logger = Logger;
 

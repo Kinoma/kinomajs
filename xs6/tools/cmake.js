@@ -206,7 +206,6 @@ export class Manifest extends MAKE.Manifest {
 		file.line("\tset(XS6 \"${F_HOME}/xs6\")");
 		file.line("endif()");
 
-
 		var split = tool.platform.split("/");
 		file.line("set(PLATFORM ", split[0], ")");
 		if (split[1])
@@ -216,6 +215,8 @@ export class Manifest extends MAKE.Manifest {
 
 		file.line("set(TMP_DIR \"", toCMakePath(tool, tmp), "\")");
 		file.line("set(RES_DIR \"${TMP_DIR}/res\")");
+
+		file.line("set(APP_VERSION " + this.tree.environment.VERSION + ")\n");
 
 		file.line("include(", tool.platform, " OPTIONAL)\n");
 

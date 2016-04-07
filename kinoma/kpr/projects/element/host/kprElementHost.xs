@@ -65,6 +65,9 @@ var PINS = {
 				super(it);
 				this.direction = it.direction;
 			}
+			getDirection() {
+				return this.direction;
+			}
 			read() {
 				return 1;
 			}

@@ -594,71 +594,71 @@ void fxModule(txParser* parser)
 	else if (parser->flags & mxCommonModuleFlag) {
 		fxPushSymbol(parser, parser->exportsSymbol);
 		fxPushNULL(parser);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, -1);
 		fxPushNodeList(parser, 0);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_OBJECT, aLine);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, aLine);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, aLine);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_OBJECT, -1);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, -1);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, -1);
 		
 		fxPushSymbol(parser, parser->moduleSymbol);
 		fxPushNULL(parser);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, -1);
 		fxPushSymbol(parser, parser->exportsSymbol);
 		fxPushSymbol(parser, parser->exportsSymbol);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_ACCESS, aLine);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_PROPERTY, aLine);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_ACCESS, -1);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_PROPERTY, -1);
 		
 		fxPushSymbol(parser, parser->idSymbol);
-		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, aLine);
+		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, -1);
 		fxPushSymbol(parser, parser->idSymbol);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, aLine);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_PROPERTY, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, -1);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_PROPERTY, -1);
 		
 		fxPushSymbol(parser, parser->uriSymbol);
-		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, aLine);
+		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, -1);
 		fxPushSymbol(parser, parser->uriSymbol);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, aLine);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_PROPERTY, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, -1);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_PROPERTY, -1);
 		
 		fxPushNodeList(parser, 3);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_OBJECT, aLine);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, aLine);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, aLine);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_OBJECT, -1);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, -1);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, -1);
 
 		fxPushSymbol(parser, parser->__dirnameSymbol);
 		fxPushNULL(parser);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, aLine);
-		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, -1);
+		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, -1);
 		fxPushSymbol(parser, parser->__dirnameSymbol);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, aLine);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, aLine);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, -1);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, -1);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, -1);
 
 		fxPushSymbol(parser, parser->__filenameSymbol);
 		fxPushNULL(parser);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, aLine);
-		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, -1);
+		fxPushNodeStruct(parser, 0, XS_TOKEN_THIS, -1);
 		fxPushSymbol(parser, parser->__filenameSymbol);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, aLine);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, aLine);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, -1);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, -1);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, -1);
 
 		fxPushSymbol(parser, parser->defaultSymbol);
 		fxPushNULL(parser);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_VAR, -1);
 		fxPushSymbol(parser, parser->moduleSymbol);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_ACCESS, aLine);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_ACCESS, -1);
 		fxPushSymbol(parser, parser->exportsSymbol);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, aLine);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, aLine);
-		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_MEMBER, -1);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_ASSIGN, -1);
+		fxPushNodeStruct(parser, 1, XS_TOKEN_STATEMENT, -1);
 
 		fxPushSymbol(parser, parser->defaultSymbol);
 		fxPushNULL(parser);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_SPECIFIER, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_SPECIFIER, -1);
 		fxPushNodeList(parser, 1);
 		fxPushNULL(parser);
-		fxPushNodeStruct(parser, 2, XS_TOKEN_EXPORT, aLine);
+		fxPushNodeStruct(parser, 2, XS_TOKEN_EXPORT, -1);
 
 		while ((parser->token != XS_TOKEN_EOF) && (parser->token != XS_TOKEN_RIGHT_BRACE))
 			fxStatement(parser, 1);

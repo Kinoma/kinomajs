@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -776,7 +776,8 @@ void KprPinsPollerRun(KprPinsPoller self)
 	}
 	xsEndHostSandboxCode();
 	if (message)
-		KprMessageInvoke(message, NULL, NULL, NULL);
+		FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprMessageInvoke, message, NULL, NULL, NULL);
+//		KprMessageInvoke(message, NULL, NULL, NULL);
 }
 
 void KprPinsPollerStep(FskTimeCallBack callback, const FskTime time, void *param)
@@ -875,7 +876,8 @@ void xs_notification_invoke(xsMachine *the)
 		KprMessageNew(&message, poller->url);
 		message->request.body = xsMarshall(xsArg(0));
 		message->request.size = 0xFFFFFFFF;
-		KprMessageInvoke(message, NULL, NULL, NULL);
+		FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprMessageInvoke, message, NULL, NULL, NULL);
+//		KprMessageInvoke(message, NULL, NULL, NULL);
 	}
 }
 

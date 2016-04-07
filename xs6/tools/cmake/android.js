@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -89,8 +89,6 @@ class Manifest extends CMAKE.Manifest {
 			OBJECTBASE: info.base,
 			VERSION: environment.VERSION,
 
-			ANT_CONFIGURATION: FS.existsSync(process.getenv("HOME") + "/.android.keystore.info") ? "release" : "debug",
-			
 			KPR_RESOURCE_PATH: tool.joinPath(parts),
 			KPR_MAKE_PATH: tool.makePath,
 			

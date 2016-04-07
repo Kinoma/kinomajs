@@ -9,8 +9,8 @@
 // except according to those terms.
 
 /** Require from io-utils */
-var Utils = require("/lowpan/common/utils");
-var Buffers = require("/lowpan/common/buffers");
+var Utils = require("../../common/utils");
+var Buffers = require("../../common/buffers");
 var BTUtils = require("../core/btutils");
 
 function Packet(dataType, data, byteOrder) {

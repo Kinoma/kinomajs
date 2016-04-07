@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,8 +36,8 @@ class Manifest extends CMAKE.Manifest {
 	}
 	generate(tool, tmp, bin) {
 		this.ios.findIdentity(tool);
-		this.ios.completeInfo(tool);
 		this.ios.addResources(tool);
+		this.ios.completeInfo(tool);
 		this.ios.info.CFBundleExecutable = this.tree.application;
 		super.generate(tool, tmp, bin);
 		FS.writeFileSync(tmp + "/Entitlements.plist", PLIST.stringify(this.ios.entitlements));

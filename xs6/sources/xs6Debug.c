@@ -147,12 +147,6 @@ void fxDebugCommand(txMachine* the)
 			fxEchoStart(the);
 			fxListBreakpoints(the);
 		}
-		else if (fxDebugLoopTest(&p, "set-breakpoint")) {
-			q = fxDebugLoopValue(&p, "path");
-			fxSetBreakpoint(the, q, fxDebugLoopValue(&p, "line"));
-			fxEchoStart(the);
-			fxListBreakpoints(the);
-		}
 		else if (fxDebugLoopTest(&p, "set-breakpoints")) {
 			fxClearAllBreakpoints(the);
 			r = p;
@@ -164,6 +158,12 @@ void fxDebugCommand(txMachine* the)
 				fxSetBreakpoint(the, q, fxDebugLoopValue(&r, "line"));
 				p = r;
 			}
+			fxEchoStart(the);
+			fxListBreakpoints(the);
+		}
+		else if (fxDebugLoopTest(&p, "set-breakpoint")) {
+			q = fxDebugLoopValue(&p, "path");
+			fxSetBreakpoint(the, q, fxDebugLoopValue(&p, "line"));
 			fxEchoStart(the);
 			fxListBreakpoints(the);
 		}
@@ -281,24 +281,28 @@ void fxDebugLoop(txMachine* the, txString path, txInteger line, txString message
 			fxAbort(the);
 			goto bail;
 		}
-		else if (fxDebugLoopTest(&p, "go")) {
-			fxAddReadableCallback(the);
+		else if (fxDebugLoopTest(&p, "go-logout")) {
+			fxLogout(the);
 			fxGo(the);
 			goto bail;
 		}
-		else if (fxDebugLoopTest(&p, "step")) {
-			fxStep(the);
-			goto bail;
-		}
-		else if (fxDebugLoopTest(&p, "step-inside")) {
-			fxStepInside(the);
+		else if (fxDebugLoopTest(&p, "go")) {
+			fxAddReadableCallback(the);
+			fxGo(the);
 			goto bail;
 		}
 		else if (fxDebugLoopTest(&p, "step-outside")) {
 			fxStepOutside(the);
 			goto bail;
 		}
-
+		else if (fxDebugLoopTest(&p, "step-inside")) {
+			fxStepInside(the);
+			goto bail;
+		}
+		else if (fxDebugLoopTest(&p, "step")) {
+			fxStep(the);
+			goto bail;
+		}
 		else if (fxDebugLoopTest(&p, "clear-all-breakpoints")) {
 			fxClearAllBreakpoints(the);
 			fxEchoStart(the);
@@ -350,11 +354,9 @@ txBoolean fxDebugLoopTest(txString* theBuffer, txString theName)
 {
 	txBoolean aResult = 0;
 	txInteger aLength = c_strlen(theName);
-	if (((*theBuffer)[aLength] == ' ') || ((*theBuffer)[aLength] == '/') || ((*theBuffer)[aLength] == '>')) {
-		if (c_strncmp(*theBuffer, theName, aLength) == 0) {
-			aResult = 1;
-			*theBuffer += aLength;
-		}
+	if (c_strncmp(*theBuffer, theName, aLength) == 0) {
+		aResult = 1;
+		*theBuffer += aLength;
 	}
 	return aResult;
 }
@@ -1864,11 +1866,9 @@ void fxVReport(void* console, txString theFormat, c_va_list theArguments)
 		fxSend(the);
 		fxReceive(the);
 	}
-	else {
 #endif
-		vfprintf(stdout, theFormat, theArguments);
-#ifdef mxDebug
-	}
+#ifndef mxNoConsole
+	vfprintf(stdout, theFormat, theArguments);
 #endif
 }
 
@@ -1897,20 +1897,18 @@ void fxVReportException(void* console, txString thePath, txInteger theLine, txSt
 		fxSend(the);
 		fxReceive(the);
 	}
-	else {
 #endif
-		if (thePath && theLine)
+#ifndef mxNoConsole
+	if (thePath && theLine)
 #if mxWindows
-			fprintf(stdout, "%s(%d): exception: ", thePath, (int)theLine);
+		fprintf(stdout, "%s(%d): exception: ", thePath, (int)theLine);
 #else
-			fprintf(stdout, "%s:%d: exception: ", thePath, (int)theLine);
+		fprintf(stdout, "%s:%d: exception: ", thePath, (int)theLine);
 #endif
-		else
-			fprintf(stdout, "# exception: ");
-		vfprintf(stdout, theFormat, theArguments);
-		fprintf(stdout, "!\n");
-#ifdef mxDebug
-	}
+	else
+		fprintf(stdout, "# exception: ");
+	vfprintf(stdout, theFormat, theArguments);
+	fprintf(stdout, "!\n");
 #endif
 }
 
@@ -1939,20 +1937,18 @@ void fxVReportError(void* console, txString thePath, txInteger theLine, txString
 		fxSend(the);
 		fxReceive(the);
 	}
-	else {
 #endif
-		if (thePath && theLine)
+#ifndef mxNoConsole
+	if (thePath && theLine)
 #if mxWindows
-			fprintf(stdout, "%s(%d): error: ", thePath, (int)theLine);
+		fprintf(stdout, "%s(%d): error: ", thePath, (int)theLine);
 #else
-			fprintf(stdout, "%s:%d: error: ", thePath, (int)theLine);
+		fprintf(stdout, "%s:%d: error: ", thePath, (int)theLine);
 #endif
-		else
-			fprintf(stdout, "# error: ");
-		vfprintf(stdout, theFormat, theArguments);
-		fprintf(stdout, "!\n");
-#ifdef mxDebug
-	}
+	else
+		fprintf(stdout, "# error: ");
+	vfprintf(stdout, theFormat, theArguments);
+	fprintf(stdout, "!\n");
 #endif
 }
 
@@ -1981,19 +1977,17 @@ void fxVReportWarning(void* console, txString thePath, txInteger theLine, txStri
 		fxSend(the);
 		fxReceive(the);
 	}
-	else {
 #endif
-		if (thePath && theLine)
+#ifndef mxNoConsole
+	if (thePath && theLine)
 #if mxWindows
-			fprintf(stdout, "%s(%d): warning: ", thePath, (int)theLine);
+		fprintf(stdout, "%s(%d): warning: ", thePath, (int)theLine);
 #else
-			fprintf(stdout, "%s:%d: warning: ", thePath, (int)theLine);
+		fprintf(stdout, "%s:%d: warning: ", thePath, (int)theLine);
 #endif
-		else
-			fprintf(stdout, "# warning: ");
-		vfprintf(stdout, theFormat, theArguments);
-		fprintf(stdout, "!\n");
-#ifdef mxDebug
-	}
+	else
+		fprintf(stdout, "# warning: ");
+	vfprintf(stdout, theFormat, theArguments);
+	fprintf(stdout, "!\n");
 #endif
 }

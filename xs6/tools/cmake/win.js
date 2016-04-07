@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -51,6 +51,8 @@ class Manifest extends CMAKE.Manifest {
 			let comntools = process.getenv(`VS${version}COMNTOOLS`);
 			if (comntools) {
 				vs = VisualStudioVariants[key];
+				if (key < 12)
+					throw new Error(vs + " is not supported. Please upgrade Visual Studio");
 			}
 		}
 
@@ -62,15 +64,29 @@ class Manifest extends CMAKE.Manifest {
 		} else {
 			let envPath = process.getenv("PATH");
 			let nmake = false;
+			let supported = false;
 			for (let dir of envPath.split(";")) {
 				let path = tool.joinPath({ directory: dir, name: "nmake.exe"});
 				let nmakeFound = FS.existsSync(path);
 				if (nmakeFound) {
 					nmake = true;
+					let version = path.match(/Visual Studio ([0-9]*)/);
+					if (version) {
+						let key = version[1];
+						if (key > 12)
+							supported = true;
+						else
+							throw new Error(vs + " is not supported. Please upgrade Visual Studio");
+					}
 				}
 			}
-			if (nmake)
+			if (nmake) {
+				if (!supported) {
+					tool.report("# WARNING: NMake was found but cannot determine Visual Studio Version.");
+					tool.report("# WARNING: This product may not build properly!");
+				}
 				return "NMake Makefiles";
+			}
 			else
 				throw new Error("Unable to find Visual Studio or NMake");
 		}

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,6 +68,7 @@ void fs_copyFileSync(xsMachine* the)
 		fclose(fromFile);
 	}
 	xsCatch {
+fprintf(stderr, "fail copy %s to %s\n", fromPath, toPath);
 		if (toFile)
 			fclose(toFile);
 		if (fromFile)
@@ -236,7 +237,7 @@ void fs_readDirSync(xsMachine* the)
 		struct dirent *ent;
 		while ((ent = readdir(dir))) {
 			struct stat a_stat;
-			if (ent->d_name[0] == '.')
+			if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
 				continue;
 			strcpy(path + length, ent->d_name);
 			if (!stat(path, &a_stat)) {

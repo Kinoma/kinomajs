@@ -155,8 +155,8 @@ FskAPI(FskErr)	FskGrowableStorageGetConstPointerToItem(FskConstGrowableStorage s
  *	\param[in]		offset			The offset of the data to be created in the growable storage object.
  *	\param[in]		itemSize		The desired number of bytes in the item to be created.
  *	\param[out]		ptr				The desired pointer.
- *	\return			kFskErrNone		if the operation was successful.
- *	\return			kFskErrBadData	if no item could be created at the specified location, because it would create a gap.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrOutOfRange	if no item could be created at the specified location, because it would create a gap.
  **/
 FskAPI(FskErr)	FskGrowableStorageGetPointerToNewItem(FskGrowableStorage storage, UInt32 offset, UInt32 itemSize, void **ptr);
 
@@ -223,6 +223,29 @@ FskAPI(FskErr)	FskGrowableStorageInsertItemAtPosition(FskGrowableStorage storage
  *	\return			kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableStorageReplaceItem(FskGrowableStorage storage, const void *item, UInt32 offset, UInt32 oldSize, UInt32 newSize);
+
+
+/**	Rotate a portion of a growable storage.
+ *	Examples:
+ *		FskGrowableStorageRotateItem(a, 10, 5,  0):	{10,11,12,13,14} --> {10,11,12,13,14}
+ *		FskGrowableStorageRotateItem(a, 10, 5, +1):	{10,11,12,13,14} --> {14,10,11,12,13}
+ *		FskGrowableStorageRotateItem(a, 10, 5, +2):	{10,11,12,13,14} --> {13,14,10,11,12}
+ *		FskGrowableStorageRotateItem(a, 10, 5, +3):	{10,11,12,13,14} --> {12,13,14,10,11}
+ *		FskGrowableStorageRotateItem(a, 10, 5, +4):	{10,11,12,13,14} --> {11,12,13,14,10}
+ *		FskGrowableStorageRotateItem(a, 10, 5, +5):	{10,11,12,13,14} --> {10,11,12,13,14}
+ *		FskGrowableStorageRotateItem(a, 10, 5, -1):	{10,11,12,13,14} --> {11,12,13,14,10}
+ *		FskGrowableStorageRotateItem(a, 10, 5, -2):	{10,11,12,13,14} --> {12,13,14,10,11}
+ *		FskGrowableStorageRotateItem(a, 10, 5, -3):	{10,11,12,13,14} --> {13,14,10,11,12}
+ *		FskGrowableStorageRotateItem(a, 10, 5, -4):	{10,11,12,13,14} --> {14,10,11,12,13}
+ *		FskGrowableStorageRotateItem(a, 10, 5, -5):	{10,11,12,13,14} --> {10,11,12,13,14}
+ *	\param[in,out]	array		the storage to be modified.
+ *	\param[in]		index		the index of the item of the storage to be rotated.
+ *	\param[in]		size		the number of bytes in the item to be rotated.
+ *	\param[in]		amount		the numer of bytes to shift the bytes within the item.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrItemNotFound	if no complete item exists at the specified index.
+ **/
+FskAPI(FskErr)	FskGrowableStorageRotateItem(FskGrowableStorage storage, UInt32 index, UInt32 size, SInt32 amount);
 
 
 /** Printf a string and append it to the growable storage.
@@ -398,7 +421,8 @@ FskAPI(void)	FskGrowableArrayRemoveItem(FskGrowableArray array, UInt32 index);
 /**	Append an item to the end of the array.
  *	\param[in,out]	array	the array to be modified.
  *	\param[in]		item	the item to be appended.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrNotDirectory	if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableArrayAppendItem(FskGrowableArray array, const void *item);
 
@@ -407,7 +431,8 @@ FskAPI(FskErr)	FskGrowableArrayAppendItem(FskGrowableArray array, const void *it
  *	\param[in,out]	array		the array to be modified.
  *	\param[in]		items		the items to be appended.
  *	\param[in]		numItems	the number of items to be appended.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrNotDirectory	if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableArrayAppendItems(FskGrowableArray array, const void *items, UInt32 numItems);
 
@@ -446,6 +471,37 @@ FskAPI(FskErr)	FskGrowableArrayReplaceItem(FskGrowableArray array, const void *i
  *	\return			kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableArraySwapItems(FskGrowableArray array, UInt32 index0, UInt32 index1);
+
+
+/**	Rotate a portion of a growable array.
+ *	Examples:
+ *		FskGrowableArrayRotateItems(a, 10, 5,  0):	{10,11,12,13,14} --> {10,11,12,13,14}
+ *		FskGrowableArrayRotateItems(a, 10, 5, +1):	{10,11,12,13,14} --> {14,10,11,12,13}
+ *		FskGrowableArrayRotateItems(a, 10, 5, +2):	{10,11,12,13,14} --> {13,14,10,11,12}
+ *		FskGrowableArrayRotateItems(a, 10, 5, +3):	{10,11,12,13,14} --> {12,13,14,10,11}
+ *		FskGrowableArrayRotateItems(a, 10, 5, +4):	{10,11,12,13,14} --> {11,12,13,14,10}
+ *		FskGrowableArrayRotateItems(a, 10, 5, +5):	{10,11,12,13,14} --> {10,11,12,13,14}
+ *		FskGrowableArrayRotateItems(a, 10, 5, -1):	{10,11,12,13,14} --> {11,12,13,14,10}
+ *		FskGrowableArrayRotateItems(a, 10, 5, -2):	{10,11,12,13,14} --> {12,13,14,10,11}
+ *		FskGrowableArrayRotateItems(a, 10, 5, -3):	{10,11,12,13,14} --> {13,14,10,11,12}
+ *		FskGrowableArrayRotateItems(a, 10, 5, -4):	{10,11,12,13,14} --> {14,10,11,12,13}
+ *		FskGrowableArrayRotateItems(a, 10, 5, -5):	{10,11,12,13,14} --> {10,11,12,13,14}
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		index		the index of the first item of the array to be rotated.
+ *	\param[in]		size		the number of items to be rotated.
+ *	\param[in]		amount		the numer of places to shift the items.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableArrayRotateItems(FskGrowableArray array, UInt32 index, UInt32 size, SInt32 amount);
+
+
+/**	Reverse a portion of a growable array.
+ *	\param[in,out]	array		the array to be modified.
+ *	\param[in]		index		the index of the first item of the array to be reversed.
+ *	\param[in]		size		the number of items to be reversed.
+ *	\return			kFskErrNone	if the operation was successful.
+ **/
+FskAPI(FskErr)	FskGrowableArrayReverseItems(FskGrowableArray array, UInt32 index, UInt32 size);
 
 
 				/* Sort and search */
@@ -595,7 +651,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayNew(UInt32 blobSize, UInt32 maxBlobs, UInt32 
  *							if false, use the string itself as data storage,so it will be disposed when the blob array is disposed.
  *	\param[in]	dirDataSize	the amount of storage to be used in the directory for each record.
  *	\param[out]	pArray		a place to store the new growable blob array.
- *	\return		kFskErrNone	if the operation was successful.
+ *	\return		kFskErrNone		if the operation was successful.
+ *	\return		kFskErrEmpty	is no string was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayNewFromString(char *str, UInt32 strSize, char delim, Boolean makeCopy, UInt32 dirDataSize, FskGrowableBlobArray *pArray);
 
@@ -606,7 +663,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayNewFromString(char *str, UInt32 strSize, char
  *							if false, use the string itself as data storage, so it will be disposed when the blob array is disposed.
  *	\param[in]	dirDataSize	the amount of storage to be used in the directory for each record.
  *	\param[out]	pArray		a place to store the new growable blob array.
- *	\return		kFskErrNone	if the operation was successful.
+ *	\return		kFskErrNone		if the operation was successful.
+ *	\return		kFskErrEmpty	is no string was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayNewFromStringList(char *str, Boolean makeCopy, UInt32 dirDataSize, FskGrowableBlobArray *pArray);
 
@@ -615,6 +673,35 @@ FskAPI(FskErr)	FskGrowableBlobArrayNewFromStringList(char *str, Boolean makeCopy
  *	\param[in]	array	the array to be disposed.
  **/
 FskAPI(void)	FskGrowableBlobArrayDispose(FskGrowableBlobArray array);
+
+
+/** Serialize a growable blob array.
+ *	\param[in]	array		the array to be serialized.
+ *	\param[out]	data		a place to store a pointer to the serialized data.
+ *	\param[out]	dataSize	a place to store the size of the serialized data.
+ *	\return		kFskErrNone	if the operation was completed successfully.
+ *	\bug	Only the standard compare functions are preserved upon serialization:
+ *			lexicographic and compare-by-size-then-lexicographic (the default).
+ *			All other comparison functions are converted to the default.
+ *	\bug	This is not endian-agnostic: both sender and receiver must be the same endian.
+ *	\bug	Invisible data resultant from padding prevents the serialized data from being unique;
+ *			however, the blob array reconstituted using FskGrowableBlobArrayDeserialize() is
+ *			indistinguishable from the original through the API, with the exception of the other bugs.
+ */
+FskAPI(FskErr)	FskGrowableBlobArraySerialize(FskConstGrowableBlobArray array, void **data, UInt32 *dataSize);
+
+
+/** Deserialize a growable blob array.
+ *	\param[in]	data		the data to be deserialized.
+ *	\param[in]	dataSize	the size of the serialized data. Currently unused.
+ *	\param[out]	pArray		a place to store the deserialized array.
+ *	\return		kFskErrNone	if the operation was completed successfully.
+ *	\bug	This is not endian-agnostic: both sender and receiver must be the same endian.
+ *	\todo	At least convert the endian of the blob structural data. The first 4 bytes of the data provide a clue
+ *			of the source endian. Also provide an indicator that the directory and blob data must be converted
+ *			by the client.
+ */
+FskAPI(FskErr)	FskGrowableBlobArrayDeserialize(const void *data, UInt32 dataSize, FskGrowableBlobArray *pArray);
 
 
 				/* Size and count */
@@ -632,7 +719,8 @@ FskAPI(UInt32)	FskGrowableBlobArrayGetItemCount(FskConstGrowableBlobArray array)
  * If increased, the new items have undefined entries in their directory and no blob storage.
  *	\param[in,out]	array		the array to be modified.
  *	\param[in]		numItems	the desired number of items in the array.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrNotDirectory	if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArraySetItemCount(FskGrowableBlobArray array, UInt32 numItems);
 
@@ -641,6 +729,7 @@ FskAPI(FskErr)	FskGrowableBlobArraySetItemCount(FskGrowableBlobArray array, UInt
  *	\param[in,out]	array	the array to be queried.
  *	\param[in]		index	the index of the item in the arrray to be queried.
  *	\return			the size of the blob storage for the selected item in the growable blob array.
+ *					0 is returned if no array was provided or the index is out-of-range.
  **/
 FskAPI(UInt32)	FskGrowableBlobArrayGetSizeOfItem(FskConstGrowableBlobArray array, UInt32 index);
 
@@ -649,7 +738,8 @@ FskAPI(UInt32)	FskGrowableBlobArrayGetSizeOfItem(FskConstGrowableBlobArray array
  *	\param[in,out]	array	the array to be modified.
  *	\param[in]		index	the index of the item in the array whose blob storage is to be modified.
  *	\param[in]		size	the desired size of the blob storage for the specified item in the array.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrItemNotFound	if the index was out-of-bounds or no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArraySetSizeOfItem(FskGrowableBlobArray array, UInt32 index, UInt32 size);
 
@@ -681,7 +771,8 @@ FskAPI(FskErr)	FskGrowableBlobArraySetDirectoryDataSize(FskGrowableBlobArray arr
  *	\param[in]	array		the array to be queried.
  *	\param[in]	index		the index of the item to be queried.
  *	\param[out]	id			location to store the ID of the selected item.
- *	\return		kFskErrNone	if the operation was successful.
+ *	\return		kFskErrNone			if the operation was successful.
+  *	\return		kFskErrItemNotFound	if the index was out-of-range or no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayGetIDOfItem(FskConstGrowableBlobArray array, UInt32 index, UInt32 *id);
 
@@ -692,7 +783,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayGetIDOfItem(FskConstGrowableBlobArray array, 
  *	\param[in]	index		the index of the item to be modified.
  *	\param[out]	id			the id to store with the selected item.
  *							it is up to the caller to assure that the id is unique in the array.
- *	\return		kFskErrNone	if the operation was successful.
+ *	\return		kFskErrNone			if the operation was successful.
+  *	\return		kFskErrItemNotFound	if the index was out-of-range or no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArraySetIDOfItem(FskGrowableBlobArray array, UInt32 index, UInt32 id);
 
@@ -702,7 +794,8 @@ FskAPI(FskErr)	FskGrowableBlobArraySetIDOfItem(FskGrowableBlobArray array, UInt3
  *	\param[in]	array		the array to be queried.
  *	\param[in]	id			the ID of the item to be queried.
  *	\param[out]	index		location to store the index of the selected item.
- *	\return		kFskErrNone	if the operation was successful.
+ *	\return		kFskErrNone			if the operation was successful.
+  *	\return		kFskErrItemNotFound	if no item with the specified ID has been found.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayGetIndexFromIDOfItem(FskConstGrowableBlobArray array, UInt32 id, UInt32 *index);
 
@@ -719,7 +812,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayGetIndexFromIDOfItem(FskConstGrowableBlobArra
  *								On output, the assigned ID.
  *	\param[out]		ptr			a location to store a pointer to the  blob storage   for the item.
  *	\param[out]		dirData		a location to store a pointer to the directory entry for the item.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrNotDirectory	if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayGetPointerToNewItem(FskGrowableBlobArray array, UInt32 index, UInt32 itemSize, UInt32 *id, void **ptr, void **dirData);
 
@@ -732,7 +826,9 @@ FskAPI(FskErr)	FskGrowableBlobArrayGetPointerToNewItem(FskGrowableBlobArray arra
  *								On output, the assigned ID.
  *	\param[out]		ptr			a location to store a pointer to the  blob storage   for the item.
  *	\param[out]		dirData		a location to store a pointer to the directory entry for the item.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrNotDirectory	if no array was provided.
+
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayGetPointerToNewEndItem(FskGrowableBlobArray array, UInt32 itemSize, UInt32 *id, void **ptr, void **dirData);
 
@@ -746,7 +842,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayGetPointerToNewEndItem(FskGrowableBlobArray a
  *	\param[out]		ptr			a location to store a pointer to the  blob storage   for the item.
  *	\param[out]		size		a location to store the size  of the  blob storage   for the item.
  *	\param[out]		dirData		a location to store a pointer to the directory entry for the item.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrItemNotFound	if the item was not found, or no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayGetPointerToItem(FskGrowableBlobArray array, UInt32 index, void **ptr, UInt32 *size, void **dirData);
 
@@ -757,7 +854,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayGetPointerToItem(FskGrowableBlobArray array, 
  *	\param[out]		ptr			a location to store a pointer to the  blob storage   for the item.
  *	\param[out]		size		a location to store the size  of the  blob storage   for the item.
  *	\param[out]		dirData		a location to store a pointer to the directory entry for the item.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrItemNotFound	if the item was not found, or no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayGetConstPointerToItem(FskConstGrowableBlobArray array, UInt32 index, const void **ptr, UInt32 *size, const void **dirData);
 
@@ -771,7 +869,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayGetConstPointerToItem(FskConstGrowableBlobArr
  *	\param[out]		ptr			a location to store a pointer to the  blob storage   for the item.
  *	\param[out]		size		a location to store the size  of the  blob storage   for the item.
  *	\param[out]		dirData		a location to store a pointer to the directory entry for the item.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrItemNotFound	if no item with the specified ID was found, or if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayGetPointerFromItemID(FskGrowableBlobArray array, UInt32 id, void **ptr, UInt32 *size, void **dirData);
 
@@ -783,6 +882,7 @@ FskAPI(FskErr)	FskGrowableBlobArrayGetPointerFromItemID(FskGrowableBlobArray arr
  *	\param[out]		size		a location to store the size  of the  blob storage   for the item.
  *	\param[out]		dirData		a location to store a pointer to the directory entry for the item.
  *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrItemNotFound	if no item with the specified ID was found, or if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayGetConstPointerFromItemID(FskConstGrowableBlobArray array, UInt32 id, const void **ptr, UInt32 *size, const void **dirData);
 
@@ -842,7 +942,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayReplaceItem(FskGrowableBlobArray array, UInt3
  *	\param[in,out]	array		the array to be modified.
  *	\param[in]		index0		the index of one item.
  *	\param[in]		index1		the index of the other item.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrItemNotFound	if one of the indices was out-of-range, or if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArraySwapItems(FskGrowableBlobArray array, UInt32 index0, UInt32 index1);
 
@@ -854,7 +955,9 @@ FskAPI(FskErr)	FskGrowableBlobArraySwapItems(FskGrowableBlobArray array, UInt32 
  *	\param[in]		delBytes		the number of bytes to be deleted at the specified offset.
  *	\param[in]		repl			the replBytes bytes of data to replace the delBytes bytes removed at offset.
  *	\param[in]		replBytes		the number of bytes to replace the delBytes deleted at offset.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrItemNotFound	if the index was out-of-bounds or no array was provided.
+  *	\return			kFskErrTooMany		if there are less than delBytes in the existing item.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayEditItem(FskGrowableBlobArray array, UInt32 index, UInt32 offset, UInt32 delBytes, const void *repl, UInt32 replBytes);
 
@@ -864,7 +967,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayEditItem(FskGrowableBlobArray array, UInt32 i
 
 /** Sort the array by ID, for faster ID search.
  *	\param[in,out]	array			the array to be sorted.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone			if the operation was successful.
+ *	\return			kFskErrNotDirectory	if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArraySortItemsByID(FskGrowableBlobArray array);
 
@@ -873,7 +977,7 @@ FskAPI(FskErr)	FskGrowableBlobArraySortItemsByID(FskGrowableBlobArray array);
  *	\param[in,out]	array			the array to be sorted.
  *	\param[in]		comp			the comparison function to be used for sorting.
  *									If NULL is supplied, the default sort is used: by size then lexicographically.
- *									If 1 is supplied, a lexicographic sot is used.
+ *									If 1 is supplied, a lexicographic sort is used.
  *	\return			kFskErrNone	if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableBlobArraySetCompareFunction(FskGrowableBlobArray array, FskGrowableBlobCompare comp);
@@ -941,6 +1045,7 @@ FskAPI(FskErr)	FskGrowableBlobArrayQueryRefine(FskConstGrowableBlobArray array, 
  *	\return		kFskErrNone			if the query returned at least one match.
  *	\return		kFskErrItemNotFound	if no items were returned by the query.
  *	\return		kFskErrBadState		if the previous query has been corrupted.
+ *	\return		kFskErrEmpty		if the query stack is empty.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayQueryUnrefine(FskBlobQueryResult *pResult);
 
@@ -958,6 +1063,7 @@ FskAPI(UInt32)	FskGrowableBlobArrayQueryCount(FskBlobQueryResult result);
  *	\param[out]		blobIndex		a place to store the index of the specified query match.
  *	\return			kFskErrNone			if the specified query result was retrieved successfully.
  *	\return			kFskErrOutOfRange	if the specified index is greater than the number of matches in the query result.
+ *	\return			kFskErrBadState		if the query has been corrupted.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayQueryGet(FskBlobQueryResult result, UInt32 queryIndex, UInt32 *blobIndex);
 
@@ -966,7 +1072,8 @@ FskAPI(FskErr)	FskGrowableBlobArrayQueryGet(FskBlobQueryResult result, UInt32 qu
 
 /** Minimize and arrange storage.
  *	\param[in]	array		the array to be compacted.
- *	\return		kFskErrNone	if the operation was successful.
+ *	\return		kFskErrNone			if the operation was successful.
+ *	\return		kFskErrNotDirectory	if no array was provided.
  **/
 FskAPI(FskErr)	FskGrowableBlobArrayCompact(FskConstGrowableBlobArray array);
 
@@ -1393,7 +1500,7 @@ FskAPI(FskErr)	FskGrowableCStringArrayReplaceItem(FskGrowableBlobArray array, UI
  *	\param[in,out]	array		the array to be modified.
  *	\param[in]		index0		the index of one item.
  *	\param[in]		index1		the index of the other item.
- *	\return			kFskErrNone	if the operation was successful.
+ *	\return			kFskErrNone		if the operation was successful.
  **/
 FskAPI(FskErr)	FskGrowableCStringArraySwapItems(FskGrowableBlobArray array, UInt32 index0, UInt32 index1);
 #define	FskGrowableCStringArraySwapItems(array, index0, index1)	FskGrowableBlobArraySwapItems(array, index0, index1)

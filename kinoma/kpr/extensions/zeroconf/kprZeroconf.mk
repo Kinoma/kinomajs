@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2010-2016 Marvell International Ltd.
 |     Copyright (C) 2002-2010 Kinoma, Inc.
 |
 |     Licensed under the Apache License, Version 2.0 (the "License");
@@ -70,7 +70,7 @@ C_OPTIONS += \
 <platform name="mac">
 	<source name="kprZeroconfApple.c"/>
 </platform>
-<platform name="linux/bg3cdp,linux/gtk,linux/headless">
+<platform name="linux/bg3cdp,linux/gtk,linux/headless,linux/pi_gl,linux/pi,linux/beaglebone,linux/edison">
 	<cmake name="mDNSResponder" build="$(F_HOME)/libraries/mDNSResponder/CMakeLists.txt" />
 	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
 	<!--library name="-ldns_sd"/-->

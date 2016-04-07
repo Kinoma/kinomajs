@@ -23,10 +23,10 @@
 
 var Pins = require("pins");
 
-var GAP = require("core/gap");
+var GAP = require("./core/gap");
 exports.GAP = GAP;
 
-var ProxyTransport = require("transport/proxy");
+var ProxyTransport = require("./transport/proxy");
 
 exports.BLL = {
 	require: "/lowpan/bluetooth/transport/bll",

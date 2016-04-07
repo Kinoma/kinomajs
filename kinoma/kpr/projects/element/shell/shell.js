@@ -205,10 +205,10 @@ var MessageList = Container.template($ =>  ({
 		}
 		addInput(container, path, object) {
 			var text = new Text({ right:20, skin:messageInSkin });
-			text.format([
-				{ style:messagePathStyle, string: path },
-				{ string: JSON.stringify(object, null, 2) },
-			]);
+			var format = [{ style:messagePathStyle, string: path }];
+			if (object)
+				format.push({ string: JSON.stringify(object, null, 2) });
+			text.format(format);
 			this.add(container, text);
 		}
 		onCreate(container) {

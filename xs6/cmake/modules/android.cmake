@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -103,26 +103,22 @@ set(CMAKE_ASM_COMPILE_OBJECT		"${CMAKE_C_COMPILER} -c -x assembler-with-cpp -c -
 set(AS_NEON_OPTIONS			"-mfpu=neon")
 set(AS_WMMX_OPTIONS			"-mwmmxt")
 
-set(NDK_PLAY_PATH			"${F_HOME}/build/android/inNDK")
-
 set(NDK_PROJECT_PATH			"${TMP_DIR}/ndk/project")
-set(NDK_PROJECT_BIN			"${NDK_PROJECT_PATH}/bin")
-set(NDK_PROJECT_GEN			"${NDK_PROJECT_PATH}/gen")
-set(NDK_PROJECT_LIBRARIES		"${NDK_PROJECT_PATH}/libs/armeabi")
-set(NDK_PROJECT_OBJECTS			"${NDK_PROJECT_PATH}/obj/local/armeabi")
+set(NDK_PROJECT_LIBRARIES		"${NDK_PROJECT_PATH}/app/src/main/jniLibs/armeabi")
 
-set(SEPARATE_LIBRARIES			"${TOOLCHAIN_ROOT}lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}/libgcc.a -L${ANDROID_NDK})/${NDK_PLATFORM} -lc -lstdc++ -lm ${NDK_PROJECT_PATH}/libs/armeabi/libFsk.so -ldl -llog")
+set(SEPARATE_LIBRARIES			"${TOOLCHAIN_ROOT}lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}/libgcc.a -L${ANDROID_NDK})/${NDK_PLATFORM} -lc -lstdc++ -lm ${NDK_PROJECT_PATH}/modules/Fsk/build/outputs/native/debug/arm/lib/armeabi/libFsk.so -ldl -llog")
 set(SEPARATE_DIR			"${NDK_PROJECT_LIBRARIES}")
 
 set(FREETYPE_VERSION			"2.6")
 set(FREETYPE_DIR			"${TMP_DIR}/freetype-${FREETYPE_VERSION}")
 set(FREETYPE_PLATFORM_C_OPTIONS		"--sysroot=${SYSROOT}")
 
-set(SEPARATE_LINK_OPTIONS "-nostdlib -Wl,-shared,-Bsymbolic -Wl,--whole-archive -Wl,--fix-cortex-a8 -Wl,-rpath-link=${NDK_PLATFORM}")
+set(TOOLCHAIN_LIB_PATH			"${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}")
+set(SEPARATE_LINK_OPTIONS		"-nostdlib -Wl,-shared,-Bsymbolic -Wl,--whole-archive -Wl,--fix-cortex-a8 -Wl,-rpath-link=${NDK_PLATFORM}")
 if(NOT RELEASE)
 	set(SEPARATE_LINK_OPTIONS "${SEPARATE_LINK_OPTIONS} -g")
 endif()
-set(SEPARATE_LIBRARIES "${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}/libgcc.a -L${SYSROOT}/usr/lib -lc -lstdc++ -lm -ldl -llog -landroid")
+set(SEPARATE_LIBRARIES			"${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}/libgcc.a -L${SYSROOT}/usr/lib -L${TMP_DIR} -lc -lstdc++ -lm -ldl -llog -landroid")
 
 
 set(CMAKE_C_CREATE_SHARED_LIBRARY	"<CMAKE_C_COMPILER> -Wl,-soname,<TARGET_SONAME> <OBJECTS> ${SEPARATE_LINK_OPTIONS} <LINK_LIBRARIES> ${SEPARATE_LIBRARIES} -o <TARGET>")
@@ -144,47 +140,31 @@ macro(BUILD)
 	add_library(fsk ${SOURCES} ${OBJECTS} ${TARGET_OBJECTS})
 	add_dependencies(fsk FreeType)
 
-	add_custom_command(
-		OUTPUT ${NDK_PROJECT_OBJECTS}/libfsk.a
-		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:fsk> ${NDK_PROJECT_OBJECTS}/libfsk.a
-		DEPENDS fsk
-		)
-	add_custom_target(copy DEPENDS ${NDK_PROJECT_OBJECTS}/libfsk.a)
-
-	add_custom_command(
-		OUTPUT ${NDK_PROJECT_LIBRARIES}/libFsk.so
-		COMMAND KPR_TMP_DIR="${TMP_DIR}" NDK_PROJECT_PATH="${NDK_PROJECT_PATH}" ndk-build clean
-		COMMAND SUPPORT_XS_DEBUG=${LOCAL_XSDEBUG} KPR_TMP_DIR=${TMP_DIR} NDK_PROJECT_PATH=${NDK_PROJECT_PATH} NDK_TOOLCHAIN_VERSION=${NDK_TOOLCHAIN_VERSION} ndk-build ${NDB_OPTIONS} V=1
-		DEPENDS copy ${NDK_PROJECT_OBJECTS}/libfsk.a
-		WORKING_DIRECTORY ${NDK_PROJECT_PATH}
-		)
-	add_custom_target(ndk DEPENDS ${NDK_PROJECT_LIBRARIES}/libFsk.so)
-
 	add_custom_target(
 		jet
-		COMMAND ${CMAKE_COMMAND} -E make_directory ${NDK_PROJECT_PATH}/res/raw
-		COMMAND ${CMAKE_COMMAND} -E remove ${NDK_PROJECT_PATH}/res/raw/kinoma.jet
-		COMMAND zip -8qrn .jpg:.png:.m4a ${NDK_PROJECT_PATH}/res/raw/kinoma.jet "*"
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${NDK_PROJECT_PATH}/app/src/main/res/raw
+		COMMAND ${CMAKE_COMMAND} -E remove ${NDK_PROJECT_PATH}/app/src/main/res/raw/kinoma.jet
+		COMMAND zip -8qrn .jpg:.png:.m4a ${NDK_PROJECT_PATH}/app/src/main/res/raw/kinoma.jet "*"
 		DEPENDS FskManifest.xsa
 		WORKING_DIRECTORY ${APP_DIR}
 		)
 
-	add_custom_command(
-		OUTPUT ${NDK_PROJECT_BIN}/${LOCAL_NAME}-${ANT_CONFIGURATION}.apk
-		COMMAND android update project -p .
-		COMMAND ant -Dsdk.dir=${ANDROID_SDK} ${ANT_CONFIGURATION}
-		DEPENDS ndk jet ${SEPARATE}
+	add_custom_target(ndk ALL
+		COMMENT "Building NDK Parts"
+		COMMAND sh gradlew -q assembleArm$<CONFIG>
+		COMMAND ${CMAKE_COMMAND} -E copy ${NDK_PROJECT_PATH}/modules/Fsk/build/outputs/native/$<LOWER_CASE:$<CONFIG>>/arm/lib/armeabi/libFsk.so ${TMP_DIR}
 		WORKING_DIRECTORY ${NDK_PROJECT_PATH}
+		DEPENDS fsk jet
 		)
-	add_custom_target(ant DEPENDS ${NDK_PROJECT_BIN}/${LOCAL_NAME}-${ANT_CONFIGURATION}.apk)
 
-	add_custom_command(
-		OUTPUT ${BIN_DIR}/${APK_NAME}
-		COMMAND ${CMAKE_COMMAND} -E copy ${NDK_PROJECT_BIN}/${LOCAL_NAME}-${ANT_CONFIGURATION}.apk ${BIN_DIR}/${APK_NAME}
-		DEPENDS ndk jet ant ${SEPARATE}
+	add_custom_target(apk ALL
+		COMMENT "Creating the APK"
+		COMMAND sh gradlew -q assemble$<CONFIG>
+		COMMAND ${CMAKE_COMMAND} -E echo copy ${NDK_PROJECT_PATH}/app/build/outputs/apk/app-$<LOWER_CASE:$<CONFIG>>.apk ${BIN_DIR}/${APK_NAME}
+		COMMAND ${CMAKE_COMMAND} -E copy ${NDK_PROJECT_PATH}/app/build/outputs/apk/app-$<LOWER_CASE:$<CONFIG>>.apk ${BIN_DIR}/${APK_NAME}
 		WORKING_DIRECTORY ${NDK_PROJECT_PATH}
+		DEPENDS ndk ${SHARED}
 		)
-	add_custom_target(apk ALL DEPENDS ${BIN_DIR}/${APK_NAME})
 
 	add_custom_target(message ALL
 		COMMAND ${CMAKE_COMMAND} -E echo  "--------------------------------------------------------------------------------"

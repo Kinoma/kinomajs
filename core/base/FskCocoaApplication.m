@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,6 +16,7 @@
  */
 #define __FSKWINDOW_PRIV__
 #import "FskCocoaApplication.h"
+#import "FskCocoaSupport.h"
 #import "FskCocoaWindow.h"
 #import "Fsk.h"
 #import "FskErrors.h"
@@ -78,6 +79,17 @@
 - (void)enterMultiThreadedMode
 {
 	// do nothing
+}
+
+- (void)applicationWillFinishLaunching:(NSNotification *)notification
+{
+	// "Enter Full Screen" menu item will be manually added.
+	[[NSUserDefaults standardUserDefaults] setBool:NO forKey:@"NSFullScreenMenuItemEverywhere"];
+}
+
+- (void)applicationDidFinishLaunching:(NSNotification *)notification
+{
+	CocoaMenuSetupEditMenuItems();
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender

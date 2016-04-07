@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -202,7 +202,7 @@ typedef Boolean (*FskThreadEventHandlerRoutine)(FskEvent event, void *refCon);
 			UInt32						extensionsTypeCount;
 			void						*extensions;		// FskExtensionType
 
-#if BG3CDP
+#if BG3CDP || RASPBERRY_PI || EDISON || BEAGLEBONE
 			FskTimeRecord	lastSleepTime;
 			FskTimeRecord	lastLogTime;
 #endif

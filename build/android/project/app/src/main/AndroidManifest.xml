@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	package="#NAMESPACE#"
+	android:versionCode="#ANDROID_VERSION_CODE#" android:versionName="#VERSION#">
+	<!--       android:installLocation="internalOnly" -->
+#MANIFEST_PERMISSIONS#
+#MANIFEST_FEATURES#
+	<uses-sdk android:minSdkVersion="#VERSION_MINIMUM#" 
+		android:targetSdkVersion="#VERSION_TARGET#"/>
+	<supports-screens android:anyDensity="true"
+		android:normalScreens="true"
+		android:largeScreens="true"
+		android:xlargeScreens="true"/>
+	<application android:persistent="true"
+		android:label="@string/app_name"
+		android:icon="@drawable/icon"
+		>
+		<!-- android.debuggable is enabled on debug builds by default and should not be changed here -->
+		<!-- 
+				To Force Portrait, use this:
+			  android:configChanges="keyboardHidden|locale|screenLayout|fontScale"
+			  android:screenOrientation="portrait"  
+
+				To allow auto-rotate, use this:
+			  android:configChanges="keyboardHidden|orientation|locale|screenLayout|fontScale"
+			  android:screenOrientation="sensor"  
+		-->
+		<activity android:name=".KinomaPlay"
+			android:label="@string/app_name"
+			android:theme="@style/Theme.NoBackground"
+			android:configChanges="keyboard|keyboardHidden|navigation|locale#ORIENTATION_OPTION#|screenLayout|fontScale|uiMode|screenSize|smallestScreenSize"
+			android:screenOrientation="#ORIENTATION_TYPE#"  
+			android:windowSoftInputMode=""
+			android:alwaysRetainTaskState="true"
+			android:launchMode="singleTask">
+			<!--  android:theme="@android:style/Theme.NoTitleBar.Fullscreen" -->
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+	<!--
+			<category android:name="android.intent.category.HOME" />
+	-->
+			<category android:name="android.intent.category.DEFAULT" />
+		</intent-filter>
+
+		<intent-filter>
+			<action android:name="KinomaPlay.installAndGo" />
+			<data android:mimeType="text/*" />
+			<category android:name="android.intent.category.DEFAULT" />
+		</intent-filter>
+		<intent-filter>
+			<action android:name="KinomaPlay.launch" />
+			<data android:mimeType="text/*" />
+			<category android:name="android.intent.category.DEFAULT" />
+		</intent-filter>
+
+
+	<!-- 
+		<intent-filter>
+			<action android:name="android.intent.action.SEARCH" />
+			<category android:name="android.intent.category.DEFAULT" />
+		</intent-filter>
+		<meta-data android:name="android.app.searchable" 
+			android:resource="@xml/searchable" />
+	 -->
+		</activity>
+
+		<service android:name=".KinomaService"/>
+
+		<receiver android:name=".RemoteControlReceiver">
+			<intent-filter>
+				<action android:name="android.intent.action.MEDIA_BUTTON" />
+			</intent-filter>
+		</receiver>          
+
+#MANIFEST_MODULES#
+	</application>
+</manifest> 
