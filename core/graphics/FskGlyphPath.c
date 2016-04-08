@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -331,7 +331,7 @@ static int CompareCommaKeyWithString(const FskBlobRecord *key, const FskBlobReco
 	const char	*s1;
 
 	for (s1 = FskStrChr(s0, ','); s1; s1 = FskStrChr(s0 = s1 + 1, ',')) {
-		if ((0 == (result = s1 - s0 - (int)bStr->size)) && (0 == (result = MemCompareLexicographically(s0, str, bStr->size))))
+		if ((0 == (result = (int)(s1 - s0 - (int)bStr->size))) && (0 == (result = MemCompareLexicographically(s0, str, bStr->size))))
 			goto done;
 	}
 	if (0 == (result = FskStrLen(s0) - bStr->size))
@@ -411,7 +411,7 @@ static const char* FindSuitableGenericFont(const char **str, UInt32 numStr, cons
 	for (i = 0; i < numSubStr; ++i) {
 		key.data = (void*)subStr[i];
 		if (NULL != (key.dir = (void*)FskStrChr(subStr[i], '-'))) {
-			if (0 == (key.size = (const char*)key.dir - subStr[i]))
+			if (0 == (key.size = (UInt32)((const char*)key.dir - subStr[i])))
 				continue;																				/* Don't query without */
 			key.dir = (void*)((char*)(key.dir) + 1);													/* Advance after '-' to "without" string */
 			key.id  = FskStrLen((char*)(key.dir));														/* Store the size of the without string */
@@ -498,12 +498,12 @@ static Boolean FontMatchesWithWithoutString(const char *font, const char *withWi
 	UInt32		fontSize;
 	const char	*without;
 
-	if (NULL == (without = FskStrChr(withWithout, '-')))						/* No without-string */
-		return (NULL != FskStrStr(font, withWithout));							/* Check with-string match */
+	if (NULL == (without = FskStrChr(withWithout, '-')))									/* No without-string */
+		return (NULL != FskStrStr(font, withWithout));										/* Check with-string match */
 	fontSize = FskStrLen(font);
-	if (NULL == MyMemMem(font, fontSize, withWithout, without++ - withWithout))	/* If no with-string match, ... */
-		return false;															/* ... no match */
-	return (NULL == MyMemMem(font, fontSize, without, FskStrLen(without)));		/* Check without-string non-match */
+	if (NULL == MyMemMem(font, fontSize, withWithout, (UInt32)(without++ - withWithout)))	/* If no with-string match, ... */
+		return false;																		/* ... no match */
+	return (NULL == MyMemMem(font, fontSize, without, FskStrLen(without)));					/* Check without-string non-match */
 }
 
 
@@ -556,7 +556,7 @@ static const char* FindRelatedFontWithSubstring(const char *font, const char *ge
 		*pstr = s0 + br->size;					/* Advance pointer to the terminating 0 character */
 	}
 	else {
-		br->size = s1 - s0;
+		br->size = (UInt32)(s1 - s0);
 		*pstr = s1 + 1;							/* Advance pointer to the character after the comma */
 	}
 	return 1;
@@ -892,7 +892,7 @@ NewCStringFromCFString(CFStringRef cfStr, char **cStr)
 	range.length	= CFStringGetLength(cfStr);
 	(void)CFStringGetBytes(cfStr, range, kCFStringEncodingUTF8, 0, false, NULL, 0, &numBytes);
 	++numBytes;
-	BAIL_IF_ERR(err = FskMemPtrNew(numBytes, cStr));
+	BAIL_IF_ERR(err = FskMemPtrNew((UInt32)numBytes, cStr));
 	(void)CFStringGetBytes(cfStr, range, kCFStringEncodingUTF8, 0, false, (UInt8*)(*cStr), numBytes, NULL);
 	(*cStr)[--numBytes] = 0;
 bail:

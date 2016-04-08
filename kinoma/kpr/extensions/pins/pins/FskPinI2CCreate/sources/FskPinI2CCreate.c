@@ -68,6 +68,7 @@ FskPinI2CDispatchRecord gCreatePinI2C = {
 	createI2CWriteDataWord,
 	createI2CWriteDataBytes,
 	NULL,
+	NULL,
 	NULL
 };
 

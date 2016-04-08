@@ -21,16 +21,18 @@
  * Bluetooth v4.2 - Security Manager (LE Legacy Only)
  */
 
-var Utils = require("/lowpan/common/utils");
+var Utils = require("../../common/utils");
 var Logger = Utils.Logger;
-var Buffers = require("/lowpan/common/buffers");
+var Buffers = require("../../common/buffers");
 var ByteBuffer = Buffers.ByteBuffer;
 
-var BTUtils = require("btutils");
+var BTUtils = require("./btutils");
 var BluetoothAddress = BTUtils.BluetoothAddress;
 
 var logger = new Logger("SM");
 logger.loggingLevel = Utils.Logger.Level.INFO;
+
+exports.setLoggingLevel = level => logger.loggingLevel = level;
 
 /** Lower HCI layer instance/module */
 var _hci = null;
@@ -140,7 +142,7 @@ class SecurityManagement {
 			let bond = this._delegate.findBondByAddress(link.remoteAddress);
 			if (bond == null || bond.keys.longTermKey == null) {
 				logger.debug("No LTK or Security level issue");
-				startPairing(true);
+				this.startPairing(true);
 				return;
 			}
 			if (link.encrptionStatus != 0) {	// FIXME
@@ -456,7 +458,7 @@ class PairingFeatureExchangeState extends State {
 	}
 	sendPairingRequest() {
 		this._request = assemblePairingFeature(true, this.generateFeature());
-		this._smCtx.sendCommand(request);
+		this._smCtx.sendCommand(this._request);
 	}
 	smpReceived(code, buffer) {
 		switch (code) {
@@ -593,7 +595,7 @@ class LELegacyPairingState extends State {
 			{
 				this._confirm = buffer.getByteArray(16);
 				this.log("Got Pairing Confirm: " + Utils.toFrameString(this._confirm));
-				if (this._initiator) {
+				if (this._smCtx.pairingInfo.initiator) {
 					this._smCtx.sendCommand(assembleValue128(Code.PAIRING_RANDOM, this._random));
 				} else {
 					if (this._temporaryKey === undefined) {

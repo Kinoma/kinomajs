@@ -21,25 +21,28 @@
  * Bluetooth v4.2 - Generic Access Profile (LE Only)
  */
 
-const Utils = require("/lowpan/common/utils");
+const Utils = require("../../common/utils");
 const Logger = Utils.Logger;
-const Buffers = require("/lowpan/common/buffers");
+const Buffers = require("../../common/buffers");
 const ByteBuffer = Buffers.ByteBuffer;
 
-const BTUtils = require("btutils");
+const BTUtils = require("./btutils");
 const BluetoothAddress = BTUtils.BluetoothAddress;
 
 const logger = new Logger("GAP");
 logger.loggingLevel = Utils.Logger.Level.INFO;
 
+exports.setLoggingLevel = level => logger.loggingLevel = level;
+
 /* BT Stack Layer */
-const HCI = require("hci");
-const L2CAP = require("l2cap");
-const GATT = require("gatt");
-const SM = require("sm");
+const HCI = require("./hci");
+const L2CAP = require("./l2cap");
+const GATT = require("./gatt");
+const SM = require("./sm");
 exports.HCI = HCI;
 exports.L2CAP = L2CAP;
 exports.GATT = GATT;
+exports.SM = SM;
 
 /* Bypass ADType flag */
 const DISCOVER_BYPASS = true;
@@ -100,7 +103,7 @@ var _discoverableMode = DiscoverableMode.NON_DISCOVERABLE;
 var _application = null;
 var _storage = null;
 
-exports.activate = function (transport, application, storage) {
+exports.activate = function (transport, application, storage, resetHCI = true) {
 	if (application == null) {
 		throw "application is null";
 	}
@@ -159,7 +162,7 @@ exports.activate = function (transport, application, storage) {
 	L2CAP.registerHCI(HCI);
 	SM.registerHCI(HCI);
 
-	HCI.activate();
+	HCI.activate(resetHCI);
 };
 
 function processDiscovered(report) {
@@ -305,6 +308,7 @@ class GAPContext {
 	/* SM Callback (SecurityManagement) */
 	findBondByAddress(address) {
 		logger.debug("Bonding Information requested");
+		let link = this._connectionManager.getHCILink();
 		let remoteAddress = link.remoteAddress;
 		if (!remoteAddress.isIdentity()) {
 			logger.error("Not an identity address");
@@ -540,7 +544,7 @@ exports.startAdvertising = function (intervalMin, intervalMax, structures = null
 	if (structures == null) {
 		structures = new Array();
 	}
-	let flags = 0;
+	let flags = Flags.NO_BR_EDR;
 	switch (_discoverableMode) {
 	case DiscoverableMode.LIMITED:
 		flags |= Flags.LE_LIMITED_DISCOVERABLE_MODE;
@@ -572,7 +576,7 @@ exports.startAdvertising = function (intervalMin, intervalMax, structures = null
 
 exports.stopAdvertising = function () {
 	HCI.LE.setAdvertiseEnable(false);
-}
+};
 
 exports.setScanResponseData = function (structures) {
 	HCI.LE.setScanResponseData(toAdvertisingDataArray(structures));

@@ -364,6 +364,73 @@ void xs_i2c_writeBlock(xsMachine* the)
     xsThrowDiagnosticIfFskErr(err, "I2C FskI2CWriteBlock failed with error %s %s.", FskInstrumentationGetErrorString(err), i2c->diagnosticID);
 }
 
+void xs_i2c_RDWR(xsMachine* the){
+	FskErr err = kFskErrNone;
+	xsI2C i2c = xsGetHostData(xsThis);
+	int argc = xsToInteger(xsArgc), i;
+	UInt16* flags;
+	UInt16* lengths;
+	UInt8 *data, *bufPtr;
+	UInt8** pointers;
+	int dataSize = argc * sizeof(UInt8) * 36; //max 32 byte transfer + 1 byte length + SMB PEC
+
+	err = FskMemPtrNewClear(argc * sizeof(UInt16), &flags);
+	err |= FskMemPtrNewClear(argc * sizeof(UInt16), &lengths);
+	err |= FskMemPtrNewClear(dataSize, &data);
+	err |= FskMemPtrNewClear(argc * sizeof(UInt8*), &pointers);
+	bailIfError(err);
+	bufPtr = data;
+
+	for (i = 0; i < argc; i++){
+		xsSlot slot = xsArg(i);
+		xsType type = xsTypeOf(slot);
+		UInt16 length = 0;
+		UInt16 flag = 0;
+		char* direction;
+
+		if (type != xsReferenceType ) {xsThrowDiagnosticIfFskErr(err, "I2C RDWR error. Arguments should be objects. %s", i2c->diagnosticID); goto bail;}
+		if (! xsHas(slot, xsID("direction"))) {xsThrowDiagnosticIfFskErr(err, "I2C RDWR error. Arguments must have direction property. %s", i2c->diagnosticID); goto bail;}
+
+		if (xsHas(slot, xsID("flags"))){
+			flag = xsToInteger(xsGet(slot, xsID("flags")));
+		}
+
+		direction = xsToString(xsGet(slot, xsID("direction")));
+		if (!FskStrCompare(direction, "input")){
+			xsSlot buffer = xsGet(slot, xsID("buffer"));
+			if ( xsTypeOf(buffer) != xsReferenceType || !(xsIsInstanceOf(buffer, xsArrayBufferPrototype))) {xsThrowDiagnosticIfFskErr(err, "I2C RDWR error. For input, you must preallocate and provide an ArrayBuffer in the buffer property. %s", i2c->diagnosticID); return;}
+			flag |= 0x0001; //I2C_M_RD
+			pointers[i] = xsToArrayBuffer(buffer);
+			length = (UInt16) xsGetArrayBufferLength(buffer);
+		}else if (!FskStrCompare(direction, "output")){
+			xsSlot buffer = xsGet(slot, xsID("buffer"));
+			if ( xsTypeOf(buffer) == xsReferenceType && xsIsInstanceOf(buffer, xsArrayBufferPrototype)){
+				pointers[i] = xsToArrayBuffer(buffer);
+				length = (UInt16) xsGetArrayBufferLength(buffer);
+			}else{
+				UInt8* oldBuf = bufPtr;
+				pointers[i] = bufPtr;
+				bufPtr = writeOne(the, i2c, &buffer, bufPtr, data + dataSize);
+				length = bufPtr - oldBuf;
+			}
+		}else{
+			xsThrowDiagnosticIfFskErr(err, "I2C RDWR error. Direction must be input or output. %s", i2c->diagnosticID);
+			goto bail;
+		}
+
+		flags[i] = flag;
+		lengths[i] = length;
+	}
+
+	err = FskPinI2CRDWR(i2c->pin, i2c->address, argc, pointers,flags, lengths);
+	xsThrowDiagnosticIfFskErr(err, "I2C RDWR error. IOCTL did not complete successfully. %s", i2c->diagnosticID);
+bail:
+	FskMemPtrDispose(flags);
+	FskMemPtrDispose(lengths);
+	FskMemPtrDispose(data);
+	FskMemPtrDispose(pointers);
+}
+
 void xs_i2c_writeBlockDataSMB(xsMachine* the)
 {
     FskErr err;

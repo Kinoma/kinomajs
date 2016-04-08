@@ -880,7 +880,7 @@ void fx_TypedArray(txMachine* the)
 			txInteger size = (mxArgc > 2) ? delta * fxToInteger(the, mxArgv(2)) : limit - offset;
 			if (offset % delta)
 				mxRangeError("invalid byteOffset %ld", offset);
-			if ((offset < 0) || (limit <= offset))
+			if ((offset < 0) || (limit < offset))
 				mxRangeError("out of range byteOffset %ld", offset);
 			if (size % delta)
 				mxRangeError("invalid byteLength %ld", size);

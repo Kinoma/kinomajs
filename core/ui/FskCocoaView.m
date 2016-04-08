@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +25,36 @@
 #import <OpenGL/gl.h>
 #import <Carbon/Carbon.h>	// only for the char code
 
+
+#if SUPPORT_INSTRUMENTATION
+	#define COCOA_DEBUG	1
+	#define FskInstrumentedTypeEnabled(type, level)	FskInstrumentedTypeHasListenersForLevel(FskInstrumentedGlobalType(type), level)	/**< Whether instrumentation will print anything. */
+	#define FskInstrumentedGlobalType(type)			(&(g##type##TypeInstrumentation))												/**< The data structure created with FskInstrumentedSimpleType(). */
+#else /* !SUPPORT_INSTRUMENTATION */
+	#define FskInstrumentedTypeEnabled(type, level)	(0)																				/**< Instrumentation will not print anything. */
+#endif /* SUPPORT_INSTRUMENTATION */
+
+FskInstrumentedSimpleType(CocoaView, cocoaview);												/**< This declares the types needed for instrumentation. */
+
+#if COCOA_DEBUG
+	#define	LOGD(...)	FskCocoaViewPrintfDebug(__VA_ARGS__)									/**< Print debugging logs. */
+	#define	LOGI(...)	FskCocoaViewPrintfVerbose(__VA_ARGS__)									/**< Print information logs. */
+#endif	/* COCOA_DEBUG */
+#define		LOGE(...)	FskCocoaViewPrintfMinimal(__VA_ARGS__)									/**< Print error logs always, when instrumentation is on. */
+#ifndef     LOGD
+	#define LOGD(...)																			/**< Don't print debugging logs. */
+#endif   		/* LOGD */
+#ifndef     LOGI
+	#define LOGI(...)																			/**< Don't print information logs. */
+#endif   		/* LOGI */
+#ifndef     LOGE
+	#define LOGE(...)																			/**< Don't print error logs. */
+#endif   	/* LOGE */
+#define LOGD_ENABLED()	FskInstrumentedTypeEnabled(CocoaView, kFskInstrumentationLevelDebug)	/**< Whether LOGD() will print anything. */
+#define LOGI_ENABLED()	FskInstrumentedTypeEnabled(CocoaView, kFskInstrumentationLevelVerbose)	/**< Whether LOGI() will print anything. */
+#define LOGE_ENABLED()	FskInstrumentedTypeEnabled(CocoaView, kFskInstrumentationLevelMinimal)	/**< Whether LOGE() will print anything. */
+
+
 @implementation FskCocoaView
 
 #pragma mark --- defines ---
@@ -44,6 +74,8 @@ const float kFskCocoaViewCornerRadius = 8;
 
 	openGLPixelFormat = [[[NSOpenGLPixelFormat alloc] initWithAttributes:openGLPixelFormatAttributes] autorelease];
 
+	LOGD("[FskCocoaView initWithFrame:{%g,%g,%g,%g} pixelFormat:%p] in thread %s",
+		 frame.origin.x, frame.origin.y, frame.size.width, frame.size.height, openGLPixelFormat, FskThreadName(FskThreadGetCurrent()));
 	if (self = [super initWithFrame:frame pixelFormat:openGLPixelFormat])
 #else /* !kFskCocoaCopyBitsUseOpenGL */
 	if (self = [super initWithFrame:frame])
@@ -66,9 +98,14 @@ const float kFskCocoaViewCornerRadius = 8;
         [self setAcceptsTouchEvents:YES];
 
         _windowClipCGPath = NULL;
+#if USE_DISPLAY_LINK
+		FskMutexNew(&_displayLinkMutex, "DisplayLink");
+#endif
 	}
 
 #if kFskCocoaCopyBitsUseOpenGL
+	const GLint vals = 0x01;
+	[[self openGLContext] setValues:&vals forParameter:NSOpenGLCPSwapInterval];	/* enable vertical sychronization to refresh rate */
 	glClearColor(0.0, 0.0, 0.0, 0.0);
 	glPixelStorei(GL_UNPACK_ALIGNMENT,   1);
 	glPixelStorei(GL_UNPACK_SKIP_ROWS,   (GLint)0);
@@ -89,6 +126,9 @@ const float kFskCocoaViewCornerRadius = 8;
 
 - (void)dealloc
 {
+#if USE_DISPLAY_LINK
+	FskMutexDispose(_displayLinkMutex);
+#endif
 	if (_windowClipCGPath)
 		CGPathRelease(_windowClipCGPath);
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -131,7 +171,15 @@ const float kFskCocoaViewCornerRadius = 8;
 #pragma mark --- NSView overrides ---
 - (void)drawRect:(NSRect)rect
 {
+#if USE_DISPLAY_LINK
+	if ([self isDisplayLinkRunning])
+		return;
+#endif
+
 	FskRectangleRecord fskRectangle;
+
+	LOGD("[FskCocoaView:%p drawRect:{%g,%g,%g,%g}] in thread:%s, context:%p",
+		 self, rect.origin.x, rect.origin.y, rect.size.width, rect.size.height, FskThreadName(FskThreadGetCurrent()), [self openGLContext]);
 
 	if (_fskWindow == NULL) return;
 	_isDrawing = YES;
@@ -234,7 +282,7 @@ const float kFskCocoaViewCornerRadius = 8;
 	deltaX = [event scrollingDeltaX];
 	deltaY = [event scrollingDeltaY];
 	precise = [event hasPreciseScrollingDeltas];
-	
+
 	if (precise)
 		touched = ([event phase] & ~(NSEventPhaseEnded | NSEventPhaseCancelled)) != 0;
 	else {
@@ -297,6 +345,7 @@ const float kFskCocoaViewCornerRadius = 8;
 
 - (void)displayIfNeeded
 {
+	LOGD("[FskCocoaView:%p displayIfNeeded] in thread %s", self, FskThreadName(FskThreadGetCurrent()));
 }
 
 - (BOOL)isOpaque
@@ -415,7 +464,7 @@ static const char* GLErrorStringFromCode(GLenum code) {
 	if (err)
 		printf("glDrawPixels error: %04x: %s: format=%04x, type=%04x\n", err, GLErrorStringFromCode(err), glFormat, glType);
 #endif /* CHECK_FOR_ERRORS */
-	
+
 #if kFskCocoaCopyBitsUseDoubleBuffer
 	[openGLContext flushBuffer];
 #else
@@ -498,7 +547,7 @@ static const char* GLErrorStringFromCode(GLenum code) {
 
 	if (_fskWindow == NULL) return;
 	if (!FskWindowCursorIsVisible(_fskWindow)) return;
-	
+
 	window = (NSWindow *)(_fskWindow->nsWindow);
 	eventType = [event type];
 
@@ -720,7 +769,7 @@ static const char* GLErrorStringFromCode(GLenum code) {
 				keys = chars;
 				keysLength = 2;
 				break;
-				
+
 			default:
 				keys = [keysString UTF8String];
 				keysLength = strlen(keys) + 1;
@@ -1010,9 +1059,10 @@ static const char* GLErrorStringFromCode(GLenum code) {
 
 - (void)beginDraw
 {
+	LOGD("[FskCocoaView:%p beginDraw] in thread %s", self, FskThreadName(FskThreadGetCurrent()));
 #if kFskCocoaCopyBitsUseOpenGL
 //	NSOpenGLContext *openGLContext;
-	
+
 //	openGLContext = [self openGLContext];
 	[self lockFocus];
 #endif /* kFskCocoaCopyBitsUseOpenGL */
@@ -1020,9 +1070,122 @@ static const char* GLErrorStringFromCode(GLenum code) {
 
 - (void)endDraw
 {
+	LOGD("[FskCocoaView:%p   endDraw] in thread %s", self, FskThreadName(FskThreadGetCurrent()));
 #if kFskCocoaCopyBitsUseOpenGL
+	[[self openGLContext] flushBuffer];	/* This acts like a swapBuffers() */
 	[self unlockFocus];
 #endif /* kFskCocoaCopyBitsUseOpenGL */
 }
+
+#if USE_DISPLAY_LINK
+#pragma mark --- CVDisplayLink ---
+
+- (BOOL)canUpdateWindow
+{
+	FskMutexAcquire(_displayLinkMutex);
+	if (_windowUpdating) {
+		FskMutexRelease(_displayLinkMutex);
+		return NO;
+	}
+
+	_windowUpdating = YES;
+	FskMutexRelease(_displayLinkMutex);
+	return YES;
+}
+
+- (void)updateWindowFinished
+{
+	FskMutexAcquire(_displayLinkMutex);
+	_windowUpdating = NO;
+	FskMutexRelease(_displayLinkMutex);
+}
+
+#define USE_FSK_THREAD_CALLBACK	0
+#if USE_FSK_THREAD_CALLBACK
+static void
+sWindowUpdateCallback(void *arg1, void *arg2, void *arg3, void *arg4)
+{
+	FskCocoaView *cocoaView = (FskCocoaView *)arg1;
+	FskWindow fskWindow = [cocoaView fskWindow];
+
+	if (fskWindow)
+		FskWindowUpdate(fskWindow, NULL);
+	[cocoaView updateWindowFinished];
+}
+#else
+- (void)windowUpdate
+{
+	if (_fskWindow != NULL)
+		FskWindowUpdate(_fskWindow, NULL);
+	[self updateWindowFinished];
+}
+#endif
+
+static CVReturn
+sDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const CVTimeStamp* outputTime, CVOptionFlags flagsIn, CVOptionFlags* flagsOut, void* displayLinkContext)
+{
+	FskCocoaView *cocoaView = (FskCocoaView *)displayLinkContext;
+
+	if (![cocoaView canUpdateWindow]) {
+		return kCVReturnSuccess;
+	}
+
+	NSAutoreleasePool *autoreleasepool = [[NSAutoreleasePool alloc] init];
+#if USE_FSK_THREAD_CALLBACK
+	if (FskThreadPostCallback([cocoaView fskWindow]->thread, sWindowUpdateCallback, cocoaView, NULL, NULL, NULL) != kFskErrNone) {
+		[cocoaView updateWindowFinished];
+	}
+#else
+	[(FskCocoaView *)displayLinkContext performSelectorOnMainThread:@selector(windowUpdate) withObject:nil waitUntilDone:NO];
+#endif
+	[autoreleasepool release];
+
+	return kCVReturnSuccess;
+}
+
+- (void)setDisplayLinkActive:(BOOL)active
+{
+	if (active) {
+		if (_displayLink == NULL) {
+			CVDisplayLinkCreateWithActiveCGDisplays(&_displayLink);
+			CVDisplayLinkSetOutputCallback(_displayLink, &sDisplayLinkCallback, self);
+			CGLContextObj cglContext = [[self openGLContext] CGLContextObj];
+			CGLPixelFormatObj cglPixelFormat = [[self pixelFormat] CGLPixelFormatObj];
+			CVDisplayLinkSetCurrentCGDisplayFromOpenGLContext(_displayLink, cglContext, cglPixelFormat);
+		}
+		if (!CVDisplayLinkIsRunning(_displayLink))
+			CVDisplayLinkStart(_displayLink);
+	} else {
+		if (_displayLink) {
+			if (CVDisplayLinkIsRunning(_displayLink))
+				CVDisplayLinkStop(_displayLink);
+			CVDisplayLinkRelease(_displayLink);
+			_displayLink = NULL;
+			[self updateWindowFinished];
+		}
+	}
+}
+
+- (void)pauseDisplayLink:(BOOL)flag
+{
+	if (![self isDisplayLinkActive])
+		return;
+
+	if (flag)
+		CVDisplayLinkStop(_displayLink);
+	else
+		CVDisplayLinkStart(_displayLink);
+}
+
+- (BOOL) isDisplayLinkRunning
+{
+	return [self isDisplayLinkActive] && CVDisplayLinkIsRunning(_displayLink);
+}
+
+- (BOOL) isDisplayLinkActive
+{
+	return _displayLink != NULL;
+}
+#endif
 
 @end

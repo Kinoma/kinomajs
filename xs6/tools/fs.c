@@ -68,7 +68,6 @@ void fs_copyFileSync(xsMachine* the)
 		fclose(fromFile);
 	}
 	xsCatch {
-fprintf(stderr, "fail copy %s to %s\n", fromPath, toPath);
 		if (toFile)
 			fclose(toFile);
 		if (fromFile)

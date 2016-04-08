@@ -163,7 +163,7 @@ macro(BUILD)
 		COMMAND ${CMAKE_COMMAND} -E echo copy ${NDK_PROJECT_PATH}/app/build/outputs/apk/app-$<LOWER_CASE:$<CONFIG>>.apk ${BIN_DIR}/${APK_NAME}
 		COMMAND ${CMAKE_COMMAND} -E copy ${NDK_PROJECT_PATH}/app/build/outputs/apk/app-$<LOWER_CASE:$<CONFIG>>.apk ${BIN_DIR}/${APK_NAME}
 		WORKING_DIRECTORY ${NDK_PROJECT_PATH}
-		DEPENDS ndk ${SHARED}
+		DEPENDS ndk ${SEPARATE}
 		)
 
 	add_custom_target(message ALL

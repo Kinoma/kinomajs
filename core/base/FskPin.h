@@ -125,6 +125,8 @@ typedef struct {
 
 	FskErr		(*doProcessCall)(FskPinI2C pin, UInt8 command, UInt16 input, UInt16 *output);
 	FskErr		(*doWriteQuick)(FskPinI2C pin, UInt8 byte);
+
+	FskErr		(*doRDWR)(FskPinI2C pin, UInt8 address, UInt8 messageCount, UInt8** buffers, UInt16* flags, UInt16* lengths);
 } FskPinI2CDispatchRecord, *FskPinI2CDispatch;
 
 #define kFskPinI2CNoBus (-1)
@@ -155,6 +157,8 @@ FskAPI(FskErr) FskPinI2CNew(FskPinI2C *pin, SInt32 sda, SInt32 sclk, SInt32 bus)
 
 #define FskPinI2CProcessCall(pin, command, input, output) (pin->dispatch->doProcessCall ? (pin->dispatch->doProcessCall)(pin, command, input, output) : kFskErrUnimplemented)
 #define FskPinI2CWriteQuick(pin, byte) (pin->dispatch->doWriteQuick ? (pin->dispatch->doWriteQuick)(pin, byte) : kFskErrUnimplemented)
+
+#define FskPinI2CRDWR(pin, address, messageCount, buffers, flags, lengths) (pin->dispatch->doRDWR ? (pin->dispatch->doRDWR)(pin, address, messageCount, buffers, flags, lengths) : kFskErrUnimplemented)
 
 /*
 	PWM Pin

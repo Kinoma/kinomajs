@@ -4651,7 +4651,7 @@ FskErr FskGLResetAllState(FskConstGLPort port) {
 	#endif /* GL_COORD_TYPE_ENUM == GL_FIXED */
 
 	#if defined(GL_VERSION_1_1) || defined(GL_VERSION_2_0)
-		glDrawBuffer(GL_FRONT);
+		glDrawBuffer(GL_BACK);
 	#endif /* GL */
 	(void)glGetError();																							/* Clear errors */
 	#ifdef GL_LIGHTING
@@ -13705,10 +13705,15 @@ void FskGLPortSetClip(FskGLPort glPort, FskConstRectangle clipRect) {
 			);
 	#endif /* LOG_PARAMETERS */
 	if (clipRect) {
-		#if defined(LOG_PARAMETERS)
-			LogRect(clipRect, "clipRect");
-		#endif /* LOG_PARAMETERS */
 		if (!glPort)	glPort = gCurrentGLPort;
+		#if defined(LOG_PARAMETERS)
+			if (clipRect->width == (SInt32)(glPort->portWidth) && clipRect->height == (SInt32)(glPort->portHeight) && clipRect->x == 0 && clipRect->y == 0)
+				LOGD("\tclipRect((%d, %d, %d, %d) == glPort(%u, %u) so %sing clipping disabled",
+					(int)clipRect->x, (int)clipRect->y, (int)clipRect->width, (int)clipRect->height,
+					(unsigned)glPort->portWidth, (unsigned)glPort->portHeight, (SCISSOR_ENABLE_WILL_CHANGE(false) ? "sett" :  "keep"));
+			else
+				LogRect(clipRect, "clipRect");
+		#endif /* LOG_PARAMETERS */
 		CHANGE_SCISSOR(glPort, clipRect->x, clipRect->y, clipRect->width, clipRect->height);	/* This also enables scissoring */
 	}
 	else {

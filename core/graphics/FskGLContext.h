@@ -92,6 +92,14 @@ FskAPI(FskErr)		FskGLContextNewFromCurrentContext(FskGLContext *pCtx);
 FskAPI(FskErr)		FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext *pCtx);
 
 
+/**	Swap the front and back buffers.
+ ** This only has an effect if the context is double-buffered, and is a no-op when single-buffered.
+ **	\param[in]	ctx			the GL context whose buffer is to be swapped.
+ **	\return		kFskErrNone	if the operation completed successfully.
+ **/
+FskAPI(FskErr)		FskGLContextSwapBuffers(FskGLContext ctx);
+
+
 #if TARGET_OS_ANDROID || TARGET_OS_KPL || defined(__linux__) || (FSK_OPENGLES_ANGLE == 1) || defined(EGL_VERSION)
 
 	/**	Create a new FskGLContext from an EGL {display,surface,context}.

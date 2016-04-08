@@ -2689,6 +2689,20 @@ void KPR_system_get_settings(xsMachine* the)
 	xsLeaveSandbox();
 }
 
+void KPR_system_set_timezone(xsMachine *the)
+{
+	char *timezone = xsToString(xsArg(0));
+	FskTimeTzset(timezone);
+}
+
+void KPR_system_set_date(xsMachine *the)
+{
+	FskTimeRecord time;
+	UInt32 secsSinceEpoch = xsToInteger(xsArg(0));
+	FskTimeClear(&time);
+	time.seconds = secsSinceEpoch;
+	FskTimeStime(&time);
+}
 
 //void KprShellHTTPAuthenticate(KprShell self, void* it, char* host, char* realm)
 //{

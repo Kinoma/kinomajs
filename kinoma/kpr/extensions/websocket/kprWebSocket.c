@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -337,7 +337,7 @@ void KPR_websocketclient_get_protocol(xsMachine* the)
 void KPR_websocketclient_get_url(xsMachine* the)
 {
 	KPR_WebSocketClientRecord *self = xsGetHostData(xsThis);
-	xsResult = xsString(self->endpoint->url);
+	xsResult = self->endpoint->url ? xsString(self->endpoint->url) : xsUndefined;
 }
 
 void KPR_websocketclient_get_binaryType(xsMachine *the)
@@ -609,18 +609,15 @@ static void KPR_WebSocketServer_onConnect(KprWebSocketServer server UNUSED, FskS
 static void KPR_WebSocketServer_onInterfaceDrop(KprWebSocketServer server UNUSED, const char *interfaceName, int ip, void *refcon)
 {
 	KPR_WebSocketServerRecord *self = refcon;
-	KPR_WebSocketClientRecord *client;
+	KPR_WebSocketClientRecord *client, *next;
 
 	client = self->clients;
 	while (client) {
+		next = client->next;
 		if (client->endpoint->ip == ip) {
-			client->server = NULL;
-			client->endpoint->closingCallback = NULL;
-			client->endpoint->closeCallback = KPR_WebSocketClient_onClose;
-			KprWebSocketEndpointClose(client->endpoint, 1001, "network interface was dropped");
+			(*client->endpoint->closeCallback)(client->endpoint, 1001, "network interface was dropped", false, client);
 		}
-
-		client = client->next;
+		client = next;
 	}
 }
 

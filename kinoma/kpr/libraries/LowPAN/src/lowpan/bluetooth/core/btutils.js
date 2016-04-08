@@ -21,8 +21,8 @@
  * Bluetooth v4.2 - Bluetooth Utilities
  */
 
-var Utils = require("/lowpan/common/utils");
-var Buffers = require("/lowpan/common/buffers");
+var Utils = require("../../common/utils");
+var Buffers = require("../../common/buffers");
 var ByteBuffer = Buffers.ByteBuffer;
 
 var BD_ADDR_SIZE = 6;

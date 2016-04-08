@@ -29,11 +29,12 @@ struct KprZeroconfServiceInfoStruct {
 	char* host;
 	char* ip;
 	UInt32 port;
+	UInt32 interfaceIndex;
 	char* txt;
 	FskInstrumentedItemDeclaration
 };
 
-FskErr KprZeroconfServiceInfoNew(KprZeroconfServiceInfo* it, const char* type, const char* name, const char* host, const char* ip, UInt32 port, char* txt);
+FskErr KprZeroconfServiceInfoNew(KprZeroconfServiceInfo *it, const char* type, const char* name, const char* host, const char* ip, UInt32 port, const UInt32 interfaceIndex, char* txt);
 void KprZeroconfServiceInfoDispose(KprZeroconfServiceInfo self);
 
 typedef struct KprZeroconfCommonStruct KprZeroconfCommonRecord, *KprZeroconfCommon;

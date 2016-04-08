@@ -19,12 +19,21 @@
 #include "FskMemory.h"
 #include "FskThread.h"
 
+#if TARGET_OS_LINUX
+	#define USE_FD 1
+#endif
+
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <termios.h>
 #include <fcntl.h>
-#include <sys/eventfd.h>
+#if USE_FD
+	#include <sys/eventfd.h>
+#else
+	#include <fcntl.h>
+	#include <unistd.h>
+#endif
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <poll.h>
@@ -55,8 +64,11 @@ typedef struct {
 
 	FskThread						serialThread;
 	FskMutex						mutex;
+#if USE_FD
 	int								eventfd;
-
+#else
+	int								pipe[2];
+#endif
 	Boolean							killed;
 
 	unsigned char					*data;
@@ -84,7 +96,11 @@ FskErr linuxSerialNew(FskPinSerial *pin, SInt32 rxNumber, SInt32 txNumber, const
 	err = FskMemPtrNewClear(sizeof(linuxSerialRecord), &ls);
 	if (err) return err;
 
+#if USE_FD
 	ls->eventfd = -1;
+#else
+	ls->pipe[0] = ls->pipe[1] = -1;
+#endif
 
 	err = FskMutexNew(&ls->mutex, "serial pin");
 	if (err) goto bail;
@@ -205,12 +221,23 @@ FskErr linuxSerialDataReady(FskPinSerial pin, FskPinSerialRepeatTriggerProc trig
 	ls->refCon = refCon;
 
 	if (NULL == ls->serialThread) {
+#if USE_FD
 		ls->eventfd = eventfd(0, EFD_NONBLOCK);
 		if (ls->eventfd >= 0) {
+#else
+		if (0 == pipe(ls->pipe)) {
+			fcntl(ls->pipe[0], O_NONBLOCK);
+#endif
 			err = FskThreadCreate(&ls->serialThread, serialThread, kFskThreadFlagsJoinable, ls, "serial poller");
 			if (err) {
+#if USE_FD
 				close(ls->eventfd);
 				ls->eventfd = -1;
+#else
+				close(ls->pipe[0]);
+				close(ls->pipe[1]);
+				ls->pipe[0] = ls->pipe[1] = -1;
+#endif
 			}
 		}
 	}
@@ -259,6 +286,7 @@ speed_t getBaud(int baud)
 			return B115200;
 		case 230400:
 			return B230400;
+#if TARGET_OS_LINUX
 		case 460800:
 			return B460800;
 		case 500000:
@@ -283,6 +311,7 @@ speed_t getBaud(int baud)
 			return B3500000;
 		case 4000000:
 			return B4000000;
+#endif
 		default:
 			return B0;
 	}
@@ -294,8 +323,13 @@ void serialThread(void *param)
 	unsigned char buffer[1024];
 	struct pollfd fds[2];
 
+#if USE_FD
 	fds[0].fd = ls->eventfd;
 	fds[0].events = POLLIN | POLLERR | POLLHUP;
+#else
+	fds[0].fd = ls->pipe[0];
+	fds[0].events = POLLIN | POLLERR;
+#endif
 
 	fds[1].fd = ls->ttyFile;
 	fds[1].events = POLLIN | POLLERR;
@@ -339,19 +373,34 @@ void disposeSerialThread(linuxSerial ls)
 	if (ls->serialThread) {
 		uint64_t one = 1;
 		ls->killed = true;
+#if USE_FD
 		if (ls->eventfd >= 0)
 			write(ls->eventfd, &one, sizeof(one));
+#else
+		if (ls->pipe[1] >= 0)
+			write(ls->pipe[1], &one, sizeof(one));
+#endif
 		FskThreadJoin(ls->serialThread);
+#if USE_FD
 		if (ls->eventfd >= 0)
 			close(ls->eventfd);
-
+#else
+		if (ls->pipe[0] >= 0)
+			close(ls->pipe[0]);
+		if (ls->pipe[1] >= 0)
+			close(ls->pipe[1]);
+#endif
 		FskMutexAcquire(ls->mutex);
 			FskMemPtrDisposeAt(&ls->data);
 			ls->dataAllocated = 0;
 			ls->dataCount = 0;
 			ls->serialThread = NULL;
 			ls->killed = false;
+#if USE_FD
 			ls->eventfd = -1;
+#else
+			ls->pipe[0] = ls->pipe[1] = -1;
+#endif
 		FskMutexRelease(ls->mutex);
 	}
 }

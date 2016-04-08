@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,9 +26,6 @@
 #include "FskBitmap.h"
 #include "QTReader.h"
 
-#include "codecDef.h"
-#include "codecVC.h"
-#include "misc.h"
 
 
 
@@ -193,12 +190,12 @@ IppCodecStatus videoInitBuffer (IppBitstream *pBufInfo)
 {
     // Initialize IppBitstream
     // at least big enough to store 2 frame data for less reload 
-    int err = IPP_MemMalloc((void**)(&pBufInfo->pBsBuffer), DATA_BUFFER_SIZE, 4);
+    int err = IPP_MemMalloc_func((void**)(&pBufInfo->pBsBuffer), DATA_BUFFER_SIZE, 4);
 	
     if (err != IPP_OK || NULL == pBufInfo->pBsBuffer) 
         return IPP_STATUS_NOMEM_ERR;
 	
-	IPP_Memset(pBufInfo->pBsBuffer, 0, DATA_BUFFER_SIZE);
+	IPP_Memset_func(pBufInfo->pBsBuffer, 0, DATA_BUFFER_SIZE);
 	
     //no read data at beginning
     //set current pointer to the end of buffer
@@ -213,7 +210,7 @@ IppCodecStatus videoFreeBuffer (IppBitstream *pBufInfo)
 {
     if ( pBufInfo->pBsBuffer ) 
 	{
-        IPP_MemFree((void**)(&pBufInfo->pBsBuffer));
+        IPP_MemFree_func((void**)(&pBufInfo->pBsBuffer));
         pBufInfo->pBsBuffer = NULL;
     }
 	
@@ -225,7 +222,7 @@ IppCodecStatus videoFreeBuffer (IppBitstream *pBufInfo)
 void* h264_rawdecoder_frameMalloc(int size, int alignment, void* pUsrData)
 {
 	void* ptr;
-	if(IPP_MemMalloc(&ptr, size, alignment) != IPP_OK) 
+	if(IPP_MemMalloc_func(&ptr, size, alignment) != IPP_OK) 
 	{
 		dlog("frameMalloc is called, ret addr %x, size %d, align %d, userdata %x\n", (int)NULL, (int)size, (int)alignment, (int)pUsrData);
 		return NULL;
@@ -240,7 +237,7 @@ void* h264_rawdecoder_frameMalloc(int size, int alignment, void* pUsrData)
 void h264_rawdecoder_frameFree(void* pointer, void* pUsrData)
 {
 	dlog("frameFree is called, pointer %x, userdata %x\n", (int)pointer, (int)pUsrData);
-	IPP_MemFree(&pointer);
+	IPP_MemFree_func(&pointer);
 	return;
 }
 
@@ -250,7 +247,7 @@ int getReorderDelay(void* avc_dec)
 	int poctype, dpbsize;
 	IppCodecStatus ret;
 	
-	ret = DecodeSendCmd_H264Video(IPPVC_GET_POCTYPE, NULL, &poctype, avc_dec);
+	ret = DecodeSendCmd_H264Video_func(IPPVC_GET_POCTYPE, NULL, &poctype, avc_dec);
 	if(ret != IPP_STATUS_NOERR) 
 		poctype = -1;	
 	
@@ -258,7 +255,7 @@ int getReorderDelay(void* avc_dec)
 	if(poctype == 2) 
 		return 0;
 	
-	ret = DecodeSendCmd_H264Video(IPPVC_GET_DPBSIZE, NULL, &dpbsize, avc_dec);
+	ret = DecodeSendCmd_H264Video_func(IPPVC_GET_DPBSIZE, NULL, &dpbsize, avc_dec);
 	if(ret != IPP_STATUS_NOERR)
 		dpbsize = 16;	
 	
@@ -907,7 +904,7 @@ FskErr avcDecodeDispose(void *stateIn, FskImageDecompress deco)
 		}
 		
 		if( state->avc_dec != NULL )
-			DecoderFree_H264Video(&state->avc_dec);
+			DecoderFree_H264Video_func(&state->avc_dec);
 
 		videoFreeBuffer(&state->srcBitStream);
 		
@@ -1073,9 +1070,9 @@ FskErr avcDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const vo
 		state->dec_param_bCustomFrameMalloc     = 1;					//default value
 		state->dec_param_bRawDecDelayPar	    = 0;
 		
-		state->dec_param_SrcCBTable.fMemCalloc	= IPP_MemCalloc;
-		state->dec_param_SrcCBTable.fMemMalloc	= IPP_MemMalloc;
-		state->dec_param_SrcCBTable.fMemFree	= IPP_MemFree;
+		state->dec_param_SrcCBTable.fMemCalloc	= IPP_MemCalloc_func;
+		state->dec_param_SrcCBTable.fMemMalloc	= IPP_MemMalloc_func;
+		state->dec_param_SrcCBTable.fMemFree	= IPP_MemFree_func;
 		state->pDstPicList						= NULL;
 		state->output_frame_count				= 0;
 		state->bUsed							= 1;
@@ -1088,20 +1085,20 @@ FskErr avcDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const vo
 		}
 		
 		//decoder initialize
-		err = DecoderInitAlloc_H264Video(&state->dec_param_SrcCBTable, &state->avc_dec);
+		err = DecoderInitAlloc_H264Video_func(&state->dec_param_SrcCBTable, &state->avc_dec);
 		if (IPP_STATUS_NOERR != err) 
 		{
 			dlog( "error: decoder init fail, error code %d!\n", (int)err);
 			BAIL( IPP_FAIL );
 		}
 		
-		err = DecodeSendCmd_H264Video(IPPVC_SET_NSCCHECKDISABLE, (&state->dec_param_NSCCheckDisable), NULL, state->avc_dec);
+		err = DecodeSendCmd_H264Video_func(IPPVC_SET_NSCCHECKDISABLE, (&state->dec_param_NSCCheckDisable), NULL, state->avc_dec);
 		if (IPP_STATUS_NOERR != err) 
-			dlog( "error: DecodeSendCmd_H264Video(IPPVC_SET_NSCCHECKDISABLE) %d!\n", (int)err);
+			dlog( "error: DecodeSendCmd_H264Video_func(IPPVC_SET_NSCCHECKDISABLE) %d!\n", (int)err);
 		
-		err = DecodeSendCmd_H264Video(IPPVC_SET_OUTPUTDELAYDISABLE, (&state->dec_param_bRawDecDelayPar), NULL, state->avc_dec);
+		err = DecodeSendCmd_H264Video_func(IPPVC_SET_OUTPUTDELAYDISABLE, (&state->dec_param_bRawDecDelayPar), NULL, state->avc_dec);
 		if (IPP_STATUS_NOERR != err)
-			dlog( "error: DecodeSendCmd_H264Video(IPPVC_SET_OUTPUTDELAYDISABLE) %d!\n", (int)err);
+			dlog( "error: DecodeSendCmd_H264Video_func(IPPVC_SET_OUTPUTDELAYDISABLE) %d!\n", (int)err);
 		
 		dlog("sample code buffer management method: %d, raw decoder delay parameter: %d\n", (int)state->dec_param_bOutputDelayDisable, (int)state->dec_param_bRawDecDelayPar);
 		
@@ -1112,12 +1109,12 @@ FskErr avcDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const vo
 			MemOpsObj.fFreeFrame	= h264_rawdecoder_frameFree;
 			MemOpsObj.pUsrObj		= NULL;
 			dlog("Set customer defined frame malloc, usrdata %x\n", (int)MemOpsObj.pUsrObj);
-			err = DecodeSendCmd_H264Video(IPPVC_SET_FRAMEMEMOP, &MemOpsObj, NULL, state->avc_dec);
+			err = DecodeSendCmd_H264Video_func(IPPVC_SET_FRAMEMEMOP, &MemOpsObj, NULL, state->avc_dec);
 			if (IPP_STATUS_NOERR != err)
-				dlog( "error: DecodeSendCmd_H264Video(IPPVC_SET_FRAMEMEMOP) %d!\n", (int)err);
+				dlog( "error: DecodeSendCmd_H264Video_func(IPPVC_SET_FRAMEMEMOP) %d!\n", (int)err);
 		}
 		
-		err = DecodeSendCmd_H264Video(IPPVC_SET_SKIPMODE, (&state->dec_param_SkipMode), NULL, state->avc_dec);
+		err = DecodeSendCmd_H264Video_func(IPPVC_SET_SKIPMODE, (&state->dec_param_SkipMode), NULL, state->avc_dec);
 		if (IPP_STATUS_NOERR != err) 
 			return IPP_STATUS_ERR;
 		
@@ -1203,7 +1200,7 @@ FskErr avcDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const vo
 				
 				dlog( "copy nalu nalu_size: %d => %x,  %x, %x, %x, %x, %x, %x, %x, %x, %x, %x\n",  
 						nalu_size, this_nalu[0],this_nalu[2],this_nalu[3],this_nalu[4],this_nalu[5],this_nalu[6],this_nalu[7],this_nalu[8],this_nalu[9] );
-				IPP_Memcpy( (void *)state->srcBitStream.pBsBuffer, (void *)this_nalu, nalu_size );
+				IPP_Memcpy_func( (void *)state->srcBitStream.pBsBuffer, (void *)this_nalu, nalu_size );
 				
 				if( this_nalu == data )
 				{
@@ -1217,8 +1214,8 @@ FskErr avcDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const vo
 		{
 			Ipp8u *pBsCurByteBackup = state->srcBitStream.pBsCurByte;
 
-			dlog("calling DecodeFrame_H264Video()\n");
-			err	= DecodeFrame_H264Video(&state->srcBitStream, &state->pDstPicList, state->avc_dec, &nAvailFrames);
+			dlog("calling DecodeFrame_H264Video_func()\n");
+			err	= DecodeFrame_H264Video_func(&state->srcBitStream, &state->pDstPicList, state->avc_dec, &nAvailFrames);
 			if ((pBsCurByteBackup == state->srcBitStream.pBsCurByte) && (0 < state->srcBitStream.bsByteLen)) 
 			{
 				dlog("data is not used!!!\n");
@@ -1235,18 +1232,18 @@ FskErr avcDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const vo
 					IppiSize  picsize;     
 					//int	g_ReorderDelay = 0;
 					
-					dlog("DecodeFrame_H264Video=>IPP_STATUS_NEW_VIDEO_SEQ:\n");
+					dlog("DecodeFrame_H264Video_func=>IPP_STATUS_NEW_VIDEO_SEQ:\n");
 					
 					//flush all left pictures for last video sequence
 					//output_all_pictures( state->pDstPicList );
 					
 					dlog("skip mode is %d\n", state->dec_param_SkipMode);
-					DecodeSendCmd_H264Video(IPPVC_SET_SKIPMODE, (&state->dec_param_SkipMode), NULL, state->avc_dec);;
+					DecodeSendCmd_H264Video_func(IPPVC_SET_SKIPMODE, (&state->dec_param_SkipMode), NULL, state->avc_dec);;
 					
 					//g_ReorderDelay = getReorderDelay(state->avc_dec);
 					//dlog("\nThe reorder delay is %d\n", g_ReorderDelay);
 					
-					err = DecodeSendCmd_H264Video(IPPVC_GET_PICSIZE, NULL, &picsize, state->avc_dec);
+					err = DecodeSendCmd_H264Video_func(IPPVC_GET_PICSIZE, NULL, &picsize, state->avc_dec);
 					if (IPP_STATUS_NOERR == err)
 					{	
 						dlog("the pic size of the new sequence is: %d*%d\n", picsize.width, picsize.height);    
@@ -1265,17 +1262,17 @@ FskErr avcDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const vo
 				//Note: taking no action will result in endless loop!
 			case IPP_STATUS_BUFFER_FULL:
 			case IPP_STATUS_FRAME_COMPLETE:
-				dlog("DecodeFrame_H264Video=>IPP_STATUS_BUFFER_FULL/IPP_STATUS_FRAME_COMPLETE:err:%d, nAvailFrames: %d\n", (int)err, (int)nAvailFrames);
+				dlog("DecodeFrame_H264Video_func=>IPP_STATUS_BUFFER_FULL/IPP_STATUS_FRAME_COMPLETE:err:%d, nAvailFrames: %d\n", (int)err, (int)nAvailFrames);
 				output_several_pictures(state, nAvailFrames, state->pDstPicList );
 				break;
 				
 			case IPP_STATUS_NOERR:
 				//need more data
-				dlog("DecodeFrame_H264Video=>IPP_STATUS_NOERR, need more data:\n");
+				dlog("DecodeFrame_H264Video_func=>IPP_STATUS_NOERR, need more data:\n");
 				break;
 				
 			case IPP_STATUS_SYNCNOTFOUND_ERR: 
-				dlog("DecodeFrame_H264Video=>IPP_STATUS_SYNCNOTFOUND_ERR!!!\n");
+				dlog("DecodeFrame_H264Video_func=>IPP_STATUS_SYNCNOTFOUND_ERR!!!\n");
 				//exit(-1);
 				//if (IPP_Feof(fpin)) 
 				//{
@@ -1292,13 +1289,13 @@ FskErr avcDecodeDecompressFrame(void *stateIn, FskImageDecompress deco, const vo
 			case IPP_STATUS_NOTSUPPORTED_ERR: 
 			case IPP_STATUS_BITSTREAM_ERR:
 			case IPP_STATUS_INPUT_ERR: 
-				dlog("DecodeFrame_H264Video=>error: decoding error, error code %d!\n", (int)err);
+				dlog("DecodeFrame_H264Video_func=>error: decoding error, error code %d!\n", (int)err);
 				state->bUsed = 1;
 				break;
 				
 			default:
 				err = IPP_FAIL;
-				dlog("DecodeFrame_H264Video=>error: fails to display frame %d, error code %d!\n", (int)state->output_frame_count, (int)err);
+				dlog("DecodeFrame_H264Video_func=>error: fails to display frame %d, error code %d!\n", (int)state->output_frame_count, (int)err);
 				state->bUsed = 1;
 				break;
 		}

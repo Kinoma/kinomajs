@@ -130,13 +130,10 @@
 
 - (IBAction)handleToggleFullScreenAction:(id)sender
 {
-	Boolean isFullScreen;
 
 	if (_fskWindow == NULL) return;
 
 	FskCocoaWindowToggleFullScreen(_fskWindow);
-	FskCocoaWindowIsFullScreen(_fskWindow, &isFullScreen);
-	CocoaMenuUpdateFullScreenTitle(isFullScreen);
 }
 
 - (void)hideCursor
@@ -188,6 +185,19 @@
 	[self hideCursor];
 }
 
+- (void)updateFullScreenMenuTitle
+{
+	Boolean isFullScreen;
+
+	FskCocoaWindowIsFullScreen(_fskWindow, &isFullScreen);
+	CocoaMenuUpdateFullScreenTitle(isFullScreen);
+}
+
+- (void)windowDidEnterFullScreen:(NSNotification *)notification
+{
+	[self updateFullScreenMenuTitle];
+}
+
 - (void)windowDidExitFullScreen:(NSNotification *)notification
 {
 	FskEvent fskEvent;
@@ -196,6 +206,7 @@
 		FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(tag), &tag);
 		FskWindowEventQueue(_fskWindow, fskEvent);
 	}
+	[self updateFullScreenMenuTitle];
 }
 
 #pragma mark --- NSDraggingDestination protocol ---

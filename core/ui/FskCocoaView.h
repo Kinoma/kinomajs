@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,10 @@
  *     limitations under the License.
  */
 #import <Cocoa/Cocoa.h>
+#import <QuartzCore/CVDisplayLink.h>
+#if USE_DISPLAY_LINK
+#import "FskSynchronization.h"
+#endif
 #import "FskWindow.h"
 
 #define kFskCocoaCopyBitsUseOpenGL	1
@@ -36,6 +40,12 @@
 	UInt32 				touchCount;
 	NSPoint 			touchLocation;
 	NSPoint 			touchPosition;
+
+#if USE_DISPLAY_LINK
+	CVDisplayLinkRef	_displayLink;
+	FskMutex			_displayLinkMutex;
+	BOOL				_windowUpdating;
+#endif
 }
 
 	// init
@@ -80,6 +90,13 @@
 
 - (void)beginDraw;
 - (void)endDraw;
+
+#if USE_DISPLAY_LINK
+- (void)setDisplayLinkActive:(BOOL)active;
+- (void)pauseDisplayLink:(BOOL)flag;
+- (BOOL)isDisplayLinkRunning;
+- (BOOL)isDisplayLinkActive;
+#endif
 
 @property (nonatomic, assign) NSTouch **touches;
 @property (nonatomic, assign) UInt32 touchCount;

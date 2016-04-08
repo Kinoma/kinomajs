@@ -18,6 +18,7 @@
 #import "FskCocoaApplication.h"
 #import "FskCocoaSupport.h"
 #import "FskCocoaWindow.h"
+#import "FskCocoaView.h"
 #import "Fsk.h"
 #import "FskErrors.h"
 #import "FskWindow.h"
@@ -90,6 +91,10 @@
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
 {
 	CocoaMenuSetupEditMenuItems();
+
+#if USE_DISPLAY_LINK
+	[self setDisplayLinkActive:YES];
+#endif
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)sender
@@ -117,6 +122,28 @@
 
 	return terminateReply;
 }
+
+#if USE_DISPLAY_LINK
+- (void)setDisplayLinkActive:(BOOL)active
+{
+	for (NSWindow *window in [NSApp windows]) {
+		if (![window isKindOfClass:[FskCocoaWindow class]])
+			continue;
+
+		[(FskCocoaView *)[window contentView] setDisplayLinkActive:active];
+	}
+}
+
+- (void)applicationDidBecomeActive:(NSNotification *)aNotification
+{
+	[self setDisplayLinkActive:YES];
+}
+
+- (void)applicationWillHide:(NSNotification *)aNotification
+{
+	[self setDisplayLinkActive:NO];
+}
+#endif
 
 - (BOOL)application:(NSApplication *)application openFiles:(NSArray *)filenames
 {

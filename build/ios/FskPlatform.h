@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,7 +56,7 @@
 #define kFskCocoaCopyBitsUseOpenGL	1
 
 // Currently there is no assembler for arm64
-#if TARGET_CPU_ARM64
+#if TARGET_CPU_ARM64 || TARGET_IPHONE_SIMULATOR
 #undef SUPPORT_NEON_IOS
 #undef KINOMA_DCT_IFAST_SUPPORTED
 #undef KINOMA_YUV2RGB565_IFAST_ARM_SUPPORTED
@@ -71,6 +71,7 @@
 //	#define FSKBITMAP_OPENGL 0	///< Do not insert the glPort pointer into the FskBitmap data structure.
 #endif /* FSKBITMAP_OPENGL */
 #define GLES_VERSION    2
+#define USE_DISPLAY_LINK	1
 
 #define USE_CORE_TEXT   1
 #define USE_AUDIO_QUEUE 1

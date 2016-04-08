@@ -231,30 +231,32 @@ void xs_infoset_compareAttributes(xsMachine* the)
 void xs_infoset_scan(xsMachine* the)
 {
 	int c = xsToInteger(xsArgc);
-	Scanner self;
+	Scanner scanner;
+	Scanner* self;
 	xsVars(COUNT);
 	xsTry {
-		c_memset(&self, 0, sizeof(self));
+		self = &scanner;
+		c_memset(self, 0, sizeof(Scanner));
 		if (c < 1)
 			xsSyntaxError("no buffer");
 		
-		self.expat = XML_ParserCreate(NULL);
-		xsThrowIfNULL(self.expat);
-		XML_SetUserData(self.expat, &self);
-		XML_SetElementHandler(self.expat, scanStartTag, scanStopTag);
-		XML_SetCdataSectionHandler(self.expat, scanStartCdata, scanStopCdata);
-		XML_SetCharacterDataHandler(self.expat, scanCharacter);
-		XML_SetCommentHandler(self.expat, scanComment);
-		XML_SetProcessingInstructionHandler(self.expat, scanProcessingInstruction);
-		XML_SetUnknownEncodingHandler(self.expat, scanUnknownEncoding, NULL);
-		XML_SetSkippedEntityHandler(self.expat, scanEntity);
+		self->expat = XML_ParserCreate(NULL);
+		xsThrowIfNULL(self->expat);
+		XML_SetUserData(self->expat, self);
+		XML_SetElementHandler(self->expat, scanStartTag, scanStopTag);
+		XML_SetCdataSectionHandler(self->expat, scanStartCdata, scanStopCdata);
+		XML_SetCharacterDataHandler(self->expat, scanCharacter);
+		XML_SetCommentHandler(self->expat, scanComment);
+		XML_SetProcessingInstructionHandler(self->expat, scanProcessingInstruction);
+		XML_SetUnknownEncodingHandler(self->expat, scanUnknownEncoding, NULL);
+		XML_SetSkippedEntityHandler(self->expat, scanEntity);
 		
-		self.result = 1;
-		self.textBuffer = c_malloc(8192);
-		xsThrowIfNULL(self.textBuffer);
-		self.textSize = 8192;
+		self->result = 1;
+		self->textBuffer = c_malloc(8192);
+		xsThrowIfNULL(self->textBuffer);
+		self->textSize = 8192;
 		
-		self.the = the;
+		self->the = the;
 		xsVar(ATTRIBUTE_PROTOTYPE) = xsGet(xsThis, xsID_attribute);
 		xsVar(CDATA_PROTOTYPE) = xsGet(xsThis, xsID_cdata);
 		xsVar(COMMENT_PROTOTYPE) = xsGet(xsThis, xsID_comment);
@@ -279,29 +281,29 @@ void xs_infoset_scan(xsMachine* the)
 		if (xsIsInstanceOf(xsArg(0), xsChunkPrototype)) {
 			xsStringValue buffer = xsGetHostData(xsArg(0));
 			xsIntegerValue size = xsToInteger(xsGet(xsArg(0), xsID_length));
-			self.result = XML_Parse(self.expat, (const char *)buffer, size, 1);
+			self->result = XML_Parse(self->expat, (const char *)buffer, size, 1);
 		}
 		else if (xsTypeOf(xsArg(0)) == xsStringType) {
 			xsStringValue string = xsToString(xsArg(0));
 			xsIntegerValue stringOffset = 0;
 			xsIntegerValue stringSize = c_strlen(string);
-			while (self.result && (stringOffset < stringSize)) {
+			while (self->result && (stringOffset < stringSize)) {
 				xsIntegerValue size = stringSize - stringOffset;
-				xsStringValue buffer = (char *)XML_GetBuffer(self.expat, 1024);
+				xsStringValue buffer = (char *)XML_GetBuffer(self->expat, 1024);
 				xsThrowIfNULL(buffer);
 				if (size > 1024) 
 					size = 1024;
 				c_memcpy(buffer, string + stringOffset, size);
-				self.result = XML_ParseBuffer(self.expat, size, (size < 1024) ? 1 : 0);
+				self->result = XML_ParseBuffer(self->expat, size, (size < 1024) ? 1 : 0);
 				stringOffset += size;
 				string = xsToString(xsArg(0)); // @@ gc
 			}
 		}
 		else {
 			xsStreamGetter* streamGetter = xsGetHostData(xsArg(0));
-			while (self.result) {
+			while (self->result) {
 				xsIntegerValue i;
-				xsStringValue p, buffer = (char *)XML_GetBuffer(self.expat, 1024);
+				xsStringValue p, buffer = (char *)XML_GetBuffer(self->expat, 1024);
 				xsThrowIfNULL(buffer);
 				for (i = 0, p = buffer; i < 1024; i++, p++) {
 					int c = (*(streamGetter->getter))(streamGetter->stream);
@@ -309,7 +311,7 @@ void xs_infoset_scan(xsMachine* the)
 						break;
 					*p = (char)c;
 				}
-				self.result = XML_ParseBuffer(self.expat, i, (i < 1024) ? 1 : 0);
+				self->result = XML_ParseBuffer(self->expat, i, (i < 1024) ? 1 : 0);
 				if (i < 1024)
 					break;
 			}
@@ -319,23 +321,23 @@ void xs_infoset_scan(xsMachine* the)
 		xsDelete(xsResult, xsID_parent);
 		xsArrayCacheEnd(xsVar(CHILDREN));
 		
-		if (!self.result) {
-			xsVar(LINE) = xsInteger(XML_GetCurrentLineNumber(self.expat));
-			xsVar(VALUE) = xsString((char*)XML_ErrorString(XML_GetErrorCode(self.expat)));
+		if (!self->result) {
+			xsVar(LINE) = xsInteger(XML_GetCurrentLineNumber(self->expat));
+			xsVar(VALUE) = xsString((char*)XML_ErrorString(XML_GetErrorCode(self->expat)));
 			if (xsHas(xsThis, xsID_reportError))
 				xsCall3_noResult(xsThis, xsID_reportError, xsVar(PATH), xsVar(LINE), xsVar(VALUE));
 			xsThrow(xsNewInstanceOf(xsSyntaxErrorPrototype));
 		}
-		c_free(self.textBuffer);
-		self.textBuffer = NULL;
-		XML_ParserFree(self.expat);
-		self.expat = NULL;
+		c_free(self->textBuffer);
+		self->textBuffer = NULL;
+		XML_ParserFree(self->expat);
+		self->expat = NULL;
 	}
 	xsCatch {
-		if (self.textBuffer)
-			c_free(self.textBuffer);
-		if (self.expat)
-			XML_ParserFree(self.expat);
+		if (self->textBuffer)
+			c_free(self->textBuffer);
+		if (self->expat)
+			XML_ParserFree(self->expat);
 	}
 }
 

@@ -86,7 +86,7 @@
 <common>
 XSC_OPTIONS += -xsID
 C_OPTIONS += -DCLOSED_SSL=1 -DSUPPORT_DLLEXPORT=1
-LIBRARIES += -framework SystemConfiguration -framework Cocoa -framework WebKit
+LIBRARIES += -framework SystemConfiguration -framework Cocoa -framework WebKit -framework QuartzCore
 </common>
 <debug>
 DEFAULT_C_OPTIONS = $(COMMON_C_OPTIONS)

@@ -347,7 +347,7 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 	// initialize frame rate
     win->retainsPixelsBetweenUpdates = !win->usingGL;
 
-#if !TARGET_OS_IPHONE	/* iOS uses DisplayLink to update the window */
+#if !TARGET_OS_MAC || !USE_DISPLAY_LINK	/* Mac & iOS uses DisplayLink to update the window */
 	{
 		Boolean get, set;
 		UInt32 dataType;
@@ -1448,7 +1448,7 @@ FskErr FskWindowSetUpdates(FskWindow window, const Boolean *before, const Boolea
 			FskTimeGetNow(&window->nextUpdate);
 			FskTimeCallbackScheduleNextRun(window->updateTimer, windowUpdateCallback, window);
 		}
-#if TARGET_OS_IPHONE
+#if TARGET_OS_MAC && USE_DISPLAY_LINK
 		FskCocoaWindowSetUpdates(window);
 #endif
 	}
@@ -3149,7 +3149,7 @@ Boolean FskWindowCheckEvents() {
 #ifdef PETERS_HACK
 			FskInstrumentedItemPrintfDebug(win, "FskWindowCheckEvents: near test for updateTimer");
 #endif /* PETERS_HACK */
-#if TARGET_OS_IPHONE
+#if TARGET_OS_MAC && USE_DISPLAY_LINK
 			if (FskCocoaWindowDisplayPaused(win))
 				sendEventWindowUpdate(win, false, false, NULL);
 #else
@@ -3423,12 +3423,13 @@ UInt32 getScreenPixelFormat(void)
 
 //@@jph what is this about
 //this is a connection from the android libraries to allow us to grab the old frame prior to the hardware rotating the frame buffer so that we can use it as a source for our own rotation animation
-
+#if TARGET_OS_ANDROID
 void FskWindowAndroidSizeChanged(int win)
 {
 	needMoreRedraw = 1;
 	sendEventWindowSizeChanged((FskWindow)win);  //TODO: fix this error for 64bits system!!!
 }
+#endif /* TARGET_OS_ANDROID */
 
 #if TARGET_OS_MAC
 void FskWindowCocoaSizeChanged(FskWindow win)

@@ -392,13 +392,13 @@ void Zeroconf_advertisement_unregisteredCallback(KprZeroconfAdvertisement self)
 void Zeroconf_advertisement_start(xsMachine *the)
 {
 	KprZeroconfAdvertisement self = xsGetHostData(xsThis);
-	xsThrowIfFskErr(KprZeroconfAdvertisementStart(self));
+	xsResult = xsInteger(KprZeroconfAdvertisementStart(self));
 }
 
 void Zeroconf_advertisement_stop(xsMachine *the)
 {
 	KprZeroconfAdvertisement self = xsGetHostData(xsThis);
-	xsThrowIfFskErr(KprZeroconfAdvertisementStop(self));
+	xsResult = xsInteger(KprZeroconfAdvertisementStop(self));
 }
 
 // browser
@@ -456,6 +456,9 @@ void Zeroconf_browser_callback(KprZeroconfBrowser self, char* function, KprZeroc
 				xsSet(xsVar(1), xsID("ip"), xsString(service->ip));
 				xsSet(xsVar(1), xsID("port"), xsInteger(service->port));
 			}
+			if (service->interfaceIndex > 0) {
+				xsSet(xsVar(1), xsID("interfaceIndex"), xsInteger(service->interfaceIndex));
+			}
 			if (service->txt) {
 				char* txt = service->txt;
 				UInt32 position = 0, size = FskStrLen(txt);
@@ -505,11 +508,11 @@ void Zeroconf_browser_serviceDownCallback(KprZeroconfBrowser self, KprZeroconfSe
 void Zeroconf_browser_start(xsMachine *the)
 {
 	KprZeroconfBrowser self = xsGetHostData(xsThis);
-	xsThrowIfFskErr(KprZeroconfBrowserStart(self));
+	xsResult = xsInteger(KprZeroconfBrowserStart(self));
 }
 
 void Zeroconf_browser_stop(xsMachine *the)
 {
 	KprZeroconfBrowser self = xsGetHostData(xsThis);
-	xsThrowIfFskErr(KprZeroconfBrowserStop(self));
+	xsResult = xsInteger(KprZeroconfBrowserStop(self));
 }

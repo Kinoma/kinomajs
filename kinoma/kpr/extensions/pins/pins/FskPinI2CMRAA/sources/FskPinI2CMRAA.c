@@ -50,6 +50,7 @@ FskPinI2CDispatchRecord gMRAAPinI2C = {
 	mraaI2CWriteDataWord,
 	mraaI2CWriteDataBytes,
 	NULL,
+	NULL,
 	NULL
 };
 

@@ -93,6 +93,7 @@ FskAPI(FskErr) KprSSDPDeviceRemoveService(KprSSDPDevice self, char* type);
 struct KprSSDPDiscoveryDescriptionStruct {
 	UInt32 expire;
 	char* ip;
+	char* interfaceName;
 	KprSSDPService services;
 	char* type;
 	char* url;

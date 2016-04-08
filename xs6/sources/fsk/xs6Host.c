@@ -130,14 +130,11 @@ static void fx_xs_execute(txMachine* the);
 static void fx_xs_isInstanceOf(txMachine* the);
 static void fx_xs_newInstanceOf(txMachine* the);
 static void fx_xs_script(txMachine* the);
-
-#ifdef mxProfile
 static void fx_xs_isProfiling(txMachine* the);
 static void fx_xs_getProfilingDirectory(txMachine* the);
 static void fx_xs_setProfilingDirectory(txMachine* the);
 static void fx_xs_startProfiling(txMachine* the);
 static void fx_xs_stopProfiling(txMachine* the);
-#endif
 
 #ifdef mxDebug
 static void fx_xs_debug_getAddress(txMachine* the);
@@ -207,13 +204,11 @@ void fxBuildHost(txMachine* the)
 	property = fxNextHostFunctionProperty(the, property, fx_xs_isInstanceOf, 2, fxID(the, "isInstanceOf"), XS_GET_ONLY);
 	property = fxNextHostFunctionProperty(the, property, fx_xs_newInstanceOf, 1, fxID(the, "newInstanceOf"), XS_GET_ONLY);
 	property = fxNextHostFunctionProperty(the, property, fx_xs_script, 1, fxID(the, "script"), XS_GET_ONLY);
-#ifdef mxProfile
 	property = fxNextHostFunctionProperty(the, property, fx_xs_isProfiling, 0, fxID(the, "isProfiling"), XS_GET_ONLY);
 	property = fxNextHostFunctionProperty(the, property, fx_xs_getProfilingDirectory, 0, fxID(the, "getProfilingDirectory"), XS_GET_ONLY);
 	property = fxNextHostFunctionProperty(the, property, fx_xs_setProfilingDirectory, 1, fxID(the, "setProfilingDirectory"), XS_GET_ONLY);
 	property = fxNextHostFunctionProperty(the, property, fx_xs_startProfiling, 0, fxID(the, "startProfiling"), XS_GET_ONLY);
 	property = fxNextHostFunctionProperty(the, property, fx_xs_stopProfiling, 0, fxID(the, "stopProfiling"), XS_GET_ONLY);
-#endif
 #ifdef mxDebug
 	mxPush(mxObjectPrototype);
 	slot = fxLastProperty(the, fxNewObjectInstance(the));
@@ -1148,8 +1143,6 @@ void fx_xs_debug_setBreakpoint(txMachine* the)
 
 #endif
 
-#ifdef mxProfile
-
 void fx_xs_isProfiling(txMachine* the)
 {
 	mxResult->kind = XS_BOOLEAN_KIND;
@@ -1158,12 +1151,16 @@ void fx_xs_isProfiling(txMachine* the)
 
 void fx_xs_getProfilingDirectory(txMachine* the)
 {
+#ifdef mxProfile
 	if (the->profileDirectory)
 		fxString(the, mxResult, the->profileDirectory);
+
+#endif
 }
 
 void fx_xs_setProfilingDirectory(txMachine* the)
 {
+#ifdef mxProfile
 	if (the->profileDirectory) {
 		c_free(the->profileDirectory);
 		the->profileDirectory = C_NULL;
@@ -1179,6 +1176,7 @@ void fx_xs_setProfilingDirectory(txMachine* the)
 			c_memcpy(the->profileDirectory, aString, aLength);
 		}
 	}
+#endif
 }
 
 void fx_xs_startProfiling(txMachine* the)
@@ -1190,8 +1188,6 @@ void fx_xs_stopProfiling(txMachine* the)
 {
 	fxStopProfiling(the);
 }
-
-#endif
 
 FskErr loadGrammar(const char *xsbPath, xsGrammar *theGrammar)
 {

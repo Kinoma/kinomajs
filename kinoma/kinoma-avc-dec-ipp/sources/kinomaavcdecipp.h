@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,9 @@
 #include "FskUtilities.h"
 #include "FskImage.h"
 
+#include "codecDef.h"
+#include "codecVC.h"
+#include "misc.h"
 
 #if SUPPORT_INSTRUMENTATION
 #include "FskPlatformImplementation.h"
@@ -35,7 +38,26 @@ extern FskInstrumentedTypeRecord gkinomaavcdecippTypeInstrumentation;
 #ifdef __cplusplus
 extern "C" {
 #endif
-	
+FskErr AVCIPP_load_lib();
+extern int (*IPP_MemCalloc_func)(void **ppDstBuf, int size, unsigned char align);
+extern int (*IPP_MemMalloc_func)(void **ppDstBuf, int size, unsigned char align);
+extern int (*IPP_MemFree_func)(void ** ppSrcBuf);
+extern void *(*IPP_Memcpy_func)(void* dst, void* src, int len);
+extern void *(*IPP_Memset_func)(void *buffer, int c, int count);
+extern IppCodecStatus (*DecodeSendCmd_H264Video_func)(
+	int cmd,
+	void *pInParam,
+	void *pOutParam,
+	void *pEncoderState
+);
+extern IppCodecStatus (*DecoderFree_H264Video_func)(void **ppSrcDecoderState);
+extern IppCodecStatus (*DecoderInitAlloc_H264Video_func)(MiscGeneralCallbackTable *pSrcCallbackTable, void **ppDstDecoderState);
+extern IppCodecStatus (*DecodeFrame_H264Video_func)(
+    IppBitstream *pSrcBitStream,
+    IppH264PicList **ppDstPicList,
+    void *pSrcDstDecoderState,
+    int *pDstNumAvailFrames
+);
 FskErr avcDecodeCanHandle(UInt32 format, const char *mime, const char *extension, Boolean *canHandle);
 FskErr avcDecodeNew(FskImageDecompress deco, UInt32 format, const char *mime, const char *extension);
 FskErr avcDecodeDispose(void *stateIn, FskImageDecompress deco);

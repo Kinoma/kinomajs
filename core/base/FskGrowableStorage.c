@@ -634,7 +634,7 @@ FskGrowableStorageFindItem(FskConstGrowableStorage storage, const void *item, UI
 		itemSize = FskStrLen(item);
 	BAIL_IF_FALSE(startingIndex <= storage->size && itemSize <= storage->size && startingIndex + itemSize <= storage->size, err, kFskErrItemNotFound);	/* Guard against wraparound */
 	if (NULL != (foundPtr = MyMemMem(storage->storage + startingIndex, storage->size - startingIndex, item, itemSize))) {
-		*foundIndex = (UInt8*)foundPtr - storage->storage;
+		*foundIndex = (UInt32)((UInt8*)foundPtr - storage->storage);
 		err = kFskErrNone;
 	}
 	else {
@@ -1180,9 +1180,9 @@ FskGrowableBlobArrayNewFromString(char *str, UInt32 strSize, char delim, Boolean
 
 	for (i = 0, s = s0; i < numRecords; ++i, dirPtr = (BlobEntry*)((char*)dirPtr + dirDataSize)) {
 		dirPtr->id = ++(array->lastID);
-		dirPtr->offset = s - s0;
+		dirPtr->offset = (UInt32)(s - s0);
 		for (; s < s1 && *s != delim; ++s) {}
-		dirPtr->size = s++ - s0 - dirPtr->offset;
+		dirPtr->size = (UInt32)(s++ - s0 - dirPtr->offset);
 	}
 	array->compare = CompareBlobsAlphabetically;
 
@@ -1209,10 +1209,10 @@ FskGrowableBlobArrayNewFromStringList(char *str, Boolean makeCopy, UInt32 dirDat
 
 	BAIL_IF_NULL(str, err, kFskErrEmpty);
 	t = str;
-	do {						/* Compute the length of the String List, including the second terminating zero */
+	do {							/* Compute the length of the String List, including the second terminating zero */
 		while (*t++) {}
-	} while (*t++);				/* Look for two zeros in a row */
-	strSize = t - str;			/* Length of the string list */
+	} while (*t++);					/* Look for two zeros in a row */
+	strSize = (UInt32)(t - str);	/* Length of the string list */
 	BAIL_IF_ERR(err = FskGrowableBlobArrayNewFromString(str, strSize, 0, makeCopy, dirDataSize, pArray));
 	FskGrowableBlobArraySetItemCount(*pArray, FskGrowableBlobArrayGetItemCount(*pArray) - 1);
 bail:
@@ -1757,7 +1757,7 @@ FskGrowableBlobArrayBSearchItems(FskConstGrowableBlobArray array, const FskBlobR
 	gBlobArray = array;
 	directory = array->directory;
 	if (NULL != (dirPtr = FskBSearch(key, directory->storage.storage, directory->numItems, directory->itemSize, &CompareKeyBlob))) {
-		*pIndex = ((const UInt8*)dirPtr - directory->storage.storage) / directory->itemSize;
+		*pIndex = (UInt32)(((const UInt8*)dirPtr - directory->storage.storage) / directory->itemSize);
 		err = kFskErrNone;
 	}
 
@@ -1849,16 +1849,14 @@ GetConstDirectoryEntryFromIdOfItemInGrowableBlobArray(FskConstGrowableBlobArray 
 
 		if (FskGrowableArrayGetConstPointerToItem(array->directory, 0, &ptr) != kFskErrNone)
 			return NULL;
-
-			for (dirPtr = ptr, id = theID; numItems--; dirPtr = (const BlobEntry*)((const char*)dirPtr + dirSize))
-				if (dirPtr->id == id)
-					return dirPtr;
+		for (dirPtr = ptr, id = theID; numItems--; dirPtr = (const BlobEntry*)((const char*)dirPtr + dirSize))
+			if (dirPtr->id == id)
+				return dirPtr;
+		return NULL;
 	}
 	else {
-		dirPtr = FskGrowableArrayBSearchItems(array->directory, &theID, CompareID);				/* Do a binary search */
+		return FskGrowableArrayBSearchItems(array->directory, &theID, CompareID);				/* Do a binary search */
 	}
-
-	return dirPtr;
 }
 
 
@@ -2048,9 +2046,9 @@ FskGrowableBlobArrayQueryRefine(FskConstGrowableBlobArray array, FskGrowableBlob
 	BAIL_IF_FALSE(NULL != (q.rs = *pResult) && q.rs->magic == QUERY_MAGIC, err, kFskErrBadState);
 
 	numMatches = q.rs->numItems;
-	prevOffset = q.u8                                - array->directory->storage.storage;		/* The offset of the previous query */
-	currOffset = (UInt8*)(&q.rs->items[q.rs->numItems]) - array->directory->storage.storage;	/* The offset of the current  query */
-	prevSize   = currOffset - prevOffset;														/* The  size  of the previous query */
+	prevOffset = (UInt32)(q.u8                                   - array->directory->storage.storage);	/* The offset of the previous query */
+	currOffset = (UInt32)((UInt8*)(&q.rs->items[q.rs->numItems]) - array->directory->storage.storage);	/* The offset of the current  query */
+	prevSize   = currOffset - prevOffset;																/* The  size  of the previous query */
 	BAIL_IF_ERR(err = FskGrowableStorageSetSize(&array->directory->storage, currOffset + sizeof(*(q.rs)) - sizeof(q.rs->items)));
 
 	for (index = 0; index < numMatches; ++index) {
@@ -2185,7 +2183,7 @@ FskGrowableBlobArrayDeserialize(const void *data, UInt32 dataSize, FskGrowableBl
 	array = *pArray;
 	array->lastID = header->lastID;
 	array->flags  = header->flags;
-	FskGrowableBlobArraySetCompareFunction(array, (FskGrowableBlobCompare)(void*)(header->compare));
+	FskGrowableBlobArraySetCompareFunction(array, (FskGrowableBlobCompare)(void*)(long)(header->compare));
 	BAIL_IF_ERR(err = FskGrowableStorageAppendItem(array->data, ptr + header->dataOffset, header->dataSize));
 	BAIL_IF_ERR(err = FskGrowableArraySetItemCount(array->directory, header->dirCount));
 	FskMemCopy(array->directory->storage.storage, ptr + header->dirOffset, header->dirCount * header->dirEntrySize);
@@ -2228,7 +2226,7 @@ FskErr FskGrowableEquivalencesAppendMultipleElementClass(FskGrowableEquivalences
 	va_end(ap);
 	offset = FskEquivalenceBlobSize(numElements, offset);													/* Compute the size of storage for the directory and elements */
 	BAIL_IF_ERR(err = FskGrowableEquivalencesGetPointerToNewEndClass(coll, offset, id, (void**)(&blob)));	/* Allocate blob accordingly */
-	offset = (char*)(&blob->element[blob->numElements = numElements]) - (char*)blob;						/* Set the number of elements, and initialize offset to storage */
+	offset = (UInt32)((char*)(&blob->element[blob->numElements = numElements]) - (char*)blob);				/* Set the number of elements, and initialize offset to storage */
 	va_start(ap, numElements);
 	for (i = 0; i < numElements; ++i) {																		/* For each element, ... */
 		ptr  = va_arg(ap, const void*);
@@ -2277,7 +2275,7 @@ FskErr FskGrowableEquivalencesAppendElementToClass(FskGrowableEquivalences coll,
 	BAIL_IF_ERR(err = FskGrowableBlobArraySetSizeOfItem(coll, index, nSize));								/* Resize class storage to accommodate the new element */
 	BAIL_IF_ERR(err = FskGrowableEquivalencesGetPointerToClass(coll, index, (void**)(&blob), &nSize));		/* Get the resized class */
 	blob->numElements = oBlob->numElements + 1;
-	for (i = 0, nSize = (char*)(&blob->element[blob->numElements]) - (char*)blob; i < oBlob->numElements;) {
+	for (i = 0, nSize = (UInt32)((char*)(&blob->element[blob->numElements]) - (char*)blob); i < oBlob->numElements;) {
 		blob->element[i].offset = nSize;
 		blob->element[i].size   = oBlob->element[i].size;
 		FskMemCopy((char*)blob + nSize, (char*)oBlob + oBlob->element[i].offset, blob->element[i].size);	/* Copy old elements */

@@ -632,6 +632,9 @@ bail:
 #else
 
 #include "FskNetInterface.h"
+#if TARGET_OS_MAC
+    #include "FskCocoaSupport.h"
+#endif
 
 void KprWPAStart()
 {
@@ -642,7 +645,7 @@ void KprWPAStop()
 }
 
 static char* gWPAResponses[] = {
-	"{\"bssid\":\"00:11:22:33:44:55\", \"ssid\":\"Kinoma\", \"id\":0, \"mode\":\"station\", \"pairwise_cipher\":\"CCMP\", \"group_cipher\":\"TKIP\", \"key_mgmt\":\"WPA2-PSK\", \"wpa_state\":\"COMPLETED\", \"ip_address\":\"%s\", \"address\":\"66:55:44:33:22:11\"}",
+	"{\"bssid\":\"00:11:22:33:44:55\", \"ssid\":\"%s\", \"id\":0, \"mode\":\"station\", \"pairwise_cipher\":\"CCMP\", \"group_cipher\":\"TKIP\", \"key_mgmt\":\"WPA2-PSK\", \"wpa_state\":\"COMPLETED\", \"ip_address\":\"%s\", \"address\":\"66:55:44:33:22:11\"}",
 
 	"[{\"network_id\":0, \"ssid\": \"Kinoma\", \"bssid\":\"any\", \"flags\":\"[CURRENT]\"}]",
 
@@ -666,8 +669,13 @@ FskErr KprWPACommand(char* request, char* response, UInt32 responseSize, UInt32*
 			FskNetInterface iface;
 			FskNetInterfaceDescribe(i, &iface);
 			if (iface->ip && (0x7f000001 != iface->ip) && iface->status) {
+#if TARGET_OS_MAC
+				const char *ssid = FskCocoaSSID();
+#else
+				const char *ssid = "Kinoma";
+#endif
 				FskNetIPandPortToString(iface->ip, 0, ipAddr);
-				snprintf(response, responseSize, gWPAResponses[0], ipAddr);
+				snprintf(response, responseSize, gWPAResponses[0], ssid, ipAddr);
 				FskNetInterfaceDescriptionDispose(iface);
 				goto bail;
 			}

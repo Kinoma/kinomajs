@@ -21,16 +21,18 @@
  * Bluetooth v4.2 - Attribute Protocol (ATT)
  */
 
-var Utils = require("/lowpan/common/utils");
+var Utils = require("../../common/utils");
 var Logger = Utils.Logger;
-var Buffers = require("/lowpan/common/buffers");
+var Buffers = require("../../common/buffers");
 var ByteBuffer = Buffers.ByteBuffer;
 
-var BTUtils = require("btutils");
+var BTUtils = require("./btutils");
 var UUID = BTUtils.UUID;
 
 var logger = new Logger("ATT");
 logger.loggingLevel = Utils.Logger.Level.INFO;
+
+exports.setLoggingLevel = level => logger.loggingLevel = level;
 
 var MIN_HANDLE = 0x0001;
 var MAX_HANDLE = 0xFFFF;

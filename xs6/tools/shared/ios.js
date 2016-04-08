@@ -129,17 +129,19 @@ class IOS {
 		var now = Date.now();
 		var foundProvisions = [];
 		for (var name of names) {
-			var path = directory + "/" + name;
-			var text = tool.execute("security cms -D -i '" + path + "'");
-			var provision = PLIST.parse(text, path);
-			provision.path = path;
-			if (now <= provision.ExpirationDate.valueOf()) {
-				if (tool.provisionName) {
-					if (provision.Name == tool.provisionName || provision.path == tool.provisionName)
+			if (name.indexOf(".mobileprovision") > 0) {
+				var path = directory + "/" + name;
+				var text = tool.execute("security cms -D -i '" + path + "'");
+				var provision = PLIST.parse(text, path);
+				provision.path = path;
+				if (now <= provision.ExpirationDate.valueOf()) {
+					if (tool.provisionName) {
+						if (provision.Name == tool.provisionName || provision.path == tool.provisionName)
+							foundProvisions.push(provision);
+					}
+					else if (provision.Entitlements["get-task-allow"])
 						foundProvisions.push(provision);
 				}
-				else if (provision.Entitlements["get-task-allow"])
-					foundProvisions.push(provision);
 			}
 		}
 		if (foundProvisions.length == 0) {

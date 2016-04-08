@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -1191,7 +1191,7 @@ void FskCocoaTextGetFontList(void *state, char **fontList)
 	}
 
 	if (listLength < 2) listLength = 2;
-	BAIL_IF_ERR(err = FskMemPtrNew(listLength, fontList));												/* Allocate the font list */
+	BAIL_IF_ERR(err = FskMemPtrNew((UInt32)listLength, fontList));												/* Allocate the font list */
 	s = (UInt8*)(*fontList);
 	s[0] = 0; s[1] = 0;																					/* In case there are no fonts */
 

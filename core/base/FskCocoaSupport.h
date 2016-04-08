@@ -70,6 +70,9 @@ extern "C" {
 	FskAPI(void) FskCocoaWindowResizeMouseMoved(FskWindow fskWindow);
 	FskAPI(void) FskCocoaWindowBeginDraw(FskWindow fskWindow);
 	FskAPI(void) FskCocoaWindowEndDraw(FskWindow fskWindow);
+#if USE_DISPLAY_LINK
+	FskAPI(void) FskCocoaWindowSetUpdates(FskWindow fskWindow);
+#endif
 
 	// drag and drop
 	FskAPI(void) FskCocoaDragDropWindowRegister(FskWindow fskWindow, FskDragDropTargetProc dropTargetProc);
@@ -78,6 +81,9 @@ extern "C" {
 
 	// event
 	FskAPI(void) FskCocoaEventSend(FskWindow fskWindow, UInt32 eventClass, UInt32 eventType);
+#if USE_DISPLAY_LINK
+	FskAPI(Boolean) FskCocoaWindowDisplayPaused(FskWindow window);
+#endif
 
 	// cursor
 	FskAPI(void) FskCocoaCursorSet(FskWindow fskWindow, UInt32 cursorShape);

@@ -39,8 +39,6 @@ macro(BUILD)
 	set(MACOSX_BUNDLE_SHORT_VERSION_STRING "${APP_VERSION}")
 
 	set(APP_RES_DIR ${APP_DIR}/../Resources)
-	# set(BINARY_DIR
-
 
 	add_custom_command(
 		TARGET ${APPLICATION}
@@ -55,4 +53,11 @@ macro(BUILD)
 		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE_DIR:${APPLICATION}>/../Info.plist ${APP_DIR}/../
 		COMMAND ${CMAKE_COMMAND} -E echo "APPLTINY" > ${APP_DIR}/../PkgInfo
 		)
+
+	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT[variant=Debug] "dwarf")
+	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT[variant=Release] "dwarf-with-dsym")
+	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT[variant=RelWithDebInfo] "dwarf-with-dsym")
+	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES")
+	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_GCC_SYMBOLS_PRIVATE_EXTERN "YES")
+	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_COPY_PHASE_STRIP  "NO")
 endmacro()

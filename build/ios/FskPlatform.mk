@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-|     Copyright (C) 2010-2015 Marvell International Ltd.
+|     Copyright (C) 2010-2016 Marvell International Ltd.
 |     Copyright (C) 2002-2010 Kinoma, Inc.
 |
 |     Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,9 +27,9 @@
 	<input name="$(F_HOME)/libraries/QTReader"/>
 
 	<import name="GCCPlatform.mk" />
-	
+
 	<header name="FskPlatform.h"/>
-	
+
 	<c option="$(ARCH)"/>
 	<c option="-fasm-blocks"/>
 	<c option="-fobjc-abi-version=2"/>
@@ -40,7 +40,7 @@
 	<c option="-fvisibility=hidden"/>
 	<c option="-isysroot $(SDKROOT)"/>
 	<c option="$(VERSION_MIN)"/>
-	
+
 	<c option="-D__FSK_LAYER__=1"/>
 	<c option="-DTARGET_API_IPHONE=1"/>
 	<c option="-D_Bool=int"/>
@@ -54,7 +54,9 @@
 	<c option="-DFSK_APPLICATION=\&quot;PLAY\&quot;"/>
 	<c option="-DFSK_APPLICATION_PLAY=1"/>
 	<c option="-DKPR_CONFIG=1"/>
-	
+	<c option="-Wno-shift-negative-value"/>		<!-- This warning is for machines that do not use twos complement. -->
+	<c option="-Wno-unknown-warning-option"/>	<!-- This ignores the above flag on compilers that do not recognize it. -->
+
 	<c option="&quot;-DIBOutlet=__attribute__((iboutlet))&quot;"/>
 	<c option="&quot;-DIBOutletCollection(ClassName)=__attribute__((iboutletcollection(ClassName)))&quot;"/>
 	<c option="&quot;-DIBAction=void)__attribute__((ibaction)&quot;"/>

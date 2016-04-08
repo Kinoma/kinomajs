@@ -294,7 +294,7 @@ void DNSSD_API KprZeroconfPlatformAdvertisementProcess(DNSServiceRef ref, DNSSer
 	else {
 		KprZeroconfServiceInfo serviceInfo = NULL;
 		FskInstrumentedItemPrintfDebug((KprZeroconfPlatformAdvertisement)(self->platform), "Advertisement: %s %s %s", name, type, domain);
-		KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, 0, NULL);
+		KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, 0, 0, NULL);
 		KprZeroconfAdvertisementServiceRegistered(self, serviceInfo);
 	}
 }
@@ -414,7 +414,7 @@ void DNSSD_API KprZeroconfPlatformGetAddrInfoCallBack(DNSServiceRef serviceRef, 
 		if (FskNetIsLocalNetwork(addr)) {
 			KprZeroconfServiceInfo serviceInfo = NULL;
 			FskInstrumentedItemPrintfDebug(browser, "GETADDRINFO: %s %s is at %s -> %s:%lu", self->serviceType, service->name, hostname, ip, service->port);
-			KprZeroconfServiceInfoNew(&serviceInfo, serviceType, service->name, hostname, ip, service->port, service->txt);
+			KprZeroconfServiceInfoNew(&serviceInfo, serviceType, service->name, hostname, ip, service->port, interfaceIndex, service->txt);
 			KprZeroconfBrowserServiceUp(self, serviceInfo);
 		}
 		FskListRemove(&browser->services, service);
@@ -442,7 +442,7 @@ static void DNSSD_API KprZeroconfPlatformResolveCallBack(DNSServiceRef resolveRe
 		}
 		bailIfError(KprZeroconfPlatformServiceNew(&service, resolver->owner, serviceRef, resolver->name, ntohs(port)));
 		if (txtLen > 1) {
-			bailIfError(FskMemPtrNewClear(txtLen, &service->txt));
+			bailIfError(FskMemPtrNewClear(txtLen + 1, &service->txt));
 			FskStrNCopy(service->txt, (const char*)txtRecord, txtLen);
 		}
 		FskListAppend(&browser->services, service);
@@ -482,7 +482,7 @@ static void DNSSD_API KprZeroconfPlatformBrowseCallback(DNSServiceRef serviceRef
 	}
 	else {
 		KprZeroconfServiceInfo serviceInfo = NULL;
-		KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, 0, NULL);
+		bailIfError(KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, 0, interfaceIndex, NULL));
 		KprZeroconfBrowserServiceDown(self, serviceInfo);
 		FskInstrumentedItemPrintfDebug(browser, "REMOVE: %d %s %s %s", interfaceIndex, name, type, domain);
 	}

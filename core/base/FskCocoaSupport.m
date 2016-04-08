@@ -380,6 +380,30 @@ void FskCocoaWindowCopyBits(FskWindow fskWindow, FskBitmap fskBitmap, const FskR
 	[(FskCocoaView *)[window contentView] copyBits:fskBitmap sourceRect:sourceFskRect destRect:destFskRect];
 }
 
+#if USE_DISPLAY_LINK
+void FskCocoaWindowSetUpdates(FskWindow fskWindow)
+{
+	NSWindow *window;
+
+	if (fskWindow == NULL) return;
+	window = (NSWindow *)(fskWindow->nsWindow);
+
+	[(FskCocoaView *)[window contentView] pauseDisplayLink:!fskWindow->doBeforeUpdate];
+}
+
+Boolean FskCocoaWindowDisplayPaused(FskWindow fskWindow)
+{
+	NSWindow *window;
+	FskCocoaView *cocoaView;
+
+	if (fskWindow == NULL) return false;
+	window = (NSWindow *)(fskWindow->nsWindow);
+	cocoaView = (FskCocoaView *)[window contentView];
+
+	return [cocoaView isDisplayLinkActive] && ![cocoaView isDisplayLinkRunning];
+}
+#endif
+
 void FskCocoaWindowGetVisible(FskWindow fskWindow, Boolean *visible)
 {
 	NSWindow *window;
@@ -891,6 +915,8 @@ void CocoaMenuAdd(UInt32 menuID, char *title)
 	isEditMenu = [string isEqualToString:EDIT_MENU_TITLE];
 	if (isEditMenu && (sEditMenuItem != nil)) {
 		[[NSApp mainMenu] addItem:sEditMenuItem];
+		[sEditMenuItem.submenu setDelegate:[NSApp delegate]];
+		[sEditMenuItem.submenu setAutoenablesItems: NO];
 		return;
 	}
 	menuItem = [[[NSMenuItem alloc] init] autorelease];

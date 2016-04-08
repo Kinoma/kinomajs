@@ -26,8 +26,8 @@
 #include "FskString.h"
 #include "FskManifest.xs.h"
 
-#include "KplThread.h"
-#include "KplThreadLinuxPriv.h"
+//#include "KplThread.h"
+//#include "KplThreadLinuxPriv.h"
 
 static void writeOne(xsMachine *the, FskSerialIO sio, xsSlot *slot);
 
@@ -105,7 +105,7 @@ void xs_serial_read(xsMachine* the)
 	char* formatString;
 	FskErr err;
 	unsigned char *data = NULL;
-	int dataSize = 0;
+	SInt32 dataSize = 0;
 	int format = 0, i, maxCount = 0;
     SInt32 endTime = 0, argc;
 
@@ -145,7 +145,7 @@ void xs_serial_read(xsMachine* the)
 					FskTimeRecord now;
 					unsigned char buffer[1024];
 					SInt32 ds;
-					SInt32 bytesToRead = ((0 == maxCount) || (maxCount > sizeof(buffer))) ? sizeof(buffer) : maxCount;
+					SInt32 bytesToRead = ((0 == maxCount) || (maxCount > (int)sizeof(buffer))) ? sizeof(buffer) : maxCount;
 
 					err = FskPinSerialRead(sio->pin, bytesToRead, &ds, buffer);
 					if (err) {

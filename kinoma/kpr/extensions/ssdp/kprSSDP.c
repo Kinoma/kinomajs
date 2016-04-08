@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -319,6 +319,7 @@ void SSDP_client_callback(KprSSDPClient self, char* function, KprSSDPDiscoveryDe
 			xsSet(xsVar(1), xsID("uuid"), xsString(description->uuid));
 			xsSet(xsVar(1), xsID("url"), xsString(description->url));
 			xsSet(xsVar(1), xsID("interface"), xsString(description->ip));
+			xsSet(xsVar(1), xsID("interfaceName"), xsString(description->interfaceName));
 			xsResult = xsNewInstanceOf(xsArrayPrototype);
 			if (description->services) {
 				KprSSDPService service;

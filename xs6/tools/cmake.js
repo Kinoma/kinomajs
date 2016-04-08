@@ -159,6 +159,8 @@ export class Makefile extends MAKE.Makefile {
 		file.line("set(CMAKE_CXX_FLAGS \"${CMAKE_C_FLAGS}\")");
 		file.line("set(CMAKE_CXX_FLAGS_DEBUG \"${CMAKE_C_FLAGS_DEBUG}\")");
 		file.line("set(CMAKE_CXX_FLAGS_RELEASE \"${CMAKE_C_FLAGS_RELEASE}\")\n");
+		file.line("set(CMAKE_C_FLAGS_RELWITHDEBINFO \"${CMAKE_C_FLAGS_RELEASE}\")\n");
+		file.line("set(CMAKE_CXX_FLAGS_RELWITHDEBINFO \"${CMAKE_C_FLAGS_RELEASE}\")\n");
 		file.line("fix_flags(FLAGS CMAKE_C_FLAGS)\n");
 		if (this.headers.length) {
 			for (let item of this.headers)
@@ -224,8 +226,8 @@ export class Manifest extends MAKE.Manifest {
 
 		file.line("if(CMAKE_CONFIGURATION_TYPES)");
 		file.write("\tset(CMAKE_CONFIGURATION_TYPES");
-		file.write(this.debug? ' "Debug"' : ' "Release"'); 
-		file.write(this.debug? ' "Release"' : ' "Debug"'); 
+		file.write((this.debug? ' "Debug"' : ' "Release"') + " RelWithDebInfo"); 
+		file.write((this.debug? ' "Release"' : ' "Debug"') + " RelWithDebInfo"); 
 		file.line(" CACHE STRING \"Reset the configurations to what we need\" FORCE)");
 		file.line("\tset(CONFIG_TYPE $(CONFIGURATION))");
 		file.line("else()");
@@ -233,7 +235,7 @@ export class Manifest extends MAKE.Manifest {
 		file.line("\t\tmessage(STATUS \"Setting build type to 'Release' as none was specified.\")");
 		file.line("\t\tset(CMAKE_BUILD_TYPE ", tool.debug ? "Debug" : "Release", " CACHE STRING \"Choose the type of build.\" FORCE)");
 		file.line("\tendif()");
-		file.line("\tset_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS \"Debug\" \"Release\")\n");
+		file.line("\tset_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS \"Debug\" \"Release\" \"RelWithDebInfo\")\n");
 		file.line("\tset(CONFIG_TYPE ${CMAKE_BUILD_TYPE})");
 		file.line("endif()\n");
 

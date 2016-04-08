@@ -2533,7 +2533,7 @@ static KprPortListener KprSocketServerFindInterface(KprSocketServer self, const 
 	KprPortListener listener = self->listeners;
 
 	while (listener) {
-		if (FskStrCompare(interfaceName, listener->interfaceName)) break;
+		if (!FskStrCompare(interfaceName, listener->interfaceName)) break;
 		listener = listener->next;
 	}
 

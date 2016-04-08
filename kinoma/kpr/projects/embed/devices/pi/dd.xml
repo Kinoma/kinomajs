@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<!--
+|     Copyright (C) 2002-2015 Kinoma, Inc.
+|
+|     All rights reserved.
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+-->
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+    <specVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </specVersion>
+    <device>
+        <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
+        <friendlyName>[friendlyName]</friendlyName>
+        <manufacturer>Element 14</manufacturer>
+        <manufacturerURL>http://www.element14.com</manufacturerURL>
+        <modelDescription>Raspberry Pi</modelDescription>
+        <modelNumber>4</modelNumber>
+        <modelName>Raspberry Pi 2 B+</modelName>
+        <modelURL>http://www.element14.com/raspberrypi/</modelURL>
+        <serialNumber></serialNumber>
+        <UDN>uuid:[udn]</UDN>
+        <iconList>
+            <icon>
+                <mimetype>image/png</mimetype>
+                <width>64</width>
+                <height>64</height>
+                <depth>32</depth>
+                <url>/description/icon</url>
+            </icon>
+        </iconList>
+        <serviceList>
+        </serviceList>
+    </device>
+</root>

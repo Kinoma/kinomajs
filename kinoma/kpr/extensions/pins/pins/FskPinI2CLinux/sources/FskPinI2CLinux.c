@@ -44,6 +44,7 @@ static FskErr linuxI2CWriteDataWord(FskPinI2C pin, UInt8 command, UInt16 word);
 static FskErr linuxI2CWriteDataBytes(FskPinI2C pin, UInt8 command, SInt32 count, const UInt8 *bytes);
 static FskErr linuxI2CProcessCall(FskPinI2C pin, UInt8 command, UInt16 input, UInt16 *output);
 static FskErr linuxI2CWriteQuick(FskPinI2C pin, UInt8 byte);
+static FskErr linuxI2CRDWR(FskPinI2C pin, UInt8 address, UInt8 messageCount, UInt8** buffers, UInt16* flags, UInt16* lengths);
 
 FskPinI2CDispatchRecord gLinuxPinI2C = {
 	linuxI2CCanHandle,
@@ -61,7 +62,8 @@ FskPinI2CDispatchRecord gLinuxPinI2C = {
 	linuxI2CWriteDataWord,
 	linuxI2CWriteDataBytes,
 	linuxI2CProcessCall,
-	linuxI2CWriteQuick
+	linuxI2CWriteQuick,
+	linuxI2CRDWR
 };
 
 typedef struct {
@@ -288,6 +290,34 @@ FskErr linuxI2CWriteQuick(FskPinI2C pin, UInt8 byte)
 	int result = doI2C(i2c_fd[li2c->bus], byte, 0, I2C_SMBUS_QUICK, NULL);
 
 	return (result < 0) ? kFskErrOperationFailed : kFskErrNone;
+}
+
+struct i2c_rdwr_ioctl_dataFSK{
+	struct i2c_msg *msgs;
+	int nmsgs;
+};
+
+typedef struct i2c_rdwr_ioctl_dataFSK i2c_rdwr_ioctl_dataFSK;
+
+FskErr linuxI2CRDWR(FskPinI2C pin, UInt8 address, UInt8 messageCount, UInt8** buffers, UInt16* flags, UInt16* lengths){
+	struct i2c_msg messages[messageCount];
+	i2c_rdwr_ioctl_dataFSK info;
+	linuxI2C li2c = (linuxI2C)pin;
+	int i;
+
+	for (i = 0; i < messageCount; i++){
+		messages[i].addr = address;
+		messages[i].flags = flags[i];
+		messages[i].len = lengths[i];
+		messages[i].buf = buffers[i];
+	}
+	info.msgs = messages;
+	info.nmsgs = messageCount;
+
+	if(ioctl(i2c_fd[li2c->bus], I2C_RDWR, &info) < 0){
+		return kFskErrBadState;
+	}
+	return kFskErrNone;
 }
 
 /*

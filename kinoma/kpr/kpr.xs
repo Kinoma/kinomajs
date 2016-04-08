@@ -770,6 +770,8 @@
 		<function name="Power" params="what" prototype="system.power" c="KPR_system_Power"/>
 		<function name="get platform" c="KPR_system_get_platform"/>
 		<function name="get settings" c="KPR_system_get_settings"/>
+		<function name="set timezone" params="timezone" c="KPR_system_set_timezone"/>
+		<function name="set date" params="secsSinceEpoch" c="KPR_system_set_date"/>
 	</object>
 
 	<import href="kprHTTP.xs"/>

@@ -36,6 +36,7 @@
                 <function name="writeBlockDataSMB" params="reg, data" c="xs_i2c_writeBlockDataSMB"/>
                 <function name="writeQuickSMB" params="byte" c="xs_i2c_writeQuickSMB"/>
                 <function name="processCallSMB" params="reg, value" c="xs_i2c_processCallSMB"/>
+				<function name="RDWR" params="messages" c="xs_i2c_RDWR"/>
                 <function name="close" c="xs_i2c_close"/>
             </object>
 		</patch>

@@ -70,6 +70,29 @@
 
 #include "FskBlitDispatchDef.h"
 
+#if SUPPORT_INSTRUMENTATION
+	//#define LOG_EDGES
+	//#define LOG_ACTIVE_EDGES
+	//#define LOG_CROSSING_EDGES
+	//#define LOG_SPAN_EDGES
+	#ifndef NULL
+		#define NULL 0
+	#endif /* NULL */
+	FskInstrumentedSimpleType(AAPolygon, aapolygon);
+	#define LOGD(...)  do { FskInstrumentedTypePrintfDebug  (&gAAPolygonTypeInstrumentation, __VA_ARGS__); } while(0)
+	#define LOGI(...)  do { FskInstrumentedTypePrintfVerbose(&gAAPolygonTypeInstrumentation, __VA_ARGS__); } while(0)
+	#define LOGE(...)  do { FskInstrumentedTypePrintfMinimal(&gAAPolygonTypeInstrumentation, __VA_ARGS__); } while(0)
+#endif /* SUPPORT_INSTRUMENTATION */
+#ifndef LOGD
+	#define	LOGD(...)
+#endif /* LOGD */
+#ifndef LOGI
+	#define	LOGI(...)
+#endif /* LOGI */
+#ifndef LOGE
+	#define	LOGE(...)
+#endif /* LOGE */
+
 
 /*******************************************************************************
  *******************************************************************************
@@ -147,8 +170,8 @@ struct AAActiveEdge {
 	SInt16				crossX;				/* Transition between inside and outside */
 	SInt16				firstX;				/* Left end of active span */
 	SInt16				lastX;				/* Right end of active span */
-	SInt16				topCross;
-	SInt16				bottomCross;
+	SInt16				topCross;			/* The first scanline that the edge crosses */
+	SInt16				bottomCross;		/* The first scanline that the edge does not cross */
 	char				crosses;			/* There is a crossing on this scanline */
 	char				steep;				/* Steep or shallow? */
 
@@ -172,6 +195,52 @@ struct AASpan {
 	AAActiveEdge				*edges;				/* The linked list of edges active in this subspan */
 };
 
+
+#if SUPPORT_INSTRUMENTATION
+static void LogEdge(const AAEdge *e, UInt32 i, const char *extra) {
+	if (!extra)	extra = "";
+	LOGD("\t[%2u]: pt0:(%5.1f,%5.1f) pt1:(%5.1f,%5.1f) u:(%+.3f,%+.3f) L:%5.1f topBot:(%3d,%3d) x:%5.1f dx:%+6.3g or:%+d draw:%d%s",
+		(unsigned)i, e->endPoint[0].x / 65536., e->endPoint[0].y / 65536., e->endPoint[1].x / 65536., e->endPoint[1].y / 65536.,
+		e->U.x / 1073741824., e->U.y / 1073741824., e->length / 65536.,
+		e->edge.top, e->edge.bottom, e->edge.x / 65536., e->edge.dx / 65536., e->edge.orientation, e->edge.drawEdge, extra);
+}
+static void LogEdges(SInt32 n, const AAEdge *e, const char *name) {
+	SInt32 i;
+	if (!name)	name = "EDGES";
+	LOGD("%s[%d]", name, (int)n);
+	for (i = 0; i < n; ++i)
+		LogEdge(e + i, i, NULL);
+}
+static void LogActiveEdge(const AAActiveEdge *A, SInt32 index) {
+	LogEdge(&A->aaEdge, index, NULL);
+}
+static void LogActiveEdges(FskConstGrowableArray activeEdgeArray, SInt32 y0, SInt32 y1, const char *name) {
+	UInt32			i, n;
+	AAActiveEdge	*ae;
+
+	if (!name)	name = "ACTIVE_EDGES";
+	n = FskGrowableArrayGetItemCount(activeEdgeArray);
+	LOGD("%s(y0=%-3d y1=%-3d dy=%-3d) [%d]", name, (int)y0, (int)y1, (int)(y1 - y0), (int)n);
+	for (i = 0; i < n; ++i) {
+		FskGrowableArrayGetConstPointerToItem(activeEdgeArray, i, (const void**)(const void*)(&ae));
+		LogActiveEdge(ae, i);
+	}
+}
+static void LogCrossingEdges(const AAActiveEdge *A, SInt32 y, const char *name) {
+	UInt32 i;
+	if (!name)	name = "CROSSING_EDGES";
+	LOGD("%s(y=%d):", name, (int)y);
+	for (i = 0; A; ++i, A = A->nextCross)
+		LogEdge(&A->aaEdge, i, NULL);
+}
+static void LogSpanEdges(const AAActiveEdge *A, SInt32 y, SInt32 x, SInt32 dx, SInt32 windingNumber, const char *name) {
+	UInt32 i;
+	if (!name)	name = "SPAN_EDGES";
+	LOGD("%s(y=%d x=%d dx=%d wn=%d):", name, (int)y, (int)x, (int)dx, (int)windingNumber);
+	for (i = 0; A; ++i, A = A->next)
+		LogEdge(&A->aaEdge, i, NULL);
+}
+#endif /* SUPPORT_INSTRUMENTATION */
 
 
 /*******************************************************************************
@@ -573,26 +642,78 @@ XSortAAActiveEdgeActivation(SInt32 numEdges, AAActiveEdge *edges, UInt32 edgeByt
 }
 
 
+/*******************************************************************************
+ * Remove
+ *******************************************************************************/
+
+static void RemoveActiveEdgeFromNextList(AAActiveEdge *e, AAActiveEdge **list) {
+	AAActiveEdge *l;
+	for (; (l = *list) != NULL; list = &l->next) {
+		if (l == e) {
+			*list = l->next;
+			return;
+		}
+	}
+}
+
+
 /********************************************************************************
  * XSortAAActiveEdgeCrossings
  *		Insertion sort
  ********************************************************************************/
 
 static AAActiveEdge*
-XSortAAActiveEdgeCrossings(SInt32 numEdges, AAActiveEdge *edges, UInt32 edgeBytes)
+XSortAAActiveEdgeCrossings(AAActiveEdge **pEdges, SInt32 fillRule)
 {
-	AAActiveEdge	*crossings, *e, **lastNext;
+	AAActiveEdge	*edges	= *pEdges;
+	AAActiveEdge	*crossings, *e, **lastCross;
 	SInt16			crossX;
 
-	for (crossings = NULL; numEdges-- > 0; edges = (AAActiveEdge*)((char*)edges + edgeBytes)) {
-		if (edges->crosses) {
-			crossX = edges->crossX;
-			for (lastNext = &crossings; (e = *lastNext) != NULL; lastNext = &(e->nextCross))
-				if (e->crossX >= crossX)
-					break;
-			edges->nextCross = e;
-			*lastNext = edges;
+	if (fillRule == kFskFillRuleEvenOdd) {
+		for (crossings = NULL; edges != NULL; edges = edges->next) {
+			if (edges->crosses) {
+				crossX = edges->crossX;
+				for (lastCross = &crossings; (e = *lastCross) != NULL; lastCross = &e->nextCross)
+					if (e->crossX >= crossX)
+						break;
+				edges->nextCross = e;
+				*lastCross = edges;
+			}
 		}
+	}
+	else {	/* fillRule = kFskFillRuleNonZero */
+		SInt32			windingNumber, nextWindingNumber;
+		AAActiveEdge	*nearings;
+		for (crossings = NULL, nearings = NULL; edges != NULL; edges = edges->next) {
+			if (edges->crosses) {
+				crossX = edges->crossX;
+				for (lastCross = &crossings; (e = *lastCross) != NULL; lastCross = &e->nextCross)
+					if (e->crossX >= crossX)
+						break;
+				edges->nextCross = e;
+				*lastCross = edges;
+			}
+			else {
+				for (lastCross = &nearings; (e = *lastCross) != NULL; lastCross = &e->nextCross)
+					if (e->crossX >= crossX)
+						break;
+				edges->nextCross = e;
+				*lastCross = edges;
+			}
+		}
+#if 0	/* Remove internal edges, without removing those that are close to an external edge */
+		for (lastCross = &crossings, windingNumber = nextWindingNumber = 0; (e = *lastCross) != NULL; windingNumber = nextWindingNumber) {
+			nextWindingNumber += e->aaEdge.edge.orientation;
+			if (nextWindingNumber && windingNumber) {	/* TODO: we need a fuzzier decision than this */
+				*lastCross = e->nextCross;
+				RemoveActiveEdgeFromNextList(e, pEdges);
+			}
+			else {
+				lastCross = &e->nextCross;
+			}
+		}
+		/* TODO: We also need to process the "nearings" list for fuzzy removal */
+#endif
 	}
 
 	return crossings;
@@ -794,8 +915,8 @@ InitAAEdge(const FskFixedPoint2D *pt0, const FskFixedPoint2D *pt1, const FskSpan
 		e->endPoint[1]		= t;
 		e->edge.orientation	= -1;																/* Indicate change in orientation */
 	}
-	if (e->endPoint[1].y == e->endPoint[0].y)
-		e->edge.orientation = 0;
+	//if (e->endPoint[1].y == e->endPoint[0].y)
+	//	e->edge.orientation = 0;
 	e->edge.top		= (SInt16)AAFIXEDCEIL(e->endPoint[0].y - aaSpan->aaRadius);					/* Edges becomes active when affected by the aura */
 	e->edge.bottom	= (SInt16)AAFIXEDCEIL(e->endPoint[1].y + aaSpan->aaRadius);					/* And stays active until unaffected by aura */
 	e->U.x			= (e->endPoint[1].x - e->endPoint[0].x);
@@ -944,35 +1065,6 @@ YSortAAEdges(UInt32 numEdges, AAEdge *edges, UInt32 edgeSize)
 }
 
 
-#ifdef NONZERO_FILL_DEV
-/*******************************************************************************
- * Remove
- *******************************************************************************/
-
-static void RemoveActiveEdgeFromCrossingList(AAActiveEdge *e, AAActiveEdge **list) {
-	AAActiveEdge *l;
-	for (; (l = *list) != NULL; list = &l->nextCross) {
-		if (l == e) {
-			list = &l->nextCross;
-			return;
-		}
-	}
-//	printf("Failed to remove %p @ %d from crossing list\n", e, e->crossX);
-}
-
-static void RemoveActiveEdgeFromNextList(AAActiveEdge *e, AAActiveEdge **list) {
-	AAActiveEdge *l;
-	for (; (l = *list) != NULL; list = &l->next) {
-		if (l == e) {
-			list = &l->next;
-			return;
-		}
-	}
-//	printf("Failed to remove %p @ %d from next list\n", e, e->crossX);
-}
-#endif /* NONZERO_FILL_DEV */
-
-
 /*******************************************************************************
  * ScanConvertAAEdges
  *******************************************************************************/
@@ -998,16 +1090,9 @@ ScanConvertAAEdges(
 
 	/* Sort edges */
 	YSortAAEdges(numEdges, edges, span->span.edgeBytes);
-//#define SCAN_DEBUG
-	#ifdef SCAN_DEBUG
-		for (y = 0; y < numEdges; ++y) {
-			AAEdge *e = edges + y;
-			printf("pt0=(%g,%g)\tpt1=(%g,%g)\tu=(%g,%g)\tL=%g\ttopBot=(%d,%d)\tx=%g\tdx=%g\tor=%+d\tdraw=%d\n",
-				e->endPoint[0].x / 65536., e->endPoint[0].y / 65536., e->endPoint[1].x / 65536., e->endPoint[1].y / 65536.,
-				e->U.x / 1073741824., e->U.x / 1073741824., e->length / 65536.,
-				e->edge.top, e->edge.bottom, e->edge.x / 65536., e->edge.dx / 65536., e->edge.orientation, e->edge.drawEdge);
-		}
-	#endif /* SCAN_DEBUG */
+	#ifdef LOG_EDGES
+		LogEdges(numEdges, edges, "Sorted Edges");
+	#endif /* LOG_EDGES */
 
 	/* Remove "invisible seam" edges, though there should be no need for these with multiple contours */
 	RemoveDegenerateAAEdges(&numEdges, edges, span->span.edgeBytes, fillRule);
@@ -1052,14 +1137,9 @@ ScanConvertAAEdges(
 					nextExpired = L->aaEdge.edge.bottom;
 
 		nextEvent = (nextBorn < nextExpired) ? nextBorn : nextExpired;
-		#ifdef SCAN_DEBUG
-			printf("AE@%3d[%d]:\n", (int)y, (int)(nextEvent - y));
-			for (L = ae, i = numActiveEdges; i--; L = (AAActiveEdge*)((char*)L + activeEdgeBytes))
-				printf("\tpt0=(%g,%g)\tpt1=(%g,%g)\tu=(%g,%g)\tL=%g\ttopBot=(%d,%d)\tx=%g\tdx=%g\tor=%+d\tdraw=%d\n",
-					L->aaEdge.endPoint[0].x / 65536., L->aaEdge.endPoint[0].y / 65536., L->aaEdge.endPoint[1].x / 65536., L->aaEdge.endPoint[1].y / 65536.,
-					L->aaEdge.U.x / 1073741824., L->aaEdge.U.x / 1073741824., L->aaEdge.length / 65536.,
-					L->aaEdge.edge.top, L->aaEdge.edge.bottom, L->aaEdge.edge.x / 65536., L->aaEdge.edge.dx / 65536., L->aaEdge.edge.orientation, L->aaEdge.edge.drawEdge);
-		#endif /* SCAN_DEBUG */
+		#ifdef LOG_ACTIVE_EDGES
+			LogActiveEdges(activeEdgeArray, y, nextEvent, "ActiveEdges");
+		#endif /* LOG_ACTIVE_EDGES */
 
 		/* Scan all active edges until the next event */
 		if (nextEvent < kFskSInt32Max) {
@@ -1135,16 +1215,11 @@ ScanConvertAAEdges(
 					AAActiveEdge	*crossings;
 					SInt32			nextCrossX, nextWindingNumber;
 
-					crossings = XSortAAActiveEdgeCrossings(numActiveEdges, ae, activeEdgeBytes);	/* Linked list->nextCross */
+					crossings = XSortAAActiveEdgeCrossings(&ae, fillRule);	/* ae linked list->next, crossing linked list->nextCross */
 
-					#ifdef SCAN_DEBUG
-						printf("AE > %3d:\n", (int)y);
-						for (L = ae; L; L = L->next)
-							printf("\tpt0=(%g,%g)\tpt1=(%g,%g)\tu=(%g,%g)\tL=%g\ttopBot=(%d,%d)\tx=%g\tdx=%g\tor=%+d\tdraw=%d\n",
-								L->aaEdge.endPoint[0].x / 65536., L->aaEdge.endPoint[0].y / 65536., L->aaEdge.endPoint[1].x / 65536., L->aaEdge.endPoint[1].y / 65536.,
-								L->aaEdge.U.x / 1073741824., L->aaEdge.U.x / 1073741824., L->aaEdge.length / 65536.,
-								L->aaEdge.edge.top, L->aaEdge.edge.bottom, L->aaEdge.edge.x / 65536., L->aaEdge.edge.dx / 65536., L->aaEdge.edge.orientation, L->aaEdge.edge.drawEdge);
-					#endif /* SCAN_DEBUG */
+					#ifdef LOG_CROSSING_EDGES
+						LogCrossingEdges(crossings, y, "CrossingEdges");
+					#endif /* LOG_CROSSING_EDGES */
 
 					for (windingNumber = 0, left = bounds.x[0], nextCrossX = kFskSInt32Min, span->edges = NULL; (ae != NULL) || (span->edges != NULL); left = right + 1) {
 
@@ -1177,7 +1252,6 @@ ScanConvertAAEdges(
 						}
 
 						/* Determine the next crossing */
-#ifndef NONZERO_FILL_DEV
 						if (nextCrossX < left) {
 							for (	nextCrossX = bounds.x[1] + 1, nextWindingNumber = windingNumber, L = crossings;
 									(L != NULL) && ((L->crossX <= nextCrossX) || (!nextWindingNumber == !windingNumber));
@@ -1204,78 +1278,12 @@ ScanConvertAAEdges(
 								right = L->lastX;						/* ... or next edge nap */
 						if (right < left)								/* I still don't understand how this might happen */
 							right = left;
-#else /* NONZERO_FILL_DEV */
-						if (fillRule == kFskFillRuleEvenOdd) {
-							if (nextCrossX < left) {
-								for (	nextCrossX = bounds.x[1] + 1, nextWindingNumber = windingNumber, L = crossings;
-										(L != NULL) && ((L->crossX <= nextCrossX) || (!nextWindingNumber == !windingNumber));
-										L = L->nextCross
-								) {
-									nextCrossX = L->crossX;
-									nextWindingNumber = !nextWindingNumber;
-								}
-								if (!nextWindingNumber == !windingNumber)
-									nextCrossX = bounds.x[1] + 1;
-							}
-							#ifdef SCAN_DEBUG
-								printf(" (%+d[%d], %+d[%d])", (int)windingNumber, (int)left, (int)nextWindingNumber, (int)nextCrossX);
-							#endif /* SCAN_DEBUG */
-
-							/* Determine the next state transition point */
-							right = nextCrossX;								/* Minimum of next crossing ... */
-							if ((ae != NULL) && (right > ae->firstX))
-								right = ae->firstX;							/* ... next waking edge ... */
-							right--;
-							for (L = span->edges; L != NULL; L = L->next)
-								if (right > L->lastX)
-									right = L->lastX;						/* ... or next edge nap */
-							if (right < left)								/* I still don't understand how this might happen */
-								right = left;
-						}
-						else {
-							if (nextCrossX < left) {
-								for (nextCrossX = bounds.x[1] + 1, nextWindingNumber = windingNumber, L = crossings; L != NULL; L = L->nextCross) {
-									if (L->crossX <= nextCrossX) {
-										nextWindingNumber += L->aaEdge.edge.orientation;
-										if (!nextWindingNumber == !windingNumber) {
-											//printf("Removing %p @ %d [%d, %d] from %p\n", L, L->crossX, (int)windingNumber, (int)nextWindingNumber, ae);
-// 											RemoveActiveEdgeFromNextList(L, &ae);
-// 											RemoveActiveEdgeFromNextList(L, &span->edges);
-											//printf("Removing %p @ %d [%d, %d] from %p\n", L, L->crossX, (int)windingNumber, (int)nextWindingNumber, crossings);
-											RemoveActiveEdgeFromCrossingList(L, &crossings);
-										}
-										else {
-											nextCrossX = L->crossX;
-											break;
-										}
-									}
-								}
-								if (!nextWindingNumber == !windingNumber)	/* If the fill state does not change by the right border, ... */
-									nextCrossX = bounds.x[1] + 1;			/* ... stop at the right border */
-							}
-							#ifdef SCAN_DEBUG
-								printf(" (%+d[%d], %+d[%d])", (int)windingNumber, (int)left, (int)nextWindingNumber, (int)nextCrossX);
-							#endif /* SCAN_DEBUG */
-
-							/* Determine the next state transition point */
-							right = nextCrossX;								/* Minimum of next crossing ... */
-							if ((ae != NULL) && (right > ae->firstX)
-								//&& (!windingNumber != !(windingNumber + ae->aaEdge.edge.orientation))
-							)
-								right = ae->firstX;							/* ... next waking edge ... */
-							right--;
-							for (L = span->edges; L != NULL; L = L->next)
-								if (right > L->lastX
-									//&& (!windingNumber != !(windingNumber + L->aaEdge.edge.orientation))
-								)
-									right = L->lastX;						/* ... or next edge nap */
-							if (right < left)								/* I still don't understand how this might happen */
-								right = left;
-						}
-#endif /* NONZERO_FILL_DEV */
 
 						/* Non-null span */
 						if ((span->span.dx = right - left + 1) > 0) {
+							#ifdef LOG_SPAN_EDGES
+								LogSpanEdges(span->edges, y, left, span->span.dx, windingNumber, "SpanEdges");
+							#endif /* LOG_SPAN_EDGES */
 							rendered = 1;
 							span->span.p = (char*)(span->span.baseAddr) + y * span->span.rowBytes + left * span->span.pixelBytes;
 							if (span->span.set != NULL)												/* If the span needs additional setup ... */

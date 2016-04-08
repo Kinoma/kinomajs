@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<!--
+|     Copyright (C) 2002-2015 Kinoma, Inc.
+|
+|     All rights reserved.
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+|
+-->
+<root xmlns="urn:schemas-upnp-org:device-1-0">
+    <specVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </specVersion>
+    <device>
+        <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
+        <friendlyName>[friendlyName]</friendlyName>
+        <manufacturer>CircuitCo</manufacturer>
+        <manufacturerURL>http://beagleboard.org</manufacturerURL>
+        <modelDescription>BeagleBone Black</modelDescription>
+        <modelNumber>1</modelNumber>
+        <modelName>BeagleBone Black</modelName>
+        <modelURL>http://beagleboard.org/black/</modelURL>
+        <serialNumber></serialNumber>
+        <UDN>uuid:[udn]</UDN>
+        <iconList>
+            <icon>
+                <mimetype>image/png</mimetype>
+                <width>64</width>
+                <height>64</height>
+                <depth>32</depth>
+                <url>/description/icon</url>
+            </icon>
+        </iconList>
+        <serviceList>
+        </serviceList>
+    </device>
+</root>

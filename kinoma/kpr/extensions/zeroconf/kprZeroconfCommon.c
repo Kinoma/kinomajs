@@ -25,7 +25,7 @@ static FskInstrumentedTypeRecord KprZeroconfServiceInfoInstrumentation = { NULL,
 #pragma mark - KprBonjourServiceInfo
 #endif
 
-FskErr KprZeroconfServiceInfoNew(KprZeroconfServiceInfo *it, const char* type, const char* name, const char* host, const char* ip, UInt32 port, char* txt)
+FskErr KprZeroconfServiceInfoNew(KprZeroconfServiceInfo *it, const char* type, const char* name, const char* host, const char* ip, UInt32 port, const UInt32 interfaceIndex, char* txt)
 {
 	FskErr err = kFskErrNone;
 	KprZeroconfServiceInfo self = NULL;
@@ -45,6 +45,7 @@ FskErr KprZeroconfServiceInfoNew(KprZeroconfServiceInfo *it, const char* type, c
 		bailIfNULL(self->ip);
 	}
 	self->port = port;
+	self->interfaceIndex = interfaceIndex;
 	if (txt) {
 		self->txt = FskStrDoCopy(txt);
 		bailIfNULL(self->txt);

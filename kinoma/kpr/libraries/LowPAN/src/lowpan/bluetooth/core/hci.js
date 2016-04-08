@@ -21,11 +21,11 @@
  * Bluetooth v4.2 - HCI (LE Only)
  */
 
-var BTUtils = require("btutils");
+var BTUtils = require("./btutils");
 var BluetoothAddress = BTUtils.BluetoothAddress;
 
-var Utils = require("/lowpan/common/utils");
-var Buffers = require("/lowpan/common/buffers");
+var Utils = require("../../common/utils");
+var Buffers = require("../../common/buffers");
 var ByteBuffer = Buffers.ByteBuffer;
 
 var UART_COMMAND_PACKET = 0x01;
@@ -48,6 +48,8 @@ var DEFAULT_LE_EVENT_MASK = Utils.multiIntToByteArray(
 
 var logger = new Utils.Logger("HCI");
 logger.loggingLevel = Utils.Logger.Level.INFO;
+
+exports.setLoggingLevel = level => logger.loggingLevel = level;
 
 /** Lower transport layer instance/module */
 var _transport = null;
@@ -86,10 +88,10 @@ exports.getPublicAddress = function () {
 
 function hciReady() {
 	_initDone = true;
-	while (_linksBeforeReady.length > 0) {
-		initL2CAP(_linksBeforeReady.shift());
-	}
 	_delegate.hciReady();
+	while (_linksBeforeReady.length > 0) {
+		_delegate.hciConnected(_linksBeforeReady.shift());
+	}
 }
 
 var InitContext = {

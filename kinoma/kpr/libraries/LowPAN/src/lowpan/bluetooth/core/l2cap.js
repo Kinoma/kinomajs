@@ -21,12 +21,14 @@
  * Bluetooth v4.2 - L2CAP (LE Only)
  */
 
-var Utils = require("/lowpan/common/utils");
-var Buffers = require("/lowpan/common/buffers");
+var Utils = require("../../common/utils");
+var Buffers = require("../../common/buffers");
 var ByteBuffer = Buffers.ByteBuffer;
 
 var logger = new Utils.Logger("L2CAP");
 logger.loggingLevel = Utils.Logger.Level.INFO;
+
+exports.setLoggingLevel = level => logger.loggingLevel = level;
 
 var Channel = {
 	NULL: 0x0000,

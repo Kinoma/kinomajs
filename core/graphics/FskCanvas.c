@@ -2355,7 +2355,7 @@ static FskErr PNGEncode(const void *baseAddr, SInt32 width, SInt32 height, SInt3
 
 	*pngData = NULL;
 	*pngSize = 0;
-	BAIL_IF_ERR(err = FskMemPtrNew(57 + (z.avail_out = deflateBound(&z, (1 + bytesPerLine) * height)) + 1, &zbuf));
+	BAIL_IF_ERR(err = FskMemPtrNew(57 + (z.avail_out = (uInt)deflateBound(&z, (1 + bytesPerLine) * height)) + 1, &zbuf));
 	deflateInit(&z, Z_DEFAULT_COMPRESSION);
 
 	z.next_out = zbuf + 41;																			/* Skip header for now */
@@ -2363,17 +2363,17 @@ static FskErr PNGEncode(const void *baseAddr, SInt32 width, SInt32 height, SInt3
 		z.avail_in = 1;				z.next_in = &zero;	deflate(&z,     Z_NO_FLUSH);
 		z.avail_in = bytesPerLine;	z.next_in = row;	deflate(&z, h ? Z_NO_FLUSH : Z_FINISH);
 	}
-	len_out = z.next_out - zbuf - 41;																/* Total bytes for the compressed image without header & footer */
+	len_out = (UInt32)(z.next_out - zbuf - 41);														/* Total bytes for the compressed image without header & footer */
 
 	{	UInt8 pnghdr[41] = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,												/* \x89PNG\r\n\x1a\n\0\0\0\rIHDR */
 							0, 0, (UInt8)(width>>8), (UInt8)width, 0, 0, (UInt8)(height>>8), (UInt8)height, 8, (UInt8)("\0\0\04\02\06"[pixBytes]), 0, 0, 0, 0, 0, 0, 0,	/* \0\0Ww\0\0Hh\bc0\0\0\0  CRC */
 							(UInt8)(len_out>>24), (UInt8)(len_out>>16), (UInt8)(len_out>>8), (UInt8)len_out, 0x49, 0x44, 0x41, 0x54};									/* len IDAT */
-		h = crc32(0, pnghdr + 12, 17);
+		h = (UInt32)crc32(0, pnghdr + 12, 17);
 		pnghdr[29+0] = h >> 24;	pnghdr[29+1] = h >> 16;	pnghdr[29+2] = h >> 8;	pnghdr[29+3] = h;	/* Write CRC big-endian */
 		FskMemCopy(zbuf, pnghdr, 41);																/* Write header */
 	}
 	FskMemCopy(z.next_out, "\0\0\0\0\0\0\0\0\x49\x45\x4e\x44\xae\x42\x60\x82", 16);					/* Write footer: CRC \0\0\0\0IEND\xaeB`\x82 */
-	h = crc32(0, zbuf + 41 - 4, len_out + 4);
+	h = (UInt32)crc32(0, zbuf + 41 - 4, len_out + 4);
 	z.next_out[0] = h >> 24; z.next_out[1] = h >> 16; z.next_out[2] = h >> 8; z.next_out[3] = h;	/* Write CRC big-endian */
 	deflateEnd(&z);
 	len_out += 57;																					/* Length, including header and footer (41 + 16) */

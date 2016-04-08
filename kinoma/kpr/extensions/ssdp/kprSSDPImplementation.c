@@ -1859,6 +1859,8 @@ static FskErr KprSSDPDiscoveryDescriptionFromDiscovery(KprSSDPDiscoveryDescripti
 	FskNetIPandPortToString(discovery->ssdpInterface->ip, 0, ip);
 	self->ip = FskStrDoCopy(ip);
 	bailIfNULL(self->ip);
+	self->interfaceName = FskStrDoCopy(discovery->ssdpInterface->title);
+	bailIfNULL(self->interfaceName);
 	self->type = FskStrDoCopy(discovery->type);
 	bailIfNULL(self->type);
 	for (service = discovery->services; service; service = service->next) {
@@ -1887,6 +1889,7 @@ void KprSSDPDiscoveryDescriptionDispose(KprSSDPDiscoveryDescription self)
 			FskMemPtrDispose(service->type);
 			FskMemPtrDispose(service);
 		}
+		FskMemPtrDispose(self->interfaceName);
 		FskMemPtrDispose(self->ip);
 		FskMemPtrDispose(self->url);
 		FskMemPtrDispose(self->type);
@@ -2220,6 +2223,18 @@ void KprSSDPInterfaceDisconnect(KprSSDPInterface self)
 	self->ready = false;
 }
 
+Boolean KprSSDPInterfaceValidateIP(KprSSDPInterface interface, UInt32 from, UInt32 to)
+{
+	if (from == to)
+		return true;
+	while (interface) {
+		if (interface->ip == from)
+			return false;
+		interface = interface->next;
+	}
+	return true;
+}
+
 void KprSSDPInterfaceReadMulticast(FskThreadDataHandler handler UNUSED, FskThreadDataSource source, void *refCon)
 {
 	FskErr err = kFskErrNone;
@@ -2231,6 +2246,8 @@ void KprSSDPInterfaceReadMulticast(FskThreadDataHandler handler UNUSED, FskThrea
 	FskSocket socket = (FskSocket)source;
 	while (kFskErrNone == (err = FskNetSocketRecvUDP(socket, buffer, kKprSSDPPacketBufSize - 1, &size, &ip, &port))) {
 		if (size == 0)
+			continue;
+		if (!KprSSDPInterfaceValidateIP(ssdp->ssdpInterfaces, ip, self->ip))
 			continue;
 		buffer[size] = 0;
 		if (FskStrCompareWithLength(buffer, kKprSSDPSearchStartLine, kKprSSDPSearchStartLineLength) == 0) {

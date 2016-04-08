@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -156,13 +156,15 @@ NSString *FskCocoaMediaIdFromURLString(NSString *urlString, BOOL urlEncoded);
 	// EAGL Context
 #ifdef __OBJC__
 @class EAGLContext;
-#else /* !__OBJC__ */
+#elif !defined(__FSKGLCONTEXT__) /* !__OBJC__ */
 struct EAGLContext;
 typedef struct EAGLContext EAGLContext;
 #endif /* __OBJC__ */
 EAGLContext* FskEAGLContextNew(int version, EAGLContext *share);
 EAGLContext* FskEAGLContextGetCurrent(void);
-FskErr FskEAGLContextSetCurrent(EAGLContext*);
+FskErr FskEAGLContextSetCurrent(EAGLContext *ctx);
+FskErr FskEAGLSwapBuffers(EAGLContext *ctx);
+//FskErr FskEAGLContextDispose(EAGLContext *ctx);
 
 #ifdef __cplusplus
 }

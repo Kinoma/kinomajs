@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -1610,6 +1610,24 @@ FskErr FskEAGLContextSetCurrent(EAGLContext *ctx)
 {
 	return [EAGLContext setCurrentContext:ctx] ? kFskErrNone : kFskErrEAGLBadContext;
 }
+
+#ifndef GL_RENDERBUFFER				/* #defined in <OpenGL/gl.h> */
+	#define GL_RENDERBUFFER 0x8D41
+#endif /* GL_RENDERBUFFER  */
+
+FskErr FskEAGLSwapBuffers(EAGLContext *ctx)
+{
+	return [ctx presentRenderbuffer:GL_RENDERBUFFER] ? kFskErrNone : kFskErrOperationFailed;
+}
+
+#if 0  /* Apparently setCurrentContext invokes automatic reference counting mode, so release is not necessary nor available. */
+FskErr FskEAGLContextDispose(EAGLContext *ctx)
+{
+	if ([EAGLContext currentContext] == ctx]
+		[EAGLContext setCurrentContext:nil];
+	[ctx release];
+}
+#endif
 
 
 #pragma mark --- private ---

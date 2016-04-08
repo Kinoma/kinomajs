@@ -207,7 +207,7 @@ FskErr FskRectangleFill(FskBitmap dst, FskConstRectangle r, FskConstColorRGBA co
 	//		 (int)outRect.height, (int)(rowBytes - ((outRect.width * dst->depth) >> 3)), (int)(*((short *)pixel)), (int)dstBits, (int)outRect.width);
 
 
-	CALL_COPYPROC(scanProc, outRect.height, rowBytes - ((outRect.width * dst->depth) >> 3), pixel, dstBits, outRect.width, (UInt16)dst->depth, state ? state : (void *)blendLevel);
+	CALL_COPYPROC(scanProc, outRect.height, rowBytes - ((outRect.width * dst->depth) >> 3), pixel, dstBits, outRect.width, (UInt16)dst->depth, state ? state : (void *)(long)blendLevel);
 
 	//if( scanProc == fillColor32Proc )
 	//{
@@ -413,7 +413,7 @@ void fillColorYUV420(UInt32 height, SInt32 dstRowBump, const unsigned char *src,
     UNUSED(bpp);
 
 	while (height--) {
-		lineNumber = (dst - blt->y) / blt->width;
+		lineNumber = (UInt32)((dst - blt->y) / blt->width);
 		planeOffset = (lineNumber >> 1) * (blt->width >> 1);				// vertical offset into uv planes
 		planeOffset += ((dst - blt->y) - (blt->width * lineNumber)) >> 1;	// horizontal offset into uv planes
 

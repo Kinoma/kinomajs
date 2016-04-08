@@ -246,8 +246,8 @@ void fxCollect(txMachine* the, txBoolean theFlag)
 	fxSweepHost(the);
 	
 	if (!theFlag) {
-		if (((the->maximumHeapCount - the->currentHeapCount) * 8) < the->maximumHeapCount)
-			the->collectFlag |= XS_TRASHING_FLAG;
+		if ((the->maximumHeapCount - the->currentHeapCount) < the->minimumHeapCount)
+				the->collectFlag |= XS_TRASHING_FLAG;
 			else
 				the->collectFlag &= ~XS_TRASHING_FLAG;
 	}

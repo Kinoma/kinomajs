@@ -411,6 +411,20 @@ bail:
 }
 
 
+/********************************************************************************
+ * FskGLContextSwapBuffers - EGL
+ ********************************************************************************/
+
+FskErr FskGLContextSwapBuffers(FskGLContext ctx) {
+	EGLBoolean result = eglSwapBuffers(ctx->display, ctx->surface);
+	switch (result) {
+		case EGL_TRUE:	return kFskErrNone;
+		case EGL_FALSE:	return kFskErrOperationFailed;
+		default:		return FskErrorFromEGLError(result);
+	}
+}
+
+
 #if 0
 #pragma mark ======== Mac ========
 #endif
@@ -730,6 +744,16 @@ bail:
 }
 
 
+/********************************************************************************
+ * FskGLContextSwapBuffers - Mac
+ ********************************************************************************/
+
+FskErr FskGLContextSwapBuffers(FskGLContext ctx) {
+	CGLError cglErr	= CGLFlushDrawable(ctx->context);
+	return (kCGLNoError == cglErr) ? kFskErrNone : FskErrorFromCGLError(cglErr);
+}
+
+
 #if 0
 #pragma mark ======== iPhone ========
 #endif
@@ -931,7 +955,7 @@ void FskGLContextDispose(FskGLContext ctx, Boolean terminateGL) {
 		if (ctx->fbTexture) {
 			glDeleteTextures(1, &ctx->fbTexture);										/* Delete the associated frame buffer texture */
 		}
-		// [ctx->context release]; /* Apparently setCurrentContext invokes automatic reference counting mode, so release is not necessary nor available. */
+		// FskEAGLContextDispose(ctx->context); /* Apparently setCurrentContext invokes automatic reference counting mode, so release is not necessary nor available. */
 		FskMemPtrDispose(ctx);
 		FskEAGLContextSetCurrent(ocx);													/* Restore the context */
 	}
@@ -971,6 +995,15 @@ FskErr FskGLContextMakeCurrent(FskConstGLContext ctx) {
 	BAIL_IF_ERR(err = FskEAGLContextSetCurrent(ctx ? ctx->context : NULL));
 bail:
 	return err;
+}
+
+
+/********************************************************************************
+ * FskGLContextSwapBuffers - iPhone
+ ********************************************************************************/
+
+FskErr FskGLContextSwapBuffers(FskGLContext ctx) {
+	return FskEAGLSwapBuffers(ctx->context);
 }
 
 

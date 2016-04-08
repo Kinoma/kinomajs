@@ -21,16 +21,18 @@
  * Bluetooth v4.2 - Generic Attribute Profile (GATT)
  */
 
-var Utils = require("/lowpan/common/utils");
+var Utils = require("../../common/utils");
 var Logger = Utils.Logger;
-var Buffers = require("/lowpan/common/buffers");
+var Buffers = require("../../common/buffers");
 var ByteBuffer = Buffers.ByteBuffer;
 
-var BTUtils = require("btutils");
+var BTUtils = require("./btutils");
 var UUID = BTUtils.UUID;
 
 var logger = new Logger("GATT");
 logger.loggingLevel = Utils.Logger.Level.INFO;
+
+exports.setLoggingLevel = level => logger.loggingLevel = level;
 
 const UUID_PRIMARY_SERVICE	= UUID.getByUUID16(0x2800);
 const UUID_SECONDARY_SERVICE	= UUID.getByUUID16(0x2801);
@@ -71,7 +73,7 @@ exports.ClientConfiguration = ClientConfiguration;
 
 var SUPPORTED_GROUPS = [UUID_PRIMARY_SERVICE, UUID_SECONDARY_SERVICE];
 
-var ATT = require("att");
+var ATT = require("./att");
 ATT.setSupportedGroups(SUPPORTED_GROUPS);
 exports.ATT = ATT;
 

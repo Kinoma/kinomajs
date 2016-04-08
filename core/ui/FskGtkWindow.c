@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -361,7 +361,7 @@ static void FskGtkWindowLoop(void *refcon)
 
 	gtkWin->owner = fskWindow;
 	gtkWin->window = win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_default_size((GtkWindow*)win, 750, 505);
+	gtk_window_set_default_size((GtkWindow*)win, 800, 600);
 
 	//	Set App Icon
 	char *iconPath = FskStrDoCat(FskGetApplicationPath(), "fsk.png");

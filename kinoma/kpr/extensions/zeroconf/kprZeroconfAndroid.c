@@ -124,7 +124,7 @@ KPR_NATIVE_JAVA(void, KprZeroconfAndroid, serviceRegistered)(JNIEnv* env, jobjec
 	const char *type = (*env)->GetStringUTFChars(env, jniType, 0);
 	const char *name = (*env)->GetStringUTFChars(env, jniName, 0);
 	KprZeroconfServiceInfo serviceInfo = NULL;
-	KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, jniPort, NULL);
+	KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, jniPort, 0, NULL);
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprZeroconfAdvertisementServiceRegistered, NULL, serviceInfo, NULL, NULL);
 bail:
 	(*env)->ReleaseStringUTFChars(env, jniName, name);
@@ -139,7 +139,7 @@ KPR_NATIVE_JAVA(void, KprZeroconfAndroid, serviceUp)(JNIEnv* env, jobject thiz, 
 	const char *hostname = (*env)->GetStringUTFChars(env, jniHostname, 0);
 	const char *ip = (*env)->GetStringUTFChars(env, jniIP, 0);
 	KprZeroconfServiceInfo serviceInfo = NULL;
-	KprZeroconfServiceInfoNew(&serviceInfo, type, name, hostname, ip, jniPort, NULL);
+	KprZeroconfServiceInfoNew(&serviceInfo, type, name, hostname, ip, jniPort, 0, NULL);
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprZeroconfAndroidServiceUp, serviceInfo, NULL, NULL, NULL);
 bail:
 	(*env)->ReleaseStringUTFChars(env, jniIP, ip);
@@ -154,7 +154,7 @@ KPR_NATIVE_JAVA(void, KprZeroconfAndroid, serviceDown)(JNIEnv* env, jobject thiz
 	const char *type = (*env)->GetStringUTFChars(env, jniType, 0);
 	const char *name = (*env)->GetStringUTFChars(env, jniName, 0);
 	KprZeroconfServiceInfo serviceInfo = NULL;
-	KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, 0, NULL);
+	KprZeroconfServiceInfoNew(&serviceInfo, type, name, NULL, NULL, 0, 0, NULL);
 	FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)KprZeroconfAndroidServiceDown, serviceInfo, NULL, NULL, NULL);
 bail:
 	(*env)->ReleaseStringUTFChars(env, jniName, name);

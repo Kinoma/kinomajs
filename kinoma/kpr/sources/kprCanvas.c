@@ -1134,57 +1134,57 @@ void KPR_canvasRenderingContext2D_set_font(xsMachine *the)
 			q++;
 		}
 		if (state == 0) {
-			if (!FskStrCompareWithLength(p, "normal", q - p))
+			if (!FskStrCompareWithLength(p, "normal", (UInt32)(q - p)))
 				{}
-			else if (!FskStrCompareWithLength(p, "italic", q - p))
+			else if (!FskStrCompareWithLength(p, "italic", (UInt32)(q - p)))
 				font.style = kFskFontStyleItalic;
-			else if (!FskStrCompareWithLength(p, "oblique", q - p))
+			else if (!FskStrCompareWithLength(p, "oblique", (UInt32)(q - p)))
 				font.style = kFskFontStyleOblique;
-			else if (!FskStrCompareWithLength(p, "inherit", q - p))
+			else if (!FskStrCompareWithLength(p, "inherit", (UInt32)(q - p)))
 				{}
-			else if (!FskStrCompareWithLength(p, "bold", q - p))
+			else if (!FskStrCompareWithLength(p, "bold", (UInt32)(q - p)))
 				font.weight = kFskFontWeightBold;
-			else if (!FskStrCompareWithLength(p, "100", q - p))
+			else if (!FskStrCompareWithLength(p, "100", (UInt32)(q - p)))
 				font.weight = 100;
-			else if (!FskStrCompareWithLength(p, "200", q - p))
+			else if (!FskStrCompareWithLength(p, "200", (UInt32)(q - p)))
 				font.weight = 200;
-			else if (!FskStrCompareWithLength(p, "300", q - p))
+			else if (!FskStrCompareWithLength(p, "300", (UInt32)(q - p)))
 				font.weight = 300;
-			else if (!FskStrCompareWithLength(p, "400", q - p))
+			else if (!FskStrCompareWithLength(p, "400", (UInt32)(q - p)))
 				font.weight = 400;
-			else if (!FskStrCompareWithLength(p, "500", q - p))
+			else if (!FskStrCompareWithLength(p, "500", (UInt32)(q - p)))
 				font.weight = 500;
-			else if (!FskStrCompareWithLength(p, "600", q - p))
+			else if (!FskStrCompareWithLength(p, "600", (UInt32)(q - p)))
 				font.weight = 600;
-			else if (!FskStrCompareWithLength(p, "700", q - p))
+			else if (!FskStrCompareWithLength(p, "700", (UInt32)(q - p)))
 				font.weight = 700;
-			else if (!FskStrCompareWithLength(p, "800", q - p))
+			else if (!FskStrCompareWithLength(p, "800", (UInt32)(q - p)))
 				font.weight = 800;
-			else if (!FskStrCompareWithLength(p, "900", q - p))
+			else if (!FskStrCompareWithLength(p, "900", (UInt32)(q - p)))
 				font.weight = 900;
-			else if (!FskStrCompareWithLength(p, "small-caps", q - p))
+			else if (!FskStrCompareWithLength(p, "small-caps", (UInt32)(q - p)))
 				font.variant = kFskFontVariantSmallCaps;
 			else
 				state = 1;
 		}
 		if (state == 1) {
-			if (!FskStrCompareWithLength(p, "xx-small", q - p))
+			if (!FskStrCompareWithLength(p, "xx-small", (UInt32)(q - p)))
 				font.size = 3 * kFskMediumFontSize / 5;
-			else if (!FskStrCompareWithLength(p, "x-small", q - p))
+			else if (!FskStrCompareWithLength(p, "x-small", (UInt32)(q - p)))
 				font.size = 3 * kFskMediumFontSize / 4;
-			else if (!FskStrCompareWithLength(p, "small", q - p))
+			else if (!FskStrCompareWithLength(p, "small", (UInt32)(q - p)))
 				font.size = 8 * kFskMediumFontSize / 9;
-			else if (!FskStrCompareWithLength(p, "medium", q - p))
+			else if (!FskStrCompareWithLength(p, "medium", (UInt32)(q - p)))
 				font.size = kFskMediumFontSize;
-			else if (!FskStrCompareWithLength(p, "large", q - p))
+			else if (!FskStrCompareWithLength(p, "large", (UInt32)(q - p)))
 				font.size = 6 * kFskMediumFontSize / 5;
-			else if (!FskStrCompareWithLength(p, "x-large", q - p))
+			else if (!FskStrCompareWithLength(p, "x-large", (UInt32)(q - p)))
 				font.size = 3 * kFskMediumFontSize / 2;
-			else if (!FskStrCompareWithLength(p, "xx-large", q - p))
+			else if (!FskStrCompareWithLength(p, "xx-large", (UInt32)(q - p)))
 				font.size = 2 * kFskMediumFontSize;
-			else if (!FskStrCompareWithLength(p, "larger", q - p))
+			else if (!FskStrCompareWithLength(p, "larger", (UInt32)(q - p)))
 				font.size = 6 * kFskMediumFontSize / 5; // @@
-			else if (!FskStrCompareWithLength(p, "smaller", q - p))
+			else if (!FskStrCompareWithLength(p, "smaller", (UInt32)(q - p)))
 				font.size = 8 * kFskMediumFontSize / 9; // @@
 			else {
 				size = 0;
@@ -1192,9 +1192,9 @@ void KPR_canvasRenderingContext2D_set_font(xsMachine *the)
 					size = (10 * size) + (d - '0');
 					p++;
 				}
-				if (!FskStrCompareWithLength(p, "%", q - p))
+				if (!FskStrCompareWithLength(p, "%", (UInt32)(q - p)))
 					font.size = parent->size * size / 100;
-				else if (!FskStrCompareWithLength(p, "px", q - p))
+				else if (!FskStrCompareWithLength(p, "px", (UInt32)(q - p)))
 					font.size = size;
 			}
 			state = 2;
