@@ -1,0 +1,137 @@
+{
+	"xsdebug":{
+		"enabled":true,
+	},
+	"build":{
+		"F_EXTENSIONS":"$(F_HOME)/extensions",
+		"F_KINOMA":"$(F_HOME)/kinoma",
+		"KDT_HOME":"$(F_KINOMA)/kpr/projects/kdt",
+		"KPL_HOME":"$(F_HOME)/build/linux/kpl",
+		"KPR_HOME":"$(F_KINOMA)/kpr",
+		"SHELL_HOME":"$(F_HOME)/xs6/xsedit",
+	},
+	"environment":{
+		"VERSION":"1.0b3",
+		"NAME":"Kinoma Code",
+		"NAMESPACE":"com.marvell.kinoma.code.shell",
+		"CA_list":"ca-bundle.crt",
+		
+		"CREATE_SOFTWARE_TARGET":"CREATE_SHELL_RELEASE",
+		"CREATE_FIRMWARE_TARGET":"CREATE_FIRMWARE_RELEASE",
+		"ELEMENT_FIRMWARE_TARGET":"ELEMENT_FIRMWARE_RELEASE",
+
+		"modulePath":"../",
+		"shellPath":"[applicationPath]modules/shell/main.xsb",
+		
+		"httpServerPort":"10000",
+		"useSSDP":"1",
+		"ssdpExpire":"1800",
+		"ssdpSearchAll":"0",
+		"ssdpTTL":"4",
+		"ssdpByebyeRepeat":"3",
+		"screenScale":"1",
+		"windowMinWidth":"800",
+		"windowMinHeight":"600",
+		"windowStyle":"0",
+		"fitFonts":"0",
+		"useGL":"1",
+	},
+	"extensions":{
+		"fsZip":"$(F_EXTENSIONS)/fsZip/fsZip.mk",
+		"Crypt":"$(F_EXTENSIONS)/crypt/Crypt.mk",
+		"FskSSLAll":"$(F_EXTENSIONS)/ssl/FskSSLAll.mk",
+		"FskBMPCodec":"$(F_EXTENSIONS)/FskBMPCodec/FskBMPCodec.mk",
+		"FskGIFDecode":"$(F_EXTENSIONS)/FskGIFDecode/FskGIFDecode.mk",
+		"FskJPEGDecode":"$(F_EXTENSIONS)/FskJPEGDecode/FskJPEGDecode.mk",
+		"FskPNGDecode":"$(F_EXTENSIONS)/FskPNGDecode/FskPNGDecode.mk",
+		"mediareader":"$(F_KINOMA)/mediareader/mediareader.mk",
+		"kpr":"$(KPR_HOME)/kpr.mk",
+		"kprCode":"$(SHELL_HOME)/code/kprCode.mk",
+		"kprDebug":"$(SHELL_HOME)/debug/kprDebug.mk",
+		"kprMarkdown":"$(SHELL_HOME)/markdown/kprMarkdown.mk",
+		"kprSSDP":"$(KPR_HOME)/extensions/ssdp/kprSSDP.mk",
+		"kprZeroconf":"$(KPR_HOME)/extensions/zeroconf/kprZeroconf.mk",
+		"kprPins":"$(KPR_HOME)/extensions/pins/kprPins.mk",
+		"websocket":"$(KPR_HOME)/extensions/websocket/kprWebSocket.mk",
+	},
+	"resources":{
+		"~":[
+			"$(SHELL_HOME)/features/devices/helpers/element/icon.png",
+			"$(SHELL_HOME)/features/devices/configs/hd",
+		],
+		".":[
+			"$(F_HOME)/data/sslcert/ca-bundle.crt",
+		],
+		"certs":[
+			"$(SHELL_HOME)/certs/*",
+		],
+		"fonts":[
+			"$(F_HOME)/data/fonts/OpenSans-Bold.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-BoldItalic.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-ExtraBold.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-ExtraBoldItalic.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-Italic.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-Light.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-LightItalic.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-Regular.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-Semibold.ttf",
+			"$(F_HOME)/data/fonts/OpenSans-SemiboldItalic.ttf",
+		],
+		"modules":[
+			"$(SHELL_HOME)/common",
+			"$(SHELL_HOME)/features",
+			"$(SHELL_HOME)/shell",
+			"$(SHELL_HOME)/templates",
+			"$(KPR_HOME)/libraries/Pins/src/*",
+		],
+	},
+	"sources": [
+		"^(\\/[\\w]+)+\\/features\\/devices\\/configs\\/[\\w]+\\/helper\\/[\\w]+.js$",
+		"^(\\/[\\w]+)+\\/templates\\/.+$",
+	],
+	"platforms":{
+		"linux":{
+			"xsprofile":{
+				"enabled":true,
+			},
+			"environment":{
+			},
+			"fonts":{
+				"default": "Fira Sans",
+				"path": "[applicationPath]fonts/"
+			},
+			"resources":{
+				"fonts": [
+					"$(F_HOME)/data/fonts/FiraMono-Regular.ttf",
+					"$(F_HOME)/data/fonts/FiraSans-Bold.ttf",
+					"$(F_HOME)/data/fonts/FiraSans-Regular.ttf",
+				],
+			},
+		},
+		"mac":{
+			"xsprofile":{
+				"enabled":true,
+			},
+			"resources":{
+				"tools": [
+					"$(F_HOME)/xs6/bin/mac/Release/xsc6",
+					"$(F_HOME)/xs6/bin/mac/Release/xsr6",
+					"$(F_HOME)/xs6/bin/mac/Release/modules/tools.so",
+					"$(F_HOME)/xs6/bin/mac/Release/modules/tools.xsa",
+				],
+				"simulators": [
+				],
+			},
+		},
+	},
+	"instrument":{
+		"log":"",
+		"syslog":"",
+		"trace":true,
+		"threads":true,
+		"times":true,
+		"androidlog":false,
+		"kinds":[
+		]
+	},
+}

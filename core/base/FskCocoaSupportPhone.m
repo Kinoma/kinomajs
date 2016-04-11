@@ -570,7 +570,7 @@ void FskCocoaWindowInputTextActivate(FskWindow fskWindow, xsMachine *the, xsSlot
     win.obj = obj;
 	[win resetStorage];
     win.autocapitalizationType = UITextAutocapitalizationTypeNone;
-    win.autocorrectionType = UITextAutocorrectionTypeNo;
+//    win.autocorrectionType = UITextAutocorrectionTypeNo;
 	win.returnKeyType = UIReturnKeyNext;
     switch (mode)
     {

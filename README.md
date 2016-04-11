@@ -595,3 +595,62 @@ Build the Kinoma Element simulator that is included in the KinomaJS repository.
 	$ kprconfig6 -d -x -m ${F_HOME}/kinoma/kpr/projects/element/manifest.json
 
 The simulator application is located at `${F_HOME}/bin/mac/Debug/ElementShell.app`.
+
+<a id="code-build"></a>
+## Kinoma Code
+
+![icon](http://kinoma.com/img/icons/kinoma-code-icon.png)
+
+Kinoma Code IDE built on a Mac OS X build host. If you have already set up your Mac OS X build host and XS6 tools, skip to the [Build Kinoma Code Application](#kcode-build) section.
+
+On Mac OS X, the KinomaJS build uses Homebrew to manage installation and maintenance of CMake.
+
+### Set Up Your Mac OS X Host Build Environment
+
+1. Install the current version of Xcode from Apple's App Store. (As of the writing of this document, the current version 7.2.) After installing, run Xcode to accept the license agreement and install any required additional components.
+
+2. Install [Homebrew](http://brew.sh/).
+
+        $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+        $ brew install caskroom/cask/brew-cask
+
+3. Install CMake.
+
+        $ brew install cmake
+
+4. Get a copy of the KinomaJS source code. It can be downloaded using your web browser from the [KinomaJS repository on GitHub](http://github.org/kinoma/kinomajs) or using the `git` command-line tool, as follows:
+
+        $ git clone https://github.com/kinoma/kinomajs.git
+
+5. Set up two environment variables to point to the source tree.
+
+        $ export F_HOME=/path/to/kinomajs
+        $ export XS6=${F_HOME}/xs6
+        
+### Build the XS6 Tools
+
+1. Build the XS6 tools as follows:
+
+        $ cd ${XS6}
+        $ mkdir tmp
+        $ cd tmp
+        $ cmake ${XS6}
+        $ cmake --build . --config Release
+
+2. Update the `PATH` environment variable to include the path to the XS6 tools.
+
+        $ export PATH=${PATH}:${XS6}/bin/mac/Release
+
+
+<a id="kcode-build"></a>
+### Build Kinoma Code Application
+
+Build the `Kinoma Code` application.
+
+	$ cd ${F_HOME}
+	$ kprconfig6 -x -m ${XS6}/xsedit/manifest.json
+
+The `Kinoma Code.app` application is located at `${F_HOME}/bin/mac/Release/Kinoma Code.app`. You may move the application somewhere else, or run it directly with
+
+	$ open ${F_HOME}/bin/mac/Release/Kinoma\ Code.app
+	

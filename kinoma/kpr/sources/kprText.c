@@ -1155,7 +1155,8 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 				while (offset < lastOffset) {
 					if (KprTextIsSpaceAdvance(text + offset, &advance) || KprTextIsReturn(text + offset, advance) || KprTextIsMultibyteBoundary(text, offset)) {
 						if (firstOffset < offset) {
-							textWidth += KprTextGetTextWidth(self, text + firstOffset, offset - firstOffset);
+                            SInt32 spanWidth = KprTextGetTextWidth(self, text + firstOffset, offset - firstOffset);
+							textWidth += spanWidth;
 							firstOffset = offset;
 						}
 						if (lineBounds.width < breakWidth + textWidth) {
@@ -1205,8 +1206,31 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 					offset += advance;
 				}
 				if (firstOffset < offset) {
-					textWidth += KprTextGetTextWidth(self, text + firstOffset, offset - firstOffset);
+                    SInt32 spanWidth = KprTextGetTextWidth(self, text + firstOffset, offset - firstOffset);
+                    textWidth += spanWidth;
 					if (lineBounds.width < breakWidth + textWidth) {
+						lineCount--; 
+						if (lineCount == 0) {
+							block += 1 + c;
+							KprTextFormatLine(self, text, style, true, &startOffset, block->offset, &startRun, run, &lineBounds, blockX, blockWidth);
+							textWidth = 0;
+							goto next;
+						}
+						if (breakWidth) {
+							KprTextFormatLine(self, text, style, false, &startOffset, stopOffset, &startRun, stopRun, &lineBounds, blockX, blockWidth);
+							KprTextSetStyle(self, run->span.style);
+							breakWidth = 0;
+						}
+						if (lineBounds.width < textWidth) {
+							KprTextFormatLines(self, text, style, false, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth, &textWidth); // @@ lineCount ?
+							KprTextSetStyle(self, run->span.style);
+							breakWidth = 0;
+						}
+						breakWidth += textWidth;
+						textWidth = 0;
+						stopOffset = offset;
+						stopRun = run;
+						/*
 						KprTextFormatLines(self, text, style, false, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth, &textWidth); // @@ lineCount ?
 						KprTextSetStyle(self, run->span.style);
 						breakWidth = 0;
@@ -1214,6 +1238,7 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 						textWidth = 0;
 						stopOffset = offset;
 						stopRun = run;
+						*/
 					}
 				}
 			}

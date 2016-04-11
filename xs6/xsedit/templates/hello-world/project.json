@@ -1,0 +1,14 @@
+{
+	"title":"Hello, World!",
+	"description":"This template builds an app that traces \"Hello, World!\" and breaks into the debugger.",
+	"id":"hello-world.template.kinoma.marvell.com",
+	"tags":[
+		"emptySample"
+	],
+	"Create":{ 
+		"main":"main" 
+	},
+	"Element":{ 
+		"main":"main" 
+	},
+}

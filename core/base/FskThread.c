@@ -38,7 +38,7 @@
 #include "FskPlatformImplementation.h"
 #include "FskSynchronization.h"
 #include "FskNetUtils.h"
-#if TARGET_OS_LINUX
+#if TARGET_OS_LINUX || (TARGET_OS_MAC && !TARGET_OS_IPHONE)
 #include "FskMain.h"	/* just for gQuitting */
 #endif
 #if TARGET_OS_WIN32
@@ -984,9 +984,12 @@ FskErr FskThreadRunloopCycle(SInt32 msec) {
     if (needsTime)
         msec = 0;
 
-    if (thread->flags & kFskThreadFlagsIsMain)
+    if (thread->flags & kFskThreadFlagsIsMain) {
+#if !TARGET_OS_IPHONE
+        if (!gQuitting)
+#endif
         FskCocoaApplicationRun();
-    else
+    } else
     FskCocoaThreadRun(thread, msec);
 
 #elif TARGET_OS_ANDROID
