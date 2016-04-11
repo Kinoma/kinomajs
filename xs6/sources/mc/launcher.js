@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,37 +15,47 @@
  *     limitations under the License.
  */
 import System from "system";
-import Files from "files";
-import Environment from "env";
 
-var env = new Environment();
+/*
+	Unused 
 
 function verify(app)
 {
+	let Files = require.weak("files");
 	var Crypt = require.weak("crypt");
 	var base = Files.applicationDirectory + "/" + app;
 	// first check if the signature file exists
-	var sig = Files.readChunk(base + ".sig");
+	var sig = Files.read(base + ".sig");
 	if (!sig) {
 		console.log(base + ".sig" + " not found");
 		return false;
 	}
-	var f = new Files(base + ".xsb");
+	var f = new File(base + ".xsb");
 	var buf = new ArrayBuffer(128);
 	var dgst = new Crypt.SHA1();
 	while (f._read(128, buf)) {
 		dgst.update(buf);
 	}
+	f.close();
 	var h = dgst.close();
-	var pk = new Crypt.PKCS1_5(Crypt.X509.decodeSPKI(Files.readChunk("xssig.der")));
+	var pk = new Crypt.PKCS1_5(Crypt.X509.decodeSPKI(Files.read("xssig.der")));
 	return pk.verify(h, sig);
 }
+*/
 
 var Launcher = {
-	module: undefined,
-	instances: [],
+	s: null,
+	get state() {
+		let state = this.s;
+		if (!state) {
+			state = System.launcher;
+			if (!state)
+				state = this.s = System.launcher = {module: null, instances: []};
+		}
+		return state;
+	},
 	start(mode) {
-		var app = env.get("APPLICATION");
+		let app = System.get("APPLICATION");
 		if (app) {
 			/*
 			if (!verify(app)) {
@@ -60,18 +70,20 @@ var Launcher = {
 		this.quit();
 	},
 	add(instance, cb) {
-		var n = this.instances.length;
+		let instances = this.state.instances;
+		var n = instances.length;
 		while (--n >= 0) {
-			if (this.instances[n].instance == instance)
+			if (instances[n].instance == instance)
 				return;
 		}
-		this.instances.push({instance, cb});
+		instances.push({instance, cb});
 	},
 	remove(instance) {
-		var n = this.instances.length;
+		let instances = this.state.instances;
+		var n = instances.length;
 		while (--n >= 0) {
-			if (this.instances[n].instance == instance) {
-				this.instances.splice(n, 1);
+			if (instances[n].instance == instance) {
+				instances.splice(n, 1);
 				break;
 			}
 		}
@@ -79,30 +91,35 @@ var Launcher = {
 	},
 	launch(path, ...params) {
 		this.quit();
-		this.module = require.weak(path);
-		if (this.module && this.module.onLaunch) {
+		let module = require.weak(path);
+		this.state.module = module;
+		if (module && module.onLaunch) {
 			try {
-				return this.module.onLaunch(...params);
+				return module.onLaunch(...params);
 			} catch(e) {
 				console.log("launcher: onLaunch: caught an exception");
 			}
 		}
 	},
 	quit() {
-		if (this.module) {
-			if (this.module.onQuit) {
+		let state = this.state;
+		let module = state.module;
+		if (module) {
+			if (module.onQuit) {
 				try {
-					this.module.onQuit();
+					module.onQuit();
 				} catch(e) {
 					console.log("launcher: onQuit: caught an exception");
 				}
 			}
-			delete this.module;
+			module = null;
+			state.module = null;
 			System.gc();
 		}
-		var n = this.instances.length;
+		let instances = state.instances;
+		var n = instances.length;
 		while (--n >= 0) {
-			var o = this.instances[n];
+			let o = instances[n];
 			if (o.cb) {
 				try {
 					o.cb(o.instance);
@@ -111,15 +128,15 @@ var Launcher = {
 				}
 			}
 		}
-		this.instances = [];
+		instances.length = 0;
 		System.gc();
 	},
-	run(mod, args) {
+	run(module, args) {
 		this.quit();
-		this.module = mod;
-		if (this.module.onLaunch) {
+		this.state.module = module;
+		if (module.onLaunch) {
 			try {
-				return this.module.onLaunch.apply(this.module, args);
+				return module.onLaunch.apply(module, args);
 			} catch(e) {
 				console.log("launcher: onLaunch: caught an exception");
 			}

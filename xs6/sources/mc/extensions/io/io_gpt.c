@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -124,14 +124,14 @@ void
 xs_gpt_pwm(xsMachine *the)
 {
 	mc_gpt_t *gpt = xsGetHostData(xsThis);
-	uint32_t on = xsToInteger(xsArg(0));	/* in ms */
-	uint32_t off = xsToInteger(xsArg(1));	/* ditto */
+	double on = xsToNumber(xsArg(0));	/* in ms */
+	double off = xsToNumber(xsArg(1));	/* ditto */
 	mdev_t *mdev;
 
 	if ((mdev = gpt_drv_open(gpt->id)) == NULL)
 		return;
 	gpt_drv_set(mdev, 0xffffffff/50);
-	gpt_drv_pwm(mdev, gpt->channel, on * 50000, off * 50000);	/* @ 50MHz? */
+	gpt_drv_pwm(mdev, gpt->channel, (uint32_t)(on * 50000), (uint32_t)(off * 50000));	/* @ 50MHz? */
 	gpt_drv_start(mdev);
 	gpt_drv_close(mdev);
 	gpt->running++;

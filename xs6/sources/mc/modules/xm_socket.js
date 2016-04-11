@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,23 +14,45 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-export class Socket @ "xs_socket_destructor" {
+
+class RawSocket @ "xs_socket_destructor" {
 	constructor(params) @ "xs_socket_constructor";
 	close() @ "xs_socket_close";
 	send(data, addr) @ "xs_socket_send";
-	write(...items) @ "xs_socket_write";
 	recv(n, b) @ "xs_socket_recv";
+	connect(addr) @ "xs_socket_connect";
+	flush() @ "xs_socket_flush";
+	static aton(str) @ "xs_socket_aton";
+	static ntoa(addr) @ "xs_socket_ntoa";
+	static resolv(name, f) @ "xs_socket_resolv";	// obsolete
 
 	get port() @ "xs_socket_getPort";
 	get addr() @ "xs_socket_getAddr";
 	get peerAddr() @ "xs_socket_getPeerAddr";
 	get peerPort() @ "xs_socket_getPeerPort";
-	get peer() {
-		return this.peerAddr + ":" + this.peerPort;
-	};
+	get nativeSocket() @ "xs_socket_getNativeSocket";
+
 	get bytesWritable() @ "xs_socket_getBytesWritable";
 	get bytesAvailable() @ "xs_socket_getBytesAvailable";
 
+	// will be overwritten (kind of virtual)
+	_onConnect() {};
+	_onMessage(n) {};
+	_onError() {};
+	_onClose() {};
+};
+
+export class Socket extends RawSocket {
+	constructor(params) {
+		var host;
+		if (params && params.host) {
+			host = params.host;
+			params.host = "";	// tell Socket that the hostname is resolving
+		}
+		super(params);
+		if (host)
+			Socket.resolv(host, addr => this.connect(addr));	// resolver has to be async
+	};
 	read(cons, n, buf) {
 		if ((buf = this.recv(n, buf)) === null)
 			return buf;
@@ -44,55 +66,62 @@ export class Socket @ "xs_socket_destructor" {
 			buf = new cons(buf);
 		return buf;
 	};
+	write(...params) {
+		if (arguments.length == 1)
+			return this.send(arguments[0]);
+		else
+			return this.send(Array.apply(null, arguments));
+	};
+	get peer() {
+		return this.peerAddr + ":" + this.peerPort;
+	};
 
-	// will be overwritten
 	onConnect() {};
-	onError() {};
+	onMessage(n) {this.onData(this.recv(n))};
+	onData(data) {};
 	onClose() {};
-	onMessage(n) {
-		var data = this.recv(n);
-		if (data && data.byteLength > 0) this.onData(data);
-	}
-
-	get reader() {
-		if (!('_reader' in this)) {
-			let Reader = require.weak("utils/buffer").Reader;
-			this._reader = new Reader();
-		}
-		return this._reader;
-	}
-
-	onData(bytes) {
-		if ('onDataReady' in this) {
-			let reader = this.reader;
-			reader.feed(bytes);
-
-			this.onDataReady(reader);
-		}
-	}
-
-	// onDataReady(reader) { }
-
-	static resolv(name, f) @ "xs_socket_resolv";
-
-	flush() @ "xs_socket_flush";
-	get nativeSocket() @ "xs_socket_getNativeSocket";
+	onError() {};
+	_onConnect() {
+		this.onConnect();
+	};
+	_onMessage(n) {
+		this.onMessage(n);
+	};
+	_onClose() {
+		this.onClose();
+	};
+	_onError() {
+		this.onError();
+	};
 };
 
-export class ListeningSocket extends Socket {
-	constructor(params) @ "xs_socket_listeningSocket";
-	accept(s) @ "xs_socket_accept";
+export function resolv(name, f) {
+	let mdns = require.weak("mdns");
+	mdns.resolv(name, f);
 }
 
 export const TCP = "tcp";
 export const UDP = "udp";
 
+Socket.resolv = resolv;
 Socket.TCP = TCP;
 Socket.UDP = UDP;
+
+export class ListeningSocket extends Socket {
+	constructor(params) @ "xs_socket_listeningSocket";
+	_accept(s) @ "xs_socket_accept";
+	accept(s) {
+		if (!s)
+			s = new Socket();
+		this._accept(s);
+		return s;
+	};
+};
 
 export default {
 	Socket,
 	ListeningSocket,
+	resolv,
 	TCP,
 	UDP
 };

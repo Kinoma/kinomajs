@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -49,10 +49,16 @@ xs_mode_encrypt(xsMachine *the)
 	size_t n = xsGetArrayBufferLength(xsArg(0));
 	void *indata, *outdata;
 
-	xsResult = xsToInteger(xsArgc) > 1 && xsTest(xsArg(1)) ? xsArg(1) : xsArrayBuffer(NULL, n + mode->maxSlop);
+	if (xsToInteger(xsArgc) > 1 && xsTest(xsArg(1))) {
+		if (xsGetArrayBufferLength(xsArg(1)) < (xsIntegerValue)(n + mode->maxSlop))
+			crypt_throw_error(the, "mode: too small buffer");
+		xsResult = xsArg(1);
+	}
+	else
+		xsResult = xsArrayBuffer(NULL, n + mode->maxSlop);
 	indata = xsToArrayBuffer(xsArg(0));
 	outdata = xsToArrayBuffer(xsResult);
-	n = (*mode->encrypt)(mode, indata, outdata, n, 0);
+	n = (*mode->encrypt)(mode, indata, outdata, n, mode->eof);
 	xsSetArrayBufferLength(xsResult, n);
 }
 
@@ -63,10 +69,16 @@ xs_mode_decrypt(xsMachine *the)
 	size_t n = xsGetArrayBufferLength(xsArg(0));
 	void *indata, *outdata;
 
-	xsResult = xsToInteger(xsArgc) > 1 && xsTest(xsArg(1)) ? xsArg(1) : xsArrayBuffer(NULL, n);
+	if (xsToInteger(xsArgc) > 1 && xsTest(xsArg(1))) {
+		if (xsGetArrayBufferLength(xsArg(1)) < (xsIntegerValue)n)
+			crypt_throw_error(the, "mode: too small buffer");
+		xsResult = xsArg(1);
+	}
+	else
+		xsResult = xsArrayBuffer(NULL, n);
 	indata = xsToArrayBuffer(xsArg(0));
 	outdata = xsToArrayBuffer(xsResult);
-	n = (*mode->decrypt)(mode, indata, outdata, n, 0);
+	n = (*mode->decrypt)(mode, indata, outdata, n, mode->eof);
 	xsSetArrayBufferLength(xsResult, n);
 }
 
@@ -80,4 +92,20 @@ xs_mode_setIV(xsMachine *the)
 		void *iv = xsToArrayBuffer(xsArg(0));
 		(*mode->setIV)(mode, iv, ivsize);
 	}
+}
+
+void
+xs_mode_setEOF(xsMachine *the)
+{
+	crypt_mode_t *mode = xsGetHostData(xsThis);
+
+	mode->eof = xsToBoolean(xsArg(0));
+}
+
+void
+xs_mode_getEOF(xsMachine *the)
+{
+	crypt_mode_t *mode = xsGetHostData(xsThis);
+
+	xsResult = xsBoolean(mode->eof);
 }

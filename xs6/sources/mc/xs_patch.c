@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
  */
 #include "xs6All.h"
 #include <stdio.h>
-#include "mc_env.h"
 
 #define fxPop() (*(the->stack++))
 #define fxPush(_SLOT) (*(--the->stack) = (_SLOT))
@@ -96,12 +95,16 @@ void xsReportMemoryUse(txMachine *the, txMemoryUse *slot, txMemoryUse *chunk)
 	}
 }
 
-int xsStartDebug(txMachine *the, const char *host)
+int xsStartDebug(txMachine *the, const char *host, const char *name)
 {
 #ifdef mxDebug
-	mc_env_set_default("XSBUG_HOST", host);
-	mc_env_store(NULL);
+	fxLogout(the);
+	fxSetAddress(the, (char *)host);
+	char* former = the->name;
+	if (name)
+		the->name = (char *)name;
 	fxLogin(the);
+	the->name = former;
 	return fxIsConnected(the);
 #endif
 }
@@ -270,4 +273,16 @@ txInteger fxIncrementalVars(txMachine* the, txInteger theCount)
 txBoolean xsGetCollectFlag(txMachine *the)
 {
 	return the->collectFlag;
+}
+
+txBoolean xsVTrace(txMachine *the, const char *theFormat, ...)
+{
+	if (fxIsConnected(the)) {
+		va_list arguments;
+		va_start(arguments, theFormat);
+		fxVReport(the, (char *)theFormat, arguments);
+		va_end(arguments);
+		return 1;
+	}
+	return 0;
 }

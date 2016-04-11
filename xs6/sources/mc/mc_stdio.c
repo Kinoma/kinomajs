@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,35 +14,40 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+#define USB_CONSOLE
+#define LOG_FILE_ENABLE
+
 #include "mc_stdio.h"
+#include "mc_misc.h"
+#include "mc_ipc.h"
 
 #if mxMC
-
 #include <wmstdio.h>
+#ifdef USB_CONSOLE
+#include "mc_usb.h"
+#endif
+
 
 #if CONFIG_LCD_DRIVER
 static mdev_t *lcd_dev = NULL;
-#endif
 
-void mc_lcd_open()
+static void
+mc_lcd_open()
 {
-#if CONFIG_LCD_DRIVER
 	lcd_drv_init(I2C1_PORT);
 	lcd_dev = lcd_drv_open("MDEV_LCD");
-#endif
 }
 
-void mc_lcd_close()
+static void
+mc_lcd_close()
 {
-#if CONFIG_LCD_DRIVER
 	lcd_drv_close(lcd_dev);
 	lcd_dev = NULL;
-#endif
 }
 
-void mc_lcd_write(const char *line1, const char *line2)
+static void
+mc_lcd_write(const char *line1, const char *line2)
 {
-#if CONFIG_LCD_DRIVER
 #define LCD_LINELEN	16
 	char buf1[LCD_LINELEN + 1], buf2[LCD_LINELEN + 1];
 
@@ -65,67 +70,233 @@ void mc_lcd_write(const char *line1, const char *line2)
 	else
 		buf2[0] = '\0';
 	lcd_drv_write(lcd_dev, buf1, buf2);
+}
+#endif	/* CONFIG_LCD_DRIVER */
+
+static stdio_funcs_t *saved_stdio_funcs = NULL;
+#define MAX_STDIO_PUTS_F	2
+static struct mc_stdio_puts_t {
+	mc_stdio_puts_t puts;
+	void *closure;
+} mc_stdio_puts_f[MAX_STDIO_PUTS_F];
+
+static mc_semaphore_t *mc_stdio_sem = NULL;
+static int mc_stdio_busy = 0;
+
+#ifdef USB_CONSOLE
+static int usb_enable = 0;
 #endif
+
+#define MC_OUTPUT_LOG	0x01
+#define MC_OUTPUT_AUX	0x02
+#define MC_OUTPUT_CONSOLE	0x04
+#define MC_OUTPUT_ALL	0x0f
+
+static int
+mc_puts(char *str, unsigned int log, int crnl)
+{
+	int n = strlen(str);
+	int needcr = crnl && n > 0 && str[n - 1] == '\n' && (n < 2 || str[n - 2] != '\r');
+	int i;
+
+	if (mc_stdio_busy)
+		return n;
+
+	if (mc_stdio_sem)
+		mc_semaphore_wait(mc_stdio_sem);
+	mc_stdio_busy++;
+
+	/* put the string to the serial console if enable */
+	if (saved_stdio_funcs && saved_stdio_funcs->sf_printf) {
+		(*saved_stdio_funcs->sf_printf)(str);
+		if (needcr)
+			(*saved_stdio_funcs->sf_printf)("\r");
+	}
+
+	/* then log it to the log file */
+	if (log & MC_OUTPUT_LOG)
+		mc_log_write(str, n);
+
+	if (log & MC_OUTPUT_AUX) {
+		/* and an auxiliary output (e.g. telnet) if set */
+		for (i = 0; i < MAX_STDIO_PUTS_F; i++) {
+			if (mc_stdio_puts_f[i].puts != NULL)
+				(*mc_stdio_puts_f[i].puts)(str, mc_stdio_puts_f[i].closure);
+		}
+	}
+
+	/* finally put it to the usb console */
+#ifdef USB_CONSOLE
+	if (usb_enable && (log & MC_OUTPUT_CONSOLE)) {
+		if (needcr) {
+			if (n > 1)
+				if (mc_usb_write(str, n - 1) != 0)
+					n = -1;
+			mc_usb_write("\r\n", 2);
+		}
+		else {
+			if (mc_usb_write(str, n) != 0)
+				n = -1;
+		}
+	}
+#endif
+	mc_stdio_busy = 0;
+	if (mc_stdio_sem)
+		mc_semaphore_post(mc_stdio_sem);
+	return n;
+}
+
+int
+mc_stdio_aux(const char *str)
+{
+	int i;
+
+	/* and an auxiliary output (e.g. telnet) if set */
+	for (i = 0; i < MAX_STDIO_PUTS_F; i++) {
+		if (mc_stdio_puts_f[i].puts != NULL)
+			(*mc_stdio_puts_f[i].puts)(str, mc_stdio_puts_f[i].closure);
+	}
+	return strlen(str);
 }
 
 static int
-wmputs(const char *str)
+mc_stdio_printf(char *str)
 {
-	int ret, len;
-
-	len = strlen(str);
-	ret = wmprintf("%s", str);
-	if (len > 0 && str[len - 1] == '\n' && (len < 2 || str[len - 2] != '\r'))
-		wmprintf("\r");
-	else if (len > MAX_MSG_LEN)
-		wmprintf("\r\n");
-	return ret;
-}
-
-typedef int (*mc_stdio_puts_t)(const char *str);
-static mc_stdio_puts_t mc_stdio_puts_f = NULL;
-
-void
-mc_stdio_register(mc_stdio_puts_t f)
-{
-	mc_stdio_puts_f = f;
-}
-
-void
-mc_stdio_unregister(mc_stdio_puts_t f)
-{
-	mc_stdio_puts_f = NULL;
+	return mc_puts(str, MC_OUTPUT_ALL, 0);
 }
 
 static int
-mc_stdio_fputs(const char *s, MC_FILE *stream)
+mc_stdio_flush()
+{
+	if (saved_stdio_funcs && saved_stdio_funcs->sf_flush)
+		(*saved_stdio_funcs->sf_flush)();
+	return 0;
+}
+
+static int
+mc_stdio_getchar(uint8_t *cp)
 {
 	int ret;
 
-	if (mc_stdio_puts_f != NULL)
-		(*mc_stdio_puts_f)(s);
-	if (stream == stdout) {
-		int f = mc_log_set_enable(0);
-		ret = wmputs(s);
-		mc_log_set_enable(f);
+	if (saved_stdio_funcs && saved_stdio_funcs->sf_getchar) {
+		if ((*saved_stdio_funcs->sf_getchar)(cp) == 1)
+			return 1;
 	}
-	else
-		ret = wmputs(s);
-	return ret;
+#ifdef USB_CONSOLE
+	if (usb_enable) {
+		ret = mc_usb_read(cp, 1);
+		return ret < 0 ? 0 : ret;
+	}
+#endif
+	return -1;
+}
+
+static int
+mc_stdio_putchar(char *cp)
+{
+	char buf[2];
+
+	buf[0] = *cp;
+	buf[1] = '\0';
+	return mc_puts(buf, MC_OUTPUT_ALL, 0);
+}
+
+static stdio_funcs_t mc_stdio_funcs = {
+	mc_stdio_printf,
+	mc_stdio_flush,
+	mc_stdio_getchar,
+	mc_stdio_putchar,
+};
+
+void
+mc_stdio_init()
+{
+	static mc_semaphore_t sem;
+
+	if (mc_semaphore_create(&sem) == 0) {
+		mc_stdio_sem = &sem;
+		mc_semaphore_post(mc_stdio_sem);
+	}
+#if !K5
+	wmstdio_init(UART0_ID, 0);
+	saved_stdio_funcs = c_stdio_funcs;	/* set by wmstdio_init and it should be "console" */
+#endif
+#ifdef CONFIG_LCD_DRIVER
+	mc_lcd_open();
+#endif
+#ifdef USB_CONSOLE
+	usb_enable = mc_conf.usb_console && mc_usb_init() == 0;
+#endif
+	c_stdio_funcs = &mc_stdio_funcs;
+}
+
+void
+mc_stdio_fin()
+{
+#ifdef USB_CONSOLE
+	if (usb_enable)
+		mc_usb_fin();
+#endif
+	if (saved_stdio_funcs != NULL) {
+		c_stdio_funcs = saved_stdio_funcs;
+		saved_stdio_funcs = NULL;
+	}
+#ifdef CONFIG_LCD_DRIVER
+	mc_lcd_close();
+#endif
+	if (mc_stdio_sem != NULL) {
+		mc_semaphore_delete(mc_stdio_sem);
+		mc_stdio_sem = NULL;
+	}
+}
+
+int
+mc_stdio_register(mc_stdio_puts_t f, void *closure)
+{
+	int i;
+
+	for (i = 0; i < MAX_STDIO_PUTS_F; i++) {
+		if (mc_stdio_puts_f[i].puts == NULL) {
+			mc_stdio_puts_f[i].puts = f;
+			mc_stdio_puts_f[i].closure = closure;
+			return i;
+		}
+	}
+	return -1;
+}
+
+void
+mc_stdio_unregister(int d)
+{
+	if (d < 0 || d >= MAX_STDIO_PUTS_F)
+		return;
+	mc_stdio_puts_f[d].puts = NULL;
 }
 
 int
 vfprintf(MC_FILE *stream, const char *format, va_list ap)
 {
 	int ret;
-	static char buf[MAX_MSG_LEN];
+	unsigned int flags;
+	char buf[MAX_MSG_LEN];
 
+	mc_check_stack();
+
+	flags = MC_OUTPUT_AUX;
+	if (stream != stdaux)
+		flags |= MC_OUTPUT_CONSOLE;
+	if (stream == stderr)
+		flags |= MC_OUTPUT_LOG;
 	/* optimizing for the simple case */
 	if (strcmp(format, "%s") == 0) {
 		char *s = va_arg(ap, char *);
-		return mc_stdio_fputs(s, stream);
+		if (flags == MC_OUTPUT_AUX)
+			return mc_stdio_aux(s);
+		else
+			return mc_puts(s, flags, 1);
 	}
 	vsnprintf(buf, sizeof(buf), format, ap);
+#ifdef CONFIG_LCD_DRIVER
 	if (stream == stdlcd) {
 		char *p1 = buf, *p2;
 		ret = strlen(buf);
@@ -134,7 +305,13 @@ vfprintf(MC_FILE *stream, const char *format, va_list ap)
 		mc_lcd_write(p1, p2);
 	}
 	else
-		ret = mc_stdio_fputs(buf, stream);
+#endif
+	{
+		if (flags == MC_OUTPUT_AUX)
+			ret = mc_stdio_aux(buf);
+		else
+			ret = mc_puts(buf, flags, 1);
+	}
 	return ret;
 }
 
@@ -150,21 +327,46 @@ fprintf(MC_FILE *stream, const char *format, ...)
 	return ret;
 }
 
+int
+mc_printf(const char *format, ...)
+{
+	int ret;
+	va_list args;
+
+	va_start(args, format);
+	ret = vfprintf(stdout, format, args);
+	va_end(args);
+	return ret;
+}
+
 void
 _exit(int status)
 {
 	mc_exit(status);
 }
 
+
+
 #else	/* mxMC */
 
 void
-mc_stdio_register(mc_stdio_puts_t f)
+mc_stdio_init()
 {
 }
 
 void
-mc_stdio_unregister(mc_stdio_puts_t f)
+mc_stdio_fin()
+{
+}
+
+int
+mc_stdio_register(mc_stdio_puts_t f, void *closure)
+{
+	return -1;
+}
+
+void
+mc_stdio_unregister(int d)
 {
 }
 
@@ -192,58 +394,104 @@ mc_fatal(const char *format, ...)
  * logging
  */
 #include "mc_file.h"
-#include "mc_env.h"
+#if mxMC
+#include "mc_time.h"
+#else
+#include <time.h>
+#define mc_time(tp)	time(tp)
+#define mc_localtime(tp)	localtime(tp)
+#define mc_strftime(b, s, f, t)	strftime(b, s, f, t)
+#define mc_tm	tm
+#endif
 
-#define LOG_NLOG	4
-#define LOG_FILE	"log"
-#define LOG_SIZE	(32*1024)
+#define LOG_DIR		"/k2/"
+#define LOG_FILE	LOG_DIR "log"
+#define LOG_BACKUP_FILE	"log.bak"
+#define LOG_SIZE	((64*1024) - 1024)
+#define LOG_TIME_INTERVAL	60
 
 static MC_FILE *mc_log_fp = NULL;
+static time_t mc_log_last = (time_t)0;
 static int mc_log_enable = 0;
 
-void
-mc_log_init()
+static int
+log_new_file()
 {
-	const char *log = mc_env_get_default("LOG");
-	int n;
-	char buf[PATH_MAX];
-
-	n = log != NULL ? atoi(log) : -1;
-	if (++n >= LOG_NLOG)
-		n = 0;
-	snprintf(buf, sizeof(buf), "%s/%s%d", mc_get_special_dir("variableDirectory"), LOG_FILE, n);
-	if ((mc_log_fp = mc_fopen(buf, "w+")) != NULL) {
-		mc_log_enable = 1;
-		snprintf(buf, sizeof(buf), "%d", n);
-		mc_env_set_default("LOG", buf);
-	}
-	else
-		mc_env_unset(NULL, "LOG");	/* to tell there's been an error */
-	mc_env_store(NULL);
+	if (mc_log_fp != NULL)
+		mc_fclose(mc_log_fp);
+	mc_unlink(LOG_BACKUP_FILE);
+	mc_rename(LOG_FILE, LOG_BACKUP_FILE);
+	mc_log_fp = mc_fopen(LOG_FILE, "w+");
+	return mc_log_fp != NULL;
 }
 
-int
-mc_log_set_enable(int f)
+static size_t
+log_write_line(const char *msg, size_t sz)
 {
-	int o = mc_log_enable;
+	size_t n;
 
-	mc_log_enable = f;
-	return o;
+	if ((n = mc_fwrite(msg, sz, 1, mc_log_fp)) == 0 && errno == ENOSPC) {
+		if (!log_new_file())
+			return 0;
+		return mc_fwrite(msg, sz, 1, mc_log_fp);
+	}
+	return n;
+}
+
+void
+mc_log_write(void *data, size_t n)
+{
+#ifdef LOG_FILE_ENABLE
+	time_t t;
+
+	if (!mc_log_enable)
+		return;
+	if (mc_log_fp == NULL) {
+		if ((mc_log_fp = mc_fopen(LOG_FILE, "a+")) == NULL && errno == ENOENT) {
+			if ((mc_log_fp = mc_fopen(LOG_FILE, "w+")) == NULL && errno == ENOSPC)
+				log_new_file();
+		}
+		if (mc_log_fp == NULL)
+			goto bail;
+	}
+	if (mc_fsize(mc_log_fp) + n > LOG_SIZE) {
+		/* back up the current log file and open a new one */
+		if (!log_new_file())
+			goto bail;
+	}
+	t = mc_time(NULL);
+	if (mc_log_last == 0) {
+		/* probably the time hasn't been set */
+		const char msg[] = "\n===\n";
+		if (log_write_line(msg, strlen(msg)) == 0)
+			goto bail;
+	}
+	else if (t < LOG_TIME_INTERVAL)
+		;
+	else if ((t - mc_log_last) >= LOG_TIME_INTERVAL) {
+		char buf[128];
+		struct mc_tm *tm = mc_localtime(&t);
+		mc_strftime(buf, sizeof(buf), "=== %a %b %d %Y %H:%M:%S GMT%z (%Z) ===\n", tm);
+		if (log_write_line(buf, strlen(buf)) == 0)
+			goto bail;
+	}
+	if (log_write_line(data, n) == 0)
+		goto bail;
+	mc_fflush(mc_log_fp);
+	mc_log_last = t ? t : 1;
+
+bail:;
+#endif
+}
+
+void
+mc_log_set_enable(int enable)
+{
+	mc_log_enable = enable;
 }
 
 int
 mc_log_get_enable()
 {
 	return mc_log_enable;
-}
-
-void
-mc_log_write(void *data, size_t n)
-{
-	if (mc_log_fp != NULL && mc_log_enable) {
-		if (mc_fsize(mc_log_fp) + n <= LOG_SIZE) {
-			mc_fwrite(data, n, 1, mc_log_fp);
-			mc_fflush(mc_log_fp);
-		}
-	}
 }

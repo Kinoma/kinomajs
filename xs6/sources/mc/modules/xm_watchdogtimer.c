@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  *     limitations under the License.
  */
 #include "mc_stdio.h"
+#include "mc_event.h"
 #include "mc_xs.h"
 
 #if mxMC
@@ -22,14 +23,39 @@
 
 static int wdt_enable = 0;
 
+static void
+wdt_interrupt()
+{
+	WDT_IntClr();
+	CLK_ModuleClkDisable(CLK_WDT);
+	WDT_Disable();
+	mc_shutoff();
+}
+
+static void
+wdt_auto_strobe(int s, unsigned int flags, void *closure)
+{
+	if (wdt_enable)
+		WDT_RestartCounter();
+}
+
 void
 xs_wdt_start(xsMachine *the)
 {
+	int ac = xsToInteger(xsArgc);
 	int index = xsToInteger(xsArg(0));
+	int autostrobe =  ac > 1 && xsTest(xsArg(1));
+	int shutdown =  ac > 2 && xsTest(xsArg(2));
 	WDT_Config_Type cfg;
 
+	if (shutdown) {
+		NVIC_SetPriority(WDT_IRQn, 0xf);
+		NVIC_EnableIRQ(WDT_IRQn);
+		install_int_callback(INT_WDT, 0, wdt_interrupt);
+	}
+
 	cfg.timeoutVal = index;
-	cfg.mode = WDT_MODE_RESET;
+	cfg.mode = shutdown ? WDT_MODE_INT : WDT_MODE_RESET;
 	cfg.resetPulseLen = WDT_RESET_PULSE_LEN_2;
 	WDT_Init(&cfg);
 
@@ -41,7 +67,11 @@ xs_wdt_start(xsMachine *the)
 	CLK_ModuleClkDivider(CLK_WDT, 1);
 #endif
 	WDT_Enable();
-	wdt_enable = 1;
+	if (!shutdown) {
+		wdt_enable = 1;
+		if (autostrobe)
+			mc_event_register(-1, MC_SOCK_ANY, wdt_auto_strobe, NULL);
+	}
 }
 
 void
@@ -50,14 +80,15 @@ xs_wdt_stop(xsMachine *the)
 	if (wdt_enable) {
 		CLK_ModuleClkDisable(CLK_WDT);
 		WDT_Disable();
+		wdt_enable = 0;
+		mc_event_unregister(-1);
 	}
 }
 
 void
 xs_wdt_strobe(xsMachine *the)
 {
-	if (wdt_enable)
-		WDT_RestartCounter();
+	wdt_auto_strobe(-1, 0, NULL);
 }
 
 #else

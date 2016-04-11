@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -124,6 +124,9 @@ export default class BER {
 		nbuf.set(this.a);
 		this.a = nbuf;
 	};
+	getc() {
+		return this.a[this.i++];
+	};
 	putc(c) {
 		if (this.i >= this.a.length)
 			this.morebuf(1);
@@ -149,7 +152,14 @@ export default class BER {
 		if (this.i + c.byteLength > this.a.length)
 			this.morebuf(c.byteLength);
 		this.a.set(new Uint8Array(c), this.i);
-		this.i += a.byteLength;
+		this.i += c.byteLength;
+	};
+	static itoa(n, col = 2) {
+		var a = n.toString();
+		var prepend = col - a.length;
+		while (--prepend >= 0)
+			a = '0' + a;
+		return a;
 	};
 	static encode(arr) {
 		var b = new BER();
@@ -162,10 +172,7 @@ export default class BER {
 			b.putc(val ? 1 : 0);
 			break;
 		case 0x02:	// integer
-			if (typeof val == "number")
-				var c = (new Arith.Integer(val)).toChunk();
-			else
-				var c = val.toChunk();
+			var c = val.toChunk(0, true);	// signess = true
 			b.putLength(c.byteLength);
 			b.putChunk(c);
 			break;
@@ -197,8 +204,8 @@ export default class BER {
 					n++;
 				x = val[i];
 				while (--n >= 1)
-					t.pubc((x >>> (n * 7)) | 0x80);
-				t.pubc(x & 0x7f);
+					t.putc((x >>> (n * 7)) | 0x80);
+				t.putc(x & 0x7f);
 			}
 			b.putLength(t.i);
 			b.putChunk(t.getBuffer());
@@ -218,14 +225,30 @@ export default class BER {
 			break;
 		case 0x17:	// UTC time
 		case 0x18:	// generalized time
-			var s = (val.getUTCFullYear() - (tag == 0x17 ? 1900: 0)).toString() +
-				(val.getUTCMonth()).toString() +
-				(val.getUTCDate()).toString() +
-				(val.getUTCHours()).toString() +
-				(val.getUTCMinutes()).toString() +
-				(val.getUTCSeconds()).toString() +
-				(tag == 0x18 ? "." + (val.getUTCMiliSedonds()).toString(): "") +
+			var date = new Date(val);
+			/*
+			var s = (date.getUTCFullYear() - (tag == 0x17 ? 1900: 0)).toString() +
+				(date.getUTCMonth()).toString() +
+				(date.getUTCDate()).toString() +
+				(date.getUTCHours()).toString() +
+				(date.getUTCMinutes()).toString() +
+				(date.getUTCSeconds()).toString() +
+				(tag == 0x18 ? "." + (date.getUTCMiliSedonds()).toString(): "") +
 				"Z";
+			*/
+			var s = "";
+			var yy = date.getUTCFullYear();
+			if (tag == 0x17)
+				yy -= yy >= 2000 ? 2000 : 1900;
+			s += this.itoa(yy);
+			s += this.itoa(date.getUTCMonth() + 1);
+			s += this.itoa(date.getUTCDate());
+			s += this.itoa(date.getUTCHours());
+			s += this.itoa(date.getUTCMinutes());
+			s += this.itoa(date.getUTCSeconds());
+			if (tag == 0x18)
+				s += this.itoa(date.getUTCMiliSedonds());
+			s += "Z";
 			var c = ArrayBuffer.fromString(s);
 			b.putLength(c.byteLength);
 			b.putChunk(c);
@@ -332,8 +355,8 @@ export default class BER {
 		case 0x05:	// null
 			res = null;
 			break;
-		case 0x06:
-			res = b._getObjectIdentifier(len);
+		case 0x06:	// object identifier
+			res = [b._getObjectIdentifier(len)];
 			break;
 		case 0x09:	// real -- not supported
 			throw new Error("BER: unsupported");
@@ -349,8 +372,9 @@ export default class BER {
 		case 0x17:	// ITC time
 		case 0x18:	// generalized time
 			var s = String.fromArrayBuffer(b.getChunk(len));
+			var prefix = ""
 			if (tag == 0x18) {
-				var prefix = s.substring(0, 2);
+				prefix = s.substring(0, 2);
 				s = s.substring(2);
 			}
 			var ymd = /(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)(\d*)[\.]*(\d*)([Z\+\-].*)/.exec(s);

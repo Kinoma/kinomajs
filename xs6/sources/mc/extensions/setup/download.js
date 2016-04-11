@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,7 @@
  *     limitations under the License.
  */
 import Files from "files";
+import File from "file";
 import HTTPClient from "HTTPClient";
 import Crypt from "crypt";
 import Arith from "arith";
@@ -22,14 +23,28 @@ import Bin from "bin";
 import Debug from "debug";
 import System from "system";
 import Environment from "env";
+import inetd from "inetd";
+import Launcher from "launcher";
+import LED from "board_led";
 
 const serverURL = "https://auth.developer.cloud.kinoma.com/kinoma-device-update";
+
+var led, success;
+
+function setup(vers)
+{
+	let path = Files.variableDirectory + "/";
+	Files.deleteFile(path + "log0");
+	Files.deleteFile(path + "log1");
+	Files.deleteFile(path + "log2");
+	Files.deleteFile(path + "log3");
+}
 
 function download(http, args)
 {
 	function start(queue, finish) {
 		function check(q, len) {
-			var f = new Files("/" + q.file);
+			var f = new File("/" + q.file);
 			if (q.file == "wififw")
 				f._read(8);		// size of the fw header
 			var md5 = new Crypt.MD5();
@@ -49,7 +64,7 @@ function download(http, args)
 			}
 			trace("download: start: " + q.url + " > " + q.file + "\n");
 			var req = new HTTPClient(q.url);
-			req.addHeader("Connection", "close");	// until HTTPClient supports 1.1
+			req.setHeader("Connection", "close");	// until HTTPClient supports 1.1
 			var len = 0, f;
 			req.onHeaders = function() {
 				var len = parseInt(this.getHeader("Content-Length"));
@@ -58,7 +73,7 @@ function download(http, args)
 				http.putChunk(JSON.stringify(progress));
 				if (len == 0)
 					return;
-				f = new Files("/" + q.file, 1);
+				f = new File("/" + q.file, 1);
 				if (q.file == "wififw") {
 					// needs a header
 					f.write("WLFW");	// magic
@@ -118,16 +133,18 @@ function download(http, args)
 		url += i + "=" + args.query[i];
 	}
 	var req = new HTTPClient(url);
-	req.addHeader("Connection", "close");	// until HTTPClient supports 1.1
+	req.setHeader("Connection", "close");	// until HTTPClient supports 1.1
 	req.onTransferComplete = function(status) {
 		if (!status) {
 			trace("download: HTTP failed\n");
 			http.errorResponse(505, "Internal Server Error");
+			Launcher.quit();
 			return;
 		}
 		if (!this.content || this.content.byteLength == 0) {
 			trace("download: no content!\n");
 			http.response();
+			Launcher.quit();
 			return;
 		}
 		var cont = String.fromArrayBuffer(this.content);
@@ -147,24 +164,37 @@ function download(http, args)
 					Files.setActive(partition);
 				// update the FW version
 				var env = new Environment();
+				var currentVersion = env.get("FW_VER");
 				env.set("FW_VER", conf.ver);
 				env.save();
+				setup(currentVersion);
+				success = true;
 				System.reboot();
 			}
-			http._f = http._req = undefined;
+			else
+				Launcher.quit();
 		});
 	}
 	req.start();
 	http._req = req;
 }
 
-export default {
+var update = {
 	onLaunch(http, args) {
+		led = new LED({onColor: [0, 1, 0], offColor: [0, 0, 1], interval: 500, pattern: 1});
+		led.run();
+		inetd._stop(System.connection.FWUPDATE);
+		System.gc();
 		download(http, args);
 		this._http = http;
 	},
 	onQuit() {
 		this._http = undefined;
 		System.gc();	// @@ does this really stop everything??
+		if (!success)
+			inetd.restart();
+		led.stop();
 	},
 };
+
+export default update;

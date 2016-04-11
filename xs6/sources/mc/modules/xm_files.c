@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,173 +24,6 @@ MC_MOD_DECL(files);
 #endif
 
 void
-xs_files_constructor(xsMachine *the)
-{
-	const char *path = xsToString(xsArg(0));
-	uint32_t permissions =  xsToInteger(xsArgc) > 1 ? xsToInteger(xsArg(1)) : 0;
-	MC_FILE *fp;
-
-	if ((fp = mc_fopen(path, permissions ? "w+" : "r")) == NULL) {
-		if (errno == ENOENT && permissions) {
-			mc_creat(path, 0666);
-			fp = mc_fopen(path, "r+");
-		}
-	}
-	if (fp == NULL)
-		mc_xs_throw(the, "Files.constructor");
-	xsSetHostData(xsThis, fp);
-}
-
-void
-xs_files_destructor(void *data)
-{
-	MC_FILE *fp = data;
-
-	if (fp != NULL)
-		mc_fclose(fp);
-}
-
-void
-xs_files_close(xsMachine *the)
-{
-	MC_FILE *fp = xsGetHostData(xsThis);
-
-	if (fp != NULL)
-		mc_fclose(fp);
-	xsSetHostData(xsThis, NULL);
-}
-
-void
-xs_files_read(xsMachine *the)
-{
-	MC_FILE *fp = xsGetHostData(xsThis);
-	int n = xsToInteger(xsArg(0));
-	size_t nread;
-	void *buf;
-
-	if (xsToInteger(xsArgc) > 1 && (xsTypeOf(xsArg(1)) == xsReferenceType)) {
-		int len = xsGetArrayBufferLength(xsArg(1));
-		if (len < n)
-			n = len;
-		xsResult = xsArg(1);
-	}
-	else
-		xsResult = xsArrayBuffer(NULL, n);
-	buf = xsToArrayBuffer(xsResult);
-	if ((nread = mc_fread(buf, 1, (size_t)n, fp)) == 0) {
-		if (errno != 0)
-			mc_xs_throw(the, "files.read");
-		/* return EOF */
-		xsSetUndefined(xsResult);
-	}
-	else if (nread != (size_t)n)
-		xsSetArrayBufferLength(xsResult, nread);
-}
-
-void
-xs_files_readChar(xsMachine *the)
-{
-	MC_FILE *fp = xsGetHostData(xsThis);
-	int c;
-
-	if ((c = mc_fgetc(fp)) != EOF)
-		xsSetInteger(xsResult, c);
-}
-
-int
-mc_files_write_element(xsMachine *the, MC_FILE *fp, xsSlot *slot)
-{
-	size_t datasize;
-	void *data;
-	uint8_t intdata;
-	int n;
-
-	xsVars(1);
-	switch (xsTypeOf(*slot)) {
-	case xsIntegerType:
-		datasize = 1;
-		intdata = (uint8_t)xsToInteger(*slot);
-		data = &intdata;
-		break;
-	case xsStringType:
-		data = xsToString(*slot);
-		datasize = strlen(data);
-		break;
-	case xsReferenceType:
-		if (xsIsInstanceOf(*slot, xsArrayPrototype)) {
-			xsGet(xsVar(0), *slot, xsID("length"));
-			int len = xsToInteger(xsVar(0)), j;
-			for (j = 0, n = 0; j < len; j++) {
-				xsGet(xsVar(0), *slot, j);
-				if ((n = mc_files_write_element(the, fp, &xsVar(0))) < 0)
-					return -1;
-			}
-			return n;
-		}
-		else {	/* assume it's an ArrayBuffer */
-			datasize = xsGetArrayBufferLength(*slot);
-			data = xsToArrayBuffer(*slot);
-		}
-		break;
-	default:
-		mc_xs_throw(the, "bad arg");
-		return -1;
-	}
-	if (mc_fwrite(data, 1, datasize, fp) == 0)
-		return -1;
-	return 0;
-}
-
-void
-xs_files_write(xsMachine *the)
-{
-	MC_FILE *fp = xsGetHostData(xsThis);
-	int ac = xsToInteger(xsArgc), i;
-
-	for (i = 0; i < ac; i++) {
-		if (mc_files_write_element(the, fp, &xsArg(i)) < 0)
-			break;
-	}
-	xsSetInteger(xsResult, i);
-}
-
-void
-xs_files_getPosition(xsMachine *the)
-{
-	MC_FILE *fp = xsGetHostData(xsThis);
-
-	xsSetInteger(xsResult, mc_ftell(fp));
-}
-
-void
-xs_files_setPosition(xsMachine *the)
-{
-	MC_FILE *fp = xsGetHostData(xsThis);
-	long pos = xsToInteger(xsArg(0));
-
-	if (mc_fseek(fp, pos, SEEK_SET) != 0)
-		mc_xs_throw(the, "fseek failed");
-}
-
-void
-xs_files_getLength(xsMachine *the)
-{
-	MC_FILE *fp = xsGetHostData(xsThis);
-
-	xsSetInteger(xsResult, mc_fsize(fp));
-}
-
-void
-xs_files_setLength(xsMachine *the)
-{
-	MC_FILE *fp = xsGetHostData(xsThis);
-	long length = xsToInteger(xsArg(0));
-
-	if (mc_ftruncate(fp, length) != 0)
-		mc_xs_throw(the, "ftruncate failed");
-}
-
-void
 xs_files_delete(xsMachine *the)
 {
 	int result = mc_unlink(xsToString(xsArg(0)));
@@ -198,16 +31,29 @@ xs_files_delete(xsMachine *the)
 }
 
 void
-xs_files_deleteDirectory(xsMachine *the)
+xs_files_deleteVolume(xsMachine *the)
 {
 	int result = mc_erase_volume(xsToString(xsArg(0)));
 	xsSetBoolean(xsResult, result == 0);
 }
 
 void
-xs_files_checkDirectory(xsMachine *the)
+xs_files_rename(xsMachine *the)
 {
-	xsSetInteger(xsResult, mc_check_volume(xsToString(xsArg(0))));
+	char *from;
+	int result;
+
+	if ((from = mc_strdup(xsToString(xsArg(0)))) == NULL)
+		return;
+	result = mc_rename(from, xsToString(xsArg(1)));
+	mc_free(from);
+	xsSetBoolean(xsResult, result == 0);
+}
+
+void
+xs_files_fsck(xsMachine *the)
+{
+	xsSetInteger(xsResult, mc_check_volume(xsToString(xsArg(0)), xsToInteger(xsArgc) > 1 && xsTest(xsArg(1))));
 }
 
 void
@@ -298,6 +144,8 @@ xs_volume_iterator_getNext(xsMachine *the)
 	const char *volume;
 	char directory[PATH_MAX];
 
+	mc_check_stack();
+
 	xsVars(1);
 	if ((volume = mc_get_volume(i)) != NULL) {
 		xsSetNewInstanceOf(xsResult, xsObjectPrototype);
@@ -348,4 +196,12 @@ xs_files_setActive(xsMachine *the)
 	char *path = xsToString(xsArg(0));
 
 	mc_set_active_volume(path);
+}
+
+void
+xs_files_updatePathName(xsMachine *the)
+{
+#if MC_LONG_PATH
+	mc_update_path_name();
+#endif
 }

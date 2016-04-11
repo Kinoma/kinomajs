@@ -133,13 +133,11 @@ mc_strerror
 mc_usleep
 mc_rng_init
 mc_rng_gen
-mc_rng_process
 mc_stdio_register
 mc_stdio_unregister
 mc_encode64
 mc_decode64
 mc_xs_build
-mc_xs_throw
 mc_xs_exception_message
 xsReportMemoryUse
 xsStartDebug

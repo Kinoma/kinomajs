@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,7 @@
 #include <lwip/inet.h>
 #include <lwip/dns.h>
 #include <lwip/tcpip.h>
+#include <wlan.h>
 #else
 #include "mc_compat.h"
 #define LWIP_IPV6	1
@@ -34,7 +35,11 @@
 MC_MOD_DECL(socket);
 #endif
 
-#define MC_SOCKET_MAX_BUF	(32*1024)
+#define MC_SOCKET_MAX_BUF	(8*1024)
+#define MC_SOCKET_SBUF_SIZE	128
+#ifndef MIN
+#define MIN(a, b)	((a) < (b) ? (a) : (b))
+#endif
 
 struct mc_socket {
 	int s;
@@ -42,9 +47,11 @@ struct mc_socket {
 	int port;
 	int type;
 	struct sockaddr_in sin, peer;
-	enum {SOCK_STATE_INIT = 0, SOCK_STATE_RESOLVING, SOCK_STATE_CONNECTING, SOCK_STATE_CONNECTED} state;
+	enum {SOCK_STATE_INIT = 0, SOCK_STATE_RESOLVING, SOCK_STATE_CONNECTING, SOCK_STATE_CONNECTED, SOCK_STATE_CLOSING} state;
 	struct mc_sbuf {
-		uint8_t *buf, *bp, *bufend;
+		uint8_t buf[MC_SOCKET_SBUF_SIZE];
+		uint8_t *bp;
+		struct sockaddr_in sin;
 		struct mc_sbuf *next;
 	} *sbuf;
 	xsMachine *the;
@@ -60,6 +67,8 @@ typedef struct {
 	xsSlot this;
 	struct mc_socket *sock;
 } mc_resolv_t;
+
+extern void xs_socket_destructor(void *data);
 
 static void
 mc_resolver_main(void *data)
@@ -86,7 +95,7 @@ mc_resolver_main(void *data)
 static int
 mc_resolv_async(mc_resolv_t *resolv)
 {
-	return mc_thread_create(mc_resolver_main, resolv);
+	return mc_thread_create(mc_resolver_main, resolv, -1);
 }
 
 static size_t
@@ -98,6 +107,30 @@ mc_socket_buflen(struct mc_socket *sock)
 	for (sp = sock->sbuf; sp != NULL; sp = sp->next)
 		ttl += sp->bp - sp->buf;
 	return ttl;
+}
+
+static int
+socket_flush_queue(struct mc_socket *sock)
+{
+	while (sock->sbuf != NULL) {
+		struct mc_sbuf *sp = sock->sbuf;
+		size_t sz = sp->bp - sp->buf;
+		int n = lwip_sendto(sock->s, sp->buf, sz, 0, (struct sockaddr *)&sp->sin, sizeof(sp->sin));
+		if (n < 0) {
+			if (errno == EAGAIN)
+				break;
+			mc_log_error("socket: sendto failed: %d\n", errno);
+			return -1;
+		}
+		if ((size_t)n < sz) {
+			memmove(sp->buf, sp->buf + n, sz - n);
+			sp->bp -= n;
+			break;
+		}
+		sock->sbuf = sp->next;
+		mc_free(sp);
+	}
+	return 0;
 }
 
 static void
@@ -125,18 +158,8 @@ mc_socket_callback(int s, unsigned int flags, void *closure)
 			break;
 		}
 		case SOCK_STATE_CONNECTED:
-			if (sock->sbuf != NULL) {
-				struct mc_sbuf *sp = sock->sbuf;
-				size_t sz = sp->bufend - sp->bp;
-				int n = lwip_sendto(sock->s, sp->bp, sz, 0, (struct sockaddr *)&sock->sin, sizeof(sock->sin));
-				if (n > 0)
-					sp->bp += n;
-				if (sp->bp >= sp->bufend) {
-					sock->sbuf = sp->next;
-					mc_free(sp->buf);
-					mc_free(sp);
-				}
-			}
+			if (socket_flush_queue(sock) != 0)
+				xsCall_noResult(sock->this, xsID("onError"), NULL);
 			if (sock->sbuf == NULL) {
 				xsIndex id_onWritable = xsID("onWritable");
 				mc_event_register(s, MC_SOCK_READ, mc_socket_callback, closure);	/* turn off the WRITE bit */
@@ -202,6 +225,10 @@ mc_socket_resolv_callback(xsMachine *the, void *closure)
 	mc_resolv_t *resolv = closure;
 	struct mc_socket *sock = resolv->sock;
 
+	if (sock->state == SOCK_STATE_CLOSING) {
+		xs_socket_destructor(sock);
+		return;
+	}
 	// mc_log_debug("socket: mc_socket_resolv_callback\n");
 	if (resolv->err == 0) {
 		sock->sin.sin_family = AF_INET;
@@ -261,17 +288,17 @@ xs_socket_constructor(xsMachine *the)
 	struct sockaddr_in sin;
 	struct in_addr iaddr;
 	struct mc_socket *sock = NULL;
-	char *errmsg = NULL;
 	xsIndex id_host = xsID("host");
 	xsIndex id_port = xsID("port");
 	xsIndex id_proto = xsID("proto");
 	xsIndex id_multicast = xsID("multicast");
 	xsIndex id_ttl = xsID("ttl");
-#define ERROR(msg)	{errmsg = msg; goto err;}
+	xsIndex id_loop = xsID("loop");
+#define ERROR(...)	do {if (s >= 0) lwip_close(s); if (sock != NULL) mc_free(sock); mc_xs_throw(the, __VA_ARGS__);} while (0)
 
 	xsVars(1);
-	if (ac < 1)
-		goto badarg;
+	if (ac < 1 || !xsTest(xsArg(0)))
+		return;		/* make an empty socket */
 	if (!xsHas(xsArg(0), id_proto))
 		goto badarg;
 	xsGet(xsVar(0), xsArg(0), id_proto);
@@ -301,23 +328,41 @@ xs_socket_constructor(xsMachine *the)
 		host = NULL;
 
 	if ((s = lwip_socket(AF_INET, sock_type, sock_proto)) < 0)
-		ERROR("socket failed");
+		ERROR("socket: cannot create socket: %d", errno);
 	/* set the socket properties */
 	flags = lwip_fcntl(s, F_GETFL, 0);
 	lwip_fcntl(s, F_SETFL, flags | O_NONBLOCK);
 	iaddr.s_addr = 0;
 	if (xsHas(xsArg(0), id_multicast)) {
 		xsGet(xsVar(0), xsArg(0), id_multicast);
-		iaddr.s_addr = inet_addr(xsToString(xsVar(0)));
+		if (!inet_aton(xsToString(xsVar(0)), &iaddr))
+			ERROR("socket: illegal multicast address: %s", xsToString(xsVar(0)));
+#if mxMC
+		if (host != NULL) {
+			struct in_addr addr;
+			uint8_t mcast_mac[MLAN_MAC_ADDR_LENGTH];
+			if (inet_aton(host, &addr)) {
+				wifi_get_ipv4_multicast_mac(ntohl(addr.s_addr), mcast_mac);
+				wifi_add_mcast_filter(mcast_mac);	/* should be ok to 'add' the address every time... */
+			}
+		}
+#endif
 		if (lwip_setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &iaddr, sizeof(struct in_addr)) != 0)
-			ERROR("IP_MULTICAST_IF failed");
+			ERROR("socket: IP_MULTICAST_IF failed: %d", errno);
 	}
 	if (xsHas(xsArg(0), id_ttl)) {
 		int ttl;
 		xsGet(xsVar(0), xsArg(0), id_ttl);
 		ttl = xsToInteger(xsVar(0));
 		if (lwip_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) != 0)
-			ERROR("IP_MULTICAST_TTL failed");
+			ERROR("socket: IP_MULTICAST_TTL failed: %d", errno);
+	}
+	if (xsHas(xsArg(0), id_loop)) {
+		unsigned char loop;
+		xsGet(xsVar(0), xsArg(0), id_loop);
+		loop = (unsigned char)xsToBoolean(xsVar(0));
+		if (lwip_setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0)
+			ERROR("socket: IP_MULTICAST_LOOP failed: %d", errno);
 	}
 #if mxMacOSX
 	{
@@ -327,7 +372,7 @@ xs_socket_constructor(xsMachine *the)
 #endif
 
 	if ((sock = mc_calloc(1, sizeof(struct mc_socket))) == NULL)
-		ERROR("no mem");
+		ERROR("socket: no mem");
 	sock->s = s;
 	sock->port = port;
 	sock->type = sock_type;
@@ -338,17 +383,19 @@ xs_socket_constructor(xsMachine *the)
 	sock->this = xsThis;
 
 	if (host != NULL && port >= 0) {
-		int resolved = gethostbyname_async(sock, host, &iaddr);
-		if (resolved < 0)
-			ERROR("namelookup failed");
-		if (resolved) {
+		int resolved;
+		if (*host == '\0')
+			sock->state = SOCK_STATE_RESOLVING;
+		else if ((resolved = gethostbyname_async(sock, host, &iaddr)) < 0)
+			ERROR("socket: namelookup failed");
+		else if (resolved) {
 			sin.sin_family = AF_INET;
 			sin.sin_port = htons(port);
 			sin.sin_addr = iaddr;
 			sock->sin = sock->peer = sin;
 			if (sock_type == SOCK_STREAM) {
 				if (mc_socket_connect(sock) != 0)
-					ERROR("connect failed");
+					ERROR("socket: connect failed: %d", errno);
 			}
 		}
 		/* else the name lookup is in progress. Do not free or close the socket after here! */
@@ -368,13 +415,7 @@ xs_socket_constructor(xsMachine *the)
 	return;
 
 badarg:
-	ERROR("bad arg");
-err:
-	if (s >= 0)
-		lwip_close(s);
-	if (sock != NULL)
-		mc_free(sock);
-	mc_xs_throw(the, errmsg);
+	ERROR("socket: bad arg");
 }
 
 static void
@@ -411,6 +452,9 @@ xs_socket_listeningSocket(xsMachine *the)
 	xsIndex id_addr = xsID("addr");
 	xsIndex id_proto = xsID("proto");
 	xsIndex id_port = xsID("port");
+	xsIndex id_membership = xsID("membership");
+	xsIndex id_ttl = xsID("ttl");
+	xsIndex id_loop = xsID("loop");
 #if LWIP_IPV6
 	xsIndex id_ipv6 = xsID("ipv6");
 #endif
@@ -443,7 +487,7 @@ xs_socket_listeningSocket(xsMachine *the)
 	}
 #endif
 	if ((s = lwip_socket(ipv6 ? AF_INET6 : AF_INET, sock_type, sock_proto)) < 0)
-		mc_xs_throw(the, "socket failed");
+		mc_xs_throw(the, "socket: cannot create socket");
 	(void)lwip_setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr));
 #if mxMacOSX
 	{
@@ -478,12 +522,21 @@ xs_socket_listeningSocket(xsMachine *the)
 			sin.sin_addr.s_addr = htonl(INADDR_ANY);
 		else
 			inet_aton(addr, &sin.sin_addr);
-		saddr = (struct sockaddr *)&sin;
+#if mxMC
+		if (xsHas(xsArg(0), id_membership)) {	/* looks like LWIP accepts only IADDR_ANY for the broadcast addr */
+			static struct sockaddr_in any;
+			any = sin;
+			any.sin_addr.s_addr = htonl(INADDR_ANY);
+			saddr = (struct sockaddr *)&any;
+		}
+		else
+#endif
+			saddr = (struct sockaddr *)&sin;
 		saddrlen = sizeof(sin);
 	}
 	if (lwip_bind(s, saddr, saddrlen) < 0) {
 		lwip_close(s);
-		mc_xs_throw(the, "bind failed");
+		mc_xs_throw(the, "socket: bind failed: %d", errno);
 	}
 
 	iaddr.s_addr = 0;
@@ -497,18 +550,27 @@ xs_socket_listeningSocket(xsMachine *the)
 		(void)lwip_listen(s, nlistener);
 	}
 	else {
-		xsIndex id_membership = xsID("membership"), id_ttl = xsID("ttl");
 		if (xsHas(xsArg(0), id_membership)) {
 			struct ip_mreq maddr;
 			xsGet(xsVar(0), xsArg(0), id_membership);
 			maddr.imr_interface.s_addr = inet_addr(xsToString(xsVar(0)));
 			maddr.imr_multiaddr.s_addr = sin.sin_addr.s_addr;
-			if (lwip_setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &maddr, sizeof(struct ip_mreq)) == 0)
-				iaddr = maddr.imr_interface;
-			else {
-				lwip_close(s);
-				mc_xs_throw(the, "IP_ADD_MEMBERSHIP failed");
+#if mxMC
+			{
+				uint8_t mcast_mac[MLAN_MAC_ADDR_LENGTH];
+				wifi_get_ipv4_multicast_mac(ntohl(maddr.imr_multiaddr.s_addr), mcast_mac);
+				wifi_add_mcast_filter(mcast_mac);	/* should be ok to 'add' the address every time... */
 			}
+#endif
+			if (lwip_setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &maddr, sizeof(struct ip_mreq)) != 0) {
+				lwip_close(s);
+				mc_xs_throw(the, "socket: IP_ADD_MEMBERSHIP failed: %d", errno);
+			}
+			if (lwip_setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &maddr.imr_interface, sizeof(struct in_addr)) != 0) {
+				lwip_close(s);
+				mc_xs_throw(the, "socket: IP_MULTICAST_IF failed: %d", errno);
+			}
+			iaddr = maddr.imr_interface;
 		}
 		if (xsHas(xsArg(0), id_ttl)) {
 			int ttl;
@@ -516,14 +578,23 @@ xs_socket_listeningSocket(xsMachine *the)
 			ttl = xsToInteger(xsVar(0));
 			if (lwip_setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) != 0) {
 				lwip_close(s);
-				mc_xs_throw(the, "IP_MULTICAST_TTL failed\n");
+				mc_xs_throw(the, "socket: IP_MULTICAST_TTL failed: %d", errno);
+			}
+		}
+		if (xsHas(xsArg(0), id_loop)) {
+			unsigned char loop;
+			xsGet(xsVar(0), xsArg(0), id_loop);
+			loop = (unsigned char)xsToBoolean(xsVar(0));
+			if (lwip_setsockopt(s, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop)) != 0) {
+				lwip_close(s);
+				mc_xs_throw(the, "socket: IP_MULTICAST_LOOP failed: %d", errno);
 			}
 		}
 	}
 
 	if ((sock = mc_malloc(sizeof(struct mc_socket))) == NULL) {
 		lwip_close(s);
-		mc_xs_throw(the, "no mem");
+		mc_xs_throw(the, "socket: no mem");
 	}
 	sock->s = s;
 	sock->sin = sin;
@@ -539,7 +610,22 @@ xs_socket_listeningSocket(xsMachine *the)
 	return;
 
 badarg:
-	mc_xs_throw(the, "bad args");
+	mc_xs_throw(the, "socket: bad args");
+}
+
+static void
+socket_free(struct mc_socket *sock)
+{
+	while (sock->sbuf != NULL) {
+		struct mc_sbuf *sp = sock->sbuf;
+		sock->sbuf = sp->next;
+		mc_free(sp);
+	}
+	if (sock->s >= 0) {
+		mc_event_unregister(sock->s);
+		lwip_close(sock->s);
+		sock->s = -1;
+	}
 }
 
 void
@@ -548,10 +634,11 @@ xs_socket_destructor(void *data)
 	struct mc_socket *sock = data;
 
 	if (sock != NULL) {
-		if (sock->s >= 0) {
-			lwip_close(sock->s);
-			mc_event_unregister(sock->s);
+		if (sock->state == SOCK_STATE_RESOLVING) {
+			sock->state = SOCK_STATE_CLOSING;
+			return;
 		}
+		socket_free(sock);
 		mc_free(sock);
 	}
 }
@@ -583,7 +670,7 @@ mc_socket_send_element(xsMachine *the, struct mc_socket *sock, xsSlot *slot, str
 				xsGet(xsVar(0), *slot, j);
 				if ((n = mc_socket_send_element(the, sock, &xsVar(0), sin)) < 0) {
 					if (j != 0)
-						mc_xs_throw(the, "partially written");
+						mc_xs_throw(the, "socket: partially written");
 					/* else nothing has been written or buffered */
 					return -1;
 				}
@@ -596,45 +683,62 @@ mc_socket_send_element(xsMachine *the, struct mc_socket *sock, xsSlot *slot, str
 		}
 		break;
 	default:
-		mc_xs_throw(the, "bad args");
+		mc_xs_throw(the, "socket: bad args");
 		return -1;
 	}
 	n = 0;
+	/* try to flush the queue anyway */
+	if (socket_flush_queue(sock) != 0)
+		xsCall_noResult(sock->this, xsID("onError"), NULL);
 	if (sock->sbuf == NULL) {
 		if (sin == NULL)
 			sin = &sock->sin;
 		if ((n = lwip_sendto(sock->s, data, datasize, 0, (struct sockaddr *)sin, sizeof(struct sockaddr_in))) < 0) {
-			mc_log_error("socket: sendto failed: %d\n", errno);
-			xsCall_noResult(sock->this, xsID("onError"), NULL);
+			if (errno != EAGAIN) {
+				mc_log_error("socket: sendto failed: %d\n", errno);
+				xsCall_noResult(sock->this, xsID("onError"), NULL);
+			}
 			return -1;
 		}
 	}
 	if ((size_t)n < datasize) {
 		struct mc_sbuf *sp, **spp;
+		size_t sz;
 		datasize -= n;
 		data += n;
 		if (mc_socket_buflen(sock) + datasize > MC_SOCKET_MAX_BUF)
 			goto nomem;
-		if ((sp = mc_malloc(sizeof(struct mc_sbuf))) == NULL)
-			goto nomem;
-		if ((sp->buf = mc_malloc(datasize)) == NULL) {
-			mc_free(sp);
-			goto nomem;
-		}
-		sp->next = NULL;
-		memcpy(sp->buf, data, datasize);
-		sp->bp = sp->buf;
-		sp->bufend = sp->buf + datasize;
 		for (spp = &sock->sbuf; *spp != NULL; spp = &(*spp)->next)
 			;
-		*spp = sp;
+		sp = *spp;
+		if (sp != NULL && (sz = sp->buf + MC_SOCKET_SBUF_SIZE - sp->bp) > 0) {
+			sz = MIN(datasize, sz);
+			memcpy(sp->bp, data, sz);
+			sp->bp += sz;
+			datasize -= sz;
+			data += sz;
+		}
+		while (datasize > 0) {
+			if ((sp = mc_malloc(sizeof(struct mc_sbuf))) == NULL)
+				goto nomem;
+			sz = MIN(datasize, MC_SOCKET_SBUF_SIZE);
+			memcpy(sp->buf, data, sz);
+			sp->bp = sp->buf + sz;
+			sp->next = NULL;
+			sp->sin = sin != NULL ? *sin : sock->sin;
+			datasize -= sz;
+			data += sz;
+			*spp = sp;
+			spp = &sp->next;
+		}
 		return 0;
-	nomem:
-		if (n > 0)	/* partially written... can't take it back... */
-			mc_xs_throw(the, "no mem");
-		return -1;
 	}
 	return 1;
+
+nomem:
+	if (n > 0)	/* partially written... can't take it back... */
+		mc_xs_throw(the, "socket: no mem");
+	return -1;
 }
 
 void
@@ -663,8 +767,9 @@ xs_socket_send(xsMachine *the)
 
 	if (ac < 1)
 		return;
-	else if (ac > 1) {
-		char *addr = xsToString(xsArg(1)), *p = NULL;
+	else if ((ac > 1) && xsTest(xsArg(1))) {
+		char buf[sizeof("xxx.xxx.xxx.xxx:65535")];
+		char *addr = xsToStringBuffer(xsArg(1), buf, sizeof(buf)), *p = NULL;
 		sin.sin_family = AF_INET;
 		if ((p = strchr(addr, ':')) != NULL) {
 			*p = '\0';
@@ -758,15 +863,41 @@ xs_socket_accept(xsMachine *the)
 }
 
 void
+xs_socket_connect(xsMachine *the)
+{
+	struct mc_socket *sock = xsGetHostData(xsThis);
+
+	if (sock->state == SOCK_STATE_CLOSING) {
+		xs_socket_destructor(sock);
+		return;
+	}
+	if (sock->s < 0)	/* already closed */
+		return;	/* can't do anything here */
+	if (xsToInteger(xsArgc) < 1 || !xsTest(xsArg(0)) || inet_aton(xsToString(xsArg(0)), &sock->sin.sin_addr) == 0) {
+		/* couldn't resolve */
+		xsCall_noResult(sock->this, xsID("onError"), NULL);
+		return;
+	}
+	sock->sin.sin_family = AF_INET;
+	sock->sin.sin_port = htons(sock->port);
+	if (sock->type == SOCK_STREAM) {
+		if (mc_socket_connect(sock) != 0) {
+			xsCall_noResult(sock->this, xsID("onError"), NULL);
+			return;
+		}
+	}
+	else {
+		sock->state = SOCK_STATE_CONNECTING;
+		mc_event_register(sock->s, MC_SOCK_READ | MC_SOCK_WRITE, mc_socket_callback, sock);
+	}
+}
+
+void
 xs_socket_close(xsMachine *the)
 {
 	struct mc_socket *sock = xsGetHostData(xsThis);
 
-	if (sock->s >= 0) {
-		lwip_close(sock->s);
-		mc_event_unregister(sock->s);
-		sock->s = -1;
-	}
+	socket_free(sock);
 }
 
 void
@@ -839,6 +970,28 @@ xs_socket_getNativeSocket(xsMachine *the)
 	struct mc_socket *sock = xsGetHostData(xsThis);
 
 	xsSetInteger(xsResult, sock->s);
+}
+
+void
+xs_socket_aton(xsMachine *the)
+{
+	struct in_addr addr;
+
+	if (inet_aton(xsToString(xsArg(0)), &addr))
+		xsResult = xsArrayBuffer(&addr, sizeof(addr));
+}
+
+void
+xs_socket_ntoa(xsMachine *the)
+{
+	void *data = xsToArrayBuffer(xsArg(0));
+	size_t size = xsGetArrayBufferLength(xsArg(0));
+	struct in_addr addr;
+
+	if (size < sizeof(struct in_addr))
+		return;	// undefined
+	memcpy(&addr, data, sizeof(addr));
+	xsSetString(xsResult, inet_ntoa(addr));
 }
 
 /*

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,7 +56,13 @@ cipher_process(xsMachine *the, kcl_symmetric_direction_t direction)
 			cipher->direction = direction;
 		}
 	}
-	xsResult = xsToInteger(xsArgc) > 1 && xsTest(xsArg(1)) ? xsArg(1) : xsArrayBuffer(NULL, cipher->blockSize);
+	if (xsToInteger(xsArgc) > 1 && xsTest(xsArg(1))) {
+		if (xsGetArrayBufferLength(xsArg(1)) < (xsIntegerValue)cipher->blockSize)
+			crypt_throw_error(the, "cipher: too small buffer");
+		xsResult = xsArg(1);
+	}
+	else
+		xsResult = xsArrayBuffer(NULL, cipher->blockSize);
 	if (xsTypeOf(xsArg(0)) == xsStringType) {
 		indata = xsToString(xsArg(0));
 		len = strlen(indata);

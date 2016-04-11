@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,29 +16,41 @@
  */
 #include "mc_stdio.h"
 #include "mc_module.h"
+#if mxMC
+#define FILE	MC_FILE
+#endif
 
+#define CONSOLE_LOG_FILE	0x01
+#define CONSOLE_XSBUG		0x02
+
+static int console_xsbug = 0;
 static int console_log_depth = 0;
 
-static void indent(int n)
+#define CONSOLE_OUT(...)	do {if (!console_xsbug || !xsVTrace(the, __VA_ARGS__)) fprintf(console_out, __VA_ARGS__);} while (0)
+
+static void indent(xsMachine* the, FILE *console_out, int n)
 {
 	int indent = console_log_depth + n;
 
 	while (--indent >= 0)
-		fprintf(stderr,  "  ");
+		CONSOLE_OUT("  ");
 }
 
-void console_log(xsMachine* the)
+void
+xs_console_log(xsMachine* the)
 {
 	xsIntegerValue c = xsToInteger(xsArgc), i;
 	xsBooleanValue space = 0;
 	xsBooleanValue comma = 0;
 	xsBooleanValue nonl = 0;
+	int options = 0;
+	FILE *console_out = stdout;
 
 	xsVars(4);
 	console_log_depth++;
 	for (i = 0; i < c; i++) {
 		if (space && !nonl)
-			fprintf(stderr,  "\n");
+			CONSOLE_OUT("\n");
 		else
 			space = 1;
 		switch (xsTypeOf(xsArg(i))) {
@@ -47,48 +59,66 @@ void console_log(xsMachine* the)
 		case xsBooleanType:
 		case xsIntegerType:
 		case xsNumberType:
-			fprintf(stderr,  "%s", xsToString(xsArg(i)));
+			CONSOLE_OUT("%s", xsToString(xsArg(i)));
 			break;
 		case xsSymbolType:
 			xsResult = xsCall1(xsGlobal, xsID("String"), xsArg(i));
-			fprintf(stderr,  "%s", xsToString(xsResult));
+			CONSOLE_OUT("%s", xsToString(xsResult));
 			break;
 		case xsStringType:
 		case xsStringXType:
-			if (i == 0 && strcmp(xsToString(xsArg(i)), "-n") == 0) {
-				nonl++;
-				break;
+			if (i == 0 || options) {
+				const char *opt = xsToString(xsArg(i));
+				options = 0;
+				if (strcmp(opt, "-n") == 0) {
+					nonl++;
+					options++;
+				}
+				else if (strcmp(opt, "-stderr") == 0) {
+					console_out = stderr;
+					options++;
+				}
+				else if (strcmp(opt, "-stdout") == 0) {
+					console_out = stdout;
+					options++;
+				}
+				else if (strncmp(opt, "-", 1) == 0)	/* end of the option args */
+					break;
+				if (options) {
+					space = 0;
+					break;
+				}
 			}
 			if (console_log_depth == 1)
-				fprintf(stderr,  "%s", xsToString(xsArg(i)));
+				CONSOLE_OUT("%s", xsToString(xsArg(i)));
 			else
-				fprintf(stderr,  "\"%s\"", xsToString(xsArg(i)));
+				CONSOLE_OUT("\"%s\"", xsToString(xsArg(i)));
 			break;
 		case xsReferenceType:
 			if (xsIsInstanceOf(xsArg(i), xsFunctionPrototype)) {
-				fprintf(stderr, "function(...) { ... }");
+				CONSOLE_OUT("function(...) { ... }");
 			}
 			else if (xsIsInstanceOf(xsArg(i), xsArrayPrototype)) {
 				xsGet(xsVar(0), xsArg(i), xsID("length"));
 				xsIntegerValue length = xsToInteger(xsVar(0)), index;
-				fprintf(stderr,  "[\n");
+				CONSOLE_OUT("[\n");
 				for (index = 0; index < length; index++) {
 					xsGet(xsVar(1), xsArg(i), (xsIndex)index);
 					if (comma)
-						fprintf(stderr,  ",\n");
+						CONSOLE_OUT(",\n");
 					else
 						comma = 1;
-					indent(0);
+					indent(the, console_out, 0);
 					fxPush(xsVar(1));
 					fxPushCount(the, 1);
 					fxPush(xsThis);
 					fxPush(xsFunction);
 					fxCall(the);
 				}
-				fprintf(stderr, "\n"); indent(-1); fprintf(stderr,  "]");
+				CONSOLE_OUT("\n"); indent(the, console_out, -1); CONSOLE_OUT("]");
 			}
 			else {
-				fprintf(stderr,  "{\n");
+				CONSOLE_OUT( "{\n");
 				xsVar(0) = xsEnumerate(xsArg(i));
 				for (;;) {
 					xsVar(1) = xsCall0(xsVar(0), xsID("next"));
@@ -98,34 +128,53 @@ void console_log(xsMachine* the)
 					xsGet(xsVar(2), xsVar(1), xsID("value"));
 					xsGetAt(xsVar(3), xsArg(i), xsVar(2));
 					if (comma)
-						fprintf(stderr,  ",\n");
+						CONSOLE_OUT( ",\n");
 					else
 						comma = 1;
-					indent(0); fprintf(stderr,  "%s: ", xsToString(xsVar(2)));
+					indent(the, console_out, 0); CONSOLE_OUT("%s: ", xsToString(xsVar(2)));
 					fxPush(xsVar(3));
 					fxPushCount(the, 1);
 					fxPush(xsThis);
 					fxPush(xsFunction);
 					fxCall(the);
 				}
-				fprintf(stderr, "\n"); indent(-1); fprintf(stderr,  "}");
+				CONSOLE_OUT("\n"); indent(the, console_out, -1); CONSOLE_OUT("}");
 			}
 			break;
 		}
 	}
 	console_log_depth--;
 	if (!console_log_depth && !nonl)
-		fprintf(stderr,  "\n");
+		CONSOLE_OUT("\n");
 }
 
-void console_get_enable(xsMachine *the)
+void
+xs_console_setEnable(xsMachine *the)
 {
-	int f = mc_log_get_enable();
-	xsSetInteger(xsResult, f);
+	unsigned int flags = xsToInteger(xsArg(0));
+
+	mc_log_set_enable(flags & CONSOLE_LOG_FILE);
+	console_xsbug = flags & CONSOLE_XSBUG;
 }
 
-void console_set_enable(xsMachine *the)
+void
+xs_console_getEnable(xsMachine *the)
 {
-	int f = xsToInteger(xsArg(0));
-	mc_log_set_enable(f);
+	unsigned int flags = 0;
+
+	if (console_xsbug)
+		flags |= CONSOLE_XSBUG;
+	if (mc_log_get_enable())
+		flags |= CONSOLE_LOG_FILE;
+	xsSetInteger(xsResult, flags);
+}
+
+void
+xs_console_load(xsMachine *the)
+{
+	xsVars(1);
+	xsSetInteger(xsVar(0), CONSOLE_LOG_FILE);
+	xsSet(xsThis, xsID("LOGFILE"), xsVar(0));
+	xsSetInteger(xsVar(0), CONSOLE_XSBUG);
+	xsSet(xsThis, xsID("XSBUG"), xsVar(0));
 }

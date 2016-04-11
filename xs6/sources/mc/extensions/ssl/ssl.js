@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,11 +15,9 @@
  *     limitations under the License.
  */
 var SSL = {
-	// default protocol version
-	protocolVersion: {
-		major: 3,
-		minor: 1,
-	},
+	protocolVersion: (3 << 8) | 1,	// default protocol version
+	minProtocolVersion: (3 << 8) | 1,
+	maxProtocolVersion: (3 << 8) | 3,
 
 	get Session() {
 		return require.weak("ssl/session");
@@ -41,6 +39,7 @@ var SSL = {
 		RC4: 3,
 		SHA1: 0,
 		MD5: 1,
+		SHA256: 2,
 		NULL: 255
 	},
 };

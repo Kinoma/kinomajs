@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +14,6 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-.NOTPARALLEL: 
-
 PINS_JS_SRCS = \
 	pins_Analog.js \
 	pins_Digital.js \
@@ -29,6 +27,8 @@ PINS_JS_SRCS = \
 	pins_PWM.js \
 	pins__http.js \
 	pins__ws.js \
+	pins__conn_ws.js \
+	pins__conn_http.js \
 	pins_map.js
 
 BLL_JS_SRCS = \
@@ -40,12 +40,9 @@ BLL_JS_SRCS = \
 	bll_Power.js \
 	bll_PWM.js
 
-PINS_C_SRCS = pins.c
-
 PINS_BINARIES = $(addprefix $(DEST_DIR)/pins/, $(addsuffix .xsb, $(patsubst pins_%,%,$(basename $(PINS_JS_SRCS)))))
 # BLLs go to the top dir
 BLL_BINARIES = $(addprefix $(DEST_DIR)/, $(addsuffix .xsb, $(patsubst bll_%,%,$(basename $(BLL_JS_SRCS)))))
-PINS_OBJS = $(addprefix $(TMP_DIR)/pins/, $(addsuffix .o, $(basename $(PINS_C_SRCS))))
 
 PINS_DIR = $(F_HOME)/xs6/sources/mc/extensions/pins
 
@@ -55,7 +52,7 @@ C_OPTIONS += $(MOD_C_OPTIONS)
 
 all: archive
 
-archive: $(TMP_DIR)/pins $(DEST_DIR)/pins $(DEST_DIR)/pins.xsb $(PINS_BINARIES) $(PINS_OBJS) $(BLL_BINARIES)
+archive: $(TMP_DIR)/pins $(DEST_DIR)/pins $(DEST_DIR)/pins.xsb $(PINS_BINARIES) $(BLL_BINARIES)
 
 $(TMP_DIR)/pins:
 	mkdir -p $@
@@ -73,8 +70,5 @@ $(TMP_DIR)/%.xsb: $(PINS_DIR)/%.js
 	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(TMP_DIR) $<
 $(TMP_DIR)/pins/%.xsb: $(PINS_DIR)/%.js
 	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(TMP_DIR)/pins $<
-$(TMP_DIR)/pins/%.o : $(PINS_DIR)/%.c
-	$(CC) -c $(C_OPTIONS) $< -o $@
 
-clean:
-	rm -f $(PINS_OBJS) $(addsuffix .d, $(basename $(PINS_OBJS)))
+clean:;

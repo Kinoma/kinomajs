@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,14 +43,19 @@ function p_hash(hash, secret, seed, sz)
 	return p.getChunk();
 }
 
-function PRF(secret, label, seed, n)
+function PRF(session, secret, label, seed, n, hash)
 {
 	var s = ArrayBuffer.fromString(label);
 	s = s.concat(seed);
-	var r = Bin.xor(
-		p_hash(new Crypt.MD5(), secret.slice(0, iceil(secret.byteLength, 2)), s, n),
-		p_hash(new Crypt.SHA1(), secret.slice(idiv(secret.byteLength, 2)), s, n)
-	);
+	if (session.protocolVersion <= 0x302)
+		var r = Bin.xor(
+			p_hash(new Crypt.MD5(), secret.slice(0, iceil(secret.byteLength, 2)), s, n),
+			p_hash(new Crypt.SHA1(), secret.slice(idiv(secret.byteLength, 2)), s, n)
+		);
+	else {
+		if (!hash) hash = Crypt.SHA256;
+		var r = p_hash(new hash(), secret, s, n);
+	}
 	return r.slice(0, n);
 }
 

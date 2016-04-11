@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -92,8 +92,6 @@ enum flash_comp {
 	FC_COMP_USER_APP,
 };
 
-#define MAX_NAME    8
-
 struct partition_entry {
 	uint8_t type;
 	uint8_t device;
@@ -124,9 +122,10 @@ extern int mc_fputs(const char *str, MC_FILE *fp);
 extern int mc_fflush(MC_FILE *fp);
 extern int mc_creat(const char *path, mode_t mode);
 extern int mc_unlink(const char *path);
+extern int mc_rename(const char *from, const char *to);
 extern int mc_get_volume_info(const char *volname, struct mc_volume_info *);
 extern int mc_erase_volume(const char *volname);
-extern int mc_check_volume(const char *volname);
+extern int mc_check_volume(const char *volname, int recovery);
 /* directory */
 extern MC_DIR *mc_opendir(const char *name);
 extern struct mc_dirent *mc_readdir(MC_DIR *dir);
@@ -135,6 +134,10 @@ extern int mc_closedir(MC_DIR *dir);
 extern const char *mc_get_special_dir(const char *name);
 extern const char *mc_get_volume(unsigned int i);
 extern void mc_set_active_volume(const char *path);
+
+#if MC_LONG_PATH
+extern int mc_update_path_name();
+#endif
 
 #if USE_NATIVE_STDIO
 
@@ -158,6 +161,7 @@ extern const char *mc_resolve_path(const char *path, int create);
 #define mc_ftell(f)	ftell(f)
 #define mc_creat(p, m)	creat(p, m)
 #define mc_unlink(p)	unlink(p)
+#define mc_rename(f, t)	rename(f, t)
 #define mc_opendir(p)	opendir(p)
 #define mc_readdir(d)	readdir(d)
 #define mc_closedir(d)	closedir(d)

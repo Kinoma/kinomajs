@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,13 +53,16 @@ mc_thread_main(void *data)
 }
 
 int
-mc_thread_create(mc_thread_proc_f thread_main, void *arg)
+mc_thread_create(mc_thread_proc_f thread_main, void *arg, int pri)
 {
 	mc_thread_t *th;
 #if mxMC
 	char name[13];
 	static int sequence = 0;
 	static os_thread_stack_define(stack, 2048);
+	static int priorities[] = {OS_PRIO_0, OS_PRIO_1, OS_PRIO_2, OS_PRIO_3, OS_PRIO_4};
+#define NPRIORITIES	((int)(sizeof(priorities) / sizeof(priorities[0])))
+#define DEFAULT_PRIORITY	OS_PRIO_3
 #endif
 
 	if ((th = mc_malloc(sizeof(mc_thread_t))) == NULL) {
@@ -70,7 +73,9 @@ mc_thread_create(mc_thread_proc_f thread_main, void *arg)
 	th->arg = arg;
 #if mxMC
 	snprintf(name, sizeof(name), "th%d", sequence++);
-	if (os_thread_create(&th->thread, name, mc_thread_main, th, &stack, OS_PRIO_3) != WM_SUCCESS) {
+	if (pri < 0 || pri >= NPRIORITIES)
+		pri = DEFAULT_PRIORITY;
+	if (os_thread_create(&th->thread, name, mc_thread_main, th, &stack, pri) != WM_SUCCESS) {
 		errno = EBUSY;
 		mc_free(th);
 		th = NULL;

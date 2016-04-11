@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -74,6 +74,7 @@ kcl_des_finish(void *ctx)
 struct tdes_context {
 	des_subkey subkey[3];
 	uint8_t key[8*3];
+	uint32_t keysize;
 };
 
 kcl_err_t
@@ -97,6 +98,7 @@ kcl_tdes_init(void **ctxp, const void *key, size_t keysize)
 	}
 	else
 		memcpy(tdes->key, key, keysize);
+	tdes->keysize = keysize;
 	*ctxp = tdes;
 	return KCL_ERR_NONE;
 }
@@ -124,8 +126,10 @@ kcl_tdes_process(void *ctx, const void *in, void *out)
 void
 kcl_tdes_size(void *ctx, size_t *blksz, size_t *keysz)
 {
+	struct tdes_context *tdes = ctx;
+
 	*blksz = 8;
-	*keysz = 8*3;
+	*keysz = tdes->keysize;
 }
 
 void
@@ -353,6 +357,48 @@ kcl_sha256_size(void *ctx, size_t *blksz, size_t *outsz)
 }
 
 kcl_err_t
+kcl_sha224_create(void **ctxp)
+{
+	struct sha256 *sha;
+
+	if ((sha = kcl_malloc(sizeof(struct sha256))) == NULL)
+		return KCL_ERR_NOMEM;
+	*ctxp = sha;
+	return KCL_ERR_NONE;
+}
+
+void
+kcl_sha224_init(void *ctx)
+{
+	sha224_create(ctx);
+}
+
+void
+kcl_sha224_update(void *ctx, const void *data, size_t sz)
+{
+	sha224_update(ctx, data, sz);
+}
+
+void
+kcl_sha224_result(void *ctx, void *result)
+{
+	sha224_fin(ctx, result);
+}
+
+void
+kcl_sha224_finish(void *ctx)
+{
+	kcl_free(ctx);
+}
+
+void
+kcl_sha224_size(void *ctx, size_t *blksz, size_t *outsz)
+{
+	*blksz = SHA224_BLKSIZE;
+	*outsz = SHA224_DGSTSIZE;
+}
+
+kcl_err_t
 kcl_sha512_create(void **ctxp)
 {
 	struct sha512 *sha;
@@ -392,6 +438,48 @@ kcl_sha512_size(void *ctx, size_t *blksz, size_t *outsz)
 {
 	*blksz = SHA512_BLKSIZE;
 	*outsz = SHA512_DGSTSIZE;
+}
+
+kcl_err_t
+kcl_sha384_create(void **ctxp)
+{
+	struct sha512 *sha;
+
+	if ((sha = kcl_malloc(sizeof(struct sha512))) == NULL)
+		return KCL_ERR_NOMEM;
+	*ctxp = sha;
+	return KCL_ERR_NONE;
+}
+
+void
+kcl_sha384_init(void *ctx)
+{
+	sha384_create(ctx);
+}
+
+void
+kcl_sha384_update(void *ctx, const void *data, size_t sz)
+{
+	sha384_update(ctx, data, sz);
+}
+
+void
+kcl_sha384_result(void *ctx, void *result)
+{
+	sha384_fin(ctx, result);
+}
+
+void
+kcl_sha384_finish(void *ctx)
+{
+	kcl_free(ctx);
+}
+
+void
+kcl_sha384_size(void *ctx, size_t *blksz, size_t *outsz)
+{
+	*blksz = SHA384_BLKSIZE;
+	*outsz = SHA384_DGSTSIZE;
 }
 
 /*

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,6 +26,8 @@
 #endif
 
 #define MC_HOSTNAME_VAR	"HOST"
+
+mc_system_configuration_t mc_conf;
 
 int
 mc_gethostname(char *name, size_t len)
@@ -96,18 +98,17 @@ mc_usleep(unsigned long usec)
  * secure RNG based on RC4
  */
 static uint8_t mc_rng_state[256];
-static uint8_t mc_key[16];
 
 static void
-__rng_init(uint8_t *state, const uint8_t *seed, uint8_t seedSize)
+__rng_init(uint8_t *state, const uint8_t *seed, uint8_t seedsize)
 {
 	int k;
 	uint8_t j, t;
 
-	if (seedSize == 0)
+	if (seedsize == 0)
 		return;
 	for (k = j = 0; k < 256; k++) {
-		j += state[k] + seed[k % seedSize];
+		j += state[k] + seed[k % seedsize];
 		t = state[k];
 		state[k] = state[j];
 		state[j] = t;
@@ -135,33 +136,14 @@ void
 mc_rng_init(const void *seed, size_t seedsize)
 {
 	int i;
-	struct timeval tv;
+	static int inited = 0;
 
-	for (i = 0; i < 256; i++)
-		mc_rng_state[i] = i;
-	__rng_init(mc_rng_state, seed, seedsize);
-	__rng_init(mc_rng_state, (uint8_t *)mc_rng_init, 8);
-	mc_rng_gen(mc_key, sizeof(mc_key));
-	mc_gettimeofday(&tv, NULL);
-	__rng_init(mc_rng_state, (uint8_t *)&tv.tv_sec, sizeof(tv.tv_sec));
-	__rng_init(mc_rng_state, (uint8_t *)&tv.tv_usec, sizeof(tv.tv_usec));
-	{
-		mc_env_t env;
-		const char k[] = "undefined";
-		mc_env_new(&env, k, true);
-		if (mc_env_get(&env, k) == NULL) {
-			char buf[2*8+1];
-#if mxMC
-			uint8_t *p = (uint8_t *)mc_rng_init;
-			snprintf(buf, sizeof(buf), "%02x%02x%02x%02x%02x%02x%02x%02x", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
-#else
-			strcpy(buf, "b5002398b004462a");
-#endif
-			mc_env_set(&env, k, buf);
-			mc_env_store(&env);
-		}
-		mc_env_free(&env);
+	if (!inited) {
+		for (i = 0; i < 256; i++)
+			mc_rng_state[i] = i;
+		inited++;
 	}
+	__rng_init(mc_rng_state, seed, seedsize);
 }
 
 void
@@ -171,8 +153,19 @@ mc_rng_gen(uint8_t *bp, size_t n)
 	__rng_process(mc_rng_state, bp, n);
 }
 
+/* default srng functions */
+static uint8_t mc_key[16];
+
 void
-mc_rng_process(void *buf, size_t bufsiz, const uint8_t *seed, size_t seedsiz)
+mc_srng_init_default(const void *data, size_t sz)
+{
+	if (sz > sizeof(mc_key))
+		sz = sizeof(mc_key);
+	memcpy(mc_key, data, sz);
+}
+
+static void
+mc_srng_process_default(void *buf, size_t bufsize, const uint8_t *seed, size_t seedsize)
 {
 	uint8_t *state;
 	int i;
@@ -181,12 +174,14 @@ mc_rng_process(void *buf, size_t bufsiz, const uint8_t *seed, size_t seedsiz)
 		return;
 	for (i = 0; i < 256; i++)
 		state[i] = i;
-	__rng_init(state, (uint8_t *)mc_rng_process, 8);
-	__rng_init(state, seed, seedsiz);
+	__rng_init(state, seed, seedsize);
 	__rng_init(state, mc_key, sizeof(mc_key));
-	__rng_process(state, buf, bufsiz);
+	__rng_process(state, buf, bufsize);
 	mc_free(state);
 }
+
+void (*mc_srng_init_f)(const void *data, size_t size) = mc_srng_init_default;
+void (*mc_srng_process_f)(void *buf, size_t bufsize, const uint8_t *seed, size_t seedsize) = mc_srng_process_default;
 
 
 /*

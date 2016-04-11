@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -53,6 +53,9 @@ typedef struct ffs {
 	int dirty;
 	int blk, startblk;
 	int bp;
+#if MC_LONG_PATH
+	int startbp;
+#endif
 	size_t (*read_f)(void *, size_t, size_t, struct ffs *);
 	size_t (*write_f)(const void *, size_t, size_t, struct ffs *);
 	long (*position_f)(struct ffs *, long position, int setp);
@@ -73,6 +76,9 @@ struct mc_dir {
 
 #define FFS_HEADER_SIZE		sizeof(ffs_header_t)
 #define FFS_CONTENT_SIZE	(FFS_SECTOR_SIZE - FFS_HEADER_SIZE)
+#if MC_LONG_PATH
+#define FFS_PATH_MAX		(FFS_SECTOR_SIZE - FFS_HEADER_SIZE + FT_MAX_FILENAME)
+#endif
 
 static struct fs *default_ftfs;
 #if WMSDK_VERSION < 2040000
@@ -84,18 +90,18 @@ static mdev_t *fl_dev = NULL;
 
 #define N_PARTITIONS	12
 static struct partition_entry sPartitions[N_PARTITIONS] = {
-	{.type = FC_COMP_BOOT2, .device = 0, .name = "boot2", .start = 0x0, .size = 0x3000, .gen_level = 0},
-	{.type = FC_COMP_PSM, .device = 0, .name = "psm", .start = 0x3000, .size = 0x4000, .gen_level = 0},
-	{.type = FC_COMP_FW, .device = 0, .name = "mcufw", .start = 0x7000, .size = 0x100000, .gen_level = 0},
-	{.type = FC_COMP_FW, .device = 0, .name = "mcufw", .start = 0x107000, .size = 0x100000, .gen_level = 0},
-	{.type = FC_COMP_FTFS, .device = 0, .name = "ftfs", .start = 0x207000, .size = 0x50000, .gen_level = 0},
-	{.type = FC_COMP_FTFS, .device = 0, .name = "ftfs", .start = 0x257000, .size = 0x50000, .gen_level = 0},
-	{.type = FC_COMP_WLAN_FW, .device = 0, .name = "wififw", .start = 0x2a7000, .size = 0x40000, .gen_level = 0},
-	{.type = FC_COMP_WLAN_FW, .device = 0, .name = "wififw", .start = 0x2e7000, .size = 0x40000, .gen_level = 0},
-	{.type = FC_COMP_USER_APP, .device = 0, .name = "k0", .start = 0x327000, .size = 0x20000, .gen_level = 0},
-	{.type = FC_COMP_USER_APP, .device = 0, .name = "k1", .start = 0x347000, .size = 0x20000, .gen_level = 0},
-	{.type = FC_COMP_USER_APP, .device = 0, .name = "k2", .start = 0x367000, .size = 0x20000, .gen_level = 0},
-	{.type = FC_COMP_USER_APP, .device = 0, .name = "k3", .start = 0x287000, .size = 0x20000, .gen_level = 0},
+	{.type = FC_COMP_BOOT2, .device = 0, .name = "boot2", .start = 0x0, .size = 0x6000, .gen_level = 0},
+	{.type = FC_COMP_PSM, .device = 0, .name = "psm", .start = 0x6000, .size = 0x4000, .gen_level = 0},
+	{.type = FC_COMP_FW, .device = 0, .name = "mcufw", .start = 0xa000, .size = 0x120000, .gen_level = 0},
+	{.type = FC_COMP_FW, .device = 0, .name = "mcufw", .start = 0x12a000, .size = 0x120000, .gen_level = 0},
+	{.type = FC_COMP_FTFS, .device = 0, .name = "ftfs", .start = 0x24a000, .size = 0x50000, .gen_level = 0},
+	{.type = FC_COMP_FTFS, .device = 0, .name = "ftfs", .start = 0x29a000, .size = 0x50000, .gen_level = 0},
+	{.type = FC_COMP_WLAN_FW, .device = 0, .name = "wififw", .start = 0x2ea000, .size = 0x40000, .gen_level = 0},
+	{.type = FC_COMP_WLAN_FW, .device = 0, .name = "wififw", .start = 0x32a000, .size = 0x40000, .gen_level = 0},
+	{.type = FC_COMP_USER_APP, .device = 0, .name = "k0", .start = 0x36a000, .size = 0x20000, .gen_level = 0},
+	{.type = FC_COMP_USER_APP, .device = 0, .name = "k1", .start = 0x38a000, .size = 0x20000, .gen_level = 0},
+	{.type = FC_COMP_USER_APP, .device = 0, .name = "k2", .start = 0x3aa000, .size = 0x20000, .gen_level = 0},
+	{.type = FC_COMP_USER_APP, .device = 0, .name = "k3", .start = 0x8ca000, .size = 0x20000, .gen_level = 0},
 };
 static mdev_t sDevs[N_PARTITIONS];
 
@@ -638,7 +644,7 @@ ffs_write_block(ffs_t *ffs, size_t offset)
 	(void)flash_drv_erase(ffs->mdev, offset, FFS_SECTOR_SIZE);
 
 	if (flash_drv_write(ffs->mdev, ffs->u.data, FFS_SECTOR_SIZE, offset) != WM_SUCCESS) {
-		mc_log_error("ffs_write_file: flash_drv_write failed\n");
+		mc_log_error("ffs_write_block: flash_drv_write failed\n");
 		errno = EIO;
 		return -1;
 	}
@@ -690,37 +696,57 @@ ffs_position_file(ffs_t *ffs, long position, int setp)
 {
 	int blk = ffs->startblk, lastblk = blk;
 	long pos = 0;
-	ffs_header_t h;
+	int bp, hsize;
+	ffs_header_t *hp, h;
+	size_t sz;
 
-	if (setp)
+	if (setp) {
 		ffs_flush(ffs);
+		hp = &ffs->u.h;
+		sz = FFS_SECTOR_SIZE;
+	}
+	else {
+		hp = &h;
+		sz = sizeof(h);
+	}
 	while (blk >= 0) {
-		if (flash_drv_read(ffs->mdev, (uint8_t *)&h, sizeof(h), ffs->fd.fl_start + blk * FFS_SECTOR_SIZE) != WM_SUCCESS) {
+		if (flash_drv_read(ffs->mdev, (uint8_t *)hp, sz, ffs->fd.fl_start + blk * FFS_SECTOR_SIZE) != WM_SUCCESS) {
 			mc_log_error("ffs_position: failed to read at %d\n", blk);
 			errno = EIO;
 			return -1L;
 		}
-		if (position < 0 && blk == ffs->blk) {
-			return pos + ffs->bp;
+		bp = ffs->bp;
+		hsize = hp->size;
+#if MC_LONG_PATH
+		if (blk == ffs->startblk) {
+			bp -= ffs->startbp;
+			hsize -= ffs->startbp;
 		}
-		else if (position >= pos && position < pos + h.size) {
+#endif
+		if (position < 0 && blk == ffs->blk) {
+			return pos + bp;
+		}
+		else if (position >= pos && position < pos + hsize) {
 			if (setp) {
-				ffs->u.h = h;
 				ffs->blk = blk;
 				ffs->bp = position - pos;
+#if MC_LONG_PATH
+				if (blk == ffs->startblk) {
+					ffs->bp += ffs->startbp;
+				}
+#endif
 			}
 			return position;
 		}
-		if (h.magic != FFS_MAGIC)
+		if (hp->magic != FFS_MAGIC)
 			break;
-		pos += h.size;
+		pos += hsize;
 		lastblk = blk;
-		blk = h.nextblk;
+		blk = hp->nextblk;
 	}
 	if (setp) {
-		ffs->u.h = h;
 		ffs->blk = lastblk;
-		ffs->bp = h.size;
+		ffs->bp = hp->size;
 	}
 	return pos;
 }
@@ -922,13 +948,32 @@ ffs_open_file(ffs_t *ffs, const char *fname)
 			if (first_freeblk < 0)
 				first_freeblk = blk;
 		}
+#if MC_LONG_PATH
+		else if (strncmp(fname, ffs->u.h.name, FFS_PATH_MAX) == 0) {
+			targetblk = blk;
+			break;
+		}
+#else
 		else if (strncmp(fname, ffs->u.h.name, FT_MAX_FILENAME) == 0) {
 			targetblk = blk;
 			break;
 		}
+#endif
 	}
+#if MC_LONG_PATH
+	size_t nameLen = strlen(fname);
+	if (nameLen >= FFS_PATH_MAX) {
+		mc_log_error("FFS: too long path\n");
+		return ENOSPC;
+	}
+#endif
 	if (targetblk >= 0) {
 		ffs->blk = ffs->startblk = targetblk;
+#if MC_LONG_PATH
+		if (nameLen >= FT_MAX_FILENAME) {
+			ffs->startbp = ffs->bp = nameLen - FT_MAX_FILENAME + 1;
+		}
+#endif
 		if (ffs->flags & FFS_OTRUNC)
 			ffs_truncate(ffs);
 	}
@@ -942,7 +987,17 @@ ffs_open_file(ffs_t *ffs, const char *fname)
 			ffs->u.h.magic = FFS_MAGIC;
 			ffs->u.h.nextblk = -1;
 			ffs->u.h.size = 0;
+#if MC_LONG_PATH
+			if (nameLen >= FT_MAX_FILENAME) {
+				ffs->startbp = ffs->bp = nameLen - FT_MAX_FILENAME + 1;
+				memcpy(ffs->u.h.name, fname, nameLen);
+				ffs->u.h.name[nameLen] = '\0';
+			} else {
+				strncpy(ffs->u.h.name, fname, FT_MAX_FILENAME);
+			}
+#else
 			strncpy(ffs->u.h.name, fname, FT_MAX_FILENAME);
+#endif
 			ffs->dirty = true;
 			ffs_check_free_block(first_freeblk);
 		}
@@ -958,8 +1013,10 @@ ffs_open_file(ffs_t *ffs, const char *fname)
 static int
 ffs_open_volume(ffs_t *ffs, const char *partition)
 {
+	/* do not need to erase here...
 	if (ffs->flags & FFS_OTRUNC)
 		(void)flash_drv_erase(ffs->mdev, ffs->fd.fl_start, ffs->fd.fl_size);
+	*/
 	ffs->read_f = ffs_read_volume;
 	ffs->write_f = ffs_write_volume;
 	ffs->position_f = ffs_position_volume;
@@ -987,6 +1044,9 @@ ffs_open(const char *path, uint32_t flags)
 	ffs->dirty = false;
 	ffs->blk = ffs->startblk = 0;
 	ffs->bp = 0;
+#if MC_LONG_PATH
+	ffs->startbp = 0;
+#endif
 	if ((fullpath = mc_strdup(path)) == NULL) {
 		mc_log_error("ffs_open: mc_strdup failed\n");
 		errno = ENOMEM;
@@ -997,11 +1057,19 @@ ffs_open(const char *path, uint32_t flags)
 		errno = EINVAL;
 		goto bail;
 	}
+#if MC_LONG_PATH
 	if ((p = strchr(&fullpath[1], '/')) != NULL) {
 		*p = '\0';
 		partition = &fullpath[1];
 		fname = p + 1;
 	}
+#else
+	if ((p = strrchr(&fullpath[1], '/')) != NULL) {
+		*p = '\0';
+		partition = &fullpath[1];
+		fname = p + 1;
+	}
+#endif
 	else {
 		partition = &fullpath[1];
 		fname = NULL;
@@ -1082,6 +1150,64 @@ ffs_delete(const char *path)
 	return err;
 }
 
+static int
+ffs_rename(const char *from, const char *to)
+{
+	ffs_t *ffs;
+	int err;
+#if MC_LONG_PATH
+	size_t fromLen;
+	size_t toLen;
+	int blk;
+	uint32_t offset;
+	uint8_t data[FFS_SECTOR_SIZE];
+	ffs_header_t *h = (ffs_header_t *)data;
+
+	mc_check_stack();
+#else
+	char *p;
+#endif
+
+	if ((ffs = ffs_open(from, 0)) == NULL)
+		return -1;	/* probably NOENT? */
+#if MC_LONG_PATH
+	// @@ currentry, renaming from/to long path (except length is same) is not supported.
+	fromLen = strlen(ffs->u.h.name);
+	toLen = strlen(to);
+	if (fromLen != toLen) {
+		if ((fromLen >= FT_MAX_FILENAME) || (toLen >= FT_MAX_FILENAME)) {
+			return -1;
+		}
+	}
+	if (toLen >= FT_MAX_FILENAME) {
+		memcpy(ffs->u.h.name, to, toLen);
+		ffs->u.h.name[toLen] = '\0';
+	} else {
+		strncpy(ffs->u.h.name, to, FT_MAX_FILENAME);
+	}
+
+	for (blk = 0; (offset = blk * FFS_SECTOR_SIZE) + FFS_SECTOR_SIZE <= ffs->fd.fl_size; blk++) {
+		if (flash_drv_read(ffs->mdev, data, FFS_SECTOR_SIZE, ffs->fd.fl_start + offset) != WM_SUCCESS) {
+			mc_log_error("FFS: flash_drv_read failed!\n");
+			return EIO;
+		}
+		if (h->magic != FFS_MAGIC) {
+			continue;
+		}
+		if (strncmp(h->name, ffs->u.h.name, FFS_PATH_MAX) == 0) {
+			return -1;
+		}
+	}
+#else
+	if ((p = strrchr(to, '/')) != NULL)
+	to = p + 1;
+	strncpy(ffs->u.h.name, to, FT_MAX_FILENAME);
+#endif
+	err = ffs_write_block(ffs, ffs->blk * FFS_SECTOR_SIZE);
+	ffs->dirty = 0;
+	(void)ffs_close(ffs);
+	return err;
+}
 
 /*
  * file
@@ -1219,7 +1345,7 @@ mc_fopen(const char *fullPath, const char *mode)
 		if (mode[0] == 'w')
 			flags |= FFS_OTRUNC | FFS_OCREAT;
 		if ((fp->ffs = ffs_open(fullPath, flags)) != NULL)
-			fp->length = (*fp->ffs->position_f)(fp->ffs, 1L << 30, 0);
+			fp->length = (*fp->ffs->position_f)(fp->ffs, 1L << 30, mode[0] == 'a');
 		else {
 			/* errno must've been set */
 			if (errno != ENOENT)
@@ -1231,6 +1357,9 @@ mc_fopen(const char *fullPath, const char *mode)
 			// changes will also be written on the native file,
 			// so that xsr can load .xsb from the native file.
 			fp->fd = ft_fopen(NULL, fullPath, mode);
+			
+			// @@ if fullPath has sub-directory, ft_open will fail. Just ignore this.
+			errno = 0;
 		}
 #endif
 	}
@@ -1283,6 +1412,8 @@ mc_fread(void *ptr, size_t size, size_t nmemb, MC_FILE *fp)
 		}
 		else if (fp->ffs != NULL) {
 			n = (*fp->ffs->read_f)(p, 1, n, fp->ffs);
+			if (n == 0)
+				return 0;
 			p += n;
 		}
 		fp->pos += n;
@@ -1301,6 +1432,8 @@ mc_fwrite(const void *ptr, size_t size, size_t nmemb, MC_FILE *fp)
 	}
 
 	size_t n = (*fp->ffs->write_f)(ptr, size, nmemb, fp->ffs);
+	if (n == 0)
+		return 0;
 	fp->pos += n * size;
 	if (fp->pos > (long)fp->length)
 		fp->length = fp->pos;
@@ -1475,6 +1608,12 @@ mc_unlink(const char *path)
 }
 
 int
+mc_rename(const char *from, const char *to)
+{
+	return ffs_rename(from, to);
+}
+
+int
 mc_get_volume_info(const char *volume, struct mc_volume_info *info)
 {
 #if WMSDK_VERSION >= 2040000
@@ -1505,9 +1644,12 @@ mc_erase_volume(const char *volname)
 		volname++;
 
 	pe = part_get_passive_partition_by_name(volname);
-
-	if (pe == NULL)
-		return -1;
+	if (pe == NULL) {
+		if ((pe = part_get_layout_by_name(volname, NULL)) == NULL) {
+			mc_log_error("mc_erase_volume: no partition! %s\n", volname);
+			return -1;
+		}
+	}
 	if ((mdev = ffs_flash_open(pe, &fd)) != NULL) {
 		(void)flash_drv_erase(mdev, fd.fl_start, fd.fl_size);
 		ffs_flash_close(mdev);
@@ -1520,13 +1662,17 @@ mc_erase_volume(const char *volname)
 }
 
 int
-mc_check_volume(const char *volname)
+mc_check_volume(const char *volname, int recovery)
 {
 #if WMSDK_VERSION >= 2040000
 	struct partition_entry *pe;
 	flash_desc_t fd;
 	mdev_t *mdev = NULL;
 	bool *used = NULL;
+	char **filename = NULL;
+	int filenameLen = 0;
+	size_t nBlock = 0;
+	int i;
 	int err = 0;
 
 	if ((strlen(volname) > 0) && (volname[0] == '/'))
@@ -1543,7 +1689,7 @@ mc_check_volume(const char *volname)
 	case FC_COMP_PSM:
 	case FC_COMP_USER_APP:
 	{
-		size_t blk, offset, nBlock, nFree;
+		size_t blk, offset, nFree;
 		ffs_header_t h;
 
 		if ((mdev = ffs_flash_open(pe, &fd)) == NULL) {
@@ -1564,7 +1710,11 @@ mc_check_volume(const char *volname)
 			mc_log_error("mc_check_volume: mc_calloc failed\n");
 			err = -1;
 			goto bail;
-
+		}
+		if ((filename = mc_calloc(nBlock, sizeof(char *))) == NULL) {
+			mc_log_error("mc_check_volume: mc_calloc failed\n");
+			err = -1;
+			goto bail;
 		}
 
 		for (blk = 0; blk < nBlock; blk++) {
@@ -1577,15 +1727,38 @@ mc_check_volume(const char *volname)
 				goto bail;
 			}
 
-			if ((h.magic == FFS_MAGIC) && (strlen(h.name) > 0)) {
+			if (h.magic == FFS_MAGIC && h.name[0] != '\0') {
 				int nextBlk = h.nextblk;
 				size_t nextOffset;
 				ffs_header_t nextH;
 
+				for (i = 0; i < filenameLen; i++) {
+					if (strcmp(h.name, filename[i]) == 0) {
+						if (recovery) {
+							used[blk] = true;
+							flash_drv_erase(mdev, fd.fl_start + offset, FFS_SECTOR_SIZE);
+							while (nextBlk >= 0) {
+								nextOffset = nextBlk * FFS_SECTOR_SIZE;
+								if (flash_drv_read(mdev, (uint8_t *)&nextH, sizeof(nextH), fd.fl_start + nextOffset) != WM_SUCCESS) {
+									mc_log_error("mc_check_volume: flash_drv_read failed\n");
+									err = -1;
+									goto bail;
+								}
+								used[nextBlk] = true;
+								nextBlk = nextH.nextblk;
+								flash_drv_erase(mdev, fd.fl_start + nextOffset, FFS_SECTOR_SIZE);
+							}
+						} else {
+							err = -1;
+							goto bail;
+						}
+					}
+				}
+
 				used[blk] = true;
+				filename[filenameLen++] = mc_strdup(h.name);
 
 				while (nextBlk >= 0) {
-					used[nextBlk] = true;
 					nextOffset = nextBlk * FFS_SECTOR_SIZE;
 
 					if (flash_drv_read(mdev, (uint8_t *)&nextH, sizeof(nextH), fd.fl_start + nextOffset) != WM_SUCCESS) {
@@ -1594,19 +1767,37 @@ mc_check_volume(const char *volname)
 						goto bail;
 					}
 
-					if (nextH.magic != FFS_MAGIC) {
-						mc_log_error("mc_check_volume: invalid magic in sub block at %d\n", (int)blk);
-						err = -1;
-						goto bail;
+					if (nextH.magic == FFS_MAGIC) {
+						if (nextH.name[0] != '\0') {
+							mc_log_error("%s: invalid name at %d\n", volname, (int)blk);
+							if (recovery) {
+								bzero(nextH.name, sizeof(nextH.name));
+								flash_drv_write(mdev, (uint8_t *)&nextH, sizeof(nextH), fd.fl_start + nextOffset);
+								err++;
+							}
+							else {
+								err = -1;
+								goto bail;
+							}
+						}
+						used[nextBlk] = true;
+					}
+					else {
+						mc_log_error("%s: invalid magic in sub block at %d\n", volname, (int)blk);
+						if (recovery) {
+							flash_drv_erase(mdev, fd.fl_start + nextOffset, FFS_SECTOR_SIZE);
+							/* h should still be alive */
+							h.nextblk = -1;
+							flash_drv_write(mdev, (uint8_t *)&h, sizeof(h), fd.fl_start + offset);
+							mc_log_error("truncated\n");
+							err++;
+						}
+						else {
+							err = -1;
+							goto bail;
+						}
 
 					}
-#if 0
-					if (strlen(nextH.name) > 0) {
-						mc_log_error("mc_check_volume: invalid name %s in sub block at %d\n", nextH.name, (int)blk);
-						err = -1;
-						goto bail;
-					}
-#endif
 
 					nextBlk = nextH.nextblk;
 				}
@@ -1624,22 +1815,22 @@ mc_check_volume(const char *volname)
 			}
 
 			if (h.magic == FFS_MAGIC) {
-				mc_log_error("mc_check_volume: invalid magic at %d\n", (int)blk);
-				err = -1;
-				goto bail;
+				mc_log_error("%s: invalid magic at %d\n", volname, (int)blk);
+				if (recovery) {
+					flash_drv_erase(mdev, fd.fl_start + offset, FFS_SECTOR_SIZE);
+					mc_log_error("erased the sector\n");
+					err++;
+				}
+				else {
+					err = -1;
+					goto bail;
+				}
 
 			}
-#if 0
-			if (strlen(h.name) > 0) {
-				mc_log_error("mc_check_volume: invalid name %s at %d\n", h.name, (int)blk);
-				err = -1;
-				goto bail;
-			}
-#endif
 			nFree++;
 		}
 
-		mc_log_debug("mc_check_volume: free blocks: %d\n", (int)nFree);
+		mc_log_notice("%s: %d free blocks\n", volname, (int)nFree);
 	}
 
 	default:
@@ -1653,10 +1844,16 @@ bail:
 	if (used != NULL) {
 		mc_free(used);
 	}
+	if (filename != NULL) {
+		for (i = 0; i < (int)nBlock; i++)
+			if (filename[i])
+				mc_free(filename[i]);
+		mc_free(filename);
+	}
 
 	return err;
 #else
-	return -1;
+	return 0;
 #endif
 }
 
@@ -1699,18 +1896,26 @@ mc_readdir(MC_DIR *dir)
 {
 	int blk;
 	uint32_t offset;
-	ffs_header_t h;
+	ffs_header_t *h;
 	static struct mc_dirent dirent;
+	uint8_t data[FFS_SECTOR_SIZE];
+
+	mc_check_stack();
 
 	for (blk = dir->block; (offset = blk * FFS_SECTOR_SIZE) + FFS_SECTOR_SIZE <= dir->fd.fl_size; blk++) {
-		if (flash_drv_read(dir->mdev, (uint8_t *)&h, sizeof(h), dir->fd.fl_start + offset) != WM_SUCCESS) {
+		if (flash_drv_read(dir->mdev, data, sizeof(data), dir->fd.fl_start + offset) != WM_SUCCESS) {
 			mc_log_error("mc_readdir: flash_drv_read failed\n");
 			errno = EIO;
 			return NULL;
 		}
-		if (h.magic == FFS_MAGIC && h.name[0] != '\0') {
-			strncpy(dirent.d_name, h.name, sizeof(h.name));
+		h = (ffs_header_t *)data;
+		if (h->magic == FFS_MAGIC && h->name[0] != '\0') {
+#if MC_LONG_PATH
+			strncpy(dirent.d_name, h->name, sizeof(dirent.d_name));
+#else
+			strncpy(dirent.d_name, h->name, sizeof(h->name));
 			dirent.d_name[sizeof(dirent.d_name) - 1] = '\0';
+#endif
 			dir->block = blk + 1;
 			return &dirent;
 		}
@@ -1796,6 +2001,62 @@ mc_set_active_volume(const char *path)
 		part_set_active_partition(active == pe1 ? pe2 : pe1);
 	}
 }
+
+#if MC_LONG_PATH
+int mc_update_path_name()
+{
+	const char *volume;
+	MC_DIR *dir;
+	int blk;
+	uint32_t offset;
+	ffs_header_t h;
+	int nextBlk;
+	size_t nextOffset;
+	ffs_header_t nextH;
+	size_t i;
+
+	if (mc_file_init() != 0) {
+		return -1;
+	}
+
+	for (i = 0; (volume = mc_get_volume(i)) != NULL; i++) {
+		if ((dir = mc_opendir(volume)) == NULL) continue;
+
+		for (blk = dir->block; (offset = blk * FFS_SECTOR_SIZE) + FFS_SECTOR_SIZE <= dir->fd.fl_size; blk++) {
+			if (flash_drv_read(dir->mdev, (uint8_t *)&h, sizeof(h), dir->fd.fl_start + offset) != WM_SUCCESS) {
+				mc_closedir(dir);
+				return -1;
+			}
+
+			if ((h.magic != FFS_MAGIC) || (strnlen(h.name, FT_MAX_FILENAME) < FT_MAX_FILENAME)) continue;
+
+			// just remove this file now.
+
+			flash_drv_erase(dir->mdev, dir->fd.fl_start + offset, FFS_SECTOR_SIZE);
+
+			nextBlk = h.nextblk;
+
+			while (nextBlk >= 0) {
+				nextOffset = nextBlk * FFS_SECTOR_SIZE;
+
+				if (flash_drv_read(dir->mdev, (uint8_t *)&nextH, sizeof(nextH), dir->fd.fl_start + nextOffset) != WM_SUCCESS) {
+					mc_closedir(dir);
+					return -1;
+				}
+
+				flash_drv_erase(dir->mdev, dir->fd.fl_start + nextOffset, FFS_SECTOR_SIZE);
+
+				nextBlk = nextH.nextblk;
+			}
+		}
+
+		mc_closedir(dir);
+	}
+
+	return 0;
+}
+#endif
+
 #endif /* !USE_NATIVE_STDIO */
 
 #if !mxMC

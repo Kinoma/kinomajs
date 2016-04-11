@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,11 +31,10 @@ typedef struct telnet {
 	int echo, eof;
 	int command;
 	unsigned char buf[MAX_MSG_LEN], *bp, *bufend;
+	int sd;
 	xsMachine *the;
 	xsSlot this;
 } telnet_t;
-
-static int telnet_sock = -1;
 
 #define CTRL(c)	(c - 'A' + 1)
 
@@ -108,7 +107,9 @@ telnet_getter(telnet_t *telnet)
 			}
 			else if (c == CTRL('D'))
 				telnet->eof++;
-			else if (c == '\r' || c == '\n')
+			else if (c == '\r')
+				/* ignore */;
+			else if (c == '\n')
 				break;
 			if (telnet->bp < telnet->bufend) {
 				*telnet->bp++ = c;
@@ -128,10 +129,12 @@ telnet_close(telnet_t *telnet)
 		xsIndex id = xsID("onClose");
 		if (xsHas(telnet->this, id))
 			xsCall_noResult(telnet->this, id, NULL);
-		xsSetHostData(telnet->this, NULL);
+		else {
+			telnetd_close(telnet);
+			xsSetHostData(telnet->this, NULL);
+		}
 	}
 	xsEndHost(telnet->the);
-	telnetd_close(telnet);
 }
 
 static void
@@ -149,33 +152,38 @@ telnet_rep(int sock, unsigned int flags, void *closure)
 		telnet_close(telnet);
 		return;
 	}
-	else if (c == '\n' || c == '\r') {
+	else if (c == '\n') {
 		if (telnet->bp < telnet->bufend)
 			*telnet->bp = '\0';
 		else
 			telnet->bp[-1] = '\0';
 		xsBeginHost(telnet->the);
-		xsIndex id = xsID("onExecute");
-		if (xsHas(telnet->this, id)) {
-			xsVars(1);
-			xsSetString(xsVar(0), (char *)telnet->buf);
-			xsCall_noResult(telnet->this, id, &xsVar(0), NULL);
-		}
+		xsIndex id = xsID("evaluate");
+		xsVars(1);
+		xsSetString(xsVar(0), (char *)telnet->buf);
+		xsCall_noResult(telnet->this, id, &xsVar(0), NULL);
 		xsEndHost(telnet->the);
 		telnet->bp = telnet->buf;
 	}
 }
 
 static int
-telnet_putter(const char *str)
+telnet_putter(const char *str, void *closure)
 {
-	int n = 0;
+	int len = strlen(str), sz = len, n;
+	struct telnet *telnet = closure;
 
-	if (telnet_sock >= 0) {
-		if ((n = lwip_write(telnet_sock, str, strlen(str))) <= 0)
-			mc_stdio_unregister(telnet_putter);
+	if (telnet->sock < 0)
+		return -1;
+	while (sz > 0) {
+		if ((n = lwip_write(telnet->sock, str, strlen(str))) < 0) {
+			mc_log_error("telnet: lwip_write failed: %d\n", errno);
+			telnet_close(telnet);
+			return -1;
+		}
+		sz -= n;
 	}
-	return n;
+	return len;
 }
 
 void *
@@ -193,8 +201,7 @@ telnetd_connect(int ns, xsMachine *the, xsSlot *this)
 	telnet->this = *this;
 	telnet->bp = telnet->buf;
 	telnet->bufend = telnet->bp + sizeof(telnet->buf);
-	telnet_sock = ns;
-	mc_stdio_register(telnet_putter);
+	telnet->sd = mc_stdio_register(telnet_putter, telnet);
 	mc_event_register(ns, MC_SOCK_READ, telnet_rep, telnet);
 	return telnet;
 }
@@ -205,10 +212,9 @@ telnetd_close(void *data)
 	telnet_t *telnet = data;
 
 	mc_log_notice("telnetd: closing the connection\n");
-	mc_stdio_unregister(telnet_putter);
+	mc_stdio_unregister(telnet->sd);
 	mc_event_unregister(telnet->sock);
 	lwip_close(telnet->sock);
-	telnet_sock = -1;
 	mc_free(telnet);
 }
 

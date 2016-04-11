@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -82,6 +82,28 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 0,
 		hashAlgorithm: SSL.cipherSuite.SHA1,
 		hashSize: 20,
+	},
+	{
+		// TLS_RSA_WITH_AES_128_CBC_SHA256
+		value: [0x00, 0x3c],
+		isExportable: false,
+		keyExchangeAlgorithm: SSL.cipherSuite.RSA,
+		cipherAlgorithm: SSL.cipherSuite.AES,
+		cipherKeySize: 16,
+		cipherBlockSize: 16,
+		hashAlgorithm: SSL.cipherSuite.SHA256,
+		hashSize: 32,
+	},
+	{
+		// TLS_RSA_WITH_AES_256_CBC_SHA256
+		value: [0x00, 0x3d],
+		isExportable: false,
+		keyExchangeAlgorithm: SSL.cipherSuite.RSA,
+		cipherAlgorithm: SSL.cipherSuite.AES,
+		cipherKeySize: 32,
+		cipherBlockSize: 16,
+		hashAlgorithm: SSL.cipherSuite.SHA256,
+		hashSize: 32,
 	},
 	{
 		// TLS_NULL_WITH_NULL_NULL

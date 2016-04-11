@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,9 +15,12 @@
  *     limitations under the License.
  */
 var console = {
-	log(...params) @ "console_log",
-	get enable() @ "console_get_enable",
-	set enable(f) @ "console_set_enable",
+	log(...params) @ "xs_console_log",
+	set enable(flag) @ "xs_console_setEnable",
+	get enable() @ "xs_console_getEnable",
+	_load() @ "xs_console_load",
 };
+
+console._load();
 
 export default console;

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -43,6 +43,12 @@ extern void sha256_create(struct sha256 *s);
 extern void sha256_update(struct sha256 *s, const void *data, uint32_t size);
 extern void sha256_fin(struct sha256 *s, uint8_t *dgst);
 
+#define SHA224_DGSTSIZE	(224/8)
+#define SHA224_BLKSIZE	SHA256_BLKSIZE
+extern void sha224_create(struct sha256 *s);
+extern void sha224_update(struct sha256 *s, const void *data, uint32_t size);
+extern void sha224_fin(struct sha256 *s, uint8_t *dgst);
+
 #define SHA512_NUMSTATE	8
 #define SHA512_DGSTSIZE	(SHA512_NUMSTATE * 8)
 #define SHA512_BLKSIZE	128
@@ -54,3 +60,9 @@ struct sha512 {
 extern void sha512_create(struct sha512 *s);
 extern void sha512_update(struct sha512 *s, const void *data, uint32_t size);
 extern void sha512_fin(struct sha512 *s, uint8_t *dgst);
+
+#define SHA384_DGSTSIZE	(384/8)
+#define SHA384_BLKSIZE	SHA512_BLKSIZE
+extern void sha384_create(struct sha512 *s);
+extern void sha384_update(struct sha512 *s, const void *data, uint32_t size);
+extern void sha384_fin(struct sha512 *s, uint8_t *dgst);

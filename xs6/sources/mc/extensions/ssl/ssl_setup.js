@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,15 @@ import Crypt from "crypt";
 
 function setupSub(o, cipher)
 {
-	o.hmac = new Crypt.HMAC(cipher.hashAlgorithm == SSL.cipherSuite.MD5 ? new Crypt.MD5() : new Crypt.SHA1(), o.macSecret);
+	var h;
+	switch (cipher.hashAlgorithm) {
+	case SSL.cipherSuite.MD5: h = new Crypt.MD5(); break;
+	case SSL.cipherSuite.SHA1: h = new Crypt.SHA1(); break;
+	case SSL.cipherSuite.SHA256: h = new Crypt.SHA256(); break;
+	default:
+		throw new Error("SSL: SetupCipher: unknown hash algorithm");
+	}
+	o.hmac = new Crypt.HMAC(h, o.macSecret);
 	switch (cipher.cipherAlgorithm) {
 	case SSL.cipherSuite.DES:
 		var enc = new Crypt.DES(o.key);
@@ -36,7 +44,7 @@ function setupSub(o, cipher)
 		var enc = new Crypt.RC4(o.key);
 		break;
 	default:
-		throw new Error("SSL: SetupCipher: unkown algorithm");
+		throw new Error("SSL: SetupCipher: unkown encryption algorithm");
 	}
 	if (cipher.cipherBlockSize != 0)
 		o.enc = new Crypt.CBC(enc, o.iv);	// no padding -- SSL 3.2 requires padding process beyond RFC2630
@@ -49,11 +57,9 @@ function SetupCipher(session, connectionEnd)
 	var random = session.serverRandom;
 	random = random.concat(session.clientRandom);
 	var chosenCipher = session.chosenCipher;
-	if (session.protocolVersion.major == 3 && session.protocolVersion.minor == 1)	// version 3.1
-		var nbytes = chosenCipher.cipherKeySize * 2 + chosenCipher.cipherBlockSize * 2 + chosenCipher.hashSize * 2;
-	else	// version 3.2 or higher
-		var nbytes = chosenCipher.cipherKeySize * 2 + chosenCipher.hashSize * 2;
-	var keyBlock = PRF(session.masterSecret, "key expansion", random, nbytes);
+	var ivSize = session.protocolVersion <= 0x301 ? chosenCipher.cipherBlockSize : 0;
+	var nbytes = chosenCipher.cipherKeySize * 2 + chosenCipher.hashSize * 2 + ivSize * 2;
+	var keyBlock = PRF(session, session.masterSecret, "key expansion", random, nbytes);
 	var s = new SSLStream(keyBlock);
 	var o = {};
 	if (connectionEnd) {

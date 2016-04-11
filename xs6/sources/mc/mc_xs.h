@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,7 +29,7 @@ typedef struct {
 
 extern void mc_xs_build(xsMachine *the, xsSlot *slot, const xs_host_t *host, int n);
 extern char *mc_xs_exception_message(xsMachine *the);
-extern void mc_xs_throw(xsMachine *the, const char *message);
 extern int mc_xs_enableGC(xsMachine *the, int flag);
+#define mc_xs_throw(the, ...)	fxThrowMessage(the, (char *)__FILE__, __LINE__, XS_UNKNOWN_ERROR, __VA_ARGS__)
 
 #endif	/* __MC_XS_H__ */

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,6 +20,7 @@
 #include "mc_env.h"
 #include "mc_time.h"
 #include "mc_misc.h"
+#include "mc_ipc.h"
 #include "mc_module.h"
 #if !mxMC
 #include "mc_compat.h"
@@ -35,7 +36,44 @@ static int g_reboot = 0;
 void
 xs_system_init(xsMachine *the)
 {
+	int i, j;
+
 	xsSet(xsThis, xsID("_global"), xsGlobal);
+	mc_rng_init(NULL, 0);
+	/*
+	 * set config
+	 */
+	if (mc_conf.deviceID == NULL)
+		return;		/* nothing to set */
+	xsVars(4);
+	xsGet(xsVar(0), xsThis, xsID("_config"));
+	/* LEDs */
+	xsSetNewInstanceOf(xsVar(1), xsArrayPrototype);
+	for (i = 0, j = 0; i < MC_MAX_LED_PINS; i++) {
+		if (mc_conf.led_pins[i] >= 0) {
+			xsSetInteger(xsVar(2), j); j++;
+			xsSetInteger(xsVar(3), mc_conf.led_pins[i]);
+			xsSetAt(xsVar(1), xsVar(2), xsVar(3));
+		}
+	}
+	if (j > 0)
+		xsSet(xsVar(0), xsID("ledPins"), xsVar(1));
+	/* wakeup buttons */
+	xsSetNewInstanceOf(xsVar(1), xsArrayPrototype);
+	for (i = 0, j = 0; i < MC_MAX_WAKEUP_BUTTONS; i++) {
+		if (mc_conf.wakeup_buttons[i] >= 0) {
+			xsSetInteger(xsVar(2), j); j++;
+			xsSetInteger(xsVar(3), mc_conf.wakeup_buttons[i]);
+			xsSetAt(xsVar(1), xsVar(2), xsVar(3));
+		}
+	}
+	if (j > 0)
+		xsSet(xsVar(0), xsID("wakeupButtons"), xsVar(1));
+	/* power/ground enable */
+	xsSetBoolean(xsVar(1), mc_conf.power_ground_pinmux);
+	xsSet(xsVar(0), xsID("powerGroundPinmux"), xsVar(1));
+	xsSetBoolean(xsVar(1), mc_conf.usb_console);
+	xsSet(xsVar(0), xsID("usbConsole"), xsVar(1));
 }
 
 void
@@ -46,10 +84,35 @@ xs_system_fin(xsMachine *the)
 void
 xs_system_init_rng(xsMachine *the)
 {
-	char *mac = xsToString(xsArg(0));
+	size_t sz;
+	void *data;
 
-	/* initialize the secure RNG with the mac addresss */
-	mc_rng_init(mac, strlen(mac));
+	switch (xsTypeOf(xsArg(0))) {
+	case xsIntegerType:
+	case xsNumberType: {
+		unsigned long n = xsToNumber(xsArg(0));
+		data = &n;
+		sz = sizeof(long);
+		break;
+	}
+	case xsStringType: {
+		char *s = xsToString(xsArg(0));
+		data = s;
+		sz = strlen(s);
+		break;
+	}
+	default:
+		if (xsIsInstanceOf(xsArg(0), xsArrayBufferPrototype)) {
+			data = xsToArrayBuffer(xsArg(0));
+			sz = xsGetArrayBufferLength(xsArg(0));
+		}
+		else {
+			data = NULL;
+			sz = 0;
+		}
+		break;
+	}
+	mc_rng_init(data, sz);
 }
 
 void
@@ -59,6 +122,15 @@ xs_system_get_rng(xsMachine *the)
 
 	xsResult = xsArrayBuffer(NULL, sz);
 	mc_rng_gen((uint8_t *)xsToArrayBuffer(xsResult), sz);
+}
+
+void
+xs_system_init_key(xsMachine *the)
+{
+	void *data = xsToArrayBuffer(xsArg(0));
+	size_t sz = xsGetArrayBufferLength(xsArg(0));
+
+	mc_srng_init(data, sz);
 }
 
 void
@@ -80,17 +152,7 @@ xs_system_get_osVersion(xsMachine *the)
 void
 xs_system_get_device(xsMachine *the)
 {
-#if !mxMC
-	xsSetString(xsResult, "host");
-#elif K5
-	xsSetString(xsResult, "K5");
-#elif CONFIG_CPU_MC200
-	xsSetString(xsResult, "MC200");
-#elif CONFIG_CPU_MW300
-	xsSetString(xsResult, "MW300");
-#else
-	xsSetString(xsResult, "unknown");
-#endif
+	xsSetString(xsResult, mc_conf.deviceID == NULL ? "host" : mc_conf.deviceID);
 }
 
 void
@@ -104,8 +166,9 @@ xs_system_get_hostname(xsMachine *the)
 {
 	char hostname[HOST_NAME_MAX];
 
-	mc_gethostname(hostname, sizeof(hostname));
-	xsSetString(xsResult, hostname);
+	if (mc_gethostname(hostname, sizeof(hostname)) == 0)
+		xsSetString(xsResult, hostname);
+	/* else return undefined */
 }
 
 void
@@ -196,12 +259,33 @@ xs_system_get_timestamp(xsMachine *the)
 	}
 }
 
+typedef struct {
+	xsMachine *the;
+	xsSlot this;
+} mc_system_callback_data_t;
+
+static void
+mc_system_shutdown_callback(int status, void *closure)
+{
+	mc_system_callback_data_t *cb = closure;
+
+	xsBeginHost(cb->the);
+	xsCall_noResult(cb->this, xsID("onShutdown"), NULL);
+	xsEndHost(cb->the);
+}
+
 void
 xs_system_run(xsMachine *the)
 {
 	int status;
+	static mc_system_callback_data_t data;
+	static mc_event_shutdown_callback_t cb;
 
-	status = mc_event_main(the);
+	cb.f = mc_system_shutdown_callback;
+	cb.closure = &data;
+	data.the = the;
+	data.this = xsThis;
+	status = mc_event_main(the, &cb);
 	if (g_reboot != 0)
 		status = g_reboot;
 	else if (status > 0)
@@ -278,40 +362,45 @@ xs_system_reboot(xsMachine *the)
 	}
 	else {
 		g_reboot = 1;
-		mc_event_exit();
+		mc_event_exit(1);
 	}
 }
+
+#if mxMC
+static void
+blink_led(void *data)
+{
+	unsigned int i, toggle = 0;
+
+	while (1) {
+		int val = toggle++ & 1 ? GPIO_IO_HIGH : GPIO_IO_LOW;
+		for (i = 0; i < MC_MAX_LED_PINS; i++) {
+			if (mc_conf.led_pins[i] >= 0)
+				GPIO_WritePinOutput(mc_conf.led_pins[i], val);
+		}
+		mc_usleep(100*1000);
+	}
+}
+#endif
 
 void
 xs_system_shutdown(xsMachine *the)
 {
 	int status = xsToInteger(xsArgc) > 0 ? xsToInteger(xsArg(0)) : 0;
-	if (status == 0)
-		mc_event_exit();
+	if (status == 0) {
+#if mxMC
+		mc_thread_create(blink_led, NULL, 0);
+		mc_usleep(10);
+#endif
+		mc_event_exit(1);
+	}
 	else if (status > 0) {
 #if mxMC
-		pm_mcu_state(PM4, 0);	/* deep sleep */
+		mc_shutoff();
 #else
 		exit(0);
 #endif
 	}
 	else
 		mc_exit(status);	/* terminate the process */
-}
-
-#if mxMC
-extern void mc_stdio_init();
-extern void mc_stdio_fin();
-#else
-void mc_stdio_init() {};
-void mc_stdio_fin() {};
-#endif
-
-void
-xs_system_console(xsMachine *the)
-{
-	if (xsToInteger(xsArgc) > 0 && xsTest(xsArg(0)))
-		mc_stdio_init();
-	else
-		mc_stdio_fin();
 }

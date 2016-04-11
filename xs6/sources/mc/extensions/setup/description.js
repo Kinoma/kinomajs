@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,12 +19,15 @@ import Environment from "env";
 
 function description(http, args)
 {
-	var env = new Environment();
-	var ver = env.get("FW_VER");
+	let env = new Environment();
+	let ver = env.get("FW_VER");
+	let uuid = require.weak("uuid");
 	http.response("application/json", JSON.stringify({
 		"fwVersion": ver,
 		"osVersion": System.osVersion,
 		"hostname": System.hostname,
+		"id": "com.marvell.kinoma.launcher.element",
+		"uuid": uuid.get(),
 	}));
 }
 

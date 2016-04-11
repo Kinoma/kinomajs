@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,16 +16,6 @@
  */
 #include "mc_stdio.h"
 #include "mc_xs.h"
-
-void
-mc_xs_throw(xsMachine *the, const char *message)
-{
-	xsVars(1);
-	mc_log_error("### throw: %s\n", message);
-	xsSetString(xsVar(0), (char *)message);
-	xsNew(xsResult, xsGlobal, xsID("Error"), &xsVar(0), NULL);
-	xsThrow(xsResult);
-}
 
 char *
 mc_xs_exception_message(xsMachine *the)

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -59,7 +59,13 @@ xs_stream_encrypt(xsMachine *the)
 		if (n < len)
 			len = n;
 	}
-	xsResult = ac > 1 && xsTest(xsArg(1)) ? xsArg(1) : xsArrayBuffer(NULL, len);
+	if (ac > 1 && xsTest(xsArg(1))) {
+		if (xsGetArrayBufferLength(xsArg(1)) < (xsIntegerValue)len)
+			crypt_throw_error(the, "too small buffer");
+		xsResult = xsArg(1);
+	}
+	else
+		xsResult = xsArrayBuffer(NULL, len);
 	if (xsTypeOf(xsArg(0)) == xsStringType)
 		indata = xsToString(xsArg(0));
 	else

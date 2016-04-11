@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -61,12 +61,24 @@ extern void kcl_sha256_update(void *ctx, const void *data, size_t sz);
 extern void kcl_sha256_result(void *ctx, void *result);
 extern void kcl_sha256_finish(void *ctx);
 extern void kcl_sha256_size(void *ctx, size_t *blksz, size_t *outsz);
+extern kcl_err_t kcl_sha224_create(void **ctxp);
+extern void kcl_sha224_init(void *ctx);
+extern void kcl_sha224_update(void *ctx, const void *data, size_t sz);
+extern void kcl_sha224_result(void *ctx, void *result);
+extern void kcl_sha224_finish(void *ctx);
+extern void kcl_sha224_size(void *ctx, size_t *blksz, size_t *outsz);
 extern kcl_err_t kcl_sha512_create(void **ctxp);
 extern void kcl_sha512_init(void *ctx);
 extern void kcl_sha512_update(void *ctx, const void *data, size_t sz);
 extern void kcl_sha512_result(void *ctx, void *result);
 extern void kcl_sha512_finish(void *ctx);
 extern void kcl_sha512_size(void *ctx, size_t *blksz, size_t *outsz);
+extern kcl_err_t kcl_sha384_create(void **ctxp);
+extern void kcl_sha384_init(void *ctx);
+extern void kcl_sha384_update(void *ctx, const void *data, size_t sz);
+extern void kcl_sha384_result(void *ctx, void *result);
+extern void kcl_sha384_finish(void *ctx);
+extern void kcl_sha384_size(void *ctx, size_t *blksz, size_t *outsz);
 extern kcl_err_t kcl_md5_create(void **ctxp);
 extern void kcl_md5_init(void *ctx);
 extern void kcl_md5_update(void *ctx, const void *data, size_t sz);

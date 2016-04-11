@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ const warning = 1;
 const fatal = 2;
 const close_notify = 0;
 const unexpected_message = 10;
-const bad_record_mac =20;
+const bad_record_mac = 20;
 const decryption_failed = 21;
 const record_overflow = 22;
 const decompression_failure = 30;
@@ -49,7 +49,7 @@ const bad_certificate_status_response = 113; /* new */
 const bad_certificate_hash_value = 114;      /* new */
           
 var alert = {
-	name: "alsert",
+	name: "alert",
 	// global constants
 	close_notify: close_notify,
 

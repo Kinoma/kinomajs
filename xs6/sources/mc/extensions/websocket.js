@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -162,38 +162,38 @@ WebSocketMessage.prototype = {
 	process(blob) {
 		this.reader.feed(blob);
 
-		var frame = this.reader.readFrame();
-		if (!frame) return;
+		let frame;
+		while(frame = this.reader.readFrame()){
+			switch (frame.opcode) {
+				case 0x01:
+				case 0x02:
+					this.data = this.data ? this.data.concat(frame.payload) : frame.payload;
 
-		switch (frame.opcode) {
-			case 0x01:
-			case 0x02:
-				this.data = this.data ? this.data.concat(frame.payload) : frame.payload;
+					if (frame.fin) {
+						var data = this.data
+						if (frame.opcode == 0x01 && data) {
+							data = String.fromArrayBuffer(data);
+						}
 
-				if (frame.fin) {
-					var data = this.data
-					if (frame.opcode == 0x01 && data) {
-						data = String.fromArrayBuffer(data);
+						this.proto.onmessage({data});
+						this.data = undefined;
 					}
+					break;
 
-					this.proto.onmessage({data});
-					this.data = undefined;
-				}
-				break;
+				case 0x08:	// close
+					this.proto.onclose();
+					if (!this.closing)
+						this._send(0x08);
+					this.onClose();
+					break;
 
-			case 0x08:	// close
-				this.proto.onclose();
-				if (!this.closing)
-					this._send(0x08);
-				this.onClose();
-				break;
+				case 0x09:	// ping
+					this._send(0x0a, frame.payload);
+					break;
 
-			case 0x09:	// ping
-				this._send(0x0a, frame.payload);
-				break;
-
-			case 0x0a:	// pong
-				break;
+				case 0x0a:	// pong
+					break;
+			}
 		}
 	},
 
@@ -252,80 +252,73 @@ WebSocketMessage.prototype = {
 	}
 }
 
-export function WebSocketClient(host, subprotocols) {
-	HTTPClient.call(this, host);
+export class WebSocketClient extends HTTPClient {
+	constructor(host, subprotocols) {
+		super(host);
+		
+		var key = generateKey();
 
-	var key = generateKey();
+		// calculate the response in advance
+		this.response = hash(key);
 
-	// calculate the response in advance
-	this.response = hash(key);
+		var headers = [
+			["Upgrade", "websocket"],
+			["Connection", "Upgrade"],
+			["Sec-WebSocket-Key", key],
+			["Origin", "http://kinoma.com"],	// @@
+			["Sec-WebSocket-Version", "13"]];
+		for (var i = 0; i < headers.length; i++)
+			this.setHeader(headers[i][0], headers[i][1]);
+		if (subprotocols)
+			this.setHeader("Sec-WebSocket-Protocol", subprotocols);
 
-	var headers = [
-		["Upgrade", "websocket"],
-		["Connection", "Upgrade"],
-		["Sec-WebSocket-Key", key],
-		["Origin", "http://kinoma.com"],	// @@
-		["Sec-WebSocket-Version", "13"]];
-	for (var i = 0; i < headers.length; i++)
-		this.addHeader(headers[i][0], headers[i][1]);
-	if (subprotocols)
-		this.addHeader("Sec-WebSocket-Protocol", subprotocols);
-
-	this.start();
-}
-
-WebSocketClient.prototype = webSocketClient;
-
-var webSocketClient = WebSocketClient.prototype = Object.create(HTTPClient.prototype);
-
-webSocketClient.version = "1.1";
-webSocketClient.onopen = function() {
-};
-
-webSocketClient.onmessage = function() {
-};
-
-webSocketClient.onclose = function() {
-};
-
-webSocketClient.onerror = function() {
-};
-
-webSocketClient.send = function(data) {
-	if (typeof data == "string")
-		var opcode = 0x01;
-	else
-		var opcode = 0x02;
-	this.ws._send(opcode, data);
-};
-
-webSocketClient.close = function(code, reason) {
-	this.ws.close(code, reason);
-};
-
-webSocketClient.onHeaders = function() {
-	var response = this.getHeader("Sec-WebSocket-Accept");
-	// var bodyResponse = String.fromArrayBuffer(this.response);
-
-	if (this.statusCode != 101 || response != this.response) {
-		this.close();
-		return;
+		this.version = "1.1";
+	
+		this.start();
 	}
+	onopen() {
+	}
+	onmessage() {
+	}
+	onclose() {
+	}
+	onerror() {
+	}
+	send(data) {
+		if (typeof data == "string")
+			var opcode = 0x01;
+		else
+			var opcode = 0x02;
+		this.ws._send(opcode, data);
+	}
+	close(code, reason) {
+		this.ws.close(code, reason);
+	}
+	onHeaders() {
+		var response = this.getHeader("Sec-WebSocket-Accept");
+		// var bodyResponse = String.fromArrayBuffer(this.response);
 
-	this.ws = new WebSocketMessage(this.sock, this, true);
-	this.ws.onClose = function() {
-		this.sock.close();
-	};
+		if (this.statusCode != 101 || response != this.response) {
+			this.close();
+			return;
+		}
 
-	this.onopen();
-};
+		this.ws = new WebSocketMessage(this.sock, this, true);
+		this.ws.onClose = function() {
+			this.sock.close();
+			this.proto.onclose();
+		};
 
-webSocketClient.onTransferComplete = function(status) {
-	if (status && this.statusCode >= 200 && this.statusCode < 300)
-		this.onclose();
-	else
-		this.onerror({statusCode: this.statusCode});
-};
+		this.onopen();
+	}
+	onTransferComplete(status) {
+		if (status && this.statusCode >= 200 && this.statusCode < 300)
+			this.onclose();
+		else
+			this.onerror({statusCode: this.statusCode});
+	}
+}
+export const WebSocket = WebSocketClient;
 
 var webSocketServerMessage = Object.create(WebSocketMessage.prototype);
 
@@ -348,54 +341,49 @@ function WebSocketServerMessage(sock) {
 
 WebSocketServerMessage.prototype = webSocketServerMessage;
 
-
-var webSocketServer = Object.create(HTTPServer.prototype);
-
-webSocketServer.onStart = function(client) {};
-webSocketServer.close = function() {
-	for (var n = this.wsclients.length; --n >= 0;) {
-		var ws = this.wsclients[n];
-		ws.close();
+export class WebSocketServer extends HTTPServer {
+	constructor(port) {
+		super({port});
+		this.wsclients = [];
 	}
-	if (this.sock)
-		this.sock.close();
-};
-
-webSocketServer.onRequest = function(http) {
-	var key = http.getHeader("Sec-WebSocket-Key");
-
-	if (!key) {
-		http.response();	// @@
-		return;
+	onStart(client) {}
+	close() {
+		for (var n = this.wsclients.length; --n >= 0;) {
+			var ws = this.wsclients[n];
+			ws.close();
+		}
+		if (this.sock)
+			this.sock.close();
 	}
+	onRequest(http) {
+		var key = http.getHeader("Sec-WebSocket-Key");
 
-	http.addHeader("Sec-WebSocket-Accept", hash(key));
-	http.addHeader("Connection", "Upgrade");
-	http.addHeader("Upgrade", "websocket");
-	http._response(101, "Switching Protocols");
+		if (!key) {
+			http.response();	// @@
+			return;
+		}
 
-	var client = new WebSocketServerMessage(http.sock);
-	var that = this;
-	client.onClose = function() {
-		var i = that.wsclients.indexOf(this);
-		if (i >= 0)
-			that.wsclients.splice(i, 1);
-		http.sock.close();
-		if (that.wsclients.length == 0)
-			that.onClose();
-	};
-	this.onStart(client);
-	if (client.onmessage) {
+		http.setHeader("Sec-WebSocket-Accept", hash(key));
+		http.setHeader("Connection", "Upgrade");
+		http.setHeader("Upgrade", "websocket");
+		http._response(101, "Switching Protocols");
 
-		this.wsclients.push(client);
+		var client = new WebSocketServerMessage(http.sock);
+		var that = this;
+		client.onClose = function() {
+			var i = that.wsclients.indexOf(this);
+			if (i >= 0)
+				that.wsclients.splice(i, 1);
+			http.sock.close();
+			// if (that.wsclients.length == 0)	// we should not close the server when the only one client is gone..
+			// 	that.onClose();
+		};
+		this.onStart(client);
+		if (client.onmessage) {
+
+			this.wsclients.push(client);
+		}
 	}
-};
-
-export function WebSocketServer(port) {
-	HTTPServer.call(this, {port});
-	this.wsclients = [];
 }
 
-WebSocketServer.prototype = webSocketServer;
-
-export default {WebSocketClient, WebSocketServer};
+export default {WebSocket, WebSocketClient, WebSocketServer};

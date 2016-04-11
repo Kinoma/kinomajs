@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,12 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-import System from "system";
 import Crypt from "crypt";
 import SSL from "ssl";
 import SSLProtocol from "ssl/protocol";
 import SSLStream from "ssl/stream";
-var CertificateManager = require("ssl/cert_" + System.platform);
 import Bin from "bin";
 
 const hello_request = 0;
@@ -39,14 +37,15 @@ const server_finished_label = "server finished";
 
 const MD5 = 1;
 const SHA1 = 2;
+const SHA256 = 4;
 
 const extension_type = {
-	server_name: 0,
-	max_fragment_length: 1,
-	client_certification_url: 2,
-	trusted_ca_keys: 3,
-	trusted_hmac: 4,
-	status_request: 5,
+	tls_server_name: 0,
+	tls_max_fragment_length: 1,
+	tls_client_certification_url: 2,
+	tls_trusted_ca_keys: 3,
+	tls_trusted_hmac: 4,
+	tls_status_request: 5,
 };
 
 function handshakeDigestUpdate(session, msg)
@@ -58,15 +57,20 @@ function handshakeDigestUpdate(session, msg)
 
 function handshakeDigestResult(session, which)
 {
-	var msg = session.handshakeMessages.getChunk();
-	var H = new ArrayBuffer(0);
+	var msg = session.handshakeMessages.getChunk(), H;
 	if (which & MD5) {
 		var md5 = new Crypt.MD5();
 		H = md5.process(msg);
 	}
 	if (which & SHA1) {
 		var sha1 = new Crypt.SHA1();
-		H = H.concat(sha1.process(msg));
+		var res = sha1.process(msg);
+		H = H ? H.concat(res) : res;
+	}
+	if (which & SHA256) {
+		var sha256 = new Crypt.SHA256();
+		var res = sha256.process(msg);
+		H = H ? H.concat(res) : res;
 	}
 	return H;
 }
@@ -189,7 +193,15 @@ var handshakeProtocol = {
 			throw new Error("SSL: handshake: unsupported compression");
 		},
 		unpacketize(session, s, msgType) {
-			session.protocolVersion = {major: s.readChar(), minor: s.readChar()};
+			var ver = s.readChars(2);
+			if (ver < session.minProtocolVersion) {
+				session.alert = {level: 2, description: 70};
+				return;
+			}
+			else if (ver > session.maxProtocolVersion)
+				session.protocolVersion = session.maxProtocolVersion;
+			else
+				session.protocolVersion = ver;	// should support all versions between [min, max]
 			var random = s.readChunk(32);
 			var sessionIDLen = s.readChar();
 			var sessionID = sessionIDLen > 0 ? s.readChunk(sessionIDLen) : undefined;
@@ -220,9 +232,7 @@ var handshakeProtocol = {
 		},
 		packetize(session, cipherSuites, compressionMethods, msgType) {
 			var s = new SSLStream();
-			s.writeChar(SSL.protocolVersion.major);
-			s.writeChar(SSL.protocolVersion.minor);
-			session.protocolVersion = SSL.protocolVersion;
+			s.writeChars(session.protocolVersion, 2);
 			var random = this.random.serialize();
 			s.writeChunk(random);
 			if (msgType == client_hello) {
@@ -249,44 +259,46 @@ var handshakeProtocol = {
 				s.writeChar(compressionMethods.length);
 				for (var i = 0; i < compressionMethods.length; i++)
 					s.writeChar(compressionMethods[i]);
-				// extension
-				if (session.options.extensions) {
-					var es = new SSLStream();
-					for (var i in session.options.extensions) {
-						var ext = session.options.extensions[i];
-						var type = extension_type[i];
-						es.writeChars(type, 2);
-						switch (type) {
-						case extension_type.server_name:
-							var len = 1 + 2 + ext.length;
-							es.writeChars(2 + len, 2);
-							es.writeChars(len, 2);
-							es.writeChar(0);		// name_type, 0 -- host_name
-							es.writeChars(ext.length, 2);
-							es.writeString(ext);
-							break;
-						case extension_type.max_fragment_length:
-							es.writeChars(2 + 1, 2);
-							es.writeChars(1, 2);
-							var j;
-							for (j = 1; j <= 4; j++) {
-								var e = j + 9;	// start with 2^9
-								if ((ext >>> e) == 0)
-									break;
-							}
-							if (j > 4)
-								j = 4;
-							es.writeChar(j);
-							break;
-						default:
-							// not supported yet
-							break;
+				//
+				// TLS extensions
+				//
+				var es = new SSLStream();
+				for (var i in session.options) {
+					if (!(i in extension_type))
+						continue;
+					var type = extension_type[i];
+					var ext = session.options[i];
+					es.writeChars(type, 2);
+					switch (type) {
+					case extension_type.tls_server_name:
+						var len = 1 + 2 + ext.length;
+						es.writeChars(2 + len, 2);
+						es.writeChars(len, 2);
+						es.writeChar(0);		// name_type, 0 -- host_name
+						es.writeChars(ext.length, 2);
+						es.writeString(ext);
+						break;
+					case extension_type.tls_max_fragment_length:
+						es.writeChars(2 + 1, 2);
+						es.writeChars(1, 2);
+						var j;
+						for (j = 1; j <= 4; j++) {
+							var e = j + 9;	// start with 2^9
+							if ((ext >>> e) == 0)
+								break;
 						}
+						if (j > 4)
+							j = 4;
+						es.writeChar(j);
+						break;
+					default:
+						// not supported yet
+						break;
 					}
-					if (es.bytesAvailable) {
-						s.writeChars(es.bytesAvailable, 2);
-						s.writeChunk(es.getChunk());
-					}
+				}
+				if (es.bytesAvailable) {
+					s.writeChars(es.bytesAvailable, 2);
+					s.writeChunk(es.getChunk());
 				}
 			}
 			else {
@@ -354,14 +366,14 @@ var handshakeProtocol = {
 				certs.push(s.readChunk(certSize));
 				ttlSize -= certSize + 3;
 			}
-			if (!CertificateManager.verify(certs, session.options))
+			if (!session.certificateManager.verify(certs, session.options))
 				throw new Error("SSL: certificate: auth err");
 			if (session.options.verifyHost) {
 				if (!this.verifyHost(session, certs[0]))
 					throw new Error("SSL: certificate: bad host");
 			}
 			session.peerCert = certs[0];
-			CertificateManager.register(session.peerCert);
+			session.certificateManager.register(session.peerCert);
 		},
 		packetize(session, certs) {
 			session.traceProtocol(this);
@@ -418,7 +430,7 @@ var handshakeProtocol = {
 					types.push(SSL.cipherSuite.DSA);
 					break;
 				default:
-					trace("SSL: certificateRequest: unsupported cert type: " + type + "\n");
+					// trace("SSL: certificateRequest: unsupported cert type: " + type + "\n");
 					break;
 				}
 			}
@@ -429,7 +441,7 @@ var handshakeProtocol = {
 				names.push(s.readChunk(nbytes));
 				ttlSize -= nbytes + 2;
 			}
-			session.clientCerts = CertificateManager.findPreferedCert(types, names);
+			session.clientCerts = session.certificateManager.findPreferedCert(types, names);
 			if (!session.clientCerts)
 				session.clientCerts = [];	// proceed to the "certificate" protocol with a null certificate
 		},
@@ -480,7 +492,7 @@ var handshakeProtocol = {
 			var PRF = require.weak("ssl/prf");
 			var random = session.clientRandom;
 			random = random.concat(session.serverRandom);
-			session.masterSecret = PRF(preMasterSecret, master_secret_label, random, 48);
+			session.masterSecret = PRF(session, preMasterSecret, master_secret_label, random, 48);
 		},
 		unpacketize(session, s) {
 			session.traceProtocol(this);
@@ -490,12 +502,15 @@ var handshakeProtocol = {
 				// PKCS1.5
 				if (!session.myCert)
 					throw new Error("SSL: clientKeyExchange: no cert");	// out of sequence
-				var key = CertificateManager.getKey(/* self */);
+				var key = session.certificateManager.getKey(/* self */);
 				var rsa = new Crypt.PKCS1_5(key, true);
 				var plain = rsa.decrypt(cipher);
-				// the first 2 bytes are client_version
-				// seems like the client version is not the protocol version that the client and server have agreed on...
-				// @@ not check the version
+				// the first 2 bytes must be client_version
+				var version = new Uint8Array(plain);
+				if (((version[0] << 8) | version[1]) != session.protocolVersion) {
+					session.alert = {level: 2, description: 70};
+					return;
+				}
 				var preMasterSecret = plain;
 			}
 			else {
@@ -508,11 +523,10 @@ var handshakeProtocol = {
 			session.traceProtocol(this);
 			if (session.chosenCipher.keyExchangeAlgorithm == SSL.cipherSuite.RSA) {
 				var plain = new SSLStream();
-				plain.writeChar(SSL.protocolVersion.major);
-				plain.writeChar(SSL.protocolVersion.minor);
+				plain.writeChars(session.protocolVersion, 2);
 				plain.writeChunk(Crypt.rng(46));
 				var preMasterSecret = plain.getChunk();
-				var key = CertificateManager.getKey(session.peerCert);
+				var key = session.certificateManager.getKey(session.peerCert);
 				var rsa = new Crypt.PKCS1_5(key);
 				var cipher = rsa.encrypt(preMasterSecret);
 				var s = new SSLStream();
@@ -532,18 +546,16 @@ var handshakeProtocol = {
 		name: "certificateVerify",
 		msgType: certificate_verify,
 		calculateDigest(session) {
-			if (session.chosenCipher.keyExchangeAlgorithm == SSL.cipherSuite.RSA)
-				return handshakeDigestResult(session, MD5 | SHA1);
-			else
-				return handshakeDigestResult(session, SHA1);
-			return h;
+			return handshakeDigestResult(session,
+						     session.protocolVersion >= 0x303 ? SHA256 :
+						     (session.chosenCipher.keyExchangeAlgorithm == SSL.cipherSuite.RSA ? MD5 | SHA1 : SHA1));
 		},
 		unpacketize(session, s) {
 			session.traceProtocol(this);
 			var n = s.readChars(2);
 			var sig = s.readChunk(n);
 			if (session.chosenCipher.keyExchangeAlgorithm == SSL.cipherSuite.RSA) {
-				var key = CertificateManager.getKey(session.peerCert);
+				var key = session.certificateManager.getKey(session.peerCert);
 				var rsa = new Crypt.PKCS1_5(key);
 				if (!rsa.verify(this.calculateDigest(session), sig))
 					throw new Error("SSL: certificateVerify: auth err");
@@ -556,7 +568,7 @@ var handshakeProtocol = {
 			if (session.chosenCipher.keyExchangeAlgorithm == SSL.cipherSuite.RSA) {
 				if (!session.myCert)
 					throw new Error("SSL: certificateVerify: no cert");	// out of sequence
-				var key = CertificateManager.getKey(cert);
+				var key = session.certificateManager.getKey(cert);
 				var rsa = new Crypt.PKCS1_5(key, true);
 				var sig = rsa.sign(this.calculateDigest(session));
 				var s = new SSLStream();
@@ -576,13 +588,13 @@ var handshakeProtocol = {
 		calculateVerifyData(session, flag) {
 			var PRF = require.weak("ssl/prf");
 			var finishLabel = (session.connectionEnd ^ flag) ? client_finished_label : server_finished_label;
-			var digest = handshakeDigestResult(session, MD5 | SHA1);
-			return PRF(session.masterSecret, finishLabel, digest, 12);
+			var digest = handshakeDigestResult(session, session.protocolVersion <= 0x302 ? MD5 | SHA1 : SHA256);
+			return PRF(session, session.masterSecret, finishLabel, digest, 12);
 		},
 		unpacketize(session, s) {
 			session.traceProtocol(this);
 			var verify = this.calculateVerifyData(session, 1);
-			if (Bin.comp(verify, s.readChunk(12)) != 0) {
+			if (Bin.comp(verify, s.readChunk(verify.byteLength)) != 0) {
 				session.masterSecret = null;
 				throw new Error("SSL: finished: auth err");
 			}

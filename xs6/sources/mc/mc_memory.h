@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,7 @@
 #include "xs.h"
 
 extern void mc_minit(xsCreation *creation);
+extern void mc_mfin();
 extern void mc_mstats(int verbose);
 
 #endif	/* __XSPLATFORM__ */
@@ -53,6 +54,9 @@ extern void mc_xs_chunk_disposer(void *data);
 extern void mc_xs_slot_disposer(void *data);
 extern void mc_xs_sbrk(void *p);
 
+#define MC_STACK_SIZE	(8*1024)
+extern void mc_check_stack();
+
 #else	/* mxMC */
 
 #define mc_malloc(size)	malloc(size)
@@ -60,5 +64,6 @@ extern void mc_xs_sbrk(void *p);
 #define mc_calloc(count, size)	calloc(count, size)
 #define mc_strdup(str)	strdup(str)
 #define mc_free(ptr)	free(ptr)
+#define mc_check_stack()
 
 #endif	/* mxMC */

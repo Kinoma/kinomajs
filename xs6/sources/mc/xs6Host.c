@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,8 +17,17 @@
 #include "xs6All.h"
 #include "mc_event.h"
 #if XS_ARCHIVE
+#if mxMC
 #include "mc.xs.h"
 #include "mc.xsa.h"
+#else
+#include <dlfcn.h>
+#include <fcntl.h>
+#include <pwd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 #endif
 #ifdef mxParse
 #include "xs6Script.h"
@@ -57,6 +66,10 @@ typedef struct {
 	txString* symbols;
 	txID scriptCount;
 	txScript* scripts;
+#if !mxMC
+	int baseLength;
+	char base[PATH_MAX];
+#endif
 } txArchive;
 
 typedef struct {
@@ -109,6 +122,7 @@ static const txLoader gxLoaders[] = {
 #define roundup(x, y)	((((x) + (y) - 1) / (y)) * (y))
 #endif
 
+#if mxMC
 void* fxAllocateChunks(txMachine* the, txSize theSize)
 {
 	txByte* aData;
@@ -180,6 +194,59 @@ void fxFreeSlots(txMachine* the, void* theSlots)
 	mc_xs_slot_disposer(theSlots);
 }
 
+#else /* mxMC */
+
+void* fxAllocateChunks(txMachine* the, txSize theSize)
+{
+	txByte* aData;
+	txBlock* aBlock;
+
+	if ((theSize < the->minimumChunksSize) && !(the->collectFlag & XS_SKIPPED_COLLECT_FLAG))
+		theSize = the->minimumChunksSize;
+	theSize += sizeof(txBlock);
+	aData = (txByte *)c_malloc(theSize);
+	if (!aData)
+		fxJump(the);
+	aBlock = (txBlock*)aData;
+	aBlock->nextBlock = the->firstBlock;
+	aBlock->current = aData + sizeof(txBlock);
+	aBlock->limit = aData + theSize;
+	aBlock->temporary = C_NULL;
+	the->firstBlock = aBlock;
+	the->maximumChunksSize += theSize;
+#if mxReport
+	fxReport(the, "# Chunk allocation: reserved %ld used %ld peak %ld bytes\n", 
+		the->maximumChunksSize, the->currentChunksSize, the->peakChunksSize);
+#endif
+#if __FSK_LAYER__
+	FskInstrumentedItemSendMessageNormal(the, kFskXSInstrAllocateChunks, the);
+#endif
+
+	return aData;
+}
+
+txSlot* fxAllocateSlots(txMachine* the, txSize theCount)
+{
+	txSlot* result;
+	
+	result = (txSlot *)c_malloc(theCount * sizeof(txSlot));
+	if (!result)
+		fxJump(the);
+	return result;
+}
+
+void fxFreeChunks(txMachine* the, void* theChunks)
+{
+	c_free(theChunks);
+}
+
+void fxFreeSlots(txMachine* the, void* theSlots)
+{
+	c_free(theSlots);
+}
+
+#endif /* mxMC */
+
 void fxBuildHost(txMachine* the)
 {
 	/* nothing to build for now */
@@ -192,12 +259,13 @@ void fxBuildKeys(txMachine* the)
 		(*archive->keys)(the);
 	else {
 	#ifdef mxParse
-		txSlot* code = &mxIDs;
+		txSlot* callback = &mxIDs;
 		txID c, i;
 		if (archive) {
 			c = archive->symbolCount;
-			code->value.code = (txByte *)fxNewChunk(the, c * sizeof(txID));
-			code->kind = XS_CODE_KIND;	
+			callback->value.callback.address = C_NULL;
+			callback->value.callback.IDs = (txID*)fxNewChunk(the, c * sizeof(txID));
+			callback->kind = XS_CALLBACK_KIND;	
 			for (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {
 				txString string = archive->symbols[i];
 				txID id = the->keyIndex;
@@ -213,8 +281,9 @@ void fxBuildKeys(txMachine* the)
 			}
 		}
 		else {
-			code->value.code = (txByte *)fxNewChunk(the, XS_ID_COUNT * sizeof(txID));
-			code->kind = XS_CODE_KIND;	
+			callback->value.callback.address = C_NULL;
+			callback->value.callback.IDs = (txID*)fxNewChunk(the, XS_ID_COUNT * sizeof(txID));
+			callback->kind = XS_CALLBACK_KIND;	
 			for (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {
 				txID id = the->keyIndex;
 				txSlot* description = fxNewSlot(the);
@@ -253,6 +322,8 @@ txBoolean fxFindFile(txMachine* the, txString path)
 {
 	char real[PATH_MAX];
 
+	mc_check_stack();
+
 	// fxReport(the, "# Finding module in the file system... \"%s\"\n", path);
 	if (path[0] != '/')	/* @@ optimizing. assuming no modules in ftfs */
 		return 0;
@@ -272,6 +343,8 @@ txID fxFindModule(txMachine* the, txID moduleID, txSlot* slot)
 	txString dot, slash;
 	txID id;
 	
+	mc_check_stack();
+
 	fxToStringBuffer(the, slot, name, sizeof(name));
 	if ((!c_strncmp(name, "./", 2)) || (!c_strncmp(name, "../", 3))) {
 		absolute = 0;
@@ -322,6 +395,9 @@ txBoolean fxFindURI(txMachine* the, txString base, txString name, txString dot, 
 {
 	char path[PATH_MAX];
 	txSlot* key;
+
+	mc_check_stack();
+
 	if (*dot) {
 		fxMergePath(base, name, path);
 		if (fxFindArchive(the, path) || fxFindFile(the, path)) {
@@ -424,6 +500,9 @@ txModuleData* fxLoadLibrary(txMachine* the, txString path, txScript* script)
 			char* dot;
 			void* library;
 			txCallback callback;
+
+			mc_check_stack();
+
 			c_strcpy(buffer, path);
 			dot = c_strrchr(buffer, '.');
 			if (dot)
@@ -464,6 +543,9 @@ void fxLoadModule(txMachine* the, txID moduleID)
 	txString dot;
 	txString const* extension;
 	const txLoader* loader;
+
+	mc_check_stack();
+
  	c_strcpy(path, key->value.key.string);
 	if (archive) {
 		int c = archive->scriptCount, i;
@@ -495,12 +577,24 @@ void* fxMapArchive(txString base, txCallbackAt callbackAt)
 	int c, i;
 	txString* symbol;
 	txScript* script;
+#if !mxMC
+	struct stat statbuf;
+#endif
 
+#if mxMC
 	archive = c_malloc(sizeof(txArchive));
 	bailElse(archive);
 	c_memset(archive, 0, sizeof(txArchive));
 	archive->address = (void *)mc_xsa;
 	archive->size = sizeof(mc_xsa);
+#else
+	archive->fd = open(base, O_RDONLY);
+	bailElse(archive->fd >= 0);
+	fstat(archive->fd, &statbuf);
+	archive->size = statbuf.st_size;
+	archive->address = mmap(NULL, archive->size, PROT_READ, MAP_SHARED, archive->fd, 0);
+	bailElse(archive->address != MAP_FAILED);
+#endif
 	
 	p = archive->address;
 	p = fxMapAtom(p, &atom);
@@ -512,7 +606,17 @@ void* fxMapArchive(txString base, txCallbackAt callbackAt)
 	bailAssert(*p++ == XS_MINOR_VERSION);
 	bailAssert(*p++ == XS_PATCH_VERSION);
 	if ((*p++) && !callbackAt) {
+#if mxMC
 		callbackAt = (txCallbackAt)xsHostModuleAt;
+#else
+		c_strcat(archive->base, ".so");
+		archive->library = dlopen(archive->base, RTLD_NOW);
+		if (!archive->library)
+        		fprintf(stderr, "%s\n", dlerror());
+		bailElse(archive->library);
+		callbackAt = (txCallbackAt)dlsym(archive->library, "xsHostModuleAt");
+		bailElse(callbackAt);
+#endif
 	}
 	archive->keys = callbackAt(0);
 	
@@ -645,7 +749,12 @@ void fxRunModule(txMachine* the, txString path)
 	mxPushStringC(path);
 	fxRequireModule(the, XS_NO_ID, the->stack);
 	the->stack++;
-	mc_event_main(the);
+	mc_event_main(the, NULL);
+}
+
+void fxRunLoop(txMachine* the)
+{
+	mc_event_main(the, NULL);
 }
 
 void fxRunProgram(txMachine* the, txString path)
@@ -702,6 +811,14 @@ void fxUnmapArchive(void* it)
 		}
 		if (archive->symbols)
 			c_free(archive->symbols);
+#if !mxMC
+		if (archive->library)
+			dlclose(archive->library);
+		if (archive->address)
+			munmap(archive->address, archive->size);
+		if (archive->fd >= 0)
+			close(archive->fd);
+#endif
 		c_free(archive);
 	}
 }
@@ -724,6 +841,8 @@ static void fxStoreXSB(txMachine *the, txScript *script, txString path)
 	Atom atom;
 	txByte version[4];
 	char xpath[PATH_MAX], *p;
+
+	mc_check_stack();
 
 	if (script == NULL)
 		return;
@@ -762,9 +881,11 @@ static txScript* fxLoadText(txMachine* the, txString path, txUnsigned flags)
 	txParserJump jump;
 	FILE* file = NULL;
 	txString name = NULL;
+	txScript* script = NULL;
 	char buffer[PATH_MAX];
 	char map[PATH_MAX];
-	txScript* script = NULL;
+
+	mc_check_stack();
 
 	if ((parser = c_malloc(sizeof(txParser))) == NULL)
 		return NULL;
@@ -818,9 +939,12 @@ static void fxLoadTextModule(txMachine* the, txString path, txID moduleID)
 void fxIncludeScript(txParser* parser, txString string) 
 {
 	txSymbol* symbol = parser->path;
+	FILE* file = NULL;
 	char buffer[PATH_MAX];
 	char include[PATH_MAX];
-	FILE* file = NULL;
+
+	mc_check_stack();
+
 	c_strcpy(include, string);
 	c_strcat(include, ".js");
 	fxMergePath(symbol->string, include, buffer);
@@ -836,6 +960,7 @@ void fxIncludeScript(txParser* parser, txString string)
 
 #define PARSER_ALIGN	(sizeof(txNumber))
 
+#if mxMC
 void* fxNewParserChunk(txParser* parser, txSize size)
 {
 	unsigned char *p;
@@ -866,4 +991,28 @@ void fxDisposeParserChunks(txParser* parser)
 	}
 }
 
-#endif
+#else /* mxMC */
+
+void* fxNewParserChunk(txParser* parser, txSize size)
+{
+	txParserChunk* block = c_malloc(sizeof(txParserChunk) + size);
+	if (!block)
+		fxThrowMemoryError(parser);
+	parser->total += sizeof(txParserChunk) + size;
+	block->next = parser->first;
+	parser->first = block;
+	return block + 1;
+}
+
+void fxDisposeParserChunks(txParser* parser)
+{
+	txParserChunk* block = parser->first;
+	while (block) {
+		txParserChunk* next = block->next;
+		c_free(block);
+		block = next;
+	}
+}
+
+#endif /* mxMC */
+#endif /* mxParse */

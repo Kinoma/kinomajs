@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,5 +15,7 @@
  *     limitations under the License.
  */
 export default class Tftpd @ "xs_tftpd_destructor" {
-	constructor(sock) @ "xs_tftpd_start";
+	constructor() @ "xs_tftpd_constructor";
+	connect(sock) @ "xs_tftpd_connect"
+	close() @ "xs_tftpd_close";
 };

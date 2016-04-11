@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,8 @@ export XS6
 
 export XS_ARCHIVE = 1
 
+export PLATFORM = mc
+
 BUILD_OS := $(shell uname)
 ifeq ($(BUILD_OS), Darwin)
 	HOST = mac
@@ -35,7 +37,7 @@ else
 endif
 endif
 export SDK_PLATFORM
-export XS6_TOOL_DIR ?= $(XS6)/bin/$(HOST)/debug
+export XS6_TOOL_DIR ?= $(XS6)/bin/$(HOST)/release
 export XS6_INC_DIR = $(XS6)/includes
 export XS6_SRC_DIR = $(XS6)/sources
 export XS6_MC_DIR = $(XS6_SRC_DIR)/mc
@@ -52,6 +54,9 @@ clean:
 
 host:
 	make DEBUG=1 -f xsr6_host.make
+
+mc:
+	make DEBUG=1 -f xsr6_host.make mc
 
 host_clean:
 	make DEBUG=1 -f xsr6_host.make clean

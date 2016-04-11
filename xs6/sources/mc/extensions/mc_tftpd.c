@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -155,10 +155,12 @@ tftp_close(tftp_t *tftp)
 		xsIndex id = xsID("onClose");
 		if (xsHas(tftp->this, id))
 			xsCall_noResult(tftp->this, id, NULL);
-		xsSetHostData(tftp->this, NULL);
+		else {
+			tftpd_close(tftp);
+			xsSetHostData(tftp->this, NULL);
+		}
 	}
 	xsEndHost(tftp->the);
-	tftpd_close(tftp);
 }
 
 static int
@@ -178,14 +180,16 @@ tftp_ack(tftp_t *tftp)
 	return tftp_write(tftp, &ack, 4) == 4;
 }
 
-static int
+static void
 tftp_error(tftp_t *tftp, int code)
 {
 	struct tftphdr err;
 
 	err.th_opcode = ntohs(ERROR);
-	err.th_code = ntohs(code);
-	return tftp_write(tftp, &err, 4) == 4;
+	err.th_code = code;	/* not the network order? */
+	err.th_data[0] = '\0';
+	(void)tftp_write(tftp, &err, sizeof(err));
+	tftp_close(tftp);
 }
 
 static int
@@ -320,9 +324,8 @@ tftp_write_callback(int s, unsigned int flags, void *closure)
 	n -= 4;
 	if (n > 0) {
 		if (mc_fwrite(tp->th_data, 1, n, tftp->fp) != (size_t)n) {
-			tftp_error(tftp, ENOSPACE);
 			mc_log_error("tftpd: write error\n");
-			tftp_close(tftp);
+			tftp_error(tftp, ENOSPACE);
 			return;
 		}
 		tftp->nbytes += n;
@@ -376,20 +379,20 @@ tftp_write_callback(int s, unsigned int flags, void *closure)
 	}
 }
 
-static void
+static int
 tftp_save(tftp_t *tftp, const char *filename)
 {
 	if (!tftp_resolve_special_path(tftp, filename)) {
 		const char *partition;
 		if ((partition = mc_env_get_default("TFTP_PARTITION")) == NULL)
-			partition = mc_get_special_dir("applicationDirectory");
+			partition = mc_get_special_dir("documentsDirectory");
 		snprintf(tftp->path, sizeof(tftp->path), "%s/%s", partition, filename);
 		tftp->filetype = TFTP_FILE;
 	}
 	if ((tftp->fp = mc_fopen(tftp->path, "w+")) == NULL) {
 		mc_log_error("tftpd: %s: open failed\n", filename);
 		tftp_close(tftp);
-		return;
+		return 0;
 	}
 	if (tftp->filetype == TFTP_WIFIFW) {
 		struct wlan_fw_header fh;
@@ -398,6 +401,7 @@ tftp_save(tftp_t *tftp, const char *filename)
 		mc_fwrite(&fh, sizeof(fh), 1, tftp->fp);
 	}
 	mc_event_register(tftp->s, MC_SOCK_READ, tftp_write_callback, tftp);
+	return 1;
 }
 
 static int
@@ -475,7 +479,7 @@ tftp_get_file(tftp_t *tftp)
 	return 1;
 }
 
-static void
+static int
 tftp_get(tftp_t *tftp, const char *filename)
 {
 	int ret;
@@ -501,6 +505,7 @@ tftp_get(tftp_t *tftp, const char *filename)
 	}
 	if (!ret)
 		tftp_error(tftp, ENOTFOUND);	/* file not found */
+	return ret;
 }
 
 void *
@@ -518,6 +523,7 @@ tftpd_connect(int s, xsMachine *the, xsSlot *this)
 		return NULL;
 	tftp->the = the;
 	tftp->this = *this;
+	tftp->s = -1;
 	slen = sizeof(from);
 	memset(&from, 0, slen);
 	if ((n = lwip_recvfrom(s, tftp->buf, PKTSIZE, 0, (struct sockaddr *)&from, &slen)) <= (int)sizeof(opcode))
@@ -548,7 +554,8 @@ tftpd_connect(int s, xsMachine *the, xsSlot *this)
 			tftp->retry = tftp->timeout / TFTP_TIMEOUT_INTERVAL;
 			tftp->timeout = TFTP_TIMEOUT_INTERVAL;
 			tftp->interval = mc_interval_set(tftp->timeout, tftp_write_timeout_callback, tftp);
-			tftp_save(tftp, filename);
+			if (!tftp_save(tftp, filename))
+				return NULL;
 			/* send ack back */
 			tftp_ack(tftp);
 			mc_interval_start(tftp->interval);
@@ -557,21 +564,21 @@ tftpd_connect(int s, xsMachine *the, xsSlot *this)
 		case RRQ:
 			mc_log_notice("tftpd: RRQ: %s\n", filename);
 			tftp->interval = mc_interval_set(tftp->timeout, tftp_read_timeout_callback, tftp);
-			tftp_get(tftp, filename);
+			if (!tftp_get(tftp, filename))
+				return NULL;
 			break;
 		}
 		break;
 	case DATA:
 	case ACK:
 		mc_log_notice("tftpd: DATA or ACK?\n");
-		/* ignore */
-		break;
+		goto bail;
 	case ERROR:
 		errcode = *(unsigned short *)tftp->buf + sizeof(opcode);
 		mc_log_error("tftpd: got an error: %d\n", ntohs(errcode));
-		break;
+		goto bail;
 	default:
-		break;
+		goto bail;
 	}
 	return tftp;
 
@@ -586,11 +593,14 @@ tftpd_close(void *data)
 {
 	tftp_t *tftp = data;
 
-	mc_event_unregister(tftp->s);
+	if (data == NULL)	/* just in case... */
+		return;
 	if (tftp->interval != NULL)
 		mc_interval_reset(tftp->interval);
-	if (tftp->s >= 0)
+	if (tftp->s >= 0) {
+		mc_event_unregister(tftp->s);
 		lwip_close(tftp->s);
+	}
 	if (tftp->fp != NULL)
 		mc_fclose(tftp->fp);
 	mc_free(tftp);

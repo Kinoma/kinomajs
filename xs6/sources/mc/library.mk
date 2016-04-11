@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +14,8 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
+.NOTPARALLEL:
+
 .SUFFIXES : .c .o .so .a
 $(TMP_DIR)/%.o : %.c
 	$(CC) -c $(C_OPTIONS) $(MOD_C_OPTIONS) $< -o $@

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,14 +17,15 @@
 import Crypt from "crypt";
 import Arith from "arith";
 import Files from "files";
+import File from "file";
 import Bin from "bin";
 
 var argv = process.execArgv();
-var f1 = new Files("/k2/ca.ski", 1);
-var f2 = new Files("/k2/ca.subject", 1);
+var f1 = new File("/k2/ca.ski", 1);
+var f2 = new File("/k2/ca.subject", 1);
 var sha1 = new Crypt.SHA1();
 for (var argi = 1, argc = argv.length; argi < argc; argi++) {
-	var crt = Files.readChunk(argv[argi]);
+	var crt = Files.read(argv[argi]);
 	var ski = Crypt.X509.decodeSKI(crt);
 	if (ski.byteLength > 20) {
 		trace("SKI too long!\n");

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,35 +14,38 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-import TimeInterval from "timeinterval";
+
+let wdt = require("system").wdt;
 
 export default {
-	_timeout: 0,
-	start(sec) {
-		var index = 0xf, off = 30;
-		for (var s = 90; s >= 0; s /= 2, --index, off /= 2) {
-			if (sec >= s)
-				break;
-		}
-		var that = this;
-		this.timer = new TimeInterval(function() {
-			that.strobe();
-		}, (sec - off) * 1000);
-		this.timer.start();
-		this._start(index);
-		this._timeout = sec;
+	__proto__: {
+		start(index, autostrobe, shutdown) @ "xs_wdt_start",
+		strobe() @ "xs_wdt_strobe",
+		stop() @ "xs_wdt_stop",
+	},
+	sec: 0,
+	start(sec, autostrobe = true, shutdown = false) {
+		let index = 0xf, s = 90 / 2;
+		for (; s >= 1 && s >= sec; s /= 2, --index)
+			;
+		if (autostrobe)
+			wdt.enable(s * 0.8 * 1000);		// strobe every 80% of the timeout
+		super.start(index, autostrobe, shutdown);
+		wdt.sec = sec;
+		this.strobe();
 	},
 	stop() {
-		if (this.timer) {
-			this.timer.close();
-			delete this.timer;
-		}
-		this._stop();
+		wdt.enable();
+		super.stop();
 	},
 	resume() {
-		this.start(this._timeout);
+		if (wdt.sec)
+			this.start(wdt.sec);
 	},
-	_start(index) @ "xs_wdt_start",
-	strobe() @ "xs_wdt_strobe",
-	_stop() @ "xs_wdt_stop",
+	shutdown(sec) {
+		// somehow we need to re-start the wdt in the reset mode first, then re-re-start with the interrupt mode
+		this.start(sec, false, false);
+		super.stop();
+		this.start(sec, false, true);
+	},
 };

@@ -246,8 +246,10 @@ static inline void randomizeAreaData(unsigned char *addr, int size)
 size_t vPortBiggestFreeBlockSize()
 {
 	xBlockLink *pxBlock = &xStart;
+	vTaskSuspendAll();
 	while( pxBlock->pxNextFreeBlock != &xEnd )
 		pxBlock = pxBlock->pxNextFreeBlock;
+	xTaskResumeAll();
 
 	return BLOCK_SIZE(pxBlock);
 }
@@ -305,18 +307,18 @@ static inline void prvInsertBlockIntoFreeList( xBlockLink * pxBlockToInsert )
 				 * ths free block could not be found in the
 				 * free list.
 				 */
-				ATRACE("Target block dump :\n\r");
-				ATRACE("pxNextFreeBlock : 0x%x\n\r", 
+				DTRACE("Target block dump :\n\r");
+				DTRACE("pxNextFreeBlock : 0x%x\n\r", 
 				      xBlockToMerge->pxNextFreeBlock);
-				ATRACE("pxPrev          : 0x%x\n\r", 
+				DTRACE("pxPrev          : 0x%x\n\r", 
 				      xBlockToMerge->pxPrev);
-				ATRACE("xBlockSize      : %d (0x%x)\n\r", 
+				DTRACE("xBlockSize      : %d (0x%x)\n\r", 
 				      xBlockToMerge->xBlockSize, xBlockToMerge->xBlockSize);
 #ifdef DEBUG_HEAP_EXTRA
-				ATRACE("xActualBlockSize: %d\n\r", 
+				DTRACE("xActualBlockSize: %d\n\r", 
 				      xBlockToMerge->xActualBlockSize);
 #endif /* DEBUG_HEAP_EXTRA */
-				ATRACE("Panic\n\r");
+				DTRACE("Panic\n\r");
 				while(1) {}
 			}
 #endif /* DEBUG_HEAP */
@@ -533,7 +535,7 @@ void *pvPortMalloc( size_t xWantedSize )
 	}
 	xTaskResumeAll();
 
-#if( configUSE_MALLOC_FAILED_HOOK == 1 )
+#if( configUSE_MALLOC_FAILED_HOOK == 1 ) && 0
 	{
 		if( pvReturn == NULL )
 		{
@@ -719,6 +721,7 @@ int vHeapSelfTest( int trace )
 
 		/* A counter to prevent infinite loop */
 		int max_sane_blocks = 10000;
+		vTaskSuspendAll();
 	        while( max_sane_blocks-- ) {
 			if( trace ) {
 #ifdef DEBUG_HEAP_EXTRA
@@ -747,6 +750,7 @@ int vHeapSelfTest( int trace )
 				break;
 			pxBlock = NEXT_BLOCK( pxBlock );
 		}
+		xTaskResumeAll();
 		if( totalSize != configTOTAL_HEAP_SIZE )
 			return 1;
 	}

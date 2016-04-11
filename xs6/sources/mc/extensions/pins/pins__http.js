@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,6 +19,7 @@ import HTTPClient from "HTTPClient";
 import Pins from "pins";
 import GPIOPin from "pinmux";
 import System from "system";
+import LED from "board_led";
 
 function decomposeUrl(url) {
 	var parts = url.split("/"), args;
@@ -43,11 +44,16 @@ var PinsHTTPHandler = {
 		this.http = new HTTPServer({port: port});
 		this.http.onRequest = this.onRequest;
 		this.http.configuration = configuration;
+		this.led = new LED({onColor: [0, 1, 1], offColor: [1, 0, 1]});
+		this.led.run();		// ready to receive a request
 	},
 	close() {
-		this.http.close();
+		this.http.close(); // ideally we should close the repeats here
+		this.led.stop();
+		LED.resume();
 	},
 	onRequest(http) {
+		// trace("PinsHTTPHandler onRequest: " + http.url + "\n");
 		var url = decomposeUrl(http.url);
 		if (url.path.length > 1 && url.path[1]) {
 			// a command
@@ -86,42 +92,42 @@ var PinsHTTPHandler = {
 					var ti = url.query.interval ? parseInt(url.query.interval) : url.query.timer;
 				// trace("Pins.repeat: path = " + url.query.path + ", ti = " + ti + "\n");
 				Pins.repeat(url.query.path, ti, function(result) {
-					GPIOPin.led(1, 1);
 					if (result != undefined) {
-						if (addr in Pins.https) {
-							GPIOPin.led(1, 0);
+						if (addr in Pins.https)
 							return;
-						}
 						// trace("Pins.repeat: responding to " + addr + ", " + JSON.stringify(result) + "\n");
 						var client = new HTTPClient(addr);
 						client.onTransferComplete = function (status) {
-							delete Pins.https[addr];
-							GPIOPin.led(0, 0);
+							delete Pins.https[addr];	// remove client
+							PinsHTTPHandler.led.on(1);	
+							if(!status){	// transfer failure, stop repeat
+								Pins.repeat(url.query.path, undefined, function(){
+								}, addr);
+							}
 						};
-						client.addHeader("Connection", "close");
+						client.setHeader("Connection", "close");
 						if (result instanceof ArrayBuffer) {
-							client.addHeader("Content-Type", "application/octet-stream");
-							client.addHeader("Content-Length", result.byteLength);
+							client.setHeader("Content-Type", "application/octet-stream");
+							client.setHeader("Content-Length", result.byteLength);
 							client.start(result);
 						}
 						else {
 							var res = JSON.stringify(result);
-							client.addHeader("Content-Type", "application/json");
-							client.addHeader("Content-Length", res.length);
+							client.setHeader("Content-Type", "application/json");
+							client.setHeader("Content-Length", res.length);
 							client.start(res);
 						}
 						Pins.https[addr] = client;
-						GPIOPin.led(0, 1);
+						PinsHTTPHandler.led.on(0);
 					}
-					GPIOPin.led(1, 0);
 				}, addr);
 				http.errorResponse(204, "No Content");
 			}
 			else {
 				// invoke
+				PinsHTTPHandler.led.on(0);
 				var body = http.content ? JSON.parse(String.fromArrayBuffer(http.content)) : undefined;
-				GPIOPin.led(0, 1);
-				Pins.invoke(url.query.path, body, function(result) {
+				var cb = function(result) {
 					if (result) {
 						if (result instanceof ArrayBuffer)
 							http.response("application/octet-stream", result);
@@ -130,8 +136,12 @@ var PinsHTTPHandler = {
 					}
 					else
 						http.errorResponse(204, "No Content");
-					GPIOPin.led(0, 0);
-				});
+					PinsHTTPHandler.led.on(1);
+				};
+				if (body)
+					Pins.invoke(url.query.path, body, cb);
+				else
+					Pins.invoke(url.query.path, cb);
 			}
 		}
 		else

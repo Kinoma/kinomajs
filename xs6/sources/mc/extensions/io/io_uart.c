@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -65,7 +65,10 @@ xs_uart_close(xsMachine *the)
 {
 	mc_uart_t *uart = xsGetHostData(xsThis);
 
-	uart_drv_close(uart->mdev);
+	if (uart->mdev != NULL) {
+		uart_drv_close(uart->mdev);
+		uart->mdev = NULL;
+	}
 }
 
 void

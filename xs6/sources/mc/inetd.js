@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,63 +15,65 @@
  *     limitations under the License.
  */
 import System from "system";
-import Connection from "wifi";
-import {ListeningSocket} from "socket";
-import Environment from "env";
-import Launcher from "launcher";
-
-var env = new Environment();
+import {ListeningSocket, Socket} from "socket";
 
 var conf = [
 	{	// tftpd
 		port: 6969,
 		protocol: "udp",
-		mode: Connection.STA | Connection.UAP,
-		fqst: "_tftp._tcp.local",
+		mode: System.config.tftp ? System.connection.STA | System.connection.UAP : 0,
+		fqst: "_tftp._tcp",
 		exec: function(sock) {
+			if (this._instance) {	// only one session at once
+				console.log("tftpd: rejecting a new session");
+				sock.recv(sock.bytesAvailable);
+				sock.send((new Uint8Array([0, 5, 3, 0, 0])).buffer, sock.peer);	// ENOSPACE
+				return;
+			}
 			var tftpd = require.weak("tftpd");
-			return new tftpd(sock);
+			let instance = new tftpd();
+			if (!instance.connect(sock)) {
+				instance.close();
+				instance = undefined;
+			}
+			return instance;
 		},
 		discovery: function() {
-			this.mdns = require.weak("mdns");
-			this.mdns.start("local", System.hostname);
-			this.mdns.newService(this.fqst, this.port, System.hostname);
+			let mdns = require.weak("mdns");
+			mdns.add(this.fqst, System.hostname, this.port);
 		},
 		close: function() {
-			if (this.mdns) {
-				this.mdns.removeService(this.fqst);
-				this.mdns.stop();
-				delete this.mdns;
-			}
+			let mdns = require.weak("mdns");
+			mdns.remove(this.fqst);
 		},
 	},
 	{	// telnetd
 		port: 2323,
 		protocol: "tcp",
-		mode: Connection.STA | Connection.UAP,
-		fqst: "_telnet._tcp.local",
+		mode: System.config.telnet ? System.connection.STA | System.connection.UAP : 0,
+		fqst: "_telnet._tcp",
 		exec: function(sock) {
+			if (this._instance) {	// only one connection at once
+				console.log("telnetd: rejecting a connection");
+				(sock.accept()).close();
+				return;
+			}
 			var telnetd = require.weak("telnetd");
 			return new telnetd(sock);
 		},
 		discovery: function() {
-			this.mdns = require.weak("mdns");
-			this.mdns.start("local", System.hostname);
-			this.mdns.newService(this.fqst, this.port, System.hostname);
+			let mdns = require.weak("mdns");
+			mdns.add(this.fqst, System.hostname, this.port);
 		},
 		close: function() {
-			if (this.mdns) {
-				this.mdns.removeService(this.fqst);
-				this.mdns.stop();
-				delete this.mdns;
-			}
+			let mdns = require.weak("mdns");
+			mdns.remove(this.fqst);
 		},
 	},
 	{	// Kinoma Studio
 		port: 10000,
 		protocol: "tcp",
-		mode: env.get("NO_STUDIO") ? 0 : Connection.STA | Connection.UAP,
-		ssdp: undefined,
+		mode: System.config.kinomaStudio && System.connection.STA | System.connection.UAP,
 		exec: function(sock) {
 			if (!this._instance) {
 				var StudioHTTPServer = require.weak("StudioHTTPServer");
@@ -82,47 +84,45 @@ var conf = [
 			o.onConnect(sock);
 			return o;
 		},
+		description: {
+				DEVICE_TYPE: "shell",
+				DEVICE_VERSION: 1,
+				DEVICE_SCHEMA: "urn:schemas-kinoma-com",
+				HTTP_PORT: 10000,
+				LOCATION: "/",
+		},
 		discovery: function() {
-			if (env.get("ELEMENT_SHELL")) {
-				trace( "%com.kinoma.debug=start\n" );
-				return;
-			}
-			var SSDPDevice = require.weak("SSDPDevice");
-			var StudioDiscoveryService = function() {
-				SSDPDevice.call(this)
-			};
-			StudioDiscoveryService.prototype = Object.create(SSDPDevice.prototype, {
-				DEVICE_TYPE: {value: "shell"},
-				DEVICE_VERSION: {value: 1},
-				DEVICE_SCHEMA: {value: "urn:schemas-kinoma-com"},
-				HTTP_PORT: {value: this.port},
-				LOCATION: {value: "/"},
-			});
-			this.ssdp = new StudioDiscoveryService();
-			this.ssdp.start();
+			let ssdp = require.weak("ssdp");
+			ssdp.add(this.description);
 		},
 		close: function() {
-			if (this.ssdp) {
-				this.ssdp.stop()
-				this.ssdp = undefined;
-			}
+			let ssdp = require.weak("ssdp");
+			ssdp.remove(this.description);
 		},
 	},
 	{	// setup
 		port: 8081,
 		protocol: "tcp",
-		mode: Connection.UAP | Connection.STA,
-		fqst: "_kinoma_setup._tcp.local",
+		mode: System.config.setup ? System.connection.UAP | System.connection.STA | System.connection.FWUPDATE : 0,
+		fqst: "_kinoma_setup._tcp",
 		exec: function(sock) {
 			if (!this._instance) {
 				var HTTPServer = require.weak("HTTPServer");
-				var o = new HTTPServer({ssl: true});
+				var o = new HTTPServer({tls: false});
 				o.onRequest = function(http) {
 					var url = http.decomposeUrl(http.url);
-					try {
-						Launcher.launch("setup/" + url.path[0], http, url);
-					} catch(e) {
-						http.errorResponse(505, "Internal Server Error");
+					if (url.path.length == 0) {
+						http.errorResponse(404, "Not Found");
+					}
+					else {
+						try {
+							let module = require.weak("setup/" + url.path[0]);
+							if (module && module.onLaunch) {
+								return module.onLaunch(http, url);
+							}
+						} catch(e) {
+							http.errorResponse(505, "Internal Server Error");
+						}
 					}
 				}
 			}
@@ -132,32 +132,90 @@ var conf = [
 			return o;
 		},
 		discovery: function(mode) {
-			if (mode == Connection.UAP) {
+			if (mode & System.connection.UAP) {
 				var DHCPServer = require.weak("dhcpd");
 				this.dhcpd = new DHCPServer();
 			}
-			this.mdns = require.weak("mdns");
-			this.mdns.start("local", System.hostname);
-			this.mdns.newService(this.fqst, this.port, System.hostname);
+			let uuid = require.weak("uuid");
+			let mdns = require.weak("mdns");
+			mdns.add(this.fqst, System.hostname, this.port, {uuid: uuid.get()}, 60);	// TTL=50
 		},
 		close: function() {
 			if (this.dhcpd) {
 				this.dhcpd.stop();
 				this.dhcpd = undefined;
 			}
-			if (this.mdns) {
-				this.mdns.removeService(this.fqst);
-				this.mdns.stop();
-				delete this.mdns;
+			let mdns = require.weak("mdns");
+			mdns.remove(this.fqst);
+		},
+	},
+	{	// WAC
+		port: 8082,
+		protocol: "tcp",
+		mode: System.config.mfiPins ? System.connection.UAP | System.connection.WAC : 0,
+		seed: 0,
+		exec: function(sock, mode) {
+			if (mode & System.connection.UAP) {
+				if (!this._instance) {
+					var WACServer = require.weak("wac");
+					var o = new WACServer();
+				}
+				else
+					var o = this._instance;
+				o.onConnect(sock);
+				return o;
 			}
+			else {
+				// wait for the /configured message to finish the process
+				var HTTPServer = require.weak("HTTPServer");
+				var o = new HTTPServer();
+				o.onRequest = http => {
+					// this.url has to be "/configured"
+					http.setHeader("Connection", "close");	// make sure the connection is closed so the http instance will be gone
+					http.response();	// just respond as it's successfuly started up
+					this.close();		// and stop the mDNS.
+				}
+				o.onConnect(sock);
+				return o;
+			}
+		},
+		discovery: function(mode) {
+			var WACServer = require.weak("wac");
+			this.discoveryService = WACServer.startDiscoveryService(mode, this.port, this.seed++);
+		},
+		close: function() {
+			var WACServer = require.weak("wac");
+			WACServer.stopDiscoveryService(this.discoveryService);
 		},
 	},
 ];
 
 var inetd = {
-	start: function(mode) {
-		console.log("inetd: starting... mode = " + mode);
+	_mode: 0,
+	_exec: function(cp, sock, mode) {
+		try {
+			let instance = cp.exec(sock, mode);
+			if (instance) {
+				cp._instance = instance;
+				cp._instance.onClose = function() {
+					console.log("inetd: closing instance for " + cp.port);
+					cp._instance.close();
+					cp._instance = undefined;
+				};
+			}
+		} catch (e) {
+			console.log("inetd: exec failed " + cp.port);
+			cp._sock.close();
+			cp._sock = undefined;
+			return;
+		}
+	},
+	_start: function(mode) {
+		let mdns = require.weak("mdns");
+		mdns.start();
 		conf.forEach(function(cp) {
+			if (cp._sock)
+				return;
 			cp._instance = undefined;
 			if (!(mode & cp.mode))
 				return;
@@ -171,39 +229,25 @@ var inetd = {
 			switch (cp.protocol) {
 			case "tcp":
 				cp._sock.onConnect = function() {
-					try {
-						cp._instance = cp.exec(this, mode);
-					} catch(e) {
-						console.log("inetd: exec failed " + cp.port);
-						cp._sock.close();
-						cp._instance = undefined;
-					}
-					if (cp._instance) {
-						cp._instance.onClose = function() {
-							console.log("inetd: onClose callback: " + cp.port);
-							cp._instance = undefined;
-						};
-					}
-					else
-						console.log("inetd: no instance for " + cp.port);
+					inetd._exec(cp, this, mode);
 				};
 				break;
 			case "udp":
 				cp._sock.onMessage = function() {
-					cp._instance = cp.exec(this);
+					inetd._exec(cp, this, mode);
 				};
 				break;
 			}
 			cp._sock.onClose = function() {
-				console.log("inetd: socket.onClose for " + cp.port);
+				console.log("inetd: closing socket for " + cp.port);
 				if (cp._instance && "close" in cp._instance)
 					cp._instance.close();
-				this.close();	// close the listening socket which has been opened by inted
+				this.close();	// close the listening socket which has been opened by inetd
 				cp._sock = undefined;
 				cp._instance = undefined;
 			};
 			cp._sock.onError = function() {
-				console.log("inetd: socket.onError for " + cp.port);
+				console.log("inetd: socket error on " + cp.port);
 				this.close();
 				cp._sock = undefined;
 				cp._instance = undefined;
@@ -212,26 +256,49 @@ var inetd = {
 				try {
 					cp.discovery(mode);
 				} catch(e) {
-					console.log("inted: failed to start a discovery service for " + cp.port);
+					console.log("inetd: failed to start a discovery service for " + cp.port);
 				}
 			}
 		}, this);
-		console.log("inetd: running");
 	},
-
-	stop: function(mode) {
-		console.log("inetd: stopping...");
+	_stop: function(mode) {
 		conf.forEach(function(cp) {
-			if (!(mode & cp.mode))
+			if (!(this._mode & cp.mode) || (mode & cp.mode))
 				return;
 			if ("close" in cp) {
 				try {
 					cp.close();
 				} catch(e) {
-					console.log("inted: failed to close for " + cp.port);
+					console.log("inetd: failed to close for " + cp.port);
 				}
 			}
+			if (cp._instance && "close" in cp._instance)
+				cp._instance.close();
+			if (cp._sock) {
+				cp._sock.close();
+				console.log("inetd: stopped " + cp.port);
+			}
+			cp._sock = cp._instance = undefined;
 		}, this);
+		let mdns = require.weak("mdns");
+		mdns.stop();
+	},
+	start: function(mode) {
+		if (mode & System.connection.SINGLEUSER)
+			return;
+		console.log("inetd: starting... mode = " + mode);
+		this._start(mode);
+		console.log("inetd: running");
+		this._mode = mode;
+	},
+	stop: function(mode) {
+		if (mode & System.connection.SINGLEUSER)
+			return;
+		console.log("inetd: stopping...");
+		this._stop(0);
+	},
+	restart: function() {
+		this._start(this._mode);
 	},
 };
 

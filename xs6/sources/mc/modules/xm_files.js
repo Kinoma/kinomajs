@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,63 +25,132 @@ class _VolumeIterator @ "xs_volume_iterator_destructor" {
 	getNext() @ "xs_volume_iterator_getNext";
 };
 
-function* __Iterator(path) {
-	var iter = new _Iterator(path);
-	var item;
-	while ((item = iter.getNext()) != null) {
-		yield item;
+function* __Iterator(path, flags) {
+	let i = path.indexOf("/", path.startsWith('/') ? 1 : 0), vol, rest;
+	if (i >= 0) {
+		vol = path.substring(0, i);
+		rest = path.substring(i + 1);
+		if (rest.length == 0)
+			rest = null;
+		else if (rest.charAt(rest.length - 1) != '/')
+			rest += "/";
 	}
+	else {
+		vol = path;
+		rest = null;
+	}
+	let iter = new _Iterator(vol), item;
+	let nameSet = new Set();
+	let itemArray = new Array();
+	while (item = iter.getNext()) {
+		if (!rest || item.name.startsWith(rest)) {
+			let name = (!rest) ? item.name : item.name.substring(rest.length);
+			if (!flags) {
+				i = name.indexOf("/");
+				if (i >= 0) {
+					name = name.substring(0, i);
+					if (nameSet.has(name))
+						continue;
+					nameSet.add(name);
+				}
+			}
+			item.name = name;
+			itemArray.push(item);
+		}
+	}
+	itemArray.sort(function(a,b) { if (a.name > b.name) return 1; else if (a.name < b.name) return -1; else return 0});
+	for (i = 0; i < itemArray.length; i++)
+		yield itemArray[i];
 	iter.close();
 };
 
 function* __VolumeIterator() {
-	var iter = new _VolumeIterator();
-	var item;
+	let iter = new _VolumeIterator();
+	let item;
 	while ((item = iter.getNext()) != null) {
 		yield item;
 	}
 };
 
-export default class Files @ "xs_files_destructor" {
-	constructor(path, mode) @ "xs_files_constructor";
-	_read(n, buf) @ "xs_files_read";
-	read(cons, n, buf) {
-		var buf = this._read(n, buf);
-		if (buf === undefined)
-			;
-		else if (cons === undefined)
-			;
-		else if (cons == String)
-			// too bad we have to examine the constructor type just for String
-			buf = String.fromArrayBuffer(buf);
-		else
-			buf = new cons(buf);
-		return buf;
+export default class Files {
+	static get directoryType() {
+		return "directory";
 	};
-	readChar() @ "xs_files_readChar";
-	write(args) @ "xs_files_write";
-	close() @ "xs_files_close";
-	get length() @ "xs_files_getLength";
-	set length(n) @ "xs_files_setLength";
-	get position() @ "xs_files_getPosition";
-	set position(n) @ "xs_files_setPosition";
+	static get fileType() {
+		return "file";
+	}
 
 	static deleteFile(path) @ "xs_files_delete";
-	static deleteDirectory(path) @ "xs_files_deleteDirectory";
-	static getInfo(path) @ "xs_files_getFileInfo";
+	static _renameFile(from, to) @ "xs_files_rename";
+	static renameFile(from, to) {
+		if (to.indexOf('/') >= 0)
+			return false;
+		if (from.charAt(from.length - 1) == '/')
+			return false;
+		let start = from.indexOf('/', 2);
+		if (start < 0)
+			return false;
+		let end = from.lastIndexOf('/');
+		if (end < 0)
+			return false;
+		let base = from.substring(start + 1, end + 1);
+		to = base + to;
+		return this._renameFile(from, to);
+	}
+	static _getInfo(path) @ "xs_files_getFileInfo";
+	static getInfo(path) {
+		let result = this._getInfo(path);
+		if (result) {
+			result.type = this.fileType;
+		} else {
+			let iter = this.Iterator(path);
+			let item;
+			if (iter && (item = iter.next()) && !item.done) {
+				// it is directory
+				result = new Object();
+				result.type = this.directoryType;
+			}
+		}
+		return result;
+	}
+	static deleteVolume(path) @ "xs_files_deleteVolume";
 	static getVolumeInfo(path) @ "xs_files_getVolumeInfo";
-	static readChunk(path) {
+	static deleteDirectory(path) {
+		if (!path.startsWith("/"))
+			path = "/" + path;
+		if (path.charAt(path.length - 1) != '/')
+			path += "/";
+
+		// check if the path is a volume
+		let iter = this.VolumeIterator();
+		for (let item of iter) {
+			if ((item.path + "/") == path) {
+				this.deleteVolume(item.path);
+				return true;
+			}
+		}
+		// iterate all files in the directory
+		// (includes files in the sub directories)
+		iter = this.Iterator(path, 1);
+		for (let item of iter) {
+			this.deleteFile(path + item.name);
+		}
+		return true;
+	};
+	static read(path) {
 		try {
-			var f = new Files(path, 0);
-			var blob = f._read(f.length);
+			let File = require("file");
+			let f = new File(path, 0);
+			let blob = f._read(f.length);
 			f.close();
 			return blob;
 		} catch(e) {
 			// return undefined
 		}
 	};
-	static writeChunk(path, blob) {
-		var f = new Files(path, 1);
+	static write(path, blob) {
+		let File = require("file");
+		let f = new File(path, 1);
 		f.write(blob);
 		f.close();
 	};
@@ -92,21 +161,25 @@ export default class Files @ "xs_files_destructor" {
 	static get documentsDirectory() { return this.getSpecialDirectory("documentsDirectory"); };
 	static get picturesDirectory() { return this.getSpecialDirectory("picturesDirectory"); };
 	static get temporaryDirectory() { return this.getSpecialDirectory("temporaryDirectory"); };
+	static get variableDirectory() { return this.getSpecialDirectory("variableDirectory"); };
 
 	static get nativeApplicationDirectory() { return this.getSpecialDirectory("nativeApplicationDirectory"); };
 
-	static Iterator(path) {
-		return __Iterator(path);
+	static Iterator(path, flags) {
+		return __Iterator(path, flags);
 	};
 	static VolumeIterator() {
 		return __VolumeIterator();
 	};
 
-	static checkDirectory(path) @ "xs_files_checkDirectory";
+	static fsck(path, recovery) @ "xs_files_fsck";
 
 	static _init() @ "xs_files_init";
 
 	static setActive(path) @ "xs_files_setActive";
+
+	static updatePathName() @ "xs_files_updatePathName";
 };
 
 Files._init();	// only for host
+delete Files._init;

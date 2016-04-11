@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
  *     limitations under the License.
  */
 typedef void (*mc_thread_proc_f)(void *data);
-extern int mc_thread_create(mc_thread_proc_f thread_main, void *arg);
+extern int mc_thread_create(mc_thread_proc_f thread_main, void *arg, int pri);
 
 typedef void *mc_semaphore_t;
 extern int mc_semaphore_create(mc_semaphore_t *sem);

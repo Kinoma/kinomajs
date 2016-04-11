@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -66,7 +66,7 @@ mc_env_load(mc_env_t *env)
 	if (mc_fread(env->buf, 1, env->size, fp) != env->size)
 		goto bail;
 	if (env->encrypt)
-		mc_rng_process(env->buf, env->size, (uint8_t *)MC_ENV_SEED, sizeof(MC_ENV_SEED));
+		mc_srng_process(env->buf, env->size, (uint8_t *)MC_ENV_SEED, sizeof(MC_ENV_SEED));
 	status = 0;
 bail:
 	if (fp != NULL)
@@ -98,10 +98,10 @@ mc_env_store(mc_env_t *env)
 	}
 	/* encrypt data right on the buffer and decrypt it afterward to save the memory -- should be fast enough.. */
 	if (env->encrypt)
-		mc_rng_process(env->buf, env->size, (uint8_t *)MC_ENV_SEED, sizeof(MC_ENV_SEED));
+		mc_srng_process(env->buf, env->size, (uint8_t *)MC_ENV_SEED, sizeof(MC_ENV_SEED));
 	mc_fwrite(env->buf, env->size, 1, fp);
 	if (env->encrypt)
-		mc_rng_process(env->buf, env->size, (uint8_t *)MC_ENV_SEED, sizeof(MC_ENV_SEED));
+		mc_srng_process(env->buf, env->size, (uint8_t *)MC_ENV_SEED, sizeof(MC_ENV_SEED));
 	mc_fclose(fp);
 	return 0;
 }
@@ -111,6 +111,8 @@ mc_env_new(mc_env_t *env, const char *path, int encrypt)
 {
 	int err = 0;
 	char buf[PATH_MAX];
+
+	mc_check_stack();
 
 	env->buf = NULL;
 	env->size = 0;
@@ -267,10 +269,12 @@ mc_env_getbuf(mc_env_t *env)
 	if (env == NULL)
 		env = &mc_default_env;
 	if (env->buf == NULL) {
-		if (mc_env_load(env) != 0)
+		if (mc_env_load(env) != 0) {
 			mc_log_error("mc_env: failed to load!\n");
+			return NULL;
+		}
 	}
-	return env->buf;
+	return env->buf + sizeof(MC_ENV_MAGIC) - 1;	/* skip the magic number */
 }
 
 /* debugging only */

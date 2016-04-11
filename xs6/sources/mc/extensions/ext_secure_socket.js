@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,10 +20,10 @@ import SSL from "ssl";
 export default class SecureSocket {
 	constructor(dict) {
 		if (dict.sock)
-			this._init(dict.sock, dict.options);
+			this._init(dict.sock, dict);
 		else {
 			var sock = new Socket(dict);
-			this._init(sock, dict.options);
+			this._init(sock, dict);
 		}
 	};
 	_init(sock, options) {

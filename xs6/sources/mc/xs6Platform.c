@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -233,12 +233,12 @@ void fxRemoveReadableCallback(txMachine* the)
 
 void fxConnect(txMachine* the)
 {
-	int aSocketFlag;
-	char aName[256];
+	int aSocketFlag = 0;
 	char* aColon;
 	int aPort;
 	struct hostent *aHost;
 	struct sockaddr_in anAddress;
+	char aName[HOST_NAME_MAX + 7];	/* hostname:port */
 
 	the->connection = socket(AF_INET, SOCK_STREAM, 0);
 	if (the->connection < 0)
@@ -247,8 +247,8 @@ void fxConnect(txMachine* the)
 
 	aColon = (char *)mc_env_get_default("XSBUG_HOST");
 	if (aColon) {
-		strncpy(aName, aColon, 255);
-		aName[255] = 0;
+		strncpy(aName, aColon, sizeof(aName));
+		aName[sizeof(aName) - 1] = 0;
 		aColon = strchr(aName, ':');
 		if (aColon == NULL)
 			aPort = 5002;
@@ -302,6 +302,27 @@ bail:
 	fxDisconnect(the);
 }
 
+static void
+fxEventCallback(txMachine *the, void *closure)
+{
+	xsBeginHost(the);
+	xsVars(2);
+	xsVar(0) = xsGet(xsGlobal, xsID("require"));
+	xsVar(1) = xsString("debug");
+	xsResult = xsCall1(xsVar(0), xsID("weak"), xsVar(1));
+	xsCall0_noResult(xsResult, xsID("onDisconnect"));
+	xsEndHost(the);
+}
+
+static void
+fxClose(txMachine* the)
+{
+	if (the->connection >= 0) {
+		fxDisconnect(the);
+		mc_event_thread_call(fxEventCallback, NULL, MC_CALL_ASYNC);
+	}
+}
+
 void fxDisconnect(txMachine* the)
 {
 	if (the->connection >= 0) {
@@ -342,7 +363,7 @@ void fxReceive(txMachine* the)
 			if (errno == EINTR)
 				goto again;
 			else
-				fxDisconnect(the);
+				fxClose(the);
 		}
 		else
 			the->echoOffset = aCount;
@@ -358,13 +379,14 @@ void fxSend(txMachine* the)
 			if (errno == EINTR)
 				goto again;
 			else
-				fxDisconnect(the);
+				fxClose(the);
 		}
 	}
 }
 
 void fxSetAddress(txMachine* the, char* theAddress)
 {
+	mc_env_set_default("XSBUG_HOST", theAddress);
 }
 
 void fxSetAutomatic(txMachine* the, txBoolean theAutomatic)
@@ -402,6 +424,8 @@ txBoolean fxGetProfilePath(txMachine* the, char* thePath)
 void fxOpenProfileFile(txMachine* the, char* theName)
 {
 	char aPath[PATH_MAX];
+
+	mc_check_stack();
 
 	if (fxGetProfilePath(the, aPath)) {
 		strcat(aPath, theName);

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,6 +17,7 @@
 #include <wm_os.h>
 #include <mdev_rtc.h>
 #include "mc_env.h"
+#include "mc_event.h"
 #include "mc_time.h"
 
 #define MC_TIME_ZONE	"TIME_ZONE"
@@ -44,8 +45,10 @@ mc_gettimeofday(struct timeval *tv, struct timezone *tz)
 int
 mc_settimeofday(const struct timeval *tv, const struct timezone *tz)
 {
-	if (tv != NULL)
+	if (tv != NULL) {
+		mc_event_set_time(tv);	/* call before setting the system clock */
 		wmtime_time_set_posix(tv->tv_sec);
+	}
 	if (tz != NULL) {
 		char buf[13];
 		snprintf(buf, sizeof(buf), "%d", tz->tz_minuteswest);
@@ -83,10 +86,11 @@ struct mc_tm *
 mc_localtime(const time_t *t)
 {
 	const char *td = mc_env_get_default(MC_TIME_DIFF);
+	const char *dst = mc_env_get_default(MC_TIME_DST);
 	time_t tt;
 
 	if (td != NULL) {
-		tt = *t + atoi(td) * 60;
+		tt = *t + atoi(td) * 60 + (dst != NULL ? atoi(dst) * 60 : 0);
 		t = &tt;
 	}
 	return mc_gmtime(t);
@@ -162,8 +166,13 @@ mc_strftime(char *s, size_t maxsize, const char *format, const struct mc_tm *tim
 
 				case 'z': {
 					const char *td = mc_env_get_default(MC_TIME_DIFF);
-					outs = temp;
-					snprintf(temp, sizeof(temp), "%d", td ? atoi(td) / 60 : 0);
+					if (td != NULL) {
+						int d = atoi(td);
+						outs = temp;
+						snprintf(temp, sizeof(temp), "%s%d", d >= 0 ? "+" : "", d / 60);
+					}
+					else
+						outs = "";
 					break;
 				}
 				case 'Z': {

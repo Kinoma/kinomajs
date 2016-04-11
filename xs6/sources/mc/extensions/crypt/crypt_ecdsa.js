@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,7 +18,6 @@ import Crypt from "crypt";
 
 export default class ECDSA {
 	constructor(key, priv) {
-		super();
 		this.u = priv ? key.du: key.Qu;
 		this.G = key.G;
 		this.orderSize = key.n.sizeof();

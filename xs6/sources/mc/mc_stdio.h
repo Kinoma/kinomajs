@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +31,8 @@
 
 #include "mc_memory.h"
 
+#define	MC_LONG_PATH	1
+
 #if mxMC
 
 #if WMSDK_VERSION < 212000
@@ -59,18 +61,24 @@ typedef struct mc_dir MC_DIR;
 #define stdout	((MC_FILE *)1)
 #define stderr	((MC_FILE *)2)
 #define stdlcd	((MC_FILE *)3)
+#define stdaux	((MC_FILE *)4)
 extern int fprintf(MC_FILE *stream, const char *format, ...);
 extern int vfprintf(MC_FILE *stream, const char *format, va_list ap);
 #define printf(...)	fprintf(stdout, __VA_ARGS__)
 #define ERANGE	34
 #define DBL_MIN		2.2250738585072015E-308
 #define DBL_MAX		1.7976931348623157E+308
-#define PATH_MAX	(24 /* FT_MAX_FILENAME */ + 8 /* partition name */ + 2)
+#if MC_LONG_PATH
+#define	PATH_MAX	128	/* includes null terminator */
+#else
+#define PATH_MAX	(24 /* FT_MAX_FILENAME */ + 8 /* MAX_NAME */ + 2)
+#endif
 
 #else	/* !mxMC */
 
 #define WMSDK_VERSION 2040000
 #define FT_MAX_FILENAME 24
+#define MAX_NAME    8	/* partition name */
 struct mc_file;
 typedef struct mc_file MC_FILE;
 struct mc_dir;
@@ -78,9 +86,11 @@ typedef struct mc_dir MC_DIR;
 
 #endif
 
-typedef int (*mc_stdio_puts_t)(const char *str);
-extern void mc_stdio_register(mc_stdio_puts_t f);
-extern void mc_stdio_unregister(mc_stdio_puts_t f);
+extern void mc_stdio_init();
+extern void mc_stdio_fin();
+typedef int (*mc_stdio_puts_t)(const char *str, void *closure);
+extern int mc_stdio_register(mc_stdio_puts_t f, void *closure);
+extern void mc_stdio_unregister(int d);
 
 /*
  * logs
@@ -104,12 +114,12 @@ extern void mc_stdio_unregister(mc_stdio_puts_t f);
 #else
 #define mc_log_error(...)
 #endif
-extern void mc_log_init();
-extern int mc_log_get_enable();
-extern int mc_log_set_enable(int f);
 extern void mc_log_write(void *data, size_t n);
+extern void mc_log_set_enable(int enable);
+extern int mc_log_get_enable();
 
 extern void mc_fatal(const char *fmt, ...);
 extern void mc_exit(int status);
+extern void mc_shutoff();
 
 #endif /* __MC_STDIO_H__ */

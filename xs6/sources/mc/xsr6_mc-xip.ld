@@ -12,7 +12,7 @@ ENTRY(Reset_IRQHandler)
 _estack = 0x20020000;    /* end of 128K SRAM1 */
 
 /* Heap size in bytes */
-_heap_size = (115 * 1024);	/* not exactly the heap size. <= 160k */
+_heap_size = (118 * 1024);	/* not exactly the heap size. <= 160k */
 
 /* Generate a link error if stack don't fit into SRAM.
  * Total stack size requirement will depend on the number of concurrent

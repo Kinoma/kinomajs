@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +20,11 @@
 #undef MC_LOG_VERBOSE
 #define MC_LOG_VERBOSE	3
 #endif
+#define MC_MEM_NOGROW	0
+//#define DEBUG_HEAP_EXTRA	/* defined in heap_4.c */
 
 #include "mc_stdio.h"
+#include "mc_ipc.h"
 #include "xs.h"
 #include "mc_memory.h"
 #include <FreeRTOS.h>
@@ -40,6 +43,8 @@ struct overhead {
 #define HEAP_ALIGNMENT	sizeof(struct overhead)
 #define MC_MEM_SIZE(h)	((h->size & ~0x01) - sizeof(struct overhead))
 
+static unsigned int stack_base;
+
 static int total_memory = 0;
 static int seqnum = 0;
 
@@ -53,11 +58,18 @@ static uint8_t *heap2_ptr = NULL, *heap2_pend = NULL;
 #define roundup(x, y)	((((x) + (y) - 1) / (y)) * (y))
 #endif
 
+static mc_semaphore_t *mc_memory_sem = NULL;
+
+extern void *get_current_task_stack();
+
 void
 mc_minit(xsCreation *allocation)
 {
 	size_t n;
 	void *p;
+	static mc_semaphore_t sem;
+
+	stack_base = (unsigned int)get_current_task_stack();
 
 	p = pvPortMalloc(1);	/* initialize the heap just in case no one has called ever malloc so far */
 	vPortFree(p);
@@ -69,21 +81,37 @@ mc_minit(xsCreation *allocation)
 	/* assign all the 3rd heap to slots */
 	n = heap2_pend - heap2_ptr;
 	allocation->initialHeapCount = n / sizeof(xsSlot);
+
+	if (mc_semaphore_create(&sem) == 0) {
+		mc_memory_sem = &sem;
+		mc_semaphore_post(mc_memory_sem);
+	}
+
 #if MC_MEM_VERBOSE > 0
 	mc_log_debug("xsAllocation: initial: chunk = %d, heap = %d\n", allocation->initialChunkSize, allocation->initialHeapCount);
 #endif
 }
 
 void
+mc_mfin()
+{
+	if (mc_memory_sem != NULL) {
+		mc_semaphore_delete(mc_memory_sem);
+		mc_memory_sem = NULL;
+	}
+}
+
+void
 mc_mstats(int verbose)
 {
-	unsigned int status = os_enter_critical_section();
 	const heapAllocatorInfo_t *hip = getheapAllocInfo();
 	heapAllocatorInfo_t hi = *hip;
-	os_exit_critical_section(status);
+	int selftest = vHeapSelfTest(0);
 
+	if (selftest != 0)
+		fprintf(stdout, "!!! system heap broken !!!\n");
 	if (verbose) {
-		fprintf(stdout, "=== heap info ===\r\n");
+		fprintf(stdout, "=== heap info ===\n");
 		fprintf(stdout, "malloc: %d free, %d allocations, %d biggest block, %d by Fsk\n", hi.freeSize, hi.totalAllocations, hi.biggestFreeBlockAvailable, total_memory);
 		fprintf(stdout, "heap2: 0x%x, 0x%x, %d remains\n", heap_ptr, heap_pend, heap_pend - heap_ptr);
 		fprintf(stdout, "heap3: 0x%x, %d remains\n", heap2_ptr, heap2_pend - heap2_ptr);
@@ -131,6 +159,12 @@ mc_add_mblock(void *mem, size_t sz)
 static int
 mc_mgrow(size_t size)
 {
+#if !MC_MEM_NOGROW
+	int ret = 0;
+	uint8_t *brk = NULL;
+
+	if (mc_memory_sem)
+		mc_semaphore_wait(mc_memory_sem);
 	size += sizeof(struct overhead) * 3;
 	if (size < MIN_GROW_SIZE)
 		size = MIN_GROW_SIZE;
@@ -140,12 +174,23 @@ mc_mgrow(size_t size)
 	mc_log_debug("=== grow: %d ===\n", size);
 #endif
 	if (heap2_ptr + size <= heap2_pend) {
-		uint8_t *brk = heap2_ptr;
+		brk = heap2_ptr;
 		heap2_ptr += size;
-		mc_add_mblock(brk, size);
-		return 1;
 	}
+	else if (heap_pend - size >= heap_ptr) {
+		brk = heap_pend - size;
+		heap_pend -= size;
+	}
+	if (brk != NULL) {
+		mc_add_mblock(brk, size);
+		ret = 1;
+	}
+	if (mc_memory_sem)
+		mc_semaphore_post(mc_memory_sem);
+	return ret;
+#else
 	return 0;
+#endif
 }
 
 static void
@@ -368,4 +413,13 @@ void
 mc_xs_sbrk(void *p)
 {
 	heap_ptr = p;
+}
+
+void 
+mc_check_stack()
+{
+	void *p;
+
+	if ((unsigned int)&p < stack_base - MC_STACK_SIZE)	/* not accurate */
+		mc_fatal("stack overflow\n");
 }

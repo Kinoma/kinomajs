@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -301,6 +301,42 @@ sha256_fin(struct sha256 *s, uint8_t *dgst)
 	}
 }
 
+static const uint32_t sha224_iv[] = {
+	0xc1059ed8,
+	0x367cd507,
+	0x3070dd17,
+	0xf70e5939,
+	0xffc00b31,
+	0x68581511,
+	0x64f98fa7,
+	0xbefa4fa4,
+};
+
+void
+sha224_create(struct sha256 *s)
+{
+	int i;
+
+	s->len = 0;
+	for (i = 0; i < SHA256_NUMSTATE; i++)
+		s->state[i] = sha224_iv[i];
+}
+
+void
+sha224_update(struct sha256 *s, const void *data, uint32_t size)
+{
+	sha256_update(s, data, size);
+}
+
+void
+sha224_fin(struct sha256 *s, uint8_t *dgst)
+{
+	uint8_t dgst256[SHA256_DGSTSIZE];
+
+	sha256_fin(s, dgst256);
+	memcpy(dgst, dgst, SHA224_DGSTSIZE);
+}
+
 static const uint64_t sha512_k[] = {
 	0x428a2f98d728ae22ULL, 0x7137449123ef65cdULL, 0xb5c0fbcfec4d3b2fULL, 0xe9b5dba58189dbbcULL,
 	0x3956c25bf348b538ULL, 0x59f111f1b605d019ULL, 0x923f82a4af194f9bULL, 0xab1c5ed5da6d8118ULL,
@@ -474,4 +510,40 @@ sha512_fin(struct sha512 *s, uint8_t *dgst)
 		*dgst++ = w >> 8;
 		*dgst++ = w;
 	}
+}
+
+static const uint64_t sha384_iv[] = {
+	0xcbbb9d5dc1059ed8ULL,
+	0x629a292a367cd507ULL,
+	0x9159015a3070dd17ULL,
+	0x152fecd8f70e5939ULL,
+	0x67332667ffc00b31ULL,
+	0x8eb44a8768581511ULL,
+	0xdb0c2e0d64f98fa7ULL,
+	0x47b5481dbefa4fa4ULL,
+};
+
+void
+sha384_create(struct sha512 *s)
+{
+	int i;
+
+	s->len[0] = s->len[1] = 0;
+	for (i = 0; i < SHA512_NUMSTATE; i++)
+		s->state[i] = sha384_iv[i];
+}
+
+void
+sha384_update(struct sha512 *s, const void *data, uint32_t size)
+{
+	sha512_update(s, data, size);
+}
+
+void
+sha384_fin(struct sha512 *s, uint8_t *dgst)
+{
+	uint8_t dgst512[SHA512_DGSTSIZE];
+
+	sha512_fin(s, dgst512);
+	memcpy(dgst, dgst512, SHA384_DGSTSIZE);
 }

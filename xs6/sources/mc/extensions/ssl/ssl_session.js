@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,21 +14,17 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-import System from "system";
-import Crypt from "crypt";
-import Arith from "arith";
-import Bin from "bin";
-import SSL from "ssl";
+
 import SSLProtocol from "ssl/protocol";
-import SSLStream from "ssl/stream";
-import CacheManager from "ssl/cache";
-var CertificateManager = require("ssl/cert_" + System.platform);
-import Debug from "debug";
 
 const maxFragmentSize = 16384	// maximum record layer framgment size (not a packet size): 2^14
 
 export default class SSLSession {
 	constructor(options) {
+		let SSL = require.weak("ssl");
+		let CacheManager = require.weak("ssl/cache");
+		let CertificateManager = require.weak("ssl/cert");
+		this.options = options || {};
 		this.packetBuffer = new ArrayBuffer(0);
 		this.handshakeMessages = undefined;
 		this.clientSessionID = this.serverSessionID = undefined;
@@ -39,10 +35,12 @@ export default class SSLSession {
 		this.clientCipher = null;
 		this.serverCipher = null;
 		this.alert = undefined;
-		this.protocolVersion = SSL.protocolVersion;
+		this.protocolVersion = this.options.protocolVersion || SSL.protocolVersion;
+		this.minProtocolVersion = this.options.protocolVersion || SSL.minProtocolVersion;	// only for the server side
+		this.maxProtocolVersion = SSL.maxProtocolVersion;	// ditto
 		this.applicationData = undefined;
-		this.options = options || {};
 		this.cacheManager = (this.options.cache === undefined || this.options.cache) && new CacheManager();
+		this.certificateManager = new CertificateManager(options);
 	};
 	initiateHandshake(s) {
 		this.connectionEnd = true;
@@ -72,10 +70,11 @@ export default class SSLSession {
 			}
 			else {
 				// assign a new one
+				let Arith = require.weak("arith");
 				this.serverSessionID = (new Arith.Integer(((new Date()).valueOf()).toString())).toChunk();
 				this.doProtocol(s, handshakeProtocol.serverHello);
 				// S -> C: Certificate   (always -- i.e. not support anonymous auth.)
-				var certs = CertificateManager.getCerts();
+				var certs = this.certificateManager.getCerts();
 				if (!certs || !certs.length)
 					throw new Error("SSL: client_hello: no certificate");
 				this.doProtocol(s, handshakeProtocol.certificate, certs);
@@ -96,6 +95,7 @@ export default class SSLSession {
 			this.doProtocol(s, handshakeProtocol.finished);
 			break;
 		case handshakeProtocol.finished.msgType:		// C, S
+			let Bin = require.weak("bin");
 			var resumed = this.clientSessionID && Bin.comp(this.clientSessionID, this.serverSessionID) == 0;
 			if (!(this.connectionEnd ^ resumed)) {
 				this.doProtocol(s, SSLProtocol.changeCipherSpec);
@@ -111,7 +111,7 @@ export default class SSLSession {
 				this.cacheManager = undefined;
 			}
 			// set undefined to instance variables that are no longer necessary
-			this.handshakeMessages = this.clientSessionID = this.serverSessionID = this.clientCerts = this.myCert = undefined;
+			this.handshakeMessages = this.clientSessionID = this.serverSessionID = this.clientCerts = this.myCert = this.certificateManager = undefined;
 			break;
 		default:
 			if (n == 0)
@@ -124,6 +124,11 @@ export default class SSLSession {
 			}
 			state = 1;
 			break;
+		}
+		if (this.alert) {
+			if (this.alert.description != SSLProtocol.alert.close_notify)
+				this.doProtocol(s, SSLProtocol.alert, this.alert.level, this.alert.description);
+			return true;	// stop handshaking right away
 		}
 		if (state == 0)
 			this.handshakeProcess = -1;
@@ -214,6 +219,7 @@ export default class SSLSession {
 		this.traceDirection = direction;
 	};
 	traceProtocol(protocol) {
+		var Debug = require.weak("debug");
 		var muse = Debug.report(true);
 		var indent = "";
 		for (var n = this.traceLevel + 1; --n >= 0;)

@@ -97,7 +97,7 @@ int board_button_pressed(int pin)
 void board_gpio_power_on()
 {
 #if K5
-	/* keep the buttons 22 (and 23?) for the general purpose */
+	PMU_ConfigWakeupPin(PMU_GPIO22_INT, PMU_WAKEUP_LEVEL_LOW);
 #else
 	/* RF_CTRL pins */
 	GPIO_PinMuxFun(GPIO_44, PINMUX_FUNCTION_7);
@@ -177,7 +177,7 @@ output_gpio_cfg_t board_led_1()
 {
 	output_gpio_cfg_t gcfg = {
 #if K5
-		.gpio = GPIO_16,
+		.gpio = GPIO_38,
 #else
 		.gpio = GPIO_40,
 #endif
@@ -191,7 +191,7 @@ output_gpio_cfg_t board_led_2()
 {
 	output_gpio_cfg_t gcfg = {
 #if K5
-		.gpio = GPIO_17,
+		.gpio = GPIO_40,
 #else
 		.gpio = GPIO_41,
 #endif
@@ -205,7 +205,7 @@ output_gpio_cfg_t board_led_3()
 {
 	output_gpio_cfg_t gcfg = {
 #if K5
-		.gpio = GPIO_23,
+		.gpio = GPIO_41,
 		.type = GPIO_ACTIVE_LOW,
 #else
 		.gpio = -1,
@@ -248,12 +248,11 @@ void board_led_off(int pin)
 
 int board_button_1()
 {
-#if K5
-	GPIO_PinMuxFun(GPIO_22, GPIO22_GPIO22);
-	return GPIO_22;
-#else
+#if !K5
 	GPIO_PinMuxFun(GPIO_26, GPIO26_GPIO26);
 	return GPIO_26;
+#else
+	return -WM_FAIL;
 #endif
 }
 
@@ -284,5 +283,9 @@ int board_wakeup0_functional()
 
 int board_wakeup1_functional()
 {
+#if K5
+	return false;
+#else
 	return true;
+#endif
 }

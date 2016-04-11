@@ -1,6 +1,6 @@
 //@module
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -182,7 +182,10 @@ exports.set = function(parameters){
 		Tried differnent values such as 500ms, 200ms, 250ms and 300ms. 
 		300ms is the minimum to make the serial camera work. 
 	*/
-	sensorUtils.mdelay(300);
+	if ('delay' in parameters)
+		sensorUtils.mdelay(parameters.delay); // JIG should specify its delay here
+	else
+		sensorUtils.mdelay(300); // if delay is not specified, default is 300 ms to be sensor safe
 }
 
 exports.close = function(){

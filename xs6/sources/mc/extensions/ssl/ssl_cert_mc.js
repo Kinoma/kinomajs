@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,40 +14,48 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+
 // for MC
 import Files from "files";
+import File from "file";
 import Crypt from "crypt";
-import Bin from "bin";
-import Environment from "env";
 
-var CertificateManager = {
+export default class CertificateManager {
+	constructor(options) {
+		this.registeredCerts = [];
+		if (options.certificate)
+			this.register(options.certificate);
+	};
 	getCerts() {
 		// return the self certs
-		return [Files.readChunk("srvcert.der")];
-	},
+		return [Files.read("srvcert.der")];
+	};
 	getKey(cert) {
+		let Configuration = require.weak("config");
+		let Bin = require.weak("bin");
 		if (!cert) {
 			// return the self key
-			return Crypt.PKCS8.decrypt(Files.readChunk("srvkey.pk8"), (new Environment(this.env, false, true)).get(this.key));
+			return Crypt.PKCS8.decrypt(Files.read("srvkey.pk8"), Configuration.pk8Password);
 		}
 		// look for the key corresponding to the cert
 		// first, search in the registed cert
-		for (var i = 0; i < this._registeredCerts.length; i++) {
-			if (Bin.comp(this._registeredCerts[i], cert) == 0) {
-				var x509 = Crypt.X509.decode(this._registeredCerts[i]);
+		for (var i = 0; i < this.registeredCerts.length; i++) {
+			if (Bin.comp(this.registeredCerts[i], cert) == 0) {
+				var x509 = Crypt.X509.decode(this.registeredCerts[i]);
 				return x509.spki;	// public key only
 			}
 		}
 		// at the moment there is only one key
-		if (Bin.comp(Files.readChunk("clntcert.der"), cert) == 0)
-			return Crypt.PKCS8.decrypt(Files.readChunk("clntkey.pk8"), (new Environment(this.env, false, true)).get(this.key));
-	},
+		if (Bin.comp(Files.read("clntcert.der"), cert) == 0)
+			return Crypt.PKCS8.decrypt(Files.read("clntkey.pk8"), Configuration.pk8Password);
+	};
 	findPreferedCert(types, names) {
 		// MC has only one key pair...
-		return [Files.readChunk("clntcert.der")];
-	},
+		return [Files.read("clntcert.der")];
+	};
 	getIndex(fname, target) {
-		var f = new Files(fname), buf, res = -1;
+		let Bin = require.weak("bin");
+		var f = new File(fname), buf, res = -1;
 		for (var i = 0; buf = f._read(20); i++) {
 			if (Bin.comp(buf, target) == 0) {
 				res = i;
@@ -56,15 +64,15 @@ var CertificateManager = {
 		}
 		f.close();
 		return res;
-	},
+	};
 	findCert(fname, target) {
 		var i = this.getIndex(fname, target);
 		if (i < 0)
 			return;	// undefined
 		var ca = "ca" + i + ".der";
-		return Crypt.X509.decodeSPKI(Files.readChunk(ca));
-	},
-	verify(certs, options) {
+		return Crypt.X509.decodeSPKI(Files.read(ca));
+	};
+	verify(certs, options) {	// @@ support additional certificates
 		var n = certs.length;
 		var x509 = [];
 		for (var i = 0; i < n; i++)
@@ -86,7 +94,7 @@ var CertificateManager = {
 		var issuer = sha1.process(tbs.issuer);
 		var spki = this.findCert("ca.subject", issuer);
 		return spki && this._verify(spki, x509[n - 1]);
-	},
+	};
 	_verify(spki, x509) {
 		var pk;
 		var hash;
@@ -104,6 +112,21 @@ var CertificateManager = {
 			break;
 		case [1, 2, 840, 113549, 1, 1, 11].toString():	// PKCS-1 SHA256 with RSA encryption
 			hash = Crypt.SHA256;
+			pk = Crypt.PKCS1_5;
+			sig = x509.sig;
+			break;
+		case [1, 2, 840, 113549, 1, 1, 12].toString():	// PKCS-1 SHA384 with RSA encryption
+			hash = Crypt.SHA384;
+			pk = Crypt.PKCS1_5;
+			sig = x509.sig;
+			break;
+		case [1, 2, 840, 113549, 1, 1, 13].toString():	// PKCS-1 SHA512 with RSA encryption
+			hash = Crypt.SHA512;
+			pk = Crypt.PKCS1_5;
+			sig = x509.sig;
+			break;
+		case [1, 2, 840, 113549, 1, 1, 14].toString():	// PKCS-1 SHA224 with RSA encryption
+			hash = Crypt.SHA224;
 			pk = Crypt.PKCS1_5;
 			sig = x509.sig;
 			break;
@@ -126,10 +149,8 @@ var CertificateManager = {
 		}
 		var H = (new hash()).process(x509.tbs);
 		return (new pk(spki, false, [] /* any oid */)).verify(H, sig);
-	},
+	};
 	register(cert) {
-		this._registeredCerts.push(cert);
-	},
-	_registeredCerts: [],
+		this.registeredCerts.push(cert);
+	};
 };
-export default CertificateManager;

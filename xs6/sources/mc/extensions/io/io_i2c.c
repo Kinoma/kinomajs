@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -141,6 +141,7 @@ i2c_xmit_ready(wm_i2c *i2c, uint32_t tout)
 	return true;
 }
 
+#if I2C_READCMD_AHEAD
 static void
 i2c_read_start(wm_i2c *i2c)
 {
@@ -165,6 +166,7 @@ i2c_read_start(wm_i2c *i2c)
 		}
 	}
 }
+#endif
 
 static int
 i2c_write_byte(wm_i2c *i2c, int b)
@@ -309,18 +311,22 @@ mc_i2c_read(wm_i2c *i2c, int reg, uint8_t *data, int nbytes)
 		if (!i2c_write_bytes(i2c, reg, NULL, 0))
 			goto bail;
 	}
+#if I2C_READCMD_AHEAD
 	if (nbytes > 0) {
 		i2c_read_start(i2c);	/* issue the first READ CMD in advance to keep it always in the txFIFO */
 		nwritten++;
 	}
+#endif
 	for (i = 0; i < nbytes; i++) {
 		i2c_timer_start(i2c);
+#if I2C_READCMD_AHEAD
 		if (nwritten < nbytes) {
 			i2c_read_start(i2c);
 			nwritten++;
 		}
+#endif
 		while (!(i2c->reg->STATUS.WORDVAL & 0x08 /* RFNE */)) {
-#if 0
+#if !I2C_READCMD_AHEAD
 			if (nwritten < nbytes) {
 				if ((i2c->reg->STATUS.WORDVAL & (0x08|0x02)) == 0x02  /* RFNE | TFNF */) {
 					i2c->reg->DATA_CMD.WORDVAL = 0x100;	/* READ CMD */

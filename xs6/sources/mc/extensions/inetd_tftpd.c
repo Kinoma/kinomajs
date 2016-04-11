@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +23,12 @@ MC_MOD_DECL(tftpd);
 #endif
 
 void
-xs_tftpd_start(xsMachine *the)
+xs_tftpd_constructor(xsMachine *the)
+{
+}
+
+void
+xs_tftpd_connect(xsMachine *the)
 {
 	int s;
 	void *instance;
@@ -32,9 +37,12 @@ xs_tftpd_start(xsMachine *the)
 	xsGet(xsVar(0), xsArg(0), xsID("nativeSocket"));
 	s = xsToInteger(xsVar(0));
 	instance = tftpd_connect(s, the, &xsThis);
-	if (instance == NULL)
-		mc_xs_throw(the, "tftpd: no mem");
+	if (instance == NULL) {
+		xsSetBoolean(xsResult, 0);
+		return;
+	}
 	xsSetHostData(xsThis, instance);
+	xsSetBoolean(xsResult, 1);
 }
 
 void
@@ -42,4 +50,11 @@ xs_tftpd_destructor(void *data)
 {
 	if (data != NULL)
 		tftpd_close(data);
+}
+
+void
+xs_tftpd_close(xsMachine *the)
+{
+	tftpd_close(xsGetHostData(xsThis));
+	xsSetHostData(xsThis, NULL);
 }

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,9 +26,10 @@ typedef struct {
 	unsigned int nblocks;
 } xsMemoryUse;
 extern void xsReportMemoryUse(xsMachine *the, xsMemoryUse *slot, xsMemoryUse *chunk);
-extern int xsStartDebug(xsMachine *the, const char *host);
+extern int xsStartDebug(xsMachine *the, const char *host, const char *name);
 extern void xsStopDebug(xsMachine *the);
 extern xsBooleanValue xsGetCollectFlag(xsMachine *the);
+extern xsBooleanValue xsVTrace(xsMachine *the, const char *format, ...);
 
 #undef fxPop
 #undef fxPush

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,10 +15,11 @@
  *     limitations under the License.
  */
 import TimeInterval from "timeinterval";
-import Launcher from "launcher";
+//import Launcher from "launcher";
 
 export function setInterval(cb, t)
 {
+	let Launcher = require.weak("launcher");
 	var o = new TimeInterval(cb, t);
 	o.start();
 	Launcher.add(o, function(o) {
@@ -29,6 +30,7 @@ export function setInterval(cb, t)
 
 export function clearInterval(o)
 {
+	let Launcher = require.weak("launcher");
 	o.close();
 	Launcher.remove(o);
 }
@@ -43,6 +45,7 @@ export function setTimeout(cb, t)
 
 export function clearTimeout(o)
 {
+	let Launcher = require.weak("launcher");
 	o.close();
 	Launcher.remove(o);
 }

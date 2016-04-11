@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,16 +16,16 @@
  */
 import System from "system";
 
+const DISCONNECTED = 0;
 const _GPIO = 1 << 4;
 const _I2C = 2 << 4;
 const _UART = 3 << 4;
 const _A2D = 4 << 4;
 const _GPT = 5 << 4;
 
-const iodir = "io/";
-
-var GPIOPin = {
+let GPIOPin = {
 	// GPIO functions
+	DISCONNECTED: 0,
 	GPIO_IN: _GPIO | 0,
 	GPIO_OUT: _GPIO | (1 << 8),
 	I2C_SDA: _I2C | 0,
@@ -36,31 +36,16 @@ var GPIOPin = {
 	UART_RXD: _UART | 3,
 	A2D_IN: _A2D,
 	GPT_IO: _GPT,
+	path: "io/",
 
 	// event type
 	RISING_EDGE: 0x01,
 	FALLING_EDGE: 0x02,
 
-	led(n, on) {
-		if (System.device != "K5")
-			return;
-		var pin;
-		switch (n) {
-		case 0: pin = 40; break;
-		case 1: pin = 41; break;
-		default: return;
-		}
-		this.write(pin, !on);
-	},
-	enable_leds(){
-		if (System.device == "K5") {
-			this.pinmux([[40, GPIOPin.GPIO_OUT], [41, GPIOPin.GPIO_OUT]]);
-		}
-	},
 	_pinmap(a) {
-		var pin = a[0];
-		var gfunc = a[1], pfunc = -1;
-		var opt;
+		let pin = a[0];
+		let gfunc = a[1], pfunc = -1;
+		let opt;
 		switch (System.device) {
 		case "MW300":
 		case "K5":
@@ -102,11 +87,11 @@ var GPIOPin = {
 			case _UART:
 				pfunc = this.PINMUX_FUNCTION_2;
 				// port
-				if ([0, 1, 2, 3, 23, 24, 27, 30, 31, 32, 33, 37].indexOf(pin) != -1)
+				if ([2, 3, 24, 27, 32, 33].indexOf(pin) != -1)
 					opt = 0;	// UART0_ID
-				else if ([11, 12, 13, 14, 35, 36, 38, 39, 42, 43, 44, 45].indexOf(pin) != -1)
+				else if ([13, 14, 38, 39, 44, 45].indexOf(pin) != -1)
 					opt = 1;	// UART1_ID
-				else if ([7, 8, 9, 10, 46, 47, 48, 49].indexOf(pin) != -1)
+				else if ([9, 10, 48, 49].indexOf(pin) != -1)
 					opt = 2;	// UART2_ID
 				break;
 			case _GPT:
@@ -139,6 +124,9 @@ var GPIOPin = {
 					pfunc = this.PINMUX_FUNCTION_1;
 				}
 				break;
+			case DISCONNECTED:
+			default:
+				return this._pinmap([pin, this.GPIO_IN]);	// set all disconnected pins to GPIO_IN
 			}
 			break;
 		default:
@@ -152,87 +140,80 @@ var GPIOPin = {
 		return pinarray.map(e => this._pinmap(e));
 	},
 	pinmux(pinarray) {
-		pinarray.forEach(function(e) {
-			var pin = e[0];
-			if (this._pins[pin])
-				this._pins[pin].close();
-		}, this);
-		this._pinmux(this.pinmap(pinarray));
+		if (!pinarray) {
+			this._pins.forEach(e => {
+				if (e.instance)
+					e.instance.close();
+			});
+			this._pins.length = 0;
+			return;
+		}
+		pinarray.forEach(e => {
+			let pin = e[0];
+			this.close(pin);
+			this._pins[pin] = {func: e[1]};
+		});
+		let pinmap = this.pinmap(pinarray);
+		this._pinmux(pinmap);
+		return pinmap;
+	},
+	getPinmux() {
+		return this._pins.map(e => e.func);
 	},
 	_pinmux(pinarray) @ "xs_pinmux",
 	write(pin, val) @ "xs_pin_write",
 	read(pin) @ "xs_pin_read",
-	_newEvent(pin, type, f) @ "xs_pin_newEvent",
-	_pins: [],
+	_pins: System.pins,
 	event(pin, type, f) {
 		if (type && f) {
-			if (this._pins[pin])
-				this._pins[pin].close();
+			let newEvent = require.weak("pinmux_event");
 			this.pinmux([[pin, GPIOPin.GPIO_IN]]);
-			this._pins[pin] = this._newEvent(pin, type, f);
+			this._pins[pin].instance = newEvent(pin, type, f);
 		}
 		else
 			this.close(pin);
 	},
 	a2d(o) {
-		var A2D = require.weak(iodir + "A2D");
-		var pin = o.pin;
-		if (this._pins[pin])
-			this._pins[pin].close();
-		this._pinmux([[pin, this.A2D_IN]]);
-		return this._pins[pin] = new A2D(0, pin - 42);	// only ID=0 is available, convert the pin number to the channel number
+		let A2D = require.weak(this.path + "A2D");
+		let pin = o.pin;
+		this.pinmux([[o.pin, this.A2D_IN]]);
+		return this._pins[pin].instance = new A2D(0, pin - 42);	// only ID=0 is available, convert the pin number to the channel number
 	},
 	i2c(o) {
-		var I2C = require.weak(iodir + "I2C");
-		var sda = o.sda, scl = o.scl, addr = o.addr;
-		if (this._pins[sda]) {
-			if (!(this._pins[sda] instanceof I2C))
-				this._pins[sda].close();
-		}
-		if (this._pins[scl]) {
-			if (!(this._pins[scl] instanceof I2C))
-				this._pins[scl].close();
-		}
-		var pinmap = this.pinmap([[sda, this.I2C_SDA], [scl, this.I2C_SCL]]);
+		let I2C = require.weak(this.path + "I2C");
+		let sda = o.sda, scl = o.scl, addr = o.addr;
+		let pinmap = this.pinmux([[sda, this.I2C_SDA], [scl, this.I2C_SCL]]);
 		if (pinmap[0][2] != pinmap[1][2])
 			// different port
 			return;
-		this._pinmux(pinmap);
-		return this._pins[sda] = this._pins[scl] = new I2C(pinmap[0][2], addr);
+		return this._pins[sda].instance = this._pins[scl].instance = new I2C(pinmap[0][2], addr);
 	},
 	uart(o) {
-		var Serial = require.weak(iodir + "Serial");
-		var rx = o.rx, tx = o.tx, baud = o.baud;
-		if (this._pins[rx])
-			this._pins[rx].close();
-		if (this._pins[tx])
-			this._pins[tx].close();
-		var pinmap = this.pinmap([[rx, this.UART_RXD], [tx, this.UART_TXD]]);
+		let Serial = require.weak(this.path + "Serial");
+		let rx = o.rx, tx = o.tx, baud = o.baud;
+		let pinmap = this.pinmux([[rx, this.UART_RXD], [tx, this.UART_TXD]]);
 		if (pinmap[0][2] != pinmap[1][2])
 			// different port
 			return;
-		this._pinmux(pinmap);
-		return this._pins[rx] = this._pins[tx] = new Serial(pinmap[0][2], baud);
+		return this._pins[rx].instance = this._pins[tx].instance = new Serial(pinmap[0][2], baud);
 	},
 	gpt(o) {
-		var GPT = require.weak(iodir + "GPT");
-		var pin = o.pin;
-		if (this._pins[pin])
-			this._pins[pin].close();
-		var pinmap = this.pinmap([[pin, this.GPT_IO]]);
-		this._pinmux(pinmap);
-		var opt = pinmap[0][2];
-		return this._pins[pin] = new GPT(opt[0] /* timer ID */, opt[1] /* channel */);
+		let GPT = require.weak(this.path + "GPT");
+		let pin = o.pin;
+		let pinmap = this.pinmux([[pin, this.GPT_IO]]);
+		let opt = pinmap[0][2];
+		return this._pins[pin].instance = new GPT(opt[0] /* timer ID */, opt[1] /* channel */);
 	},
 	close(pin) {
-		if (this._pins[pin]) {
-			this._pins[pin].close();
-			delete this._pins[pin];
+		if (this._pins[pin] && this._pins[pin].instance) {
+			this._pins[pin].instance.close();
+			delete this._pins[pin].instance;
 		}
 	},
 	_init() @ "xs_pin_init",
 };
 
 GPIOPin._init();
+delete GPIOPin._init;
 
 export default GPIOPin;

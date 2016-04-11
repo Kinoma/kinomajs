@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,24 @@
  *     limitations under the License.
  */
 var Bin = {
-	comp(a1, a2) {
+	comp(a1, a2, n = 0) {
 		var i1 = new Uint8Array(a1), i2 = new Uint8Array(a2);
-		if (i1.length > i2.length)
-			return 1;
-		else if (i1.length < i2.length)
-			return -1;
-		for (var i = 0, len = i1.length; i < len; i++) {
+		if (n > 0) {
+			if (i1.length < n && i2.length < n)
+				;	// fall thru
+			else if (i1.length < n)
+				return -1;
+			else if (i2.length < n)
+				return 1;
+		}
+		else {
+			if (i1.length > i2.length)
+				return 1;
+			else if (i1.length < i2.length)
+				return -1;
+			n = i1.length;
+		}
+		for (var i = 0; i < n; i++) {
 			if (i1[i] != i2[i])
 				return i1[i] - i2[i];
 		}
@@ -37,5 +48,20 @@ var Bin = {
 	},
 	encode(buf) @ "xs_bin_encode",
 	decode(str) @ "xs_bin_decode",
+	/**
+	 * generate ArrayBuffer with the value using minimum size but greater than 1
+	 * @param number val 			value to be encoded.
+	 * @param bool littleEndian		value will encoded in little endian or not.
+	 * @return ArrayBuffer
+	 */
+	num2bin(val, littleEndian=false) {
+		let blob = new ArrayBuffer(4);
+		let view = new DataView(blob);
+		view.setUint32(0, val, littleEndian);
+
+		let size = (val <= 0xff ? 1 : val <= 0xffff ? 2 : val <= 0xffffff ? 3 : 4);
+		let offset = littleEndian ? 0 : 4 - size;
+		return blob.slice(offset, offset + size);
+	},
 };
 export default Bin;

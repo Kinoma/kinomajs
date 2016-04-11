@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,15 +29,39 @@ xs_env_get(xsMachine *the)
 {
 	mc_env_t *env;
 	const char *name, *val;
+	int typeOf;
 
 	if (xsToInteger(xsArgc) < 1)
-		return;
+		goto bail;
+
 	env = xsGetHostData(xsThis);
-	name = xsToString(xsArg(0));
-	if ((val = mc_env_get(env, name)) != NULL)
-		xsSetString(xsResult, (xsStringValue)val);
-	else
-		xsSetNull(xsResult);
+	typeOf = xsTypeOf(xsArg(0));
+	if ((xsIntegerType == typeOf) || (xsNumberType == typeOf)) {
+		char *buf;
+		int index = xsToInteger(xsArg(0));
+		if ((buf = mc_env_getbuf(env)) == NULL)
+			mc_xs_throw(the, "mc_env: no buf");
+
+		while (*buf != '\0') {
+			if (0 == index--) {
+				xsSetString(xsResult, buf);
+				return;
+			}
+
+			buf += strlen(buf) + 1;
+			buf += strlen(buf) + 1;
+		}
+	}
+	else {
+		name = xsToString(xsArg(0));
+		if ((val = mc_env_get(env, name)) != NULL) {
+			xsSetString(xsResult, (xsStringValue)val);
+			return;
+		}
+	}
+
+bail:
+	xsSetNull(xsResult);
 }
 
 void
@@ -45,15 +69,25 @@ xs_env_set(xsMachine *the)
 {
 	mc_env_t *env;
 	char *val, *name;
+	int argc = xsToInteger(xsArgc);
 
-	if (xsToInteger(xsArgc) < 2)
+	if (argc < 1)
 		return;
 	env = xsGetHostData(xsThis);
-	if ((val = mc_strdup(xsToString(xsArg(1)))) == NULL)
-		return;
-	name = xsToString(xsArg(0));
-	mc_env_set(env, name, val);
-	mc_free(val);
+	if (1 == argc || xsTypeOf(xsArg(1)) == xsUndefinedType) {
+		int result;
+
+		name = xsToString(xsArg(0));
+		result = mc_env_unset(env, name);
+		xsSetBoolean(xsResult, result == 0);
+	}
+	else {
+		if ((val = mc_strdup(xsToString(xsArg(1)))) == NULL)
+			return;
+		name = xsToString(xsArg(0));
+		mc_env_set(env, name, val);
+		mc_free(val);
+	}
 }
 
 void
@@ -67,21 +101,6 @@ xs_env_save(xsMachine *the)
 }
 
 void
-xs_env_unset(xsMachine *the)
-{
-	mc_env_t *env;
-	char *name;
-	int result;
-
-	if (xsToInteger(xsArgc) < 1)
-		return;
-	env = xsGetHostData(xsThis);
-	name = xsToString(xsArg(0));
-	result = mc_env_unset(env, name);
-	xsSetBoolean(xsResult, result == 0);
-}
-
-void
 xs_env_constructor(xsMachine *the)
 {
 	int ac = xsToInteger(xsArgc);
@@ -90,34 +109,33 @@ xs_env_constructor(xsMachine *the)
 	int encrypt = ac > 2 && xsTest(xsArg(2));
 	mc_env_t *env;
 
+	if (mc_env_init())
+		mc_xs_throw(the, "mc_env: init fail");
+
 	if (strcmp(partname, MC_ENV_DEFAULT_PATH) == 0)
 		env = NULL;
 	else {
 		if ((env = mc_malloc(sizeof(mc_env_t))) == NULL)
 			mc_xs_throw(the, "mc_env: no mem");
 		if (mc_env_new(env, partname, encrypt) != 0)
-			mc_xs_throw(the, "mc_env: init fail");
+			mc_xs_throw(the, "mc_env: new fail");
 	}
 	mc_env_autosave(env, autosave);
 	xsSetHostData(xsThis, env);
 }
 
 void
-xs_env_clear(xsMachine *the)
-{
-	mc_env_t *env = xsGetHostData(xsThis);
-	int result;
-
-	result = mc_env_clear(env);
-	xsSetBoolean(xsResult, result == 0);
-}
-
-void
 xs_env_close(xsMachine *the)
 {
 	mc_env_t *env = xsGetHostData(xsThis);
+	int argc = xsToInteger(xsArgc);
+	int result = 0;
+
+	if (argc && xsTest(xsArg(0)))
+		result = mc_env_clear(env);
 
 	mc_env_free(env);
+	xsSetBoolean(xsResult, result == 0);
 }
 
 void
@@ -172,15 +190,4 @@ xs_env_dump(xsMachine *the)
 	mc_env_t *env = xsGetHostData(xsThis);
 
 	mc_env_dump(env, xsToInteger(xsArgc) > 0 && xsToBoolean(xsArg(0)));
-}
-
-void
-xs_env_init(xsMachine *the)
-{
-	static int initialized = 0;
-
-	if (!initialized) {
-		mc_env_init();
-		initialized++;
-	}
 }

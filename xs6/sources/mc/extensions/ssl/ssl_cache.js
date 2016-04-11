@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,22 +25,16 @@ export default class CacheManager {
 		var cache = this.cache.get(hostname);
 		if (cache) {
 			var o = JSON.parse(cache);
-			o.id = Bin.decode(o.id);
-			o.secret = Bin.decode(o.secret);
-			return o;
+			return {id: Bin.decode(o.id), secret: Bin.decode(o.secret)};
 		}
 	};
 	getByID(id) {
 		var eid = Bin.encode(id);
-		for (var iter = this.cache.getIterator(), name; (name = iter.next());) {
+		for (let name of this.cache) {
 			var cache = this.cache.get(name);
 			var o = JSON.parse(cache);
-			if (o && typeof o == "object" && o.id == eid) {
-				o.id = id;	// decoded ID
-				o.secret = Bin.decode(o.secret);
-				o.name = name;
-				return o;
-			}
+			if (o && typeof o == "object" && o.id == eid)
+				return {id: id, secret: Bin.decode(o.secret), name: name};
 		}
 	};
 	saveSession(host, id, secret) {
@@ -49,6 +43,6 @@ export default class CacheManager {
 	deleteSessionID(id) {
 		var o = this.getByID(id);
 		if (o)
-			this.cache.unset(o.name);
+			this.cache.set(o.name);
 	};
 };

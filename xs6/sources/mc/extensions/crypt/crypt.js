@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +14,9 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+
+
+/*
 const dir = "crypt/"
 
 var Crypt = {
@@ -28,6 +31,12 @@ var Crypt = {
 	},
 	get SHA512() {
 		return require.weak(dir + "sha512");
+	},
+	get SHA224() {
+		return require.weak(dir + "sha224");
+	},
+	get SHA384() {
+		return require.weak(dir + "sha384");
 	},
 	get MD5() {
 		return require.weak(dir + "md5");
@@ -119,3 +128,30 @@ var Crypt = {
 	},
 };
 export default Crypt;
+
+*/
+
+export default new Proxy({
+}, {
+	get: function(target, key, receiver) {
+		if ("rng" == key) {
+			let rng = require.weak("crypt/rng");
+			return rng.get;
+		}
+
+		//@@ rename modules to eliminate need for this mapping
+		if ("SRPServer" == key)
+			key = "srp";
+		else if ("Ed25519" == key)
+			key = "ed25519_c";
+		else if ("StreamCipher" == key)
+			key = "stream";
+		else if ("BlockCipher" == key)
+			key = "cipher";
+
+		return require.weak("crypt/" + key.toLowerCase());
+	},
+	set: function() {
+		throw new Error("Crypt is read-only");
+	}
+});

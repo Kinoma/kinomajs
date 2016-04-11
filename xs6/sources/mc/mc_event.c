@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,8 @@
 static struct {
 	mc_event_callback_f callback;
 	void *closure;
-} mc_event_callbacks[FD_SETSIZE];	/* assume FD_SETSIZE is small */
+	int fd;		/* only for any */
+} mc_event_callbacks[FD_SETSIZE], mc_event_callback_any;	/* assume FD_SETSIZE is small */
 static int maxfd = -1;
 static fd_set reads, writes;
 
@@ -42,9 +43,13 @@ static struct mc_timeout {
 	mc_timeout_callback_f callback;
 	void *closure;
 	uint64_t timeout;
+	int pri;
 } mc_timeout_callbacks[MC_MAX_TIMEOUTS] = {{0}};
 
-static int g_exit = 0;
+static mc_event_shutdown_callback_t *mc_shutdown_callback = NULL;
+
+static int g_status = -1;
+static int g_exit_status = 0;
 
 static uint64_t
 mc_event_get_time()
@@ -56,11 +61,29 @@ mc_event_get_time()
 }
 
 void
+mc_event_set_time(const struct timeval *tv)
+{
+	/* adjust timer */
+	int i;
+	uint64_t ct = mc_event_get_time();
+	uint64_t nt = (uint64_t)tv->tv_sec * 1000 + tv->tv_usec / 1000;
+	uint64_t diff = nt - ct;
+
+	for (i = 0; i < MC_MAX_TIMEOUTS; i++) {
+		struct mc_timeout *tc = &mc_timeout_callbacks[i];
+		if (tc->status != MC_TIMEOUT_UNUSED)
+			tc->timeout += diff;
+	}
+}
+
+void
 mc_event_shutdown()
 {
 	int i;
 
 	mc_log_debug("event: shutting down\n");
+	if (mc_shutdown_callback != NULL)
+		(*mc_shutdown_callback->f)(g_exit_status, mc_shutdown_callback->closure);
 	for (i = 0; i < FD_SETSIZE; i++) {
 		if (mc_event_callbacks[i].callback != NULL)
 			(*mc_event_callbacks[i].callback)(i, MC_SOCK_CLOSE, mc_event_callbacks[i].closure);
@@ -68,18 +91,25 @@ mc_event_shutdown()
 }
 
 void
-mc_event_exit()
+mc_event_exit(int status)
 {
 	mc_event_shutdown();
-	g_exit++;
+	g_exit_status = status;
+	if (status < 0)
+		g_status++;	/* force quit */
 }
 
 void
 mc_event_register(int s, unsigned int flags, mc_event_callback_f callback, void *closure)
 {
-	if (s < 0 || s >= FD_SETSIZE) {
-		mc_fatal("PANIC! bad fd! %d\n", s);
+	if (flags == MC_SOCK_ANY) {
+		mc_event_callback_any.callback = callback;
+		mc_event_callback_any.closure = closure;
+		mc_event_callback_any.fd = s;
+		return;
 	}
+	if (s < 0 || s >= FD_SETSIZE)
+		mc_fatal("PANIC! bad fd! %d\n", s);
 	if (flags & MC_SOCK_READ)
 		FD_SET(s, &reads);
 	else
@@ -97,6 +127,14 @@ mc_event_register(int s, unsigned int flags, mc_event_callback_f callback, void 
 void
 mc_event_unregister(int s)
 {
+	if (s < 0 || s >= FD_SETSIZE) {
+		if (mc_event_callback_any.fd == s) {
+			mc_event_callback_any.callback = NULL;
+			mc_event_callback_any.closure = NULL;
+			mc_event_callback_any.fd = 0;
+		}
+		return;
+	}
 	FD_CLR(s, &reads);
 	FD_CLR(s, &writes);
 	mc_event_callbacks[s].callback = NULL;
@@ -114,13 +152,15 @@ mc_event_process_timeout(xsMachine *the)
 	uint64_t t_current, t_min, t;
 	struct mc_timeout *tc, *tcmin;
 
+	for (n = 0; n < MC_MAX_TIMEOUTS; n++)
+		mc_timeout_callbacks[n].pri = 0;
 	t_current = mc_event_get_time();
 again:
 	t_min = ~0U;
 	for (n = MC_MAX_TIMEOUTS, tc = mc_timeout_callbacks, tcmin = NULL; --n >= 0; tc++) {
 		if (tc->status == MC_TIMEOUT_RUNNING) {
 			if (tc->timeout <= t_current) {
-				if (tcmin == NULL || tc->timeout < tcmin->timeout)
+				if (tcmin == NULL || tc->timeout < tcmin->timeout || tc->pri < tcmin->pri)
 					tcmin = tc;
 			}
 			else if ((t = tc->timeout - t_current) < t_min)
@@ -129,6 +169,7 @@ again:
 	}
 	if (tcmin != NULL) {
 		(*tcmin->callback)(the, tcmin, tcmin->closure);
+		tcmin->pri++;
 		if (tcmin->status == MC_TIMEOUT_RUNNING)
 			tcmin->timeout = t_current + tcmin->interval;
 		goto again;
@@ -187,6 +228,19 @@ mc_interval_get_interval(struct mc_timeout *tc)
 	return tc->interval;
 }
 
+void
+mc_interval_stat()
+{
+	int i;
+
+	mc_log_notice("current time = %lld\n", mc_event_get_time());
+	for (i = 0; i < MC_MAX_TIMEOUTS; i++) {
+		struct mc_timeout *tc = &mc_timeout_callbacks[i];
+		if (tc->status != MC_TIMEOUT_UNUSED)
+			mc_log_notice("[%d] interval = %ld, timeout = %lld\n", i, tc->interval, tc->timeout);
+	}
+}
+
 typedef struct {
 	mc_event_thread_callback_f callback;
 	void *closure;
@@ -195,7 +249,7 @@ typedef struct {
 } mc_local_event_t;
 #define MC_LOCAL_EVENT_PORT	9999
 
-#define USE_SEMPAHORE	1
+#define USE_SEMAPHORE	0
 
 #if USE_SEMAPHORE
 static void
@@ -303,6 +357,7 @@ mc_delegation_main(void *data)
 		if (mc_queue_recv(&mc_delegation_queue, &ev, sizeof(ev)) == sizeof(ev) && ev.callback != NULL)
 			mc_event_thread_call_local(ev.callback, ev.closure, ev.flags);
 	} while (ev.callback != NULL);
+	mc_queue_delete(&mc_delegation_queue);
 }
 
 static int
@@ -310,7 +365,7 @@ mc_event_delegation_init()
 {
 	if (mc_queue_create(&mc_delegation_queue, sizeof(mc_delegation_event_t)) != 0)
 		return -1;
-	if (mc_thread_create(mc_delegation_main, NULL) != 0) {
+	if (mc_thread_create(mc_delegation_main, NULL, -1) != 0) {
 		mc_queue_delete(&mc_delegation_queue);
 		return -1;
 	}
@@ -332,20 +387,23 @@ static void
 mc_event_delegation_fin()
 {
 	mc_event_delegation_call(NULL, NULL, 0);	/* terminate the thread */
-	mc_queue_delete(&mc_delegation_queue);
 }
 
-void
+int
 mc_event_thread_call(mc_event_thread_callback_f callback, void *closure, uint32_t flags)
 {
+	if (g_status != 0)
+		return -1;
+
 	if (flags & MC_CALL_CRITICAL)
 		mc_event_delegation_call(callback, closure, flags);
 	else
 		mc_event_thread_call_local(callback, closure, flags);
+	return 0;
 }
 
 int
-mc_event_main(xsMachine *the)
+mc_event_main(xsMachine *the, mc_event_shutdown_callback_t *cb)
 {
 	struct timeval tv;
 	fd_set rs, ws;
@@ -355,6 +413,8 @@ mc_event_main(xsMachine *the)
 	struct sockaddr_in sin;
 	int localevent_sock;
 
+	mc_shutdown_callback = cb;
+	g_status = -1;	/* not ready yet */
 	if ((localevent_sock = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
 		return -1;
 	sin.sin_family = AF_INET;
@@ -363,8 +423,8 @@ mc_event_main(xsMachine *the)
 	lwip_bind(localevent_sock, (struct sockaddr *)&sin, sizeof(sin));
 	mc_event_register(localevent_sock, MC_SOCK_READ, mc_event_local_callback, the);
 	mc_event_delegation_init();
-
-	while (!g_exit) {
+	g_status = 0;	/* running */
+	while (!g_status) {
 		timeInterval = mc_event_process_timeout(the);
 		if (timeInterval != 0) {
 			tv.tv_sec = timeInterval / 1000;
@@ -377,6 +437,8 @@ mc_event_main(xsMachine *the)
 		rs = reads;
 		ws = writes;
 		n = lwip_select(maxfd + 1, &rs, &ws, NULL, timeInterval > 0 ? &tv : NULL);
+		if (mc_event_callback_any.callback != NULL)
+			(*mc_event_callback_any.callback)(mc_event_callback_any.fd, (unsigned int)n, mc_event_callback_any.closure);
 		if (n > 0) {
 			for (i = 0; i <= maxfd; i++) {
 				flags = 0;
@@ -396,5 +458,5 @@ mc_event_main(xsMachine *the)
 	}
 	mc_event_delegation_fin();
 	lwip_close(localevent_sock);
-	return g_exit;
+	return g_exit_status;
 }

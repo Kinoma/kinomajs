@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,28 +14,11 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-import Connection from "wifi";
+
 import System from "system";
-import Debug from "debug";
-import Environment from "env";
-import Files from "files";
-import Launcher from "launcher";
-
-var env = new Environment();
-
-var digits = "0123456789e+-.".split('');
-
-var cd = null;	// root
-
-var PROMPT = env.get("PROMPT")
-if (!PROMPT)
-	PROMPT = "[" + System.hostname + "]$ ";
 
 function log(...args) {
-	var sts = console.enable;
-	console.enable = false;
 	console.log(...args);
-	console.enable = sts;
 }
 
 function split(line) {
@@ -81,6 +64,8 @@ function split(line) {
 }
 
 function parse2native(args) {
+	const digits = "0123456789e+-.";
+
 	return args.map(arg => {
 		switch (arg) {
 			case 'undefined': return undefined;
@@ -92,7 +77,7 @@ function parse2native(args) {
 		var c = arg.charAt(0);
 		if (c == '"' || c == '\'') return arg.substring(1, arg.length - 1);
 
-		if (arg.split('').every(c => digits.indexOf(c) >= 0)) {
+		if (arg.split('').every(c => digits[c] >= 0)) {
 			return Number(arg);
 		}
 
@@ -103,267 +88,439 @@ function parse2native(args) {
 function nameToFullPath(name, type, exists) {
 	var path;
 
-	if ((type == undefined) || (type == null))
+	if ((type == undefined) || (type == null) || (type == 0))
 		type = 3;
+
+	if (!name) name = "";
 
 	if (name.charAt(0) == '/') {
 		path = name;
 	} else {
-		if (cd == null)
+		if (System.cd == null)
 			path = "/" + name;
 		else
-			path = "/" + cd + "/" + name;
+			path = "/" + System.cd + "/" + name;
 	}
 	var comp = path.split('/');
 	comp.shift();
+
+	for (let i = 0; i < comp.length; i++) {
+		if (comp[i] == "..") {
+			if (i > 0) {
+				comp.splice(i - 1, 2);
+				i -= 2;
+			} else {
+				comp.splice(i, 1);
+				i--;
+			}
+		}
+	}
+
 	while (comp.length > 0) {
 		if (comp[comp.length - 1] != "") {
 			break;
 		}
 		if ((type & 2) == 0)
-			return null;
+			throw name + ": Is a directoy";
+
 		comp.pop();
 	}
 	path = "/" + comp.join("/");
 	if (comp.length == 0) {
 		// root
 	} else if (comp.length == 1) {
-		// directory
-		if ((type & 2) == 0) {
-			return null;
+		// partition (also directory)
+		if ((type & 2) == 0)
+			throw name + " is not a file";
+
+		let Files = require.weak("files");
+		if (exists && !Files.getVolumeInfo(path))
+			throw name + ": No such volume";
+
+	} else if (comp.length >= 2) {
+		// file or directory
+		let Files = require.weak("files");
+		if (exists) {
+			let info = Files.getInfo(path);
+			if (!info)
+				throw name + ": No such file or directory";
+
+			if (!(type & 1) && (info.type == Files.fileType))
+				throw name + ": Is a file";
+
+			if (!(type & 2) && (info.type == Files.directoryType))
+				throw name + ": Is a directory";
 		}
-		if (exists && (Files.getVolumeInfo(path) == null)) {
-			return null;
-		}
-	} else if (comp.length == 2) {
-		// file
-		if ((type & 1) == 0) {
-			return null;
-		}
-		if (exists && (Files.getInfo(path) == null)) {
-			return null;
-		}
-	} else {
-		return null;
 	}
 	return path;
 }
 
-export default {
-	connect(ssid, security, password, hidden, save) {
-		Connection.connect({ssid: ssid, security: security, password: password, hidden: hidden, save: save});
-	},
-	reconnect(state) {
-		Connection.connect(state);
-	},
-	netstat() {
-		Connection.stat();
-	},
-	hostname(name) {
-		if (name)
-			System.hostname = name;
-		return System.hostname;
-	},
-	ip() {
-		return Connection.ip;
-	},
-	mac() {
-		return Connection.mac;
-	},
-	getenv(name) {
-		return env.get(name);
-	},
-	setenv(name, val) {
-		env.set(name, val);
-		return true;
-	},
-	saveenv() {
-		return env.save();
-	},
-	unsetenv(name) {
-		return env.unset(name);
-	},
-	printenv(name, encryption) {
-		var tenv = name ? new Environment(name, false, encryption) : env;
-		var iter = tenv.getIterator();
-		var e;
-		while (e = iter.next())
-			log(e + "=" + tenv.get(e));
-	},
-	dumpenv(flags) {
-		env.dump(flags);
-	},
-	gc() {
-		System.gc();
-		return true;
-	},
-	report() {
-		Debug.report();
-	},
-	xsbug(h){
-		if(!h) h = env.get("XSBUG_HOST");
-		if(h){
-			trace("XSBUG_HOST: " + h + "\n");
-			Debug.login(h);
-		}
-	},
-	load(module) {
-		require.weak(module);
-	},
-	unlink(module) {
-		(module);
-	},
-	ls(name) {
-		var dir = cd;
-		if ((name != undefined) && (name != null)) {
-			var path = nameToFullPath(name, 3, 1);
-			if (path == null) {
+function services(func) {
+	let result = true;
+	let Environment, env, Launcher, Debug, Files, File, Connection, file, dir, path, name, encryption, f, i, c, line;
 
-
-				log(name + ": No such file or directory");
-				return;
+	switch (func) {
+		case "cat":
+			file = arguments[1];
+			try {
+				path = nameToFullPath(file, 1, 1);
+			} catch (e) {
+				result = e;
+				break;
 			}
-			var file = nameToFullPath(name, 1, 1);
-			if (file != null) {
-				log(file);
-				return;
-			}
-			dir = (path == "/") ? null : path;
-		}
-		var iter = (dir == null) ? Files.VolumeIterator() : Files.Iterator(dir);
-		var i = 0;
-		for (var item of iter) {
-			log(item.name);
-		}
-	},
-	cd(dir) {
-		if ((dir == undefined) || (dir == null) || (dir == "/")) {
-			cd = null;
-		} else {
-			var path = nameToFullPath(dir, 2, 1);
-			if (path == null) {
-				if (nameToFullPath(dir, 1, 1) != null) {
-					log(dir + ": Not a directory");
-					return;
+			File = require.weak("file");
+			f = new File(path), i = 0, c, line = "";
+			while ((c = f.readChar()) !== undefined) {
+				let cc = String.fromCharCode(c);
+				if (c == 0)
+					line += "\\0";
+				else if (cc == '\\')
+					line += "\\\\";
+				else if (cc == '\r' || cc == '\t')
+					line += cc;
+				else if (cc == '\n') {
+					log(line);
+					line = "";
 				}
-				log(dir + ": No such file or directory");
-				return;
+				else if (c < 20 || c >= 0x7f)
+					line += "\\" + c.toString(16).toLowerCase();
+				else
+					line += cc;
 			}
-			cd = path.substring(1);
-		}
-	},
-	pwd() {
-		if (cd == null) {
-			log("/");
-		} else {
-			log("/" + cd);
-		}
-	},
-	hexdump(file) {
-		var path = nameToFullPath(file, 1, 1);
-		if (path == null) {
-			if (nameToFullPath(file, 2, 1) != null)
-				log(file + ": Is a directory");
-			else
-				log(file + ": No such file or directory");
-			return;
-		}
-		var f = new Files(path), i = 0, c, line = "";
-		while ((c = f.readChar()) !== undefined) {
-			var x = c.toString(16).toLowerCase();
-			line += (x.length == 1 ? "0" + x : x) + " ";
-			if ((++i % 16) == 0) {
+			if (line != "")
 				log(line);
-				line = "";
+			f.close();
+			break;
+		case "cd":
+			dir = arguments[1];
+			if ((dir == undefined) || (dir == null) || (dir == "/")) {
+				System.cd = null;
+			} else {
+				try {
+					path = nameToFullPath(dir, 2, 1);
+				} catch (e) {
+					result = e;
+					break;
+				}
+				System.cd = (path == "/") ? null : path.substring(1);
 			}
-		}
-		if (line != "")
-			log(line);
-		f.close();
-	},
-	cat(file) {
-		var path = nameToFullPath(file, 1, 1);
-		if (path == null) {
-			if (nameToFullPath(file, 2, 1) != null)
-				log(file + ": Is a directory");
-			else
-				log(file + ": No such file or directory");
-			return;
-		}
-		var f = new Files(path), i = 0, c, line = "";
-		while ((c = f.readChar()) !== undefined) {
-			var cc = String.fromCharCode(c);
-			if (c == 0)
-				line += "\\0";
-			else if (cc == '\\')
-				line += "\\\\";
-			else if (cc == '\r' || cc == '\t')
-				line += cc;
-			else if (cc == '\n') {
+			break;
+		case "connect":
+			Connection = require.weak("wifi");
+			Connection.connect({ssid: arguments[1], security: arguments[2], password: arguments[3], hidden: arguments[4], save: arguments[5], mode: arguments[6]});
+			break;
+		case "date":
+			return Date();
+		case "eval":
+			try {
+				result = eval(arguments[1]);
+				if (undefined === result) result = true;	// returning undefined means we didn't handle this request
+			}
+			catch (e) {
+				result = "Error: eval failed, " + e.toString();
+			}
+			break;
+		case "gc":
+			System.gc();
+			break;
+		case "getenv":
+			result = System.get(arguments[1]);
+			break;
+		case "hexdump":
+			file = arguments[1];
+			try {
+				path = nameToFullPath(file, 1, 1);
+			} catch (e) {
+				result = e;
+				break;
+			}
+			File = require.weak("file");
+			f = new File(path), i = 0, c, line = "";
+			while ((c = f.readChar()) !== undefined) {
+				let x = c.toString(16).toLowerCase();
+				line += (x.length == 1 ? "0" + x : x) + " ";
+				if ((++i % 16) == 0) {
+					log(line);
+					line = "";
+				}
+			}
+			if (line != "")
 				log(line);
-				line = "";
+			f.close();
+			break;
+		case "hostname":
+			name = arguments[1];
+			if (name)
+				System.hostname = name;
+			return System.hostname;
+		case "ip":
+			Connection = require.weak("wifi");
+			return Connection.ip;
+		case "launch":
+			Launcher = require.weak("launcher");
+			Launcher.launch(arguments[1]);
+			break;
+		case "load":
+			require.weak(arguments[1]);
+			break;
+		case "ls":
+			name = nameToFullPath(arguments[1]);
+			Files = require.weak("files");
+			if (name != "/") {
+				let info;
+				if (name.lastIndexOf('/') == 0)
+					info = Files.getVolumeInfo(name);
+				else {
+					// this is redundant because getInfo may call Iterator internally.
+					info = Files.getInfo(name);
+					if (info && (info.type == Files.fileType)) {
+						log(name);
+						break;
+					}
+				}
+				if (!info) {
+					result = name + ": No such file or directory";
+					break;
+				}
 			}
-			else if (c < 20 || c >= 0x7f)
-				line += "\\" + c.toString(16).toLowerCase();
+			let iter = (name == "/") ? Files.VolumeIterator() : Files.Iterator(name, arguments[2] || 0);
+			for (let item of iter)
+				log(item.name);
+			break;
+		case "mac":
+			Connection = require.weak("wifi");
+			return Connection.mac;
+		case "modules":
+			let startsWith = arguments[1];
+			let cache = require.cache;
+			let keys = Object.keys(cache);
+			if (startsWith)
+				keys = keys.filter(key => cache[key].name.toLowerCase().startsWith(startsWith.toLowerCase()));
+			keys.sort((a, b) => a.toLowerCase().compare(b.toLowerCase()));
+			i = 0;
+			keys.forEach(key => console.log(((i++ < 9) ? " " : "") + `${i}: ${cache[key].name}`));
+			break;
+		case "netstat":
+			Connection = require.weak("wifi");
+			Connection.stat();
+			break;
+		case "printenv":
+			name = arguments[1], encryption = arguments[2];
+			Environment = require.weak("env");
+			env = name ? new Environment(name, false, encryption) : new Environment();
+			for (let e of env)
+				log(e + "=" + env.get(e));
+			break;
+		case "pwd":
+			result = "/";
+			if (System.cd)
+				result += System.cd;
+			break;
+		case "quit":
+			Launcher = require.weak("launcher");
+			Launcher.quit();
+			break;
+		case "reboot": {
+			let mode = arguments[1];
+			let force = false;
+			switch (typeof mode) {
+				default:
+				case "undefined":
+					break;
+				case "number":
+					Environment = require.weak("env");
+					env = new Environment();
+					env.set("BOOT_MODE", mode.toString());
+					env.save();
+					break;
+				case "boolean":
+					force = mode;
+					break;
+			}
+			System.reboot(force);
+			}
+			break;
+		case "reconnect":
+			Connection = require.weak("wifi");
+			Connection.connect(arguments[1]);
+			break;
+		case "report":
+			Debug = require.weak("debug");
+			Debug.report();
+			break;
+		case "rename":
+		case "mv":
+			file = arguments[1];
+			try {
+				path = nameToFullPath(file, 1, 1);
+			} catch (e) {
+				result = e;
+				break;
+			}
+			Files = require.weak("files");
+			result = Files.renameFile(path, arguments[2]);
+			if (!result) result = "Error: rename failed";
+			break;
+		case "rmdir":
+			dir = arguments[1];
+			try {
+				path = nameToFullPath(dir, 2, 1);
+			} catch (e) {
+				result = e;
+				break;
+			}
+			Files = require.weak("files");
+			result = Files.deleteDirectory(path);
+			if (!result) result = "Error: rmdir failed";
+			break;
+		case "rm":
+			file = arguments[1];
+			try {
+				path = nameToFullPath(file, 1, 1);
+			} catch (e) {
+				result = e;
+				break;
+			}
+			Files = require.weak("files");
+			result = Files.deleteFile(path);
+			if (!result) result = "Error: rm failed";
+			break;
+		case "saveenv":
+			Environment = require.weak("env");
+			env = new Environment();
+			result = env.save() ? true : "Error: saveenv failed";
+			break;
+		case "scan":
+			Connection = require.weak("wifi");
+			var rescan;
+			var printAPs = function(aps) {
+				if (aps) {
+					log(`${aps.length} networks found`);
+					for (let i = 0; i < aps.length; i++) {
+						let ap = aps[i];
+						log(`  [${i}] "${ap.ssid || "(hidden)"}" ${ap.security} [${ap.bssid}]`);
+					}
+				}
+			};
+			if (arguments[1])
+				rescan = printAPs;
+			let aps = Connection.scan(rescan);
+			if (aps)
+				printAPs(aps);
+			break;
+		case "setenv":
+			Environment = require.weak("env");
+			env = new Environment();
+			env.set(arguments[1], arguments[2]);
+			break;
+		case "shutdown":
+			System.shutdown(arguments[1]);
+			break;
+		case "timestamp":
+			return (new Date(System.timestamp * 1000)).toString();
+		case "unsetenv":
+			Environment = require.weak("env");
+			env = new Environment();
+			result = env.set(arguments[1]) ? true : "Error: unsetenv failed";
+			break;
+		case "update": {
+			let target = arguments[1], noupdate = arguments[2];
+			let nullhttp = {
+				response() {
+				},
+				errorResponse(code, status) {
+					log(code, status);
+				},
+				responseWithChunk() {
+				},
+				putChunk(c) {
+					log(c);
+				},
+				terminateChunk(o) {
+					log(o);
+				},
+			};
+			let args = {
+				query: {
+					target: target || "ELEMENT_FIRMWARE_RELEASE",
+					test: noupdate ? "true" : "false",
+				},
+			};
+			let Launcher = require.weak("launcher");
+			Launcher.launch("setup/download", nullhttp, args);
+			}
+			break;
+		case "version":
+			return System.get("FW_VER") + " (" + (new Date(System.timestamp * 1000)) + ")";
+		case "xsbug":
+			let host = arguments[1];
+			if (!host)
+				host = System.get("XSBUG_HOST");
+			if (host) {
+				log("XSBUG_HOST: " + host + "\n");
+				Debug = require.weak("debug");
+				Debug.login(host);
+			}
 			else
-				line += cc;
+				result = "Error: no xsbug host";
+			break;
+		default:
+			return undefined;
+	}
+
+	return result;
+}
+
+function run(func, ...args) {
+	if (func === undefined) return;
+
+	let parts = func.split('.');
+
+	let context = null, result = null;
+
+	if (parts.length >= 2 && parts[0] == '') {
+		parts.shift();
+		result = require.weak("launcher").state.module;
+	} else {
+		result = require.weak(parts.shift());
+	}
+
+	while (parts.length > 0) {
+		if (!result) throw "cannot find " + func;
+
+		context = result;
+		result = context[parts.shift()];
+	}
+
+	if (result) {
+		if (typeof result == 'function')
+			result = result.apply(context, args);
+		else if ("onLaunch" in result) {
+			let Launcher = require.weak("launcher");
+			result = Launcher.run(result, args);
+
+			let module = Launcher.state.module;
+			if (module) {
+				let keys = Object.keys(module);
+				keys.sort();
+
+				for (let key of keys) {
+					if (['onLaunch', 'onQuit'].indexOf(key) < 0) {
+						if (key.substring(0, 1) != '_') {
+							if (typeof module[key] == 'function') {
+								console.log('  .' + key);
+							}
+						}
+					}
+				}
+			}
 		}
-		if (line != "")
-			log(line);
-		f.close();
-	},
-	rm(file) {
-		var path = nameToFullPath(file, 1, 1);
-		if (path == null) {
-			if (nameToFullPath(file, 2, 1) != null)
-				log(file + ": Is a directory");
-			else
-				log(file + ": No such file or directory");
-			return;
-		}
-		return Files.deleteFile(path);
-	},
-	date() {
-		return Date();
-	},
-	launch(module) {
-		Launcher.launch(module);
-	},
-	quit() {
-		Launcher.quit();
-	},
-	reboot(force) {
-		if (force === undefined)
-			force = true;
-		System.reboot(force);
-	},
-	shutdown(force) {
-		System.shutdown(force);
-	},
-	update(target, noupdate) {
-		var nullhttp = {
-			response() {
-			},
-			errorResponse(code, status) {
-				log(code, status);
-			},
-			responseWithChunk() {
-			},
-			putChunk(c) {
-				log(c);
-			},
-			terminateChunk(o) {
-				log(o);
-			},
-		};
-		var args = {
-			query: {
-				target: target || "ELEMENT_FIRMWARE_SMOKE",
-				test: noupdate ? "true" : "false",
-			},
-		};
-		Launcher.launch("setup/download", nullhttp, args);
-	},
+	}
+
+	return result;
+}
+
+export default {
 	evaluate(line) {
 		line = line.trim();
 		if (!line) {
@@ -371,48 +528,29 @@ export default {
 			return;
 		}
 
-		var args = split(line);
+		let args = split(line);
+		args = parse2native(args);
 
-		var func = args.shift();
-		var args = parse2native(args);
-
-		if (func != 'evaluate' && this[func]) {
-			var result = this[func].apply(this, args);
-			if (result !== undefined) log(result);
+		let message = services.apply(this, args);
+		if (undefined !== message) {
+			if (true !== message)
+				log(message);
 		} else {
-			var parts = func.split('.');
 			try {
-				var result = require.weak(parts.shift());
-				var context = null;
-				while (parts.length > 0) {
-					context = result;
-					result = context[parts.shift()];
-				}
-
-				if (result !== undefined) {
-					if (typeof result == 'function')
-						result = result.apply(context, args);
-					else if ("onLaunch" in result)
-						result = Launcher.run(result, args);
-					if (result !== undefined) log(result);
-				}
-			}
-			catch (e) {
+				message = run(...args);
+				if (message) log(message);
+			} catch (e) {
 				log("Exception: ", e);
 			}
 		}
 		this.prompt();
 	},
-	register(obj) {
-		var that = this;
-		obj.onExecute = function(line) {
-			that.evaluate(line);
-		}
-	},
-	eval(s) {
-		eval(s);
-	},
 	prompt() {
-		log("-n", PROMPT);
+		if (!this.PROMPT) {
+			this.PROMPT = System.get("PROMPT");
+			if (!this.PROMPT)
+				this.PROMPT = "[" + (System.hostname || "Kinoma Element") + "]$ ";
+		}
+		log("-n", this.PROMPT);
 	},
 };

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,10 +15,10 @@
  *     limitations under the License.
  */
 export default class HMAC {
-	constructor(h, key, bitlen) {
+	constructor(h, key, bitlen = 0) {
 		this.h = h;
 		this.init(key);
-		this.hashLen = bitlen ? bitlen / 8 : 0;	// in byte
+		this.hashLen = bitlen / 8;	// in byte
 	};
 	init(key) {
 		key = new Uint8Array(key);
@@ -78,12 +78,9 @@ export default class HMAC {
 		return sig;
 	};
 	verify(H, sig) {
+		let Bin = require.weak("bin");
 		this.update(H);
 		var t = this.close();
-		if (this.hashLen)
-			var ret = t.ncomp(sig, this.hashLen) == 0;
-		else
-			var ret = t.comp(sig) == 0;
-		return ret;
+		return Bin.comp(t, sig, this.hashLen) == 0;
 	};
 };

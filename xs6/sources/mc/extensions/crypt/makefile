@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 #
 # use $(TMP_DIR)/crypt to put object/archive files, and $(DEST_DIR)/crypt to put all xsb files
 # assume CC, AR, C_OPTIONS, XSC_OPTIONS are exported
-.NOTPARALLEL: 
 
 CRYPT_JS_SRCS = \
 	crypt_aead.js  \
@@ -44,7 +43,9 @@ CRYPT_JS_SRCS = \
 	crypt_rng.js \
 	crypt_rsa.js \
 	crypt_sha1.js \
+	crypt_sha224.js \
 	crypt_sha256.js \
+	crypt_sha384.js \
 	crypt_sha512.js \
 	crypt_srp.js \
 	crypt_stream.js \
@@ -65,7 +66,9 @@ CRYPT_C_SRCS = \
 	crypt_rc4.c \
 	crypt_rng.c \
 	crypt_sha1.c \
+	crypt_sha224.c \
 	crypt_sha256.c \
+	crypt_sha384.c \
 	crypt_sha512.c \
 	crypt_srp.c \
 	crypt_stream.c \
@@ -154,7 +157,5 @@ $(DEST_DIR)/arith/%.so: $(TMP_DIR)/crypt/arith_%.o $(TMP_DIR)/crypt/arith_%.xs.o
 
 clean:
 	rm -f $(LOCAL_OBJS) $(LOCAL_LIBS) $(addsuffix .d, $(basename $(LOCAL_OBJS)))
-	rm -f $(C25519_OBJS) $(addsuffix .d, $(basename $(C25519_OBJS)))
-	rm -f $(POLY1305_OBJS) $(addsuffix .d, $(basename $(POLY1305_OBJS)))
 	rm -f $(KCL_OBJS) $(addsuffix .d, $(basename $(KCL_OBJS)))
 	rm -f $(TMP_DIR)/crypt.xsb $(TMP_DIR)/arith.xsb

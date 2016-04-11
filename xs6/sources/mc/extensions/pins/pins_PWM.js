@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,20 +29,22 @@ export default class PWM {
 	read() {
 		// what to read?
 	};
-	write(params) {
-		var dutyCycle, period;
+	write(params, period) {
 		if (Array.isArray(params)) {
+			let dutyCycle, period;
 			dutyCycle = params[0];
 			if (params.length > 1)
 				period = params[1];
 			else
 				period = params[0] * 2;	// ??
+			this.gpt.pwm(dutyCycle, period - dutyCycle);
+		}
+		else if (period){
+			this.gpt.pwm(params, period - params);
 		}
 		else {
-			period = DEFAULT_PERIOD;
-			dutyCycle = params * period;
-		}
-		this.gpt.pwm(dutyCycle, period - dutyCycle);
+			this.gpt.pwm(params * DEFAULT_PERIOD, DEFAULT_PERIOD - (params * DEFAULT_PERIOD));
+		}		
 	};
 	close() {
 		this.gpt.close();

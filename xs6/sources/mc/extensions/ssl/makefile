@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,12 +14,12 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-.NOTPARALLEL: 
-
+#
+#
+#
 SSL_JS_SRCS = \
 	ssl_alert.js \
 	ssl_cache.js \
-	ssl_cert_mc.js \
 	ssl_changecipher.js \
 	ssl_ciphersuites.js \
 	ssl_handshake.js \
@@ -31,6 +31,7 @@ SSL_JS_SRCS = \
 	ssl_stream.js
 
 SSL_BINARIES = $(addprefix $(DEST_DIR)/ssl/, $(addsuffix .xsb, $(patsubst ssl_%,%,$(basename $(SSL_JS_SRCS)))))
+SSL_BINARIES += $(DEST_DIR)/ssl/cert.xsb
 
 ifndef SSL_DIR
 SSL_DIR = $(F_HOME)/xs6/sources/mc/extensions/ssl
@@ -49,6 +50,8 @@ $(DEST_DIR)/ssl:
 
 # rules
 $(DEST_DIR)/%.xsb: $(TMP_DIR)/%.xsb
+	cp -p $< $@
+$(DEST_DIR)/ssl/cert.xsb: $(TMP_DIR)/ssl/ssl_cert_$(PLATFORM).xsb
 	cp -p $< $@
 $(DEST_DIR)/ssl/%.xsb: $(TMP_DIR)/ssl/ssl_%.xsb
 	cp -p $< $@

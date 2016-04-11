@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,24 +14,18 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-class _Iterator @ "xs_env_iter_destructor" {
-	constructor(self) @ "xs_env_Iterator";
-	next(pattern) @ "xs_env_next";
-};
 
 export default class Environment @ "xs_env_destructor" {
 	constructor(path, autosave, encrypt) @ "xs_env_constructor";
-	"get"(name) @ "xs_env_get";
-	"set"(name, val) @ "xs_env_set";
+	get(name) @ "xs_env_get";
+	set(name, val) @ "xs_env_set";
 	save() @ "xs_env_save";
-	unset(name) @ "xs_env_unset";
-	clear() @ "xs_env_clear";
 	close() @ "xs_env_close";
-	getIterator() {
-		return new _Iterator(this);
+	*[Symbol.iterator]() {
+		for (let i = 0; true; i++) {
+			let key = this.get(i);
+			if (!key) break;
+			yield key;
+		}
 	}
-	dump(flags) @ "xs_env_dump";
-	static init() @ "xs_env_init";
 };
-
-Environment.init();

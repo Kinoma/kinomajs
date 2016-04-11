@@ -1,25 +1,25 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
- *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *     Copyright (C) 2002-2015 Kinoma, Inc.
  *
- *     Licensed under the Apache License, Version 2.0 (the "License");
- *     you may not use this file except in compliance with the License.
- *     You may obtain a copy of the License at
+ *     All rights reserved.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
  *
- *     Unless required by applicable law or agreed to in writing, software
- *     distributed under the License is distributed on an "AS IS" BASIS,
- *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *     See the License for the specific language governing permissions and
- *     limitations under the License.
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ *
  */
-import CLI from "CLI";
 
 export default class Telnetd @ "xs_telnetd_destructor" {
-	constructor(sock) {
-		this.start(sock);
-		CLI.register(this);
-	};
-	start(sock) @ "xs_telnetd_start";
+	constructor(sock) @ "xs_telnetd_start";
+	close() @ "xs_telnetd_close";
+	evaluate(line) {
+		let CLI = require.weak("CLI");
+		CLI.evaluate(line);
+	}
 };

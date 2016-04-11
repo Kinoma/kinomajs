@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -90,8 +90,7 @@ var recordProtocol = {
 				tmps.writeChar(0);
 			tmps.writeChunk(c);
 			tmps.writeChar(type);
-			tmps.writeChar(version.major);
-			tmps.writeChar(version.minor);
+			tmps.writeChars(version, 2);
 			tmps.writeChars(content.byteLength, 2);
 			hmac.update(tmps.getChunk());
 			hmac.update(content);
@@ -100,19 +99,19 @@ var recordProtocol = {
 		unpacketize(session, s) {
 			session.traceProtocol(this);
 			var type = s.readChar();
-			var version = {major: s.readChar(), minor: s.readChar()};
+			var version = s.readChars(2);
 			var fragmentLen = s.readChars(2);
-			var fragment = s.readChunk(fragmentLen);
 			var cipher = session.connectionEnd ? session.serverCipher : session.clientCipher;
-			s.close();
 			if (cipher) {
 				var blksz = session.chosenCipher.cipherBlockSize;
 				var hashsz = session.chosenCipher.hashSize;
-				if (!(session.protocolVersion.major == 3 && session.protocolVersion.minor == 1) && blksz > 0) { // 3.2 or higher && block cipher
+				if (version >= 0x302 && blksz > 0) { // 3.2 or higher && block cipher
 					var iv = s.readChunk(blksz);
 					cipher.enc.setIV(iv);
 					fragmentLen -= blksz;
 				}
+				var fragment = s.readChunk(fragmentLen);
+				s.close();
 				cipher.enc.decrypt(fragment, fragment);
 				var padLen = blksz ? (new Uint8Array(fragment))[fragment.byteLength - 1] + 1 : 0;
 				fragmentLen -= hashsz + padLen;
@@ -125,23 +124,22 @@ var recordProtocol = {
 				}
 				session.readSeqNum.inc();
 			}
+			else {
+				var fragment = s.readChunk(fragmentLen);
+				s.close();
+			}
 			recordProtocol.tlsCompressed.unpacketize(session, type, fragment);
 		},
 		packetize(session, type, fragment) {
 			session.traceProtocol(this);
-			var cipher = session.connectionEnd ? session.clientCipher: session.serverCipher;
+			var cipher = session.connectionEnd ? session.clientCipher : session.serverCipher;
 			if (cipher) {
 				var mac = this.calculateMac(cipher.hmac, session.writeSeqNum, type, session.protocolVersion, fragment);
 				session.writeSeqNum.inc();
 				// block cipher only, at the moment
 				if (cipher.enc) {
-					var blksz = session.chosenCipher.cipherBlockSize;
+					var blksz = session.chosenCipher.cipherBlockSize, iv;
 					var tmps = new SSLStream();
-					if (!(session.protocolVersion.major == 3 && session.protocolVersion.minor == 1) && blksz) { // 3.2 or higher && block cipher
-						var iv = Crypt.rng(blksz);
-						tmps.writeChunk(iv);
-						cipher.enc.setIV(iv);
-					}
 					tmps.writeChunk(fragment);
 					tmps.writeChunk(mac);
 					if (blksz) {
@@ -153,13 +151,18 @@ var recordProtocol = {
 							tmps.writeChar(padSize);
 						tmps.writeChar(padSize);
 					}
+					if (session.protocolVersion >= 0x302 && blksz) { // 3.2 or higher && block cipher
+						iv = Crypt.rng(blksz);
+						cipher.enc.setIV(iv);
+					}
 					fragment = cipher.enc.encrypt(tmps.getChunk());
+					if (iv)
+						fragment = iv.concat(fragment);
 				}
 			}
 			var s = new SSLStream();
 			s.writeChar(type);
-			s.writeChar(session.protocolVersion.major);
-			s.writeChar(session.protocolVersion.minor);
+			s.writeChars(session.protocolVersion, 2);
 			s.writeChars(fragment.byteLength, 2);
 			s.writeChunk(fragment);
 			return s.getChunk();

@@ -1,5 +1,5 @@
 #
-#     Copyright (C) 2010-2015 Marvell International Ltd.
+#     Copyright (C) 2010-2016 Marvell International Ltd.
 #     Copyright (C) 2002-2010 Kinoma, Inc.
 #
 #     Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,8 +14,20 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-MODULE = mqtt
-JS_SRC = mqtt.js
-C_SRCS =
+JS_DIR = $(F_HOME)/xs6/sources/mc/extensions
+OBJECTS = $(DEST_DIR)/mqtt.xsb
 
-include library.mk
+
+.PHONY: archive
+
+all archive: $(OBJECTS)
+	make -f mqtt/makefile $@
+
+clean:
+	rm -f $(OBJECTS)
+	make -f mqtt/makefile $@
+
+# rules
+$(DEST_DIR)/%.xsb: $(JS_DIR)/%.js
+	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(DEST_DIR) $<
+

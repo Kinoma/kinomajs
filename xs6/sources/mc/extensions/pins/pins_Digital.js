@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ export default class Digital {
 	constructor(pinconf) {
 		// we are interested in only "pin"
 		this.pin = pinmap(pinconf.pin);
-		this._direction = pinconf.direction || whateverconf.direction;
+		this._direction = pinconf.direction;
 	};
 	init() {
 		GPIOPin.pinmux([[this.pin, this._direction == "input" ? GPIOPin.GPIO_IN : GPIOPin.GPIO_OUT]]);

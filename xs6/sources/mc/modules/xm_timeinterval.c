@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -86,7 +86,10 @@ xs_timeInterval_start(xsMachine *the)
 
 	if (ti == NULL)
 		mc_xs_throw(the, "TimeInterval: no instance");
-	mc_interval_start(ti->tc);
+	if (xsToInteger(xsArgc) > 0)
+		mc_interval_reschedule(ti->tc, xsToInteger(xsArg(0)));
+	else
+		mc_interval_start(ti->tc);
 }
 
 void
@@ -118,4 +121,10 @@ xs_timeInterval_getInterval(xsMachine *the)
 	if (ti == NULL)
 		mc_xs_throw(the, "TimeInterval: no instance");
 	xsSetInteger(xsResult, mc_interval_get_interval(ti->tc));
+}
+
+void
+xs_timeInterval_stat(xsMachine *the)
+{
+	mc_interval_stat();
 }

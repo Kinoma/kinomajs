@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,6 +21,6 @@ export default class Ground extends PowerGround {
 		super(conf.pin, PowerGround.GROUND);
 	};
 	close() {
-		super();
+		super.close();
 	};
 };

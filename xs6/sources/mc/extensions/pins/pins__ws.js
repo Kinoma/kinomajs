@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,33 +19,60 @@ import Pins from "pins";
 import GPIOPin from "pinmux";
 import System from "system";
 
-
 var PinsWebSocketHandler = {
 	init(port, configuration) {
+		let self = this;
 		this.clients = [];
 		this.repeats = [];	//multiple
+
 		this.ws = new WebSocketServer(port);
-		this.ws.onStart = this.onStart;		
+		this.ws.onStart = function(client) {
+			self.onStart.call(self, client);
+		};
 		this.ws.configuration = configuration;
 	},
 	close() {
+		this.clients.forEach(function(e){
+			this.removeClient(e);
+		}, this);
+		this.clients = [];
+		this.repeats = [];
 		this.ws.close();
 	},
+	removeClient(client){
+		let index = this.clients.indexOf(client);
+		if(index < 0) return; // arealdy removed all
+		let repeats = this.repeats[index];
+		//client may be already dead
+		for(var id in repeats){
+			repeats[id].close();
+			delete repeats[id];
+		}
+		// client.close();	//close the client
+		// should we close the websocket server or not? we should keep the server alive. 
+		this.clients.splice(index, 1);
+		this.repeats.splice(index, 1);
+	},
 	onStart(client){
-		PinsWebSocketHandler.repeats.push({}); 
-		PinsWebSocketHandler.clients.push(client);
+		let self = this;
+		this.repeats.push({}); 
+		this.clients.push(client);
 		client.onopen = function(){
 		};
 		client.onclose = function(){
 		};
+		let onClose = client.onClose;
+		client.onClose = function(){	
+			self.removeClient(client);// we need notification to remove our repeat
+			onClose();
+		};
 		client.onmessage = function(ev){
-			// trace("onmessage: "+ ev.data + "\n");
-			GPIOPin.led(1,1);
+			//trace("PinsWebSocketHandler: onmessage: "+ ev.data + "\n");
 			try{
 				let obj = JSON.parse(ev.data);
-				let index = PinsWebSocketHandler.clients.indexOf(client);
+				let index = self.clients.indexOf(client);
 				if("repeat" in obj){
-					let repeats = PinsWebSocketHandler.repeats[index];
+					let repeats = self.repeats[index];
 					let id = obj.id + "_"
 					if(obj.repeat){
 						if( id in repeats){ /* its already on repeat */
@@ -53,9 +80,7 @@ var PinsWebSocketHandler = {
 							delete repeats[id];
 						}
 						repeats[id] = Pins.repeat(obj.path, obj.interval ? obj.interval : obj.timer, function(result){
-							GPIOPin.led(0, 1);
 							client.send(JSON.stringify({body: result, inReplyTo: obj.id}));
-							GPIOPin.led(0,0);
 						});	
 					}
 					else{
@@ -68,32 +93,23 @@ var PinsWebSocketHandler = {
 				}
 				else{
 					//invoke
-					Pins.invoke(obj.path, obj.requestObject ? obj.requestObject : undefined, function(result){
-						GPIOPin.led(0, 1);
+					let cb = function(result){
 						client.send(JSON.stringify({body: result, inReplyTo: obj.id}));
-						GPIOPin.led(0, 0);
-					})
+					};
+					if (obj.requestObject != undefined)
+						Pins.invoke(obj.path, obj.requestObject, cb)
+					else
+						Pins.invoke(obj.path, cb)
 				}	
 			}
 			catch(error){
 				trace("error happended!!!\n");
 			}
-			GPIOPin.led(1, 0);
 		};
 		client.onerror = function(){
 			trace("onerror\n");
-			let index = PinsWebSocketHandler.clients.indexOf(client);
-			if(index < 0) return; // arealdy removed all
-			let repeats = PinsWebSocketHandler.repeats[index];
-			//client may be already dead
-			for(var id in repeats){
-				repeats[id].close();
-				delete repeats[id];
-			}
-			client.close();	//close the client
-			// should we close the websocket server or not? we should keep the server alive. 
-			PinsWebSocketHandler.clients.splice(index, 1);
-			PinsWebSocketHandler.repeats.splice(index, 1);
+			self.removeClient(client);
+			// client.close();	//close the client
 		}
 	},
 };

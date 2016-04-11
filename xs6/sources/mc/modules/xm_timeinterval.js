@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,9 +16,10 @@
  */
 export default class TimeInterval @ "xs_timeInterval_destructor" {
 	constructor(f, t) @ "xs_timeInterval_constructor";
-	start() @ "xs_timeInterval_start";
+	start(t) @ "xs_timeInterval_start";
 	stop() @ "xs_timeInterval_stop";
 	reschedule(t) @ "xs_timeInterval_reschedule";
 	get interval() @ "xs_timeInterval_getInterval";
 	close() @ "xs_timeInterval_close";
+	static stat() @ "xs_timeInterval_stat";
 };

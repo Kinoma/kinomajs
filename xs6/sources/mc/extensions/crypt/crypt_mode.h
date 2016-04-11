@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,6 +24,7 @@ typedef struct crypt_mode {
 	kcl_symmetric_direction_t direction;
 	size_t maxSlop;
 	int padding;
+	int eof;
 	size_t offset;
 	uint8_t em_buf[CRYPT_MAX_BLOCKSIZE];
 } crypt_mode_t;

@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -56,8 +56,10 @@ void
 xs_dbg_login(xsMachine *the)
 {
 	char *host = xsToString(xsArg(0));
-
-	xsSetBoolean(xsResult, xsStartDebug(the, host));
+	char *name = NULL;
+	if (xsToInteger(xsArgc) > 1 && xsTest(xsArg(1)))
+		name = xsToString(xsArg(1));
+	xsSetBoolean(xsResult, xsStartDebug(the, host, name));
 }
 
 void

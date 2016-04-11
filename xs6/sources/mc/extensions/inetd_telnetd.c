@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,7 +38,7 @@ xs_telnetd_start(xsMachine *the)
 	xsGet(xsVar(0), xsArg(0), xsID("nativeSocket"));
 	s = xsToInteger(xsVar(0));
 	if ((ns = lwip_accept(s, (struct sockaddr *)&sin, &slen)) < 0)
-		return;
+		mc_xs_throw(the, "telnetd: can't accept: %d", errno);
 	if ((instance = telnetd_connect(ns, the, &xsThis)) == NULL)
 		mc_xs_throw(the, "telnetd: no mem");
 	xsSetHostData(xsThis, instance);
@@ -49,4 +49,11 @@ xs_telnetd_destructor(void *data)
 {
 	if (data != NULL)
 		telnetd_close(data);
+}
+
+void
+xs_telnetd_close(xsMachine *the)
+{
+	telnetd_close(xsGetHostData(xsThis));
+	xsSetHostData(xsThis, NULL);
 }

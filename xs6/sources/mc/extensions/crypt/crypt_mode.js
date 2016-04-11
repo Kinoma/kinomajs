@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,4 +19,6 @@ export default class Mode @ "xs_mode_destructor" {
 	encrypt(indata, outdata) @ "xs_mode_encrypt";
 	decrypt(indata, outdata) @ "xs_mode_decrypt";
 	setIV(iv) @ "xs_mode_setIV";
+	set eof() @ "xs_mode_setEOF";
+	get eof() @ "xs_mode_getEOF";
 };
