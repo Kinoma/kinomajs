@@ -38,8 +38,6 @@ export default class extends Feature {
 		this.Template = SamplePane;
 		this.iconSkin = new Skin({ texture:new Texture("./icon.png", 2), x:0, y:0, width:60, height:60, states:60 });
 		
-		this.token = "524e60f41f1145e246cf4dceba18e7a5dd3c908b";	// Personal OAuth access token
-		
 		this.reload = false;
 		this.samples = {
 			sha:"",
@@ -101,7 +99,6 @@ export default class extends Feature {
 		
 	}
 	authorize(message) {
-		message.setRequestHeader("Authorization", "token " + this.token);
 		message.setRequestHeader("User-Agent", "k4.kinoma.com/1.0");
 	}
 	close() {
@@ -286,8 +283,10 @@ class SampleCatalogBehavior extends Behavior {
 	}
 	onComplete(handler, message, result) {
 		if (this.index < 0) {
-			if (!result) {
+			if (!result || !result.tree) {
 				Handler.remove(handler);
+				delete this.feature.handler;
+				shell.distribute("onSamplesChanged");
 				return;
 			}
 			this.feature.tree = result.tree;
@@ -340,6 +339,7 @@ class SampleCatalogBehavior extends Behavior {
 				}
 			}
 			Handler.remove(handler);
+			delete this.feature.handler;
 			shell.distribute("onSamplesChanged");
 		}
 	}
@@ -632,6 +632,7 @@ class SamplePaneBehavior extends FeaturePaneBehavior {
 		container.distribute("onDeviceSelected", model.devicesFeature.currentDevice);
 		container.distribute("onMachinesChanged", model.debugFeature.machines, model.debugFeature.debuggees);
 		container.distribute("onMachineSelected", model.debugFeature.currentMachine);
+		container.distribute("onSamplesChanged");
 	}
 };
 
@@ -668,11 +669,17 @@ class SampleColumnBehavior extends HolderColumnBehavior {
 	onSamplesChanged(column) {
 		column.empty();
 		let samples = this.data.samples;
-		let mask = samples.tagItems[samples.tagSelection].mask;
-		samples.items.forEach(item => {
-			if (item.mask & mask)
-				column.add(new SampleTable(item));
-		});
+		if (samples.items.length) {
+			let mask = samples.tagItems[samples.tagSelection].mask;
+			samples.items.forEach(item => {
+				if (item.mask & mask)
+					column.add(new SampleTable(item));
+			});
+		}
+		else if (this.data.handler)
+			column.add(new SampleSpinner(this.data));
+		else
+			column.add(new NoSamplesLine(this.data));
 	}
 }
 
@@ -833,9 +840,6 @@ var SamplePane = Container.template($ => ({
 			contents: [
 				Column($, {
 					anchor:"LIST", left:10, right:10, top:0, Behavior:SampleColumnBehavior, 
-					contents: [
-						SampleSpinner($, {}),
-					]
 				}),
 				VerticalScrollbar($, {}),
 			]
@@ -857,10 +861,25 @@ var SampleTagItemLine = Line.template($ => ({
 var SampleSpinner = Line.template($ => ({
 	left:0, right:0, height:30, 
 	contents: [
-		WaitContent($, { }),
+		WaitContent($, {}),
 		Label($, { left:0, right:0, height:30, style:samplesLoadingStyle, string:"Loading..." }),
 	],
 }));
+
+var NoSamplesLine = Line.template($ => ({ 
+	left:0, right:0, height:30, 
+	contents: [
+		WaitContent($, { 
+			Behavior: class extends Behavior {
+				onDisplaying(content) {
+					content.variant = 24
+				}
+			}
+		}),
+		Label($, { left:0, right:0, height:30, style:samplesLoadingStyle, string:"No samples!" }),
+	],
+}));
+
 
 var SampleTable = Column.template($ => ({
 	left:0, right:0, active:true,
@@ -961,3 +980,4 @@ var SampleThumbnail = Container.template($ => ({
 var SampleFooter = Line.template($ => ({
 	left:0, right:0, height:5, skin:greenFooterSkin,
 }));
+
