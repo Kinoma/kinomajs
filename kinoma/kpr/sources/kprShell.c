@@ -217,6 +217,7 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 			FskPort port = FskWindowGetPort(window);
 			FskPortScaleSet(port, (FskFixed)(scale * 65536));
 		}
+		FskWindowSetRotation(window, KprEnvironmentGetUInt32("windowRotation", 0));
 		FskWindowGetSize(window, (UInt32*)&bounds->width, (UInt32*)&bounds->height);
 		FskWindowSetSizeConstraints(window, 
 			KprEnvironmentGetUInt32("windowMinWidth", 320), 

@@ -115,7 +115,6 @@ static FskListMutex gWindowList;
 	#define LOGE(...)
 #endif /* GL_DEBUG */
 
-
 static Boolean checkWindowBitmapSize(FskWindow win);
 static void windowIncrementUseCount(FskWindow win);
 static void windowDecrementUseCount(FskWindow win);
@@ -133,7 +132,14 @@ static void scheduleWindowUpdateCallback(FskWindow win);
 
 #if TARGET_OS_MAC || TARGET_OS_WIN32 || (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
     static UInt32 getScreenPixelFormat(void);
+#endif
+#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_KPL
     static void updateWindowRotation(FskWindow window);
+#endif
+#if FSKBITMAP_OPENGL
+	static void setWindowAsSysContext(FskWindow w);
+#else
+	#define setWindowAsSysContext(w)
 #endif
 static void setWindowBitmap(FskWindow window, FskBitmap bits);
 
@@ -439,6 +445,7 @@ FskErr FskWindowDispose(FskWindow win)
 		// @@ KplScreen owns win->bits and disposes the bitmap
 		FskBitmapDispose(win->bits);
 #endif
+		FskBitmapDispose(win->rotationBits);
 #if TARGET_OS_ANDROID
 		FskMutexDispose(win->drawPumpMutex);
 #endif
@@ -1102,24 +1109,76 @@ FskErr FskWindowEndDrawing(FskWindow win, const FskRectangle bounds)
 
 	FskInstrumentedItemPrintfDebug(win, "FskWindowEndDrawing %p [%d %d %d %d]", win->bits, (int)bounds->x, (int)bounds->y, (int)bounds->width, (int)bounds->height );
 
-	if (win->usingGL) {
+	if (win->rotationBits) {
+		FskBitmap rotationBits = win->rotationBits;
+		FskFixed saveScale = win->port->scale;
+		float transform[3][3];
+		extern FskErr FskPortBitmapProject(FskPort port, FskBitmap srcBits, FskRectangle srcRect, float transform[3][3]);
+
+		win->rotationBits = NULL;
+
+		FskPortSetBitmap(win->port, rotationBits);
+		FskPortBeginDrawing(win->port, NULL);
+
+		switch(win->rotation) {
+			case 90:
+				transform[0][0] =  0.f; transform[0][1] = 1.f;
+				transform[1][0] = -1.f;	transform[1][1] = 0.f;
+				transform[2][0] = (float)(win->bits->bounds.height - 1);	transform[2][1] = 0.f;
+				break;
+			case 180:
+				transform[0][0] = -1.f;	transform[0][1] = 0.f;
+				transform[1][0] = 0.f; 	transform[1][1] = -1.f;
+				transform[2][0] = (float)(win->bits->bounds.width - 1);	transform[2][1] = (float)(win->bits->bounds.height - 1);
+				break;
+			case 270:
+				transform[0][0] = 0.f;	transform[0][1] = -1.f;
+				transform[1][0] = 1.f;	transform[1][1] = 0.f;
+				transform[2][0] = 0.f;	transform[2][1] = (float)(win->bits->bounds.width - 1);
+				break;
+		}
+
+		transform[0][2] = 0.f;
+		transform[1][2] = 0.f;
+		transform[2][2] = 1.f;
+
+		FskPortSetClipRectangle(win->port, NULL);		//@@ save and restore??
+		FskPortScaleSet(win->port, FskIntToFixed(1));
+		FskPortBitmapProject(win->port, win->bits, &win->bits->bounds, transform);
+		FskPortScaleSet(win->port, saveScale);
+
+		FskPortEndDrawing(win->port);
+		FskPortSetBitmap(win->port, win->bits);
+
+		win->rotationBits = rotationBits;
+
+		return kFskErrNone;
+	}
+
 #if FSKBITMAP_OPENGL
+	if (win->usingGL) {
+		FskGLPort glPort = win->port->bits->glPort;
 	#if TARGET_OS_ANDROID
 		LOGI("sendEventWindowUpdate FskPortEndDrawing");
 	#endif /* TARGET_OS_ANDROID */
-		if (win->bits->glPort) {
+		if (glPort) {
 	#if TARGET_OS_ANDROID || TARGET_OS_WIN32 || TARGET_OS_KPL
 			LOGI("swapping buffers");
-			FskGLPortSwapBuffers(win->bits->glPort);
+			FskGLPortSwapBuffers(glPort);
 	#else /* !TARGET_OS_ANDROID */
 			glFlush();
 			//glSwapBuffers();
 	#endif /* TARGET_OS_ANDROID */
 		}
-#endif /* FSKBITMAP_OPENGL */
 	}
     else
-        err = FskWindowCopyBitsToWindow(win, win->bits, bounds, bounds, kFskGraphicsModeCopy, NULL);
+#endif /* FSKBITMAP_OPENGL */
+#if TARGET_OS_KPL
+		if (0 == win->rotation)
+			err = FskWindowCopyBitsToWindow(win, win->bits, bounds, bounds, kFskGraphicsModeCopy, NULL);
+#else
+		err = FskWindowCopyBitsToWindow(win, win->bits, bounds, bounds, kFskGraphicsModeCopy, NULL);
+#endif
 
 #if TARGET_OS_ANDROID
 	FskInstrumentedItemPrintfDebug(win, "FskWindowEndDrawing win->bits: %p - ", win->bits);
@@ -1402,7 +1461,7 @@ FskErr FskWindowGetRotation(FskWindow window, SInt32 *rotation, SInt32 *aggregat
 
 FskErr FskWindowSetRotation(FskWindow window, SInt32 rotation)
 {
-#if TARGET_OS_WIN32 || TARGET_OS_MAC
+#if TARGET_OS_WIN32 || TARGET_OS_MAC || TARGET_OS_KPL
 	SInt32 currentRotation = window->rotation;
 
 	if ((0 == rotation) ||(90 == rotation) || (180 == rotation) || (270 == rotation))
@@ -1669,10 +1728,6 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 #endif /* SUPPORT_INSTRUMENTATION */
 
 	switch (msg) {
-		case WM_ACTIVATEAPP:
-//			volumeListChanged();
-			return DefWindowProc(hwnd, msg, wParam, lParam);
-
 		case WM_NCACTIVATE:
 			if (0 == wParam)
 				FskECMAScriptHibernate();
@@ -1761,36 +1816,6 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 
 		case WM_ERASEBKGND:
 			return true;
-#if 0
-		case WM_ERASEBKGND: {
-			// we erase any difference between the offscreen bitmap and the window
-			//	size. basically, this should always be nothing.
-			HDC hdc = (HDC)wParam;
-			RECT rect;
-			HBRUSH hbrush;
-			FskBitmap bits = win->bits;
-			SInt32 scale = FskWindowScaleGet(win);
-
-			win->updateSeed += 1;
-
-			if (bits) {
-				ExcludeClipRect(hdc,
-					bits->bounds.x * scale, bits->bounds.y * scale,
-					(bits->bounds.x + bits->bounds.width)  * scale, (bits->bounds.y + bits->bounds.height) * scale);
-			}
-
-			GetClientRect(hwnd, &rect);
-			hbrush = CreateSolidBrush(GetSysColor(COLOR_WINDOW));
-			FillRect(hdc, &rect, hbrush);
-			DeleteObject(hbrush);
-
-			if (bits)
-				SelectClipRgn(hdc, NULL);
-
-			result = 1;
-			}
-			break;
-#endif /* 0 */
 
 		case WM_SIZE:
 			if (wParam != SIZE_MINIMIZED) {
@@ -2460,7 +2485,7 @@ void sendEventWindowSizeChanged(FskWindow win)
 	if (false == checkWindowBitmapSize(win))
 		return;
 
-	if (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowResize, NULL, kFskEventModifierNotSet)) {
+	if (win->eventHandler && (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowResize, NULL, kFskEventModifierNotSet))) {
 #if TARGET_OS_MAC
 		if (FskInstrumentedItemHasListeners(win))
 			FskInstrumentedItemSendMessage(win, kFskWindowInstrMsgDispatchEvent, fskEvent);
@@ -2514,6 +2539,7 @@ Boolean checkWindowBitmapSize(FskWindow win)
 	}
 
 	setWindowBitmap(win, bmp);
+	setWindowAsSysContext(win);
 
 	FskRectangleSetFull(&win->port->invalidArea);
 	FskPortRectUnscale(win->port, &win->port->invalidArea);
@@ -2527,34 +2553,68 @@ Boolean checkWindowBitmapSize(FskWindow win)
 Boolean checkWindowBitmapSize(FskWindow win)
 {
 	FskBitmap bmp = win->bits;
+	UInt32 newWidth, newHeight;
+	SInt32 rotate = FskWindowRotateGet(win);
 
 	if (NULL == win->port)
 		return false;
 
+	FskWindowGetUnscaledSize(win, &newWidth, &newHeight);
+	FskInstrumentedItemPrintfDebug(win, "In checkWindowBitmapSize, FskWindowGetUnscaledSize returned width=%d height=%d================",newWidth,newHeight);
+	
 	if (NULL != bmp) {
 		FskEvent fskEvent;
+		FskBitmap screenBitmap;
+		
+		(void)FskFrameBufferGetScreenBitmap(&screenBitmap);
 
-		if (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowBeforeResize, NULL, kFskEventModifierNotSet)) {
- 			if (FskInstrumentedItemHasListeners(win))
-				FskInstrumentedItemSendMessage(win, kFskWindowInstrMsgDispatchEvent, fskEvent);
-			if (win->eventHandler)
-				(win->eventHandler)(fskEvent, fskEvent->eventCode, win, win->eventHandlerRefcon);
-			FskEventDispose(fskEvent);
+		if (((SInt32)newWidth != bmp->bounds.width) || ((SInt32)newHeight != bmp->bounds.height)) {
+			if (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowBeforeResize, NULL, kFskEventModifierNotSet)) {
+				if (FskInstrumentedItemHasListeners(win))
+					FskInstrumentedItemSendMessage(win, kFskWindowInstrMsgDispatchEvent, fskEvent);
+				if (win->eventHandler)
+					(win->eventHandler)(fskEvent, fskEvent->eventCode, win, win->eventHandlerRefcon);
+				FskEventDispose(fskEvent);
+			}
+
+			#if FSKBITMAP_OPENGL
+				if (bmp->glPort == win->glPortForWindow) {
+					bmp->glPort = NULL;
+				}
+			#endif /* FSKBITMAP_OPENGL */
+			if (screenBitmap != win->bits)
+				FskBitmapDispose(win->bits);
+			win->port->bits = NULL;
+			win->bits = NULL;
 		}
-
-		win->port->bits = NULL;
-		win->bits = NULL;
 	}
 
-	(void)FskFrameBufferGetScreenBitmap(&bmp);
-
+	if (win->rotationBits) {
+#if FSKBITMAP_OPENGL
+		if (win->rotationBits->glPort == win->glPortForWindow)
+			win->rotationBits->glPort = NULL;
+#endif
+		win->rotationBits = NULL;
+	}
+	
+	if (0 == rotate) {
+		(void)FskFrameBufferGetScreenBitmap(&bmp);
+	}
+	else {
+		(void)FskFrameBufferGetScreenBitmap(&win->rotationBits);
+		FskBitmapNew(-(SInt32)newWidth, (SInt32)newHeight, win->rotationBits->pixelFormat, &bmp);
+		FskInstrumentedItemPrintfDebug(win, "===============rotationBits width=%d rotationBits height=%d================",win->rotationBits->bounds.width,win->rotationBits->bounds.height);
+		FskInstrumentedItemPrintfDebug(win, "===============bits width=%d bits height=%d================",bmp->bounds.width,bmp->bounds.height);
+	}
+	
 	setWindowBitmap(win, bmp);
-
 	if (win->bits) {
 		win->port->invalidArea = win->bits->bounds;
 		FskPortRectUnscale(win->port, &win->port->invalidArea);
 	}
-
+	
+	setWindowAsSysContext(win);
+	
 	return true;
 }
 #else
@@ -2604,6 +2664,7 @@ Boolean checkWindowBitmapSize(FskWindow win)
 
 	LOGI("Calling setWindowBitmap with a new Bitmap");
 	setWindowBitmap(win, bmp);
+	setWindowAsSysContext(win);
 	win->port->invalidArea = bmp->bounds;
 
 	if(changed) {
@@ -2623,10 +2684,7 @@ Boolean checkWindowBitmapSize(FskWindow win)
 	FskErr err;
 	UInt32 newWidth, newHeight;
 	FskBitmap bmp = win->bits;
-	Boolean changed = false;
-	#if FSKBITMAP_OPENGL
-		FskGLPort glPort =  NULL;
-	#endif /* FSKBITMAP_OPENGL */
+	SInt32 rotate = FskWindowRotateGet(win);
 
 	if (NULL == win->port)
 		return false;
@@ -2634,48 +2692,60 @@ Boolean checkWindowBitmapSize(FskWindow win)
 	FskWindowGetUnscaledSize(win, &newWidth, &newHeight);
 
 	if (NULL != bmp) {
-		FskEvent fskEvent;
+		if (((SInt32)newWidth != bmp->bounds.width) || ((SInt32)newHeight != bmp->bounds.height)) {
+			FskEvent fskEvent;
+			
+			if (win->eventHandler && (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowBeforeResize, NULL, kFskEventModifierNotSet))) {
+				if (FskInstrumentedItemHasListeners(win))
+					FskInstrumentedItemSendMessage(win, kFskWindowInstrMsgDispatchEvent, fskEvent);
+				(win->eventHandler)(fskEvent, fskEvent->eventCode, win, win->eventHandlerRefcon);
+				FskEventDispose(fskEvent);
+			}
 
-		if (!changed && ((SInt32)newWidth == bmp->bounds.width) && ((SInt32)newHeight == bmp->bounds.height))
-			return false;
-
-		if (kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowBeforeResize, NULL, kFskEventModifierNotSet)) {
-			if (FskInstrumentedItemHasListeners(win))
-				FskInstrumentedItemSendMessage(win, kFskWindowInstrMsgDispatchEvent, fskEvent);
-			(win->eventHandler)(fskEvent, fskEvent->eventCode, win, win->eventHandlerRefcon);
-			FskEventDispose(fskEvent);
+			#if FSKBITMAP_OPENGL
+				if (bmp->glPort == win->glPortForWindow)
+					bmp->glPort = NULL;
+			#endif /* FSKBITMAP_OPENGL */
+			FskBitmapDispose(win->bits);
+			win->port->bits = NULL;
+			win->bits = NULL;
 		}
-
-		#if FSKBITMAP_OPENGL
-			glPort = bmp->glPort;						/* Save the glPort for the next bitmap */
-			bmp->glPort = NULL;
-		#endif /* FSKBITMAP_OPENGL */
-		FskBitmapDispose(win->bits);
-		win->port->bits = NULL;
-		win->bits = NULL;
 	}
 
 	err = FskBitmapNew(-(SInt32)newWidth, (SInt32)newHeight, getScreenPixelFormat(), &bmp);
 	if (err) {
-		#if FSKBITMAP_OPENGL
-			FskGLPortDispose(glPort);					/* Otherwise it will leak */
-		#endif /* FSKBITMAP_OPENGL */
 		#if SUPPORT_INSTRUMENTATION
-			FskInstrumentedItemPrintfDebug(win, "ERROR: checkWindowBitmapSize failed to allocate a bitmap (%d x %d format: %u): %s",
-										   -(int)newWidth, (int)newHeight, (unsigned)getScreenPixelFormat(), FskInstrumentationGetErrorString(err));
+			FskInstrumentedItemPrintfDebug(win, "ERROR: checkWindowBitmapSize failed to allocate a bitmap (%d x %d format: %d)",
+										   -(int)newWidth, (int)newHeight, (unsigned int)getScreenPixelFormat());
 		#endif /* SUPPORT_INSTRUMENTATION */
 		return false;		// bad scene
 	}
-	#if FSKBITMAP_OPENGL
-		bmp->glPort = glPort;							/* Copy from the old */
-		FskGLPortResize(glPort, newWidth, newHeight);	/* This must be done in the GL thread */
-	#endif /* FSKBITMAP_OPENGL */
 
+#if FSKBITMAP_OPENGL
+	if (0 == rotate)
+		bmp->glPort = win->glPortForWindow;
+#endif
+	
 	FskInstrumentedItemSetOwner(bmp, win);
 
 	LOGI("Calling setWindowBitmap with a new Bitmap");
 	setWindowBitmap(win, bmp);
 	win->port->invalidArea = bmp->bounds;
+
+	if (win->rotationBits) {
+#if FSKBITMAP_OPENGL
+		if (win->rotationBits->glPort == win->glPortForWindow)
+			win->rotationBits->glPort = NULL;
+#endif
+		FskBitmapDispose(win->rotationBits);
+		win->rotationBits = NULL;
+	}
+	if ((90 == rotate) || (270 == rotate))
+		FskBitmapNew(-(SInt32)newHeight, (SInt32)newWidth, getScreenPixelFormat(), &win->rotationBits);
+	else if (180 == rotate)
+		FskBitmapNew(-(SInt32)newWidth, (SInt32)newHeight, getScreenPixelFormat(), &win->rotationBits);
+
+	setWindowAsSysContext(win);
 
 #if TARGET_OS_WIN32
 	InvalidateRect(win->hwnd, NULL, false);
@@ -3266,16 +3336,18 @@ void scheduleWindowUpdateCallback(FskWindow win)
 
 	FskTimeCallbackSet(win->updateTimer, &win->nextUpdate, windowUpdateCallback, win);
 
-	if (0) {
+#if SUPPORT_INSTRUMENTATION && 0
+	{
 		FskTimeRecord now, delta = win->nextUpdate;
 
 		FskTimeGetNow(&now);
 		FskTimeSub(&now, &delta);
 		FskInstrumentedItemPrintfDebug(win, "next update in %d ms", (int)FskTimeInMS(&delta));
 	}
+#endif
 }
 
-#if TARGET_OS_MAC || TARGET_OS_WIN32 || (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
+#if TARGET_OS_MAC || TARGET_OS_WIN32 || TARGET_OS_KPL
 
 void updateWindowRotation(FskWindow window)
 {
@@ -3291,45 +3363,12 @@ void updateWindowRotation(FskWindow window)
 
 void setWindowBitmap(FskWindow w, FskBitmap bits)
 {
-	FskEvent e;
-
 	w->bits = bits;
 	FskPortSetBitmap(w->port, bits);
-#if FSKBITMAP_OPENGL
-	if (w->usingGL) {
-		if (bits) {
-			const char *str;
-			if (bits->glPort) {
-				#if TARGET_OS_ANDROID
-					LOGD("[%s] setWindowBitmap(%p, %p) setting OpenGLSysContext with FskGLPortResize", FskThreadName(FskThreadGetCurrent()), w, bits);
-				#endif /* TARGET_OS_ANDROID */
-				FskBitmapSetOpenGLSysContext(bits, w);
-				FskGLPortResize(bits->glPort, bits->bounds.width, bits->bounds.height);
-			}
-			else {
-				#if TARGET_OS_ANDROID
-					if (NULL != (bits->glPort = FskGLPortGetCurrent())) {
-						FskBitmapSetOpenGLSysContext(bits, w);
-						FskGLPortResize(bits->glPort, bits->bounds.width, bits->bounds.height);
-						LOGD("[%s] setWindowBitmap(%p, %p) setting glPort (%p) to current", FskThreadName(FskThreadGetCurrent()), w, bits, bits->glPort);
-					}
-					else {
-						FskGLPortNew(bits->bounds.width, bits->bounds.height, w, &bits->glPort);
-						LOGD("[%s] setWindowBitmap(%p, %p) setting new GLPort (%p) OpenGLSysContext", FskThreadName(FskThreadGetCurrent()), w, bits, bits->glPort);
-					}
-				#else /* !TARGET_OS_ANDROID */
-					FskGLPortNew(bits->bounds.width, bits->bounds.height, w, &bits->glPort);
-					#if TARGET_OS_KPL
-						FskGLPortSetSysContext(bits->glPort, w);
-					#endif /* TARGET_OS_KPL */
-				#endif /* !TARGET_OS_ANDROID */
-			}
-			(void)FskGLPortSetRotation(bits->glPort, ((NULL != (str = FskEnvironmentGet("portRotation"))) && (0 == FskStrCompare("180", str))) ? 180 : 0);
-		}
-	}
-#endif
 
 	if (w->eventHandler) {
+		FskEvent e;
+
 		if (kFskErrNone == FskEventNew(&e, kFskEventWindowBitmapChanged, NULL, kFskEventModifierNotSet)) {
 			if (FskInstrumentedItemHasListeners(w))
 				FskInstrumentedItemSendMessage(w, kFskWindowInstrMsgDispatchEvent, e);
@@ -3339,6 +3378,57 @@ void setWindowBitmap(FskWindow w, FskBitmap bits)
 	}
 }
 
+#if FSKBITMAP_OPENGL
+
+void setWindowAsSysContext(FskWindow w)
+{
+	FskBitmap bits;
+
+	if (!w->usingGL)
+		return;
+
+	bits = w->rotationBits ? w->rotationBits : w->bits;
+	if (!bits) return;
+
+	if (w->glPortForWindow) {
+		if (bits->glPort && (bits->glPort != w->glPortForWindow)) {
+			FskGLPortDispose(bits->glPort);
+			bits->glPort = w->glPortForWindow;
+			FskGLPortResize(bits->glPort, bits->bounds.width, bits->bounds.height);	/* This must be done in the GL thread */
+		}
+	}
+
+	if (bits->glPort) {
+		#if TARGET_OS_ANDROID
+			LOGD("[%s] setWindowAsGLSysContext(%p, %p) setting OpenGLSysContext with FskGLPortResize", FskThreadName(FskThreadGetCurrent()), w, bits);
+		#endif /* TARGET_OS_ANDROID */
+		FskBitmapSetOpenGLSysContext(bits, w);
+		FskGLPortResize(bits->glPort, bits->bounds.width, bits->bounds.height);
+	}
+	else {
+		#if TARGET_OS_ANDROID
+			if (NULL != (bits->glPort = FskGLPortGetCurrent())) {
+				FskBitmapSetOpenGLSysContext(bits, w);
+				FskGLPortResize(bits->glPort, bits->bounds.width, bits->bounds.height);
+				LOGD("[%s] setWindowAsGLSysContext(%p, %p) setting glPort (%p) to current", FskThreadName(FskThreadGetCurrent()), w, bits, bits->glPort);
+			}
+			else {
+				FskGLPortNew(bits->bounds.width, bits->bounds.height, w, &bits->glPort);
+				LOGD("[%s] setWindowAsGLSysContext(%p, %p) setting new GLPort (%p) OpenGLSysContext", FskThreadName(FskThreadGetCurrent()), w, bits, bits->glPort);
+			}
+		#else /* !TARGET_OS_ANDROID */
+			FskGLPortNew(bits->bounds.width, bits->bounds.height, w, &bits->glPort);
+			#if TARGET_OS_KPL
+				FskGLPortSetSysContext(bits->glPort, w);
+			#endif /* TARGET_OS_KPL */
+		#endif /* !TARGET_OS_ANDROID */
+	}
+
+	if (!w->glPortForWindow)
+		w->glPortForWindow = bits->glPort;
+}
+
+#endif
 
 #if TARGET_OS_WIN32
 
@@ -3406,6 +3496,7 @@ UInt32 getScreenPixelFormat(void)
 	#endif /* FSKBITMAP_OPENGL */
 	return kFskBitmapFormatDefault;
 }
+
 #elif (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
 UInt32 getScreenPixelFormat(void)
 {

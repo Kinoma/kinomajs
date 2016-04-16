@@ -418,6 +418,8 @@ FskErr FskPortSetBitmap(FskPort port, FskBitmap bits)
 
 	port->bits = bits;
 
+	FskPortSetUpdateRectangle(port, NULL);
+
 	updateAggregateClip(port);
 	FskPortInvalidateRectangle(port, NULL);	// need to redraw port contents
 
@@ -2754,6 +2756,12 @@ FskErr renderBeginDrawing(FskPort port, FskConstColorRGBA background)
     err = nopBeginDrawing(port, background);
     BAIL_IF_ERR(err);
 
+    if (NULL != port->window) {
+        FskRectangleRecord r;
+        FskRectangleIntersect(&port->bits->bounds, &port->updateRect, &r);
+        FskWindowBeginDrawing(port->window, &r);
+    }
+
 #if FSKBITMAP_OPENGL
     if (FskBitmapIsOpenGLDestinationAccelerated(port->bits))
         FskGLPortFocus(port->bits->glPort);
@@ -2761,12 +2769,6 @@ FskErr renderBeginDrawing(FskPort port, FskConstColorRGBA background)
 
     err = FskBitmapWriteBegin(port->bits, NULL, NULL, NULL);
     BAIL_IF_ERR(err);
-
-    if (NULL != port->window) {
-        FskRectangleRecord r;
-        FskRectangleIntersect(&port->bits->bounds, &port->updateRect, &r);
-        FskWindowBeginDrawing(port->window, &r);
-    }
 
     if (background)
         FskRectangleFill(port->bits, &port->bits->bounds, background, kFskGraphicsModeCopy, NULL);
@@ -2786,14 +2788,14 @@ FskErr renderEndDrawing(FskPort port)
     }
 #endif
 
+    FskBitmapWriteEnd(bits);
+
     if (NULL != port->window) {
         FskRectangleRecord r = port->changedArea;
         FskPortRectScale(port, &r);
         FskRectangleIntersect(&bits->bounds, &r, &r);
         FskWindowEndDrawing(port->window, &r);
     }
-
-    FskBitmapWriteEnd(bits);
 
     nopEndDrawing(port);
 

@@ -2223,14 +2223,14 @@ void KprSSDPInterfaceDisconnect(KprSSDPInterface self)
 	self->ready = false;
 }
 
-Boolean KprSSDPInterfaceValidateIP(KprSSDPInterface interface, UInt32 from, UInt32 to)
+Boolean KprSSDPInterfaceValidateIP(KprSSDPInterface iface, UInt32 from, UInt32 to)
 {
 	if (from == to)
 		return true;
-	while (interface) {
-		if (interface->ip == from)
+	while (iface) {
+		if (iface->ip == from)
 			return false;
-		interface = interface->next;
+		iface = iface->next;
 	}
 	return true;
 }

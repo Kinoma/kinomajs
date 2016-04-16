@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -122,7 +122,12 @@ typedef Boolean (*FskWindowEventHandler)(FskEvent event, UInt32 eventCode, FskWi
 		FskRectangleRecord			invalidArea;
 
 		FskBitmap					bits;
+	#if FSKBITMAP_OPENGL
+		FskGLPort					glPortForWindow;
+	#endif
 		FskRectangleRecord			bounds;						// short-cut for window->bitmap->bounds
+
+		FskBitmap					rotationBits;
 
 		// size constraints
 		UInt32						minWidth;
