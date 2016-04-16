@@ -35,7 +35,6 @@ FskErr KprCoAPClientRequestNew(KprCoAPClientRequest *it, KprCoAPClient client, K
 	self->observeRequested = (option != NULL && option->value.uint == kKprCoAPMessageObserveRegister);
 
 	*it = self;
-	FskDebugStr("CoAP ClientRequest created: %p", self);
 
 bail:
 	if (err) {
@@ -48,8 +47,6 @@ FskErr KprCoAPClientRequestDispose(KprCoAPClientRequest self)
 {
 	FskErr err = kFskErrNone;
 	if (self) {
-		FskDebugStr("CoAP ClientRequest Disposed: %p", self);
-
 		KprCoAPMessageDispose(self->message);
 		KprCoAPEndpointDispose(self->endpoint);
 

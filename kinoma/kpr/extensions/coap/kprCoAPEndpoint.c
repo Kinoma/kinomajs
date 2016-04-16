@@ -265,8 +265,6 @@ bail:
 static void KprCoAPEndpointMessageQueueReschedule(KprCoAPEndpoint self)
 {
 	if (self->resendQueue) {
-		FskDebugStr("next resend(%d) message is %x in %.3f secs", (int) self->resendQueue->retryCount + 1, (int) self->resendQueue->message->messageId, KprCoAPFromNow(&self->resendQueue->nextDelivery));
-
 		FskTimeCallbackSet(self->resendCallback, &self->resendQueue->nextDelivery, KprCoAPEndpointMessageQueueResend, self);
 	} else {
 		FskTimeCallbackRemove(self->resendCallback);

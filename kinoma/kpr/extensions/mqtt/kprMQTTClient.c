@@ -650,7 +650,6 @@ static void KprMQTTClientIdle(FskTimeCallBack callback UNUSED, const FskTime tim
 	bailIfError(KprMQTTClientSendMessage(self, &message));
 
 	when = *time;
-	FskDebugStr("< PING %ld", when.seconds);
 	FskTimeAddSecs(&when, self->keepAlive);
 	FskTimeCallbackSet(self->pingResponseCallaback, &when, KprMQTTClientCheckPingResponse, self);
 

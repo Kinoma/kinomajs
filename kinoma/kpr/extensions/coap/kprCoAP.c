@@ -89,7 +89,6 @@ void KPR_CoAP_Client(xsMachine *the)
 	ENTER_FUNCTION();
 	err = kFskErrNone;
 	clientH = NULL;
-	FskDebugStr("CoAP Client Host data created")
 
 	bailIfError(KprMemPtrNewClear(sizeof(KPR_CoAP_ClientHostRecord), &clientH));
 
@@ -126,7 +125,6 @@ void KPR_CoAP_client_destructor(void *it)
 		}
 		KprCoAPClientDispose(clientH->client);
 		KprMemPtrDispose(clientH);
-		FskDebugStr("CoAP Client Host data destructed")
 	}
 	EXIT_FUNCTION();
 }
@@ -136,7 +134,7 @@ void KPR_CoAP_client_createRequest(xsMachine *the)
 	KPR_CoAP_ClientHostData clientH;
 	KprCoAPClient client;
 	FskErr err;
-	KprCoAPMessage request;
+	KprCoAPMessage request = NULL;
 	char *uri;
 	int method;
 	int argc;
@@ -167,6 +165,8 @@ void KPR_CoAP_client_createRequest(xsMachine *the)
 	bailIfError(KPR_CoAP_request_new(the, clientH, request));
 
 bail:
+    KprCoAPMessageDispose(request);
+    
 	if (err) {
 		xsThrowIfFskErr(err);
 	}
@@ -273,18 +273,13 @@ static FskErr KPR_CoAP_client_acknowledgementCallback(KprCoAPMessage request, vo
 	{
 		xsTry {
 			int onAck = xsID("onAck");
-			int onAcknowledgement = xsID("onAcknowledgement");
 
 			err = KPR_CoAP_request_new(the, clientH, request);
 			if (err == kFskErrNone) {
 				xsVar(0) = xsResult;
 
-				if (xsFindResult(xsVar(0), onAcknowledgement)) {
+				if (xsFindResult(xsVar(0), onAck)) {
 					(void) xsCallFunction0(xsResult, xsVar(0));
-				} else if (xsFindResult(xsVar(0), onAck)) {
-					(void) xsCallFunction0(xsResult, xsVar(0));
-				} else if (xsFindResult(xsThis, onAcknowledgement)) {
-					(void) xsCallFunction1(xsResult, xsThis, xsVar(0));
 				} else if (xsFindResult(xsThis, onAck)) {
 					(void) xsCallFunction1(xsResult, xsThis, xsVar(0));
 				}
@@ -350,21 +345,16 @@ static FskErr KPR_CoAP_client_deliveryFailureCallback(KprCoAPMessage request, co
 
 	{
 		xsTry {
-			int onDeliveryFailure = xsID("onDeliveryFailure");
-			int onFail = xsID("onFail");
+			int onFailure = xsID("onFailure");
 
 			err = KPR_CoAP_request_new(the, clientH, request);
 			if (err == kFskErrNone) {
 				xsVar(0) = xsResult;
 				xsVar(1) = xsString((char *) reason);
 
-				if (xsFindResult(xsVar(0), onDeliveryFailure)) {
+				if (xsFindResult(xsVar(0), onFailure)) {
 					(void) xsCallFunction1(xsResult, xsVar(0), xsVar(1));
-				} else if (xsFindResult(xsVar(0), onFail)) {
-					(void) xsCallFunction1(xsResult, xsVar(0), xsVar(1));
-				} else if (xsFindResult(xsThis, onDeliveryFailure)) {
-					(void) xsCallFunction2(xsResult, xsThis, xsVar(0), xsVar(1));
-				} else if (xsFindResult(xsThis, onFail)) {
+				} else if (xsFindResult(xsThis, onFailure)) {
 					(void) xsCallFunction2(xsResult, xsThis, xsVar(0), xsVar(1));
 				}
 			}
@@ -419,9 +409,7 @@ static void KPR_CoAP_client_errorCallback(FskErr err, const char *reason, void *
 
 	{
 		xsTry {
-			xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
-			xsNewHostProperty(xsVar(0), xsID("code"), xsInteger(err), xsDefault, xsDontScript);
-			xsNewHostProperty(xsVar(0), xsID("reason"), xsString((char *) reason), xsDefault, xsDontScript);
+			xsVar(0) = xsString((char *) reason);
 
 			if (xsFindResult(xsThis, xsID("onError"))) {
 				(void) xsCallFunction1(xsResult, xsThis, xsVar(0));
@@ -440,7 +428,7 @@ static void KPR_CoAP_client_errorCallback(FskErr err, const char *reason, void *
 // CoAP.Request
 //--------------------------------------------------
 
-#define KPR_CoAP_RequestPrototype xsGet(xsGet(xsGlobal, xsID_CoAP), xsID_request)
+#define KPR_CoAP_RequestPrototype xsGet(xsGet(xsGet(xsGlobal, xsID_CoAP), xsID_Request), xsID_prototype)
 
 static KPR_CoAP_RequestHostData KPR_CoAP_request_get(xsMachine *the, xsSlot slot)
 {
@@ -482,9 +470,7 @@ static FskErr KPR_CoAP_request_new(xsMachine *the, KPR_CoAP_ClientHostData clien
 
 	if (KPR_CoAP_request_find(the, clientH, request)) return kFskErrNone;
 
-	FskDebugStr("CoAP Request Host data created")
-
-	xsResult = xsNewInstanceOf(KPR_CoAP_RequestPrototype);
+	xsResult = xsNew0(xsGet(xsGlobal, xsID("CoAP")), xsID("Request"));
 
 	bailIfError(KprMemPtrNewClear(sizeof(KPR_CoAP_RequestHostRecord), &requestH));
 
@@ -516,7 +502,6 @@ void KPR_CoAP_request_destructor(void *it)
 
 		KprCoAPMessageDispose(requestH->request);
 		KprMemPtrDispose(requestH);
-		FskDebugStr("CoAP Request Host data destructed")
 	}
 	EXIT_FUNCTION();
 }
@@ -757,7 +742,6 @@ void KPR_CoAP_Server(xsMachine *the)
 
 	xsVars(1);
 
-	FskDebugStr("CoAP Server Host data created")
 	bailIfError(KprMemPtrNewClear(sizeof(KPR_CoAP_ServerHostRecord), &serverH));
 
 	bailIfError(KprCoAPServerNew(&callbacks, serverH, &serverH->server));
@@ -786,7 +770,6 @@ void KPR_CoAP_server_destructor(void *it)
 
 		KprCoAPServerDispose(serverH->server);
 		KprMemPtrDispose(serverH);
-		FskDebugStr("CoAP Server Host data destructed")
 	}
 	EXIT_FUNCTION();
 }
@@ -1067,7 +1050,7 @@ static void KPR_CoAP_server_errorCallback(FskErr err, const char *reason, void *
 static void KPR_CoAP_session_new(xsMachine *the, KprCoAPServerSession session)
 {
 	ENTER_FUNCTION();
-	xsResult = xsNewInstanceOf(xsGet(xsGet(xsGlobal, xsID_CoAP), xsID_session));
+	xsResult = xsNew0(xsGet(xsGlobal, xsID("CoAP")), xsID("Session"));
 	xsSetHostData(xsResult, KprCoAPServerSessionRetain(session));
 	EXIT_FUNCTION();
 }
@@ -1340,12 +1323,12 @@ void KPR_CoAP_session_sendAck(xsMachine *the)
 // CoAP.Response
 //--------------------------------------------------
 
-#define KPR_CoAP_ResponsePrototype xsGet(xsGet(xsGlobal, xsID_CoAP), xsID_response)
+#define KPR_CoAP_ResponsePrototype xsGet(xsGet(xsGet(xsGlobal, xsID_CoAP), xsID_Response), xsID_prototype)
 
 static void KPR_CoAP_response_new(xsMachine *the, KprCoAPMessage message)
 {
 	ENTER_FUNCTION();
-	xsResult = xsNewInstanceOf(KPR_CoAP_ResponsePrototype);
+	xsResult = xsNew0(xsGet(xsGlobal, xsID("CoAP")), xsID("Response"));
 	xsSetHostData(xsResult, KprCoAPMessageRetain(message));
 	EXIT_FUNCTION();
 }

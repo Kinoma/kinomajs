@@ -69,7 +69,6 @@ FskErr KprCoAPClientNew(KprCoAPClient *it, KprCoAPClientCallbacks *callbacks, vo
 	self->refcon = refcon;
 
 	*it = self;
-	FskDebugStr("CoAP Client created: %p", self);
 
 bail:
 	if (err) {
@@ -115,7 +114,6 @@ FskErr KprCoAPClientDispose(KprCoAPClient self)
 		KprCoAPReceiverDispose(self->receiver);
 		FskNetSocketClose(self->socket);
 		KprMemPtrDispose(self);
-		FskDebugStr("CoAP Client disposed: %p", self);
 	}
 	return err;
 }
@@ -196,6 +194,7 @@ FskErr KprCoAPClientHandleResponse(KprCoAPClient self, KprCoAPMessage request, K
 	}
 
 bail:
+	KprCoAPMessageDispose(ack);
 	return err;
 }
 

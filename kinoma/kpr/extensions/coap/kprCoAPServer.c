@@ -64,7 +64,6 @@ FskErr KprCoAPServerDispose(KprCoAPServer self)
 		FskTimeCallbackDispose(self->periodicalCallback);
 
 		KprRetainableDispose(self->retainable);
-		FskDebugStr("CoAP Server Disposed: %p", self);
 		KprMemPtrDispose(self);
 	}
 	return err;
@@ -284,11 +283,8 @@ static void KprCoAPServerResetPeriodicalCheck(KprCoAPServer self)
 	KprCoAPServerSession session = KprCoAPServerNextExpiringSession(self);
 
 	if (session) {
-		FskDebugStr("next expiring session is %p in %.3f secs", session, KprCoAPFromNow(&session->expireAt));
-
 		FskTimeCallbackSet(self->periodicalCallback, &session->expireAt, KprCoAPServerPeriodicalCheck, self);
 	} else {
-		FskDebugStr("no session will be expiring. stop callback");
 		FskTimeCallbackRemove(self->periodicalCallback);
 	}
 }
@@ -362,7 +358,6 @@ bail:
 
 static void KprCoAPServerReportError(KprCoAPServer self, FskErr err, const char *reason)
 {
-	FskDebugStr("server error: %d %s", err, reason);
 	self->callbacks.errorCallback(err, reason, self->refcon);
 }
 
@@ -431,7 +426,6 @@ static FskErr KprCoAPServerInterfaceDispose(KprCoAPServerInterface self)
 		FskNetSocketClose(self->socket);
 		KprMemPtrDispose((char *) self->interfaceName);
 
-		FskDebugStr("CoAP ServerInterface Disposed: %p", self);
 		KprMemPtrDispose(self);
 	}
 	return err;

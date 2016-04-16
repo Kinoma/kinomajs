@@ -112,7 +112,6 @@ void KprMQTTBrokerDispose(KprMQTTBroker self)
 		KprSocketServerDispose(self->server);
 
 		FskMemPtrDispose(self);
-		FskDebugStr("BROKER: DISPOSE BROKER(0x%lx)", (UInt32)self);
 	}
 }
 
@@ -191,7 +190,6 @@ static UInt8 KprMQTTBrokerAuthorize(KprMQTTBroker self, KprMQTTBrokerClient clie
 
 	oldClient = KprMQTTBrokerFindClient(self, mc->clientIdentifier);
 
-	FskDebugStr(">CONNECT(0x%lx): %s, %s", (UInt32)client, mc->clientIdentifier, mc->cleanSession ? "clean" : "dirty");
 	FskMemPtrDispose(client->clientIdentifier);
 	client->clientIdentifier = mc->clientIdentifier;
 	mc->clientIdentifier = NULL;
@@ -211,25 +209,21 @@ static UInt8 KprMQTTBrokerAuthorize(KprMQTTBroker self, KprMQTTBrokerClient clie
 	}
 
 	if (mc->username) {
-		FskDebugStr("  USERNAME: %s", mc->username);
 		client->username = mc->username;
 		mc->username = NULL;
 	}
 
 	if (mc->password) {
-		FskDebugStr("  PASSWORD: %s", mc->password);
 		client->password = mc->password;
 		mc->password = NULL;
 	}
 
 	if (mc->willTopic) {
-		FskDebugStr("  WILL TOPIC: %s", mc->willTopic);
 		client->willTopic = mc->willTopic;
 		mc->willTopic = NULL;
 	}
 
 	if (mc->willPayload) {
-		FskDebugStr("  WILL PAYLOAD: %ld byte (%s)", mc->willPayload->size, mc->willPayload->buffer);
 		client->willPayload = mc->willPayload;
 		mc->willPayload = NULL;
 	}
@@ -583,7 +577,6 @@ static void KprMQTTBrokerClientDispose(KprMQTTBrokerClient self) {
 		FskMemPtrDispose(self->clientIdentifier);
 
 		FskMemPtrDispose(self);
-		FskDebugStr("BROKER: DISPOSE CLIENT (0x%lx)", (UInt32)self);
 	}
 }
 
@@ -697,7 +690,6 @@ static FskErr KprMQTTBrokerClientSendPublish(KprMQTTBrokerClient self, const cha
 
 	bailIfError(KprMQTTBrokerClientCreatePublishMessage(self, topic, payload, qos, retain, &message));
 
-	FskDebugStr("BROKER: send PUBLISH(0x%lx): qos:%d %s : %s", (UInt32)self, message->qualityOfService, topic, (char *)payload->buffer);
 	if (!self->open) {
 		bailIfError(KprMQTTQueueOutboxPut(self->queue, &message));
 	} else {
@@ -767,7 +759,6 @@ static void KprMQTTBrokerClient_onMessage(KprMQTTEndpoint endpoint UNUSED, KprMQ
 		case kKprMQTTMessageTypeSUBSCRIBE: {
 			KprMQTTSubscribeTopic t1, t2;
 
-			FskDebugStr(">SUBSCRIBE(0x%lx): %d", (UInt32)self, message->messageId);
 			bailIfError(KprMQTTMessageNewWithType(&message2, kKprMQTTMessageTypeSUBACK));
 			message2->messageId = message->messageId;
 
@@ -781,7 +772,6 @@ static void KprMQTTBrokerClient_onMessage(KprMQTTEndpoint endpoint UNUSED, KprMQ
 				t1 = t1->next;
 			}
 
-			FskDebugStr("<SUBACK(0x%lx): %d", (UInt32)self, message2->messageId);
 			bailIfError(KprMQTTBrokerClientSendMessage(self, &message2));
 			break;
 		}
@@ -789,7 +779,6 @@ static void KprMQTTBrokerClient_onMessage(KprMQTTEndpoint endpoint UNUSED, KprMQ
 		case kKprMQTTMessageTypeUNSUBSCRIBE: {
 			KprMQTTSubscribeTopic t = message->t.other.topics;
 
-			FskDebugStr(">UNSUBSCRIBE(0x%lx): %d", (UInt32)self, message->messageId);
 			while (t) {
 				KprMQTTBrokerUnsubscribe(self->broker, self->clientIdentifier, t->topic);
 				t = t->next;
@@ -798,7 +787,6 @@ static void KprMQTTBrokerClient_onMessage(KprMQTTEndpoint endpoint UNUSED, KprMQ
 			bailIfError(KprMQTTMessageNewWithType(&message2, kKprMQTTMessageTypeUNSUBACK));
 			message2->messageId = message->messageId;
 
-			FskDebugStr("<UNSUBACK(0x%lx): %d", (UInt32)self, message2->messageId);
 			bailIfError(KprMQTTBrokerClientSendMessage(self, &message2));
 			break;
 		}
@@ -807,7 +795,6 @@ static void KprMQTTBrokerClient_onMessage(KprMQTTEndpoint endpoint UNUSED, KprMQ
 			UInt8 qos = message->qualityOfService;
 			UInt16 messageId = message->messageId;
 
-			FskDebugStr(">PUBLISH(0x%lx): %d, QoS %d%s", (UInt32)self, message->qualityOfService, message->messageId, message->isRetained ? " retain" : "");
 			if (message->qualityOfService == 2) {
 				bailIfError(KprMQTTQueueInboxPut(self->queue, &message));
 			} else {
@@ -823,27 +810,23 @@ static void KprMQTTBrokerClient_onMessage(KprMQTTEndpoint endpoint UNUSED, KprMQ
 				bailIfError(KprMQTTMessageNewWithType(&message2, type));
 				message2->messageId = messageId;
 
-				FskDebugStr("<%s(0x%lx): %d", (qos == 1 ? "PUBACK" : "PUBREC"), (UInt32)self, message2->messageId);
 				bailIfError(KprMQTTBrokerClientSendMessage(self, &message2));
 			}
 			break;
 		}
 
 		case kKprMQTTMessageTypePUBREC: {
-			FskDebugStr(">PUBREC(0x%lx): %d", (UInt32)self, message->messageId);
 			message2 = KprMQTTQueueOutboxGet(self->queue, message->messageId);
 			if (!message2) break;
 
 			bailIfError(KprMQTTMessageNewWithType(&message3, kKprMQTTMessageTypePUBREL));
 			message3->messageId = message->messageId;
 
-			FskDebugStr("<PUBREL(0x%lx): %d", (UInt32)self, message3->messageId);
 			bailIfError(KprMQTTBrokerClientSendMessage(self, &message3));
 			break;
 		}
 
 		case kKprMQTTMessageTypePUBREL: {
-			FskDebugStr(">PUBREL(0x%lx): %d", (UInt32)self, message->messageId);
 			message2 = KprMQTTQueueInboxGet(self->queue, message->messageId);
 			if (!message2) break;
 
@@ -858,29 +841,24 @@ static void KprMQTTBrokerClient_onMessage(KprMQTTEndpoint endpoint UNUSED, KprMQ
 			bailIfError(KprMQTTMessageNewWithType(&message3, kKprMQTTMessageTypePUBCOMP));
 			message3->messageId = message->messageId;
 
-			FskDebugStr("<PUBCOMP(0x%lx): %d", (UInt32)self, message3->messageId);
 			bailIfError(KprMQTTBrokerClientSendMessage(self, &message3));
 			break;
 		}
 
 		case kKprMQTTMessageTypePUBACK:
 		case kKprMQTTMessageTypePUBCOMP: {
-			FskDebugStr(">%s(0x%lx): %d", (message->type == kKprMQTTMessageTypePUBACK ? "PUBACK" : "PUBCOMP"), (UInt32)self, message->messageId);
 			message2 = KprMQTTQueueOutboxGet(self->queue, message->messageId);
 			break;
 		}
 
 		case kKprMQTTMessageTypePINGREQ: {
-			FskDebugStr(">PINGREQ(0x%lx)", (UInt32)self);
 			bailIfError(KprMQTTMessageNewWithType(&message2, kKprMQTTMessageTypePINGRESP));
 
-			FskDebugStr("<PINGRESP(0x%lx)", (UInt32)self);
 			bailIfError(KprMQTTBrokerClientSendMessage(self, &message2));
 			break;
 		}
 
 		case kKprMQTTMessageTypeDISCONNECT: {
-			FskDebugStr(">DISCONNECT(0x%lx)", (UInt32)self);
 			KprMQTTBrokerClientRequestClose(self, true);
 			return;
 		}

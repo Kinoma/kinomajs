@@ -226,7 +226,7 @@ FskErr FskMainTerminate(void)
 	FskWindowTerminate();
 	FskImageCodecTerminate();
 
-//	FskBlitTerminate();
+	FskBlitTerminate();
 
 	FskFileTerminate();
 

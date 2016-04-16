@@ -93,6 +93,13 @@ void FskBlitInitialize(void)
 	FskBlitTransferAlphaBitmapPatch();
 }
 
+void FskBlitTerminate(void)
+{
+#if FSKBITMAP_OPENGL
+	FskGLShutdown();
+#endif
+}
+
 FskErr FskRectangleFill(FskBitmap dst, FskConstRectangle r, FskConstColorRGBA color, UInt32 mode, FskConstGraphicsModeParameters modeParams)
 {
 	FskErr err = kFskErrNone;

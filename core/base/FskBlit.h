@@ -45,6 +45,7 @@ typedef void (*FskBitmapCopyProc)(UInt32 height, SInt32 dstRowBump, const unsign
 	FskAPI(YUV420Blit) makeYUV420BlitInfo(FskBitmap bits);
 
 	void FskBlitInitialize(void);
+	void FskBlitTerminate(void);
 #endif
 
 #endif

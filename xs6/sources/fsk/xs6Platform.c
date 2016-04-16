@@ -603,7 +603,7 @@ bail:
 void fxReaderCallback(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon)
 {
 	txMachine* the = refCon;
-	if (FskNetSocketIsReadable(the->connection))
+	if (the->connection && FskNetSocketIsReadable(the->connection))
 		fxDebugCommand(the);
 	return;
 }

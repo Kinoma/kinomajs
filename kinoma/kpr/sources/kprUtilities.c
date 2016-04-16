@@ -2191,7 +2191,6 @@ FskErr KprSocketReaderReadDataFrom(KprSocketReader self, void *buffer, UInt32 *s
 	int ip, port, amt;
 
 	err = FskNetSocketRecvUDP(self->socket, buffer, *size, &amt, &ip, &port);
-//	FskDebugStr("READ DATAGRAM: size: %d err: %d", amt, err);
 	if (err != kFskErrNone) return err;
 
 	*size = amt;
@@ -2240,7 +2239,6 @@ FskErr KprSocketReaderReadBytes(KprSocketReader self, void *buffer, size_t targe
 	}
 
 	err = FskNetSocketRecvTCP(self->socket, p, remains, &size);
-	FskDebugStr("READ: size: %d offset: %d read: %d err: %d", (int) targetSize, (int) offset, (int) size, (int) err);
 	if (err != kFskErrNone) return err;
 
 	FskTimeGetNow(&self->lastDataArrived);
@@ -2584,7 +2582,6 @@ FskErr KprPortListenerNew(KprSocketServer server, UInt16 port, const char *inter
 	FskSocket skt = NULL;
 	FskNetInterfaceRecord *ifc = NULL;
 
-	FskDebugStr("KprPortListenerNew - interfaceName: %s", interfaceName);
 	bailIfError(KprMemPtrNewClear(sizeof(KprPortListenerRecord), &self));
 	self->server = server;
 	self->interfaceName = FskStrDoCopy(interfaceName);
@@ -2592,27 +2589,23 @@ FskErr KprPortListenerNew(KprSocketServer server, UInt16 port, const char *inter
 
 	err = FskNetSocketNewTCP(&skt, true, server->debugName);
 	if (err) {
-		FskDebugStr("KprPortListenerNew -  creating socket failed: %d", (int) err);
         err = kFskErrNoMoreSockets;
 		goto bail;
 	}
 	FskNetSocketReuseAddress(skt);
 	ifc = FskNetInterfaceFindByName(self->interfaceName);
 	if (NULL == ifc) {
-		FskDebugStr("KprPortListenerNew - FskNetInterfaceFindByName returned NULL");
 		err = kFskErrOperationFailed;
 		goto bail;
 	}
 	self->ip = ifc->ip;
 	err = FskNetSocketBind(skt, ifc->ip, port);
 	if (kFskErrNone != err) {
-		FskDebugStr("KprPortListenerNew - bind failed: %d port: %u", (int) err, (unsigned) port);
 		goto bail;
 	}
 
 	FskNetSocketMakeNonblocking(skt);
 	FskListAppend((FskList*)&server->listeners, self);
-	FskDebugStr("KprPortListenerNew -  about to listen");
 
 	FskNetSocketListen(skt);
 	FskThreadAddDataHandler(&self->dataHandler, (FskThreadDataSource)skt, (FskThreadDataReadyCallback)KprPortListenerAcceptNewConnection, true, false, self);
@@ -2644,7 +2637,6 @@ FskErr KprPortListenerDispose(KprPortListener self)
 		KprMemPtrDispose(self->interfaceName);
 
 		KprMemPtrDispose(self);
-		FskDebugStr("KprPortListenerDispose - listener: %p", self);
 	}
 	return kFskErrNone;
 }

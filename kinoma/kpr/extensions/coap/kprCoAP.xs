@@ -15,192 +15,277 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-<package script="true">
-    <import href="kpr.xs" link="dynamic"/>
+<package><program><![CDATA[
 
-    <object name="CoAP">
-        <!-- Client -->
 
-        <object name="client" c="KPR_CoAP_client_destructor">
-            <function name="createRequest" params="uri, method" c="KPR_CoAP_client_createRequest"/>
-            <function name="send" params="request" c="KPR_CoAP_client_send"/>
+const CoAP = {
+    Type: {
+        Con: 0,
+        Non: 1,
+        Ack: 2,
+        Rst: 3,
+    },
 
-            <function name="get autoToken" c="KPR_CoAP_client_is_autoToken" enum="true"/>
-            <function name="set autoToken" c="KPR_CoAP_client_set_autoToken"/>
+    Method: {
+        GET: 1,
+        POST: 2,
+        PUT: 3,
+        DELETE: 4
+    },
 
-            <!--
-                onResponse(request, response)
-                onAck(request)
-                onDeliveryFailure(request, failure)
-                onError(err)
-            -->
-        </object>
+    Option: {
+        // RFC 7252 core
+        IfMatch: 1,
+        UriHost: 3,
+        ETag: 4,
+        IfNoneMatch: 5,
+        UriPort: 7,
+        LocationPath: 8,
+        UriPath: 11,
+        ContentFormat: 12,
+        MaxAge: 14,
+        UriQuery: 15,
+        Accept: 17,
+        LocationQuery: 20,
+        ProxyUri: 35,
+        ProxyScheme: 39,
+        Size1: 60,
 
-        <function name="Client" params="" prototype="CoAP.client" c="KPR_CoAP_Client"/>
+        // draft-ietf-core-block-15
+        Block2: 23,
+        Block1: 27,
+        Size2: 28,
 
-        <!-- Request -->
+        // draft-ietf-core-observe-14
+        Observe: 6,
+    },
 
-        <object name="request" c="KPR_CoAP_request_destructor">
-            <function name="get confirmable" c="KPR_CoAP_request_is_confirmable" enum="true"/>
-            <function name="set confirmable" c="KPR_CoAP_request_set_confirmable"/>
+    OptionFormat: {
+        Empty: 0,
+        Opaque: 1,
+        Uint: 2,
+        String: 3,
+    },
 
-            <function name="get type" c="KPR_CoAP_request_get_type" enum="true"/>
+    ContentFormat: {
+        PlainText: 0,
+        LinkFormat: 40,
+        XML: 41,
+        OctetStream: 42,
+        EXI: 47,
+        JSON: 50
+    },
 
-            <function name="get messageId" c="KPR_CoAP_request_get_messageId" enum="true"/>
+    Observe: {
+        Register: 0,
+        Deregister: 1
+    },
 
-            <function name="get method" c="KPR_CoAP_request_get_method" enum="true"/>
-            <function name="set method" c="KPR_CoAP_request_set_method"/>
 
-            <function name="get token" c="KPR_CoAP_request_get_token" enum="true"/>
-            <function name="set token" c="KPR_CoAP_request_set_token"/>
+    Port: 5683,
 
-            <function name="get payload" c="KPR_CoAP_request_get_payload" enum="true"/>
-            <function name="set payload" c="KPR_CoAP_request_set_payload"/>
+    get useChunk() @ "KPR_CoAP_get_useChunk",
+    set useChunk(val) @ "KPR_CoAP_set_useChunk"
+};
 
-            <function name="get contentFormat" c="KPR_CoAP_request_get_contentFormat" enum="true"/>
+CoAP.Client = class @ "KPR_CoAP_client_destructor" {
+    constructor() {
+        this._constructor();
+    }
 
-            <function name="setPayload" params="payload, contentFormat" c="KPR_CoAP_request_setPayload"/>
+    createRequest(url, method=CoAP.Type.GET) {
+        let request = this._createRequest(url, method);
+        return request;
+    }
 
-            <function name="get options" c="KPR_CoAP_request_get_options" enum="true"/>
-            <function name="addOption" params="option, value" c="KPR_CoAP_request_addOption"/>
+    get(url, callback) {
+        return this.send({url, method:CoAP.Method.GET}, callback);
+    }
 
-            <function name="get observe" c="KPR_CoAP_request_is_observe" enum="true"/>
-            <function name="set observe" c="KPR_CoAP_request_set_observe"/>
+    post(url, payload, callback) {
+        return this.send({url, method:CoAP.Method.POST}, payload, callback);
+    }
 
-            <function name="get uri" c="KPR_CoAP_request_get_uri" enum="true"/>
-            <function name="get host" c="KPR_CoAP_request_get_host" enum="true"/>
-            <function name="get port" c="KPR_CoAP_request_get_port" enum="true"/>
-            <function name="get path" c="KPR_CoAP_request_get_path" enum="true"/>
-            <function name="get query" c="KPR_CoAP_request_get_query" enum="true"/>
-            <!--
-                onResponse(response)
-                onAck()
-                onDeliveryFailure(failure)
-            -->
-        </object>
+    put(url, payload, callback) {
+        return this.send({url, method:CoAP.Method.PUT}, payload, callback);
+    }
 
-        <!-- Server -->
+    observe(url, callback) {
+        return this.send({
+            url,
+            method:CoAP.Method.GET,
+            observe: true,
+        }, callback);
+    }
 
-        <object name="server" c="KPR_CoAP_server_destructor">
-            <function name="get port" c="KPR_CoAP_server_get_port" enum="true"/>
+    send(request, payload, callback) {
+        if (typeof request == 'object') {
+            if (!(request instanceof CoAP.Request)) {
+                let url = request.url ? request.url : request.uri;
+                if (!url) throw "Bad request";
 
-            <function name="start" params="port" c="KPR_CoAP_server_start"/>
-            <function name="stop" params="" c="KPR_CoAP_server_stop"/>
+                let method = request.method;
 
-            <function name="bind" params="path, callback, info" c="KPR_CoAP_server_bind"/>
+                let request2 = this.createRequest(url, method)
 
-            <function name="getSession" params="sessionId" c="KPR_CoAP_server_getSession"/>
-        </object>
+                delete request.url;
+                delete request.uri;
+                delete request.method;
+                for (let key in request) {
+                    request2[key] = request[key];
+                }
 
-        <function name="Server" params="" prototype="CoAP.server" c="KPR_CoAP_Server"/>
+                request = request2;
+            }
+        } else {
+            request = this.createRequest(url, CoAP.Method.GET);
+        }
 
-        <!-- Session -->
+        switch (typeof payload) {
+            case 'function':
+                callback = payload;
+                break;
 
-        <object name="session" c="KPR_CoAP_session_destructor">
-            <function name="get id" c="KPR_CoAP_session_get_id" enum="true"/>
+            case 'object':
+                request.payload = payload;
+                if (!request.method || request.method == CoAP.Method.GET) request.method = CoAP.Method.POST;
+                break;
+        }
 
-            <function name="get confirmable" c="KPR_CoAP_session_is_confirmable" enum="true"/>
-            <function name="get type" c="KPR_CoAP_session_get_type" enum="true"/>
-            <function name="get messageId" c="KPR_CoAP_session_get_messageId" enum="true"/>
-            <function name="get method" c="KPR_CoAP_session_get_method" enum="true"/>
-            <function name="get token" c="KPR_CoAP_session_get_token" enum="true"/>
+        if (callback) {
+            request.onResponse = callback;
+        }
 
-            <function name="get payload" c="KPR_CoAP_session_get_payload" enum="true"/>
-            <function name="get contentFormat" c="KPR_CoAP_session_get_contentFormat" enum="true"/>
+        return this._send(request);
+    }
 
-            <function name="get options" c="KPR_CoAP_session_get_options" enum="true"/>
+    // private stuff
+    _constructor(/*  */) @ "KPR_CoAP_Client";
+    _createRequest(/* url, method */) @ "KPR_CoAP_client_createRequest";
+    _send(/* request */) @ "KPR_CoAP_client_send";
+};
 
-            <function name="get remoteIP" c="KPR_CoAP_session_get_remoteIP" enum="true"/>
-            <function name="get remotePort" c="KPR_CoAP_session_get_remotePort" enum="true"/>
+CoAP.Request = class @ "KPR_CoAP_request_destructor" {
+    get confirmable() @ "KPR_CoAP_request_is_confirmable";
+    set confirmable(val) @ "KPR_CoAP_request_set_confirmable";
 
-            <function name="get uri" c="KPR_CoAP_session_get_uri" enum="true"/>
-            <function name="get host" c="KPR_CoAP_session_get_host" enum="true"/>
-            <function name="get port" c="KPR_CoAP_session_get_port" enum="true"/>
-            <function name="get path" c="KPR_CoAP_session_get_path" enum="true"/>
-            <function name="get query" c="KPR_CoAP_session_get_query" enum="true"/>
+    get type() @ "KPR_CoAP_request_get_type";
 
-            <function name="createResponse" params="" c="KPR_CoAP_session_createResponse"/>
-            <function name="send" params="response" c="KPR_CoAP_session_send"/>
+    get messageId() @ "KPR_CoAP_request_get_messageId";
 
-            <!-- Observe -->
-            <function name="get observe" c="KPR_CoAP_session_is_observe" enum="true"/>
+    get method() @ "KPR_CoAP_request_get_method";
+    set method(val) @ "KPR_CoAP_request_set_method";
 
-            <function name="acceptObserve" params="" c="KPR_CoAP_session_acceptObserve"/>
-            <function name="endObserve" params="" c="KPR_CoAP_session_endObserve"/>
+    get token() @ "KPR_CoAP_request_get_token";
+    set token(val) @ "KPR_CoAP_request_set_token";
 
-            <!-- manual ack -->
-            <function name="get autoAck" c="KPR_CoAP_server_is_autoAck" enum="true"/>
-            <function name="set autoAck" c="KPR_CoAP_server_set_autoAck"/>
-            <function name="sendAck" params="" c="KPR_CoAP_session_sendAck"/>
-        </object>
+    get payload() @ "KPR_CoAP_request_get_payload";
+    set payload(val) @ "KPR_CoAP_request_set_payload";
 
-        <!-- Response -->
+    get contentFormat() @ "KPR_CoAP_request_get_contentFormat";
 
-        <object name="response" c="KPR_CoAP_response_destructor">
-            <function name="get confirmable" c="KPR_CoAP_response_is_confirmable" enum="true"/>
-            <function name="set confirmable" c="KPR_CoAP_response_set_confirmable"/>
+    setPayload(payload, contentFormat) @ "KPR_CoAP_request_setPayload";
 
-            <function name="get type" c="KPR_CoAP_response_get_type" enum="true"/>
+    get options() @ "KPR_CoAP_request_get_options";
+    addOption(option, value) @ "KPR_CoAP_request_addOption";
 
-            <function name="get messageId" c="KPR_CoAP_response_get_messageId" enum="true"/>
+    get observe() @ "KPR_CoAP_request_is_observe";
+    set observe(val) @ "KPR_CoAP_request_set_observe";
 
-            <function name="get code" c="KPR_CoAP_response_get_code" enum="true"/>
+    get uri() @ "KPR_CoAP_request_get_uri";
+    get url() @ "KPR_CoAP_request_get_uri";
+    get host() @ "KPR_CoAP_request_get_host";
+    get port() @ "KPR_CoAP_request_get_port";
+    get path() @ "KPR_CoAP_request_get_path";
+    get query() @ "KPR_CoAP_request_get_query";
 
-            <function name="setCode" params="cls, detail" c="KPR_CoAP_response_setCode"/>
+};
 
-            <function name="get token" c="KPR_CoAP_response_get_token" enum="true"/>
+CoAP.Server = class @ "KPR_CoAP_server_destructor" {
+    constructor() @ "KPR_CoAP_Server";
 
-            <function name="get payload" c="KPR_CoAP_response_get_payload" enum="true"/>
-            <function name="set payload" c="KPR_CoAP_response_set_payload"/>
+    get port() @ "KPR_CoAP_server_get_port";
 
-            <function name="get contentFormat" c="KPR_CoAP_response_get_contentFormat" enum="true"/>
+    start(port) @ "KPR_CoAP_server_start";
+    stop() @ "KPR_CoAP_server_stop";
 
-            <function name="setPayload" params="payload, contentFormat" c="KPR_CoAP_response_setPayload"/>
+    bind(path, callback, info) @ "KPR_CoAP_server_bind";
 
-            <function name="get options" c="KPR_CoAP_response_get_options" enum="true"/>
-            <function name="addOption" params="option, value" c="KPR_CoAP_response_addOption"/>
+    getSession(sessionId) @ "KPR_CoAP_server_getSession";
+};
 
-            <function name="get observe" c="KPR_CoAP_response_is_observe" enum="true"/>
+CoAP.Session = class @ "KPR_CoAP_session_destructor" {
+    get id() @ "KPR_CoAP_session_get_id";
 
-            <function name="get uri" c="KPR_CoAP_response_get_uri" enum="true"/>
-            <function name="get host" c="KPR_CoAP_response_get_host" enum="true"/>
-            <function name="get port" c="KPR_CoAP_response_get_port" enum="true"/>
-            <function name="get path" c="KPR_CoAP_response_get_path" enum="true"/>
-            <function name="get query" c="KPR_CoAP_response_get_query" enum="true"/>
-        </object>
+    get confirmable() @ "KPR_CoAP_session_is_confirmable";
+    get type() @ "KPR_CoAP_session_get_type";
+    get messageId() @ "KPR_CoAP_session_get_messageId";
+    get method() @ "KPR_CoAP_session_get_method";
+    get token() @ "KPR_CoAP_session_get_token";
 
-        <object name="Method">
-            <!--
-            GET    =  1
-            POST   =  2
-            PUT    =  3
-            DELETE =  4
-            -->
-        </object>
+    get payload() @ "KPR_CoAP_session_get_payload";
+    get contentFormat() @ "KPR_CoAP_session_get_contentFormat";
 
-        <object name="Option">
-            <!--
-            IfMatch        =  1
-            UriHost        =  3
-            ETag           =  4
-            IfNoneMatch    =  5
-            UriPort        =  7
-            LocationPath   =  8
-            UriPath        = 11
-            ContentFormat  = 12
-            MaxAge         = 14
-            UriQuery       = 15
-            Accept         = 17
-            LocationQuery  = 20
-            ProxyUri       = 35
-            ProxyScheme    = 39
-            Size1          = 60
-            -->
-        </object>
+    get options() @ "KPR_CoAP_session_get_options";
 
-        <function name="get useChunk" c="KPR_CoAP_get_useChunk" enum="true"/>
-        <function name="set useChunk" c="KPR_CoAP_set_useChunk" enum="true"/>
-    </object>
+    get remoteIP() @ "KPR_CoAP_session_get_remoteIP";
+    get remotePort() @ "KPR_CoAP_session_get_remotePort";
 
-    <program c="KPR_CoAP_patch"/>
-</package>
+    get uri() @ "KPR_CoAP_session_get_uri";
+    get url() @ "KPR_CoAP_session_get_uri";
+    get host() @ "KPR_CoAP_session_get_host";
+    get port() @ "KPR_CoAP_session_get_port";
+    get path() @ "KPR_CoAP_session_get_path";
+    get query() @ "KPR_CoAP_session_get_query";
+
+    createResponse() @ "KPR_CoAP_session_createResponse";
+    send(response) @ "KPR_CoAP_session_send";
+
+    /* Observe */
+    get observe() @ "KPR_CoAP_session_is_observe";
+
+    acceptObserve() @ "KPR_CoAP_session_acceptObserve";
+    endObserve() @ "KPR_CoAP_session_endObserve";
+
+    /* manual ack */
+    get autoAck() @ "KPR_CoAP_server_is_autoAck";
+    set autoAck() @ "KPR_CoAP_server_set_autoAck";
+    sendAck() @ "KPR_CoAP_session_sendAck";
+};
+
+
+CoAP.Response = class @ "KPR_CoAP_response_destructor" {
+    get confirmable() @ "KPR_CoAP_response_is_confirmable";
+    set confirmable(val) @ "KPR_CoAP_response_set_confirmable";
+
+    get type() @ "KPR_CoAP_response_get_type";
+
+    get messageId() @ "KPR_CoAP_response_get_messageId";
+
+    get code() @ "KPR_CoAP_response_get_code";
+
+    setCode(cls, detail) @ "KPR_CoAP_response_setCode";
+
+    get token() @ "KPR_CoAP_response_get_token";
+
+    get payload() @ "KPR_CoAP_response_get_payload";
+    set payload(val) @ "KPR_CoAP_response_set_payload";
+
+    get contentFormat() @ "KPR_CoAP_response_get_contentFormat";
+
+    setPayload(payload, contentFormat) @ "KPR_CoAP_response_setPayload";
+
+    get options() @ "KPR_CoAP_response_get_options";
+    addOption(option, value) @ "KPR_CoAP_response_addOption";
+
+    get observe() @ "KPR_CoAP_response_is_observe";
+
+    get uri() @ "KPR_CoAP_response_get_uri";
+    get url() @ "KPR_CoAP_response_get_uri";
+    get host() @ "KPR_CoAP_response_get_host";
+    get port() @ "KPR_CoAP_response_get_port";
+    get path() @ "KPR_CoAP_response_get_path";
+    get query() @ "KPR_CoAP_response_get_query";
+};
+
+]]></program></package>

@@ -56,8 +56,6 @@ FskErr KprCoAPServerSessionDispose(KprCoAPServerSession self)
 {
 	FskErr err = kFskErrNone;
 	if (self && KprRetainableRelease(self->retainable)) {
-		FskDebugStr("CoAP ServerSession Disposed: %p", self);
-
 		KprCoAPMessageDispose(self->request);
 		KprCoAPMessageDispose(self->lastResponse);
 		KprCoAPEndpointDispose(self->endpoint);

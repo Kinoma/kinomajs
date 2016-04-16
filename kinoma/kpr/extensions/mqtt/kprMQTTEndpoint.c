@@ -198,7 +198,6 @@ FskErr KprMQTTEndpointDispose(KprMQTTEndpoint self)
 		FskMemPtrDispose(self->reading.buffer);
 
 		FskMemPtrDispose(self);
-		FskDebugStr("DISPOSE: KprMQTTEndpoint");
 	}
 	return kFskErrNone;
 }
@@ -446,11 +445,6 @@ static FskErr KprMQTTEndpointPackMessage(KprMQTTEndpoint self, KprMQTTMessage me
 
 	size = p - (UInt8 *) *buffer;
 
-#ifdef mxDebug
-	if (*length != size) {
-		FskDebugStr("ERROR!!!");
-	}
-#endif
 	return kFskErrNone;
 }
 
