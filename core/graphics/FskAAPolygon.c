@@ -682,7 +682,9 @@ XSortAAActiveEdgeCrossings(AAActiveEdge **pEdges, SInt32 fillRule)
 		}
 	}
 	else {	/* fillRule = kFskFillRuleNonZero */
+#if 0
 		SInt32			windingNumber, nextWindingNumber;
+#endif
 		AAActiveEdge	*nearings;
 		for (crossings = NULL, nearings = NULL; edges != NULL; edges = edges->next) {
 			if (edges->crosses) {

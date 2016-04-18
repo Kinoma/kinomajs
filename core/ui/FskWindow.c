@@ -2378,7 +2378,10 @@ void windowEnterPressHold(struct FskTimeCallBackRecord *callback, const FskTime 
 
 #endif
 
-static Boolean needMoreRedraw = 0;
+#if TARGET_OS_ANDROID
+	static Boolean needMoreRedraw = 0;
+#endif
+
 void sendEventWindowUpdate(FskWindow win, Boolean redrawAll, Boolean skipBeforeUpdate, const FskTime updateTimeIn)
 {
 	FskEvent fskEvent;

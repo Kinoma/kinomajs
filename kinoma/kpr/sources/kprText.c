@@ -674,7 +674,6 @@ void KprTextFitHorizontally(void* it)
 {
 	KprText self = it;
 	SInt32 height;
-	KprContent content = self->first;
 	KprContentFitHorizontally(it);
 	if (self->textWidth == self->bounds.width) {
 		height = self->textHeight;
