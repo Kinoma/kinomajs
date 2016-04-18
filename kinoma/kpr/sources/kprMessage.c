@@ -165,6 +165,10 @@ KprServiceRecord gXKPRService = {
 FskThread gServicesThread = NULL;
 Boolean gServicesThreadQuitting = false;
 
+#if SUPPORT_INSTRUMENTATION
+	static FskInstrumentedTypeRecord KprServiceInstrumentation = { NULL, sizeof(FskInstrumentedTypeRecord), "KprService", 0, NULL, 0, NULL, KprInsrumentationFormatMessage, NULL, 0 };
+#endif
+
 static void KprServicesLoop(void* theParameter)
 {
 	xsAllocation allocation = {
@@ -181,9 +185,13 @@ static void KprServicesLoop(void* theParameter)
 	FskThread thread = FskThreadGetCurrent();
 	xsMachine* the = xsAliasMachine(&allocation, gShell->root, "services", gShell);
 	bailIfNULL(the);
+
+		FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "String WITHOUT line feed");
+		FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "String WITH line feed\n");
+
 	while (service) {
 		if (service->flags & kprServicesThread) {
-			FskDebugStr("Starting %s", service->id);
+			FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "Starting %s", service->id);
 			(*service->start)(service, thread, the);
 		}
 		service = service->next;
@@ -193,8 +201,10 @@ static void KprServicesLoop(void* theParameter)
 		FskThreadRunloopCycle(-1);
 	service = gServices;
 	while (service) {
-		if (service->flags & kprServicesThread)
+		if (service->flags & kprServicesThread) {
+			FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "Stopping %s", service->id);
 			(*service->stop)(service);
+		}
 		service = service->next;
 	}
 bail:
@@ -259,7 +269,7 @@ void KprServicesStart(KprShell shell)
 	FskThreadCreate(&gServicesThread, KprServicesLoop, flags, NULL, "services");
 	while (service) {
 		if (!(service->flags & kprServicesThread)) {
-			FskDebugStr("Starting %s", service->id);
+			FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "Starting %s", service->id);
 			(*service->start)(service, thread, the);
 		}
 		service = service->next;
@@ -269,6 +279,7 @@ void KprServicesStart(KprShell shell)
 void KprServicesStop(KprShell shell)
 {
 	KprService service = gServices;
+	FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "Stopping %s", service->id);
 	gServicesThreadQuitting = true;
 	FskThreadJoin(gServicesThread);
 	while (service) {

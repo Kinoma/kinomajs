@@ -335,7 +335,7 @@ void KprSSDPNetworkInterfaceAdd(FskNetInterface iface, Boolean notify)
 		existing->name = FskStrDoCopy(iface->name);
 		FskListAppend(&gNetworkInterface, existing);
 		FskNetIPandPortToString(existing->ip, 0, ip);
-		FskDebugStr("ADD SSDP INTERFACE %s %s", existing->name, ip);
+		FskInstrumentedTypePrintfNormal(&gKprSSDPInterfaceInstrumentation, "ADD SSDP INTERFACE %s %s", existing->name, ip);
 		KprSSDPAddInterface(existing, notifyIt);
 	}
 bail:
@@ -345,7 +345,7 @@ bail:
 int KprSSDPNetworkInterfaceNotifier(struct FskNetInterfaceRecord* iface, UInt32 status, void* param)
 {
 	FskErr err = kFskErrNone;
-	FskDebugStr("KprSSDPInterfaceNotifier %s -> %lu", iface->name, status);
+	FskInstrumentedTypePrintfNormal(&gKprSSDPInterfaceInstrumentation, "KprSSDPInterfaceNotifier %s -> %lu", iface->name, status);
 	switch (status) {
 		case kFskNetInterfaceStatusNew:
 			KprSSDPNetworkInterfaceAdd(iface, true);
@@ -372,7 +372,7 @@ void KprSSDPNetworkInterfaceRemove(FskNetInterface iface)
 	if (existing) {
 		FskListRemove(&gNetworkInterface, existing);
 		FskNetIPandPortToString(existing->ip, 0, ip);
-		FskDebugStr("REMOVE SSDP INTERFACE %s %s", existing->name, ip);
+		FskInstrumentedTypePrintfNormal(&gKprSSDPInterfaceInstrumentation, "REMOVE SSDP INTERFACE %s %s", existing->name, ip);
 		KprSSDPRemoveInterface(existing);
 		FskNetInterfaceDescriptionDispose(existing);
 	}

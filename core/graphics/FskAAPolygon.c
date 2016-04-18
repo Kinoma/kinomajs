@@ -1304,7 +1304,7 @@ ScanConvertAAEdges(
 															span->span.blendPixel = BlendPixelOutsideAuraFill;
 															span->span.fill(&span->span);
 								}
-								else					{	FskDebugStr("oops: in a skip state");
+								else					{	LOGE("oops: in a skip state");
 								}
 							}
 						}
