@@ -853,8 +853,8 @@ int main(int argc, char* argv[])
 				fprintf(file, "{\n");
 				fprintf(file, "\ttxSlot* callback = &mxIDs;\n");
 				fprintf(file, "\ttxInteger i;\n");
-				fprintf(file, "\tmxCheck(the, the->nameModulo == %d);\n", modulo);
-				fprintf(file, "\tcallback->value.callback.address = NULL;\n", c);
+				fprintf(file, "\tmxCheck(the, the->nameModulo == %d);\n", (int)modulo);
+				fprintf(file, "\tcallback->value.callback.address = NULL;\n");
 				fprintf(file, "\tcallback->value.callback.IDs = (txID*)fxNewChunk(the, %d * sizeof(txID));\n", c);
 				fprintf(file, "\tcallback->kind = XS_CALLBACK_KIND;\n");
 				fprintf(file, "\tfor (i = 0; i < XS_SYMBOL_ID_COUNT; i++) {\n");
@@ -865,7 +865,7 @@ int main(int argc, char* argv[])
 				fprintf(file, "\tfor (; i < %d; i++) {\n",  c);
 				fprintf(file, "\t\ttxSlot *key = (txSlot *)xs_keys[i];\n");
 				fprintf(file, "\t\tthe->keyArray[i] = key;\n");
-				fprintf(file, "\t\tthe->nameTable[key->value.key.sum %% %d] = key;\n", modulo);
+				fprintf(file, "\t\tthe->nameTable[key->value.key.sum %% %d] = key;\n", (int)modulo);
 				fprintf(file, "\t\tmxID(i) = key->ID;\n");
 				fprintf(file, "\t}\n");
 				fprintf(file, "\tthe->keyIndex = %d;\n", c);
