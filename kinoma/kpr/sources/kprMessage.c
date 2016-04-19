@@ -304,9 +304,9 @@ FskErr KprMessageNew(KprMessage *it, char* url)
 	KprMessage self = NULL;
 	bailIfError(FskMemPtrNewClear(sizeof(KprMessageRecord), it));
 	self = *it;
-	FskInstrumentedItemNew(self, NULL, &KprMessageInstrumentation);
 	self->url = FskStrDoCopy(url);
 	bailIfNULL(self->url);
+	FskInstrumentedItemNew(self, self->url, &KprMessageInstrumentation);
 	KprURLSplit(self->url, &self->parts);
 	self->priority = 256;
 bail:
