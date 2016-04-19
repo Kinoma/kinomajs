@@ -209,6 +209,7 @@ enum {
 		void				*param;
 		FskTimeRecord		trigger;	// when the timer was supposed to fire
 #if SUPPORT_INSTRUMENTATION
+		const char			*allocatingName;
 		FskTimeRecord		fired;		// when the timer fired
 		const char			*schedulingFunctionName;
 		UInt32				schedulingFunctionLine;
@@ -236,7 +237,13 @@ enum {
 
 #endif /* __FSKTIME_PRIV__ */
 
-FskAPI(void) FskTimeCallbackNew(FskTimeCallBack *callbackRef);
+#if !SUPPORT_INSTRUMENTATION
+	FskAPI(void) FskTimeCallbackNew(FskTimeCallBack *callbackRef);
+#else
+	FskAPI(void) FskTimeCallbackNew_(FskTimeCallBack *callbackRef, const char *name);
+	#define FskTimeCallbackNew(callbackRef) FskTimeCallbackNew_(callbackRef, __FUNCTION__)
+#endif
+
 FskAPI(void) FskTimeCallbackUINew(FskTimeCallBack *callbackRef);
 FskAPI(void) FskTimeCallbackDispose(FskTimeCallBack callbackRef);
 
