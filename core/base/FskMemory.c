@@ -825,7 +825,7 @@ void FskMemoryInitialize(void)
 	FskInstrumentationAddType(&gMemoryTypeInstrumentation);
 
 	#if SUPPORT_MEMORY_DEBUG
-		FskMutexNew(&gMemoryDebugMutex, "gMemoryDebugMutex");
+		FskMutexNew_uninstrumented(&gMemoryDebugMutex, "gMemoryDebugMutex");
 	#endif
 #endif
 
@@ -838,6 +838,10 @@ void FskMemoryTerminate(void)
 {
 #if TARGET_OS_KPL
 	KplMemoryTerminate();
+#endif
+
+#if SUPPORT_INSTRUMENTATION && SUPPORT_MEMORY_DEBUG
+	FskMutexDispose_uninstrumented(gMemoryDebugMutex);
 #endif
 }
 
