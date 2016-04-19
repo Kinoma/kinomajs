@@ -428,18 +428,18 @@ FskErr FskListMutexNew_uninstrumented(FskListMutex *listOut, const char *name)
 	FskListMutex	mtxList;
 	FskErr			err;
 
-	err = FskMemPtrNew(sizeof(FskListMutexRecord), &mtxList);
+	err = FskMemPtrNew_Untracked(sizeof(FskListMutexRecord), &mtxList);
 	if (err)
 		return err;
 
 	err = FskMutexNew_uninstrumented(&mtxList->mutex, name);
 	if (err) {
-		FskMemPtrDispose(mtxList);
+		FskMemPtrDispose_Untracked(mtxList);
 		return err;
 	}
 
 #if SUPPORT_INSTRUMENTATION
-	mtxList->name = FskStrDoCopy(name);
+	mtxList->name = FskStrDoCopy_Untracked(name);
 #endif
 	mtxList->list = NULL;
 	*listOut = mtxList;
@@ -451,9 +451,9 @@ FskErr FskListMutexDispose_uninstrumented(FskListMutex mtxList)
 	if (mtxList) {
 		FskMutexDispose_uninstrumented(mtxList->mutex);
 #if SUPPORT_INSTRUMENTATION
-		FskMemPtrDispose(mtxList->name);
+		FskMemPtrDispose_Untracked(mtxList->name);
 #endif
-		FskMemPtrDispose(mtxList);
+		FskMemPtrDispose_Untracked(mtxList);
 	}
 
 	return kFskErrNone;
