@@ -453,6 +453,19 @@ class NetScannerColumnBehavior extends Behavior {
 				column.add(new ValueLine("not available"));
 			}
 		}
+
+		if ("txt" in browser) {
+			let items = [];
+
+			for (let key in browser.txt)
+				items.push({key: key, sort: key.toLowerCase(), value: browser.txt[key]});
+			items.sort((a, b) => a.sort.localeCompare(b.sort));
+
+			column.add(new DividerLine());
+			column.add(new KeyLine("txt records"));
+			for (let item of items)
+				column.add(new KeyValueLine({key: "   " + item.key, value: item.value}));
+		}
 	}
 }
 
