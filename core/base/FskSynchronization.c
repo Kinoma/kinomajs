@@ -251,7 +251,7 @@ FskErr FskMutexNew_(FskMutex *mutex, const char *name, FSK_SYNCHRONIZATION_DEBUG
 
 #if SUPPORT_INSTRUMENTATION
 	(*mutex)->name = FskStrDoCopy_Untracked(name);
-	FskInstrumentedItemNew(*mutex, NULL, &gFskMutexTypeInstrumentation);
+	FskInstrumentedItemNew(*mutex, (*mutex)->name, &gFskMutexTypeInstrumentation);
 
 #if SUPPORT_SYNCHRONIZATION_DEBUG
 	if (FskInstrumentedItemHasListeners(*mutex)) {
@@ -270,7 +270,7 @@ bail:
 
 	if ((err != kFskErrNone) && (*mutex != NULL)) {
 #if SUPPORT_INSTRUMENTATION
-		FskMemPtrDispose((FskMemPtr)(*mutex)->name);
+		FskMemPtrDispose_Untracked((FskMemPtr)(*mutex)->name);
 #endif
 		FskMemPtrDispose(*mutex);
 		*mutex = NULL;
