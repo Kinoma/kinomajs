@@ -477,7 +477,9 @@ void KprSSDPStop(KprService service UNUSED)
 			KprSSDPInterfaceDispose(ssdpInterface);
 		}
 		self->ssdpInterfaces = NULL;
-		
+
+		FskMemPtrDispose(self->userAgent);
+
 		FskInstrumentedItemDispose(self);
 		FskMemPtrDispose(self);
 	}
