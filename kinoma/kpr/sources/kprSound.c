@@ -117,6 +117,8 @@ void KprSoundCleanup()
 {
 	FskSndChannelDispose(gSoundChannel);
 	gSoundChannel = NULL;
+	FskTimeCallbackDispose(gSoundTimer);
+	gSoundTimer = NULL;
 }
 
 #if SUPPORT_INSTRUMENTATION
