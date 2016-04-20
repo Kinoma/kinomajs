@@ -2727,10 +2727,11 @@ Boolean checkWindowBitmapSize(FskWindow win)
 		}
 
 #if FSKBITMAP_OPENGL
-		if (0 == rotate)
+		if (0 == rotate) {
+			FskGLPortDispose(bmp->glPort);
 			bmp->glPort = win->glPortForWindow;
+		}
 #endif
-		
 		FskInstrumentedItemSetOwner(bmp, win);
 
 		LOGI("Calling setWindowBitmap with a new Bitmap");
