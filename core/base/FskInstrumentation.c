@@ -815,15 +815,53 @@ void FskInstrumentationSimpleClientDumpMemory(void)
 {
 	FskMemoryDebug list = FskMemoryDebugGetList(), debug;
 	char buffer[1024];
+	char bytes[128];
 	UInt32 total = 0;
 
 	iscWriteLogLine("\n** memory in use **\n", kFskInstrumentationLevelMinimal);
 
 	for (debug = list; debug; debug = debug->next) {
+		UInt32 size = debug->size, i;
+		Boolean truncated = false;
+		unsigned char *p = (unsigned char *)(debug + 1);
+		char *out = bytes;
+		Boolean alpha = true;;
+		if (size && (0 == p[size - 1]))
+			size -= 1;
+		if (size > 48) {
+			size = 48;
+			truncated = true;
+		}
+		for (i = 0; i < size; i++)
+			alpha = alpha && ((32 <= p[i]) && (p[i] <= 127));
+		if (alpha) {
+			*out++ = '"';
+			FskMemMove(out, p, size);
+			out += size;
+			*out++ = '"';
+		}
+		else {
+			if (size > 16) {
+				size = 16;
+				truncated = truncated || true;
+			}
+			for (i = 0; i < size; i++) {
+				FskStrNumToHex(p[i], out, 2); out += 2;
+				if (i != (size - 1))
+					*out++ = ' ';
+			}
+		}
+		if (truncated) {
+			*out++ = '.';
+			*out++ = '.';
+			*out++ = '.';
+		}
+		*out++ = 0;
+
 #if !FSK_EMBED
-		snprintf(buffer, sizeof(buffer), "address %p, size=%u, seed=%u\n", (debug + 1), (unsigned)debug->size, (unsigned)debug->seed);
+		snprintf(buffer, sizeof(buffer), "address %p, size=%u, seed=%u, bytes=%s\n", (debug + 1), (unsigned)debug->size, (unsigned)debug->seed, bytes);
 #else
-		snprintf(buffer, sizeof(buffer), "address %p, size=%u, seed=%u, caller=%s @ line=%u\n", (debug + 1), (unsigned)debug->size, (unsigned)debug->seed, debug->function, (unsigned)debug->line);
+		snprintf(buffer, sizeof(buffer), "address %p, size=%u, seed=%u, caller=%s @ line=%u. bytes=%s\n", (debug + 1), (unsigned)debug->size, (unsigned)debug->seed, debug->function, (unsigned)debug->line, bytes);
 #endif
 		total += debug->size;
 		iscWriteLogLine(buffer, kFskInstrumentationLevelMinimal);
