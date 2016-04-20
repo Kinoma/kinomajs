@@ -720,6 +720,7 @@ bail:
 	return handled;
 }
 
+#if TARGET_OS_LINUX || TARGET_OS_MAC
 void FskThreadFlushEvents(void)
 {
 	FskThread thread = FskThreadGetCurrent();
@@ -734,6 +735,11 @@ void FskThreadFlushEvents(void)
 		HandleThreadEvent(event);
 	}
 }
+#else
+void FskThreadFlushEvents(void)
+{
+}
+#endif
 
 #if TARGET_OS_KPL
 Boolean FskHandleThreadEvent(void *event) {
