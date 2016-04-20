@@ -267,6 +267,7 @@ typedef void (*FskThreadCallback)(void *, void *, void *, void *);
 	FskAPI(FskThreadEventHandler) FskThreadAddEventHandler(UInt32 eventCode, FskThreadEventHandlerRoutine handler, void *refCon);
 	FskAPI(FskErr) FskThreadRemoveEventHandler(FskThreadEventHandler handler);
 	FskAPI(FskErr) FskThreadBroadcastEvent(FskEvent event);
+	FskAPI(void) FskThreadFlushEvents(void);
 
 	FskAPI(void)	FskThreadInitializationComplete(FskThread thread);
 	FskAPI(FskErr) FskThreadRunloopCycle(SInt32 msec);

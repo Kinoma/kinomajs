@@ -2378,7 +2378,10 @@ void windowEnterPressHold(struct FskTimeCallBackRecord *callback, const FskTime 
 
 #endif
 
-static Boolean needMoreRedraw = 0;
+#if TARGET_OS_ANDROID
+	static Boolean needMoreRedraw = 0;
+#endif
+
 void sendEventWindowUpdate(FskWindow win, Boolean redrawAll, Boolean skipBeforeUpdate, const FskTime updateTimeIn)
 {
 	FskEvent fskEvent;
@@ -2709,28 +2712,32 @@ Boolean checkWindowBitmapSize(FskWindow win)
 			FskBitmapDispose(win->bits);
 			win->port->bits = NULL;
 			win->bits = NULL;
+			bmp = NULL;
 		}
 	}
 
-	err = FskBitmapNew(-(SInt32)newWidth, (SInt32)newHeight, getScreenPixelFormat(), &bmp);
-	if (err) {
-		#if SUPPORT_INSTRUMENTATION
-			FskInstrumentedItemPrintfDebug(win, "ERROR: checkWindowBitmapSize failed to allocate a bitmap (%d x %d format: %d)",
-										   -(int)newWidth, (int)newHeight, (unsigned int)getScreenPixelFormat());
-		#endif /* SUPPORT_INSTRUMENTATION */
-		return false;		// bad scene
-	}
+	if (NULL == bmp) {
+		err = FskBitmapNew(-(SInt32)newWidth, (SInt32)newHeight, getScreenPixelFormat(), &bmp);
+		if (err) {
+			#if SUPPORT_INSTRUMENTATION
+				FskInstrumentedItemPrintfDebug(win, "ERROR: checkWindowBitmapSize failed to allocate a bitmap (%d x %d format: %d)",
+											   -(int)newWidth, (int)newHeight, (unsigned int)getScreenPixelFormat());
+			#endif /* SUPPORT_INSTRUMENTATION */
+			return false;		// bad scene
+		}
 
 #if FSKBITMAP_OPENGL
-	if (0 == rotate)
-		bmp->glPort = win->glPortForWindow;
+		if (0 == rotate) {
+			FskGLPortDispose(bmp->glPort);
+			bmp->glPort = win->glPortForWindow;
+		}
 #endif
-	
-	FskInstrumentedItemSetOwner(bmp, win);
+		FskInstrumentedItemSetOwner(bmp, win);
 
-	LOGI("Calling setWindowBitmap with a new Bitmap");
-	setWindowBitmap(win, bmp);
-	win->port->invalidArea = bmp->bounds;
+		LOGI("Calling setWindowBitmap with a new Bitmap");
+		setWindowBitmap(win, bmp);
+		win->port->invalidArea = bmp->bounds;
+	}
 
 	if (win->rotationBits) {
 #if FSKBITMAP_OPENGL

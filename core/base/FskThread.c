@@ -720,6 +720,27 @@ bail:
 	return handled;
 }
 
+#if TARGET_OS_LINUX || TARGET_OS_MAC
+void FskThreadFlushEvents(void)
+{
+	FskThread thread = FskThreadGetCurrent();
+	UInt32 count;
+
+	if (!thread) return;
+
+	count = FskListMutexCount(thread->eventQueue);
+	while (count--) {
+		FskEvent event = FskListMutexRemoveFirst(thread->eventQueue);
+		if (!event) break;
+		HandleThreadEvent(event);
+	}
+}
+#else
+void FskThreadFlushEvents(void)
+{
+}
+#endif
+
 #if TARGET_OS_KPL
 Boolean FskHandleThreadEvent(void *event) {
 	return HandleThreadEvent((FskEvent)event);

@@ -775,12 +775,9 @@ void fxUnmapArchive(void* it)
 {
 	txArchive* archive = it;
 	if (archive) {
-		if (archive->scripts)
-			FskMemPtrDispose(archive->scripts);
-		if (archive->symbols)
-			FskMemPtrDispose(archive->symbols);
-		if (archive->library)
-			FskLibraryUnload(archive->library);
+		FskMemPtrDispose(archive->scripts);
+		FskMemPtrDispose(archive->symbols);
+		FskLibraryUnload(archive->library);
 		FskFileDisposeMap(archive->map);
 		FskMemPtrDispose(archive);
 	}

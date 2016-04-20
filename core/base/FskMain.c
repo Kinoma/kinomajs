@@ -212,6 +212,8 @@ bail:
 
 FskErr FskMainTerminate(void)
 {
+	FskThreadFlushEvents();
+
 	if (!(kFskMainNoECMAScript & gInitializationFlags)){
 #if FSK_EMBED && FSK_ZIP
 		FskZipClose(sZipFile);

@@ -49,6 +49,7 @@ struct KprShellStruct {
 	KprIdleLink idleChain;
 	KprIdleLink idleLoop;
 	KprContentChainRecord placeChain;
+	void *archive;
 #if SUPPORT_EXTERNAL_SCREEN
 	FskWindow extWindow;
 	FskExtScreenNotifier extScreenNotifier;

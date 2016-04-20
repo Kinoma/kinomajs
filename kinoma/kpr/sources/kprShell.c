@@ -264,6 +264,7 @@ FskErr KprShellNew(KprShell* it, FskWindow window, FskRectangle bounds, char* sh
 	self->handler = KprShellEventHandler;
 	self->id = FskStrDoCopy("shell");
 	bailIfNULL(self->id);
+	self->archive = archive;
 
 	self->coordinates.horizontal = kprWidth;
 	self->coordinates.width = bounds->width;
@@ -560,6 +561,9 @@ void KprShellDispose(void* it)
 #ifdef KPR_NETWORKINTERFACE
 	KprNetworkInterfaceCleanup();
 #endif
+
+	fxUnmapArchive(self->archive);
+
 	FskMemPtrDispose(self);
 
 	gShell = NULL;

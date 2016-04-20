@@ -108,25 +108,25 @@ FskErr FskMediaReaderDispose(FskMediaReader reader)
 
 FskErr FskMediaReaderHasProperty(FskMediaReader reader, UInt32 propertyID, Boolean *get, Boolean *set, UInt32 *dataType)
 {
-	FskInstrumentedItemPrintfVerbose(reader, "hasProperty %d", propertyID);
+	FskInstrumentedItemPrintfVerbose(reader, "hasProperty %u", (unsigned int)propertyID);
 	return FskMediaHasProperty(reader->dispatch->properties, propertyID, get, set, dataType);
 }
 
 FskErr FskMediaReaderSetProperty(FskMediaReader reader, UInt32 propertyID, FskMediaPropertyValue property)
 {
-	FskInstrumentedItemPrintfVerbose(reader, "setProperty %d", propertyID);
+	FskInstrumentedItemPrintfVerbose(reader, "setProperty %u", (unsigned int)propertyID);
 	return FskMediaSetProperty(reader->dispatch->properties, reader->state, reader, propertyID, property);
 }
 
 FskErr FskMediaReaderGetProperty(FskMediaReader reader, UInt32 propertyID, FskMediaPropertyValue property)
 {
-	FskInstrumentedItemPrintfVerbose(reader, "getProperty %d", propertyID);
+	FskInstrumentedItemPrintfVerbose(reader, "getProperty %u", (unsigned int)propertyID);
 	return FskMediaGetProperty(reader->dispatch->properties, reader->state, reader, propertyID, property);
 }
 
 FskErr FskMediaReaderGetTrack(FskMediaReader reader, SInt32 index, FskMediaReaderTrack *track)
 {
-	FskInstrumentedItemPrintfVerbose(reader, "getTrack %d", index);
+	FskInstrumentedItemPrintfVerbose(reader, "getTrack %d", (int)index);
 	if (NULL == reader->dispatch->doGetTrack)
 		return kFskErrUnimplemented;
 	return (reader->dispatch->doGetTrack)(reader, reader->state, index, track);
@@ -245,7 +245,7 @@ FskErr FskMediaReaderSniffForMIME(const unsigned char *data, UInt32 dataSize, Fs
 {
 	UInt32 i = 0;
 
-	FskInstrumentedTypePrintfVerbose(&gMediaReaderTypeInstrumentation, "sniff %d bytes, headers=%p, uri=%s", dataSize, headers, uri);
+	FskInstrumentedTypePrintfVerbose(&gMediaReaderTypeInstrumentation, "sniff %u bytes, headers=%p, uri=%s", (unsigned int)dataSize, headers, uri);
 	while (true) {
 		FskMediaReaderDispatch aDispatch = FskExtensionGetByIndex(kFskExtensionMediaReader, i++);
 		if (NULL == aDispatch)
@@ -270,7 +270,7 @@ FskErr mediaReaderSetState(FskMediaReader reader, SInt32 state)
 	if (state != reader->mediaState) {
 		SInt32 previousState = reader->mediaState;
 
-        FskInstrumentedTypePrintfVerbose(&gMediaReaderTypeInstrumentation, "set state %d", state);
+        FskInstrumentedTypePrintfVerbose(&gMediaReaderTypeInstrumentation, "set state %d", (int)state);
 
 		FskMediaReaderUsing(reader, true);
 

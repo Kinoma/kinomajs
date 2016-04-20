@@ -251,7 +251,7 @@ FskErr FskMutexNew_(FskMutex *mutex, const char *name, FSK_SYNCHRONIZATION_DEBUG
 
 #if SUPPORT_INSTRUMENTATION
 	(*mutex)->name = FskStrDoCopy_Untracked(name);
-	FskInstrumentedItemNew(*mutex, NULL, &gFskMutexTypeInstrumentation);
+	FskInstrumentedItemNew(*mutex, (*mutex)->name, &gFskMutexTypeInstrumentation);
 
 #if SUPPORT_SYNCHRONIZATION_DEBUG
 	if (FskInstrumentedItemHasListeners(*mutex)) {
@@ -270,7 +270,7 @@ bail:
 
 	if ((err != kFskErrNone) && (*mutex != NULL)) {
 #if SUPPORT_INSTRUMENTATION
-		FskMemPtrDispose((FskMemPtr)(*mutex)->name);
+		FskMemPtrDispose_Untracked((FskMemPtr)(*mutex)->name);
 #endif
 		FskMemPtrDispose(*mutex);
 		*mutex = NULL;
@@ -400,7 +400,7 @@ FskErr FskMutexNew_uninstrumented(FskMutex *mutex, const char *name)
 {
 	FskErr err;
 	pthread_mutexattr_t   attr;
-	err = FskMemPtrNewClear(sizeof(FskMutexRecord), (FskMemPtr *)mutex);
+	err = FskMemPtrNewClear_Untracked(sizeof(FskMutexRecord), (FskMemPtr *)mutex);
 	BAIL_IF_ERR(err);
 
 	if ((pthread_mutexattr_init(&attr) != 0) ||
@@ -418,9 +418,9 @@ bail:
 
 	if ((err != kFskErrNone) && (*mutex != NULL)) {
 #if SUPPORT_INSTRUMENTATION
-		FskMemPtrDispose((FskMemPtr)(*mutex)->name);
+		FskMemPtrDispose_Untracked((FskMemPtr)(*mutex)->name);
 #endif
-		FskMemPtrDispose(*mutex);
+		FskMemPtrDispose_Untracked(*mutex);
 		*mutex = NULL;
 	}
 
@@ -432,9 +432,9 @@ FskErr FskMutexDispose_uninstrumented(FskMutex mutex)
 	if (mutex) {
 		pthread_mutex_destroy(&mutex->mutex);
 #if SUPPORT_INSTRUMENTATION
-		FskMemPtrDispose((FskMemPtr)mutex->name);
+		FskMemPtrDispose_Untracked((FskMemPtr)mutex->name);
 #endif
-		FskMemPtrDispose(mutex);
+		FskMemPtrDispose_Untracked(mutex);
 	}
 
 	return kFskErrNone;

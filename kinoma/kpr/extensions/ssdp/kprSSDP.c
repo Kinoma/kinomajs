@@ -183,7 +183,7 @@ void SSDP_Server(xsMachine *the)
 	if ((xsToInteger(xsArgc) > 4) && !xsIsInstanceOf(xsArg(4), xsObjectPrototype)) {
 		scheme = xsToString(xsArg(4));
 	}
-	FskDebugStr("%s", __FUNCTION__);
+	FskInstrumentedItemPrintfNormal(self, "%s", __FUNCTION__);
 
 	{
 		xsTry {

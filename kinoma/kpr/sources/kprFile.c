@@ -66,13 +66,13 @@ void KprFILEServiceInvoke(KprService service UNUSED, KprMessage message)
 	char* pathName = NULL;
 	char* sniff = NULL;
 	FskFile fref = NULL;
+	char *name = NULL;
 	if (KprMessageContinue(message)) {
 		if (!message->method || FskStrCompare(message->method, "GET")) {
 			bailIfError(KprURLToPath(message->url, &path));
 			bailIfError(FskFileGetFileInfo(path, &info));
 			if (kFskDirectoryItemIsDirectory == info.filetype) {
 				unsigned char buffer[4096];
-				char *name;
 				UInt32 itemType;
 				double date;
 				UInt32 size;
@@ -85,8 +85,10 @@ void KprFILEServiceInvoke(KprService service UNUSED, KprMessage message)
 							xsResult = xsNewInstanceOf(xsArrayPrototype);
 							bailIfError(FskDirectoryIteratorNew(path, &iterator, 0));
 							while (kFskErrNone == FskDirectoryIteratorGetNext(iterator, &name, &itemType)) {
-								if (name[0] == '.')
+								if (name[0] == '.') {
+									FskMemPtrDisposeAt(&name);
 									continue;
+								}
 								if (kFskDirectoryItemIsFile == itemType) {
 									pathName = FskStrDoCat(path, name);
 									bailIfError(FskFileGetFileInfo(pathName, &info));
@@ -129,6 +131,7 @@ void KprFILEServiceInvoke(KprService service UNUSED, KprMessage message)
 								xsNewHostProperty(xsVar(1), xsID("type"), xsVar(2), xsDefault, xsDontScript);
 								xsNewHostProperty(xsVar(1), xsID("url"), xsString((char*)buffer), xsDefault, xsDontScript);
 								(void)xsCall1(xsResult, xsID("push"), xsVar(1));
+								FskMemPtrDisposeAt(&name);
 							}
 							xsResult = xsCall1(xsGet(xsGlobal, xsID("JSON")), xsID("stringify"), xsResult);
 							message->response.body = FskStrDoCopy(xsToString(xsResult));
@@ -164,6 +167,7 @@ void KprFILEServiceInvoke(KprService service UNUSED, KprMessage message)
 		FskMemPtrDispose(sniff);
 		FskFileClose(fref);
 		FskMemPtrDispose(pathName);
+		FskMemPtrDispose(name);
 		FskDirectoryIteratorDispose(iterator);
 		FskMemPtrDispose(path);
 		message->error = err;

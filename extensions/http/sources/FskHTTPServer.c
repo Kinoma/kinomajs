@@ -318,7 +318,7 @@ int httpServerInterfaceChanged(FskNetInterfaceRecord *ifc, UInt32 status, void *
 	FskNetInterfaceRecord *newIface = NULL;
 	FskErr err;
 
-	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - status: %d\n", status);
+	FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - status: %u\n", (unsigned int)status);
 	if (status == kFskNetInterfaceStatusChanged) {
 		newIface = FskNetInterfaceFindByName(ifc->name);
 		FskInstrumentedTypePrintfDebug(&gFskHTTPServerTypeInstrumentation, "httpServerInterfaceChanged - newIface is: %p\n", newIface);

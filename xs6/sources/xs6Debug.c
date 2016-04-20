@@ -1847,7 +1847,9 @@ void fxReportWarning(txMachine* the, txString thePath, txInteger theLine, txStri
 
 void fxVReport(void* console, txString theFormat, c_va_list theArguments)
 {
+#if (__FSK_LAYER__ && SUPPORT_INSTRUMENTATION) || mxDebug
 	txMachine* the = console;
+#endif
 #if __FSK_LAYER__ && SUPPORT_INSTRUMENTATION
 	if (FskInstrumentedItemHasListenersForLevel(the, kFskInstrumentationLevelNormal)) {
 		void *data[2];
@@ -1874,7 +1876,9 @@ void fxVReport(void* console, txString theFormat, c_va_list theArguments)
 
 void fxVReportException(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments)
 {
+#if (__FSK_LAYER__ && SUPPORT_INSTRUMENTATION) || mxDebug
 	txMachine* the = console;
+#endif
 #if __FSK_LAYER__ && SUPPORT_INSTRUMENTATION
 	if (FskInstrumentedItemHasListenersForLevel(the, kFskInstrumentationLevelMinimal)) {
 		void *data[4];
@@ -1914,7 +1918,9 @@ void fxVReportException(void* console, txString thePath, txInteger theLine, txSt
 
 void fxVReportError(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments)
 {
+#if (__FSK_LAYER__ && SUPPORT_INSTRUMENTATION) || mxDebug
 	txMachine* the = console;
+#endif
 #if __FSK_LAYER__ && SUPPORT_INSTRUMENTATION
 	if (FskInstrumentedItemHasListenersForLevel(the, kFskInstrumentationLevelMinimal)) {
 		void *data[4];
@@ -1954,7 +1960,9 @@ void fxVReportError(void* console, txString thePath, txInteger theLine, txString
 
 void fxVReportWarning(void* console, txString thePath, txInteger theLine, txString theFormat, c_va_list theArguments)
 {
+#if (__FSK_LAYER__ && SUPPORT_INSTRUMENTATION) || mxDebug
 	txMachine* the = console;
+#endif
 #if __FSK_LAYER__ && SUPPORT_INSTRUMENTATION
 	if (FskInstrumentedItemHasListenersForLevel(the, kFskInstrumentationLevelMinimal)) {
 		void *data[4];

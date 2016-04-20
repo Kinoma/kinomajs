@@ -320,8 +320,8 @@ FskAPI(void) KprSocketWriterSendChunk(KprSocketWriter writer, KprMemoryBlock chu
 typedef struct KprSocketServerRecord KprSocketServerRecord, *KprSocketServer;
 typedef struct KprPortListenerRecord KprPortListenerRecord, *KprPortListener;
 
-typedef FskErr (*KprSocketServerAcceptCallback)(KprSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon);
-typedef void (*KprSocketServerInterfaceDroppedCallback)(KprSocketServer server, const char *interfaceName, int ip, void *refcon);
+typedef FskErr (*KprSocketServerAcceptCallback)(KprSocketServer server, FskSocket skt, const char *interfaceName, UInt32 ip, void *refcon);
+typedef void (*KprSocketServerInterfaceDroppedCallback)(KprSocketServer server, const char *interfaceName, UInt32 ip, void *refcon);
 
 struct KprSocketServerRecord {
 	KprPortListener listeners;

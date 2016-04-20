@@ -381,6 +381,7 @@ void KprCodeDispose(void* it)
 	KprCode self = it;
 	FskMemPtrDispose(self->string);
 	FskGrowableArrayDispose(self->runs);
+	FskGrowableArrayDispose(self->results);
 	KprContentDispose(it);
 }
 

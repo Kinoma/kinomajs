@@ -778,7 +778,12 @@ void FskTimeCallbackRemove(FskTimeCallBack ref)
 }
 
 // ---------------------------------------------------------------------
+
+#if !SUPPORT_INSTRUMENTATION
 void FskTimeCallbackNew(FskTimeCallBack *callbackRef)
+#else
+void FskTimeCallbackNew_(FskTimeCallBack *callbackRef, const char *name)
+#endif
 {
 	FskTimeCallBack el = NULL;
 
@@ -798,7 +803,7 @@ void FskTimeCallbackNew(FskTimeCallBack *callbackRef)
 	*callbackRef = el;
 	el->owner = FskThreadGetCurrent();
 
-	FskInstrumentedItemNew(el, NULL, &gTimeCallbackTypeInstrumentation);
+	FskInstrumentedItemNew(el, FskStrDoCopy_Untracked(name), &gTimeCallbackTypeInstrumentation);
 	FskInstrumentedItemSetOwner(el, (FskThread)(el->owner));
 }
 
@@ -856,6 +861,7 @@ void FskTimeCallbackDispose(FskTimeCallBack el)
 	if (FskThreadGetCurrent() != el->owner) {
 		FskInstrumentedItemSendMessage(el, kFskTimeInstrMsgDeleteFromWrongThread, el);
 	}
+	FskMemPtrDispose_Untracked((void *)FskInstrumentedItemGetName(el));
 #endif /* !SUPPORT_INSTRUMENTATION */
 	FskTimeCallbackRemove(el);
 	FskInstrumentedItemDispose(el);

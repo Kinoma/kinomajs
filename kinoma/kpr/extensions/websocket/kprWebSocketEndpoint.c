@@ -100,7 +100,7 @@ FskErr KprWebSocketEndpointNew(KprWebSocketEndpoint* it, void *refcon)
 	self->refcon = refcon;
 	self->state = kKprWebSocketStateConnecting;
 
-	FskDebugStr("CREATE: KprWebSocketEndpoint\n");
+	FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "CREATE: KprWebSocketEndpoint");
 	return err;
 bail:
 	if (self) KprWebSocketEndpointDispose(self);
@@ -115,7 +115,7 @@ void KprWebSocketEndpointDispose(KprWebSocketEndpoint self)
 			return;
 		}
 
-		FskDebugStr("DISPOSE: KprWebSocketEndpoint\n");
+		FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "DISPOSE: KprWebSocketEndpoint");
 		if (self->socket) KprWebSocketEndpointDisconnect(self);
 
 		if (self->url) FskMemPtrDispose(self->url);
@@ -178,7 +178,7 @@ static void KprWebSocketEndpointStartConnect(KprWebSocketEndpoint self)
 	
 bail:
 	if (err) {
-		FskDebugStr("ERROR: %d\n", err);
+		FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "ERROR: %d", err);
 		CALLBACK(errorCallback)(self, err, "cannot start connection", self->refcon);
 	}
 }
@@ -188,7 +188,7 @@ static FskErr KprWebSocketEndpointConnectCallback(FskSocket skt, void *refCon)
 	FskErr err = kFskErrNone;
 	KprWebSocketEndpoint self = refCon;
 	
-	FskDebugStr("CONNECT: callback was called\n");
+	FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "CONNECT: callback was called");
 	if (!skt || 0 == skt->ipaddrRemote) {
 		bailIfError(kFskErrSocketNotConnected);
 	}
@@ -366,7 +366,7 @@ static void KprWebSocketEndpointDisconnect(KprWebSocketEndpoint self)
 FskErr KprWebSocketEndpointClose(KprWebSocketEndpoint self, UInt16 code, char *reason)
 {
 	FskErr err = kFskErrNone;
-	FskDebugStr("CLOSE: (%d), %s\n", code, reason);
+	FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "CLOSE: (%d), %s", code, reason);
 	self->closeCode = code;
 	if (reason) {
 		FskMemPtrDispose(self->closeReason);
@@ -494,7 +494,7 @@ static FskErr KprWebSocketEndpointHandleResponse(KprWebSocketEndpoint self, FskH
 		return -1;
 	}
 	
-	FskDebugStr("HANDSHAKE: done. upgraded to websocket\n");
+	FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "HANDSHAKE: done. upgraded to websocket");
 	self->state = kKprWebSocketStateOpen;
 
 	CALLBACK(openCallback)(self, self->refcon);
@@ -511,36 +511,36 @@ static FskErr KprWebSocketEndpointHandleFrame(KprWebSocketEndpoint self, UInt8 o
 	switch (opcode) {
 		case kKprWebSocketOpcodeTextFrame:
 			if (!self->ignoreFurtherFrame) {
-				FskDebugStr("FRAME: Text! (%ld bytes)\n", length);
+				FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "FRAME: Text! (%ld bytes)", length);
 				err = KprWebSocketEndpointHandleTextMessage(self, message, length);
 			}
 			break;
 
 		case kKprWebSocketOpcodeBinaryFrame:
 			if (!self->ignoreFurtherFrame) {
-				FskDebugStr("FRAME: Binary! (%ld bytes)\n", length);
+				FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "FRAME: Binary! (%ld bytes)", length);
 				err = KprWebSocketEndpointHandleBinaryMessage(self, message, length);
 			}
 			break;
 
 		case kKprWebSocketOpcodeClose:
-			FskDebugStr("FRAME: Close!\n");
+			FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "FRAME: Close!");
 			err = KprWebSocketEndpointHandleCloseFrame(self, message, length);
 			break;
 			
 		case kKprWebSocketOpcodePing:
 			if (!self->ignoreFurtherFrame) {
-				FskDebugStr("FRAME: Ping!\n");
+				FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "FRAME: Ping!");
 				bailIfError(KprWebSocketEndpointSendRawFrame(self, kKprWebSocketOpcodePong, message, length));
 			}
 			break;
 			
 		case kKprWebSocketOpcodePong:
-			FskDebugStr("FRAME: Pong!\n");
+			FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "FRAME: Pong!");
 			break;
 			
 		default:
-			FskDebugStr("FRAME: Unknown opcode %d! (%ld bytes)\n", (int) opcode, length);
+			FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "FRAME: Unknown opcode %d! (%ld bytes)", (int) opcode, length);
 			break;
 	}
 	
@@ -614,9 +614,9 @@ static Boolean KprWebSocketEndpointValidateResponse(KprWebSocketEndpoint self, F
 
 	{
 		FskHeaderIterator iter = FskHeaderIteratorNew(response);
-		FskDebugStr("HANDSHAKE: response headers\n");
+		FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, "HANDSHAKE: response headers");
 		while (iter) {
-			FskDebugStr(">  %s: %s\n", iter->name, iter->value);
+			FskInstrumentedTypePrintfNormal(&gKprWebSocketEndpointInstrumentation, ">  %s: %s", iter->name, iter->value);
 			iter = FskHeaderIteratorNext(iter);
 		}
 		FskHeaderIteratorDispose(iter);

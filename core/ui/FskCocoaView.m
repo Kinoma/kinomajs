@@ -98,9 +98,6 @@ const float kFskCocoaViewCornerRadius = 8;
         [self setAcceptsTouchEvents:YES];
 
         _windowClipCGPath = NULL;
-#if USE_DISPLAY_LINK
-		FskMutexNew(&_displayLinkMutex, "DisplayLink");
-#endif
 	}
 
 #if kFskCocoaCopyBitsUseOpenGL
@@ -126,9 +123,6 @@ const float kFskCocoaViewCornerRadius = 8;
 
 - (void)dealloc
 {
-#if USE_DISPLAY_LINK
-	FskMutexDispose(_displayLinkMutex);
-#endif
 	if (_windowClipCGPath)
 		CGPathRelease(_windowClipCGPath);
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -1153,6 +1147,8 @@ sDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const
 			CGLPixelFormatObj cglPixelFormat = [[self pixelFormat] CGLPixelFormatObj];
 			CVDisplayLinkSetCurrentCGDisplayFromOpenGLContext(_displayLink, cglContext, cglPixelFormat);
 		}
+		if (_displayLinkMutex == NULL)
+			FskMutexNew(&_displayLinkMutex, "DisplayLink");
 		if (!CVDisplayLinkIsRunning(_displayLink))
 			CVDisplayLinkStart(_displayLink);
 	} else {
@@ -1162,6 +1158,9 @@ sDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeStamp* now, const
 			CVDisplayLinkRelease(_displayLink);
 			_displayLink = NULL;
 			[self updateWindowFinished];
+
+			FskMutexDispose(_displayLinkMutex);
+			_displayLinkMutex = NULL;
 		}
 	}
 }

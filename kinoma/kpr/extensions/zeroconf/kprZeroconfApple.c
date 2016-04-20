@@ -166,8 +166,11 @@ void KprZeroconfPlatformCallBack(FskThreadDataHandler handler, FskThreadDataSour
 	DNSServiceRef serviceRef = context;
 	DNSServiceErrorType error = kDNSServiceErr_NoError;
 	error = DNSServiceProcessResult(serviceRef);
-	if (error)
-		FskDebugStr("!!! KprZeroconfPlatformCallBack error %d", error);
+	if (error) {
+		FskInstrumentedTypePrintfNormal(&KprZeroconfPlatformAdvertisementInstrumentation, "!!! KprZeroconfPlatformCallBack error %d", error);
+		FskInstrumentedTypePrintfNormal(&KprZeroconfPlatformBrowserInstrumentation, "!!! KprZeroconfPlatformCallBack error %d", error);
+		FskInstrumentedTypePrintfNormal(&KprZeroconfPlatformServiceInstrumentation, "!!! KprZeroconfPlatformCallBack error %d", error);
+	}
 }
 
 #if 0

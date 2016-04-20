@@ -36,8 +36,8 @@
 #define kHeaderBufferSize 512
 #define kWebSocketServerIdentifier "Kinoma WebSocket Server/0.1"
 
-static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon);
-static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interfaceName, int ip, void *refcon);
+static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, UInt32 ip, void *refcon);
+static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interfaceName, UInt32 ip, void *refcon);
 static FskErr KprWebSocketServerRequestNew(KprWebSocketServerRequest *it, KprWebSocketServer server, FskSocket skt, const char *interfaceName, int ip);
 static void KprWebSocketServerRequestDispose(KprWebSocketServerRequest request);
 static FskErr KprWebSocketServerRequestDoRead(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon);
@@ -129,7 +129,7 @@ KprPortListener KprWebSocketServerGetInterface(KprWebSocketServer self)
 	return self->server->listeners;
 }
 
-static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, int ip, void *refcon) {
+static FskErr KprWebSocketServerAcceptNewConnection(KprSocketServer server, FskSocket skt, const char *interfaceName, UInt32 ip, void *refcon) {
 	KprWebSocketServer self = refcon;
 	FskErr err = kFskErrNone;
 	KprWebSocketServerRequest request;
@@ -146,7 +146,7 @@ bail:
 	return err;
 }
 
-static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interfaceName, int ip, void *refcon)
+static void KprWebSocketServerInterfaceDropped(KprSocketServer server, const char *interfaceName, UInt32 ip, void *refcon)
 {
 	KprWebSocketServer self = refcon;
 	printf("INTERFACE %s DROPPED.\n", interfaceName);

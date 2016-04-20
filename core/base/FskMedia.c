@@ -70,7 +70,7 @@ FskErr FskMediaSetProperty(FskMediaPropertyEntry properties, void *state, void *
 #if SUPPORT_INSTRUMENTATION
         dumpInstrumentedProperty("Set", obj, propertyID, property);
         if (property->type != prop->dataType)
-            FskInstrumentedTypePrintfMinimal(&gPropertyTypeInstrumentation, "WARNING: Set propertyID %d on obj %p. Expected type %d, passed %d", propertyID, obj, prop->dataType, property->type);
+            FskInstrumentedTypePrintfMinimal(&gPropertyTypeInstrumentation, "WARNING: Set propertyID %u on obj %p. Expected type %u, passed %u", (unsigned int)propertyID, obj, (unsigned int)prop->dataType, (unsigned int)property->type);
 #endif
         return (prop->set)(state, obj, propertyID, property);
     }
@@ -1022,14 +1022,14 @@ void dumpInstrumentedMetaData(const char *message, FskMediaMetaData meta, const 
 
     formatMediaPropertyValue(value, sizeof(value), property);
 
-    FskInstrumentedItemPrintfNormal(meta, "%s %s, value %s, type %s (%d)", message, name, value, typeName, property ? property->type : 0);
+    FskInstrumentedItemPrintfNormal(meta, "%s %s, value %s, type %s (%u)", message, name, value, typeName, (unsigned int)(property ? property->type : 0));
 }
 
 void formatMediaPropertyValue(char *value, UInt32 valueSize, FskMediaPropertyValue property)
 {
     switch (property->type) {
         case kFskMediaPropertyTypeInteger:
-            snprintf(value, valueSize, "%d", (int)property->value.integer);
+            snprintf(value, valueSize, "%u", (unsigned int)property->value.integer);
             break;
 
         case kFskMediaPropertyTypeFloat:

@@ -76,6 +76,7 @@
 	#include "KplMemory.h"
 #endif
 
+static FskListMutex gNotificationProcs;
 
 // ---------------------------------------------------------------------
 // Launcher
@@ -295,6 +296,9 @@ static FskErr FskUtilsCommonInit(void)
 
 static FskErr FskUtilsCommonTerm(void)
 {
+	FskListMutexDispose(gNotificationProcs);
+	gNotificationProcs = NULL;
+
 	return FskTimeTerminate();
 }
 
@@ -901,8 +905,6 @@ char *FskGetApplicationPath(void)
 /*
     Notifications
 */
-
-static FskListMutex gNotificationProcs;
 
 typedef struct {
     void                    *next;
