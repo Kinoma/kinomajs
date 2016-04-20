@@ -269,6 +269,8 @@ void FskCocoaWindowDispose(FskWindow fskWindow)
 	if (fskWindow == NULL) return;
 	window = (NSWindow *)(fskWindow->nsWindow);
 
+	[(FskCocoaView *)window.contentView setDisplayLinkActive:NO];
+
 	// dispose the window
 	[window orderOut:nil];
 	[window close];
