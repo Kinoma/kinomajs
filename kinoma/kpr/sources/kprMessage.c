@@ -186,9 +186,6 @@ static void KprServicesLoop(void* theParameter)
 	xsMachine* the = xsAliasMachine(&allocation, gShell->root, "services", gShell);
 	bailIfNULL(the);
 
-		FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "String WITHOUT line feed");
-		FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "String WITH line feed\n");
-
 	while (service) {
 		if (service->flags & kprServicesThread) {
 			FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "Starting %s", service->id);
