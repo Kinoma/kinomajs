@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -349,10 +349,12 @@ void KprHandlerTargetRequestCallback(KprMessage message, void* it)
 {
 	KprHandlerTarget target = it;
     KprHandler self = target->handler;
-	self->message = target->message;
+    KprMessage former = target->message;
+	KprMessageResuming(former);
+	self->message = former;
     kprDelegateComplete(self, message);
 	self->message = NULL;
-	KprMessageResume(target->message);
+	KprMessageResumed(former);
 }
 
 void KprHandlerTargetResponseCallback(KprMessage message, void* it)
@@ -549,10 +551,12 @@ static void KPR_handler_waitComplete(FskTimeCallBack callback UNUSED, const FskT
 {
 	KprHandlerTarget target = it;
     KprHandler self = target->handler;
-	self->message = target->message;
+    KprMessage former = target->message;
+	KprMessageResuming(former);
+	self->message = former;
     kprDelegateComplete(self, NULL);
 	self->message = NULL;
-	KprMessageResume(target->message);
+	KprMessageResumed(former);
 }
 
 void KPR_handler_wait(xsMachine *the)

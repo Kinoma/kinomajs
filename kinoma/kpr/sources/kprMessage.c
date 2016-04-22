@@ -550,6 +550,20 @@ void KprMessageRedirect(KprMessage self, char* url, char* mime)
 
 void KprMessageResume(KprMessage self)
 {
+	KprMessageResuming(self);
+	KprMessageResumed(self);
+}
+
+void KprMessageResumed(KprMessage self)
+{
+	if (!self->response.callback) {
+        KprMessageTransform(self, gShell->the);
+		KprMessageComplete(self);
+	}
+}
+
+void KprMessageResuming(KprMessage self)
+{
 	FskInstrumentedItemSendMessageDebug(self, kprInstrumentedMessageResume, self);
 	if (self->response.dispose)
 		(*self->response.dispose)(self->response.target);
@@ -557,8 +571,6 @@ void KprMessageResume(KprMessage self)
 	self->response.dispose = NULL;
 	self->response.target = NULL;
 	self->usage--; // response
-	KprMessageTransform(self, gShell->the);
-	KprMessageComplete(self);
 }
 
 FskErr KprMessageSetCredentials(KprMessage self, char* user, char* password)

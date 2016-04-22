@@ -1,5 +1,5 @@
 /*
- *     Copyright (C) 2010-2015 Marvell International Ltd.
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
  *
  *     Licensed under the Apache License, Version 2.0 (the "License");
@@ -159,6 +159,8 @@ FskAPI(FskErr) KprMessageInvoke(KprMessage self, KprMessageCallbackProc callback
 FskAPI(FskErr) KprMessageNotify(KprMessage self);
 FskAPI(void) KprMessageRedirect(KprMessage self, char* url, char* mime);
 FskAPI(void) KprMessageResume(KprMessage self);
+FskAPI(void) KprMessageResumed(KprMessage self);
+FskAPI(void) KprMessageResuming(KprMessage self);
 FskAPI(FskErr) KprMessageSetCredentials(KprMessage self, char* username, char* password);
 FskAPI(FskErr) KprMessageSetMethod(KprMessage self, char* method);
 void KprMessageSetPriority(KprMessage self, SInt32 priority);
