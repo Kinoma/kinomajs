@@ -152,7 +152,7 @@ KinomaJS uses `libmraa` to access hardware pins on the device. It does not come 
 2. Download the source code.
 
   ```
-    git clone https://github.com/intel-iot-devkit/mraa /tmp/mraa
+  git clone https://github.com/intel-iot-devkit/mraa /tmp/mraa
   ```
 
 3. Build `libmraa` for the platform and install the artifacts into the `sysroot`.
