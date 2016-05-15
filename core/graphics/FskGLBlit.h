@@ -89,14 +89,6 @@ FskAPI(FskErr)	FskGLShutdown(void);
 
 #if defined(EGL_VERSION) || TARGET_OS_ANDROID || TARGET_OS_LINUX || (TARGET_OS_KPL && (FSK_OPENGLES_KPL == 1)) || (defined(_MSC_VER) && (FSK_OPENGLES_ANGLE == 1))
 
-/** Record the context generated outside of the APIs in this file.
- *	\param[in]	eglDisplay	the EGL display.
- *	\param[in]	eglSurface	the EGL surface.
- *	\param[in]	eglContext	the EGL context.
- *	\return		kFskErrNone	if the operation was successful.
- */
-FskAPI(FskErr)		FskGLSetEGLContext(void *eglDisplay, void *eglSurface, void *eglContext);
-
 /** Record the native window.
  *	\param[in]	aWin	the native window.
  *	\return		kFskErrNone	if the operation was successful.
@@ -356,9 +348,10 @@ FskAPI(FskErr)	FskGLBlitContextMakeCurrent(FskGLBlitContext blitContext);
 
 
 /** Get the current Blit Context.
+ *	\param[in]	create	create a blit context if one does not already exist.
  *	\return		the current blit context.
  **/
-FskAPI(FskGLBlitContext) FskGLBlitContextGetCurrent(void);
+FskAPI(FskGLBlitContext) FskGLBlitContextGetCurrent(Boolean create);
 
 
 /** Swap the Blit context. This also swaps the GL context.
@@ -767,6 +760,7 @@ FskAPI(FskErr)	FskGLTransferAlphaBitmap(
  *	\param[in]	textStyle		the style of the text.
  *	\param[in]	hAlign			the horizontal alignment of the text.
  *	\param[in]	vAlign			the vertical  alignment of the text.
+ *	\param[in]	textExtra		extra space to be inserted between each character.
  *	\param[in]	fontName		the name of the font desired.
  *	\param[in]	cache			the cache. Can be NULL.
  *	\return		kFskErrNone		if the text were rendered without problems.
@@ -797,6 +791,7 @@ FskAPI(FskErr)	FskGLTextBox(
  *	\param[in]	textLen		the length of the text string.
  *	\param[in]	textSize	the size of the text, in pixels.
  *	\param[in]	textStyle	the style of the text.
+ *	\param[in]	textExtra	extra space to be inserted between each character.
  *	\param[in]	fontName	the name of the font desired.
  *	\param[in]	cache		the cache. Can be NULL.
  *	\return		kFskErrNone	if the text glyphs were loaded without problems.
@@ -843,6 +838,7 @@ FskAPI(FskErr) FskGLTextGlyphsUpdateTexture(
  *	\param[in]		textLen		the length of the text string.
  *	\param[in]		textSize	the size of the text, in pixels.
  *	\param[in]		textStyle	the style of the text.
+ *	\param[in]		textExtra	extra space to be inserted between each character.
  *	\param[in]		fontName	the name of the font desired.
  *	\param[out]		bounds		the bounds of the text.
  *	\param[in]		cache		the cache. Can be NULL.
@@ -868,7 +864,7 @@ FskAPI(FskErr) FskGLTextGetBounds(
  *	\param[in]	points			the points that make up the source polygon. If NULL, implies the four corners of the  source.
  *	\param[in]	dstBM			a proxy destination bitmap.
  *	\param[in]	dstClip			the destination clipping rectangle (may be NULL).
- *	\param[in]	M				the perspective matrix.
+ *	\param[in]	M				the perspective matrix, 3x3.
  *	\param[in]	opColor			Operation color used if needed for the given transfer mode.
  *	\param[in]	mode			Transfer mode, incorporating quality.
  *	\param[in]	modeParams		We get blend level from here.
@@ -880,7 +876,7 @@ FskAPI(FskErr)	FskGLPerspectiveTransformBitmap(
 	const FskFixedPoint2D			*points,
 	FskBitmap						dstBM,
 	FskConstRectangle				dstClip,
-	const float						M[3][3],
+	float							(*const M)[3],
 	FskConstColorRGBA				opColor,
 	UInt32							mode,
 	FskConstGraphicsModeParameters	modeParams
@@ -892,7 +888,7 @@ FskAPI(FskErr)	FskGLPerspectiveTransformBitmap(
  *	\param[in]	srcRect			The subrect of the source to be transformed. If NULL, implies the full  source.
  *	\param[in]	dstBM			a proxy destination bitmap.
  *	\param[in]	dstClip			the destination clipping rectangle (may be NULL).
- *	\param[in]	M				the perspective matrix.
+ *	\param[in]	M				the perspective matrix, 3x3.
  *	\param[in]	opColor			Operation color used if needed for the given transfer mode.
  *	\param[in]	mode			Transfer mode, incorporating quality.
  *	\param[in]	modeParams		We get blend level from here.
@@ -903,7 +899,7 @@ FskAPI(FskErr)	FskGLProjectBitmap(
 	FskConstRectangle				srcRect,
 	FskBitmap						dstBM,
 	FskConstRectangle				dstClip,
-	const float						M[3][3],
+	float							(*const M)[3],
 	FskConstColorRGBA				opColor,
 	UInt32							mode,
 	FskConstGraphicsModeParameters	modeParams
@@ -964,7 +960,8 @@ FskAPI(FskErr)	FskGLTypeFaceNext(FskConstGLTypeFace *pTypeFace, const char **pFo
  *	\param[in]		firstCodePoint	the first unicode codepoint.
  *	\param[in]		lastCodePoint	the last unicode codepoint.
  *	\param[in,out]	typeFace		the typeface and related state.
- *	\return			kFskErrNone		if the strike was added successfully.
+  *	\param[in]		textExtra		extra space to be inserted between each character.
+*	\return			kFskErrNone		if the strike was added successfully.
  **/
 FskAPI(FskErr) FskGLTextStrikeGlyphRange(UInt16 firstCodePoint, UInt16 lastCodePoint, FskGLTypeFace typeFace, FskFixed textExtra);
 
@@ -1119,7 +1116,6 @@ FskAPI(UInt32) FskGLEstimateTextureMemoryUsage(void);
 	#define FskGLUnloadTexture(bm)																	(GL_TRACE_LOG("FskGLUnloadTexture"),				FskGLUnloadTexture(bm))
 	#define FskGLUpdateSource(bm)																	(GL_TRACE_LOG("FskGLUpdateSource"),					FskGLUpdateSource(bm))
 
-	#define FskGLSetEGLContext(dsp,srf,ctx)															(GL_TRACE_LOG("FskGLSetEGLContext"),				FskGLSetEGLContext(dsp,srf,ctx))
 	#define FskGLSetNativeWindow(win)																(GL_TRACE_LOG("FskGLSetNativeWindow"),				FskGLSetNativeWindow(win))
 
 

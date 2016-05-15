@@ -290,8 +290,8 @@ int main(int argc, char* argv[])
 		2048,		/* incremental chunk size */
 		50*1024/16,	/* initial heap count	-- will be calculated later */
 		128,		/* incremental heap count	-- wasting 16 bytes / allocation */
-		548,		/* stack count */
-		2048+512,	/* key count */
+		650,		/* stack count */
+		2048+1024,	/* key count */
 		97,		/* name modulo */
 		127,		/* symbol modulo */
 	};

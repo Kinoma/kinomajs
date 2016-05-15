@@ -24,7 +24,7 @@ export TARGET_SYSTEM = mac
 export MACOS_ARCH = -arch i386
 export MACOS_VERSION_MIN = -mmacosx-version-min=10.7
 
-C_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN) -DmxRun=1 -DmxDebug=1 -DmxNoFunctionLength -DmxNoFunctionName -g -Wall -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/tool -I$(XS6_MC_DIR) -I$(XS6_MC_DIR)/extensions/crypt -DXS_ARCHIVE=$(XS_ARCHIVE)
+C_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN) -DmxRun=1 -DmxDebug=1 -g -Wall -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/tool -I$(XS6_MC_DIR) -I$(XS6_MC_DIR)/extensions/crypt -DXS_ARCHIVE=$(XS_ARCHIVE)
 LINK_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN)
 LIBRARIES = -framework CoreServices
 
@@ -41,7 +41,7 @@ export XS_COMPILER = 1
 ifeq ($(DEBUG),)
 	BIN_DIR = $(XS6)/bin/mac/release
 	TMP_DIR = $(XS6)/tmp/mac/release/mc
-	C_OPTIONS += -D_RELEASE=1 -O3
+	C_OPTIONS += -D_RELEASE=1 -O3 -DmxNoFunctionLength -DmxNoFunctionName
 else
 	BIN_DIR = $(XS6)/bin/mac/debug
 	TMP_DIR = $(XS6)/tmp/mac/debug/mc
@@ -114,8 +114,8 @@ XS6_OBJECTS += \
 endif
 
 XS6_TOOL_OBJECTS = \
-	$(TMP_DIR)/xs6Host.o \
-	$(TMP_DIR)/xs6Platform.o
+	$(TMP_DIR)/xs6Platform.o \
+	$(TMP_DIR)/xs6Host.o
 
 MC_OBJECTS = \
 	$(TMP_DIR)/xs_patch.o \
@@ -127,7 +127,9 @@ MC_OBJECTS = \
 	$(TMP_DIR)/mc_stdio.o \
 	$(TMP_DIR)/mc_xs.o
 
-.PHONY: xsr6 mc modules extensions external proprietary tools
+SIGNED_MODULES = setup/_download
+
+.PHONY: xsr6 mc modules extensions external proprietary tools sign host_fs
 .SUFFIXES: .update
 
 all: $(TMP_DIR) $(BIN_DIR) $(MOD_DIR) $(DEST_DIR) xsr6 mc
@@ -168,6 +170,11 @@ host_fs:
 	cp -fp data/* ~/tmp/mc
 	if [ -d proprietary/data ]; then cp -fp proprietary/data/* ~/tmp/mc; fi
 
+$(TMP_DIR)/mc_mapped_files.h: rodata
+	sh tools/mkmap.sh $@
+
+$(TMP_DIR)/mc_file.o: $(TMP_DIR)/mc_mapped_files.h
+
 $(MC_OBJECTS): $(TMP_DIR)/%.o: $(XS6_MC_DIR)/%.c
 	$(CC) $< $(C_OPTIONS) -c -o $@
 $(XS6_OBJECTS): $(TMP_DIR)/%.o: $(XS6_SRC_DIR)/%.c
@@ -183,7 +190,10 @@ $(TMP_DIR)/%.xsb: %.js
 
 %.update:;
 
+sign:
+	$(XS6_TOOL_DIR)/xsr6 -a $(XS6_TOOL_DIR)/modules/$(ARCHIVE).xsa xssign -l $(XS6_TOOL_DIR)/modules/$(ARCHIVE).xsa $(SIGNED_MODULES)
+	cp -pf ${HOME}/tmp/mc/k2/mc.xsa.sig $(XS6_MC_DIR)/data/mc.xsa.sig.host
 clean:
-	rm -f $(MC_OBJECTS) $(XS6_OBJECTS) $(XS6_TOOL_OBJECTS) $(TMP_DIR)/$(ARCHIVE).xsa $(TMP_DIR)/$(ARCHIVE).xs.[ch] $(TMP_DIR)/application.xsb $(TMP_DIR)/inetd.xsb $(TMP_DIR)/launcher.xsb $(TMP_DIR)/config.xsb $(TMP_DIR)/synctime.xsb $(DEST_DIR)/*.xsb
+	rm -f $(MC_OBJECTS) $(XS6_OBJECTS) $(XS6_TOOL_OBJECTS) $(TMP_DIR)/$(ARCHIVE).xsa $(TMP_DIR)/$(ARCHIVE).xs.[ch] $(TMP_DIR)/application.xsb $(TMP_DIR)/inetd.xsb $(TMP_DIR)/launcher.xsb $(TMP_DIR)/config.xsb $(TMP_DIR)/synctime.xsb $(DEST_DIR)/*.xsb $(TMP_DIR)/mc_mapped_files.h
 	(for dir in modules extensions external proprietary tools; do if [ -d $$dir ]; then (cd $$dir; for i in *.make; do make -I $(XS6_MC_DIR) -f $$i clean; done); fi; done)
 

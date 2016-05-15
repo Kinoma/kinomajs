@@ -86,7 +86,7 @@ export function decode(blob) {
 				}
 				break;
 			case OptionFormat.String:
-				optValue = readBytes(optLen).toRawString();
+				optValue = String.fromArrayBuffer(readBytes(optLen));
 				break;
 		}
 		options.push([opt, optValue]);

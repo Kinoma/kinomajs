@@ -19,6 +19,7 @@
 
 #include "mc_stdio.h"
 #include "mc_misc.h"
+#include "mc_env.h"
 #include "mc_ipc.h"
 
 #if mxMC
@@ -443,6 +444,9 @@ mc_log_write(void *data, size_t n)
 {
 #ifdef LOG_FILE_ENABLE
 	time_t t;
+	char buf[128];
+
+	mc_check_stack();
 
 	if (!mc_log_enable)
 		return;
@@ -460,16 +464,12 @@ mc_log_write(void *data, size_t n)
 			goto bail;
 	}
 	t = mc_time(NULL);
-	if (mc_log_last == 0) {
-		/* probably the time hasn't been set */
-		const char msg[] = "\n===\n";
-		if (log_write_line(msg, strlen(msg)) == 0)
+	if (mc_log_last == 0) {		/* first time -- print the FW version */
+		snprintf(buf, sizeof(buf), "=== FW version: %s ===\n", mc_env_get_default("FW_VER"));
+		if (log_write_line(buf, strlen(buf)) == 0)
 			goto bail;
 	}
-	else if (t < LOG_TIME_INTERVAL)
-		;
-	else if ((t - mc_log_last) >= LOG_TIME_INTERVAL) {
-		char buf[128];
+	if ((t - mc_log_last) >= LOG_TIME_INTERVAL) {
 		struct mc_tm *tm = mc_localtime(&t);
 		mc_strftime(buf, sizeof(buf), "=== %a %b %d %Y %H:%M:%S GMT%z (%Z) ===\n", tm);
 		if (log_write_line(buf, strlen(buf)) == 0)

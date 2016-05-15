@@ -29,23 +29,31 @@ var ByteBuffer = Buffers.ByteBuffer;
 var BTUtils = require("./btutils");
 var UUID = BTUtils.UUID;
 
-var logger = new Logger("GATT");
-logger.loggingLevel = Utils.Logger.Level.INFO;
+var logger = Logger.getLogger("GATT");
 
-exports.setLoggingLevel = level => logger.loggingLevel = level;
-
-const UUID_PRIMARY_SERVICE	= UUID.getByUUID16(0x2800);
-const UUID_SECONDARY_SERVICE	= UUID.getByUUID16(0x2801);
-const UUID_INCLUDE			= UUID.getByUUID16(0x2802);
-const UUID_CHARACTERISTIC		= UUID.getByUUID16(0x2803);
-const UUID_CHARACTERISTIC_EXTENDED_PROPERTIES		= UUID.getByUUID16(0x2900);
+const UUID_PRIMARY_SERVICE						= UUID.getByUUID16(0x2800);
+const UUID_SECONDARY_SERVICE					= UUID.getByUUID16(0x2801);
+const UUID_INCLUDE								= UUID.getByUUID16(0x2802);
+const UUID_CHARACTERISTIC						= UUID.getByUUID16(0x2803);
+const UUID_CHARACTERISTIC_EXTENDED_PROPERTIES	= UUID.getByUUID16(0x2900);
 const UUID_CHARACTERISTIC_USER_DESCRIPTION		= UUID.getByUUID16(0x2901);
 const UUID_CLIENT_CHARACTERISTIC_CONFIGURATION	= UUID.getByUUID16(0x2902);
 const UUID_SERVER_CHARACTERISTIC_CONFIGURATION	= UUID.getByUUID16(0x2903);
-const UUID_CHARACTERISTIC_PRESENTATION_FORMAT		= UUID.getByUUID16(0x2904);
+const UUID_CHARACTERISTIC_PRESENTATION_FORMAT	= UUID.getByUUID16(0x2904);
 const UUID_CHARACTERISTIC_AGGREGATE_FORMAT		= UUID.getByUUID16(0x2905);
+exports.UUID_PRIMARY_SERVICE = UUID_PRIMARY_SERVICE;
+exports.UUID_SECONDARY_SERVICE = UUID_SECONDARY_SERVICE;
+exports.UUID_INCLUDE = UUID_INCLUDE;
+exports.UUID_CHARACTERISTIC = UUID_CHARACTERISTIC;
+exports.UUID_CHARACTERISTIC_EXTENDED_PROPERTIES = UUID_CHARACTERISTIC_EXTENDED_PROPERTIES;
+exports.UUID_CHARACTERISTIC_USER_DESCRIPTION = UUID_CHARACTERISTIC_USER_DESCRIPTION;
+exports.UUID_CLIENT_CHARACTERISTIC_CONFIGURATION = UUID_CLIENT_CHARACTERISTIC_CONFIGURATION;
+exports.UUID_SERVER_CHARACTERISTIC_CONFIGURATION = UUID_SERVER_CHARACTERISTIC_CONFIGURATION;
+exports.UUID_CHARACTERISTIC_PRESENTATION_FORMAT = UUID_CHARACTERISTIC_PRESENTATION_FORMAT;
+exports.UUID_CHARACTERISTIC_AGGREGATE_FORMAT = UUID_CHARACTERISTIC_AGGREGATE_FORMAT;
 
 const NAMESPACE_BLUETOOTH_SIG = 0x01;
+exports.NAMESPACE_BLUETOOTH_SIG = NAMESPACE_BLUETOOTH_SIG;
 
 const Properties = {
 	BROADCAST: 0x01,
@@ -171,6 +179,10 @@ const FormatSerializer = {
 	[Format.UTF16S]: serializeString		// FIXME
 };
 
+exports.serializeWithFormat = (value, format) => {
+	return FormatSerializer[format](value);
+};
+
 const FormatParser = {
 	[Format.BOOLEAN]: (buffer) => {return buffer.getInt8() == 1;},
 	[Format.UINT2]: (buffer) => {return buffer.getInt8() & 0x03;},
@@ -191,6 +203,10 @@ const FormatParser = {
 	[Format.SINT64]: (buffer) => {return buffer.getByteArray(8)},
 	[Format.UTF8S]: parseString,
 	[Format.UTF16S]: parseString		// FIXME
+};
+
+exports.parseWithFormat = (data, format) => {
+	return FormatParser[format](ByteBuffer.wrap(data));
 };
 
 const FormatNames = {
@@ -228,26 +244,36 @@ exports.getFormatByName = function (name) {
 	return -1;
 };
 
+exports.serializeFormat = format => {
+	let buffer = ByteBuffer.allocate(7);
+	buffer.putInt8(format.format);
+	buffer.putInt8(format.hasOwnProperty("exponent") ? format.exponent : 0);
+	buffer.putInt16(format.hasOwnProperty("unit") ? format.unit.toUUID16() : 0);
+	buffer.putInt8(format.hasOwnProperty("nameSpace") ? format.nameSpace : GATT.NAMESPACE_BLUETOOTH_SIG);
+	buffer.putInt16(format.hasOwnProperty("description") ? format.description : 0);
+	buffer.flip();
+	return buffer.getByteArray();
+};
+
+exports.parseFormat = data => {
+	let buffer = ByteBuffer.wrap(data);
+	return {
+		format: buffer.getInt8(),
+		exponent: buffer.getInt8(),
+		unit: UUID.getByUUID16(buffer.getInt16()),
+		nameSpace: buffer.getInt8(),
+		description: buffer.getInt16()
+	};
+};
+
 class Characteristic {
-	constructor(uuid, properties, extProperties = 0x0000) {
+	constructor(uuid, properties) {
 		this._uuid = uuid;
 		this._properties = properties;
-		if ((this._properties & Properties.EXT) > 0) {
-			this._extProperties = extProperties;
-		} else {
-			this._extProperties = 0x0000;
-		}
-		this._description = null;
-		this._clientConfigurations = {};
-		this._formats = [];
-		/* ATT Contexts */
-	//	this._attribute = null;
-		this._valueAttribute = null;
-	//	this._descriptorAttributes = null;
-
 		this._localValue = null;
-		this._onValueRead = null;
-		this._onValueWrite = null;
+		this._formats = [];
+		this._serializer = null;
+		this._parser = null;
 	}
 	get uuid() {
 		return this._uuid;
@@ -255,232 +281,56 @@ class Characteristic {
 	get properties() {
 		return this._properties;
 	}
-	get handle() {
-		if (this._valueAttribute == null) {
-			return ATT.INVALID_HANDLE;
-		}
-		return this._valueAttribute.handle;
+	get value() {
+		return this._localValue;
 	}
 	set value(value) {
 		this._localValue = value;
 	}
-	get value() {
-		return this._localValue;
+	set serializer(serializer) {
+		this._serializer = serializer;
 	}
-	set desription(desription) {
-		this._description = description;
+	set parser(parser) {
+		this._parser = parser;
 	}
-	set onValueRead(onValueRead) {
-		this._onValueRead = onValueRead;
+	addFormat(format) {
+		this._formats.push(format);
 	}
-	set onValueWrite(onValueWrite) {
-		this._onValueWrite = onValueWrite;
-	}
-	_readDefinition() {
-		let uuid16 = this._uuid.isUUID16();
-		let buffer = ByteBuffer.allocate(3 + (uuid16 ? 2 : 16), true);
-		buffer.putInt8(this._properties);
-		buffer.putInt16(this._valueAttribute.handle);
-		if (uuid16) {
-			buffer.putInt16(this._uuid.toUUID16());
-		} else {
-			buffer.putByteArray(this._uuid.getRawArray());
+	serializeValue() {
+		if (this._serializer != null) {
+			return this._serializer(this._localValue);
 		}
-		buffer.flip();
-		return buffer.getByteArray();
-	}
-	_readValue() {
 		if (this._formats.length > 0) {
 			if (this._formats.length == 1) {
 				return FormatSerializer[this._formats[0].format](this._localValue);
 			}
-			let value = [];
+			let data = [];
 			for (let format of this._formats) {
-				value.concat(FormatSerializer[format.format](this._localValue[0]));
+				data.concat(FormatSerializer[format.format](this._localValue[0]));
 			}
-			return value;
+			return data;
 		}
 		return this._localValue;
 	}
-	_writeValue(value) {
-		let buffer = ByteBuffer.wrap(value);
+	parseValue(data) {
+		let buffer = ByteBuffer.wrap(data);
+		if (this._parser != null) {
+			this._localValue = this._parser(buffer);
+			return;
+		}
 		if (this._formats.length > 0) {
 			if (this._formats.length == 1) {
 				this._localValue = FormatParser[this._formats[0].format](buffer);
 				return;
 			}
-			let data = [];
+			let value = [];
 			for (let format of this._formats) {
-				data.concat(FormatParser[format.format](buffer));
+				value.concat(FormatParser[format.format](buffer));
 			}
-			this._localValue = data;
+			this._localValue = value;
 			return;
 		}
-		this._localValue = buffer.getByteArray();
-	}
-	hasExtendedProperties() {
-		return (this._properties & Properties.EXT) > 0;
-	}
-	_readExtendedProperties() {
-		return Utils.toByteArray(this._extProperties, 2, true);
-	}
-	_readUserDescription() {
-		if (this._description != null) {
-			return BTUtils.toCharArray(this._description);
-		}
-	}
-	hasClientConfiguration() {
-		return (this._properties & Properties.NOTIFY) > 0 || (this._properties & Properties.INDICATE) > 0;
-	}
-	getClientConfiguration(bearer) {
-		let linkHandle = bearer.getHCILinkHandle();
-		if (!this._clientConfigurations.hasOwnProperty(linkHandle)) {
-			this._clientConfigurations[linkHandle] = 0x0000;
-		}
-		return this._clientConfigurations[linkHandle];
-	}
-	_readClientConfiguration(bearer) {
-		return Utils.toByteArray(this.getClientConfiguration(bearer), 2, true);
-	}
-	_writeClientConfiguration(bearer, value) {
-		if (!this.hasClientConfiguration()) {
-			logger.debug("Characteristic has no client configuration");
-			return;
-		}
-		let linkHandle = bearer.getHCILinkHandle();
-		let config = 0x0000;
-		let configToWrite = Utils.toInt16(value, true);
-		if ((this._properties & Properties.NOTIFY) > 0 && (configToWrite & ClientConfiguration.NOTIFICATION) > 0) {
-			logger.debug("Config notification for link=" + Utils.toHexString(linkHandle, 2));
-			config |= ClientConfiguration.NOTIFICATION;
-		}
-		if ((this._properties & Properties.INDICATE) > 0 && (configToWrite & ClientConfiguration.INDICATION) > 0) {
-			logger.debug("Config indication for link=" + Utils.toHexString(linkHandle, 2));
-			config |= ClientConfiguration.INDICATION;
-		}
-		this._clientConfigurations[linkHandle] = config;
-	}
-	addFormat(format) {
-		this._formats.push(format);
-	}
-	deploy(db) {
-		/* Deploy definition attribute */
-		let definitionAttribute = db.allocateAttribute(UUID_CHARACTERISTIC);
-		definitionAttribute.permission.readable = true;
-		definitionAttribute.callback.onRead = (attribute) => {
-			logger.debug("Characteristic definition on read");
-			attribute.value = this._readDefinition();
-		};
-		/* Deploy value attribute */
-		let valueAttribute = db.allocateAttribute(this._uuid);
-		if ((this._properties & Properties.READ) > 0) {
-			valueAttribute.permission.readable = true;
-		}
-		if ((this._properties & Properties.WRITE) > 0) {
-			valueAttribute.permission.writable = true;
-		}
-		if ((this._properties & Properties.WRITE_WO_RESP) > 0) {
-			valueAttribute.permission.commandable = true;
-		}
-		if (this._defaultValue != null) {
-			valueAttribute.value = this._defaultValue;
-		}
-		valueAttribute.callback.onRead = (attribute) => {
-			if (this._onValueRead != null) {
-				this._onValueRead(this);
-			}
-			attribute.value = this._readValue();
-		};
-		valueAttribute.callback.onWrite = (attribute, value) => {
-			this._writeValue(value);
-			if (this._onValueWrite != null) {
-				this._onValueWrite(this, this._localValue);
-			}
-		};
-		this._valueAttribute = valueAttribute;
-		/* Deploy descriptors */
-		/* 3.3.3.1 Characteristic Extended Properties */
-		if (this.hasExtendedProperties()) {
-			logger.debug("Deploy: Characteristic Extended Properties");
-			let descriptorAttribute = db.allocateAttribute(UUID_CHARACTERISTIC_EXTENDED_PROPERTIES);
-			descriptorAttribute.permission.readable = true;
-			descriptorAttribute.callback.onRead = (attribute) => {
-				logger.debug("Characteristic ext properties on read");
-				attribute.value = this._readExtendedProperties();
-			};
-		}
-		/* 3.3.3.2 Characteristic User Description */
-		let writableAux = (this._extProperties & ExtendedProperties.WRITABLE_AUX) > 0;
-		if (this._description != null || writableAux) {
-			logger.debug("Deploy: Characteristic User Description");
-			let descriptorAttribute = db.allocateAttribute(UUID_CHARACTERISTIC_USER_DESCRIPTION);
-			descriptorAttribute.permission.readable = true;
-			descriptorAttribute.permission.writable = writableAux;
-			descriptorAttribute.callback.onRead = (attribute) => {
-				logger.debug("Characteristic user description on read");
-				attribute.value = this._readUserDescription();
-			};
-		}
-		/* 3.3.3.3 Client Characteristic Configuration */
-		if (this.hasClientConfiguration()) {
-			logger.debug("Deploy: Client Characteristic Configuration");
-			let descriptorAttribute = db.allocateAttribute(UUID_CLIENT_CHARACTERISTIC_CONFIGURATION);
-			descriptorAttribute.permission.readable = true;
-			descriptorAttribute.permission.writable = true;
-			descriptorAttribute.permission.authentication = true;
-			descriptorAttribute.permission.authorization = true;
-			descriptorAttribute.callback.onRead = (attribute, context = null) => {
-				logger.debug("Characteristic client config on read");
-				if (context == null) {
-					logger.error("ATT context not found while reading");
-					return;
-				}
-				attribute.value = this._readClientConfiguration(context.bearer);
-			};
-			descriptorAttribute.callback.onWrite = (attribute, value, context = null) => {
-				logger.debug("Characteristic client config on write");
-				if (context == null) {
-					logger.error("ATT context not found while writing");
-					return;
-				}
-				this._writeClientConfiguration(context.bearer, value);
-			};
-		}
-		/* 3.3.3.4 Server Characteristic Configuration */
-		// TODO
-		/* 3.3.3.5 Characteristic Presentation Format */
-		for (let format of this._formats) {
-			logger.debug("Deploy: Characteristic Presentation Format");
-			let formatAttribute = db.allocateAttribute(UUID_CHARACTERISTIC_PRESENTATION_FORMAT);
-			formatAttribute.permission.readable = true;
-			/* Read Only */
-			let buffer = ByteBuffer.allocate(7);
-			buffer.putInt8(format.format);
-			buffer.putInt8(format.hasOwnProperty("exponent") ? format.exponent : 0);
-			buffer.putInt16(format.hasOwnProperty("unit") ? format.unit.toUUID16() : 0);
-			buffer.putInt8(format.hasOwnProperty("nameSpace") ? format.nameSpace : NAMESPACE_BLUETOOTH_SIG);
-			buffer.putInt16(format.hasOwnProperty("description") ? format.description : 0);
-			buffer.flip();
-			formatAttribute.value = buffer.getByteArray();
-			format._attribute = formatAttribute;
-		}
-		/* 3.3.3.6 Characteristic Aggregate Format */
-		if (this._formats.length > 1) {
-			logger.debug("Deploy: Characteristic Presentation Format");
-			let aggregateAttribute = db.allocateAttribute(UUID_CHARACTERISTIC_AGGREGATE_FORMAT);
-			aggregateAttribute.permission.readable = true;
-			aggregateAttribute.callback.onRead = (attribute) => {
-				logger.debug("Characteristic Presentation Format on read");
-				let buffer = ByteBuffer.allocate(this._formats.length * 2);
-				for (let format of this._formats) {
-					buffer.putInt16(format._attribute.handle);
-				}
-				buffer.flip();
-				return buffer.getByteArray();
-			};
-		}
-		definitionAttribute.groupEnd = db.getEndHandle();	// Should fix it
-	//	this._attribute = definitionAttribute;
+		this._localValue = data;
 	}
 }
 exports.Characteristic = Characteristic;
@@ -488,28 +338,9 @@ exports.Characteristic = Characteristic;
 class Include {
 	constructor(uuid) {
 		this._uuid = uuid;
-		/* ATT Contexts */
-		this._attribute = null;
 	}
-	_readDefinition() {
-		let candidate = searchCandidate();	// TODO
-		let buffer = ByteBuffer.allocate(6, true);
-		buffer.putInt16(candidate.start);
-		buffer.putInt16(candidate.end);
-		if (this._uuid.isUUID16()) {
-			buffer.putInt16(this._uuid.toUUID16());
-		}
-		buffer.flip();
-		return buffer.getByteArray();
-	}
-	deploy(db) {
-		let definitionAttribute = db.allocateAttribute(UUID_INCLUDE);
-		definitionAttribute.permission.readable = true;
-		definitionAttribute.callback.onRead = (attribute) => {
-			logger.debug("Include definition on read");
-			attribute.value = this._readDefinition();
-		};
-		this._attribute = definitionAttribute;
+	get uuid() {
+		return this._uuid;
 	}
 }
 exports.Include = Include;
@@ -518,531 +349,46 @@ class Service {
 	constructor(uuid, primary = true) {
 		this._uuid = uuid;
 		this._primary = primary;
-		this._includes = [];
-		this._characteristics = [];
-		/* ATT Contexts */
-		this._attribute = null;
+		this._includes = new Map();
+		/* FIXME: Need support of duplicate characteristics with the same UUID */
+		this._characteristics = new Map();
 	}
 	get uuid() {
 		return this._uuid;
 	}
+	get includes() {
+		return this._includes.values();
+	}
 	get characteristics() {
-		return this._characteristics.slice();
+		return this._characteristics.values();
 	}
-	getCharacteristicByUUID(uuid) {
-		for (let characteristic of this._characteristics) {
-			if (characteristic.uuid.equals(uuid)) {
-				return characteristic;
-			}
-		}
-		return null;
-	}
-	addInclude(include) {
-		if (this._attribute != null) {
-			throw "Service has already been deployed";
-		}
-		this._includes.push(include);
+	addIncludedService(include) {
+		this._includes.set(include.uuid.toString(), include);
 	}
 	addCharacteristic(characteristic) {
-		if (this._attribute != null) {
-			throw "Service has already been deployed";
-		}
-		this._characteristics.push(characteristic);
+		this._characteristics.set(characteristic.uuid.toString(), characteristic);
 	}
-	_readDefinition() {
-		if (this._uuid.isUUID16()) {
-			return Utils.toByteArray(this._uuid.toUUID16(), 2, true);
-		}
-		return this._uuid.getRawArray();
+	getIncludedServiceByUUID(uuid) {
+		return this._includes.get(uuid.toString());
 	}
-	deploy(db) {
-		/* Deploy definition attribute */
-		let definitionAttribute = db.allocateAttribute(
-			this._primary ? UUID_PRIMARY_SERVICE : UUID_SECONDARY_SERVICE);
-		definitionAttribute.permission.readable = true;
-		definitionAttribute.callback.onRead = (attribute) => {
-			logger.debug("Service definition on read");
-			attribute.value = this._readDefinition();
-		};
-		/* Deploy includes */
-		for (let include of this._includes) {
-			include.deploy(db);
-		}
-		/* Deploy characteristics */
-		for (let characteristic of this._characteristics) {
-			characteristic.deploy(db);
-		}
-		definitionAttribute.groupEnd = db.getEndHandle();	// Should fix it
-		this._attribute = definitionAttribute;
+	getCharacteristicByUUID(uuid) {
+		return this._characteristics.get(uuid.toString());
 	}
 }
 exports.Service = Service;
 
 class Profile {
 	constructor() {
-		this._services = [];
+		this._services = new Map();
 	}
 	get services() {
-		return this._services.slice();
+		return this._services.values();
+	}
+	addService(service) {
+		this._services.set(service.uuid.toString(), service);
 	}
 	getServiceByUUID(uuid) {
-		for (let service of this._services) {
-			if (service.uuid.equals(uuid)) {
-				return service;
-			}
-		}
-		return null;
-	}
-	deployServices(db, services) {
-		let start = db.getEndHandle() + 1;
-		/* Add all Services */
-		for (let service of services) {
-			service.deploy(db);
-			this._services.push(service);
-		}
-		/* Generate handles */
-		db.assignHandles();
-
-		let end = db.getEndHandle();
-		logger.info("Service Changed(Added): start=" + Utils.toHexString(start, 2)
-			+ ", end=" + Utils.toHexString(end, 2));
-
-		return {
-			start,
-			end
-		};
+		return this._services.get(uuid.toString());
 	}
 }
 exports.Profile = Profile;
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.3.1 Exchange MTU
- */
-exports.exchangeMTU = function (bearer, mtu) {
-	if (mtu === undefined) {
-		mtu = bearer.mtu;
-	}
-	bearer.scheduleTransaction(
-		ATT.assembleExchangeMTURequestPDU(mtu),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.EXCHANGE_MTU_RESPONSE) {
-					return;
-				}
-				var serverMTU = response.mtu;
-				if (serverMTU < bearer.mtu) {
-					bearer.mtu = serverMTU;
-				} else {
-					bearer.mtu = mtu;
-				}
-				logger.info("ATT Bearer MTU has been changed to: " + bearer.mtu);
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				logger.error("Exchange MTU Response: Error");
-				bearer.mtu = ATT.ATT_MTU;	// Use default MTU
-			}
-		}
-	);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.4.1 Discovery All Primary Serices
- */
-exports.discoverAllPrimaryServices = function (bearer, callback) {
-	startPrimaryServiceDiscovery(bearer, null, callback);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.4.2 Discovery Primary Serice by Service UUID
- */
-exports.discoverPrimaryServiceByServiceUUID = function (bearer, uuid, callback) {
-	startPrimaryServiceDiscovery(bearer, uuid, callback);
-};
-
-function startPrimaryServiceDiscovery(bearer, uuid, callback, start, end) {
-	if (start === undefined) {
-		start = 0x0001;
-	}
-	if (end === undefined) {
-		end = 0xFFFF;
-	}
-	logger.debug("Start Primary Service Discovery: start=" + Utils.toHexString(start, 2)
-		+ " end=" + Utils.toHexString(end, 2));
-	var discoverAll = (uuid == null);
-	var pdu;
-	if (discoverAll) {
-		pdu = ATT.assembleReadByGroupTypeRequestPDU(start, end,
-			UUID_PRIMARY_SERVICE);
-	} else {
-		pdu = ATT.assembleFindByTypeValueRequestPDU(start, end,
-			UUID_PRIMARY_SERVICE, uuid.getRawArray());
-	}
-	bearer.scheduleTransaction(pdu, {
-		transactionCompleteWithResponse: function (opcode, response) {
-			if (opcode != (discoverAll
-								? ATT.Opcode.READ_BY_GROUP_TYPE_RESPONSE
-								: ATT.Opcode.FIND_BY_TYPE_VALUE_RESPONSE)) {
-				return;
-			}
-			var services = [];
-			for (var i = 0; i < response.length; i++) {
-				var attribute = response[i];
-				services.push({
-					primary: true,
-					uuid: (discoverAll ? UUID.getByUUID(attribute.value) : uuid),
-					start: attribute.handle,
-					end: attribute.groupEnd
-				});
-			}
-			callback.primaryServicesDiscovered(services);
-			var lastHandle = response[response.length - 1].groupEnd;
-			if (lastHandle == 0xFFFF) {
-				logger.debug("SD complete with max handle");
-				callback.procedureComplete(lastHandle);
-			} else {
-				if (discoverAll) {
-					startPrimaryServiceDiscovery(bearer, null, callback, lastHandle + 1, end);
-				} else {
-					startPrimaryServiceDiscovery(bearer, uuid, callback, lastHandle + 1, end);
-				}
-			}
-		},
-		transactionCompleteWithError: function (errorCode, handle) {
-			if (errorCode == ATT.ErrorCode.ATTRIBUTE_NOT_FOUND) {
-				logger.debug("SD complete with attribute not found");
-				callback.procedureComplete(handle);
-			} else {
-				logger.debug("SD complete with error=" + Utils.toHexString(errorCode));
-				callback.procedureCompleteWithError(errorCode, handle);
-			}
-		}
-	});
-}
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.5.1 Find Included Services
- */
-exports.findIncludedServices = function (bearer, start, end, callback) {
-	startRelationShipDiscovery(bearer, start, end, callback);
-};
-
-function startRelationShipDiscovery(bearer, start, end, callback) {
-	bearer.scheduleTransaction(
-		ATT.assembleReadByTypeRequestPDU(start, end, UUID_INCLUDE),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.READ_BY_TYPE_RESPONSE) {
-					return;
-				}
-				var includes = [];
-				for (var i = 0; i < response.length; i++) {
-					var attribute = response[i];
-					var include = {
-						handle: attribute.handle,	// XXX: Could be optional
-						start: Utils.toInt(attribute.value, 0, 2, true),
-						end: Utils.toInt(attribute.value, 2, 2, true)
-					};
-					if (attribute.value > 4) {
-						include.uuid = UUID.getByUUID16(Utils.toInt(attribute.value, 4, 2, true));
-						includes.push(include);
-					} else {
-						/* Issue ReadRequest to read 128-bit UUID */
-						bearer.scheduleTransaction(ATT.assembleReadRequestPDU(include.start), {
-							transactionCompleteWithResponse: function (opcode, response) {
-								if (opcode != ATT.Opcode.READ_REQUEST) {
-									return;
-								}
-								include.uuid = UUID.getByUUID(response);
-								callback.includedServicesDiscovered([include]);	// TODO: Early termination
-							},
-							transactionCompleteWithError: function (requestOpcode, handle, errorCode) {
-								// TODO
-							}
-						});
-					}
-				}
-				if (!callback.includedServicesDiscovered(includes)) {
-					return;	// Terminate the sub-procedure
-				}
-				var lastHandle = response[response.length - 1].handle;
-				if (lastHandle == end) {
-					callback.procedureComplete(lastHandle);
-				} else {
-					startRelationShipDiscovery(bearer, lastHandle + 1, end, callback);
-				}
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				if (errorCode == ATT.ErrorCode.ATTRIBUTE_NOT_FOUND) {
-					callback.procedureComplete(handle);
-				} else {
-					callback.procedureCompleteWithError(errorCode, handle);
-				}
-			}
-		}
-	);
-}
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.6.1 Discover All Characteristics of a Service
- */
-exports.discoverAllCharacteristics = function (bearer, start, end, callback) {
-	startCharacteristicDiscovery(bearer, start, end, null, callback);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.6.2 Discover Characteristics by UUID
- */
-exports.discoverCharacteristicsByUUID = function (bearer, start, end, uuid, callback) {
-	startCharacteristicDiscovery(bearer, start, end, uuid, callback);
-};
-
-function startCharacteristicDiscovery(bearer, start, end, uuid, callback) {
-	bearer.scheduleTransaction(
-		ATT.assembleReadByTypeRequestPDU(start, end, UUID_CHARACTERISTIC),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.READ_BY_TYPE_RESPONSE) {
-					return;
-				}
-				var characteristics = [];
-				for (var i = 0; i < response.length; i++) {
-					var attribute = response[i];
-					var characteristic = {
-						definition_handle: attribute.handle,			// XXX: We may not need
-						properties: attribute.value[0],
-						handle: Utils.toInt(attribute.value, 1, 2, true),
-						uuid: UUID.getByUUID(attribute.value.slice(3))
-					};
-					if ((uuid != null) && !uuid.equals(characteristic.uuid)) {
-						continue;	// Skip unmatched characteristic
-					}
-					characteristics.push(characteristic);
-				}
-				if (!callback.characteristicsDiscovered(characteristics)) {
-					return;	// Terminate the sub-procedure
-				}
-				var lastHandle = response[response.length - 1].handle;
-				if (lastHandle == end) {
-					callback.procedureComplete(lastHandle);
-				} else {
-					startCharacteristicDiscovery(bearer, lastHandle + 1, end, uuid, callback);
-				}
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				if (errorCode == ATT.ErrorCode.ATTRIBUTE_NOT_FOUND) {
-					callback.procedureComplete(handle);
-				} else {
-					callback.procedureCompleteWithError(errorCode, handle);
-				}
-			}
-		}
-	);
-}
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.7.1 Discover All Characteristic Descriptors
- */
-exports.discoverAllCharacteristicDescriptors = function (bearer, start, end, callback) {
-	startCharacteristicDescriptorDiscovery(bearer, start, end, callback);
-};
-
-function startCharacteristicDescriptorDiscovery(bearer, start, end, callback) {
-	logger.debug("Start Characteristic Descriptor Discovery: start=" + Utils.toHexString(start, 2)
-		+ ", end=" + Utils.toHexString(end, 2));
-	bearer.scheduleTransaction(
-		ATT.assembleFindInformationRequestPDU(start, end),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.FIND_INFORMATION_RESPONSE) {
-					return;
-				}
-				var descriptors = [];
-				for (var i = 0; i < response.length; i++) {
-					var attribute = response[i];
-					descriptors.push({
-						handle: attribute.handle,
-						uuid: attribute.type
-					});
-				}
-				if (!callback.characteristicDescriptorsDiscovered(descriptors)) {
-					return;	// Terminate the sub-procedure
-				}
-				var lastHandle = response[response.length - 1].handle;
-				if (lastHandle == end) {
-					logger.debug("CDD complete with end handle=" + Utils.toHexString(end, 2));
-					callback.procedureComplete(lastHandle);
-				} else {
-					startCharacteristicDescriptorDiscovery(bearer, lastHandle + 1, end, callback);
-				}
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				if (errorCode == ATT.ErrorCode.ATTRIBUTE_NOT_FOUND) {
-					logger.debug("CDD complete with attribute not found");
-					callback.procedureComplete(handle);
-				} else {
-					logger.debug("CDD complete with error=" + Utils.toHexString(errorCode));
-					callback.procedureCompleteWithError(errorCode, handle);
-				}
-			}
-		}
-	);
-}
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.8.1 Read Characteristic Value
- */
-exports.readCharacteristicValue = function (bearer, handle, callback) {
-	bearer.scheduleTransaction(
-		ATT.assembleReadRequestPDU(handle),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.READ_RESPONSE) {
-					return;
-				}
-				callback.procedureComplete(handle, response);
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				callback.procedureCompleteWithError(errorCode, handle);
-			}
-		}
-	);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.8.1 Read Using Characteristic UUID
- */
-exports.readUsingCharacteristicUUID = function (bearer, start, end, uuid, callback) {
-	bearer.scheduleTransaction(
-		ATT.assembleReadByTypeRequestPDU(start, end, uuid),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.READ_BY_TYPE_RESPONSE) {
-					return;
-				}
-				/* XXX: How should we handle if we have multiple response? */
-				var attribute = response[0];
-				callback.procedureComplete(attribute.handle, attribute.value);
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				if (errorCode == ATT.ErrorCode.ATTRIBUTE_NOT_FOUND) {
-					callback.procedureComplete(handle, null);
-				} else {
-					callback.procedureCompleteWithError(errorCode, handle);
-				}
-			}
-		}
-	);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.8.3 Read Long Characteristic Value
- */
-exports.readLongCharacteristicValues = function (bearer, handle, length, callback) {
-	var value = [];
-	var cb = {
-		transactionCompleteWithResponse: function (opcode, response) {
-			if (opcode != ATT.Opcode.READ_BLOB_RESPONSE) {
-				return;
-			}
-			value = value.concat(response);
-			if (value.length >= length) {
-				callback.procedureComplete(handle, value);
-			} else {
-				bearer.scheduleTransaction(ATT.assembleReadBlobRequestPDU(handle, value.length), cb);
-			}
-		},
-		transactionCompleteWithError: function (errorCode, handle) {
-			callback.procedureCompleteWithError(errorCode, handle);
-		}
-	};
-	bearer.scheduleTransaction(ATT.assembleReadBlobRequestPDU(handle, value.length), cb);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.8.1 Read Multiple Characteristic Values
- */
-exports.readMultipleCharacteristicValues = function (bearer, handles, callback) {
-	bearer.scheduleTransaction(
-		ATT.assembleReadMultipleRequestPDU(handles),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.READ_MULTIPLE_RESPONSE) {
-					return;
-				}
-				callback.procedureComplete(handle, response);
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				callback.procedureCompleteWithError(errorCode, handle);
-			}
-		}
-	);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.9.1 Write Without Response
- */
-exports.writeWithoutResponse = function (bearer, handle, data) {
-	bearer.sendPDU(ATT.assembleWriteCommandPDU(handle, data));
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.9.3 Write Characteristic Value
- */
-exports.writeCharacteristicValue = function (bearer, handle, data, callback) {
-	bearer.scheduleTransaction(
-		ATT.assembleWriteRequestPDU(handle, data),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.WRITE_RESPONSE) {
-					return;
-				}
-				callback.procedureComplete(handle, response);
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				callback.procedureCompleteWithError(errorCode, handle);
-			}
-		}
-	);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.10.1 Notifications
- */
-exports.notifyValue = function (bearer, handle, data) {
-	bearer.sendPDU(ATT.assembleHandleValueNotificationPDU(handle, data));
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
- * 4.11.1 Indications
- */
-exports.indicateValue = function (bearer, handle, data, callback) {
-	bearer.scheduleTransaction(
-		ATT.assembleHandleValueIndicationPDU(handle, data),
-		{
-			transactionCompleteWithResponse: function (opcode, response) {
-				if (opcode != ATT.Opcode.HANDLE_VALUE_CONFIRMATION) {
-					return;
-				}
-				callback.procedureComplete(handle, response);
-			},
-			transactionCompleteWithError: function (errorCode, handle) {
-				callback.procedureCompleteWithError(errorCode, handle);
-			}
-		}
-	);
-};

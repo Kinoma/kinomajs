@@ -94,7 +94,7 @@ typedef struct	FskKeySplineSegmentRecord *FskKeySplineSegment;
  */
 FskAPI(FskErr)	FskKeySplineSegmentNew(double x0, double y0, double x1, double y1, FskKeySplineSegment *seg);
 
-/* FskKeySplineSegment destructor.
+/** FskKeySplineSegment destructor.
  *	\param[in]	seg	The segment to dispose.
  */
 void			FskKeySplineSegmentDispose(FskKeySplineSegment seg);
@@ -139,21 +139,21 @@ typedef const struct	FskKeyAnimationRecord *FskConstKeyAnimation;
 
 /** FskKeyAnimation constructor.
  *	\param[in]	calcMode		The mode of calculation, one of { kFskDiscreteInterpolation, kFskLinearInterpolation, kFskPacedInterpolation, kFskSplineInterpolation}.
- *	\param[in]	numKeys,		The number of keys.
- *	\param[in]	keyTimes,		the key times:  keyTimes[numValues].
- *	\param[in]	keyValues,		the key values: keyValues[numValues].
+ *	\param[in]	numKeys			The number of keys.
+ *	\param[in]	keyTimes		the key times:  keyTimes[numValues].
+ *	\param[in]	keyValues		the key values: keyValues[numValues].
  *	\param[in]	keySplines		the key splines to control the pace: keySplines[numValues-1][4].
  *	\param[out]	anim			A place to store the resulting animation.
  *	\return		kFskErrNone		if the operation completed successfully.
  */
-FskAPI(FskErr)	FskKeyAnimationNew(UInt32 calcMode, UInt32 numKeys, const double *keyTimes, const double *keyValues, const double *keySplines, FskKeyAnimation *anim );
+FskAPI(FskErr)	FskKeyAnimationNew(UInt32 calcMode, UInt32 numKeys, const double *keyTimes, const double *keyValues, const double *keySplines, FskKeyAnimation *anim);
 
 /** FskKeyAnimation destructor.
  *	\param[in]	anim	The key animation to dispose.
  */
 FskAPI(void)	FskKeyAnimationDispose(FskKeyAnimation anim);
 
-/* FskKeyAnimation evaluator.
+/** FskKeyAnimation evaluator.
  *	\param[in]	anim	the key animation to be evaluated.
  *	\param[in]	t		the time at which the animation is to be evaluated.
  *	\return				the evaluation of the key animation at the time t.

@@ -47,6 +47,10 @@ import {
 
 // TEMPLATES
 
+import {
+	PathLayout,
+} from "find";
+
 export var ImageView = Container.template($ => ({
 	left:0, right:0, top:0, bottom:0, clip:true,
 	contents: [
@@ -66,8 +70,7 @@ export var ImageView = Container.template($ => ({
 		Line($, {
 			left:0, right:10, top:0, height:30, skin:grayHeaderSkin,
 			contents: [
-				Content($, { width:10 }),
-				Label($, { left:0, right:0, style:tableHeaderStyle, string:Files.toPath($.url) }),
+				PathLayout($, {}),
 				Content($, { 
 					width:30, height:30, skin:whiteButtonsSkin, variant:0, state:1, active:true, 
 					Behavior: class extends ButtonBehavior {

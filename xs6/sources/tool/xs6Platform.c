@@ -358,7 +358,11 @@ void fxSend(txMachine* the)
 
 void fxSetAddress(txMachine* the, char* theAddress)
 {
+#if mxWindows
+	SetEnvironmentVariable("XSBUG_HOST", theAddress);
+#else
 	setenv("XSBUG_HOST", theAddress, 1);
+#endif
 }
 
 void fxSetAutomatic(txMachine* the, txBoolean theAutomatic)

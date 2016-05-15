@@ -162,11 +162,19 @@ void board_ssp_pin_config(int id, bool cs)
 		GPIO_PinMuxFun(GPIO_3, GPIO3_SSP0_RXD);
 		break;
 	case SSP1_ID:
+#if K5
+		GPIO_PinMuxFun(GPIO_18, GPIO18_SSP1_CLK);
+		if (cs)
+			GPIO_PinMuxFun(GPIO_19, GPIO19_SSP1_FRM);
+		GPIO_PinMuxFun(GPIO_20, GPIO20_SSP1_TXD);
+		GPIO_PinMuxFun(GPIO_21, GPIO21_SSP1_RXD);
+#else	
 		GPIO_PinMuxFun(GPIO_11, GPIO11_SSP1_CLK);
 		if (cs)
 			GPIO_PinMuxFun(GPIO_12, GPIO12_SSP1_FRM);
 		GPIO_PinMuxFun(GPIO_13, GPIO13_SSP1_TXD);
 		GPIO_PinMuxFun(GPIO_14, GPIO14_SSP1_RXD);
+#endif
 		break;
 	case SSP2_ID:
 		break;

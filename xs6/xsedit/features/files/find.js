@@ -19,13 +19,17 @@ import {
 	BOLD_FONT,
 	DARKER_GRAY,
 	DARKER_RED,
+	FIXED_FONT,
 	GRAY,
+	LIGHT_GRAY,
+	LIGHT_ORANGE,
 	PASTEL_CYAN,
 	PASTEL_ORANGE,
 	PASTEL_GRAY,
 	PASTEL_GREEN,
 	PASTEL_YELLOW,
 	RED,
+	SEMIBOLD_FONT,
 	WHITE,
 	blackButtonSkin,
 	blackButtonStyle,
@@ -33,6 +37,7 @@ import {
 	grayBodySkin,
 	grayBorderSkin,
 	grayHeaderSkin,
+	redHeaderSkin,
 	tableHeaderStyle,
 	whiteButtonSkin,
 	whiteButtonStyle,
@@ -43,10 +48,12 @@ import {
 	fieldScrollerSkin,
 } from "shell/assets";	
 
-export const findHintStyle = new Style({ font: "Menlo", size:12, color:"silver", horizontal:"left", left:5, right:5});
-export const findLabelStyle = new Style({ font: "Menlo", size:12, color:"black", horizontal:"left", left:5, right:5});
+export const findHintStyle = new Style({ font: FIXED_FONT, size:12, color:"silver", horizontal:"left", left:5, right:5});
+export const findLabelStyle = new Style({ font: FIXED_FONT, size:12, color:"black", horizontal:"left", left:5, right:5});
 var findModesTexture = new Texture("assets/findModes.png", 2);
 var findModesSkin = new Skin({ texture: findModesTexture, x:0, y:0, width:20, height:20, variants:20, states:20 });
+
+const pathSpanStyle = new Style({ font:SEMIBOLD_FONT, size:14, color:[LIGHT_GRAY,LIGHT_GRAY,PASTEL_GRAY,WHITE], horizontal:"left" });
 
 // BEHAVIORS
 
@@ -100,6 +107,37 @@ class FindModeBehavior extends ButtonBehavior {
 		data.findMode ^= this.mask;
 		this.changeState(container, 2);
 		container.bubble("onFindEdited");
+	}
+}
+
+class PathSpanBehavior extends ButtonBehavior {
+	constructor(url) {
+		super();
+		this.url = url;
+	}
+	onMouseEntered(content, x, y) {
+		content.state = 2;
+	}
+	onMouseExited(content, x, y) {
+		content.state = 1;
+	}
+	onTap(content) {
+		launchURI(this.url);
+	}
+	onTouchBegan(content, id, x, y, ticks) {
+		content.state = 3;
+		content.captureTouch(id, x, y, ticks);
+	}
+	onTouchEnded(content, id, x, y, ticks) {
+		if (content == content.container.hit(x, y)) {
+			content.state = 2;
+			this.onTap(content);
+		}
+		else
+			content.state = 1;
+	}
+	onTouchMoved(content, id, x, y, ticks) {
+		content.state = (content == content.container.hit(x, y)) ? 3 : 2;
 	}
 }
 
@@ -159,7 +197,55 @@ export var FindField = Line.template($ => ({
 	],
 }));
 	
-
+export var PathLayout = Layout.template($ => ({
+	left:0, right:0, clip:true,
+	Behavior: class extends Behavior {
+		onCreate(layout, data) {
+			this.data = data;;
+		}
+		onDisplaying(layout, data) {
+			if (layout.container.skin == redHeaderSkin)
+				layout.first.next.state = 1;
+		}
+		onDocumentChanged(layout, document) {
+			if (this.data.url == document.url)
+				layout.last.visible = document.dirty;
+		}
+		onMeasureVertically(layout, height) {
+			let text = layout.first;
+			let flag = text.next.visible = layout.width < text.width;
+			text.coordinates = flag ? { right:0 } : { left:30 };
+			return height;
+		}
+	},
+	contents: [
+		Text($, { 
+			left:0, style:pathSpanStyle, active:true,
+			Behavior: class extends Behavior {
+				onCreate(text, data) {
+					let path = Files.toPath(data.url);
+					let items = path.split("/");
+					let url = "file://";
+					let name = items.pop();
+					items = items.map(string => {
+						string += "/";
+						url += string;
+						let behavior = new PathSpanBehavior(url);
+						return { behavior, string };
+					});
+					items.push({ string:name, style:tableHeaderStyle });
+					text.format([{ spans:items }]);
+				}
+			},
+		}),
+		Content($, {
+			left:0, width:30, height:30, skin:whiteButtonsSkin, variant:13, visible:false,
+		}),
+		Content($, {
+			left:0, width:30, height:30, skin:fileGlyphsSkin, variant:5, visible:false,
+		}),
+	],
+}));
 
 
 

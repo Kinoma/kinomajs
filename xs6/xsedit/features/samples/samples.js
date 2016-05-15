@@ -223,7 +223,8 @@ export default class extends Feature {
 	}
 	
 	canNewProject() {
-		return true;
+		let feature = model.devicesFeature;
+		return feature.Configs.some(Config => feature.discoveryFlags[Config.id] || feature.simulatorFlags[Config.id]);
 	}
 	doNewProject() {
 		let data = new TemplatesModel();

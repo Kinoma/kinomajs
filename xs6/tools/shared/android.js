@@ -193,8 +193,15 @@ export default class Android {
 		this.copyNdkFile(tool, tmp, "/gradle/wrapper/gradle-wrapper.jar");
 		this.copyNdkFile(tool, tmp, "/gradle/wrapper/gradle-wrapper.properties");
 
-		var buildTools = FS.readDirSync(process.getenv("ANDROID_SDK") + "/build-tools");
-		var buildToolsVersion = buildTools[buildTools.length - 1]
+		var sdkPath = process.getenv("ANDROID_SDK");
+		var buildToolsPath = sdkPath + "/build-tools";
+		var buildTools = FS.readDirSync(buildToolsPath);
+		var buildToolsVersion = buildTools[buildTools.length - 1];
+
+		var version = buildTools.pop();
+		var file = FS.readFileSync(buildToolsPath + "/" + version + "/source.properties");
+		var matches = file.match(/Pkg.Revision=(.*)/);
+		var buildToolsVersion = matches[1] ? matches[1] : version;
 
 		var keystore = process.getenv("HOME") + "/.android/debug.keystore";
 		var keystore_pass = "android";

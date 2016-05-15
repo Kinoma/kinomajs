@@ -25,14 +25,14 @@ import {
 
 export class HelperBehavior extends Behavior {
 	onDeviceHelperDown(container, device) {
-		trace("onDeviceHelperDown -> doCLose\n");
+		trace("onDeviceHelperDown -> doClose\n");
 		container.bubble("doClose");
 	}
 	onDeviceHelperUp(container) {
 	}
 	onDeviceSelected(container, device) {
 		if (this.data.device != device) {
-			trace("onDeviceSelected -> doCLose\n");
+			trace("onDeviceSelected -> doClose\n");
 			container.bubble("doClose");
 		}
 	}

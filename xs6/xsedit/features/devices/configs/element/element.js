@@ -108,8 +108,11 @@ export default class Element extends DeviceConfig {
 		else
 			return super.softwareVersion;
 	}
-	get softwareUpdateVersion() {
-		return (this.update) ? this.update.ver : undefined;
+	get softwareUpdateTarget() {
+		if (model.elementSoftwareUpdatePreRelease)
+			return getEnvironmentVariable("ELEMENT_FIRMWARE_TEST");
+		else
+			return getEnvironmentVariable("ELEMENT_FIRMWARE_TARGET")
 	}
 	get systemVersion() {
 		if ("osVersion" in this.description)
@@ -117,13 +120,15 @@ export default class Element extends DeviceConfig {
 		else
 			return super.systemVersion;
 	}
-	get systemUpdateVersion() {
+	get systemUpdateTarget() {
 	}
 	get toolURL() {
 		return mergeURI(this.url, "/app/");
 	}
 	getUpdateInfo() {
-		var message = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update?target=" + getEnvironmentVariable("ELEMENT_FIRMWARE_TARGET"));
+		var message = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update-info?target="
+			+ getEnvironmentVariable("ELEMENT_FIRMWARE_TARGET") + ","
+			+ getEnvironmentVariable("ELEMENT_FIRMWARE_TEST"));
 		message.setRequestHeader("Accept", "application/json");
 		message.setRequestCertificate(updateCredentials);
 		return message.invoke(Message.JSON);
@@ -142,6 +147,12 @@ export default class Element extends DeviceConfig {
 		return message;
 	}
 	// HELPER
+	blinkLight(config) {
+		return this.wsRequest({
+			handler: "blinkLight",
+			config,
+		});
+	}
 	networkConfigure(config) {
 		config.save = true;
 		return this.wsRequest({
@@ -193,8 +204,8 @@ export default class Element extends DeviceConfig {
 		}
 	}
 	// UPDATE
-	updateSoftware() {
-		let message = new Message("/updateElement?uuid=" + this.uuid);
+	updateSoftware(data) {
+		let message = new Message("/updateElement?uuid=" + this.uuid + "&target=" + this.softwareUpdateTarget);
 		message.setRequestHeader("Connection", "Close");
 		return message.invoke();
 	}
@@ -219,13 +230,14 @@ Handler.Bind("/updateElement", class extends Behavior {
 		this.device.quitApplication();
 
 		this.state = 0;
-		let message = this.device.newSetupMessage("/download", { target:getEnvironmentVariable("ELEMENT_FIRMWARE_TARGET"), test:false });
+		let message = this.device.newSetupMessage("/download", { target:query.target, test:false });
 		this.success = false;
 		this.buffer = "";
 		this.device.softwareStatus.updating = true;
 		handler.download(message, null);
 		this.dialog = new UpdateDialog(this);
-		this.TITLE.string = "Updating \"" + this.device.name + "\" to Kinoma Software " + this.device.softwareUpdateVersion + "...",
+		this.title = "Kinoma Software";
+		this.TITLE.string = "Updating \"" + this.device.name + "\" to " + this.title + " " + this.device.softwareUpdateVersion + "...",
 		this.SUBTITLE.string = "Downloading...";
 		this.INFO.string = "Please keep the device connected and powered during the update.";
 		openDialog(this.dialog);
@@ -394,6 +406,12 @@ import {
 	WifiView 
 } from "features/devices/apps/wifi/wifi";
 
+import {
+	BlinkLightTest,
+	BlinkLightTile,
+	BlinkLightView 
+} from "features/devices/apps/blinklight/blinklight";
+
 Element.apps = {
 	wifi: {
 		Test: WifiTest,
@@ -412,8 +430,36 @@ Element.apps = {
 		Tile: PinExplorerTile,
 		View: PinExplorerView
 	},
+	blinklight: {
+		Test: BlinkLightTest,
+		Tile: BlinkLightTile,
+		View: BlinkLightView
+	},
 //	bllexplorer: {
 //		Tile: BLLExplorerTile,
 //		View: BLLExplorerView
 //	},
 }
+Element.serial = {
+	description: {
+		vendor: 0x1286,
+		product: 0x8080,
+		name: "MARVELL MC200 VCOM ",
+	},
+	settings: {
+		name: "Kinoma Element",
+		baud: 115200,
+		bits: 8,
+		parity: "N",
+		stop: 1,
+	},
+	shortcuts: [
+	]
+}
+
+Element.preferences = {
+	discoveryFlag: true,
+	serialFlag: true,
+}
+
+

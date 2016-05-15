@@ -2365,8 +2365,10 @@ void fxTemplateExpression(txParser* parser)
 	aCount++;
 	for (;;) {
 		fxGetNextToken(parser);
-		fxCommaExpression(parser);
-		aCount++;
+        if (parser->token != XS_TOKEN_RIGHT_BRACE) {
+            fxCommaExpression(parser);
+            aCount++;
+        }
 		if (parser->token != XS_TOKEN_RIGHT_BRACE) {
 			fxReportParserError(parser, "missing }");
 		}

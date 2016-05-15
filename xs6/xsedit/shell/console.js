@@ -19,6 +19,7 @@ import {
 	CYAN,
 	DARK_CYAN,
 	DARKER_CYAN,
+	FIXED_FONT,
 	PASTEL_GREEN,
 	GREEN,
 	DARK_GREEN,
@@ -44,7 +45,7 @@ import {
 
 var textSkin = new Skin({ fill:["transparent", "transparent", "#e0e0e0", "#cbe1fa"] })
 var textStyle = new Style({ 
-	font:"Menlo", 
+	font:FIXED_FONT,
 	size:12, 
 	horizontal:"left",
 	left:8, right:8,
@@ -70,13 +71,13 @@ var consoleLineReasonSkins = [
 	new Skin({ stroke:PASTEL_RED, borders: { right:1, top:1, bottom:1 }, fill:[WHITE, WHITE, PASTEL_RED, PASTEL_RED] }),
 	new Skin({ stroke:PASTEL_GRAY, borders: { right:1, top:1, bottom:1 }, fill:[WHITE, WHITE, PASTEL_GRAY, PASTEL_GRAY] }),
 ];
-var consoleLineNameStyle = new Style({ font:"Menlo", size:12, color:"white", left:4 });
-var consoleLineNumberStyle = new Style({ font:"Menlo", size:12, color:"white", right:4 });
+var consoleLineNameStyle = new Style({ font:FIXED_FONT, size:12, color:"white", left:4 });
+var consoleLineNumberStyle = new Style({ font:FIXED_FONT, size:12, color:"white", right:4 });
 var consoleLineReasonStyles = [
-	new Style({ font:"Menlo", size:12, color:DARKER_GREEN, left:4, right:4 }),
-	new Style({ font:"Menlo", size:12, color:DARKER_CYAN, left:4, right:4 }),
-	new Style({ font:"Menlo", size:12, color:DARKER_RED, left:4, right:4 }),
-	new Style({ font:"Menlo", size:12, color:DARKER_GRAY, left:4, right:4 }),
+	new Style({ font:FIXED_FONT, size:12, color:DARKER_GREEN, left:4, right:4 }),
+	new Style({ font:FIXED_FONT, size:12, color:DARKER_CYAN, left:4, right:4 }),
+	new Style({ font:FIXED_FONT, size:12, color:DARKER_RED, left:4, right:4 }),
+	new Style({ font:FIXED_FONT, size:12, color:DARKER_GRAY, left:4, right:4 }),
 ];
 
 const whiteSkin =new Skin({ fill:WHITE} ),
@@ -170,7 +171,17 @@ class ConsolePaneBehavior extends Behavior {
 				code.behavior.doLog(code, "\n");
 			code.behavior.doLog(code, text);
 		}
-		scroller.scrollTo(0, 0x7fff);
+		scroller.scrollTo(0, 0x7FFFFFFF);
+	}
+	doLogRaw(container, text) {
+		let scroller = container.first.first;
+		let code = scroller.first;
+		let column = scroller.next.first;
+		code.behavior.doLog(code, text);
+		let height = code.height - column.height;
+		if (height)
+			column.add(new Content({height}));
+		scroller.scrollTo(0, 0x7FFFFFFF);
 	}
 	onCreate(container, data) {
 		this.data = data;

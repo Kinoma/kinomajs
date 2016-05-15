@@ -181,12 +181,19 @@ class Logger {
 			}
 		}
 		this._onLogging = binding;
+		Logger._loggers[name] = this;	// Register
 	}
 	static setOutputEnabled(enabled) {
 		Logger._outputEnabled = enabled;
 	}
 	static setDefaultBinding(binding) {
 		Logger._defaultBinding = binding;
+	}
+	static getLogger(name) {
+		if (!Logger._loggers.hasOwnProperty(name)) {
+			Logger._loggers[name] = new Logger(name);
+		}
+		return Logger._loggers[name];
 	}
 	set loggingLevel(loggingLevel) {
 		this._loggingLevel = loggingLevel;
@@ -212,6 +219,7 @@ class Logger {
 		this.log(Level.ERROR, str);
 	}
 }
+Logger._loggers = {};
 Logger._outputEnabled = true;
 Logger._defaultBinding = null;
 Logger.Level = Level;

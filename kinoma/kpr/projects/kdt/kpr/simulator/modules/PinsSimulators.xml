@@ -391,7 +391,7 @@
     <variable id="SENSOR_GUAGE" value="5"/>								<!-- so we don't break apps that used the original misspelled version -->
     <texture id="sensorTexture" large="assets/sensor-strip.png"/>
     <skin id="sensorSkin" texture="sensorTexture" x="0" y="0" width="40" height="40" aspect="fill">
-        <variants offset="40" names="SENSOR_BUTTON,SENSOR_KNOB,SENSOR_LED,SENSOR_SLIDER,SENSOR_MODULE,SENSOR_GAUGE,SENSOR_SERIAL"/>
+        <variants offset="40" names="SENSOR_BUTTON,SENSOR_KNOB,SENSOR_LED,SENSOR_SLIDER,SENSOR_MODULE,SENSOR_GAUGE,SENSOR_SERIAL,SENSOR_SERVO"/>
     </skin>
     
     <style id="largeHeaderTextStyle" font="bold 24px" align="left" color="red"/>
@@ -652,7 +652,8 @@
  				var axisContainer = column.container;
 				this.currentValue = value;
 				this.axisValueLine.line.valueLabel.string = this.currentValue.toString().substring(0, 6);
-				this.axisValueLine.levelMeter.distribute("onMeterLevelChanged",this.currentValue); 
+				var fraction = toFraction(this.currentValue, this.data.minValue, this.data.maxValue);
+				this.axisValueLine.levelMeter.distribute("onMeterLevelChanged", fraction); 
 			]]></method>
         </behavior>
     </column>

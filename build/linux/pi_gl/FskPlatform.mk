@@ -70,6 +70,7 @@
 	<c option="-DUSE_FRAMEBUFFER_VECTORS=1"/>
 	<c option="-DUSE_POLL=1"/>
 	<c option="-DUSE_POSIX_CLOCK=1"/>
+	<c option="-DUSE_WPACONFIG=1"/>
     <c option="-DLINUX"/>
 	<c option="-D_FILE_OFFSET_BITS=64"/>
 	<c option="-D_LARGEFILE64_SOURCE"/>

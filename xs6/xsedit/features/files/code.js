@@ -27,16 +27,24 @@ import {
 
 import {
 	BLACK,
+	BOLD_FIXED_FONT,
 	BOLD_FONT,
+	FIXED_FONT,
+	NORMAL_FONT,
 	DARKER_GRAY,
 	DARKER_RED,
 	GRAY,
+	LIGHT_CYAN,
+	LIGHT_ORANGE,
+	ORANGE,
 	PASTEL_CYAN,
 	PASTEL_ORANGE,
 	PASTEL_GRAY,
 	PASTEL_GREEN,
 	PASTEL_YELLOW,
 	RED,
+	SEMIBOLD_FONT,
+	YELLOW,
 	WHITE,
 	blackButtonSkin,
 	blackButtonStyle,
@@ -52,12 +60,13 @@ import {
 	fileGlyphsSkin,
 	fieldLabelSkin,
 	fieldScrollerSkin,
+	menuLineStyle,
 } from "shell/assets";	
 
 var reasonSkin = new Skin({ fill:RED }),
 var reasonLabelStyle = new Style({ font:BOLD_FONT, size:12, color:WHITE, left:4, right:4 }),
 var reasonNumberStyle = new Style({ 
-	font:"bold Menlo", 
+	font:BOLD_FIXED_FONT,
 	size:10, 
 	horizontal:"right",
 	vertical:"bottom",
@@ -68,7 +77,7 @@ var reasonNumberStyle = new Style({
 
 var textSkin = new Skin({ fill:[PASTEL_YELLOW, "transparent", "#e0e0e0", PASTEL_CYAN] })
 var textStyle = new Style({ 
-	font:"Menlo", 
+	font:FIXED_FONT, 
 	size:12, 
 	horizontal:"left",
 	left:8, right:8,
@@ -84,7 +93,7 @@ var lineNumberSkin = new Skin({
 	variants:40,
 });
 var lineNumberStyle = new Style({ 
-	font:"bold Menlo", 
+	font:BOLD_FIXED_FONT,
 	size:10, 
 	horizontal:"right",
 	vertical:"bottom",
@@ -653,6 +662,7 @@ import {
 	findLabelStyle,
 	findModeToCaseless,
 	findModeToPattern,
+	PathLayout,
 } from "find";
 
 export var CodeView = Container.template($ => ({
@@ -718,17 +728,12 @@ export var CodeView = Container.template($ => ({
 				onCreate(line, data) {
 					this.data = data;;
 				}
-				onDocumentChanged(line, document) {
-					if (this.data.url == document.url)
-						line.first.visible = document.dirty;
-				}
 				onTouchBegan(line) {
 					this.data.CODE.focus();
 				}
 			},
 			contents: [
-				Content($, { width:30, height:30, skin:fileGlyphsSkin, variant:5, visible:false }),
-				Label($, { left:0, right:0, style:tableHeaderStyle, string:Files.toPath($.url) }),
+				PathLayout($, {}),
 				Content($, { 
 					anchor:"MARKERS", width:30, height:30, skin:whiteButtonsSkin, variant:7, state:0, active:false, 
 					Behavior: class extends MenuButtonBehavior {

@@ -218,3 +218,25 @@ BeagleBone.apps = {
 //		View: BLLExplorerView
 //	},
 }
+
+BeagleBone.serial = {
+	description: {
+		vendor: 0x1d6b,
+		product: 0x0104,
+		name: "BeagleBoneBlack",
+	},
+	settings: {
+		name: "BeagleBone Black",
+		baud: 115200,
+		bits: 8,
+		parity: "N",
+		stop: 1,
+	},
+	shortcuts: [
+	]
+}
+
+BeagleBone.preferences = {
+	discoveryFlag: false,
+	serialFlag: false,
+}

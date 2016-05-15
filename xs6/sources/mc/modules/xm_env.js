@@ -18,7 +18,7 @@
 export default class Environment @ "xs_env_destructor" {
 	constructor(path, autosave, encrypt) @ "xs_env_constructor";
 	get(name) @ "xs_env_get";
-	set(name, val) @ "xs_env_set";
+	set(name, val, pos) @ "xs_env_set";
 	save() @ "xs_env_save";
 	close() @ "xs_env_close";
 	*[Symbol.iterator]() {

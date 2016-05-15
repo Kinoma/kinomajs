@@ -21,48 +21,104 @@
  * Bluetooth v4.2 - Public BLL API
  */
 
-var GAP = require("./bluetooth/core/gap");
-var UART = require("./bluetooth/transport/uart");
-var BTUtils = require("./bluetooth/core/btutils");
-var UUID = BTUtils.UUID;
-var BluetoothAddress = BTUtils.BluetoothAddress;
+/* Mandatory BLE stack modules */
+const GAP = require("./bluetooth/core/gap");
+const UART = require("./bluetooth/transport/uart");
+const BTUtils = require("./bluetooth/core/btutils");
+const UUID = BTUtils.UUID;
+const BluetoothAddress = BTUtils.BluetoothAddress;
 
-var Utils = require("./common/utils");
-var Logger = Utils.Logger;
-var Buffers = require("./common/buffers");
-var ByteBuffer = Buffers.ByteBuffer;
+/* Mandatory utilities */
+const Utils = require("./common/utils");
+const Logger = Utils.Logger;
+const Buffers = require("./common/buffers");
+const ByteBuffer = Buffers.ByteBuffer;
 
-var GATT = GAP.GATT;
-var ATT = GATT.ATT;
+/* Marvell BT chip */
+const DEFAULT_UART_DEVICE = "/dev/mbtchar0";
+const DEFAULT_UART_BAUDRATE = 115200;
 
-const DEFAULT_MTU = 158;
+/* API consts */
 const LOGGING_ENABLED = false;
 
-var logger = new Logger("BGAPI");
-logger.loggingLevel = Logger.Level.INFO;
+var logger = Logger.getLogger("BLE");
+
+/* Pins instances */
+var _notification = null;
+var _serial = null;
+var _repeat = null;
+
+/* Transport */
+var _transport = null;
+
+/* GAP instances */
+var _gapApplication = null;
+var _storage = null;
+var _gap = null;
+
+var ADVANCED_MODE = false;
+var GATTAPI = null;
 
 // ----------------------------------------------------------------------------------
 // Pins Configuration
 // ----------------------------------------------------------------------------------
 
-var _notification = null;
-var _repeat = null;
-
 function pollTransport() {
-	let responses = UART.receive();
-	for (var i = 0; i < responses.length; i++) {
-		GAP.HCI.transportReceived(responses[i]);
+	let buffer = _serial.read("ArrayBuffer");
+	if (buffer.byteLength == 0) {
+		logger.trace("serial.read returns 0");
+		return;
+	}
+	let responses = _transport.receive(new Uint8Array(buffer), 0, buffer.byteLength);
+	for (let i = 0; i < responses.length; i++) {
+		_gap.hci.transportReceived(responses[i]);
 	}
 }
 
-exports.configure = function () {
-	Utils.Logger.setOutputEnabled(LOGGING_ENABLED);
+exports.configure = function (data) {
+	if (data.hasOwnProperty("mode")) {
+		ADVANCED_MODE = (data.mode === "advanced");
+	}
+	if (ADVANCED_MODE) {
+		logger.info("Advanced Mode API");
+	}
+	if (data.hasOwnProperty("logging")) {
+		Logger.setOutputEnabled(data.logging);
+		if ("loggers" in data) {
+			for (let config of data.loggers) {
+				let logger = Logger.getLogger(config.name);
+				if (logger != null) {
+					logger.loggingLevel = Logger.Level[config.level];
+				}
+			}
+		}
+	} else {
+		Logger.setOutputEnabled(LOGGING_ENABLED);
+	}
 	this.notification = _notification = PINS.create({
 		type: "Notification"
 	});
-	this.serial = UART.open();
+	this.serial = _serial = PINS.create({
+		type: "Serial",
+		path: data.hasOwnProperty("device") ? data.device : DEFAULT_UART_DEVICE,
+		baud: data.hasOwnProperty("baudrate") ? data.baudrate : DEFAULT_UART_BAUDRATE
+	});
+	_serial.init();
 	_repeat = PINS.repeat("serial", this, pollTransport);
-	GAP.activate(UART, _gapApplication, _storage);
+	_transport = new UART.Transport(_serial);
+	_gapApplication = new GAPApplication();
+	_storage = new BondingStorage();
+	_gap = GAP.createLayer(_gapApplication, _storage);
+	if (!ADVANCED_MODE) {
+		GATTAPI = require("./bllgatt");
+		GATTAPI.setCallback(doNotification);
+		GATTAPI.setGAPApplication(_gapApplication);
+		/* Export all API */
+		for (let key in GATTAPI) {
+			module.exports[key] = GATTAPI[key];
+		}
+	}
+	_gap.init(_transport);
 };
 
 exports.close = function () {
@@ -72,10 +128,10 @@ exports.close = function () {
 	let closed = false;
 	_gapApplication.close(() => {
 		logger.debug("Shutdown");
-		GAP.HCI.Controller.reset({
+		_gap._hci.commands.controller.reset({
 			commandComplete: (opcode, response) => {
 				_repeat.close();
-				UART.close();
+				_serial.close();
 				closed = true;
 			}
 		});
@@ -86,10 +142,29 @@ exports.close = function () {
 	logger.info("Exit");
 };
 
+function preMarshall(obj) {
+	for (let key in obj) {
+		logger.trace("Key: " + key);
+		if (!obj.hasOwnProperty(key)) {
+			continue;
+		}
+		let val = obj[key];
+		if (val instanceof Uint8Array) {
+			obj[key] = Array.from(val);
+		} else if (val instanceof Array) {
+			val.forEach(preMarshall);
+		} else if (val instanceof Object) {
+			preMarshall(val);
+		}
+	}
+}
+
 function doNotification(notification) {
 	if (_notification == null) {
 		return;
 	}
+	preMarshall(notification);
+
 	if (notification.notification == "gap/discover") {
 		/* Suppress Logging... */
 		logger.trace("Notification: " + JSON.stringify(notification));
@@ -168,7 +243,7 @@ class GAPApplication {
 		logger.debug("Disconnect all bearers...");
 		let num = 0;
 		this.forEachContext(context => {
-			context.disconnect(0x15);
+			_gap.disconnect(context, 0x15);
 			num++;
 		});
 		if (num == 0) {
@@ -228,15 +303,25 @@ class GAPApplication {
 	gapConnected(context, rpa) {
 		let index = this.registerContext(context);
 		context.delegate = new GAPContextDelegate(this, index);
-		context.bearer.delegate = new ATTBearerDelegate(index);
-		if (!context.peripheral) {
-			GATT.exchangeMTU(context.bearer);
+		if (ADVANCED_MODE) {
+			/* User will handle ATT externally */
+			context.attConnection.onReceived = buffer => {
+				doNotification({
+					notification: "att/received",
+					connection: index,
+					buffer: buffer.getByteArray().buffer
+				});
+			};
+		} else {
+			/* Keep ATT bearer instance */
+			context.bearer = GATTAPI.onConnection(context, index);
 		}
-		let link = context._connectionManager.getHCILink();
+		let link = context._connectionManager.link;
 		let hciInfo = link._info;	// FIXME
 		doNotification({
 			notification: "gap/connect",
 			connection: index,
+			peripheral: context.peripheral,
 			address: link.remoteAddress.toString(),
 			addressType: link.remoteAddress.isRandom() ? "random" : "public",
 			rpa: rpa != null ? rpa.toString() : null,
@@ -249,7 +334,7 @@ class GAPApplication {
 	/* GAP Callback */
 	gapDiscovered(discoveredList) {
 		for (let discovered of discoveredList) {
-			let {rssi, remoteAddress, structures, type} = discovered;
+			let {rssi, remoteAddress, structures, eventType} = discovered;
 			doNotification({
 				notification: "gap/discover",
 				rssi: rssi,
@@ -257,7 +342,7 @@ class GAPApplication {
 				addressType: remoteAddress.isRandom() ? "random" : "public",
 				resolvable: remoteAddress.isResolvable(),
 				data: parseADFromStructures(structures),
-				type: type
+				type: eventType
 			});
 		}
 	}
@@ -282,12 +367,19 @@ class GAPContextDelegate {
 			input
 		});
 	}
-	encryptionCompleted(div, pairingInfo) {
+	encryptionCompleted(info) {
 		doNotification({
 			notification: "sm/encryption/complete",
 			connection: this._index,
-			bond: div,
-			pairing: pairingInfo != null
+			pairingInfo: {
+				initiator: info.initiator,
+				keySize: info.keySize,
+				legacy: info.legacy,
+				bonding: info.bonding,
+				initiatorKeys: info.initiatorKeys,
+				responderKeys: info.responderKeys,
+				authenticated: info.authenticated
+			}
 		});
 	}
 	encryptionFailed(status) {
@@ -305,59 +397,9 @@ class GAPContextDelegate {
 	}
 }
 
-class ATTBearerDelegate {
-	constructor(index) {
-		this._index = index;
-	}
-	indicationReceived(opcode, indication) {
-		doNotification({
-			notification: "gatt/characteristic/indicate",
-			connection: this._index,
-			characteristic: indication.handle,
-			value: Array.from(indication.value)
-		});
-	}
-	notificationReceived(opcode, notification) {
-		doNotification({
-			notification: "gatt/characteristic/notify",
-			connection: this._index,
-			characteristic: notification.handle,
-			value: Array.from(notification.value)
-		});
-	}
-}
-
-exports.enableLogging = function (params) {
-	Utils.Logger.setOutputEnabled(params.enabled);
-	if ("bll" in params) {
-		logger.loggingLevel = Logger.Level[params.bll];
-	}
-	if ("gap" in params) {
-		GAP.setLoggingLevel(Logger.Level[params.gap]);
-	}
-	if ("hci" in params) {
-		GAP.HCI.setLoggingLevel(Logger.Level[params.hci]);
-	}
-	if ("l2cap" in params) {
-		GAP.L2CAP.setLoggingLevel(Logger.Level[params.l2cap]);
-	}
-	if ("gatt" in params) {
-		GATT.setLoggingLevel(Logger.Level[params.gatt]);
-	}
-	if ("att" in params) {
-		ATT.setLoggingLevel(Logger.Level[params.att]);
-	}
-	if ("sm" in params) {
-		GAP.SM.setLoggingLevel(Logger.Level[params.sm]);
-	}
-};
-
 // ----------------------------------------------------------------------------------
 // API - GAP
 // ----------------------------------------------------------------------------------
-
-var _gapApplication = new GAPApplication();
-var _storage = new BondingStorage();
 
 /* Consts from GAP */
 var SCAN_FAST_INTERVAL = 0x03C0;		// TGAP(scan_fast_interval)		30ms to 60ms	(set to 600ms per Wi-Fi team, AJC)
@@ -377,12 +419,12 @@ exports.gapStartScanning = function (params) {
 	var duplicates = ("duplicates" in params) ? params.duplicates : "allow";
 
 	logger.debug("gapStartScanning");
-	GAP.startScanning(interval, window, !(duplicates == "allow"));
+	_gap.startScanning(interval, window, !(duplicates == "allow"));
 };
 
 exports.gapStopScanning = function () {
 	logger.debug("gapStopScanning");
-	GAP.stopScanning();
+	_gap.stopScanning();
 };
 
 exports.gapConnect = function (params) {
@@ -396,8 +438,8 @@ exports.gapConnect = function (params) {
 	logger.debug("gapConnect");
 	var peerAddress = BluetoothAddress.getByString(address, true, random);
 
-	GAP.stopScanning();		// XXX: Make sure it stops scanning
-	GAP.directConnection(peerAddress, {
+	_gap.stopScanning();		// XXX: Make sure it stops scanning
+	_gap.directConnection(peerAddress, {
 		intervalMin: intervalMin,
 		intervalMax: intervalMax,
 		latency: latency,
@@ -409,7 +451,7 @@ exports.gapConnect = function (params) {
 
 exports.gapSetScanResponseData = function (params) {
 	logger.debug("gapSetScanResponseData");
-	GAP.setScanResponseData(serializeAD(params));
+	_gap.setScanResponseData(serializeAD(params));
 };
 
 exports.gapStartAdvertising = function (params) {
@@ -421,14 +463,14 @@ exports.gapStartAdvertising = function (params) {
 	var structures = ("data" in params) ? serializeAD(params.data) : null;
 
 	logger.debug("gapStartAdvertising");
-	GAP.setDiscoverableMode(GAP.DiscoverableMode.GENERAL);
-	GAP.setConnectableMode(GAP.ConnectableMode.UNDIRECTED);
-	GAP.startAdvertising(intervalMin, intervalMax, structures);
+	_gap.setDiscoverableMode(GAP.DiscoverableMode.GENERAL);
+	_gap.setConnectableMode(GAP.ConnectableMode.UNDIRECTED);
+	_gap.startAdvertising(intervalMin, intervalMax, structures);
 };
 
 exports.gapStopAdvertising = function () {
 	logger.debug("gapStopAdvertising");
-	GAP.stopAdvertising();
+	_gap.stopAdvertising();
 };
 
 exports.gapUpdateConnection = function (params) {
@@ -440,8 +482,8 @@ exports.gapUpdateConnection = function (params) {
 
 	logger.debug("gapUpdateConnection");
 
-	var bearer = _gapApplication.getContext(index).bearer;
-	GAP.updateConnectionParameter(bearer, {
+	var context = _gapApplication.getContext(index);
+	_gap.updateConnectionParameter(context, {
 		intervalMin: intervalMin,
 		intervalMax: intervalMax,
 		latency: latency,
@@ -457,12 +499,12 @@ exports.gapDisconnect = function (params) {
 	logger.debug("gapDisconnect");
 
 	var context = _gapApplication.getContext(index);
-	context.disconnect(0x13);
+	_gap.disconnect(context, 0x13);
 };
 
 exports.gapEnablePrivacy = function () {
 	logger.debug("gapEnablePrivacy");
-	GAP.enablePrivacyFeature(true);
+	_gap.enablePrivacyFeature(true);
 };
 
 // ----------------------------------------------------------------------------------
@@ -517,8 +559,8 @@ exports.hciReadRSSI = function (params) {
 	logger.debug("hciReadRSSI");
 
 	var context = _gapApplication.getContext(index);
-	GAP.HCI.Status.readRSSI(
-		context._connectionManager.getHCILink().handle,	// FIXME
+	_gap._hci.commands.status.readRSSI(
+		context.handle,
 		{
 			commandComplete: function (opcode, response) {
 				var status = response.getInt8();
@@ -541,407 +583,16 @@ exports.hciReadRSSI = function (params) {
 exports.gapReadRSSI = exports.hciReadRSSI;
 
 // ----------------------------------------------------------------------------------
-// API - GATT
+// API - L2CAP (ATT Channel) (Advanced Mode API)
 // ----------------------------------------------------------------------------------
 
-function procedureComplete(connHandle, handle) {
-	doNotification({
-		notification: "gatt/request/complete",
-		connection: connHandle
-	});
-}
+exports.attSendAttributePDU = function (params) {
+	let index = params.connection;
 
-function procedureCompleteWithError(procedure, errorCode, handle) {
-	var msg = procedure + " failed: " + "ATT(" + Utils.toHexString(errorCode) + ")";
-	logger.error(msg);
-	throw new Error(msg);
-}
+	logger.debug("attSendAttributePDU");
 
-exports.gattDiscoverAllPrimaryServices = function (params) {
-	var index = params.connection;
-
-	logger.debug("gattDiscoverAllPrimaryServices");
-
-	var bearer = _gapApplication.getContext(index).bearer;
-	GATT.discoverAllPrimaryServices(bearer, {
-		primaryServicesDiscovered: function (services) {
-			for (var c = 0; c < services.length; c++) {
-				var service = services[c];
-				doNotification({
-					notification: "gatt/service",
-					connection: index,
-					start: service.start,
-					end: service.end,
-					uuid: service.uuid.toString()
-				});
-			}
-			return true;
-		},
-		procedureComplete: function (handle) {
-			procedureComplete(index, handle);
-		},
-		procedureCompleteWithError: function (errorCode, handle) {
-			procedureCompleteWithError("gattDiscoverAllPrimaryServices", errorCode, handle);
-		}
-	});
-};
-
-exports.gattFindIncludedServices = function (params) {
-	var index = params.connection;
-	var start = params.start;
-	var end = params.end;
-
-	logger.debug("gattFindIncludedServices: "
-		+ "start=" + Utils.toHexString(start, 2)
-		+ ", end=" + Utils.toHexString(end, 2));
-
-	var bearer = _gapApplication.getContext(index).bearer;
-	GATT.findIncludedServices(bearer, start, end, {
-		includedServicesDiscovered: function (includes) {
-			for (var i = 0; i < includes.length; i++) {
-				var service = includes[i];
-				doNotification({
-					notification: "gatt/service",
-					connection: index,
-					start: service.start,
-					end: service.end,
-					uuid: service.uuid.toString()
-				});
-			}
-			return true;
-		},
-		procedureComplete: function (handle) {
-			procedureComplete(index, handle);
-		},
-		procedureCompleteWithError: function (errorCode, handle) {
-			procedureCompleteWithError("gattFindIncludedServices", errorCode, handle);
-		}
-	});
-};
-
-exports.gattDiscoverAllCharacteristics = function (params) {
-	var index = params.connection;
-	var start = params.start;
-	var end = params.end;
-
-	logger.debug("gattDiscoverAllCharacteristics: "
-		+ "start=" + Utils.toHexString(start, 2)
-		+ ", end=" + Utils.toHexString(end, 2));
-
-	var bearer = _gapApplication.getContext(index).bearer;
-	GATT.discoverAllCharacteristics(bearer, start, end, {
-		characteristicsDiscovered: function (characteristics) {
-			for (var i = 0; i < characteristics.length; i++) {
-				var characteristic = characteristics[i];
-				doNotification({
-					notification: "gatt/characteristic",
-					connection: index,
-					properties: parseCharacteristicProperties(characteristic.properties),
-					characteristic: characteristic.handle,
-					uuid: characteristic.uuid.toString()
-				});
-			}
-			return true;
-		},
-		procedureComplete: function (handle) {
-			procedureComplete(index, handle);
-		},
-		procedureCompleteWithError: function (errorCode, handle) {
-			procedureCompleteWithError("gattDiscoverAllCharacteristics", errorCode, handle);
-		}
-	});
-};
-
-exports.gattDiscoverAllCharacteristicDescriptors = function (params) {
-	var index = params.connection;
-	var start = params.start;
-	var end = params.end;
-
-	logger.debug("gattDiscoverAllCharacteristicDescriptors: "
-		+ "start=" + Utils.toHexString(start, 2)
-		+ ", end=" + Utils.toHexString(end, 2));
-
-	var bearer = _gapApplication.getContext(index).bearer;
-	GATT.discoverAllCharacteristicDescriptors(bearer, start, end, {
-		characteristicDescriptorsDiscovered: function (descriptors) {
-			for (var c = 0; c < descriptors.length; c++) {
-				var descriptor = descriptors[c];
-				doNotification({
-					notification: "gatt/descriptor",
-					connection: index,
-					descriptor: descriptor.handle,
-					uuid: descriptor.uuid.toString()
-				});
-			}
-			return true;
-		},
-		procedureComplete: function (handle) {
-			procedureComplete(index, handle);
-		},
-		procedureCompleteWithError: function (errorCode, handle) {
-			procedureCompleteWithError("gattDiscoverAllCharacteristicDescriptors", errorCode, handle);
-		}
-	});
-};
-
-exports.gattReadCharacteristicValue = function (params) {
-	var index = params.connection;
-	var handle = params.characteristic;
-
-	logger.debug("gattReadCharacteristicValue: handle=" + Utils.toHexString(handle, 2));
-
-	var bearer = _gapApplication.getContext(index).bearer;
-	GATT.readCharacteristicValue(bearer, handle, {
-		procedureComplete: function (handle, value) {
-			doNotification({
-				notification: "gatt/characteristic/value",
-				connection: index,
-				characteristic: handle,
-				value: Array.from(value)
-			});
-		},
-		procedureCompleteWithError: function (errorCode, handle) {
-			procedureCompleteWithError("gattReadCharacteristicValue", errorCode, handle);
-		}
-	});
-};
-
-exports.gattWriteWithoutResponse = function (params) {
-	var index = params.connection;
-	var handle = params.characteristic;
-	var value = params.value;
-
-	logger.debug("gattWriteWithoutResponse: handle=" + Utils.toHexString(handle, 2));
-
-	var bearer = _gapApplication.getContext(index).bearer;
-
-	GATT.writeWithoutResponse(bearer, handle, new Uint8Array(value));
-};
-
-exports.gattWriteCharacteristicValue = function (params) {
-	var index = params.connection;
-	var handle = params.characteristic;
-	var value = params.value;
-
-	logger.debug("gattWriteCharacteristicValue: handle=" + Utils.toHexString(handle, 2));
-
-	var bearer = _gapApplication.getContext(index).bearer;
-	GATT.writeCharacteristicValue(bearer, handle, new Uint8Array(value), {
-		procedureComplete: function (handle, value) {
-			procedureComplete(index, handle);
-		},
-		procedureCompleteWithError: function (errorCode, handle) {
-			procedureCompleteWithError("gattWriteCharacteristicValue", errorCode, handle);
-		}
-	});
-};
-
-function toCharacteristicProperties(params) {
-	var properties = 0;
-	for (var i = 0; i < params.length; i++) {
-		switch (params[i]) {
-		case "broadcast":
-			properties |= GATT.Properties.BROADCAST;
-			break;
-		case "read":
-			properties |= GATT.Properties.READ;
-			break;
-		case "writeWithoutResponse":
-			properties |= GATT.Properties.WRITE_WO_RESP;
-			break;
-		case "write":
-			properties |= GATT.Properties.WRITE;
-			break;
-		case "notify":
-			properties |= GATT.Properties.NOTIFY;
-			break;
-		case "indicate":
-			properties |= GATT.Properties.INDICATE;
-			break;
-		}
-	}
-	return properties;
-}
-
-function parseCharacteristicProperties(properties) {
-	var parsed = [];
-	if ((properties & GATT.Properties.BROADCAST) > 0) {
-		parsed.push("broadcast");
-	}
-	if ((properties & GATT.Properties.READ) > 0) {
-		parsed.push("read");
-	}
-	if ((properties & GATT.Properties.WRITE_WO_RESP) > 0) {
-		parsed.push("writeWithoutResponse");
-	}
-	if ((properties & GATT.Properties.WRITE) > 0) {
-		parsed.push("write");
-	}
-	if ((properties & GATT.Properties.NOTIFY) > 0) {
-		parsed.push("notify");
-	}
-	if ((properties & GATT.Properties.INDICATE) > 0) {
-		parsed.push("indicate");
-	}
-	return parsed;
-}
-
-exports.gattAddServices = function (params) {
-	logger.debug("gattAddServices");
-	var services = [];
-	for (var s = 0; s < params.services.length; s++) {
-		var serviceTmp = params.services[s];
-		logger.debug("Service#" + s + ": " + serviceTmp.uuid);
-		var service = new GATT.Service(
-			UUID.getByString(serviceTmp.uuid),
-			serviceTmp.hasOwnProperty("primary") ? serviceTmp.primary : true);
-		if (serviceTmp.hasOwnProperty("includes")) {
-			for (var i = 0; i < serviceTmp.includes.length; i++) {
-				var uuid = serviceTmp.includes[i];
-				service.addInclude(new GATT.Include(UUID.getByString(uuid)));
-			}
-		}
-		for (var c = 0; c < serviceTmp.characteristics.length; c++) {
-			var characteristicTmp = serviceTmp.characteristics[c];
-			logger.debug("Characteristic#" + c + ": " + characteristicTmp.uuid);
-			var characteristic = new GATT.Characteristic(
-				UUID.getByString(characteristicTmp.uuid),
-				toCharacteristicProperties(characteristicTmp.properties));
-			if (characteristicTmp.hasOwnProperty("description")) {
-				characteristic.description = characteristicTmp.description;
-			}
-			if (characteristicTmp.hasOwnProperty("value")) {
-				/* XXX: We override the formats if the default values is a known type. */
-				if ((typeof characteristicTmp.value) == "string") {
-					characteristicTmp.formats = ["utf8s"];
-				} else if ((typeof characteristicTmp.value) == "boolean") {
-					characteristicTmp.formats = ["boolean"];
-				} else if ((typeof characteristicTmp.value) == "number") {
-					characteristicTmp.formats = ["sint32"];
-				}
-				characteristic.value = characteristicTmp.value;
-			}
-			if (characteristicTmp.hasOwnProperty("formats")) {
-				for (var f = 0; f < characteristicTmp.formats.length; f++) {
-					var format = GATT.getFormatByName(characteristicTmp.formats[f]);
-					if (format > 0) {
-						characteristic.addFormat({format: format});
-					}
-				}
-			}
-			characteristic.onValueRead = (c) => {
-				logger.debug("Characteristic value on read: handle="
-					+ Utils.toHexString(c.handle, 2));
-			};
-			characteristic.onValueWrite = (c, value) => {
-				logger.debug("Characteristic value on write: handle="
-					+ Utils.toHexString(c.handle, 2));
-				doNotification({
-					notification: "gatt/local/write",
-					service: service.uuid,
-					characteristic: c.uuid,
-					value: Array.from(value)
-				});
-			};
-			service.addCharacteristic(characteristic);
-		}
-		services.push(service);
-	}
-	var result = GAP.deployServices(services);
-	logger.debug("Service added: " + JSON.stringify(result));
-
-	doNotification({
-		notification: "gatt/services/add",
-		services: toAddServiceResults(services)
-	});
-};
-
-function toAddServiceResults(services) {
-	var results = [];
-	for (var s = 0; s < services.length; s++) {
-		var service = services[s];
-		var result = {
-			uuid: service.uuid.toString(),
-			characteristics: []
-		};
-		for (var c = 0; c < service.characteristics.length; c++) {
-			var characteristic = service.characteristics[c];
-			result.characteristics.push({
-				uuid: characteristic.uuid.toString(),
-				handle: characteristic.handle
-			});
-		}
-		results.push(result);
-	}
-	return results;
-}
-
-exports.gattWriteLocal = function (params) {
-	var serviceUUID = UUID.getByString(params.service);
-	var characteristicUUID = UUID.getByString(params.characteristic);
-	var value = params.value;
-
-	logger.debug("gattWriteLocal");
-
-	/* Find characteristic */
-	var service = GAP.getServiceByUUID(serviceUUID);
-	if (service == null) {
-		logger.error("Service " + serviceUUID.toString() + " not found.");
-		return;
-	}
-	var characteristic = service.getCharacteristicByUUID(characteristicUUID);
-	if (characteristic == null) {
-		logger.error("Characteristic " + characteristicUUID.toString() + " not found.");
-		return;
-	}
-
-	/* Update characteristic value */
-	characteristic.value = value;
-
-	/* Auto Notify/Indication */
-	_gapApplication.forEachContext(context => {
-		var bearer = context.bearer;
-		var config = characteristic.getClientConfiguration(bearer);
-		if ((config & GATT.ClientConfiguration.NOTIFICATION) > 0) {
-			GATT.notifyValue(bearer, characteristic.handle, characteristic._readValue());	// FIXME
-		} else if ((config & GATT.ClientConfiguration.INDICATION) > 0) {
-			GATT.indicateValue(bearer, characteristic.handle, characteristic._readValue(), {	// FIXME
-				procedureComplete: function (handle) {
-					logger.info("Indicated for handle=" + Utils.toHexString(handle, 2));
-				},
-				procedureCompleteWithError: function (errorCode, handle) {
-					logger.error("Indicate error for handle=" + Utils.toHexString(handle, 2)
-						+ ", errorCode=" + Utils.toHexString(errorCode));
-				}
-			});
-		}
-	});
-};
-
-exports.gattReadLocal = function (params) {
-	var serviceUUID = UUID.getByString(params.service);
-	var characteristicUUID = UUID.getByString(params.characteristic);
-
-	logger.debug("gattReadLocal");
-
-	/* Find characteristic */
-	var service = GAP.getServiceByUUID(serviceUUID);
-	if (service == null) {
-		logger.error("Service " + serviceUUID.toString() + " not found.");
-		return;
-	}
-	var characteristic = service.getCharacteristicByUUID(characteristicUUID);
-	if (characteristic == null) {
-		logger.error("Characteristic " + characteristicUUID.toString() + " not found.");
-		return;
-	}
-
-	doNotification({
-		notification: "gatt/local/read",
-		service: serviceUUID,
-		characteristic: characteristicUUID,
-		value: Array.from(characteristic.value)
-	});
+	let context = _gapApplication.getContext(index);
+	context.attConnection.sendAttributePDU(new Uint8Array(params.buffer));
 };
 
 // ----------------------------------------------------------------------------------
@@ -954,7 +605,6 @@ var Packet = require("bluetooth/bgcompat/packet").Packet;
 function parseADFromStructures(structures) {
 	let bgStructures = [];
 	for (let structure of structures) {
-		structure.data = Array.from(structure.data);
 		let bg = new Packet(structure.type, structure.data, "LE");
 		bgStructures.push({
 			data: bg.data,

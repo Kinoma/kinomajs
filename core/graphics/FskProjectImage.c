@@ -2253,7 +2253,7 @@ FskProjectImage(
 	SInt32		srcHeight,
 
 	/* Transformation */
-	const float	M[3][3],
+	float		(*const M)[3],
 
 	/* Source clip */
 	SInt32		srcNumPts,			/* If numPts==0 then use default rectangle */
@@ -2271,7 +2271,7 @@ FskProjectImage(
 
 	/* Destination clip */
 	SInt32		dstNumPts,			/* If numPts==0 then use default rectangle */
-	const float	(*dstPts)[2]		/* Arbitrary polygon */
+	float		(*const dstPts)[2]	/* Arbitrary polygon */
 )
 {
 	FskImage3D src, dst;

@@ -202,7 +202,7 @@
 				port.invalidate();
 			]]></method>
 			<method id="drawSample" params="port, x, sampleWidth, fraction"><![CDATA[
-				var sampleHeight = fraction * port.height;
+				var sampleHeight = Math.floor(fraction * port.height);
 				if (sampleHeight <= 1)
 					sampleHeight = 1;
 				var y = port.height - sampleHeight;

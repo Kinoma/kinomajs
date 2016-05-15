@@ -69,6 +69,7 @@ xs_env_set(xsMachine *the)
 {
 	mc_env_t *env;
 	char *val, *name;
+	int pos;
 	int argc = xsToInteger(xsArgc);
 
 	if (argc < 1)
@@ -84,8 +85,9 @@ xs_env_set(xsMachine *the)
 	else {
 		if ((val = mc_strdup(xsToString(xsArg(1)))) == NULL)
 			return;
+		pos = argc > 2 && xsTypeOf(xsArg(2)) != xsUndefinedType ? xsToInteger(xsArg(2)) : -1;
 		name = xsToString(xsArg(0));
-		mc_env_set(env, name, val);
+		mc_env_set(env, name, val, pos);
 		mc_free(val);
 	}
 }
@@ -107,6 +109,7 @@ xs_env_constructor(xsMachine *the)
 	const char *partname = ac > 0 ? xsToString(xsArg(0)) : MC_ENV_DEFAULT_PATH;
 	int autosave = ac > 1 && xsTest(xsArg(1));
 	int encrypt = ac > 2 && xsTest(xsArg(2));
+	int recovery = ac <= 3 || xsTest(xsArg(3));
 	mc_env_t *env;
 
 	if (mc_env_init())
@@ -117,7 +120,7 @@ xs_env_constructor(xsMachine *the)
 	else {
 		if ((env = mc_malloc(sizeof(mc_env_t))) == NULL)
 			mc_xs_throw(the, "mc_env: no mem");
-		if (mc_env_new(env, partname, encrypt) != 0)
+		if (mc_env_new(env, partname, encrypt, recovery) != 0)
 			mc_xs_throw(the, "mc_env: new fail");
 	}
 	mc_env_autosave(env, autosave);

@@ -68,7 +68,7 @@ ifeq "$(KPR_CONFIGURATION)" "release"
 endif
 
 $(TMP_DIR)/KplAudioLinuxALSA.o: $(HEADERS) $(F_HOME)/build/linux/kpl/KplAudioLinuxALSA.c
-	$(CC) $(F_HOME)/build/linux/kpl/KplAudioLinuxALSA.c $(C_OPTIONS) $(C_INCLUDES) -c -o $@
+	$(CC) $(F_HOME)/build/linux/kpl/KplAudioLinuxALSA.c $(C_OPTIONS) $(C_INCLUDES) -c -o '$@'
 
 `;
 	}

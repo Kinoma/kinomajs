@@ -47,54 +47,15 @@ Visualizations
 
 */
 
-// Notes:
-// `` not supported (i.e. code span escape)
-// code line with tabs potential rendering issues
-// line based (block - process in script)
-// markup not supported
-// no &gt; type entities
-// no footnote
-// no image title
-// no inline header semantics (needs review - cannot escape characters)
-// no line break (i.e. line end with 2 spaces - process in script)
-// no link title
-// no simple inline link
-// no trailing # in atx header
-// simple blockquote (nested but no other types supported)
-// simple inline link and image semantics
-// unix (LF) 8-bit text:
-//   doc-template-151216a-CR.md ("the basic ASCII character set")
-//     ragel-guide.pdf (6.9) 5.3 Getkey Statement
-//   using-fractional-coordinates-for-animation-in-kinomajs-151019-CR.md (uses 3 byte code 'E2 80 8B')
-//     zero-width space character is encoded in Unicode as U+200B ZERO WIDTH SPACE (&#8203;)
-//     http://utf8-chartable.de/unicode-utf8-table.pl?start=8192&number=128
-//   $F_HOME/unitytest/README.md (uses 3 byte code 'e3 80 80' for space)
-//     http://orange-factory.com/sample/utf8/code3-e3.html
-// misc:
-//   doc-style-sheet-151221.md
-//     #####I<sup>2</sup>C
-//   garbage-collection-in-kinomajs-151118-CR.md
-//     <iframe width="560" height="315" src="https://www.youtube.com/embed/0iRfQfzcKvg" frameborder="0" allowfullscreen></iframe>  
-//     note: there is also a trailing double space after the closing iframe tag - is it accidental or intentional?
-//   overview.md
-//     XML includes elements—collectively called *content elements* and *container elements*—that correspond to various types of `content` and `container` objects and describe a branch of the containment hierarchy.
-//     line 1332 <div class="xmlcode"></div> for JavaScript...
-//      	var BackBehavior = function(content, $) {
-//   pins-simulators-151215-CR.md
-//     <td><img style="display: block; margin-left: auto; margin-right: auto;"...
-//   shell/assets/about.md
-//     Copyright (c) 2004 by Internet Systems Consortium, Inc. (\"ISC\").
-//   xs.md
-//     <td><code>@<i>attribute</i></code></td>
-//     <td><code><i>element</i></code></td>
-
-// https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/Content_categories
-// https://guides.github.com/features/mastering-markdown/
-// https://help.github.com/articles/basic-writing-and-formatting-syntax/
-// https://help.github.com/articles/github-flavored-markdown/
-// https://help.github.com/articles/markdown-basics/
-
 #include "kprMarkdownParser.h"
+
+#if TARGET_OS_WIN32
+#define _IsSpace(c) (iswspace(c))
+#define _IsPunct(c) (iswpunct(c))
+#else
+#define _IsSpace(c) (isspace(c))
+#define _IsPunct(c) (ispunct(c))
+#endif
 
 char* _FontStyles[] = {
 /* 0 */ "normal",
@@ -120,7 +81,7 @@ static Boolean _blank(char *p, char *pe, SInt32 length)
 	else if (length == -1)
 		length = pe - p;
 	while ((p < pe) && (length > 0)) {
-		if (!isspace(*p))
+		if (!_IsSpace(*p))
 			return false;
 		length--;
 		p++;
@@ -218,7 +179,8 @@ static KprMarkdownElementInfoRecord kprMarkdownElementInfo[] = {
 	{ "del",         3, 0x1, kprMarkdownDEL        }, // strikethrough
 	{ "div",         3, 0x3, kprMarkdownDIV        },
 	{ "img",         3, 0x0, kprMarkdownIMG        },
-	{ "pre",         3, 0x3, kprMarkdownPRE        }, // escape issue / CDATA?
+	{ "pre",         3, 0x3, kprMarkdownPRE        },
+	{ "sup",         3, 0x1, kprMarkdownSUP        },
 	{ "code",        4, 0x1, kprMarkdownCODE       },
 	{ "span",        4, 0x1, kprMarkdownSPAN       },
 	{ "table",       5, 0x2, kprMarkdownTABLE      },
@@ -240,7 +202,7 @@ static FskErr doAttribute(KprMarkdownParser parser, char *str, KprMarkdownState 
 	if (state->flags & kprMarkdownParseElements) {
 		KprMarkdownElement element = state->stack[state->top];
 		if (element->attributes == NULL) {
-			bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownAttributeRecord), sizeof(KprMarkdownAttributeRecord) * kprMarkdownDefaultAttributesOption, (FskGrowableArray*)&(element->attributes)));
+			bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownAttributeRecord), kprMarkdownDefaultAttributesOption, (FskGrowableArray*)&(element->attributes)));
 		}
 		bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)element->attributes, (void *)&(state->attributeRecord)));
 	}
@@ -276,6 +238,8 @@ static FskErr doEnterElement(KprMarkdownParser parser, char *str, KprMarkdownSta
 		KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
 		if (state->top == -1) {
 			bailIfError(FskMemPtrNewClear(sizeof(KprMarkdownElementRecord), (FskMemPtr *)&element));
+			element->n.length = state->elementStop - state->elementStart;
+			element->n.offset = (SInt16)(state->elementStart - str - state->offset);
 			element->t.length = -1;
 			element->t.offset = 0;
 			element->type = info ? info->type : -1;
@@ -283,11 +247,15 @@ static FskErr doEnterElement(KprMarkdownParser parser, char *str, KprMarkdownSta
 		else {
 			element = state->stack[state->top];
 			if (element->elements == NULL) {
-				bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), sizeof(KprMarkdownElementRecord) * kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
+				bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
 			}
+			state->elementRecord.n.length = state->elementStop - state->elementStart;
+			state->elementRecord.n.offset = (SInt16)(state->elementStart - str - state->offset);
 			state->elementRecord.type = info ? info->type : -1;
 			bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)element->elements, (void *)&(state->elementRecord)));
 			FskGrowableArrayGetPointerToItem((FskGrowableArray)element->elements, FskGrowableArrayGetItemCount((FskGrowableArray)element->elements) - 1, (void **)&element);
+			state->elementRecord.n.length = -1;
+			state->elementRecord.n.offset = 0;
 		}
 	}
 	state->depth++;
@@ -354,7 +322,7 @@ static FskErr doProcessMarkup(KprMarkdownParser parser, char *str, KprMarkdownSt
 			KprMarkdownRunRecord runRecord;
 			KprMarkdownRun run = &runRecord;
 			FskMemSet(run, 0, sizeof(runRecord));
-			runRecord.type = kprMarkdownMarkupLine; // no line span
+			runRecord.type = kprMarkdownMarkupLine;
 			runRecord.colors = kprMarkdownLineMarkupColor;
 			runRecord.length = pc + 1 - state->holdPC;
 			runRecord.offset = state->holdPC - str;
@@ -389,7 +357,7 @@ static FskErr doProcessText(KprMarkdownParser parser, char *str, KprMarkdownStat
 	if (state->depth > 0) {
 		char *text = state->textStart;
 		while (text < state->textStop) {
-			if (!isspace(*text))
+			if (!_IsSpace(*text))
 				break;
 			space++;
 			text++;
@@ -400,7 +368,7 @@ static FskErr doProcessText(KprMarkdownParser parser, char *str, KprMarkdownStat
 			KprMarkdownElement element = state->stack[state->top];
 			if (element) {
 				if (element->elements == NULL) {
-					bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), sizeof(KprMarkdownElementRecord) * kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
+					bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
 				}
 				state->elementRecord.type = 0;
 				state->elementRecord.t.length = state->textStop - state->textStart;
@@ -422,6 +390,15 @@ bail:
 	return err;
 }
 
+static FskErr doProcessTextSpecial(KprMarkdownParser parser, char *str, KprMarkdownState state, char *stop, SInt32 line)
+{
+	if (state->stack[0]) {
+		state->stack[0]->t.length = state->textStop - state->textStart;
+		state->stack[0]->t.offset = (SInt16)(state->textStart - str - state->offset);
+	}
+	return kFskErrNone;
+}
+
 static FskErr doResetState(KprMarkdownParser parser, char *str, KprMarkdownState state, SInt32 flags)
 {
 	state->elementStart = NULL;
@@ -441,15 +418,32 @@ static FskErr doResetState(KprMarkdownParser parser, char *str, KprMarkdownState
 		state->holdLine = 0;
 		state->holdPC = NULL;
 		state->markPC = NULL;
-		state->line = 1;
+		if (flags & 0x8)
+			state->line = 0;
+		else
+			state->line = 1;
 		state->pc = NULL;
 	}
+	state->elementRecord.n.length = -1;
+	state->elementRecord.n.offset = 0;
 	state->elementRecord.t.length = -1;
 	state->elementRecord.t.offset = 0;
 	if (flags & 0x2)
 		state->marker = 0;
 	if (flags & 0x1)
 		state->tableRow = 0;
+	return kFskErrNone;
+}
+
+static FskErr doSetStateFlags(KprMarkdownParser parser, char *str, KprMarkdownState state, SInt32 flags)
+{
+	state->flags = flags;
+	return kFskErrNone;
+}
+
+static FskErr doSetStateOffset(KprMarkdownParser parser, char *str, KprMarkdownState state, SInt32 offset)
+{
+	state->offset = offset;
 	return kFskErrNone;
 }
 
@@ -478,6 +472,8 @@ static FskErr doStopComment(KprMarkdownParser parser, char *str, KprMarkdownStat
 	KprMarkdownElement element = NULL;
 	if (state->top == -1) {
 		bailIfError(FskMemPtrNewClear(sizeof(KprMarkdownElementRecord), (FskMemPtr *)&element));
+		element->n.length = -1;
+		element->n.offset = 0;
 		element->t.length = state->textStop - state->textStart;
 		element->t.offset = (SInt16)(state->textStart - str - state->offset);
 		element->type = 0;
@@ -558,12 +554,12 @@ FskErr KprMarkdownParserDispose(KprMarkdownParser parser)
 {
 	if (parser) {
 		if (parser->runs) {
-			KprMarkdownRun lineRun = NULL;
-			SInt32 lineCount = parser->lineCount, lineIndex;
-			for (lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, lineIndex, (void **)&lineRun);
-				if ((lineRun->type == kprMarkdownMarkupLine) && lineRun->u.element) {
-					KprMarkdownElementDispose(parser, lineRun->u.element);
+			KprMarkdownRun run = NULL;
+			SInt32 count = (SInt32)FskGrowableArrayGetItemCount((FskGrowableArray)parser->runs), index;
+			for (index = 0; index < count; index++) {
+				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, index, (void **)&run);
+				if (((run->type == kprMarkdownMarkupLine) || (run->type == kprMarkdownMarkupSpan)) && run->u.element) {
+					KprMarkdownElementDispose(parser, run->u.element);
 				}
 			}
 			FskGrowableArrayDispose((FskGrowableArray)parser->runs);
@@ -577,14 +573,14 @@ FskErr KprMarkdownParserNew(KprMarkdownParser *parserReference, SInt32 option, S
 {
 	FskErr err = kFskErrNone;
 	bailIfError(FskMemPtrNewClear(sizeof(KprMarkdownParserRecord), (FskMemPtr *)parserReference));
-	bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownRunRecord), sizeof(KprMarkdownRunRecord) * (option ? option : kprMarkdownParserDefaultOption), (FskGrowableArray*)&((*parserReference)->runs)));
+	bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownRunRecord), option ? option : kprMarkdownParserDefaultOption, (FskGrowableArray*)&((*parserReference)->runs)));
 	(*parserReference)->tab = tab;
 bail:
 	return err;
 }
 
 
-#line 588 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 584 "xs6/xsedit/markdown/kprMarkdownParser.c"
 static const char _md_actions[] = {
 	0, 1, 3, 1, 5, 1, 6, 1, 
 	9, 1, 10, 1, 11, 1, 13, 1, 
@@ -1162,7 +1158,7 @@ static const int md_en_inner = 114;
 static const int md_en_main = 136;
 
 
-#line 587 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 583 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 
 
 #pragma unused (md_en_error, md_en_fenced_code_scanner, md_en_inner, md_en_main, md_en_markdown)
@@ -1175,7 +1171,7 @@ static Boolean _indentedCodeLine(char *str, char *ts, char *te, KprMarkdownRun r
 		int indent = _indent(ts, te - 1, state->marker + 4, 0);
 		int length = te - 1 - ts - indent;
 		int offset = indent; //@@ ts - str
-		run->type = kprMarkdownIndentedCodeLine; // no line span
+		run->type = kprMarkdownIndentedCodeLine;
 		run->colors = kprMarkdownCodeColor;
 		run->length = te - ts;
 		run->offset = ts - str;
@@ -1200,7 +1196,7 @@ static Boolean _mergeTableColumnDivider(KprMarkdownParser parser, char *str, SIn
 			char *t1 = str + textRun->offset + textRun->u.s.t.offset;
 			char *t2 = t1 + textRun->u.s.t.length - 1;
 			while (t2 >= t1) {
-				if (!isspace(*t2))
+				if (!_IsSpace(*t2))
 					break;
 				length++;
 				t2--;
@@ -1252,11 +1248,11 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 	KprMarkdownStateRecord stateRecord;
 	KprMarkdownState state = &stateRecord;
 	doResetState(parser, str, state, 0x7);
-	state->flags = flags;
+	doSetStateFlags(parser, str, state, flags);
 	state->pc = p; // markup error on the first line
 	
 	
-#line 1260 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 1256 "xs6/xsedit/markdown/kprMarkdownParser.c"
 	{
 	cs = md_start;
 	top = 0;
@@ -1265,7 +1261,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 	act = 0;
 	}
 
-#line 1269 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 1265 "xs6/xsedit/markdown/kprMarkdownParser.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -1287,7 +1283,7 @@ _resume:
 #line 1 "NONE"
 	{ts = p;}
 	break;
-#line 1291 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 1287 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -1312,7 +1308,7 @@ _resume:
 	case 0: {
 		_widec = (short)(128 + ((*p) - -128));
 		if ( 
-#line 871 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 869 "xs6/xsedit/markdown/kprMarkdownParser.rl"
  (i == n) && (_spaces(ts, m1, -1, 0) == state->spaces)  ) _widec += 256;
 		break;
 	}
@@ -1384,29 +1380,30 @@ _eof_trans:
 		switch ( *_acts++ )
 		{
 	case 0:
-#line 680 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 676 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttribute(parser, str, state));
 		}
 	break;
 	case 1:
-#line 684 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 680 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttributeName(parser, str, state));
 		}
 	break;
 	case 2:
-#line 688 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 684 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttributeValue(parser, str, state));
 		}
 	break;
 	case 3:
-#line 692 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 688 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
 			if (info && ((info->type == kprMarkdownBR) || (info->type == kprMarkdownSPAN)) && (state->depth == 1)) {
 				p = state->pc; // backtrack (block level <br> and <span> to markdown)
+				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
 				doResetState(parser, str, state, 0x0);
 				state->holdPC = NULL;
 				state->markPC = NULL;
@@ -1421,17 +1418,18 @@ _eof_trans:
 		}
 	break;
 	case 4:
-#line 709 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 706 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doEnterElement(parser, str, state));
 		}
 	break;
 	case 5:
-#line 713 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 710 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
 			if (info && ((info->type == kprMarkdownBR) || (info->type == kprMarkdownSPAN)) && (state->depth == 1)) {
 				p = state->pc; // backtrack (block level <br> and <span> to markdown)
+				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
 				doResetState(parser, str, state, 0x0);
 				state->holdPC = NULL;
 				state->markPC = NULL;
@@ -1443,67 +1441,67 @@ _eof_trans:
 		}
 	break;
 	case 6:
-#line 727 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 725 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doHold(parser, str, state, p, state->line));
 		}
 	break;
 	case 7:
-#line 731 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 729 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doMark(parser, str, state, p));
 		}
 	break;
 	case 8:
-#line 735 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 733 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doProcessText(parser, str, state, p, state->line));
 		}
 	break;
 	case 9:
-#line 739 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 737 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartComment(parser, str, state, p));
 		}
 	break;
 	case 10:
-#line 743 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 741 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartElement(parser, str, state, p));
 		}
 	break;
 	case 11:
-#line 747 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 745 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartText(parser, str, state, p));
 		}
 	break;
 	case 12:
-#line 751 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 749 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopComment(parser, str, state, p));
 		}
 	break;
 	case 13:
-#line 755 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 753 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopElement(parser, str, state, p));
 		}
 	break;
 	case 14:
-#line 759 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 757 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopText(parser, str, state, p));
 		}
 	break;
 	case 15:
-#line 763 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 761 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopText(parser, str, state, p - 1));
 		}
 	break;
 	case 16:
-#line 767 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 765 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			if (state->holdPC && state->markPC) {
 				char c = *(p - 1);
@@ -1539,7 +1537,7 @@ _eof_trans:
 		}
 	break;
 	case 17:
-#line 801 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 799 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			SInt32 shaper = (state->depth == -1) ? 0 : 1;
 			bailIfError(doProcessMarkup(parser, str, state, p + 1, shaper));
@@ -1549,83 +1547,83 @@ _eof_trans:
 		}
 	break;
 	case 18:
-#line 809 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 807 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ /*state->line++; */state->pc = NULL; }
 	break;
 	case 19:
-#line 811 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 809 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ state->line++; state->pc = p + 1; }
 	break;
 	case 20:
-#line 839 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 837 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ b = p; }
 	break;
 	case 21:
-#line 840 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 838 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ h = p; }
 	break;
 	case 22:
-#line 842 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 840 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ h1 = p; }
 	break;
 	case 23:
-#line 843 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 841 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ h2 = p; }
 	break;
 	case 24:
-#line 844 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 842 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ m1 = p; }
 	break;
 	case 25:
-#line 845 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 843 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ m2 = p; }
 	break;
 	case 26:
-#line 846 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 844 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ t1 = p; }
 	break;
 	case 27:
-#line 847 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 845 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ t2 = p; }
 	break;
 	case 28:
-#line 848 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 846 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ v1 = p; }
 	break;
 	case 29:
-#line 849 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 847 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ v2 = p; }
 	break;
 	case 30:
-#line 851 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 849 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ t2 = p - 1; }
 	break;
 	case 31:
-#line 852 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 850 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ v2 = p - 1; }
 	break;
 	case 32:
-#line 854 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 852 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ state->indent++; state->spaces++; }
 	break;
 	case 33:
-#line 855 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 853 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ state->indent++; state->spaces += (4 - (state->spaces % 4)); }
 	break;
 	case 34:
-#line 871 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 869 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ i = 1; }
 	break;
 	case 35:
-#line 871 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 869 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ i++; }
 	break;
 	case 36:
-#line 1266 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1270 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ p--; }
 	break;
 	case 37:
-#line 1270 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1274 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ {cs = stack[--top]; goto _again;} }
 	break;
 	case 40:
@@ -1633,7 +1631,7 @@ _eof_trans:
 	{te = p+1;}
 	break;
 	case 41:
-#line 827 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 825 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				bailIfError(doProcessMarkup(parser, str, state, p + 1, -1)); // error
 				doResetState(parser, str, state, 0x3);
@@ -1643,13 +1641,13 @@ _eof_trans:
 			}}
 	break;
 	case 42:
-#line 871 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 869 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{ // semantic condition
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownFencedCodeEndLine; // no line span
+				runRecord.type = kprMarkdownFencedCodeEndLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1665,7 +1663,7 @@ _eof_trans:
 			}}
 	break;
 	case 43:
-#line 891 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 889 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				int indent = _indent(t1, t2, state->spaces, 1);
 				int length = t2 - t1 - indent;
@@ -1674,7 +1672,7 @@ _eof_trans:
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownFencedCodeLine; // no line span
+				runRecord.type = kprMarkdownFencedCodeLine;
 				runRecord.colors = kprMarkdownCodeColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1695,58 +1693,58 @@ _eof_trans:
 			}}
 	break;
 	case 44:
-#line 941 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 939 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 4;}
 	break;
 	case 45:
-#line 979 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 977 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 5;}
 	break;
 	case 46:
-#line 1002 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1001 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 6;}
 	break;
 	case 47:
-#line 1026 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1025 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 7;}
 	break;
 	case 48:
-#line 1092 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1093 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 9;}
 	break;
 	case 49:
-#line 1112 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1113 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 10;}
 	break;
 	case 50:
-#line 1135 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1137 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 11;}
 	break;
 	case 51:
-#line 1156 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1158 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 12;}
 	break;
 	case 52:
-#line 1178 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1180 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 13;}
 	break;
 	case 53:
-#line 1200 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1202 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 14;}
 	break;
 	case 54:
-#line 1224 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1227 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 15;}
 	break;
 	case 55:
-#line 941 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 939 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					state->textStart = NULL;
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownBlankLine; // no line span
+				runRecord.type = kprMarkdownBlankLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = b - ts;
 				runRecord.offset = ts - str;
@@ -1759,7 +1757,7 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				if (te > b) {
 					FskMemSet(run, 0, sizeof(runRecord));
-					runRecord.type = kprMarkdownBlankLine; // no line span
+					runRecord.type = kprMarkdownBlankLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - b;
 					runRecord.offset = b - str;
@@ -1786,7 +1784,8 @@ _eof_trans:
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHeaderLine | 0x80; // line span
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownHeaderLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = h - ts;
 				runRecord.offset = ts - str;
@@ -1798,7 +1797,7 @@ _eof_trans:
 				runRecord.u.s.v.offset = 0;
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHeaderZeroLine; // no line span
+				runRecord.type = kprMarkdownHeaderZeroLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - h;
 				runRecord.offset = h - str;
@@ -1821,14 +1820,14 @@ _eof_trans:
 			}}
 	break;
 	case 57:
-#line 941 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 939 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					state->textStart = NULL;
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownBlankLine; // no line span
+				runRecord.type = kprMarkdownBlankLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = b - ts;
 				runRecord.offset = ts - str;
@@ -1841,7 +1840,7 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				if (te > b) {
 					FskMemSet(run, 0, sizeof(runRecord));
-					runRecord.type = kprMarkdownBlankLine; // no line span
+					runRecord.type = kprMarkdownBlankLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - b;
 					runRecord.offset = b - str;
@@ -1861,14 +1860,14 @@ _eof_trans:
 			}}
 	break;
 	case 58:
-#line 1002 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1001 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownFencedCodeBeginLine; // no line span
+					runRecord.type = kprMarkdownFencedCodeBeginLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1887,14 +1886,14 @@ _eof_trans:
 			}}
 	break;
 	case 59:
-#line 941 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 939 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{{p = ((te))-1;}{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					state->textStart = NULL;
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownBlankLine; // no line span
+				runRecord.type = kprMarkdownBlankLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = b - ts;
 				runRecord.offset = ts - str;
@@ -1907,7 +1906,7 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				if (te > b) {
 					FskMemSet(run, 0, sizeof(runRecord));
-					runRecord.type = kprMarkdownBlankLine; // no line span
+					runRecord.type = kprMarkdownBlankLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - b;
 					runRecord.offset = b - str;
@@ -1936,7 +1935,7 @@ _eof_trans:
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownBlankLine; // no line span
+				runRecord.type = kprMarkdownBlankLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = b - ts;
 				runRecord.offset = ts - str;
@@ -1949,7 +1948,7 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				if (te > b) {
 					FskMemSet(run, 0, sizeof(runRecord));
-					runRecord.type = kprMarkdownBlankLine; // no line span
+					runRecord.type = kprMarkdownBlankLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - b;
 					runRecord.offset = b - str;
@@ -1976,7 +1975,8 @@ _eof_trans:
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
 					state->marker = _column(ts, t1, -1);
-					runRecord.type = kprMarkdownBlockquoteLine | 0x80; // line span
+					runRecord.count = kprMarkdownCountDirective;
+					runRecord.type = kprMarkdownBlockquoteLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1999,7 +1999,7 @@ _eof_trans:
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownFencedCodeBeginLine; // no line span
+					runRecord.type = kprMarkdownFencedCodeBeginLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -2023,7 +2023,8 @@ _eof_trans:
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHeaderLine | 0x80; // line span
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownHeaderLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2050,7 +2051,7 @@ _eof_trans:
 					doProcessText(parser, str, state, p, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHorizontalRuleLine; // no line span
+				runRecord.type = kprMarkdownHorizontalRuleLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2073,7 +2074,8 @@ _eof_trans:
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
 					state->marker = _column(ts, t1, -1);
-					runRecord.type = kprMarkdownListLine | 0x80; // line span
+					runRecord.count = kprMarkdownCountDirective;
+					runRecord.type = kprMarkdownListLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -2096,7 +2098,7 @@ _eof_trans:
 				#endif
 				parser->referenceDefinitionCount++;
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownReferenceDefinitionLine; // no line span
+				runRecord.type = kprMarkdownReferenceDefinitionLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2118,7 +2120,7 @@ _eof_trans:
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownTableLine; // no line span
+					runRecord.type = kprMarkdownTableLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -2141,7 +2143,7 @@ _eof_trans:
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownTableLine; // no line span
+					runRecord.type = kprMarkdownTableLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -2164,7 +2166,8 @@ _eof_trans:
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownTableLine | 0x80; // line span
+					runRecord.count = kprMarkdownCountDirective;
+					runRecord.type = kprMarkdownTableLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -2192,7 +2195,8 @@ _eof_trans:
 					int indent = _indent(ts, te - 1, (state->spaces < state->marker) ? state->spaces : state->marker, 0);
 					int length = te - 1 - ts - indent;
 					state->marker = (state->spaces < state->marker) ? state->spaces : state->marker;
-					runRecord.type = kprMarkdownParagraphLine | 0x80; // line span
+					runRecord.count = kprMarkdownCountDirective;
+					runRecord.type = kprMarkdownParagraphLine;
 					runRecord.colors = kprMarkdownTextColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -2211,7 +2215,7 @@ _eof_trans:
 	}
 	}
 	break;
-#line 2215 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2219 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -2224,7 +2228,7 @@ _again:
 #line 1 "NONE"
 	{ts = 0;}
 	break;
-#line 2228 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2232 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -2244,13 +2248,13 @@ _again:
 	while ( __nacts-- > 0 ) {
 		switch ( *__acts++ ) {
 	case 15:
-#line 763 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 761 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopText(parser, str, state, p - 1));
 		}
 	break;
 	case 16:
-#line 767 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 765 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			if (state->holdPC && state->markPC) {
 				char c = *(p - 1);
@@ -2285,7 +2289,7 @@ _again:
 			}
 		}
 	break;
-#line 2289 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2293 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 	}
@@ -2293,7 +2297,7 @@ _again:
 	_out: {}
 	}
 
-#line 1276 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1280 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 
 	
 	if ((cs == md_error) || (cs < md_first_final)) {
@@ -2303,15 +2307,29 @@ bail:
 	parser->lineCount = state->line;
 	if (err == kFskErrNone) {
 		KprMarkdownRun blankLineRun = NULL, formerLineRun = NULL, lineRun = NULL;
-		SInt32 lineCount = parser->lineCount, lineIndex;
+		SInt32 blankLineIndex = -1, formerLineIndex = -1, lineCount = parser->lineCount, lineIndex;
 		for (lineIndex = 0; lineIndex < lineCount; lineIndex++) {
 			FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, lineIndex, (void **)&lineRun);
-			if (lineRun->type & 0x80) { // line span flag
-				lineRun->type &= ~0x80; // clear line span flag
+			if (lineRun->count == kprMarkdownCountDirective) {
 				if (flags & kprMarkdownParseAll) {
 					lineRun->index = (SInt32)FskGrowableArrayGetItemCount((FskGrowableArray)parser->runs);
-					bailIfError(KprMarkdownParseInline(parser, str, lineRun->offset + lineRun->u.s.t.offset, lineRun->u.s.t.length, lineRun));
+					bailIfError(KprMarkdownParseInline(parser, str, lineRun->offset + lineRun->u.s.t.offset, lineRun->u.s.t.length, flags, lineIndex, lineRun));
+					if (blankLineIndex >= 0) {
+						FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, blankLineIndex, (void **)&blankLineRun);
+					}
+					else {
+						blankLineRun = NULL;
+					}
+					if (formerLineIndex >= 0) {
+						FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, formerLineIndex, (void **)&formerLineRun);
+					}
+					else {
+						formerLineRun = NULL;
+					}
+					FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, lineIndex, (void **)&lineRun);
 				}
+				else
+					lineRun->count = 0;
 			}
 			if (lineRun->type == kprMarkdownBlankLine) {
 				if (blankLineRun && (blankLineRun->type == kprMarkdownBlankLine)) {
@@ -2323,9 +2341,11 @@ bail:
 						formerLineRun->type = kprMarkdownBlankLine;
 						formerLineRun->shaper = 1; // indented code line -> blank line
 					}
+					blankLineIndex = lineIndex;
 					blankLineRun = lineRun;
 				}
 				else {
+					blankLineIndex = -1;
 					blankLineRun = NULL;
 				}
 				parser->fontStyle = 0;
@@ -2351,8 +2371,10 @@ bail:
 						}
 					}
 				}
+				blankLineIndex = -1;
 				blankLineRun = NULL;
 			}
+			formerLineIndex = lineIndex;
 			formerLineRun = lineRun;
 			n = lineRun->length - 1;
 			if (n > parser->columnCount) {
@@ -2365,22 +2387,31 @@ bail:
 }
 
 
-#line 2369 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2391 "xs6/xsedit/markdown/kprMarkdownParser.c"
 static const char _md_inline_actions[] = {
-	0, 1, 0, 1, 1, 1, 2, 1, 
-	3, 1, 12, 1, 13, 1, 14, 1, 
-	15, 1, 17, 1, 22, 1, 28, 1, 
-	29, 1, 30, 2, 0, 1, 2, 1, 
-	16, 2, 1, 23, 2, 1, 24, 2, 
-	2, 3, 2, 3, 18, 2, 3, 19, 
-	2, 3, 20, 2, 3, 21, 2, 3, 
-	25, 2, 3, 26, 2, 3, 27, 2, 
-	6, 17, 2, 7, 17, 2, 8, 17, 
-	2, 9, 17, 2, 10, 17, 2, 11, 
-	17, 2, 15, 2, 2, 15, 5, 3, 
-	1, 4, 17, 3, 2, 3, 18, 3, 
-	2, 3, 19, 3, 2, 3, 20, 3, 
-	2, 3, 21
+	0, 1, 10, 1, 11, 1, 13, 1, 
+	15, 1, 16, 1, 17, 1, 18, 1, 
+	19, 1, 29, 1, 30, 1, 31, 1, 
+	33, 1, 42, 1, 44, 1, 45, 1, 
+	46, 1, 47, 2, 11, 15, 2, 12, 
+	42, 2, 13, 4, 2, 14, 1, 2, 
+	14, 8, 2, 17, 18, 2, 18, 32, 
+	2, 18, 39, 2, 18, 40, 2, 20, 
+	34, 2, 20, 35, 2, 20, 36, 2, 
+	20, 37, 2, 20, 41, 2, 20, 43, 
+	2, 23, 33, 2, 24, 33, 2, 25, 
+	33, 2, 26, 33, 2, 27, 33, 2, 
+	28, 33, 2, 31, 19, 2, 31, 22, 
+	3, 5, 16, 38, 3, 11, 14, 8, 
+	3, 14, 2, 0, 3, 18, 21, 33, 
+	3, 19, 20, 34, 3, 19, 20, 35, 
+	3, 19, 20, 36, 3, 19, 20, 37, 
+	3, 31, 3, 16, 4, 13, 5, 16, 
+	38, 4, 14, 1, 2, 0, 4, 31, 
+	6, 7, 9, 5, 31, 13, 4, 3, 
+	16, 6, 31, 14, 2, 0, 3, 16, 
+	7, 31, 14, 1, 2, 0, 3, 16
+	
 };
 
 static const short _md_inline_key_offsets[] = {
@@ -2388,13 +2419,13 @@ static const short _md_inline_key_offsets[] = {
 	11, 15, 18, 24, 31, 38, 47, 56, 
 	63, 72, 79, 88, 95, 104, 113, 122, 
 	129, 139, 147, 155, 162, 170, 178, 186, 
-	193, 194, 197, 199, 200, 201, 202, 203, 
-	205, 207, 208, 209, 210, 211, 212, 214, 
-	215, 216, 217, 218, 219, 220, 221, 222, 
-	223, 224, 225, 227, 228, 229, 230, 234, 
-	235, 236, 237, 238, 239, 240, 241, 252, 
-	263, 264, 280, 281, 283, 283, 284, 284, 
-	286, 286, 287, 295, 295, 297, 298, 300
+	193, 194, 195, 198, 201, 204, 208, 218, 
+	225, 230, 242, 243, 245, 248, 251, 252, 
+	253, 258, 269, 270, 272, 275, 276, 280, 
+	281, 282, 283, 284, 285, 286, 287, 298, 
+	309, 310, 326, 327, 329, 329, 330, 330, 
+	336, 336, 337, 338, 346, 346, 348, 349, 
+	351
 };
 
 static const char _md_inline_trans_keys[] = {
@@ -2422,20 +2453,27 @@ static const char _md_inline_trans_keys[] = {
 	97, 122, 59, 115, 48, 57, 65, 90, 
 	97, 122, 59, 112, 48, 57, 65, 90, 
 	97, 122, 59, 48, 57, 65, 90, 97, 
-	122, 114, 32, 47, 62, 47, 62, 62, 
-	112, 97, 110, 32, 62, 32, 115, 116, 
-	121, 108, 101, 61, 34, 39, 34, 34, 
-	62, 60, 60, 47, 115, 112, 97, 110, 
-	62, 47, 60, 39, 39, 93, 9, 32, 
-	40, 91, 91, 93, 93, 41, 41, 42, 
-	96, 33, 38, 42, 45, 60, 91, 92, 
-	95, 96, 124, 126, 33, 38, 42, 45, 
-	60, 124, 126, 91, 92, 95, 96, 91, 
-	35, 65, 71, 76, 81, 97, 103, 108, 
-	110, 113, 48, 57, 66, 90, 98, 122, 
-	42, 42, 95, 45, 98, 115, 93, 33, 
-	47, 58, 64, 91, 96, 123, 126, 42, 
-	95, 96, 9, 32, 126, 0
+	122, 45, 45, 0, 10, 45, 0, 10, 
+	45, 0, 10, 45, 0, 10, 45, 62, 
+	32, 47, 62, 95, 45, 58, 65, 90, 
+	97, 122, 32, 47, 62, 65, 90, 97, 
+	122, 32, 65, 90, 97, 122, 32, 45, 
+	47, 61, 62, 95, 48, 58, 65, 90, 
+	97, 122, 62, 34, 39, 0, 10, 34, 
+	32, 47, 62, 60, 47, 95, 65, 90, 
+	97, 122, 32, 62, 95, 45, 46, 48, 
+	58, 65, 90, 97, 122, 62, 47, 60, 
+	0, 10, 39, 93, 9, 32, 40, 91, 
+	91, 93, 93, 41, 41, 42, 96, 33, 
+	38, 42, 45, 60, 91, 92, 95, 96, 
+	124, 126, 33, 38, 42, 45, 60, 124, 
+	126, 91, 92, 95, 96, 91, 35, 65, 
+	71, 76, 81, 97, 103, 108, 110, 113, 
+	48, 57, 66, 90, 98, 122, 42, 42, 
+	95, 45, 33, 95, 65, 90, 97, 122, 
+	60, 93, 33, 47, 58, 64, 91, 96, 
+	123, 126, 42, 95, 96, 9, 32, 126, 
+	0
 };
 
 static const char _md_inline_single_lengths[] = {
@@ -2443,13 +2481,13 @@ static const char _md_inline_single_lengths[] = {
 	2, 1, 0, 1, 1, 3, 3, 1, 
 	3, 1, 3, 1, 3, 3, 3, 1, 
 	4, 2, 2, 1, 2, 2, 2, 1, 
-	1, 3, 2, 1, 1, 1, 1, 2, 
-	2, 1, 1, 1, 1, 1, 2, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 2, 1, 1, 1, 4, 1, 
+	1, 1, 3, 3, 3, 4, 4, 3, 
+	1, 6, 1, 2, 3, 3, 1, 1, 
+	1, 3, 1, 2, 3, 1, 4, 1, 
 	1, 1, 1, 1, 1, 1, 11, 7, 
 	1, 10, 1, 2, 0, 1, 0, 2, 
-	0, 1, 0, 0, 2, 1, 2, 1
+	0, 1, 1, 0, 0, 2, 1, 2, 
+	1
 };
 
 static const char _md_inline_range_lengths[] = {
@@ -2457,13 +2495,13 @@ static const char _md_inline_range_lengths[] = {
 	1, 1, 3, 3, 3, 3, 3, 3, 
 	3, 3, 3, 3, 3, 3, 3, 3, 
 	3, 3, 3, 3, 3, 3, 3, 3, 
-	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0, 
+	0, 0, 0, 0, 0, 0, 3, 2, 
+	2, 3, 0, 0, 0, 0, 0, 0, 
+	2, 4, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 2, 
-	0, 3, 0, 0, 0, 0, 0, 0, 
-	0, 0, 4, 0, 0, 0, 0, 0
+	0, 3, 0, 0, 0, 0, 0, 2, 
+	0, 0, 0, 4, 0, 0, 0, 0, 
+	0
 };
 
 static const short _md_inline_index_offsets[] = {
@@ -2471,13 +2509,13 @@ static const short _md_inline_index_offsets[] = {
 	19, 23, 26, 30, 35, 40, 47, 54, 
 	59, 66, 71, 78, 83, 90, 97, 104, 
 	109, 117, 123, 129, 134, 140, 146, 152, 
-	157, 159, 163, 166, 168, 170, 172, 174, 
-	177, 180, 182, 184, 186, 188, 190, 193, 
-	195, 197, 199, 201, 203, 205, 207, 209, 
-	211, 213, 215, 218, 220, 222, 224, 229, 
-	231, 233, 235, 237, 239, 241, 243, 255, 
-	265, 267, 281, 283, 286, 287, 289, 290, 
-	293, 294, 296, 301, 302, 305, 307, 310
+	157, 159, 161, 165, 169, 173, 178, 186, 
+	192, 196, 206, 208, 211, 215, 219, 221, 
+	223, 227, 235, 237, 240, 244, 246, 251, 
+	253, 255, 257, 259, 261, 263, 265, 277, 
+	287, 289, 303, 305, 308, 309, 311, 312, 
+	317, 318, 320, 322, 327, 328, 331, 333, 
+	336
 };
 
 static const unsigned char _md_inline_indicies[] = {
@@ -2501,67 +2539,72 @@ static const unsigned char _md_inline_indicies[] = {
 	21, 21, 21, 0, 22, 39, 21, 21, 
 	21, 0, 22, 40, 21, 21, 21, 0, 
 	41, 21, 21, 21, 0, 42, 0, 43, 
-	44, 45, 0, 44, 45, 0, 45, 0, 
-	46, 0, 47, 0, 48, 0, 49, 50, 
-	0, 49, 51, 0, 52, 0, 53, 0, 
-	54, 0, 55, 0, 56, 0, 57, 58, 
-	0, 60, 59, 62, 61, 50, 0, 64, 
-	63, 66, 65, 67, 0, 68, 0, 69, 
-	0, 70, 0, 71, 0, 72, 0, 67, 
-	66, 0, 60, 73, 62, 74, 76, 75, 
-	77, 77, 78, 79, 0, 79, 0, 81, 
-	80, 83, 82, 85, 84, 87, 86, 89, 
-	88, 91, 90, 93, 94, 95, 96, 97, 
-	98, 99, 100, 101, 102, 103, 92, 104, 
-	104, 104, 104, 104, 104, 104, 104, 104, 
-	92, 105, 104, 106, 107, 108, 109, 110, 
-	111, 108, 109, 112, 110, 21, 21, 21, 
-	104, 114, 113, 89, 89, 113, 113, 115, 
-	104, 116, 117, 118, 104, 119, 121, 120, 
-	122, 122, 122, 122, 104, 123, 124, 89, 
-	113, 104, 125, 127, 127, 126, 89, 104, 
-	0
+	0, 0, 0, 45, 44, 0, 0, 47, 
+	46, 0, 0, 48, 46, 0, 0, 48, 
+	49, 46, 50, 52, 53, 51, 51, 51, 
+	51, 0, 54, 55, 56, 57, 57, 0, 
+	54, 57, 57, 0, 58, 59, 60, 61, 
+	62, 59, 59, 59, 59, 0, 63, 0, 
+	64, 65, 0, 0, 0, 67, 66, 68, 
+	69, 70, 0, 73, 72, 74, 71, 75, 
+	75, 75, 71, 76, 78, 77, 77, 77, 
+	77, 77, 71, 63, 71, 74, 73, 71, 
+	0, 0, 67, 79, 81, 80, 82, 82, 
+	83, 84, 0, 84, 0, 86, 85, 88, 
+	87, 90, 89, 92, 91, 94, 93, 96, 
+	95, 98, 99, 100, 101, 102, 103, 104, 
+	105, 106, 107, 108, 97, 109, 109, 109, 
+	109, 109, 109, 109, 109, 109, 97, 110, 
+	109, 111, 112, 113, 114, 115, 116, 113, 
+	114, 117, 115, 21, 21, 21, 109, 119, 
+	118, 94, 94, 118, 118, 120, 109, 121, 
+	122, 123, 123, 123, 109, 124, 127, 126, 
+	129, 128, 130, 130, 130, 130, 109, 131, 
+	132, 94, 118, 109, 133, 135, 135, 134, 
+	94, 109, 0
 };
 
 static const char _md_inline_trans_targs[] = {
-	70, 1, 2, 1, 2, 3, 6, 4, 
-	5, 70, 5, 70, 7, 70, 7, 70, 
-	9, 10, 9, 70, 11, 12, 70, 14, 
-	15, 70, 17, 70, 19, 70, 21, 22, 
-	23, 70, 25, 26, 27, 70, 29, 30, 
-	31, 70, 33, 34, 35, 80, 37, 38, 
-	39, 40, 50, 41, 42, 43, 44, 45, 
-	46, 47, 59, 48, 49, 48, 49, 51, 
-	58, 51, 52, 53, 54, 55, 56, 57, 
-	70, 60, 60, 61, 62, 63, 66, 64, 
-	65, 70, 65, 70, 67, 70, 67, 70, 
-	70, 76, 69, 70, 71, 72, 73, 74, 
-	77, 79, 81, 82, 84, 85, 86, 87, 
-	70, 0, 8, 13, 16, 18, 20, 24, 
-	28, 70, 75, 78, 70, 32, 36, 70, 
-	61, 62, 83, 70, 68, 69, 70, 86
+	62, 1, 2, 1, 2, 3, 6, 4, 
+	5, 62, 5, 62, 7, 62, 7, 62, 
+	9, 10, 9, 62, 11, 12, 62, 14, 
+	15, 62, 17, 62, 19, 62, 21, 22, 
+	23, 62, 25, 26, 27, 62, 29, 30, 
+	31, 62, 33, 34, 35, 36, 35, 36, 
+	37, 72, 39, 38, 42, 73, 40, 42, 
+	73, 41, 39, 41, 42, 43, 73, 62, 
+	44, 52, 44, 45, 39, 42, 73, 62, 
+	46, 47, 48, 49, 50, 49, 62, 52, 
+	53, 54, 55, 58, 56, 57, 62, 57, 
+	62, 59, 62, 59, 62, 62, 68, 61, 
+	62, 63, 64, 65, 66, 69, 71, 74, 
+	75, 77, 78, 79, 80, 62, 0, 8, 
+	13, 16, 18, 20, 24, 28, 62, 67, 
+	70, 62, 32, 38, 62, 62, 46, 51, 
+	53, 54, 76, 62, 60, 61, 62, 79
 };
 
-static const char _md_inline_trans_actions[] = {
-	25, 1, 27, 0, 3, 0, 0, 0, 
-	5, 91, 0, 42, 5, 95, 0, 45, 
-	1, 1, 0, 87, 0, 0, 17, 0, 
-	0, 66, 0, 75, 0, 72, 0, 0, 
-	0, 63, 0, 0, 0, 69, 0, 0, 
-	0, 78, 0, 0, 0, 5, 0, 0, 
-	9, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 5, 39, 0, 7, 1, 
-	27, 0, 3, 0, 0, 0, 0, 0, 
-	19, 5, 0, 0, 3, 0, 0, 0, 
-	5, 99, 0, 48, 5, 103, 0, 51, 
-	23, 0, 0, 30, 0, 15, 84, 5, 
-	1, 15, 15, 0, 81, 15, 5, 5, 
-	21, 0, 0, 0, 0, 0, 0, 0, 
-	0, 54, 0, 0, 36, 0, 0, 57, 
-	1, 27, 1, 33, 0, 1, 60, 0
+static const unsigned char _md_inline_trans_actions[] = {
+	33, 11, 50, 0, 13, 0, 0, 0, 
+	15, 120, 0, 62, 15, 124, 0, 65, 
+	11, 11, 0, 116, 0, 0, 23, 0, 
+	0, 83, 0, 92, 0, 89, 0, 0, 
+	0, 80, 0, 0, 0, 86, 0, 0, 
+	0, 95, 0, 0, 3, 35, 0, 7, 
+	7, 9, 41, 0, 41, 155, 0, 0, 
+	136, 3, 145, 0, 145, 44, 168, 104, 
+	3, 3, 0, 0, 112, 112, 161, 31, 
+	0, 47, 0, 1, 5, 0, 140, 0, 
+	0, 13, 0, 0, 0, 15, 128, 0, 
+	68, 15, 132, 0, 71, 29, 0, 0, 
+	53, 0, 21, 101, 15, 11, 150, 21, 
+	0, 98, 21, 15, 15, 27, 0, 0, 
+	0, 0, 0, 0, 0, 0, 74, 0, 
+	0, 59, 0, 1, 38, 25, 3, 108, 
+	11, 50, 11, 56, 0, 11, 77, 0
 };
 
-static const char _md_inline_to_state_actions[] = {
+static const unsigned char _md_inline_to_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
@@ -2569,13 +2612,13 @@ static const char _md_inline_to_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
+	0, 0, 0, 0, 0, 0, 17, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 11, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0
+	0
 };
 
-static const char _md_inline_from_state_actions[] = {
+static const unsigned char _md_inline_from_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
@@ -2583,10 +2626,10 @@ static const char _md_inline_from_state_actions[] = {
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
+	0, 0, 0, 0, 0, 0, 19, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 13, 0, 
 	0, 0, 0, 0, 0, 0, 0, 0, 
-	0, 0, 0, 0, 0, 0, 0, 0
+	0
 };
 
 static const short _md_inline_eof_trans[] = {
@@ -2595,22 +2638,22 @@ static const short _md_inline_eof_trans[] = {
 	1, 1, 1, 1, 1, 1, 1, 1, 
 	1, 1, 1, 1, 1, 1, 1, 1, 
 	1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 1, 1, 1, 1, 
-	1, 1, 1, 1, 89, 1, 0, 105, 
-	105, 105, 114, 114, 114, 105, 117, 105, 
-	120, 105, 105, 124, 114, 105, 127, 105
+	1, 1, 1, 1, 1, 1, 72, 72, 
+	72, 72, 72, 72, 1, 1, 1, 1, 
+	1, 1, 1, 1, 94, 1, 0, 110, 
+	110, 110, 119, 119, 119, 110, 122, 110, 
+	125, 126, 110, 110, 132, 119, 110, 135, 
+	110
 };
 
-static const int md_inline_start = 70;
-static const int md_inline_first_final = 70;
+static const int md_inline_start = 62;
+static const int md_inline_first_final = 62;
 static const int md_inline_error = -1;
 
-static const int md_inline_en_main = 70;
+static const int md_inline_en_main = 62;
 
 
-#line 1349 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1371 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 
 
 #define unescapeHexa(X) \
@@ -2622,7 +2665,7 @@ static const int md_inline_en_main = 70;
 
 #pragma unused (md_inline_en_main)
 
-FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset, SInt32 length, KprMarkdownRun inlineRun)
+FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset, SInt32 length, SInt32 flags, SInt32 inlineIndex, KprMarkdownRun inlineRun)
 {
 	char *p = str + offset, *pe = p + length, *eof = pe, *te, *ts;
 	char *t1, *t2, *v1, *v2;
@@ -2632,9 +2675,14 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 	FskErr err = kFskErrNone;
 	KprMarkdownRunRecord runRecord;
 	KprMarkdownRun run = &runRecord;
+	KprMarkdownStateRecord stateRecord;
+	KprMarkdownState state = &stateRecord;
+	doResetState(parser, str, state, 0xF);
+	doSetStateFlags(parser, str, state, flags);
+	doSetStateOffset(parser, str, state, offset);
 	
 	
-#line 2638 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2686 "xs6/xsedit/markdown/kprMarkdownParser.c"
 	{
 	cs = md_inline_start;
 	ts = 0;
@@ -2642,7 +2690,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 	act = 0;
 	}
 
-#line 2646 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2694 "xs6/xsedit/markdown/kprMarkdownParser.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -2657,11 +2705,11 @@ _resume:
 	_nacts = (unsigned int) *_acts++;
 	while ( _nacts-- > 0 ) {
 		switch ( *_acts++ ) {
-	case 14:
+	case 30:
 #line 1 "NONE"
 	{ts = p;}
 	break;
-#line 2665 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2713 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -2728,23 +2776,125 @@ _eof_trans:
 		switch ( *_acts++ )
 		{
 	case 0:
-#line 1372 "xs6/xsedit/markdown/kprMarkdownParser.rl"
-	{ t1 = p; }
+#line 1399 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doAttribute(parser, str, state));
+		}
 	break;
 	case 1:
-#line 1373 "xs6/xsedit/markdown/kprMarkdownParser.rl"
-	{ t2 = p; }
+#line 1403 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doAttributeName(parser, str, state));
+		}
 	break;
 	case 2:
-#line 1374 "xs6/xsedit/markdown/kprMarkdownParser.rl"
-	{ v1 = p; }
+#line 1407 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doAttributeValue(parser, str, state));
+		}
 	break;
 	case 3:
-#line 1375 "xs6/xsedit/markdown/kprMarkdownParser.rl"
-	{ v2 = p; }
+#line 1411 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			// nop
+		}
 	break;
 	case 4:
-#line 1377 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1415 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doEnterElement(parser, str, state));
+		}
+	break;
+	case 5:
+#line 1419 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doExitElement(parser, str, state));
+		}
+	break;
+	case 6:
+#line 1423 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doHold(parser, str, state, p, state->line));
+		}
+	break;
+	case 7:
+#line 1427 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doMark(parser, str, state, p));
+		}
+	break;
+	case 8:
+#line 1431 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doProcessTextSpecial(parser, str, state, p, state->line));
+		}
+	break;
+	case 9:
+#line 1435 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doStartComment(parser, str, state, p));
+		}
+	break;
+	case 10:
+#line 1439 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doStartElement(parser, str, state, p));
+		}
+	break;
+	case 11:
+#line 1443 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doStartText(parser, str, state, p));
+		}
+	break;
+	case 12:
+#line 1447 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doStopComment(parser, str, state, p));
+		}
+	break;
+	case 13:
+#line 1451 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doStopElement(parser, str, state, p));
+		}
+	break;
+	case 14:
+#line 1455 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doStopText(parser, str, state, p));
+		}
+	break;
+	case 15:
+#line 1459 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			bailIfError(doStopText(parser, str, state, p - 1));
+		}
+	break;
+	case 16:
+#line 1463 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{
+			// nop
+		}
+	break;
+	case 17:
+#line 1482 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{ t1 = p; }
+	break;
+	case 18:
+#line 1483 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{ t2 = p; }
+	break;
+	case 19:
+#line 1484 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{ v1 = p; }
+	break;
+	case 20:
+#line 1485 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{ v2 = p; }
+	break;
+	case 21:
+#line 1487 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			if ((*t1 == 'X') || (*t1 == 'x')) {
 				t1++;
@@ -2763,47 +2913,43 @@ _eof_trans:
 			}
 		}
 	break;
-	case 5:
-#line 1403 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 22:
+#line 1513 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = codepoints[1] = 0; }
 	break;
-	case 6:
-#line 1405 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 23:
+#line 1515 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x00022; }
 	break;
-	case 7:
-#line 1406 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 24:
+#line 1516 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x00026; }
 	break;
-	case 8:
-#line 1407 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 25:
+#line 1517 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x00027; }
 	break;
-	case 9:
-#line 1408 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 26:
+#line 1518 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x0003C; }
 	break;
-	case 10:
-#line 1409 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 27:
+#line 1519 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x0003E; }
 	break;
-	case 11:
-#line 1410 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 28:
+#line 1520 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x000A0; }
 	break;
-	case 12:
-#line 1425 "xs6/xsedit/markdown/kprMarkdownParser.rl"
-	{ v1 = NULL; }
-	break;
-	case 15:
+	case 31:
 #line 1 "NONE"
 	{te = p+1;}
 	break;
-	case 16:
-#line 1446 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 32:
+#line 1554 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownCodeSpan; // no span text
+				runRecord.type = kprMarkdownCodeSpan;
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownCodeSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2814,11 +2960,11 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			}}
 	break;
-	case 17:
-#line 1555 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 33:
+#line 1663 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{ // union special case: u.codepoints
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHTMLEntity; // no span text
+				runRecord.type = kprMarkdownHTMLEntity;
 				runRecord.colors = kprMarkdownSpanMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2827,11 +2973,12 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			}}
 	break;
-	case 18:
-#line 1566 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 34:
+#line 1674 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownImageReferenceSpan | 0x80; // span text (not displayed, not searched)
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownImageReferenceSpan; // not displayed, not searched
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2842,11 +2989,12 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			}}
 	break;
-	case 19:
-#line 1579 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 35:
+#line 1688 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownImageSpan | 0x80; // span text (not displayed, not searched)
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownImageSpan; // not displayed, not searched
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2857,11 +3005,12 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			}}
 	break;
-	case 20:
-#line 1592 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 36:
+#line 1702 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownLinkReferenceSpan | 0x80; // span text
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownLinkReferenceSpan;
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2872,11 +3021,12 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			}}
 	break;
-	case 21:
-#line 1605 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 37:
+#line 1716 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownLinkSpan | 0x80; // span text
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownLinkSpan;
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2887,32 +3037,26 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			}}
 	break;
-	case 22:
-#line 1631 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 38:
+#line 1730 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownMarkupStyleSpan | 0x80; // span text
-				runRecord.colors = kprMarkdownSpanMarkupColor | kprMarkdownTextSpanColorMix;
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownMarkupSpan;
+				runRecord.colors = kprMarkdownSpanMarkupColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
-				runRecord.u.s.t.length = t2 - t1;
-				runRecord.u.s.t.offset = t1 - str - runRecord.offset;
-				if (v1) { // style attribute value
-					runRecord.u.s.v.length = v2 - v1;
-					runRecord.u.s.v.offset = v1 - str - runRecord.offset;
-				}
-				else {
-					runRecord.u.s.v.length = -1;
-					runRecord.u.s.v.offset = 0;
-				}
+				runRecord.shaper = (state->depth == -1) ? 0 : 1;
+				runRecord.u.element = state->stack[0];
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
+				state->stack[0] = NULL;
 			}}
 	break;
-	case 23:
-#line 1433 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 39:
+#line 1541 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownTextSpan; // no span text
+				runRecord.type = kprMarkdownTextSpan;
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2923,11 +3067,11 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			}}
 	break;
-	case 24:
-#line 1459 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 40:
+#line 1567 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownDoubleDash; // no span text
+				runRecord.type = kprMarkdownDoubleDash;
 				runRecord.colors = kprMarkdownSpanMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2938,15 +3082,15 @@ _eof_trans:
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			}}
 	break;
-	case 25:
-#line 1472 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 41:
+#line 1580 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				int matched = 0;
 				int size = (int)(v2 - v1);
 				t1 = str + offset;
 				t2 = str + offset + length;
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownFontStyle; // no span text
+				runRecord.type = kprMarkdownFontStyle;
 				runRecord.colors = kprMarkdownSpanMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -2957,16 +3101,16 @@ _eof_trans:
 				if (size == 1) {
 					if (parser->fontStyle & kprMarkdownEmphasis) {
 						if ((matched = (
-										(v1 == t1 || !isspace(*(v1 - 1)))
+										(v1 == t1 || !_IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || isspace(*v2) || ispunct(*v2))
+										(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 						))) parser->fontStyle ^= kprMarkdownEmphasis;
 					}
 					else {
 						if ((matched = (
-										(v1 == t1 || isspace(*(v1 - 1)))
+										(v1 == t1 || _IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || !isspace(*v2))
+										(v2 == t2 || !_IsSpace(*v2))
 						))) parser->fontStyle ^= kprMarkdownEmphasis;
 					}
 				}
@@ -2977,16 +3121,16 @@ _eof_trans:
 					else {
 						if (parser->fontStyle & kprMarkdownStrong) {
 							if ((matched = (
-											(v1 == t1 || !isspace(*(v1 - 1)))
+											(v1 == t1 || !_IsSpace(*(v1 - 1)))
 										&&
-											(v2 == t2 || isspace(*v2) || ispunct(*v2))
+											(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 							))) parser->fontStyle ^= kprMarkdownStrong;
 						}
 						else {
 							if ((matched = (
-											(v1 == t1 || isspace(*(v1 - 1)))
+											(v1 == t1 || _IsSpace(*(v1 - 1)))
 										&&
-											(v2 == t2 || !isspace(*v2))
+											(v2 == t2 || !_IsSpace(*v2))
 							))) parser->fontStyle ^= kprMarkdownStrong;
 						}
 					}
@@ -2995,16 +3139,16 @@ _eof_trans:
 					int strongEmphasis = kprMarkdownStrong | kprMarkdownEmphasis;
 					if ((parser->fontStyle & strongEmphasis) == strongEmphasis) {
 						if ((matched = (
-										(v1 == t1 || !isspace(*(v1 - 1)))
+										(v1 == t1 || !_IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || isspace(*v2) || ispunct(*v2))
+										(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 						))) parser->fontStyle &= ~strongEmphasis;
 					}
 					else {
 						if ((matched = (
-										(v1 == t1 || isspace(*(v1 - 1)))
+										(v1 == t1 || _IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || !isspace(*v2))
+										(v2 == t2 || !_IsSpace(*v2))
 						))) parser->fontStyle |= strongEmphasis;
 					}
 				}
@@ -3013,7 +3157,7 @@ _eof_trans:
 					bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				}
 				else if (!_mergeTextSpan(parser, str, offset, ts, te)) {
-					runRecord.type = kprMarkdownTextSpan; // no span text
+					runRecord.type = kprMarkdownTextSpan;
 					runRecord.colors = kprMarkdownTextColor;
 					runRecord.u.s.t.length = runRecord.u.s.v.length;
 					runRecord.u.s.t.offset = runRecord.u.s.v.offset;
@@ -3023,26 +3167,26 @@ _eof_trans:
 				}
 			}}
 	break;
-	case 26:
-#line 1618 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 42:
+#line 1730 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownMarkupBreak; // no span text
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownMarkupSpan;
 				runRecord.colors = kprMarkdownSpanMarkupColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
-				runRecord.u.s.t.length = -1;
-				runRecord.u.s.t.offset = 0;
-				runRecord.u.s.v.length = v2 - v1;
-				runRecord.u.s.v.offset = v1 - str - runRecord.offset;
+				runRecord.shaper = (state->depth == -1) ? 0 : 1;
+				runRecord.u.element = state->stack[0];
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
+				state->stack[0] = NULL;
 			}}
 	break;
-	case 27:
-#line 1650 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 43:
+#line 1743 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownTableColumnDivider; // no span text
+				runRecord.type = kprMarkdownTableColumnDivider;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -3052,22 +3196,24 @@ _eof_trans:
 				runRecord.u.s.v.offset = v1 - str - runRecord.offset;
 				(void)_mergeTableColumnDivider(parser, str, offset, ts, te, run);
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
+				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, inlineIndex, (void **)&inlineRun);
 				if (inlineRun->type == kprMarkdownParagraphLine) {
 					inlineRun->type = kprMarkdownTableLine; // change table line type
 				}
 			}}
 	break;
-	case 28:
-#line 1669 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 44:
+#line 1763 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				// caution: runs concurrently with other line patterns
+				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
 				if (inlineRun && (length == (te - ts))) {
 					// optimization where text is the span text
 					// there is no need to record any item
 				}
 				else if (!_mergeTextSpan(parser, str, offset, ts, te)) {
 					FskMemSet(run, 0, sizeof(runRecord));
-					runRecord.type = kprMarkdownTextSpan; // no span text
+					runRecord.type = kprMarkdownTextSpan;
 					runRecord.colors = kprMarkdownTextColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -3079,15 +3225,15 @@ _eof_trans:
 				}
 			}}
 	break;
-	case 29:
-#line 1472 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 45:
+#line 1580 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{{p = ((te))-1;}{
 				int matched = 0;
 				int size = (int)(v2 - v1);
 				t1 = str + offset;
 				t2 = str + offset + length;
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownFontStyle; // no span text
+				runRecord.type = kprMarkdownFontStyle;
 				runRecord.colors = kprMarkdownSpanMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -3098,16 +3244,16 @@ _eof_trans:
 				if (size == 1) {
 					if (parser->fontStyle & kprMarkdownEmphasis) {
 						if ((matched = (
-										(v1 == t1 || !isspace(*(v1 - 1)))
+										(v1 == t1 || !_IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || isspace(*v2) || ispunct(*v2))
+										(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 						))) parser->fontStyle ^= kprMarkdownEmphasis;
 					}
 					else {
 						if ((matched = (
-										(v1 == t1 || isspace(*(v1 - 1)))
+										(v1 == t1 || _IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || !isspace(*v2))
+										(v2 == t2 || !_IsSpace(*v2))
 						))) parser->fontStyle ^= kprMarkdownEmphasis;
 					}
 				}
@@ -3118,16 +3264,16 @@ _eof_trans:
 					else {
 						if (parser->fontStyle & kprMarkdownStrong) {
 							if ((matched = (
-											(v1 == t1 || !isspace(*(v1 - 1)))
+											(v1 == t1 || !_IsSpace(*(v1 - 1)))
 										&&
-											(v2 == t2 || isspace(*v2) || ispunct(*v2))
+											(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 							))) parser->fontStyle ^= kprMarkdownStrong;
 						}
 						else {
 							if ((matched = (
-											(v1 == t1 || isspace(*(v1 - 1)))
+											(v1 == t1 || _IsSpace(*(v1 - 1)))
 										&&
-											(v2 == t2 || !isspace(*v2))
+											(v2 == t2 || !_IsSpace(*v2))
 							))) parser->fontStyle ^= kprMarkdownStrong;
 						}
 					}
@@ -3136,16 +3282,16 @@ _eof_trans:
 					int strongEmphasis = kprMarkdownStrong | kprMarkdownEmphasis;
 					if ((parser->fontStyle & strongEmphasis) == strongEmphasis) {
 						if ((matched = (
-										(v1 == t1 || !isspace(*(v1 - 1)))
+										(v1 == t1 || !_IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || isspace(*v2) || ispunct(*v2))
+										(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 						))) parser->fontStyle &= ~strongEmphasis;
 					}
 					else {
 						if ((matched = (
-										(v1 == t1 || isspace(*(v1 - 1)))
+										(v1 == t1 || _IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || !isspace(*v2))
+										(v2 == t2 || !_IsSpace(*v2))
 						))) parser->fontStyle |= strongEmphasis;
 					}
 				}
@@ -3154,7 +3300,7 @@ _eof_trans:
 					bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				}
 				else if (!_mergeTextSpan(parser, str, offset, ts, te)) {
-					runRecord.type = kprMarkdownTextSpan; // no span text
+					runRecord.type = kprMarkdownTextSpan;
 					runRecord.colors = kprMarkdownTextColor;
 					runRecord.u.s.t.length = runRecord.u.s.v.length;
 					runRecord.u.s.t.offset = runRecord.u.s.v.offset;
@@ -3164,17 +3310,33 @@ _eof_trans:
 				}
 			}}
 	break;
-	case 30:
-#line 1669 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	case 46:
+#line 1730 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+	{{p = ((te))-1;}{
+				FskMemSet(run, 0, sizeof(runRecord));
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownMarkupSpan;
+				runRecord.colors = kprMarkdownSpanMarkupColor;
+				runRecord.length = te - ts;
+				runRecord.offset = ts - str;
+				runRecord.shaper = (state->depth == -1) ? 0 : 1;
+				runRecord.u.element = state->stack[0];
+				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
+				state->stack[0] = NULL;
+			}}
+	break;
+	case 47:
+#line 1763 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{{p = ((te))-1;}{
 				// caution: runs concurrently with other line patterns
+				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
 				if (inlineRun && (length == (te - ts))) {
 					// optimization where text is the span text
 					// there is no need to record any item
 				}
 				else if (!_mergeTextSpan(parser, str, offset, ts, te)) {
 					FskMemSet(run, 0, sizeof(runRecord));
-					runRecord.type = kprMarkdownTextSpan; // no span text
+					runRecord.type = kprMarkdownTextSpan;
 					runRecord.colors = kprMarkdownTextColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -3186,7 +3348,7 @@ _eof_trans:
 				}
 			}}
 	break;
-#line 3190 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 3352 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -3195,11 +3357,11 @@ _again:
 	_nacts = (unsigned int) *_acts++;
 	while ( _nacts-- > 0 ) {
 		switch ( *_acts++ ) {
-	case 13:
+	case 29:
 #line 1 "NONE"
 	{ts = 0;}
 	break;
-#line 3203 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 3365 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -3216,7 +3378,7 @@ _again:
 
 	}
 
-#line 1693 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1788 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 
 	
 	if ((cs == md_inline_error) || (cs < md_inline_first_final)) {
@@ -3224,16 +3386,28 @@ _again:
 	}
 bail:
 	if (inlineRun) {
+		FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, inlineIndex, (void **)&inlineRun);
 		inlineRun->count = (SInt32)FskGrowableArrayGetItemCount((FskGrowableArray)parser->runs) - inlineRun->index;
 		if (err == kFskErrNone) {
 			KprMarkdownRun spanRun = NULL;
 			SInt32 count = inlineRun->count, index;
 			for (index = 0; index < count; index++) {
-				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, inlineRun->index + index, (void **)&spanRun);
-				if (spanRun->type & 0x80) { // span text flag
-					spanRun->type &= ~0x80; // clear span text flag
+				SInt32 spanIndex = inlineRun->index + index;
+				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, spanIndex, (void **)&spanRun);
+				if (spanRun->count == kprMarkdownCountDirective) {
 					spanRun->index = (SInt32)FskGrowableArrayGetItemCount((FskGrowableArray)parser->runs);
-					bailIfError(KprMarkdownParseInline(parser, str, spanRun->offset + spanRun->u.s.t.offset, spanRun->u.s.t.length, spanRun));
+					if (spanRun->type == kprMarkdownMarkupSpan) { // union special case: u.element
+						if (spanRun->u.element && spanRun->u.element->t.length > 0) {
+							bailIfError(KprMarkdownParseInline(parser, str, spanRun->offset + spanRun->u.element->t.offset, spanRun->u.element->t.length, flags, spanIndex, spanRun));
+							FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, spanIndex, (void **)&spanRun);
+						}
+						else
+							spanRun->count = 0;
+					}
+					else {
+						bailIfError(KprMarkdownParseInline(parser, str, spanRun->offset + spanRun->u.s.t.offset, spanRun->u.s.t.length, flags, spanIndex, spanRun));
+						FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, spanIndex, (void **)&spanRun);
+					}
 				}
 			}
 			for (index = 0; index < count; index++) {
@@ -3461,18 +3635,12 @@ FskErr KprMarkdownPrintDebugInfoInline(KprMarkdownParser parser, char *str, KprM
 				fprintf(stdout, "\n");
 				break;
 				
-			case kprMarkdownMarkupBreak:
-				fprintf(stdout, "%d%*d%*d markup_break: ", (int)depth, (int)indent, (int)offset, INDENT, (int)length);
-				fwrite(str + spanRun->offset + spanRun->u.s.v.offset, spanRun->u.s.v.length, 1, stdout);
-				fprintf(stdout, "\n");
-				break;
-				
-			case kprMarkdownMarkupStyleSpan:
-				fprintf(stdout, "%d%*d%*d markup_style_span: ", (int)depth, (int)indent, (int)offset, INDENT, (int)length);
-				fwrite(str + spanRun->offset + spanRun->u.s.t.offset, spanRun->u.s.t.length, 1, stdout);
-				if (spanRun->u.s.v.length > 1) {
+			case kprMarkdownMarkupSpan: // union special case: u.element
+				fprintf(stdout, "%d%*d%*d markup_span[%d]: ", (int)depth, (int)indent, (int)offset, INDENT, (int)length, (int)spanRun->shaper);
+				fwrite(str + spanRun->offset, spanRun->length, 1, stdout);
+				if (spanRun->u.element && spanRun->u.element->t.length > 0) {
 					fprintf(stdout, " | ");
-					fwrite(str + spanRun->offset + spanRun->u.s.v.offset, spanRun->u.s.v.length, 1, stdout);
+					fwrite(str + spanRun->offset + spanRun->u.element->t.offset, spanRun->u.element->t.length, 1, stdout);
 				}
 				fprintf(stdout, "\n");
 				break;
@@ -3600,6 +3768,7 @@ FskErr KprMarkdownWriteHTML(KprMarkdownParser parser, char *str, FILE *stream)
 				break;
 				
 			case kprMarkdownMarkupLine: // union special case: u.element
+				fprintf(stream, "\n");
 				fwrite(str + lineRun->offset, lineRun->length - 1, 1, stream);
 				break;
 				
@@ -3730,20 +3899,8 @@ FskErr KprMarkdownWriteHTMLInline(KprMarkdownParser parser, char *str, FILE *str
 					fprintf(stream, "</a>");
 					break;
 					
-				case kprMarkdownMarkupBreak:
-					fprintf(stream, "<br />");
-					break;
-					
-				case kprMarkdownMarkupStyleSpan:
-					fprintf(stream, "<span");
-					if (spanRun->u.s.v.length > 0) {
-						fprintf(stream, " style=\"");
-						fwrite(str + spanRun->offset + spanRun->u.s.v.offset, spanRun->u.s.v.length, 1, stream);
-						fprintf(stream, "\"");
-					}
-					fprintf(stream, ">");
-					bailIfError(KprMarkdownWriteHTMLInline(parser, str, stream, spanRun));
-					fprintf(stream, "</span>");
+				case kprMarkdownMarkupSpan: // union special case: u.element
+					fwrite(str + spanRun->offset, spanRun->length - 0, 1, stream);
 					break;
 					
 				case kprMarkdownTableColumnDivider:

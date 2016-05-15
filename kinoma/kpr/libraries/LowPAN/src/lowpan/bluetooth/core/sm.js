@@ -29,17 +29,7 @@ var ByteBuffer = Buffers.ByteBuffer;
 var BTUtils = require("./btutils");
 var BluetoothAddress = BTUtils.BluetoothAddress;
 
-var logger = new Logger("SM");
-logger.loggingLevel = Utils.Logger.Level.INFO;
-
-exports.setLoggingLevel = level => logger.loggingLevel = level;
-
-/** Lower HCI layer instance/module */
-var _hci = null;
-
-exports.registerHCI = function (hci) {
-	_hci = hci;
-};
+var logger = Logger.getLogger("SM");
 
 const Code = {
 	PAIRING_REQUEST: 0x01,
@@ -111,14 +101,18 @@ const PASSKEY_MAXIMUM = 999999;
 const FORCE_LTK = true;		// FIXME: Temporary workaround for testing
 
 class SecurityManagement {
-	constructor(connection, keyMgmt, parameter) {
+	constructor(hci, connection, keyMgmt, parameter) {
+		this._hci = hci;
 		this._connection = connection;
 		this._parameter = parameter;
 		this._keyMgmt = keyMgmt;
 		this._delegate = null;
 		connection.delegate = this;
-		connection.getHCILink().security = this;
+		connection.link.security = this;
 		this.reset();
+	}
+	get hci() {
+		return this._hci;
 	}
 	get connection() {
 		return this._connection;
@@ -134,13 +128,13 @@ class SecurityManagement {
 	}
 	/* Public API */
 	startEncryption() {
-		let link = this._connection.getHCILink();
+		let link = this._connection.link;
 		if (link.isLESlave()) {
 			/* Slave Security Request */
 			this.sendCommand(assembleValue8(Code.SECURITY_REQUEST, this.generateAuthReq()));
 		} else {
-			let bond = this._delegate.findBondByAddress(link.remoteAddress);
-			if (bond == null || bond.keys.longTermKey == null) {
+			let info = this._delegate.findBondByAddress(link.remoteAddress);
+			if (info == null || info.keys.longTermKey == null) {
 				logger.debug("No LTK or Security level issue");
 				this.startPairing(true);
 				return;
@@ -149,7 +143,7 @@ class SecurityManagement {
 				logger.debug("Already encrypted, will refresh");
 			}
 			logger.debug("Start encryption using current LTK");
-			link.startEncryption(bond.keys.random, bond.keys.ediv, bond.keys.longTermKey);
+			link.startEncryption(info.keys.random, info.keys.ediv, info.keys.longTermKey);
 		}
 	}
 	/* Public API */
@@ -237,7 +231,7 @@ class SecurityManagement {
 		logger.debug("End Legacy Phase 2: stk=" + Utils.toFrameString(stk));
 		this._state = null;
 		this._shortTermKey = stk;
-		let link = this._connection.getHCILink();
+		let link = this._connection.link;
 		if (this._pairingInfo.initiator) {
 			logger.debug("Legacy: Start encryption using STK");
 			link.startEncryption(new Uint8Array(8).fill(0), 0x0000, stk);
@@ -269,7 +263,7 @@ class SecurityManagement {
 			{
 				logger.debug("Got Security Request");
 				let authReq = buffer.getInt8();
-				let link = this._connection.getHCILink();
+				let link = this._connection.link;
 				if (link.isLESlave() || this._state != null) {
 					return;		// Ignore
 				}
@@ -321,7 +315,7 @@ class SecurityManagement {
 	}
 	/* HCI Callback (LELink) */
 	longTermKeyRequested(link, random, ediv) {
-		if (arrayIsZero(random) && ediv == 0) {
+		if (BTUtils.arrayIsZero(random) && ediv == 0) {
 			logger.debug("STK is requested");
 			if (this._shortTermKey == null) {
 				logger.debug("STK is not ready yet");
@@ -518,6 +512,7 @@ class PairingFeatureExchangeState extends State {
 					info.method = selectKeyGenerationMethod(remoteFeature, localFeature, info.legacy);
 				}
 				this.log("Method selected: " + info.method.toString());
+				info.authenticated = (info.method != KeyGenerationMethod.JUST_WORKS);
 				if (this._smCtx.featureExchanged(info)) {
 					if (!info.initiator) {
 						this.log("Reply with Pairing Response");
@@ -540,12 +535,15 @@ class LELegacyPairingState extends State {
 		this._temporaryKey = undefined;
 		this._random = null;
 		this._confirm = null;
+		this.c1 = generateLELegacyConfirmValue.bind(null, smCtx.hci.encrypt);
+		this.s1 = generateLELegacyKey.bind(null, smCtx.hci.encrypt);
+		this.random128 = random128.bind(null, smCtx.hci.random64);
 	}
 	generateRandom() {
 		if (this._random != null) {
 			return Promise.resolve(this._random);
 		}
-		return random128().then(random => {
+		return this.random128().then(random => {
 			this.log("Set Random128: " + Utils.toFrameString(random));
 			this._random = random;
 			return random;
@@ -554,7 +552,7 @@ class LELegacyPairingState extends State {
 	generateConfirmValue(random) {
 		let iaddr;
 		let raddr;
-		let link = this._smCtx.connection.getHCILink();
+		let link = this._smCtx.connection.link;
 		if (this._smCtx.pairingInfo.initiator) {
 			iaddr = link.localAddress;
 			raddr = link.remoteAddress;
@@ -562,7 +560,7 @@ class LELegacyPairingState extends State {
 			iaddr = link.remoteAddress;
 			raddr = link.localAddress;
 		}
-		return generateLELegacyConfirmValue(
+		return this.c1(
 			this._temporaryKey, random,
 			this._smCtx.pairingInfo.response,
 			this._smCtx.pairingInfo.request,
@@ -626,7 +624,7 @@ class LELegacyPairingState extends State {
 							r2 = remoteRandom;
 						}
 						this.log("Generate STK");
-						generateLELegacyKey(this._temporaryKey, r1, r2).then(stk => {
+						this.s1(this._temporaryKey, r1, r2).then(stk => {
 							this._smCtx.shortTermKeyGenerated(stk);
 						});
 					} else {
@@ -685,7 +683,7 @@ class KeyDistributionState extends State {
 			let identityAddress = this._smCtx.parameter.identityAddress;
 			if (identityAddress == null) {
 				this.log("Force using Public Address as identity");
-				identityAddress = _hci.getPublicAddress();
+				identityAddress = this._smCtx.hci.publicAddress;
 			}
 			promises.push(
 				this._keyMgmt.generateIRK().then(irk => {
@@ -768,35 +766,6 @@ class KeyDistributionState extends State {
 }
 
 /******************************************************************************
- * Utils
- ******************************************************************************/
-
-function arrayIsZero(a, len = a.length) {
-	for (let i = 0; i < len; i++) {
-		if (a[i] != 0) {
-			return false;
-		}
-	}
-	return true;
-}
-
-function arrayXOR(a1, a2, len = a1.length) {
-	let xrd = new Uint8Array(len);
-	for (let i = 0; i < len; i++) {
-		xrd[i] = a1[i] ^ a2[i];
-	}
-	return xrd;
-}
-
-function arraySwap(ar) {
-	let sw = new Uint8Array(ar.length);
-	for (let i = 0; i < sw.length; i++) {
-		sw[i] = ar[sw.length - i - 1];
-	}
-	return sw;
-}
-
-/******************************************************************************
  * SMP PDUs
  ******************************************************************************/
 
@@ -867,7 +836,7 @@ function assembleIdentityAddressInformation(address) {
 /**
  * A.1.1 DIV Mask generation function dm
  */
-function divMaskGeneration(k, r) {
+function divMaskGeneration(encrypt, k, r) {
 	let rd = new Uint8Array(16);
 	rd.set(r);	// LSB First
 	logger.trace("rd=" + Utils.toFrameString(rd));
@@ -880,7 +849,10 @@ function divMaskGeneration(k, r) {
  * Appendix B Key Management
  ******************************************************************************/
 
-function diversifying(k, d, r) {
+/**
+ * B.2.1 Diversifying function d1
+ */
+function diversifying(encrypt, k, d, r) {
 	let buffer = ByteBuffer.allocateUint8Array(16, true);	// LSB First
 	buffer.putInt16(d);				// 16bit = 2octets
 	buffer.putInt16(r);				// 16bit = 2octets
@@ -894,11 +866,19 @@ class DefaultKeyManagement {
 		this._ir = ir;
 		this._er = er;
 		this._random = null;
+		this._random64 = null;
+	}
+	set encrypt(encrypt) {
+		this.dm = divMaskGeneration.bind(null, encrypt);
+		this.d1 = diversifying.bind(null, encrypt);
+	}
+	set random64(random64) {
+		this._random64 = random64;
 	}
 	generateEDIV(div) {
-		return Promise.all([this.generateDHK(), random64()]).then(r => {
+		return Promise.all([this.generateDHK(), this._random64()]).then(r => {
 			this._random = r[1];
-			return divMaskGeneration(r[0], r[1]);
+			return this.dm(r[0], r[1]);
 		}).then(y => {
 			return {
 				random: this._random,
@@ -908,27 +888,27 @@ class DefaultKeyManagement {
 	}
 	recoverDIV(random, ediv) {
 		return this.generateDHK().then(dhk => {
-			return divMaskGeneration(dhk, random);
+			return this.dm(dhk, random);
 		}).then(y => {
 			return y ^ ediv
 		});
 	}
 	generateLTK(div) {
 		/* TODO: Apply key size */
-		return diversifying(this._er, div, 0);
+		return this.d1(this._er, div, 0);
 	}
 	generateCSRK(div) {
-		return diversifying(this._er, div, 1);
+		return this.d1(this._er, div, 1);
 	}
 	generateIRK() {
-		return diversifying(this._ir, 1, 0);
+		return this.d1(this._ir, 1, 0);
 	}
 	generateDHK() {
-		return diversifying(this._ir, 3, 0);
+		return this.d1(this._ir, 3, 0);
 	}
 	generateLTKFromEDIV(random, ediv) {
 		return this.generateDHK().then(dhk => {
-			return divMaskGeneration(dhk, random);
+			return this.dm(dhk, random);
 		}).then(y => {
 			let div = y ^ ediv;
 			return this.generateLTK(div)
@@ -941,23 +921,7 @@ exports.DefaultKeyManagement = DefaultKeyManagement;
  * 2.2 Crypto Toolbox
  ******************************************************************************/
 
-function random64() {
-	return new Promise((resolve, reject) => {
-		_hci.LE.rand({
-			commandComplete: (opcode, buffer) => {
-				let status = buffer.getInt8();
-				if (status == 0) {
-					resolve(buffer.getByteArray(8));
-				} else {
-					logger.error("LE rand failed: status=" + Utils.toHexString(status));
-					reject(status);
-				}
-			}
-		});
-	});
-}
-
-function random128() {
+function random128(random64) {
 	return Promise.all([random64(), random64()]).then(rand => {
 		let rand128 = new Uint8Array(16);
 		rand128.set(rand[0]);
@@ -967,29 +931,9 @@ function random128() {
 }
 
 /**
- * 2.2.1 Security function e
- */
-function encrypt(key, plainData) {
-	return new Promise((resolve, reject) => {
-		_hci.LE.encrypt(key, plainData, {
-			commandComplete: (opcode, buffer) => {
-				let status = buffer.getInt8();
-				if (status == 0) {
-					let e = buffer.getByteArray(16);
-					resolve(e);
-				} else {
-					logger.error("LE encryption failed: status=" + Utils.toHexString(status));
-					reject(status);
-				}
-			}
-		});
-	});
-}
-
-/**
  * 2.2.2 Random Address Hash function ah
  */
-function generateRandomAddressHash(k, r) {
+function generateRandomAddressHash(encrypt, k, r) {
 	let rd = new Uint8Array(16);
 	rd.set(r);	// LSB First
 	logger.trace("rd=" + Utils.toFrameString(rd));
@@ -1001,7 +945,7 @@ function generateRandomAddressHash(k, r) {
 /**
  * 2.2.3 Confirm value generation function c1 for LE Legacy Pairing
  */
-function generateLELegacyConfirmValue(k, r, pres, preq, iat, ia, rat, ra) {
+function generateLELegacyConfirmValue(encrypt, k, r, pres, preq, iat, ia, rat, ra) {
 	let p1 = new Uint8Array(16);
 	/* LSB First */
 	p1[0] = iat & 0x01;
@@ -1015,10 +959,10 @@ function generateLELegacyConfirmValue(k, r, pres, preq, iat, ia, rat, ra) {
 	logger.trace("p1=" + Utils.toFrameString(p1));
 	logger.trace("p2=" + Utils.toFrameString(p2));
 	logger.trace("r=" + Utils.toFrameString(r));
-	let p1d = arrayXOR(r, p1);
+	let p1d = BTUtils.arrayXOR(r, p1);
 	logger.trace("p1'=" + Utils.toFrameString(p1d));
 	return encrypt(k, p1d).then(e => {
-		let p2d = arrayXOR(e, p2);
+		let p2d = BTUtils.arrayXOR(e, p2);
 		logger.trace("p2'=" + Utils.toFrameString(p2d));
 		return encrypt(k, p2d);
 	});
@@ -1027,7 +971,7 @@ function generateLELegacyConfirmValue(k, r, pres, preq, iat, ia, rat, ra) {
 /**
  * 2.2.4 Key generation function s1 for LE Legacy Pairing
  */
-function generateLELegacyKey(k, r1, r2) {
+function generateLELegacyKey(encrypt, k, r1, r2) {
 	let rd = new Uint8Array(16);	// LSB First
 	rd.set(r2.slice(0, 8), 0);
 	rd.set(r1.slice(0, 8), 8);
@@ -1035,12 +979,12 @@ function generateLELegacyKey(k, r1, r2) {
 	return encrypt(k, rd);
 }
 
-exports.generatePrivateAddress = function (irk) {
+exports.generatePrivateAddress = (encrypt, random64, irk) => {
 	return random64().then(r => {
 		let prand = r.slice(0, 3);
 		prand[2] &= ~0x80;
 		logger.trace("prand=" + Utils.toFrameString(prand));
-		return generateRandomAddressHash(irk, prand).then(hash => {
+		return generateRandomAddressHash(encrypt, irk, prand).then(hash => {
 			logger.trace("hash=" + Utils.toFrameString(hash));
 			let address = new Uint8Array(6);
 			address.set(hash);
@@ -1050,11 +994,11 @@ exports.generatePrivateAddress = function (irk) {
 	});
 };
 
-exports.resolvePrivateAddress = function (irk, address) {
+exports.resolvePrivateAddress = (encrypt, irk, address) => {
 	let array = address.getRawArray();
 	let prand = array.slice(3);
 	logger.trace("prand=" + Utils.toFrameString(prand));
-	return generateRandomAddressHash(irk, prand).then(hash => {
+	return generateRandomAddressHash(encrypt, irk, prand).then(hash => {
 		logger.trace("hash=" + Utils.toFrameString(hash));
 		return BTUtils.isArrayEquals(hash, array.slice(0, 3));
 	});

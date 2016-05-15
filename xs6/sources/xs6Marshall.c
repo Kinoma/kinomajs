@@ -138,6 +138,7 @@ void fxDemarshallSlot(txMachine* the, txSlot* theSlot, txSlot* theResult, txID* 
 	case XS_INTEGER_KIND:
 	case XS_NUMBER_KIND:
 	case XS_DATE_KIND:
+	case XS_ERROR_KIND:
 	case XS_STRING_X_KIND:
 		theResult->value = theSlot->value;
 		theResult->kind = theSlot->kind;
@@ -368,6 +369,7 @@ void fxMarshallSlot(txMachine* the, txSlot* theSlot, txSlot** theSlotAddress, tx
 	case XS_INTEGER_KIND:
 	case XS_NUMBER_KIND:
 	case XS_DATE_KIND:
+	case XS_ERROR_KIND:
 	case XS_STRING_X_KIND:
 		break;
 	case XS_STRING_KIND: {
@@ -487,6 +489,7 @@ void fxMeasureSlot(txMachine* the, txSlot* theSlot, txMarshallBuffer* theBuffer,
 	case XS_INTEGER_KIND:
 	case XS_NUMBER_KIND:
 	case XS_DATE_KIND:
+	case XS_ERROR_KIND:
 	case XS_STRING_X_KIND:
 		break;
 	case XS_STRING_KIND:

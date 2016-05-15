@@ -40,7 +40,7 @@ extern "C" {
  *	\param[in]	srcRect			The subrect of the source to be transformed. If NULL, implies the full source.
  *	\param[in]	dstBM			the destination bitmap.
  *	\param[in]	dstClip			the destination clipping rectangle (may be NULL).
- *	\param[in]	M				the perspective matrix.
+ *	\param[in]	M				the perspective matrix, 3x3.
  *	\param[in]	opColor			Operation color used if needed for the given transfer mode.
  *	\param[in]	mode			Transfer mode, incorporating quality.
  *	\param[in]	modeParams		We get blend level from here.
@@ -55,7 +55,7 @@ FskProjectBitmap(
 	FskConstRectangle				srcRect,
 	FskBitmap						dstBM,
 	FskConstRectangle				dstClip,
-	const float						M[3][3],
+	float							(*const M)[3],
 	FskConstColorRGBA				opColor,
 	UInt32							mode,
 	FskConstGraphicsModeParameters	modeParams

@@ -99,8 +99,10 @@ macro(BUILD)
 		add_custom_command(
 			TARGET ${LOCAL_APPLICATION}
 			POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${LOCAL_APPLICATION}.app
 			COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${LOCAL_APPLICATION}.app/${LOCAL_APPLICATION} ${APP_DIR}
+			COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR} ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/${LOCAL_APPLICATION}.app
+			COMMAND codesign -f -v -s ${LOCAL_HASH} --entitlements ${TMP_DIR}/Entitlements.plist ${TMP_DIR}/${CMAKE_CFG_INTDIR}/${LOCAL_APPLICATION}.app
+			COMMAND xcrun -sdk iphoneos PackageApplication ${APP_DIR} -o ${APP_IPA}
 			)
 	else()
 		add_custom_command(
@@ -108,15 +110,9 @@ macro(BUILD)
 			POST_BUILD
 			COMMAND ${CMAKE_COMMAND} -E copy  $<TARGET_FILE:${LOCAL_APPLICATION}> ${APP_DIR}
 			COMMAND dsymutil $<TARGET_FILE:${LOCAL_APPLICATION}> -o $<TARGET_FILE:${LOCAL_APPLICATION}>.dSYM
+			COMMAND codesign -f -v -s ${LOCAL_HASH} --entitlements ${TMP_DIR}/Entitlements.plist ${TMP_DIR}/${LOCAL_APPLICATION}.app
+			COMMAND codesign -f -v -s ${LOCAL_HASH} --entitlements ${TMP_DIR}/Entitlements.plist ${APP_DIR}
+			COMMAND xcrun -sdk iphoneos PackageApplication ${APP_DIR} -o ${APP_IPA}
 			)
 	endif()
-
-	add_custom_command(
-		TARGET ${LOCAL_APPLICATION}
-		POST_BUILD
-		COMMAND codesign -f -v -s ${LOCAL_HASH} --entitlements ${TMP_DIR}/Entitlements.plist ${TMP_DIR}/${CMAKE_CFG_INTDIR}/${LOCAL_APPLICATION}.app
-		COMMAND codesign -f -v -s ${LOCAL_HASH} --entitlements ${TMP_DIR}/Entitlements.plist ${APP_DIR}
-		COMMAND xcrun -sdk iphoneos PackageApplication ${APP_DIR} -o ${APP_IPA}
-		VERBATIM
-		)
 endmacro()

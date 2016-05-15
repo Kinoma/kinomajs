@@ -54,7 +54,7 @@ let handlers = {
 				http.errorResponse(400, HTTP_ERROR_400);
 		}
 		catch(error) {
-			http.errorResponse(505, HTTP_ERROR_505);
+			http.errorResponse(500, HTTP_ERROR_505);
 		}
 	},
 	connect(http, query) {
@@ -68,7 +68,7 @@ let handlers = {
 			if (xs.login(host, name))
 				http.response();
 			else
-				http.errorResponse(505, HTTP_ERROR_505);
+				http.errorResponse(500, HTTP_ERROR_505);
 		}
 		else
 			http.errorResponse(400, HTTP_ERROR_400);
@@ -129,13 +129,12 @@ let handlers = {
 				return;
 			}
 			let parts = query.path.split("/");
-			let c = parts.length;
-			let f = parts[c - 1];	// file name
+			let f = parts.slice(2).join("/");	// file path
 			let Files = require.weak("files");
 			Files.deleteFile(Files.applicationDirectory + "/" + f);
 			http.response();
 		} catch(error) {
-			http.errorResponse(505, HTTP_ERROR_505);
+			http.errorResponse(500, HTTP_ERROR_505);
 		}
 	},
 	upload(http, query) {
@@ -146,14 +145,13 @@ let handlers = {
 			}
 			if (http.content) {
 				let parts = query.path.split("/");
-				let c = parts.length;
-				let f = parts[c - 1];	// file name
+				let f = parts.slice(2).join("/");	// file path
 				let Files = require.weak("files");
 				Files.write(Files.applicationDirectory + "/" + f, http.content);
 			}
 			http.response();
 		} catch(error) {
-			http.errorResponse(505, HTTP_ERROR_505);
+			http.errorResponse(500, HTTP_ERROR_505);
 		}
 	}
 };

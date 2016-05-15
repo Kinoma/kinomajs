@@ -209,7 +209,7 @@ export var SampleGraphContainer = Port.template($ => ({
 			port.invalidate();
 		}
 		drawSample(port, x, sampleWidth, fraction) {
-			var sampleHeight = fraction * port.height;
+			var sampleHeight = Math.floor(fraction * port.height);
 			if (sampleHeight <= 1)
 				sampleHeight = 1;
 			var y = port.height - sampleHeight;

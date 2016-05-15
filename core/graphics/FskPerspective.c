@@ -110,7 +110,7 @@ static void LogProjectBitmap(
 	FskConstRectangle				srcRect,	/* Map this rect... */
 	FskBitmap						dstBM,
 	FskConstRectangle				dstClip,	/* But clip thuswise */
-	const float						M[3][3],
+	float							(*const M)[3],
 	FskConstColorRGBA				opColor,
 	UInt32							mode,
 	FskConstGraphicsModeParameters	modeParams	/* We get blend level and tint color from here */
@@ -155,7 +155,7 @@ FskErr FskProjectBitmap(
 	FskConstRectangle				srcRect,
 	FskBitmap						dstBM,
 	FskConstRectangle				dstClip,
-	const float						M[3][3],
+	float							(*const M)[3],
 	FskConstColorRGBA				opColor,
 	UInt32							mode,
 	FskConstGraphicsModeParameters	modeParams
@@ -211,8 +211,7 @@ FskErr FskProjectBitmap(
 		dstBaseAddr += dstBounds.y * dstBM->rowBytes;
 	}
 
-	err = FskProjectImage(srcBaseAddr, srcBM->pixelFormat, srcBM->rowBytes, srcBounds.width, srcBounds.height,
-			(const float(*)[3])T, 0, NULL, mode, modeParams,
+	err = FskProjectImage(srcBaseAddr, srcBM->pixelFormat, srcBM->rowBytes, srcBounds.width, srcBounds.height, T, 0, NULL, mode, modeParams,
 			dstBaseAddr, dstBM->pixelFormat, dstBM->rowBytes, dstBounds.width, dstBounds.height, 0, NULL
 		);
 
@@ -667,7 +666,7 @@ FskErr FskProjectBitmap3D(
 	PrintMatrix("pec",            P[0], 4, 4);
 	PrintMatrix("mec",            M[0], 3, 3);
 #endif /* 0 */
-	return FskProjectBitmap(srcBM, srcRect, dstBM, dstClip, (const float(*)[3])M, opColor, mode, modeParams);
+	return FskProjectBitmap(srcBM, srcRect, dstBM, dstClip, M, opColor, mode, modeParams);
 }
 
 

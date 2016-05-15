@@ -48,17 +48,23 @@ export default class Create extends DeviceConfig {
 			}
 		};
 	}
+	get softwareUpdateTarget() {
+		if (model.elementSoftwareUpdatePreRelease)
+			return getEnvironmentVariable("CREATE_SOFTWARE_TEST");
+		else
+			return getEnvironmentVariable("CREATE_SOFTWARE_TARGET")
+	}
+	get systemUpdateTarget() {
+		return getEnvironmentVariable("CREATE_FIRMWARE_TARGET");
+	}
 	getUpdateInfo() {
-		var software = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update?target=" + getEnvironmentVariable("CREATE_SOFTWARE_TARGET"));
-		software.setRequestHeader("Accept", "application/json");
-		software.setRequestCertificate(updateCredentials);
-		var system = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update?target=" + getEnvironmentVariable("CREATE_FIRMWARE_TARGET"));
-		system.setRequestHeader("Accept", "application/json");
-		system.setRequestCertificate(updateCredentials);
-		return Promise.all([
-			software.invoke(Message.JSON).then(json => { return json }),
-			system.invoke(Message.JSON).then(json => { return json }),
-		]);
+		var message = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update-info?target="
+			+ getEnvironmentVariable("CREATE_SOFTWARE_TARGET") + ","
+			+ getEnvironmentVariable("CREATE_SOFTWARE_TEST") + ","
+			+ getEnvironmentVariable("CREATE_FIRMWARE_TARGET"));
+		message.setRequestHeader("Accept", "application/json");
+		message.setRequestCertificate(updateCredentials);
+		return message.invoke(Message.JSON);
 	}
 	isSimulator() {
 		return this.systemVersion.indexOf(getEnvironmentVariable("OS")) == 0;
@@ -155,9 +161,10 @@ export default class Create extends DeviceConfig {
 		data.SUBTITLE.string = "Downloading Update";
 		data.INFO.string = "Please keep the device connected and powered during the update.";
 		openDialog(this.updateDialog);
+		let target = this.softwareUpdateTarget;
 		return this.wsRequest({
 			handler: "updateSoftware",
-			update: this.update[0],
+			update: this.update[target][0].info,
 		});
 	}
 	updateSoftwareError(data) {
@@ -179,16 +186,17 @@ export default class Create extends DeviceConfig {
 			handler: "updateSoftwareStatus",
 		});
 	}
-	updateSystem() {
+	updateSystem(data) {
 		data.duration = 1000;
 		this.updateDialog = new UpdateDialog(data);
-		data.TITLE.string = "Updating \"" + this.name + "\" to " + data.title + " " + this.softwareUpdateVersion + "...",
+		data.TITLE.string = "Updating \"" + this.name + "\" to " + data.title + " " + this.systemUpdateVersion + "...",
 		data.SUBTITLE.string = "Downloading Update";
 		data.INFO.string = "Please keep the device connected and powered during the update.";
 		openDialog(this.updateDialog);
+		let target = this.systemUpdateTarget;
 		return this.wsRequest({
 			handler: "updateSystem",
-			update: this.update[1],
+			update: this.update[target][0].info,
 		});
 	}
 	updateSystemError(data) {
@@ -281,4 +289,26 @@ Create.apps = {
 //		Tile: BLLExplorerTile,
 //		View: BLLExplorerView
 //	},
+}
+
+Create.serial = {
+	description: {
+		vendor: 0x0403,
+		product: 0x6015,
+		name: "FT230X Basic UART",
+	},
+	settings: {
+		name: "Kinoma Create",
+		baud: 115200,
+		bits: 8,
+		parity: "N",
+		stop: 1,
+	},
+	shortcuts: [
+	]
+}
+
+Create.preferences = {
+	discoveryFlag: true,
+	serialFlag: true,
 }

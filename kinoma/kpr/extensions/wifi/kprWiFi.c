@@ -45,7 +45,7 @@ KprServiceRecord gWiFiService = {
 #define kRequestSize 0x200
 #define kResponseSize 0x4000
 
-#if MINITV || RASPBERRY_PI || EDISON
+#if MINITV || USE_WPACONFIG
 #include <sys/un.h>
 #include <sys/socket.h>
 #include <net/if.h>
@@ -64,7 +64,7 @@ struct wpa_ctrl {
 	UInt32 responseSize;
 };
 
-#if BG3CDP || RASPBERRY_PI || EDISON
+#if USE_WPACONFIG
 #define CONFIG_CTRL_IFACE "/var/run/wpa_supplicant/wlan0"
 #else
 #define CONFIG_CTRL_IFACE "/var/run/wpa_supplicant/mlan0"
@@ -385,7 +385,7 @@ FskErr KprWiFiLevel(char* request, char* response, UInt32 responseSize, UInt32 *
     if (fp != NULL){
         while (fgets(line, sizeof(line)-1, fp) != NULL) {
             char *linePtr = FskStrStripHeadSpace(line);
-            // wlan0 for BG3CDP
+            // wlan0 or mlan0
             if (FskStrStr(linePtr, "mlan0") || FskStrStr(linePtr, "wlan0")) {
                 char interface[32], status[32], link[32], level[32], noise[32];
                 level[0] = 0;
@@ -842,7 +842,7 @@ void KprWiFiInvoke(KprService service, KprMessage message)
 		}
 		else if (FskStrCompareWithLength("p2p_start", message->parts.name, message->parts.nameLength) == 0) {
             fprintf(stderr, "kprWiFi ===== > p2p_start: \n");
-            #if BG3CDP || RASPBERRY_PI || EDISON
+            #if USE_WPACONFIG
 			    int ret = system("system/wifi.sh p2p_start");
 			    sprintf(response, "{\"status\": %d}", ret);
             #else
@@ -852,7 +852,7 @@ void KprWiFiInvoke(KprService service, KprMessage message)
             fprintf(stderr, "kprWiFi ===== > p2p_start: response=%s\n", response);
 		}
 		else if (FskStrCompareWithLength("p2p_stop", message->parts.name, message->parts.nameLength) == 0) {
-            #if BG3CDP || RASPBERRY_PI || EDISON
+            #if USE_WPACONFIG
 			    int ret = system("system/wifi.sh p2p_stop");
 			    sprintf(response, "{\"status\": %d}", ret);
             #else
@@ -863,7 +863,7 @@ void KprWiFiInvoke(KprService service, KprMessage message)
 		}
 		else if (FskStrCompareWithLength("udhcpc_restart", message->parts.name, message->parts.nameLength) == 0) {
 			fprintf(stderr, "kprWiFi ===== > udhcpc_restart: \n");
-            #if BG3CDP || RASPBERRY_PI || EDISON
+            #if USE_WPACONFIG
 			    int ret = system("system/wifi.sh udhcpc_restart");
 			    sprintf(response, "{\"status\": %d}", ret);
             #else

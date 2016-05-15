@@ -135,6 +135,8 @@ extern const char *mc_get_special_dir(const char *name);
 extern const char *mc_get_volume(unsigned int i);
 extern void mc_set_active_volume(const char *path);
 
+extern const void *mc_mmap(const char *path, size_t *sizep);
+
 #if MC_LONG_PATH
 extern int mc_update_path_name();
 #endif

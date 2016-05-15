@@ -23,11 +23,11 @@ import {
 } from 'common';
 
 export function createRequest(data) {
-	const Net = require.weak('net');
+	const {parseUrl, isDottedAddress} = require.weak('utils/net');
 	var url = data.url;
 	if (!url) throw "url is required";
 
-	var parts = Net.parseUrl(url);
+	var parts = parseUrl(url);
 	var host = parts.host;
 	var port = parts.port || Port;
 	if (!parts.scheme || !host || !port) throw "bad url";
@@ -35,7 +35,7 @@ export function createRequest(data) {
 
 	var options = data.options || [];
 
-	if (!Net.isDottedAddress(host)) {
+	if (!isDottedAddress(host)) {
 		options.push([Option.UriHost, host]);
 	}
 

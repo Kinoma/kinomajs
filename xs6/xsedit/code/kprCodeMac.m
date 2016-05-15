@@ -65,6 +65,7 @@ void KPR_system_alert(xsMachine* the)
 	(*self->handler)(NULL, kFskEventWindowDeactivated, NULL, self);
 	[alert beginSheetModalForWindow:[NSApp mainWindow] completionHandler:^(NSInteger result) {
 		(*self->handler)(NULL, kFskEventWindowActivated, NULL, self);
+		[alert.window close]; 
 		xsBeginHostSandboxCode(self->the, self->code);
 		{
 			xsVars(1);

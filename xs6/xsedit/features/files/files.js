@@ -205,7 +205,9 @@ export default class extends Feature {
 						return;
 					if (ok)
 						document.save();
-					this.removeDocumentAt(index);	
+					else
+						document.clean();
+					this.removeDocumentAt(index);
 					shell.delegate("doCloseURL", url);
 				});
 			}
@@ -237,12 +239,15 @@ export default class extends Feature {
 			}, ok => {
 				if (ok === undefined)
 					return;
-				if (ok)
-					this.documents.items.forEach(item => { 
-						if (item.dirty)
-							item.save(); 
-					});
-				this.removeAllDocuments();	
+				this.documents.items.forEach(item => {
+					if (item.dirty) {
+						if (ok)
+							item.save();
+						else
+							item.clean();
+					}
+				});
+				this.removeAllDocuments();
 				shell.delegate("doCloseURL");
 			});
 		else {
@@ -333,6 +338,10 @@ export class Document {
 		this.name = parts.name;
 		this.initialize();
 	}
+	clean() {
+		this.dirty = false;
+		shell.distribute("onDocumentChanged", this);
+	}
 	close() {
 		if (this.folderNotifier)
 			this.folderNotifier.close();
@@ -374,8 +383,7 @@ export class Document {
 		this.fileNotifier = new Files.DirectoryNotifier(this.url, () => {
 			this.onFileChanged();
 		});
-		this.dirty = false;
-		shell.distribute("onDocumentChanged", this);
+		this.clean();
 	}
 	toJSON() {
 		return {
@@ -431,7 +439,9 @@ export class Project {
 			return true;
 		if (this.XS && url && url.startsWith(this.url))
 			return true;
-		return this.standalone;
+		if (this.standalone && (device.constructor.tag in this.standalone.platforms))
+			return true;
+		return false;
 	}
 	close() {
 		if (this.fileNotifier)
@@ -453,7 +463,7 @@ export class Project {
 		if (this.XS && url && url.startsWith(this.url))
 			return tool.evaluate(this, url, debug);
 		if (this.standalone)
-			return tool.build(this);
+			return tool.build(this, device.config);
 	}
 	downloaded(url, items) {
 		this.expanded = true;
@@ -528,7 +538,7 @@ export class Project {
 						this.id = environment.NAMESPACE.split(".").reverse().join(".");
 					if ("NAME" in environment)
 						this.title = environment.NAME;
-					this.standalone = true;
+					this.standalone = { platforms: json.platforms };
 				}
 				else {
 					this.id = null;
@@ -543,10 +553,7 @@ export class Project {
 				this.title = config.title;
 				this.color = config.background;
 				for (let Config of model.devicesFeature.Configs)
-					this[Config.tag] = null;
-				this.Create = this.BeagleBone = this.Edison = this.Pi = {
-					main:config.program,
-				};
+					this[Config.tag] = (Config.product == "Kinoma Element") ? null : { main:config.program };
 				this.XS = null;
 				this.standalone = false;
 			}
@@ -648,6 +655,7 @@ class MarkdownViewer extends FileViewer {
 // ASSETS
 
 import {
+	FIXED_FONT,
 	GRAY,
 	NORMAL_FONT,
 	PASTEL_YELLOW,
@@ -682,7 +690,7 @@ var projectLineSkin = greenLineSkin;
 const searchEmptyStyle = new Style({ font:NORMAL_FONT, size:14, color:GRAY });
 const searchSpinnerStyle = new Style({ font:NORMAL_FONT, size:14, color:GRAY, horizontal:"left" });
 const resultLineSkin = new Skin({ fill:["transparent", "transparent", PASTEL_YELLOW, PASTEL_YELLOW] });
-const resultLineStyle = new Style({ font: "Menlo", size:12, color:"#505050", horizontal:"left" });
+const resultLineStyle = new Style({ font: FIXED_FONT, size:12, color:"#505050", horizontal:"left" });
 const resultCountStyle = new Style({ font: NORMAL_FONT, size:12, color:GRAY, horizontal:"right", right:5 });
 
 // BEHAVIORS
@@ -792,7 +800,7 @@ class FileButtonBehavior extends Behavior {
 	}
 };
 
-class FileLineBehavior extends LineBehavior {
+export class FileLineBehavior extends LineBehavior {
 	onCreate(line, data) {
 		super.onCreate(line, data);
 		this.onURLChanged(line, model.url);

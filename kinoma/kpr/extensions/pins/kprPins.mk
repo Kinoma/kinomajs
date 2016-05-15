@@ -39,7 +39,7 @@ XSC_OPTIONS += -t DEVICE -t USEA2D -t USEGPIO -t USEI2C -t K4GEN2 -t USEPWM -t U
 </common>
 </platform>
 
-<platform name="linux/edison,linux/pi_gl,linux/pi,linux/beaglebone">
+<platform name="linux/pxa1908,linux/edison,linux/pi_gl,linux/pi,linux/beaglebone">
 <source name="i2c.c"/>
 <source name="i2cdev.c"/>
 <source name="a2d.c"/>

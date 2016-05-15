@@ -156,8 +156,8 @@ tftp_close(tftp_t *tftp)
 		if (xsHas(tftp->this, id))
 			xsCall_noResult(tftp->this, id, NULL);
 		else {
-			tftpd_close(tftp);
 			xsSetHostData(tftp->this, NULL);
+			tftpd_close(tftp);
 		}
 	}
 	xsEndHost(tftp->the);

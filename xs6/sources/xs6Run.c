@@ -519,7 +519,7 @@ void fxRunID(txMachine* the, txSlot* generator, txID id)
 		if (mxFrame && (mxFrame->flag & XS_STEP_INTO_FLAG))
 			variable->flag |= XS_STEP_INTO_FLAG | XS_STEP_OVER_FLAG;
 #endif
-		variable->value.frame.code = mxCode;
+		variable->value.frame.code = the->code;
 		variable->value.frame.scope = mxScope;
 		mxFrame = variable;
 		mxScope = slot - (mxStack++)->value.integer;

@@ -25,8 +25,8 @@ export default {
 		if ("input" == this.digital.direction) {
 			this.pinsSimulator = shell.delegate("addSimulatorPart", {
 				header : { 
-					label : group,
-					name : "Digital In. Pin " + this.digital.pin,
+					label : "Digital Input",
+					name : "Pin " + this.digital.pin,
 					iconVariant : PinsSimulators.SENSOR_BUTTON 
 				},
 				axes : [
@@ -42,8 +42,8 @@ export default {
 		else if ("output" == this.digital.direction) {
 			this.pinsSimulator = shell.delegate("addSimulatorPart", {
 				header : { 
-					label : group,
-					name : "Digital Out. Pin " + this.digital.pin,
+					label : "Digital Output",
+					name : "Pin " + this.digital.pin,
 					iconVariant : PinsSimulators.SENSOR_LED
 				},
 				axes : [

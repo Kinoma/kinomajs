@@ -29,10 +29,7 @@ var ByteBuffer = Buffers.ByteBuffer;
 var BTUtils = require("./btutils");
 var UUID = BTUtils.UUID;
 
-var logger = new Logger("ATT");
-logger.loggingLevel = Utils.Logger.Level.INFO;
-
-exports.setLoggingLevel = level => logger.loggingLevel = level;
+var logger = Logger.getLogger("ATT");
 
 var MIN_HANDLE = 0x0001;
 var MAX_HANDLE = 0xFFFF;
@@ -44,6 +41,8 @@ exports.INVALID_HANDLE = INVALID_HANDLE;
 
 var ATT_MTU = 23;
 exports.ATT_MTU = ATT_MTU;
+
+var SIGNATURE_SIZE = 12;
 
 /**
  * ATT Opcode
@@ -112,9 +111,16 @@ var ErrorCode = {
 	INVALID_PDU: 0x04,
 	INSUFFICIENT_AUTHENTICATION: 0x05,
 	REQUEST_NOT_SUPPORTED: 0x06,
+	INVALID_OFFSET: 0x07,
+	INSUFFICIENT_AUTHORIZATION: 0x08,
+	PREPARE_QUEUE_FULL: 0x09,
 	ATTRIBUTE_NOT_FOUND: 0x0A,
+	ATTRIBUTE_NOT_LONG: 0x0B,
+	INSUFFICIENT_ENCRYPTION_KEY_SIZE: 0x0C,
+	INVALID_ATTRIBUTE_VALUE_LENGTH: 0x0D,
 	INSUFFICIENT_ENCRYPTION: 0x0F,
-	UNSUPPORTED_GROUP_TYPE: 0x10
+	UNSUPPORTED_GROUP_TYPE: 0x10,
+	INSUFFICIENT_RESOURCES: 0x11,
 };
 exports.ErrorCode = ErrorCode;
 
@@ -129,7 +135,6 @@ var Status = {
 
 var responseReader = {};
 var requestHandler = {};
-var commandHandler = {};
 
 var supportedGroups = [];
 
@@ -146,17 +151,45 @@ function isGroupSupported(type) {
 	return false;
 }
 
+function checkSecurityRequirement(requirement, context) {
+	let pairingInfo = context.bearer.pairingInfo;
+	if (!context.bearer.encrypted) {
+		if (requirement.encryption) {
+			if (pairingInfo != null) {
+				// Has some LTK
+				throw ErrorCode.INSUFFICIENT_ENCRYPTION;
+			} else {
+				// No LTK
+				throw ErrorCode.INSUFFICIENT_AUTHENTICATION;
+			}
+		} else {
+			if ((context.opcode & Opcode.SIGNED) == 0) {
+				throw ErrorCode.INSUFFICIENT_ENCRYPTION;	// XXX: Never sent
+			}
+			// XXX: We knew pairingInfo is available when signed.
+		}
+	}
+	if (pairingInfo == null) {
+		// FIXME: If SM's FORCE_LTK is true, this might happens.
+		logger.warn("Encrypted but not LTK!");
+		throw ErrorCode.INSUFFICIENT_AUTHENTICATION;
+	}
+	if (pairingInfo.legacy) {
+		if (requirement.secureConnection) {
+			throw ErrorCode.INSUFFICIENT_AUTHENTICATION;
+		}
+		if (!pairingInfo.authenticated && requirement.authentication) {
+			throw ErrorCode.INSUFFICIENT_AUTHENTICATION;
+		}
+	}
+}
+
 /**
  * A class represents attribute
  */
 class Attribute {
-	constructor(type, value) {
+	constructor(type) {
 		this.type = type;
-		if (value === undefined) {
-			this.value = null;
-		} else {
-			this.value = value;
-		}
 		this.handle = INVALID_HANDLE;
 		this.groupEnd = INVALID_HANDLE;
 		this.callback = {
@@ -164,13 +197,13 @@ class Attribute {
 			onRead: null,
 			onWrite: null
 		};
-		this.permission = {
-			readable: false,
-			writable: false,
-			commandable: false,
-			authentication: false,
-			authorization: false
+		this._security = {
+			read: null,
+			write: null
 		};
+	}
+	get security() {
+		return this._security;
 	}
 	assignHandle(handle) {
 		this.handle = handle;
@@ -182,16 +215,24 @@ class Attribute {
 		return this.groupEnd != INVALID_HANDLE;
 	}
 	readValue(context) {
-		if (this.callback.onRead != null) {
-			this.callback.onRead(this, context);
+		if (this.callback.onRead == null) {
+			throw ErrorCode.READ_NOT_PERMITTED;
 		}
-		return this.value;
+		if (this._security.read != null) {
+			logger.debug("Check security requirement on read");
+			checkSecurityRequirement(this._security.read, context);
+		}
+		return this.callback.onRead(this, context);
 	}
 	writeValue(value, context) {
-		if (this.callback.onWrite != null) {
-			this.callback.onWrite(this, value, context);
+		if (this.callback.onWrite == null) {
+			throw ErrorCode.WRITE_NOT_PERMITTED;
 		}
-		this.value = value;
+		if (this._security.write != null) {
+			logger.debug("Check security requirement on write");
+			checkSecurityRequirement(this._security.write, context);
+		}
+		this.callback.onWrite(this, value, context);
 	}
 }
 
@@ -208,8 +249,8 @@ class AttributeDatabase {
 			this.currentHandle = attributes.length;
 		}
 	}
-	allocateAttribute(type, value) {
-		let attribute = new Attribute(type, value);
+	allocateAttribute(type) {
+		let attribute = new Attribute(type);
 		this.attributes[this.currentHandle] = attribute;
 		this.currentHandle++;
 		return attribute;
@@ -304,7 +345,7 @@ class AttributeDatabase {
 			if (!attribute.type.equals(type)) {
 				continue;
 			}
-			if (value != null && !BTUtils.isArrayEquals(attribute.readValue(), value)) {
+			if (value != null && !BTUtils.isArrayEquals(attribute.readValue(null), value)) {
 				continue;
 			}
 			if (group && !attribute.isGroup()) {
@@ -325,26 +366,38 @@ class ATTBearer {
 	constructor(connection, database) {
 		this.mtu = ATT_MTU;
 		this.pendingTransactions = [];
-		this.connection = connection;
+		this._connection = connection;
+		this._connection.onReceived = buffer => this._attOnReceived(buffer);
 		this._database = database;
-		this.delegate = null;
-		connection.delegate = this;
+		this._pairingInfo = null;
+		this._signCounter = 0;	// XXX: Need to be stored in extarnal database
+		/* Callbacks */
+		this.onNotification = null;
+		this.onIndication = null;
 	}
 	get database() {
 		return this._database;
 	}
-	getHCILinkHandle() {
-		return this.connection.getHCILink().handle;
+	get encrypted() {
+		return this._connection.encrypted;
+	}
+	get identifier() {
+		return this._connection.identifier;
+	}
+	get pairingInfo() {
+		return this._connection.pairingInfo;
 	}
 	allocateBuffer() {
 		// Allocate ByteBuffer capacity=mtu, littleEndian=true
 		return ByteBuffer.allocateUint8Array(this.mtu, true);
 	}
+	/**
+	 * Schedule PDU. (i.e. Requests or Indications)
+	 */
 	scheduleTransaction(pdu, callback) {
 		logger.debug("[Bearer] scheduleTransaction: PDULen=" + pdu.length +
 			" currentMTU=" + this.mtu);
 		// Enqueue
-		// TODO: Check MTU
 		// TODO: 30sec Timeout
 		this.pendingTransactions.push({
 			opcode: pdu[0],
@@ -361,10 +414,15 @@ class ATTBearer {
 	 * Send PDU without flow control. (i.e. Notifications or Commands)
 	 */
 	sendPDU(pdu) {
-		if (this.connection == null) {
+		if (this._connection == null) {
 			throw "Connection has been disconnected";
 		}
-		this.connection.sendBasicFrame(pdu);
+		let signed = (pdu[0] & Opcode.SIGNED) > 0;
+		let length = signed ? pdu.length + SIGNATURE_SIZE : pdu.length;
+		if (length > this.mtu) {
+			throw "PDU length exceeds MTU: length=" + length + ", mtu=" + this.mtu;
+		}
+		this._connection.sendAttributePDU(pdu);
 	}
 	sendCurrentPDU() {
 		let transaction = this.pendingTransactions[0];
@@ -411,15 +469,9 @@ class ATTBearer {
 			this.sendCurrentPDU();
 		}
 	}
-	/** L2CAP Connection delegate method */
-	received(buffer) {
-		let opcode = buffer.getInt8();
-		logger.debug("ATT Received: opcode=" + Utils.toHexString(opcode));
-		if ((opcode & Opcode.SIGNED) > 0) {
-			// TODO
-			logger.warn("Signed Command Not Supported");
-			return;
-		}
+	/** GAP Connection delegate method */
+	_attOnReceived(buffer) {
+		const opcode = buffer.getInt8();
 		if (Opcode.isResponse(opcode) || opcode == Opcode.HANDLE_VALUE_CONFIRMATION) {
 			/* Responses or Confirmations */
 			if (opcode == Opcode.ERROR_RESPONSE) {
@@ -446,23 +498,21 @@ class ATTBearer {
 				}
 				this.responseReceived(opcode, response);
 			}
-		} else if (((opcode & Opcode.COMMAND) > 0) || opcode == Opcode.HANDLE_VALUE_NOTIFICATION) {
-			/* Commands and Notifications */
-			if (!(opcode in commandHandler)) {
-				logger.warn("Command Not Supported");
-			} else {
-				commandHandler[opcode](buffer, this);
-			}
 		} else {
-			/* Requests or Indications */
-			let respBuffer = this.allocateBuffer();
+			/* Commands, Requests, Indications or Notifications */
+			let respBuffer = this.allocateBuffer();	// FIXME: Commands and Notification won't require response
 			let status = null;
 			respBuffer.mark();
-			if (!(opcode in requestHandler)) {
+			let actualOpcode = (opcode & ~(Opcode.SIGNED | Opcode.COMMAND));
+			if (!(actualOpcode in requestHandler)) {
 				logger.warn("Request Not Supported");
 				status = Status.error(ErrorCode.REQUEST_NOT_SUPPORTED, 0);
 			} else {
-				status = requestHandler[opcode](buffer, respBuffer, this);
+				status = requestHandler[actualOpcode](buffer, respBuffer, this, opcode);
+			}
+			if (((opcode & Opcode.COMMAND) > 0) || status == null) {
+				logger.debug("Won't respond");
+				return;
 			}
 			if (status != null && status.code != 0) {
 				logger.debug("Response with Error: opcode=" + Utils.toHexString(opcode)
@@ -480,11 +530,6 @@ class ATTBearer {
 				this.sendPDU(respBuffer.getByteArray());
 			}
 		}
-	}
-	/** L2CAP Connection delegate method */
-	disconnected() {
-		logger.info("Disconnected: pendingPDUs=" + this.pendingTransactions.length);
-		this.connection = null;
 	}
 }
 exports.ATTBearer = ATTBearer;
@@ -508,6 +553,7 @@ requestHandler[Opcode.EXCHANGE_MTU_REQUEST] = function (request, response, beare
 		logger.debug("Exchange MTU Request: Change MTU to " + clientMTU);
 		bearer.mtu = clientMTU;
 	}
+	return Status.success();
 };
 
 exports.assembleExchangeMTURequestPDU = function (mtu) {
@@ -626,12 +672,12 @@ exports.assembleFindByTypeValueRequestPDU = function (start, end, type, value) {
  * ReadByType Request/Response
  ******************************************************************************/
 
-requestHandler[Opcode.READ_BY_TYPE_REQUEST] = function (request, response, bearer) {
-	return doReadByTypeResponse(request, response, bearer, false);
+requestHandler[Opcode.READ_BY_TYPE_REQUEST] = function (request, response, bearer, opcode) {
+	return doReadByTypeResponse(request, response, bearer, opcode, false);
 };
 
-requestHandler[Opcode.READ_BY_GROUP_TYPE_REQUEST] = function (request, response, bearer) {
-	return doReadByTypeResponse(request, response, bearer, true);
+requestHandler[Opcode.READ_BY_GROUP_TYPE_REQUEST] = function (request, response, bearer, opcode) {
+	return doReadByTypeResponse(request, response, bearer, opcode, true);
 };
 
 responseReader[Opcode.READ_BY_TYPE_RESPONSE] = function (buffer) {
@@ -647,7 +693,7 @@ responseReader[Opcode.READ_BY_GROUP_TYPE_RESPONSE] = function (buffer) {
  * ReadByType:			group=false
  * ReadByGroupType:		group=true
  */
-function doReadByTypeResponse(request, response, bearer, group) {
+function doReadByTypeResponse(request, response, bearer, opcode, group) {
 	var start = request.getInt16();
 	var end = request.getInt16();
 	if ((start > end) || start == INVALID_HANDLE) {
@@ -668,12 +714,16 @@ function doReadByTypeResponse(request, response, bearer, group) {
 	}
 	var valueSize = -1;
 	var results = [];
+	var throwedCode;
 	for (var index = 0; index < attributes.length; index++) {
 		var attribute = attributes[index];
-		if (!attribute.permission.readable) {
+		var value;
+		try {
+			value = attribute.readValue({bearer, opcode});
+		} catch (errorCode) {
+			throwedCode = errorCode;
 			break;
 		}
-		var value = attribute.readValue({request: request, bearer: bearer});
 		if (valueSize < 0) {
 			valueSize = value.length;
 		} else if (valueSize != value.length) {
@@ -689,7 +739,7 @@ function doReadByTypeResponse(request, response, bearer, group) {
 		results.push(result);
 	}
 	if (results.length == 0) {
-		return Status.error(ErrorCode.READ_NOT_PERMITTED, start);
+		return Status.error(throwedCode, start);
 	}
 	var keySize = (group ? 4 : 2);
 	var actualLength = (keySize + valueSize) & 0xFF;
@@ -758,15 +808,15 @@ exports.assembleReadByGroupTypeRequestPDU = function (start, end, type) {
  * Read (Single)/Blob/Multiple Request/Response
  ******************************************************************************/
 
-requestHandler[Opcode.READ_REQUEST] = function (request, response, bearer) {
-	return doReadResponse(request, response, bearer, false);
+requestHandler[Opcode.READ_REQUEST] = function (request, response, bearer, opcode) {
+	return doReadResponse(request, response, bearer, opcode, false);
 };
 
-requestHandler[Opcode.READ_BLOB_REQUEST] = function (request, response, bearer) {
-	return doReadResponse(request, response, bearer, true);
+requestHandler[Opcode.READ_BLOB_REQUEST] = function (request, response, bearer, opcode) {
+	return doReadResponse(request, response, bearer, opcode, true);
 };
 
-requestHandler[Opcode.READ_MULTIPLE_REQUEST] = function (request, response, bearer) {
+requestHandler[Opcode.READ_MULTIPLE_REQUEST] = function (request, response, bearer, opcode) {
 	response.putInt8(Opcode.READ_MULTIPLE_RESPONSE);
 	while (request.remaining() > 0 && response.remaining() > 0) {
 		var handle = request.getInt16();
@@ -777,10 +827,12 @@ requestHandler[Opcode.READ_MULTIPLE_REQUEST] = function (request, response, bear
 		if (attribute == null) {
 			return Status.error(ErrorCode.INVALID_HANDLE, handle);
 		}
-		if (!attribute.permission.readable) {
-			return Status.error(ErrorCode.READ_NOT_PERMITTED, handle);
+		var valueToRsp;
+		try {
+			valueToRsp = attribute.readValue({bearer, opcode});
+		} catch (errorCode) {
+			return Status.error(errorCode, handle);
 		}
-		var valueToRsp = attribute.readValue({request: request, bearer: bearer});
 		response.putByteArray(valueToRsp, 0,
 			Math.min(response.remaining(), valueToRsp.length));
 	}
@@ -796,7 +848,7 @@ responseReader[Opcode.READ_MULTIPLE_RESPONSE] = responseReader[Opcode.READ_RESPO
 /*
  * Do ReadRequest or ReadBlobRequest
  */
-function doReadResponse(request, response, bearer, blob) {
+function doReadResponse(request, response, bearer, opcode, blob) {
 	var handle = request.getInt16();
 	var offset = 0;
 	if (blob) {
@@ -809,10 +861,12 @@ function doReadResponse(request, response, bearer, blob) {
 	if (attribute == null) {
 		return Status.error(ErrorCode.INVALID_HANDLE, handle);
 	}
-	if (!attribute.permission.readable) {
-		return Status.error(ErrorCode.READ_NOT_PERMITTED, handle);
+	var value;
+	try {
+		value = attribute.readValue({bearer, opcode});
+	} catch (errorCode) {
+		return Status.error(errorCode, handle);
 	}
-	var value = attribute.readValue({request: request, bearer: bearer});
 	if (blob && offset >= value.length) {
 		return Status.error(ErrorCode.INVALID_OFFSET, handle);
 	}
@@ -854,7 +908,7 @@ exports.assembleReadMultipleRequestPDU = function (handles) {
  * Write Request/Response
  ******************************************************************************/
 
-requestHandler[Opcode.WRITE_REQUEST] = function (request, response, bearer) {
+requestHandler[Opcode.WRITE_REQUEST] = function (request, response, bearer, opcode) {
 	var handle = request.getInt16();
 	if (handle == INVALID_HANDLE) {
 		return Status.error(ErrorCode.INVALID_HANDLE, handle);
@@ -863,11 +917,11 @@ requestHandler[Opcode.WRITE_REQUEST] = function (request, response, bearer) {
 	if (attribute == null) {
 		return Status.error(ErrorCode.INVALID_HANDLE, handle);
 	}
-	if (!attribute.permission.writable) {
-		return Status.error(ErrorCode.WRITE_NOT_PERMITTED, handle);
+	try {
+		attribute.writeValue(request.getByteArray(), {bearer, opcode});
+	} catch (errorCode) {
+		return Status.error(errorCode, handle);
 	}
-	// TODO: Invalid Length
-	attribute.writeValue(request.getByteArray(), {request: request, bearer: bearer});
 	response.putInt8(Opcode.WRITE_RESPONSE);
 	return Status.success();
 };
@@ -884,48 +938,17 @@ exports.assembleWriteRequestPDU = function (handle, value) {
 };
 
 /******************************************************************************
- * Write Command
- ******************************************************************************/
-
-commandHandler[Opcode.WRITE_COMMAND] = function (command, bearer) {
-	var handle = command.getInt16();
-	if (handle == INVALID_HANDLE) {
-		logger.warn("Write Command failed: Invalid handle");
-		return;
-	}
-	var attribute = bearer.database.findAttribute(handle);
-	if (attribute == null) {
-		logger.warn("Write Command failed: Handle not found");
-		return;
-	}
-	if (!attribute.permission.commandable) {
-		logger.warn("Write Command failed: Not commandable");
-		return;
-	}
-	// TODO: Invalid Length
-	attribute.writeValue(command.getByteArray(), {request: request, bearer: bearer});
-};
-
-exports.assembleWriteCommandPDU = function (handle, value) {
-	var buffer = ByteBuffer.allocateUint8Array(3 + value.length, true);
-	buffer.putInt8(Opcode.WRITE_COMMAND);
-	buffer.putInt16(handle);
-	buffer.putByteArray(value);
-	buffer.flip();
-	return buffer.getByteArray();
-};
-
-/******************************************************************************
  * HandleValue Notification
  ******************************************************************************/
 
-commandHandler[Opcode.HANDLE_VALUE_NOTIFICATION] = function (command, bearer) {
-	if (bearer.delegate != null) {
-		bearer.delegate.notificationReceived(Opcode.HANDLE_VALUE_NOTIFICATION, {
-			handle: command.getInt16(),
-			value: command.getByteArray()
+requestHandler[Opcode.HANDLE_VALUE_NOTIFICATION] = function (request, response, bearer, opcode) {
+	if (bearer.onNotification != null) {
+		bearer.onNotification(opcode, {
+			handle: request.getInt16(),
+			value: request.getByteArray()
 		});
 	}
+	return null;
 };
 
 exports.assembleHandleValueNotificationPDU = function (handle, value) {
@@ -941,9 +964,9 @@ exports.assembleHandleValueNotificationPDU = function (handle, value) {
  * HandleValue Indication/Confirmation
  ******************************************************************************/
 
-requestHandler[Opcode.HANDLE_VALUE_INDICATION] = function (request, response, bearer) {
-	if (bearer.delegate != null) {
-		bearer.delegate.indicationReceived(Opcode.HANDLE_VALUE_INDICATION, {
+requestHandler[Opcode.HANDLE_VALUE_INDICATION] = function (request, response, bearer, opcode) {
+	if (bearer.onIndication != null) {
+		bearer.onIndication(opcode, {
 			handle: request.getInt16(),
 			value: request.getByteArray()
 		});

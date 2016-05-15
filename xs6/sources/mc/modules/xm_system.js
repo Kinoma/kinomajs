@@ -91,6 +91,7 @@ let System = {
 		setup: undefined,
 		mfiPins: undefined,
 		timeSyncURL: undefined,
+		printEncryptedEnvironment: undefined,
 		// ledPins, wakeupButtons and powerGroundPinmux will be set in C
 	},
 	set config(conf) {

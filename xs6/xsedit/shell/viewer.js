@@ -59,8 +59,8 @@ import {
 export var errorStyle = new Style({ font:"Open Sans", size:16, color:DARKER_RED }),
 var noBodySkin = new Skin({ fill:"#f0f0f0" });
 var noHeaderStyle = new Style({ font:"Open Sans Semibold", size:32, color:WHITE, horizontal:"left"});
-var noTitleStyle = new Style({ font:"Open Sans Semibold", size:24, color:"#808080", });
-var noCommentStyle = new Style({ font:"Open Sans", size:16, color:"#808080", top:20 });
+var noTitleStyle = new Style({ font:"Open Sans", size:26, color:"#606060", });
+var noCommentStyle = new Style({ font:"Open Sans", size:16, color:"#606060", top:20 });
 var iconSkin = new Skin({ texture:new Texture("./assets/kinoma.png", 2), x:0, y:0, width:200, height:60 });
 
 // BEHAVIORS
@@ -74,6 +74,10 @@ import {
 	HorizontalCenterScrollbar,
 	VerticalScrollbar,
 } from "common/scrollbar";
+
+import {
+	PathLayout,
+} from "features/files/find";
 
 // TEMPLATES
 
@@ -98,8 +102,7 @@ export var ErrorView = Container.template($ => ({
 		Line($, {
 			left:0, right:0, top:0, height:30, skin:redHeaderSkin,
 			contents: [
-				Content($, { width:30, height:30 }),
-				Label($, { left:0, right:0, height:30, style: tableHeaderStyle, string:$.url }),
+				PathLayout($, { left:0, right:0 }),
 				CloseButton($, {}),
 			],
 		}),
@@ -124,40 +127,28 @@ var NoPane = Container.template($ => ({
 							},
 							contents: [
 								Container($, {
-									left:0, right:0, top:0, bottom:0, 
+									left:0, right:0, top:20, bottom:0,
 									contents: [
 										Column($, { 
 											width:240, top:0, 
 											contents: [
-												Label($, { width:200, height:100, style:noTitleStyle, string:"Kinoma Create" }),
+												Label($, { width:200, height:80, style:noTitleStyle, string:"Kinoma Create" }),
 												Picture($, { width:200, height:200, url:"./assets/Create.png" }),
 												Text($, { width:200, style:noCommentStyle, string:"Develop with the comprehensive IoT prototyping product" }),
 											],
 										}),
 									],
 								}),
+								Content($, { width:100 }),
 								Container($, {
-									left:0, right:0, top:0, bottom:0, 
+									left:0, right:0, top:20, bottom:0,
 									contents: [
 										Column($, { 
 											width:240, top:0, 
 											contents: [
-												Label($, { width:200, height:100, style: noTitleStyle, string:"Kinoma Element" }),
+												Label($, { width:200, height:80, style: noTitleStyle, string:"Kinoma Element" }),
 												Picture($, { width:200, height:200, url:"./assets/Element.png" }),
 												Text($, { width:200, style:noCommentStyle, string:"The smallest JavaScript-powered embedded prototyping platform" }),
-											],
-										}),
-									],
-								}),
-								Container($, {
-									left:0, right:0, top:0, bottom:0, 
-									contents: [
-										Column($, { 
-											width:240, top:0, 
-											contents: [
-												Label($, { width:200, height:100, style: noTitleStyle, string:"Kinoma HD" }),
-												Picture($, { width:200, height:200, url:"./assets/HD.png" }),
-												Text($, { width:200, style:noCommentStyle, string:"A scriptable thumb-size stick for displaying visually rich content" }),
 											],
 										}),
 									],

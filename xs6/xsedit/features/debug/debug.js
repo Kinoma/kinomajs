@@ -180,6 +180,10 @@ export default class extends Feature {
 		shell.distribute("onFeatureChanged", this);
 	}
 	selectMachine(machine) {
+		if (machine && machine.device && !machine.visible) {
+			let device = machine.device;
+			machine = this.machines.find(machine => (machine.device == device) && (machine.visible));
+		}
 		this.currentMachine = machine
 		shell.distribute("onMachineSelected", machine);
 	}
@@ -192,6 +196,84 @@ export default class extends Feature {
 			result = a.line - b.line;
 		return result;
 	}
+	sortFiles(items) {
+		if (items) {
+			items.forEach(item => this.sortFiles(item.items));
+			items.sort((a, b) => a.name.compare(b.name));
+		}
+	}
+	spreadFiles(view, lines) {
+		let homePath = Files.toPath(model.home);
+		let homeLength = homePath.length;
+		let projectsPath = Files.toPath(model.projectsDirectory);
+		let projectsLength = projectsPath.length;
+		let samplesPath = Files.toPath(model.samplesDirectory);
+		let samplesLength = samplesPath.length;
+		
+		let homeFolder = view.homeFolder;
+		if (!homeFolder)
+			homeFolder = view.homeFolder = { Template:FolderTable, depth:1, name:"KinomaJS", expanded:true, items:[] }
+		let projectsFolder = view.projectsFolder;
+		if (!projectsFolder)
+			projectsFolder = view.projectsFolder = { Template:FolderTable, depth:1, name:"Projects", expanded:true, items:[] }
+		let samplesFolder = view.samplesFolder;
+		if (!samplesFolder)
+			samplesFolder = view.samplesFolder = { Template:FolderTable, depth:1, name:"Samples", expanded:true, items:[] }
+		
+		let homeItems = homeFolder.items;
+		let projectsItems = projectsFolder.items;
+		let samplesItems = samplesFolder.items;
+		
+		lines.forEach(line => {
+			let path = line.path, items = null;
+			if (path.startsWith(homePath)) {
+				path = path.slice(homeLength);
+				items = homeItems;
+			}
+			else if (path.startsWith(projectsPath)) {
+				path = path.slice(projectsLength);
+				items = projectsItems;
+			}
+			else if (path.startsWith(samplesPath)) {
+				path = path.slice(samplesLength);
+				items = samplesItems;
+			}
+			if (items) {
+				let names = path.split("/");
+				let i = 0, j = names.length - 1;
+				while (i < j)  {
+					let name = names[i];
+					let folder = items.find(item => item.name == name);
+					if (!folder) {
+						folder = { Template:FolderTable, depth:i + 2, name, expanded:false, items:[] },
+						items.push(folder);
+					}
+					items = folder.items;
+					i++;
+				}
+				let name = names[i];
+				let file = items.find(item => item.name == name);
+				if (!file) {
+					file = { Template:FileLine, depth:i + 2, name, url:Files.toURI(line.path) },
+					items.push(file);
+				}
+			}
+		});
+		let items = [];
+		if (homeItems.length) {
+			this.sortFiles(homeItems);
+			items.push(homeFolder);
+		}
+		if (projectsItems.length) {
+			this.sortFiles(projectsItems);
+			items.push(projectsFolder);
+		}
+		if (samplesItems.length) {
+			this.sortFiles(samplesItems);
+			items.push(samplesFolder);
+		}
+		return items;
+	}
 	
 	onMachineFileChanged(address, path, at) {
 		trace("onMachineFileChanged " + path + " " + at + "\n");
@@ -203,7 +285,7 @@ export default class extends Feature {
 	}
 	onMachineRegistered(address) {
 		trace("onMachineRegistered " + address + "\n");
-		this.machines.push(new Machine(address));
+		this.machines.unshift(new Machine(address));
 		shell.distribute("onMachinesChanged", this.machines, this.debuggees);
 		if (this.currentMachine == null)
 			this.selectMachine(this.machines[0]);
@@ -223,6 +305,7 @@ export default class extends Feature {
 			device.machineCount++;
 			machine.iconSkin = device.constructor.iconSkin;
 			machine.tag = device.name;
+			machine.visible = (title != "SSL");
 			if (title.startsWith("xkpr://"))
 				title = title.slice(7);
 			let project = model.filesFeature.findProjectByID(title);
@@ -234,6 +317,7 @@ export default class extends Feature {
 		else {
 			machine.iconSkin = (tag == "XS6") ? xs6IconSkin : defaultIconSkin;
 			machine.tag = tag;
+			machine.visible = true;
 			if (title.startsWith("xkpr://"))
 				title = "application";
 		}
@@ -241,7 +325,7 @@ export default class extends Feature {
 		this.debug.addBreakpoints(address, this.model.breakpoints.items);
 		this.debuggees = this.machines.filter((machine, pos) => this.machines.findIndex(target => target.tag == machine.tag) == pos);
 		shell.distribute("onMachinesChanged", this.machines, this.debuggees);
-		if (this.currentMachine == machine)
+		if (!this.currentMachine || (this.currentMachine == machine))
 			this.selectMachine(machine);
 	}
 	onMachineUnregistered(address) {
@@ -254,7 +338,7 @@ export default class extends Feature {
 		this.debuggees = this.machines.filter((machine, pos) => this.machines.findIndex(target => target.tag == machine.tag) == pos);
 		shell.distribute("onMachinesChanged", this.machines, this.debuggees);
 		if (this.currentMachine == machine)
-			this.selectMachine(this.machines.length ? this.machines[0]: null);
+			this.selectMachine(this.machines.find(target => target.tag == machine.tag));
 		this.notify();
 	}
 	onMachineViewChanged(address, viewIndex, lines) {
@@ -263,6 +347,11 @@ export default class extends Feature {
 		let view = machine.views[viewIndex];
 		view.lines = lines;
 		// trace("onMachineViewChanged " + machine.address + " " + viewIndex + " " + lines.length + " " + machine.broken + "\n");
+		if (model.home && (viewIndex == mxFilesView)) {
+			view.lines = this.spreadFiles(view, lines);
+		}
+		else
+			view.lines = lines;
 		if (viewIndex == mxFramesView) {
 			machine.broken = true;
 			machine.localsView.expanded = true;
@@ -401,6 +490,7 @@ var debugButtonsSkin = new Skin({ texture: debugButtonsTexture, x:0, y:0, width:
 
 var lineHeight = 16;
 var lineFlagsSkin = fileGlyphsSkin;
+var fileStyle = new Style({ font:NORMAL_FONT, size:12, color:BLACK, horizontal:"left" });
 var nameStyle = new Style({ font:SEMIBOLD_FONT, size:12, color:BLACK });
 var valueStyle = new Style({ font:LIGHT_FONT, size:12, color:BLACK });
 
@@ -453,6 +543,8 @@ class DebugPaneBehavior extends FeaturePaneBehavior {
 		scroller.empty(2);
 		column.empty(1);
 		if (machine) {
+			if (model.home)
+				column.add(FileTable(data, {})),
 			column.add(CallTable(data, {})),
 			column.add(DebugTable(data, { Behavior:LocalsTableBehavior })),
 			column.add(DebugTable(data, { Behavior:ModulesTableBehavior })),
@@ -469,7 +561,7 @@ class MachineButtonBehavior extends MenuButtonBehavior {
 	onDescribeMenu(button) {
 		let data = this.data;
 		let machine = data.currentMachine;
-		let machines = data.machines.filter(item => (machine.tag == item.tag));
+		let machines = data.machines.filter(item => ((machine.tag == item.tag) && item.visible));
 		return {
 			ItemTemplate:MachineItemLine,
 			items:machines,
@@ -481,12 +573,12 @@ class MachineButtonBehavior extends MenuButtonBehavior {
 	}
 	onMachinesChanged(button, machines) {
 		let machine = this.data.currentMachine;
-		button.active = machine ? this.data.machines.filter(item => (machine.tag == item.tag)).length > 1 : false;
+		button.active = machine ? this.data.machines.filter(item => ((machine.tag == item.tag) && item.visible)).length > 1 : false;
 	}
 	onMachineSelected(button, machine) {
-		button.visible = machine;
-		button.active = machine ? this.data.machines.filter(item => (machine.tag == item.tag)).length > 1 : false;
-		button.last.string = machine ? machine.title : "";
+		button.visible = machine && machine.visible;
+		button.active = button.visible ? this.data.machines.filter(item => ((machine.tag == item.tag) && item.visible)).length > 1 : false;
+		button.last.string = button.visible ? machine.title : "";
 	}
 	onMenuSelected(button, selection) {
 		let data = this.data;
@@ -631,6 +723,58 @@ class DebugLineBehavior extends LineBehavior {
 		behavior.data.doDebugToggle(behavior.viewIndex, data.name, data.value);
 	}
 };
+
+class FileTableBehavior extends DebugTableBehavior {
+	addLines(column) {
+		let header = column.first;
+		let view = this.view;
+		column.empty(1);
+		if (view && view.expanded) {
+			header.behavior.expand(header, true);
+			view.lines.forEach(item => column.add(new item.Template(item)));
+		}
+		else
+			header.behavior.expand(header, false);
+		column.add(new FileFooter(data));
+		model.onHover(shell);
+	}
+	onCreate(column, data) {
+		this.viewIndex = mxFilesView;
+		super.onCreate(column, data);
+		column.HEADER.last.string = "FILES";
+	}
+}
+
+class FileHeaderBehavior extends HeaderBehavior {
+};
+
+import { 
+	FileLineBehavior,
+} from "features/files/files";
+
+class FolderTableBehavior extends TableBehavior {
+	expand(column, expandIt) {
+		var data = this.data;
+		var header = column.first;
+		data.expanded = expandIt;
+		column.empty(1);
+		if (expandIt) {
+			header.behavior.expand(header, true);
+			data.items.forEach(item => column.add(new item.Template(item)));
+		}
+		else {
+			header.behavior.expand(header, false);
+		}
+	}
+	onCreate(column, data) {
+		this.data = data;
+		this.expand(column, data.expanded);
+	}
+};
+
+class FolderHeaderBehavior extends HeaderBehavior {
+};
+
 
 class CallTableBehavior extends DebugTableBehavior {
 	onCreate(column, data) {
@@ -799,6 +943,57 @@ var BreakpointLine = Line.template(function($) { return {
 		Label($, { style:nameStyle, string:$.name }),
 		Label($, { style:valueStyle, string:" (" + $.line + ")" }),
 	]
+}});
+
+
+var FileTable = Column.template($ => ({
+	left:0, right:0, active:true, 
+	Behavior:FileTableBehavior,
+	contents: [
+		FileHeader($, { name:"HEADER" }),
+	],
+}));
+
+var FileHeader = Line.template(function($) { return {
+	left:0, right:0, height:30, skin:greenHeaderSkin, active:true,
+	Behavior: FileHeaderBehavior,
+	contents: [
+		Content($, { width:0 }),
+		Content($, { width:30, height:30, skin:fileGlyphsSkin, variant:1, state:1 }),
+		Label($, { left:0, right:0, style:tableHeaderStyle, string:"FILES" }),
+	],
+}});
+
+var FileLine = Line.template(function($) { return {
+	left:0, right:0, height:lineHeight, skin:greenLineSkin, active:true, 
+	Behavior:FileLineBehavior,
+	contents: [
+		Content($, { width:($.depth - 1) * 20 }),
+		Content($, { width:20, height:20, skin:fileGlyphsSkin, variant:4, visible:false }),
+		Label($, { style:fileStyle, string:$.name }),
+	]
+}});
+
+var FolderTable = Column.template(function($) { return {
+	left:0, right:0, active:true,
+	Behavior: FolderTableBehavior,
+	contents: [
+		FolderHeader($, {}),
+	],
+}});
+
+var FolderHeader = Line.template(function($) { return {
+	left:0, right:0, height:lineHeight, skin:greenLineSkin, active:true,
+	Behavior: FolderHeaderBehavior,
+	contents: [
+		Content($, { width:($.depth - 1) * 20 }),
+		Content($, { width:20, height:20, skin:fileGlyphsSkin, state:$.expanded ? 3 : 1, variant:0}),
+		Label($, { style:nameStyle, string:$.name }),
+	],
+}});
+
+var FileFooter = Line.template(function($) { return {
+	left:0, right:0, height:10, skin:greenFooterSkin,
 }});
 
 var CallTable = Column.template($ => ({

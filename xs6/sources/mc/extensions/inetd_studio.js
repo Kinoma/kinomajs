@@ -127,7 +127,7 @@ let services = {
 			Launcher.launch(file, args);
 			http.response();
 		} catch(error) {
-			http.errorResponse(505, "Internal Server Error");
+			http.errorResponse(500, "Internal Server Error");
 		}
 	},
 
@@ -163,7 +163,7 @@ let services = {
 			}
 			http.response();
 		} catch(error) {
-			http.errorResponse(505, "Internal Server Error");
+			http.errorResponse(500, "Internal Server Error");
 		}
 	},
 };
@@ -195,7 +195,7 @@ StudioHttpService.prototype = {
 				http.errorResponse(404, "Not Found");						
 			}
 		} catch(error) {
-			http.errorResponse(505, "Internal Server Error");
+			http.errorResponse(500, "Internal Server Error");
 		}
 	},
 

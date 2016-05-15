@@ -121,12 +121,15 @@ export class TemplatesModel {
 		let tags = model.samplesFeature.tags;
 		let mask = 0;
 		this.Configs = model.devicesFeature.Configs.filter(Config => {
-			let name = Config.templateTag;
-			if (name) {
-				let tag = tags.find(tag => tag.name == name);
-				if (tag) {
-					mask |= tag.mask;
-					return Config;
+			if (model.devicesFeature.discoveryFlags[Config.id]
+				|| model.devicesFeature.simulatorFlags[Config.id]) {
+				let name = Config.templateTag;
+				if (name) {
+					let tag = tags.find(tag => tag.name == name);
+					if (tag) {
+						mask |= tag.mask;
+						return Config;
+					}
 				}
 			}
 		});
@@ -217,7 +220,7 @@ class TemplatesDialogBehavior extends Behavior {
 		dialog.distribute("onConfigSelected", data);
 		dialog.distribute("onTagSelected", data);
 		dialog.distribute("onTemplateSelected", data);
-		dialog.distribute("onFolderChanged", Files.toPath(model.projectsDirectory));
+		dialog.distribute("onProjectsDirectoryChanged", model.projectsDirectory);
 	}
 	onDisplayed(dialog) {
 		model.onHover(shell);
@@ -290,7 +293,7 @@ class TemplatesDialogBehavior extends Behavior {
 		system.openDirectory(dictionary, url => { 
 			if (url) {
 				model.projectsDirectory = url;
-				dialog.distribute("onFolderChanged", Files.toPath(url));
+				dialog.distribute("onProjectsDirectoryChanged", url);
 			}
 		});
 	}
@@ -592,8 +595,8 @@ export var TemplatesDialog = Container.template($ => ({
 										Label($, { 
 											left: 0, top:2, bottom:2, style:dialogFieldValueStyle,
 											Behavior: class extends Behavior {
-												onFolderChanged(label, path) {
-													label.string = path;
+												onProjectsDirectoryChanged(label, url) {
+													label.string = Files.toPath(url);
 												}
 											}
 										}),

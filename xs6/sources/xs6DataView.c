@@ -557,17 +557,24 @@ void fx_DataView(txMachine* the)
 	txSlot* view = instance->next;
 	txSlot* buffer = view->next;
 	txSlot* slot;
-	txSlot* arrayBuffer = C_NULL;
+	txBoolean flag = 0;
 	txInteger limit, offset, size;
 	if ((mxArgc > 0) && (mxArgv(0)->kind == XS_REFERENCE_KIND)) {
 		slot = mxArgv(0)->value.reference->next;
-		if (slot && (slot->kind == XS_ARRAY_BUFFER_KIND))
-			arrayBuffer = slot;
+		if (slot && (slot->kind == XS_ARRAY_BUFFER_KIND)) {
+			flag = 1;
+			limit = slot->value.arrayBuffer.length;
+		}
+		else if (slot && (slot->kind == XS_HOST_KIND)) {
+			txInteger limit;
+			mxPushSlot(mxArgv(0));
+			fxGetID(the, mxID(_byteLength));
+			flag = fxCheckLength(the, the->stack, &limit);
+			mxPop();
+		}
 	}
-	if (!arrayBuffer)
+	if (!flag)
 		mxTypeError("buffer is no ArrayBuffer instance");
-
-	limit = arrayBuffer->value.arrayBuffer.length;
 	if (mxArgc > 1)
 		offset = fxToInteger(the, mxArgv(1));
 	else
@@ -920,6 +927,30 @@ void fx_TypedArray(txMachine* the)
 				}
 				the->stack++;
 			}
+		}
+		else if (slot && (slot->kind == XS_HOST_KIND)) {
+			txInteger limit;
+			mxPushSlot(mxArgv(0));
+			fxGetID(the, mxID(_byteLength));
+			if (fxCheckLength(the, the->stack, &limit)) {
+				txInteger offset = fxArgToInteger(the, 1, 0);
+				txInteger size = (mxArgc > 2) ? delta * fxToInteger(the, mxArgv(2)) : limit - offset;
+				if (offset % delta)
+					mxRangeError("invalid byteOffset %ld", offset);
+				if ((offset < 0) || (limit < offset))
+					mxRangeError("out of range byteOffset %ld", offset);
+				if (size % delta)
+					mxRangeError("invalid byteLength %ld", size);
+				if ((size < 0) || (limit < (offset + size)))
+					mxRangeError("out of range byteLength %ld", size);
+				view->value.dataView.offset = offset;
+				view->value.dataView.size = size;
+				buffer->kind = XS_REFERENCE_KIND;
+				buffer->value.reference = mxArgv(0)->value.reference;
+			}
+			else
+				fx_TypedArray_from_object(the, instance, C_NULL, C_NULL);
+			mxPop();
 		}
 		else {
 			fx_TypedArray_from_object(the, instance, C_NULL, C_NULL);

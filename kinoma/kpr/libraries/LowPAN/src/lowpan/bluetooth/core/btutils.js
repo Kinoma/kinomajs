@@ -65,6 +65,43 @@ function isArrayEquals2(a1, off1, a2, off2, len) {
 }
 exports.isArrayEquals2 = isArrayEquals2;
 
+exports.arrayIsZero = function (a, len = a.length) {
+	for (let i = 0; i < len; i++) {
+		if (a[i] != 0) {
+			return false;
+		}
+	}
+	return true;
+};
+
+exports.arrayXOR = function (a1, a2, len = a1.length) {
+	let xrd = new Uint8Array(len);
+	for (let i = 0; i < len; i++) {
+		xrd[i] = a1[i] ^ a2[i];
+	}
+	return xrd;
+};
+
+exports.arraySwap = function (ar) {
+	let sw = new Uint8Array(ar.length);
+	for (let i = 0; i < sw.length; i++) {
+		sw[i] = ar[sw.length - i - 1];
+	}
+	return sw;
+};
+
+/* TODO: LSB First only */
+exports.arrayLeftShift = function (a, n, len = a.length) {
+	let sf = new Uint8Array(a.length);
+	let overflow = 0;
+	for (let i = 0; i < len; i++) {
+		let tmp = a[i] << n;
+		sf[i] = (tmp | overflow) & 0xFF;
+		overflow = tmp >>> 8;
+	}
+	return sf;
+};
+
 /**
  * A class represents Bluetooth UUID
  */
@@ -266,6 +303,18 @@ class LEBluetoothAddress extends BluetoothAddress {
 	}
 	get type() {
 		return (this._array[BD_ADDR_SIZE - 1] >> 6) & 0x3;
+	}
+	get typeString() {
+		if (!this._random) {
+			return "public";
+		}
+		if (this.type == RANDOM_STATIC) {
+			return "static";
+		}
+		if (this.type == RANDOM_RESOLVABLE) {
+			return "resolvable";
+		}
+		return "private";
 	}
 	isRandom() {
 		return this._random;

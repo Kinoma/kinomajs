@@ -14,20 +14,35 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+ 
+let PinsSimulators = require("PinsSimulators");
+
+
 export default {
 	pins: {
 		pwm: {type: "PWM"},
 	},
-	configure(...args) {
-		return this.pwm.init(...args);
+	configure(configuration, group) {
+		this.pinsSimulator = shell.delegate("addSimulatorPart", {
+			header : { 
+				label : group,
+				name : "PWM. Pin " + this.pwm.pin,
+				iconVariant : PinsSimulators.SENSOR_LED
+			},
+			axes : [
+				new PinsSimulators.AnalogOutputAxisDescription(
+					{
+						valueLabel : "Duty Cycle",
+						valueID : "dutyCycle"
+					}
+				),
+			]
+		});
 	},
-	read() {
-		return this.pwm.read();
-	},
-	write(...args) {
-		return this.pwm.write(...args);
+	write(dutyCycle) {
+		this.pinsSimulator.delegate("setValue", "dutyCycle", dutyCycle);
 	},
 	close() {
-		return this.pwm.close();
+		shell.delegate("removeSimulatorPart", this.pinsSimulator);
 	},
 };

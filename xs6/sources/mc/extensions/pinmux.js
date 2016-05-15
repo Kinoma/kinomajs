@@ -22,6 +22,7 @@ const _I2C = 2 << 4;
 const _UART = 3 << 4;
 const _A2D = 4 << 4;
 const _GPT = 5 << 4;
+const _SSP = 6 << 4;
 
 let GPIOPin = {
 	// GPIO functions
@@ -36,6 +37,10 @@ let GPIOPin = {
 	UART_RXD: _UART | 3,
 	A2D_IN: _A2D,
 	GPT_IO: _GPT,
+	SSP_CLK: _SSP | 0,
+	SSP_FRM: _SSP | 1,
+	SSP_TXD: _SSP | 2,
+	SSP_RXD: _SSP | 3,
 	path: "io/",
 
 	// event type
@@ -93,6 +98,15 @@ let GPIOPin = {
 					opt = 1;	// UART1_ID
 				else if ([9, 10, 48, 49].indexOf(pin) != -1)
 					opt = 2;	// UART2_ID
+				break;
+			case _SSP:
+				pfunc = this.PINMUX_FUNCTION_3;
+				if([0, 1, 2, 3, 30, 31, 32, 33, ].indexOf(pin) != -1)
+					opt = 0;
+				else if([11, 12, 13, 14, 18, 19, 20, 21, 35, 36, 38, 39, 42, 43, 44, 45].indexOf(pin) != -1)
+					opt = 1;
+				else if([7, 8, 9, 10, 46, 47, 48, 49].indexOf(pin) != -1)
+					opt = 2;
 				break;
 			case _GPT:
 				if ([0, 1, 2, 3, 4, 5].indexOf(pin) != -1) {		// GPT0
@@ -196,6 +210,30 @@ let GPIOPin = {
 			// different port
 			return;
 		return this._pins[rx].instance = this._pins[tx].instance = new Serial(pinmap[0][2], baud);
+	},
+	ssp(o) {
+		let SPI = require.weak(this.path + "SPI");
+		let rx = o.rx, tx = o.tx, clk = o.clk;
+
+		let pinmap = this.pinmap([[rx, this.SSP_RXD], [tx, this.SSP_TXD], [clk, this.SSP_CLK]]);
+		if(pinmap[0][2] == pinmap[1][2] && pinmap[0][2] == pinmap[2][2]){
+			// this._pinmux(pinmap);	// we use the ssp driver, so probably we dont need to do the mux by ourselves
+			let freq = -1, cs = -1, cpol = 0, cpha = 0,
+			if ('freq' in o)
+				freq = o.freq;
+			if ('cs' in o)
+				cs = o.cs;
+			if ('cpol' in o)
+				cpol = o.cpol;
+			if ('cpha' in o)
+				cpha = o.cpha;
+
+			return this._pins[rx].instance = this._pins[tx].instance = this._pins[clk].instance = new SPI(pinmap[0][2], cs, freq, cpha, cpol);
+		}
+		else {
+			trace("wrong parameters\n");
+			return;
+		}
 	},
 	gpt(o) {
 		let GPT = require.weak(this.path + "GPT");

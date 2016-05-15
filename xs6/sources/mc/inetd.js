@@ -116,12 +116,10 @@ var conf = [
 					}
 					else {
 						try {
-							let module = require.weak("setup/" + url.path[0]);
-							if (module && module.onLaunch) {
-								return module.onLaunch(http, url);
-							}
+							let Launcher = require.weak("launcher");
+							Launcher._launch("setup/" + url.path[0], http, url);
 						} catch(e) {
-							http.errorResponse(505, "Internal Server Error");
+							http.errorResponse(500, "Internal Server Error");
 						}
 					}
 				}
@@ -132,7 +130,7 @@ var conf = [
 			return o;
 		},
 		discovery: function(mode) {
-			if (mode & System.connection.UAP) {
+			if ((mode & System.connection.UAP) && !this.dhcpd) {
 				var DHCPServer = require.weak("dhcpd");
 				this.dhcpd = new DHCPServer();
 			}
@@ -210,59 +208,55 @@ var inetd = {
 			return;
 		}
 	},
+	_runService(cp, mode) {
+		if (cp._sock) {
+			if ("discovery" in cp)
+				cp.discovery(mode);	// try to (re)run the discovery service only
+			return;
+		}
+		cp._instance = undefined;
+		if (!(mode & cp.mode))
+			return;
+		console.log("inetd: starting " + cp.protocol + ":" + cp.port);
+		cp._sock = new ListeningSocket({port: cp.port, proto: cp.protocol});
+		switch (cp.protocol) {
+		case "tcp":
+			cp._sock.onConnect = () => inetd._exec(cp, cp._sock, mode);
+			break;
+		case "udp":
+			cp._sock.onMessage = () => inetd._exec(cp, cp._sock, mode);
+			break;
+		}
+		cp._sock.onClose = () => {
+			console.log("inetd: closing socket for " + cp.port);
+			if (cp._instance && "close" in cp._instance)
+				cp._instance.close();
+			cp._sock.close();	// close the listening socket which has been opened by inetd
+			cp._sock = undefined;
+			cp._instance = undefined;
+		};
+		cp._sock.onError = () => {
+			console.log("inetd: socket error on " + cp.port);
+			cp._sock.close();
+			cp._sock = undefined;
+			cp._instance = undefined;
+		};
+		if ("discovery" in cp)
+			cp.discovery(mode);
+	},
 	_start: function(mode) {
 		let mdns = require.weak("mdns");
 		mdns.start();
-		conf.forEach(function(cp) {
-			if (cp._sock)
-				return;
-			cp._instance = undefined;
-			if (!(mode & cp.mode))
-				return;
+		conf.forEach(cp => {
 			try {
-				console.log("inetd: starting " + cp.protocol + ":" + cp.port);
-				cp._sock = new ListeningSocket({port: cp.port, proto: cp.protocol});
+				this._runService(cp, mode);
 			} catch(e) {
 				console.log("inetd: failed to start " + cp.port);
-				return;
 			}
-			switch (cp.protocol) {
-			case "tcp":
-				cp._sock.onConnect = function() {
-					inetd._exec(cp, this, mode);
-				};
-				break;
-			case "udp":
-				cp._sock.onMessage = function() {
-					inetd._exec(cp, this, mode);
-				};
-				break;
-			}
-			cp._sock.onClose = function() {
-				console.log("inetd: closing socket for " + cp.port);
-				if (cp._instance && "close" in cp._instance)
-					cp._instance.close();
-				this.close();	// close the listening socket which has been opened by inetd
-				cp._sock = undefined;
-				cp._instance = undefined;
-			};
-			cp._sock.onError = function() {
-				console.log("inetd: socket error on " + cp.port);
-				this.close();
-				cp._sock = undefined;
-				cp._instance = undefined;
-			};
-			if ("discovery" in cp) {
-				try {
-					cp.discovery(mode);
-				} catch(e) {
-					console.log("inetd: failed to start a discovery service for " + cp.port);
-				}
-			}
-		}, this);
+		});
 	},
 	_stop: function(mode) {
-		conf.forEach(function(cp) {
+		conf.forEach(cp => {
 			if (!(this._mode & cp.mode) || (mode & cp.mode))
 				return;
 			if ("close" in cp) {
@@ -279,7 +273,7 @@ var inetd = {
 				console.log("inetd: stopped " + cp.port);
 			}
 			cp._sock = cp._instance = undefined;
-		}, this);
+		});
 		let mdns = require.weak("mdns");
 		mdns.stop();
 	},

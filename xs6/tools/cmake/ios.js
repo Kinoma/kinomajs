@@ -59,7 +59,7 @@ class Manifest extends CMAKE.Manifest {
 		var identity = this.ios.identityName;
 		var bundleIdentifier = this.ios.info.CFBundleIdentifier;
 		return `
-BUILD(APPLICATION ${this.tree.application} IDENTITY "${this.ios.identityName}" IDENTIFIER this.ios.info.CFBundleIdentifier HASH ${this.ios.identityHash})
+BUILD(APPLICATION ${this.tree.application} IDENTITY "${this.ios.identityName}" IDENTIFIER "${this.ios.info.CFBundleIdentifier}" HASH "${this.ios.identityHash}")
 `;
 	}
 };

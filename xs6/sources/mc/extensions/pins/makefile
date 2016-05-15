@@ -20,6 +20,7 @@ PINS_JS_SRCS = \
 	pins_GPIO.js \
 	pins_Ground.js \
 	pins_I2C.js \
+	pins_SPI.js \
 	pins_K5PinMux.js \
 	pins_Power.js \
 	pins_PowerGround.js \
@@ -35,6 +36,7 @@ BLL_JS_SRCS = \
 	bll_Analog.js \
 	bll_Digital.js \
 	bll_I2C.js \
+	bll_SPI.js \
 	bll_Serial.js \
 	bll_Ground.js \
 	bll_Power.js \

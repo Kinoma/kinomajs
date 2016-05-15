@@ -175,7 +175,7 @@ FskErr KprHTTPServerNew(KprHTTPServer* it, char* authority, char* path, UInt32 p
 		FskListPrepend(&gKprHTTPServerList, self);
 	FskInstrumentedItemNew(self, NULL, &KprHTTPServerInstrumentation);
 	if (authority)
-		FskInstrumentedItemPrintfVerbose(self, "map ip:%u TO %s", (unsigned int)self->port, authority);
+		FskInstrumentedItemPrintfVerbose(self, "map ip:%d TO %s", self->port, authority);
 	return err;
 bail:
 	KprHTTPServerDispose(self);
@@ -709,10 +709,6 @@ static Boolean KprNetworkInterfaceIsLocal(FskNetInterface iface);
 static void KprNetworkInterfaceNotifyConnect(Boolean setup);
 static void KprNetworkInterfaceRemove(FskNetInterface iface);
 
-#if SUPPORT_INSTRUMENTATION
-	static FskInstrumentedTypeRecord KprNetworkInterfaceInstrumentation = { NULL, sizeof(FskInstrumentedTypeRecord), "KprNetworkInterface", 0, NULL, 0, NULL, KprInsrumentationFormatMessage, NULL, 0 };
-#endif
-
 void KprNetworkInterfaceActivate(Boolean activateIt)
 {
 #if TARGET_OS_IPHONE
@@ -737,7 +733,7 @@ void KprNetworkInterfaceAdd(FskNetInterface iface)
 		existing->name = FskStrDoCopy(iface->name);
 		FskListAppend(&gNetworkInterface, existing);
 		FskNetIPandPortToString(existing->ip, 0, ip);
-		FskInstrumentedTypePrintfNormal(&KprNetworkInterfaceInstrumentation, "ADD INTERFACE %s", ip);
+		FskDebugStr("ADD INTERFACE %s", ip);
 		MAC = (unsigned char*)existing->MAC;
 		local = KprNetworkInterfaceIsLocal(existing);
 		bailIfError(FskMemPtrNewClear(45 + FskStrLen(existing->name) + FskStrLen(ip) + 25, &buffer));
@@ -761,7 +757,7 @@ int KprNetworkInterfaceCallback(struct FskNetInterfaceRecord* iface, UInt32 stat
 {
 	FskErr err = kFskErrNone;
 	Boolean connected = gNetworkInterface != NULL;
-	FskInstrumentedTypePrintfNormal(&KprNetworkInterfaceInstrumentation, "KprNetworkInterfaceCallback %s -> %d", iface->name, (int)status);
+	FskDebugStr("KprNetworkInterfaceCallback %s -> %d", iface->name, status);
 	switch (status) {
 		case kFskNetInterfaceStatusNew:
 			KprNetworkInterfaceAdd(iface);
@@ -854,7 +850,7 @@ void KprNetworkInterfaceRemove(FskNetInterface iface)
 	if (existing) {
 		FskListRemove(&gNetworkInterface, existing);
 		FskNetIPandPortToString(existing->ip, 0, ip);
-		FskInstrumentedTypePrintfNormal(&KprNetworkInterfaceInstrumentation, "REMOVE INTERFACE %s", ip);
+		FskDebugStr("REMOVE INTERFACE %s", ip);
 		local = KprNetworkInterfaceIsLocal(existing);
 		bailIfError(FskMemPtrNewClear(51 + FskStrLen(existing->name) + FskStrLen(ip), &buffer));
 		sprintf(buffer, "xkpr:///network/interface/remove?ip=%s&name=%s&local=%d", ip, existing->name, local);

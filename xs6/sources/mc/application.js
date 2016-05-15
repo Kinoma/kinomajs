@@ -15,13 +15,11 @@
  *     limitations under the License.
  */
 import System from "system";
-import Connection from "wifi";
-import Environment from "env";
-import Files from "files";
-import wdt from "watchdogtimer";
-import TimeInterval from "timeinterval";
 import {setInterval, clearInterval, setTimeout, clearTimeout} from "timer";
 import console from "console";
+import LED from "board_led";
+
+const FW_VERSION = "2.0.0";
 
 // for the compatilibity. Also overwrite the platform dependent functions
 System._global.setInterval = setInterval;
@@ -29,193 +27,174 @@ System._global.clearInterval = clearInterval;
 System._global.setTimeout = setTimeout;
 System._global.clearTimeout = clearTimeout;
 System._global.console = console;
-
-console.log("starting (fw: " + new Date(System.timestamp * 1000) + ")");
-
-System.addPath(Files.applicationDirectory + "/");
-if (System.device == "host")
-	System.addPath(Files.nativeApplicationDirectory + "/");	// to enable to load apps from the native file system
-var env = new Environment();
-var path = env.get("PATH");
-if (path)
-	System.addPath.apply(null, path.split(":"));
-
-if (!env.get("FW_VER"))
-	env.set("FW_VER", "0.90");
-
-if ("PINS" in System._global)	// @@ if there's a better way to know...
-	env.set("ELEMENT_SHELL", "1");
-else
-	env.unset("ELEMENT_SHELL");
-
-if (System.device == "K5" || System.device == "MW300") {
-	if (System.device == "K5") {
-		var LED_PIN = 38;
-		var MFI_PINS = {scl: 17, sda: 18};
-	}
-	else {
-		var LED_PIN = 41;
-		var MFI_PINS = {scl: 19, sda: 18};
-	}
-	var GPIOPin = require.weak("pinmux");
-	GPIOPin.pinmux([[LED_PIN, GPIOPin.GPIO_OUT]]);
-	var led = function(on) {
-		GPIOPin.write(LED_PIN, !on);
-	};
-}
-else {
-	var led = function(on) {};
-	var MFI_PINS = {};
-}
-
-System.configuration = {
-	MFi_pins: MFI_PINS,
-	timeSyncURL: "http://service.cloud.kinoma.com/includes/time-stamp.inc",
+System._global.sensorUtils = {
+	mdelay(ms) {
+		System.sleep(ms);
+	},
+	delay(s) {
+		System.sleep(s * 1000);
+	},
 };
 
+// define connection mode
+const MODEBITS = 8;
+System.connection = {
+	STA: 0x01,
+	UAP: 0x02,
+	SAFEMODE: 0x04,
+	ERROR: -1,
+	MODEBITS: MODEBITS,
+	MODEMASK: ((1 << MODEBITS) - 1),
+	WAC: 0x1 << MODEBITS,
+	SINGLEUSER: 0x2 << MODEBITS,
+	FWUPDATE: 0x4 << MODEBITS,
+	JIGMODE: 0x8 << MODEBITS,
+};
+
+// set up the onboard LEDs and the power button
+var led = new LED({onColor: [1, 1, 1], offColor: [0, 0, 0], default: true});
+
+var powerbutton = {};
+if (System.config.wakeupButtons) {
+	let POWER_BUTTON = System.config.wakeupButtons[0];
+	powerbutton = {
+		start: function() {
+			let GPIOPin = require.weak("pinmux");
+			GPIOPin.event(POWER_BUTTON, GPIOPin.RISING_EDGE|GPIOPin.FALLING_EDGE, val => {
+				if (val == 0)	// the button is being pressed
+					return;
+				let wdt = require.weak("watchdogtimer");
+				led.stop();
+				wdt.stop();
+				wdt.shutdown(5);		// in case it gets stuck..
+				System.shutdown(0);
+			});
+		},
+		stop: function() {
+			let GPIOPin = require.weak("pinmux");
+			GPIOPin.event(POWER_BUTTON);
+		},
+	}
+}
+
 var application = {
-	_applications: undefined,
+	_applications: [],
 	add: function(obj) {
-		if (!obj)
-			return;
-		if (!this._applications)
-			this._applications = [];
-		this._applications.push(obj);
+		if (obj)
+			this._applications.push(obj);
 	},
 	remove: function(obj) {
 		var i = this._applications.indexOf(obj);
 		if (i >= 0)
 			this._applications.splice(i, 1);
 	},
-	_call: function(f) {
-		var mode = Connection.mode;
-		this._applications.forEach(function(o) {
-			if (f in o) {
+	_call: function(call, mode) {
+		this._applications.forEach(obj => {
+			if (call in obj) {
 				try {
-					o[f](mode);
+					obj[call](mode, application);
 				} catch(e) {
-					console.log("application: " + f + ": caught an exception");
+					console.log("-stderr", "application: caught an exception");
 				}
 			}
 		});
 	},
-	start: function() {
-		this._call("start");
-	},
-	stop: function() {
-		this._call("stop");
-	},
-	run: function() {
-		(require.weak("CLI")).prompt();
-		var status = System.run();
-		var config = Connection.config;
-		return {status: status,
-			save: config.save,
-			config: config.state};
-	},
-};
-
-var synctime = {
 	start: function(mode) {
-		if (mode & Connection.STA)
-			setTimeout(this._start, 0);	// run in the main loop
-	},
-	_start: function() {
-		var url = env.get("TIME_SERVER");
-		if (url === null)
-			url = System.configuration.timeSyncURL;
-		else if (url === "")
-			return;	// don't do anything
-		var HTTPClient = require.weak("HTTPClient");
-		var t1, t2;
-		var req = new HTTPClient(url);
-		req.onHeaders = function() {
-			t2 = System.time;
-			var date = this.getHeader("Date");
-			if (date) {
-				var t = Date.parse(date);
-				t += 500;		// + 0.5 sec
-				t += (t2 - t1) / 2;	// + the roundtrip time / 2
-				System.time = t;
-				console.log("setting RTC: " + Date(t));
-			}
-			application.remove(synctime);
-		};
-		req.start();
-		t1 = System.time;
-		synctime._req = req;
+		let wdt = require.weak("watchdogtimer");
+		wdt.stop();
+		wdt.start(45);
+		// run the modules in the event loop
+		System.sched(() => this._call("start", mode));
 	},
 	stop: function(mode) {
-		this._req = undefined;
-		System.gc();
+		let wdt = require.weak("watchdogtimer");
+		wdt.strobe();
+		this._call("stop", mode);
+		wdt.stop();
+		wdt.start(10, false);
+	},
+	get connection() {
+		return require.weak("wifi");
+	},
+	run(mode) {
+		var start = !(mode & (System.connection.SAFEMODE | System.connection.JIGMODE | System.connection.SINGLEUSER));
+		if (start)
+			this.start(mode);
+		setTimeout(() => (require.weak("CLI")).prompt(), 1 /* make sure it appears after the services has started */);
+		return System.run(start ? () => this.stop(mode) : undefined);
 	},
 };
 
-function main()
+function main(mode)
 {
-	led(1);
-	Connection.init();		// initialize the network drivers
-	System._init_rng(Connection.mac);	// initialize the rng
+	led.on(1);
+	{	// open block so Files can be garbage collected
+		let Files = require.weak("files");
+
+		if (!(mode & System.connection.SINGLEUSER)) {
+			// check the file system
+			let iter = Files.VolumeIterator(), fserr = [];
+			console.enable = 0;
+			for (let vol of iter) {
+				let err = Files.fsck(vol.name, true);
+				if (err != 0)
+					fserr.push(vol.name + ": " + (err < 0 ? "corrupted" : "recovered"));
+			}
+			console.enable = console.LOGFILE;
+			fserr.map(e => console.log("-stderr", e));
+		}
+
+		// set up the application paths
+		System.addPath(Files.applicationDirectory + "/", Files.documentsDirectory + "/");
+		if (System.device == "host")
+			System.addPath(Files.nativeApplicationDirectory + "/");    // to enable to load apps from the native file system
+
+		try {
+			System.config = require.weak("config");
+			if (Files.getInfo(Files.applicationDirectory + "/rc.js") || Files.getInfo(Files.documentsDirectory + "/rc.js"))
+				require.weak("rc");
+		} catch (e) {
+			// silently ignore the error
+		}
+	}
+	console.log(`starting... FW version: ${System.get("FW_VER")} (${new Date(System.timestamp * 1000)})`);
+
 	application.add(require.weak("inetd"));
-	application.add(require.weak("launcher"));
-	application.add(synctime);
+	application.add(require.weak("synctime"));
+	application.add(powerbutton);
+	application.add({
+		start: mode => (require.weak("launcher")).start(mode),
+		stop: mode => (require.weak("launcher")).stop(mode)
+	});
+	application.add({
+		start: mode => {console.enable |= console.XSBUG},
+		stop: mode => {console.enable &= ~console.XSBUG},
+	});
+
 	// the main loop
-	var ev = {save: false, config: Connection.NORMAL, status: 0};
-	var toggle = 0, fallback = false, timer;
-	wdt.start(90);
+	var status, conn = 0;
 	do {
-		switch (Connection.status) {
-		case Connection.INITIALIZED:
-		case Connection.DISCONNECTED:
-			Connection.connect(ev.config);
+		conn = application.connection.run(conn | mode);
+		if (conn == System.connection.ERROR)
+			// fatal error! cannot continue...
 			break;
-		case Connection.CONNECTED:
-			console.log("connected: " + Connection.ip);
-			fallback = false;
-			if (Connection.mode == Connection.STA) {
-				led(1);		// solid on
-				if (ev.save)
-					Connection.save();
-			}
-			else {
-				// provisioning mode
-				led(0);
-				timer = new TimeInterval(function() {
-					led(toggle++ & 1);
-				}, 500);	// slow blinking
-				timer.start();
-			}
-			application.start();
-			ev = application.run();		// the event loop
-			application.stop();		// there should be nothing left to stop but just in case
-			Connection.disconnect();
-			if (timer) {
-				timer.close();
-				timer = undefined;
-			}
+		switch (conn) {
+		case System.connection.STA:
+			led.run({onColor: [0, 1, 0]});	// green
+ 			break;
+		case System.connection.UAP:
+			led.run({onColor: [1, 1, 1]});	// white
 			break;
-		case Connection.ERROR:
-			if (fallback) {
-				// still error... give up
-				ev.status = -1;
-			}
-			else {
-				// try the provisioning mode
-				Connection.connect(Connection.FALLBACK);
-				fallback = true;
-			}
-			break;
-		default:
-			System.sleep(100);	// fast blink
-			led(toggle++ & 1);
+		case System.connection.SAFEMODE:
+			led.run({onColor: [1, 0, 0]});	// red
 			break;
 		}
-		wdt.strobe();	// the timer is not running yet so wdt needs to be reset explicitly
-	} while (ev.status == 0);
-	wdt.stop();
-	led(0);		// turn off
-	Connection.fin();
-	if (ev.status > 0)
+		status = application.run(conn | mode);		// the event loop
+		application.connection.disconnect();
+	} while (status == 0);
+	application.connection.fin();
+	led.stop();		// turn off
+	if (status > 0)
 		System.reboot(true);
 	else {
 		console.log("good night");
@@ -223,55 +202,63 @@ function main()
 	}
 	// never reach here
 	System.fin();
-	return ev.status;
 }
 
-function jig()
+function jig(error)
 {
 	console.log("=== JIG mode ===");
-	led(0);
-	Connection.init();	// need for socket
-	System._init_rng("");
-	var timer = new TimeInterval(function() {
-		led(!(toggle++ & 5));
-	}, 300), toggle = 0;
-	timer.start();
-	(require.weak("CLI")).prompt();
-	var status = System.run();
-	timer.close();
-	led(0);
-	Connection.fin();
+	application.connection.run(System.connection.JIGMODE);
+	led.run(error ? {onColor: [1, 0, 0]} : {interval: 300, pattern: 5});
+	var status = application.run(System.connection.JIGMODE);	// try to keep running even in the case of the fatal error
+	application.connection.fin();
+	led.stop();
 	if (status > 0)
 		System.reboot(true);
 	else {
 		console.log("good night");
 		System.shutdown(1);	// deep sleep
 	}
-	return status;
 }
 
-var status = (function() {
-	if (System.device == "K5") {
-		var mac = env.get("MAC");
-		if (mac) {
-			try{
-				Connection.mac = mac;	// must set the mac before initializing the network drivers	
-			}
-			catch(error){
-				console.log("set mac address failed.");
-				env.unset("MAC");
+(function() {
+	try {
+		var bootMode = 0;
+		var mac;
+		{
+			let Environment = require.weak("env");
+			let env = new Environment();
+			let path = env.get("PATH");
+			if (path)
+				System.addPath.apply(null, path.split(":"));
+			bootMode = env.get("BOOT_MODE") || 0;
+			if (bootMode) {
+				bootMode <<= System.connection.MODEBITS;
+				env.set("BOOT_MODE");
 				env.save();
-				return jig();
 			}
-			
-			return main();
+			let ver = env.get("FW_VER");
+			if (!ver || System.versionCompare(ver, FW_VERSION) < 0)
+				env.set("FW_VER", FW_VERSION);
+			mac = env.get("MAC");
 		}
-		else {
-			return jig();
+
+		if (System.device == "K5") {
+			if (mac || !System.config.usbConsole) {
+				if (mac)
+					application.connection.mac = mac;	// must set the mac before initializing the network drivers
+				return main(bootMode);
+			}
+			else
+				return jig();
 		}
-	}
-	else
-		return main();
+		else
+			return main(bootMode);
+	} catch (e) {
+		console.log("-stderr", "falling back to the JIG mode");
+		let wdt = require.weak("watchdogtimer");
+		wdt.stop();
+		return jig(true);
+	};
 })();
 
-export default status;
+export default application;

@@ -94,7 +94,7 @@ FskProjectImages(
  *	\param[in]	srcRowBytes		The byte stride between srcPixel(x,y) and srcPixel(x,y+1).
  *	\param[in]	srcWidth		The number of pixels horizontally in the source image.
  *	\param[in]	srcHeight		The number of pixels  vertically  in the source image.
- *	\param[in]	M				The transformation matrix.
+ *	\param[in]	M				The transformation matrix, 3x3.
  *	\param[in]	srcNumPts		The number of points inthe source clipping polygon; the whole source if 0.
  *	\param[in]	srcPts			The points defining the source clipping polygon; the whole source if NULL.
  *	\param[in]	mode			The compositional mode: ( kFskGraphicsModeCopy, kFskGraphicsModeAlpha, kFskGraphicsModeColorize }
@@ -121,7 +121,7 @@ FskProjectImage(
 	SInt32		srcHeight,
 
 	/* Transformation */
-	const float	M[3][3],
+	float		(*const M)[3],
 
 	/* Source clip */
 	SInt32		srcNumPts,			/* If numPoints==0 then use default rectangle */
@@ -139,7 +139,7 @@ FskProjectImage(
 
 	/* Destination clip */
 	SInt32		dstNumPts,			/* If numPts==0 then use defualt rectangle */
-	const float	(*dstPts)[2]		/* Arbitrary polygon */
+	float	(*const dstPts)[2]		/* Arbitrary polygon */
 );
 
 // #define FSK_GATHER_COORDINATE_SIGNATURE	// This is for debugging only.

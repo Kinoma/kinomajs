@@ -721,9 +721,9 @@ Boolean parseXingTOC(unsigned char *scan, DIDLMusicItem mi)
 			p += 4;
 		}
 		if (2 & flags) {
-			UInt32 bytes = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
+			UInt32 value = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3];
 			p += 4;
-			if (((FskInt64)bytes) < (mi->fileSize >> 1))
+			if (((FskInt64)value) < (mi->fileSize >> 1))
 				break;							// this TOC covers less than half the file... that's bizarre. ignore it. this can happen when appending files together (e.g. a short VBR encoded advertisement, followed by the actual content)
 		}
 		if (frames)

@@ -235,7 +235,7 @@ const float kFskCocoaViewCornerRadius = 8;
 		}
 
 		if (self.isMainView) {
-			blitContext = FskGLBlitContextGetCurrent();
+			blitContext = FskGLBlitContextGetCurrent(true);
 		} else {
 			FskGLBlitContextNewFromCurrent(&blitContext);
 			FskGLBlitContextMakeCurrent(blitContext);
@@ -472,8 +472,8 @@ const float kFskCocoaViewCornerRadius = 8;
 
 	[_storage setText:text withSelectedRange:range];
 
-	[self.inputDelegate selectionWillChange:self];
-	[self.inputDelegate textWillChange:self];
+	[self.inputDelegate selectionDidChange:self];
+	[self.inputDelegate textDidChange:self];
 }
 
 - (void)setKeyboardType:(UIKeyboardType)newType
@@ -1125,6 +1125,11 @@ const float kFskCocoaViewCornerRadius = 8;
 	#if SUPPORT_INSTRUMENTATION
 		if (!ok) LOGE("ERROR: beginDraw: setCurrentContext(%p) FAILS", context);
 	#endif /* SUPPORT_INSTRUMENTATION */
+
+	if (context && [EAGLContext currentContext] != context) {
+		[EAGLContext setCurrentContext:context];
+	}
+
 #endif // FSKBITMAP_OPENGL
 }
 
@@ -1209,6 +1214,12 @@ const float kFskCocoaViewCornerRadius = 8;
 /* UITextInput required */
 - (void)replaceRange:(UITextRange *)range withText:(NSString *)text
 {
+	IndexedRange *r = (IndexedRange *)range;
+	_storage.selectedRange = r.range;
+	[_storage insertText:text];
+
+	textInputLog(@"replaceRange:(%d %d) %@", (int)r.range.location, (int)r.range.length, text);
+	showKeyboardString();
 }
 
 #pragma mark UITextInput - Working with Marked and Selected Text
@@ -1713,7 +1724,7 @@ static NSUInteger sIndex = 0;
 
 - (BOOL)isInTextRange:(NSInteger)pos
 {
-	return ((NSUInteger) pos < _text.length && pos >= 0);
+	return ((NSUInteger) pos <= _text.length && pos >= 0);
 }
 
 - (NSString *)text

@@ -25,7 +25,7 @@
 #if 0 //BG3CDP_GL	/* Perhaps this will reduce memory usage on BG3CDP? */
 	#define RGB_TEXTURES_WORK	1	/**< This indicates that RGB textures function on this platform. */
 #else /* ! BG3CDP_GL */
-	#define RGB_TEXTURES_WORK 	0	/**< This indicates that RGB textures do not function on this platform. */
+	#define RGB_TEXTURES_WORK	0	/**< This indicates that RGB textures do not function on this platform. */
 #endif /* ! BG3CDP_GL */
 
 #define __FSKBITMAP_PRIV__	/**< Gain access to the fields of the bitmap. */
@@ -100,7 +100,7 @@
 	static const char* GLErrorStringFromCode(int err);
 #endif /* CHECK_GL_ERROR */
 
-/* 	In order to enable debug output on Android, it is necessary to:
+/*	In order to enable debug output on Android, it is necessary to:
  *	(1) #define SUPPORT_INSTRUMENTATION 1 in FskPlatform.android.h
  *	(2) put this into manifest.xml:
  *			<instrument platform="android" androidlog="true" threads="true" trace="false">
@@ -115,11 +115,11 @@
  *	(4) fskbuild --clean [ --run ] [ --test ]
  *	(5a) To view the output on Android, type "adb logcat" in the host (Mac or Linux) Terminal window.
  *	(5b) To view the output on the Mac, you can
- *	     - launch from XCode, and the output will be displayed in the console window.
- *	     - launch from Terminal with:
- *	     	cd ${F_HOME}/bin/mac/debug/Kinoma Simulator.app/Contents/MacOS"
- *	     	./fsk"
- *	       and you will be able to see the output in the Terminal window.
+ *		- launch from XCode, and the output will be displayed in the console window.
+ *		- launch from Terminal with:
+ *			cd ${F_HOME}/bin/mac/debug/Kinoma Simulator.app/Contents/MacOS"
+ *			./fsk"
+ *		and you will be able to see the output in the Terminal window.
  */
 
 #if SUPPORT_INSTRUMENTATION
@@ -316,10 +316,10 @@ FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the ty
 	#define BLEND_FUNC_WILL_CHANGE(s,d)						(BLEND_HASH(s,d)                  != gGLGlobalAssets.blitContext->blendHash)	/**< Query whether blend function will change. */
 	#define BLEND_ENABLE_WILL_CHANGE(doBlend)				((doBlend)   ? !gGLGlobalAssets.blitContext->glBlend       : gGLGlobalAssets.blitContext->glBlend)			/**< Query whether blend enable will change. */
 	#define SCISSOR_ENABLE_WILL_CHANGE(doScissor)			((doScissor) ? !gGLGlobalAssets.blitContext->glScissorTest : gGLGlobalAssets.blitContext->glScissorTest)	/**< Query whether blend function will change. */
-    #define SCISSOR_WILL_CHANGE(x,y,width,height)			((((GLint)(x)        - gGLGlobalAssets.blitContext->scissorX)		| \
-    														  ((GLint)(y)        - gGLGlobalAssets.blitContext->scissorY)		| \
-    														  ((GLsizei)(width)  - gGLGlobalAssets.blitContext->scissorWidth)	| \
-    														  ((GLsizei)(height) - gGLGlobalAssets.blitContext->scissorHeight)) != 0)		/**< Query whether scissor rect will change. */
+	#define SCISSOR_WILL_CHANGE(x,y,width,height)			((((GLint)(x)        - gGLGlobalAssets.blitContext->scissorX)		| \
+															  ((GLint)(y)        - gGLGlobalAssets.blitContext->scissorY)		| \
+															  ((GLsizei)(width)  - gGLGlobalAssets.blitContext->scissorWidth)	| \
+															  ((GLsizei)(height) - gGLGlobalAssets.blitContext->scissorHeight)) != 0)		/**< Query whether scissor rect will change. */
 	#define SHADER_MATRIX_WILL_CHANGE(shader)				(gGLGlobalAssets.matrixSeed != gGLGlobalAssets.blitContext->shader.matrixSeed)	/**< Query whether shader matrix will change. */
 	#define TEXTURE_WILL_CHANGE(texName)					((texName) != gGLGlobalAssets.blitContext->lastTexture)							/**< Query whether texture will change. */
 #else /* OPTIMIZE_STATE_CHANGES */
@@ -327,7 +327,7 @@ FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the ty
 	#define BLEND_FUNC_WILL_CHANGE(s,d)						1																				/**< Query whether blend function will change. */
 	#define BLEND_ENABLE_WILL_CHANGE(doBlend)				1																				/**< Query whether blend enable will change. */
 	#define SCISSOR_ENABLE_WILL_CHANGE(doScissor)			1																				/**< Query whether blend function will change. */
-    #define SCISSOR_WILL_CHANGE(x,y,width,height)			1																				/**< Query whether scissor rect will change. */
+	#define SCISSOR_WILL_CHANGE(x,y,width,height)			1																				/**< Query whether scissor rect will change. */
 	#define SHADER_MATRIX_WILL_CHANGE(shader)				1																				/**< Query whether shader matrix will change. */
 	#define TEXTURE_WILL_CHANGE(texName)					1																				/**< Query whether texture will change. */
 #endif /* OPTIMIZE_STATE_CHANGES */
@@ -656,13 +656,6 @@ struct FskGLBlitContextRecord {							/**< State per blit context. */
 			ShaderState		drawBG3CDPBitmap;			/**< State for the drawBG3CDPBitmap program. */
 		#endif /* defined(EGL_VERSION) && defined(BG3CDP_GL) */
 	#endif /* GLES_VERSION */
-
-	#ifdef EGL_VERSION
-		void				*nativeWindow;				/**< A handle to the native window. */
-		EGLDisplay			eglDisplay;					/**< EGL display. */
-		EGLSurface			eglSurface;					/**< EGL surface. */
-		EGLContext			eglContext;					/**< EGL context. */
-	#endif /* EGL_VERSION */
 };														/**< State per blit context */
 
 
@@ -732,6 +725,10 @@ typedef struct FskGLGlobalAssetsRecord {			/* Members set once, at initializatio
 		UInt32			matrixSeed;					/**< A sequence number that is incremented when the view matrix is changed. */
 		float			matrix[3][3];				/**< The combined model/view/clip matrix. */
 	#endif /* GLES_VERSION */
+
+	#ifdef EGL_VERSION
+		void			*nativeWindow;				/**< A handle to the native window. */
+	#endif /* EGL_VERSION */
 
 	FskGLBlitContextRecord	defaultContext;			/**< The default FskGLBlit context */
 	FskGLBlitContextRecord	*blitContext;			/**< The current FskGLBlit context */
@@ -2178,7 +2175,7 @@ static void LogGLPort(FskConstGLPort glPort) {
 	}
 }
 
-static void LogMatrix(const float M[3][3], const char *name) {
+static void LogMatrix(float (*const M)[3], const char *name) {
 	if (!name)
 		name = "MATRIX";
 	LOGD("\t%s: { [%.3g %.3g %.3g] [%.3g %.3g %.3g] [%.3g %.3g %.3g] }",
@@ -2352,7 +2349,7 @@ static void LogProjectBitmap(
 	FskConstRectangle				srcRect,
 	FskConstBitmap					dstBM,
 	FskConstRectangle				dstClip,
-	const float						M[3][3],
+	float							(*const M)[3],
 	FskConstColorRGBA				opColor,
 	UInt32							mode,
 	FskConstGraphicsModeParameters	modeParams
@@ -2984,7 +2981,10 @@ static void DisposeGLObjects() {
 
 	}
 	FskGLBlitContextMakeCurrent(&gGLGlobalAssets.defaultContext);		/* Make the default context current */
- 	FskMemPtrDisposeAt(&gGLGlobalAssets.defaultContext.glContext);		/* Don't dispose the main context -- just our memory of it */
+	#ifdef LOG_SHUTDOWN
+		LOGD("Disposing glContext=%p", gGLGlobalAssets.defaultContext.glContext);
+	#endif /* LOG_SHUTDOWN */
+	FskMemPtrDisposeAt(&gGLGlobalAssets.defaultContext.glContext);		/* Don't dispose the main context -- just our memory of it */
 }
 
 
@@ -3030,6 +3030,7 @@ static void DisposeGlobalGLAssets(void) {
 	p = gGLGlobalAssets.activePorts;
 	FskMemSet(&gGLGlobalAssets, 0, sizeof(gGLGlobalAssets));
 	gGLGlobalAssets.activePorts = p;
+	gCurrentGLPort = NULL;
 
 	/* gGLGlobalAssets.isInited = 0;			not needed with preceding  FskMemSet() */
 }
@@ -3231,151 +3232,71 @@ bail:
 /****************************************************************************//**
  * Initialize EGL display, surface, and context.
  * This needs to be executed in the GL thread.
- * \param[in]	colorQuant	the color quantization: { 565, 888, 8888 }.
+ * \param[in]	pixelFormat	the pixel format.
  * \param[in]	aWin	the native window. This can be released after FskEGLWindowContextInitialize() returns.
  * \return		kFskErrNone	if the platform GL was initialized successfully.
  ********************************************************************************/
 
-static FskErr FskEGLWindowContextInitialize(UInt32 colorQuant, void *aWin)
+static FskErr FskEGLWindowContextInitialize(FskBitmapFormatEnum pixelFormat, void *aWin)
 {
-	struct ConfigAttribs {
-		EGLint	bufferSizeTag,		bufferSize,
-				alphaSizeTag,		alphaSize,
-				redSizeTag,			redSize,
-				greenSizeTag,		greenSize,
-				blueSizeTag,		blueSize,
-				depthSizeTag,		depthSize,
-				stencilSizeTag,		stencilSize,
-				samplesTag,			samples,
-				colorBufferTag,		colorBuffer,
-				renderableTag,		renderable,
-				surfaceTypeTag,		surfaceType,
-				noneTag,			none;
-	};
-	struct ConfigAttribs configAttribs;
-	static const EGLint ctxAttr[] = {
-		EGL_CONTEXT_CLIENT_VERSION,	GLES_VERSION,			/* Either GLES 1 or 2 */
-		EGL_NONE,					EGL_NONE
-	};
 	FskErr		err			= kFskErrNone;
 	FskGLPort	glPort		= NULL;
-	EGLDisplay	display		= NULL;
-	EGLSurface	surface		= NULL;
-	EGLContext	context		= NULL;
-	EGLConfig	config;
-	FskWindow	fWin;
 	EGLint		surfWidth, surfHeight;
+	FskWindow	fWin;
 
 	#if GL_DEBUG
 		FskThread thread = FskThreadGetCurrent();
 		const char *threadName = FskThreadName(thread);
-		LOGD("[%s, thread=%p] FskEGLWindowContextInitialize", threadName, thread);
+		LOGD("[%s, thread=%p] FskEGLWindowContextInitialize(%s, %p) while glContext=%p nativeWindow=%p", threadName, thread,
+			FskBitmapFormatName(pixelFormat), aWin, gGLGlobalAssets.defaultContext.glContext, gGLGlobalAssets.nativeWindow);
 	#endif /* GL_DEBUG */
 
-//	if (!gGLGlobalAssets.blitContext && aWin)
-//{
-//fprintf(stderr, "no GLGlobalAssets.blitContext %x && aWin: %x setNativeWindow\n", gGLGlobalAssets.blitContext, aWin);
-//		FskGLSetNativeWindow(aWin);
-//}
-	if (gGLGlobalAssets.blitContext->eglContext) {
+	//if (!gGLGlobalAssets.blitContext && aWin)
+	//{
+	//	fprintf(stderr, "no GLGlobalAssets.blitContext %x && aWin: %x setNativeWindow\n", gGLGlobalAssets.blitContext, aWin);
+	//	FskGLSetNativeWindow(aWin);
+	//}
+
+	if (gGLGlobalAssets.isInited) {
 		LOGD("GLWindowContextInitialize has already been successfully completed");
-//		if (gGLGlobalAssets.blitContext->eglContext == eglGetCurrentContext())		/* All is OK: our notion of the context is the same as GL's */
+		//if (gGLGlobalAssets.blitContext->eglContext == eglGetCurrentContext())					/* All is OK: our notion of the context is the same as GL's */
 			goto bail;
-	#ifdef LOG_INIT
-		LOGE((EGL_NO_CONTEXT == eglGetCurrentContext())				? "FskEGLWindowContextInitialize: we think there is a context but there is none"
-																	: "FskEGLWindowContextInitialize: current context is not ours");
-		if (gGLGlobalAssets.blitContext->eglSurface != eglGetCurrentSurface(EGL_DRAW)) {
-			LOGE((EGL_NO_SURFACE == eglGetCurrentSurface(EGL_DRAW))	? "FskEGLWindowContextInitialize: we think there is a surface but there is none"
-																	: "FskEGLWindowContextInitialize: current surface is not ours");
-		}
-		if (gGLGlobalAssets.blitContext->eglDisplay != eglGetCurrentDisplay()) {
-			LOGE((EGL_NO_SURFACE == eglGetCurrentDisplay())			? "FskEGLWindowContextInitialize: we think there is a display but there is none"
-																	: "FskEGLWindowContextInitialize: current display is not ours");
-		}
-	#endif /* LOG_INIT */
 	}
 
-	if (aWin) {																					/* We have been given a native window */
-		gGLGlobalAssets.blitContext->nativeWindow = aWin;										/* Save it in case initialization fails */
-		LOGD("GLWindowContextInitialize: aWin supplied = %p", aWin);
-	}
-	else {
+	if (!gGLGlobalAssets.defaultContext.glContext) {
+		if (aWin) {																					/* We have been given a native window */
+			gGLGlobalAssets.nativeWindow = aWin;													/* Save it in case initialization fails */
+			LOGD("GLWindowContextInitialize: aWin supplied = %p", aWin);
+		}
+		else {
+			#if GL_DEBUG
+				if (gGLGlobalAssets.nativeWindow == NULL)
+					LOGD("[%s] FskEGLWindowContextInitialize CANNOT COMPLETE because it has no native window", threadName);
+			#endif	/* GL_DEBUG */
+			BAIL_IF_NULL(gGLGlobalAssets.nativeWindow, err, kFskErrEGLBadNativeWindow);				/* No hope for initialization; bail */
+			aWin = gGLGlobalAssets.nativeWindow;													/* Use the saved native window */
+			LOGD("GLWindowContextInitialize: aWin set from global nativeWindow = %p", aWin);
+		}
+
 		#if GL_DEBUG
-			if (gGLGlobalAssets.blitContext->nativeWindow == NULL)
-				LOGD("[%s] FskEGLWindowContextInitialize CANNOT COMPLETE because it has no native window", threadName);
+			if (strcmp("main", threadName) == 0)
+				LOGD("[%s] FskEGLWindowContextInitialize CANNOT COMPLETE because it is being called from the main thread", threadName);
 		#endif /* GL_DEBUG */
-		BAIL_IF_NULL(gGLGlobalAssets.blitContext->nativeWindow, err, kFskErrGraphicsContext);	/* No hope for initialization; bail */
-		aWin = gGLGlobalAssets.blitContext->nativeWindow;										/* Use the saved native window */
-		LOGD("GLWindowContextInitialize: aWin set from global nativeWindow = %p", aWin);
+
+		BAIL_IF_ERR(err = FskGLWindowContextNew(aWin, pixelFormat, GLES_VERSION, NULL, &gGLGlobalAssets.defaultContext.glContext));
+		BAIL_IF_ERR(err = FskGLContextMakeCurrent(gGLGlobalAssets.defaultContext.glContext));
+
+		//BAIL_IF_ERR(err = GetFskEGLError());
 	}
 
-	#if GL_DEBUG
-		if (strcmp("main", threadName) == 0)
-			LOGD("[%s] FskEGLWindowContextInitialize CANNOT COMPLETE because it is being called from the main thread", threadName);
-	#endif /* GL_DEBUG */
-
-
-	configAttribs.depthSizeTag		= EGL_DEPTH_SIZE;			configAttribs.depthSize		= 0;
-	configAttribs.stencilSizeTag	= EGL_STENCIL_SIZE;			configAttribs.stencilSize	= 0;
-	configAttribs.samplesTag		= EGL_SAMPLES;				configAttribs.samples		= 0;
-	configAttribs.colorBufferTag	= EGL_COLOR_BUFFER_TYPE;	configAttribs.colorBuffer	= EGL_RGB_BUFFER;
-	configAttribs.renderableTag		= EGL_RENDERABLE_TYPE;		configAttribs.renderable	= EGL_OPENGL_ES2_BIT;
-	configAttribs.noneTag			= EGL_NONE;					configAttribs.none			= 0;
-	configAttribs.surfaceTypeTag	= EGL_SURFACE_TYPE;			configAttribs.surfaceType	= EGL_WINDOW_BIT;
-	configAttribs.bufferSizeTag		= EGL_BUFFER_SIZE;
-	configAttribs.alphaSizeTag		= EGL_ALPHA_SIZE;
-	configAttribs.redSizeTag		= EGL_RED_SIZE;
-	configAttribs.greenSizeTag		= EGL_GREEN_SIZE;
-	configAttribs.blueSizeTag		= EGL_BLUE_SIZE;
-
-	switch (colorQuant) {
-		case 565:
-			configAttribs.bufferSize	= 16;
-			configAttribs.alphaSize		= 0;
-			configAttribs.redSize		= 5;
-			configAttribs.greenSize		= 6;
-			configAttribs.blueSize		= 5;
-			break;
-		case 888:
-			configAttribs.bufferSize	= 24;
-			configAttribs.alphaSize		= 0;
-			configAttribs.redSize		= 8;
-			configAttribs.greenSize		= 8;
-			configAttribs.blueSize		= 8;
-			break;
-		case 8888:
-		default:
-			configAttribs.bufferSize	= 32;
-			configAttribs.alphaSize		= 8;
-			configAttribs.redSize		= 8;
-			configAttribs.greenSize		= 8;
-			configAttribs.blueSize		= 8;
-			break;
+	{	EGLContext	context;
+		EGLDisplay	display;
+		EGLSurface	surface;
+		FskGLContextGetEGL(gGLGlobalAssets.defaultContext.glContext, &display, &surface, &context);
+		eglQuerySurface(display, surface, EGL_WIDTH,  &surfWidth);
+		eglQuerySurface(display, surface, EGL_HEIGHT, &surfHeight);
+		LOGD("GLWindowContextInitialize inited context=%p display=%p surface=%p width=%d height=%d", context, display, surface, surfWidth, surfHeight);
 	}
-
-	BAIL_IF_FALSE(EGL_NO_DISPLAY != (display = eglGetDisplay((NativeDisplayType)EGL_DEFAULT_DISPLAY)),			err, kFskErrGraphicsContext);
-	LOGD("GLWindowContextInitialize: eglGetDisplay = %p", display);
-	BAIL_IF_FALSE(                  eglInitialize(display, NULL, NULL),											err, kFskErrGraphicsContext);	/* (display, &major, &minor) */
-	LOGD("GLWindowContextInitialize: eglInitialize successful");
-	BAIL_IF_NULL(                   (config  = FskChooseBestEGLConfig(display, (void*)&configAttribs)),			err, kFskErrGraphicsContext);
-	LOGD("GLWindowContextInitialize: FskChooseBestEGLConfig = %p", config);
-//	BAIL_IF_FALSE					(eglGetConfigAttrib(display, config, EGL_NATIVE_VISUAL_ID, &format),		err, kFskErrGraphicsContext);
-//	LOGD("GLWindowContextInitialize: eglGetConfigAttrib format = %d", format);
-//	BAIL_IF_NEGATIVE(				ANativeWindow_setBuffersGeometry(aWin, 0, 0, format),						err, kFskErrGraphicsContext);	/* buffer size == window size, good format */
-//	LOGD("GLWindowContextInitialize: ANativeWindow_setBuffersGeometry successful");
-	BAIL_IF_FALSE(EGL_NO_SURFACE !=	(surface = eglCreateWindowSurface(display, config, aWin, NULL)),			err, kFskErrGraphicsContext);
-	LOGD("GLWindowContextInitialize: eglCreateWindowSurface = %p", surface);
-	BAIL_IF_FALSE(EGL_NO_CONTEXT != (context = eglCreateContext(display, config, EGL_NO_CONTEXT, ctxAttr)),		err, kFskErrGraphicsContext);
-	LOGD("GLWindowContextInitialize: eglCreateContext = %p", context);
-	BAIL_IF_FALSE(EGL_FALSE      != eglMakeCurrent(display, surface, surface, context),							err, kFskErrGraphicsContext);
-	LOGD("GLWindowContextInitialize: eglMakeCurrent successful");
-
-	err = FskGLSetEGLContext(display, surface, context);
-
-	eglQuerySurface(display, surface, EGL_WIDTH,  &surfWidth);
-	eglQuerySurface(display, surface, EGL_HEIGHT, &surfHeight);
-
-//	BAIL_IF_ERR(err = GetFskEGLError());
 
 	fWin = FskWindowGetActive();
 	LOGD("GLWindowContextInitialize: fWin = %p", fWin);
@@ -3388,40 +3309,38 @@ static FskErr FskEGLWindowContextInitialize(UInt32 colorQuant, void *aWin)
 	//}
 
 	if (NULL == (glPort = FskGLPortGetCurrent())) {
-		BAIL_IF_ERR(err = FskGLPortNew(surfWidth, surfHeight, fWin, &glPort));
-		LOGD("GLWindowContextInitialize: FskGLPortNew(%d, %d) = %p", surfWidth, surfHeight, glPort);
+		//BAIL_IF_ERR(err = FskGLPortNew(surfWidth, surfHeight, fWin, &glPort));
+		BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(FskGLPortRecord), &glPort));	/* Fake FskGLPortNew() */
+		glPort->sysContext = fWin;
+		glPort->portWidth  = surfWidth;											/* Setting width and height to nonzero makes this port a destination. */
+		glPort->portHeight = surfHeight;
+		GLPortListInsertPort(&gGLGlobalAssets.activePorts, glPort);				/* Insert this port into the active list */
+		FskGLPortSetCurrent(glPort);
+		LOGD("GLWindowContextInitialize: fake FskGLPortNew(%d, %d) = %p", surfWidth, surfHeight, glPort);
 	}
 	else {
 		LOGD("GLWindowContextInitialize: FskGLPortGetCurrent = %p; Resizing port from (%u, %u) to (%d, %d)",
 			glPort, (unsigned)glPort->portWidth, (unsigned)glPort->portHeight, surfWidth, surfHeight);
-		glPort->portWidth  = surfWidth;		/* Can't call FskGLPortResize(glPort, surfWidth, surfHeight) yet */
+		glPort->portWidth  = surfWidth;											/* Can't call FskGLPortResize(glPort, surfWidth, surfHeight) yet */
 		glPort->portHeight = surfHeight;
-		FskGLSetGLView(glPort);				/* We toss away the error code, because GL may not be fully initialized. */
 		FskGLPortSetSysContext(glPort, fWin);
+		//FskGLSetGLView(glPort);												/* We toss away the error code, because GL may not be fully initialized. */
 	}
 	LOGD("GLWindowContextInitialize: done");
 
 bail:
 	if (err) {
-		if (display) {
+		if (gGLGlobalAssets.defaultContext.glContext) {
 			#if GL_DEBUG
 				LOGD("[%s] FskEGLWindowContextInitialize: FskEGLWindowContextInitialize FAILED, returning %d", threadName, (int)err);
 			#else /* GL_DEBUG */
 				LOGD("GLWindowContextInitialize: FAILED, returning %d", (int)err);
 			#endif /* GL_DEBUG */
-			//eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-			if (surface)	eglDestroySurface(display, surface);
-			if (context)	eglDestroyContext(display, context);
-			//eglTerminate(display);
+			FskGLContextDispose(gGLGlobalAssets.defaultContext.glContext, /*terminate=*/false);
+			gGLGlobalAssets.defaultContext.glContext = NULL;
 		}
 	}
 	else {
-		#if GL_DEBUG
-			if (eglGetCurrentContext()			!= context)	LOGE(    "EGLCurrentContext=%p != %p", eglGetCurrentContext(),         context);
-			if (eglGetCurrentSurface(EGL_DRAW)	!= surface)	LOGE("EGLCurrentDrawSurface=%p != %p", eglGetCurrentSurface(EGL_DRAW), surface);
-			if (eglGetCurrentSurface(EGL_READ)	!= surface)	LOGE("EGLCurrentReadSurface=%p != %p", eglGetCurrentSurface(EGL_READ), surface);
-			if (eglGetCurrentDisplay()			!= display)	LOGE(    "EGLCurrentDisplay=%p != %p", eglGetCurrentDisplay(),         display);
-		#endif /* GL_DEBUG */
 		LOGD("GLWindowContextInitialize: successful");
 	}
 	return err;
@@ -3446,9 +3365,9 @@ FskErr FskGLSetNativeWindow(void *nativeWindow)
 //	}
 
 	#if GL_DEBUG
-		LOGD("[%s] FskGLSetNativeWindow(%p (was %p))", FskThreadName(FskThreadGetCurrent()), nativeWindow, gGLGlobalAssets.blitContext->nativeWindow);
+		LOGD("[%s] FskGLSetNativeWindow(%p (was %p))", FskThreadName(FskThreadGetCurrent()), nativeWindow, gGLGlobalAssets.nativeWindow);
 	#endif /* GL_DEBUG */
-	gGLGlobalAssets.blitContext->nativeWindow = nativeWindow;
+	gGLGlobalAssets.nativeWindow = nativeWindow;
 	return kFskErrNone;
 }
 
@@ -3467,62 +3386,31 @@ static FskErr FskEGLWindowContextShutdown(void)
 		return err;			/* Why does it crash on Windows? */
 	#endif /* _MSC_VER */
 
+	#ifdef LOG_SHUTDOWN
+		LOGD("FskEGLWindowContextShutdown: Calling DisposeGLObjects()");
+	#endif /* LOG_SHUTDOWN */
 	DisposeGLObjects();
 
 	/* Shut down the GL surface, context, and display. */
-	if (gGLGlobalAssets.blitContext) {					/* If there is a current Fsk GL Blit Context */
-		if (gGLGlobalAssets.blitContext->eglDisplay) {
-			LOGD("Calling eglMakeCurrent(%p, %p, %p, %p)", gGLGlobalAssets.blitContext->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-			eglMakeCurrent(gGLGlobalAssets.blitContext->eglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-			LOGD("Calling eglDestroyContext(%p, %p) if non-null", gGLGlobalAssets.blitContext->eglDisplay, gGLGlobalAssets.blitContext->eglContext);
-			if (gGLGlobalAssets.blitContext->eglContext)
-				eglDestroyContext(gGLGlobalAssets.blitContext->eglDisplay, gGLGlobalAssets.blitContext->eglContext);
-			LOGD("Calling eglDestroySurface(%p, %p) if non-null", gGLGlobalAssets.blitContext->eglDisplay, gGLGlobalAssets.blitContext->eglSurface);
-			if (gGLGlobalAssets.blitContext->eglSurface)
-				eglDestroySurface(gGLGlobalAssets.blitContext->eglDisplay, gGLGlobalAssets.blitContext->eglSurface);
-			LOGD("Calling eglTerminate(%p)", gGLGlobalAssets.blitContext->eglDisplay);
-			eglTerminate(gGLGlobalAssets.blitContext->eglDisplay);
-			err = GetFskGLError();
-		}
-		LOGD("Setting egl{Display, Surface, Context} to NULL");
-		gGLGlobalAssets.blitContext->eglDisplay = NULL;
-		gGLGlobalAssets.blitContext->eglSurface = NULL;
-		gGLGlobalAssets.blitContext->eglContext = NULL;
-
-		LOGD("Setting nativeWindow to NULL, isInited and lastProgram to 0");
-		gGLGlobalAssets.blitContext->nativeWindow = NULL;
+	if (gGLGlobalAssets.defaultContext.glContext) {					/* If there is a current Fsk GL Blit Context */
+		#ifdef LOG_SHUTDOWN
+			LOGD("FskEGLWindowContextShutdown: %sdisposing glContext=%p)", gGLGlobalAssets.defaultContext.glContextMine ? "" : "not ");
+		#endif /* LOG_SHUTDOWN */
+		if (gGLGlobalAssets.defaultContext.glContextMine)
+			FskGLContextDispose(gGLGlobalAssets.defaultContext.glContext, true);	// TODO: Do we really want to terminate?
+		LOGD("Setting nativeWindow and glContext to NULL, isInited and lastProgram to 0");
+		gGLGlobalAssets.nativeWindow = NULL;
+		gGLGlobalAssets.defaultContext.glContext = NULL;
 		#if GLES_VERSION == 2
-			gGLGlobalAssets.blitContext->lastProgram = 0;
+			gGLGlobalAssets.defaultContext.lastProgram = 0;
 		#endif /* GLES_VERSION == 2 */
-		// TODO: Should we dispose of the FskGLBlitContext?
 	}
 	gGLGlobalAssets.isInited = 0;
 
 	return err;
 }
-
-
-/****************************************************************************//**
- * Set the EGL display, surface, and context.
- * \return		kFskErrNone
- ********************************************************************************/
-
-#undef FskGLSetEGLContext
-FskErr FskGLSetEGLContext(void *eglDisplay, void *eglSurface, void *eglContext)
-{
-	if (!gGLGlobalAssets.blitContext)
-		gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext;
-	gGLGlobalAssets.blitContext->eglDisplay = eglDisplay;
-	gGLGlobalAssets.blitContext->eglSurface = eglSurface;
-	gGLGlobalAssets.blitContext->eglContext = eglContext;
-	if (eglDisplay == NULL || eglSurface == NULL || eglContext == NULL) {
-		gGLGlobalAssets.isInited = 0;	/* Requires re-initializations */
-		gGLGlobalAssets.blitContext->nativeWindow = NULL;
-		LOGD("de-initializing global assets");
-	}
-	return kFskErrNone;
-}
 #endif /* EGL_VERSION */
+
 
 /****************************************************************************//**
 * Set GL default FBO to be used when rendering to the screen.
@@ -3786,39 +3674,53 @@ FskErr FskKplGLContextInitialize() {
 	FskWindow	fWin;
 	FskGLPort	glPort;
 
-	if (NULL == gGLGlobalAssets.blitContext)
-		gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext;
-	if (gGLGlobalAssets.blitContext->eglContext) {
+	#ifdef LOG_INIT
+		LOGD("FskKplGLContextInitialize() when isInited=%d glContext=%p", gGLGlobalAssets.isInited, gGLGlobalAssets.defaultContext.glContext);
+	#endif /* LOG_INIT */
+
+	/* Check if GLBlit has been initialized */
+	if (GL_GLOBAL_ASSETS_ARE_INITIALIZED()) {
 		LOGD("FskKplGLContextInitialize has already been successfully completed");
 		goto bail;
 	}
-	if (NULL != gGLGlobalAssets.blitContext->nativeWindow)
-		goto bail;
 
+	/* Check if a GL context has been created, and create one if not already existent */
+	#if USE_FRAMEBUFFER_VECTORS
+		err = FskFrameBufferGetEGLContext((void**)&display, (void**)&surface, (void**)&context, (void**)&nativeWindow);
+		if (err)
+	#endif /* USE_FRAMEBUFFER_VECTORS */
+			err = KplGLInitialize(&display, &surface, &context, &nativeWindow);
+		BAIL_IF_ERR(err);
+	FskGLSetNativeWindow(nativeWindow);	/* This is probably not needed on non-Android */
+	if (!gGLGlobalAssets.defaultContext.glContext) {
+		BAIL_IF_ERR(err = FskGLContextNewFromEGL(display, surface, context, &gGLGlobalAssets.defaultContext.glContext));
+		BAIL_IF_ERR(err = FskGLContextMakeCurrent(gGLGlobalAssets.defaultContext.glContext));
+		LOGD("FskKplGLContextInitialize: new glContext=%p (disp=%p surf=%p cntx=%p nwin=%p)",
+			gGLGlobalAssets.defaultContext.glContext, display, surface, context, nativeWindow
+		);
+		gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext;
+	}
+	else {
+		LOGD("FskKplGLContextInitialize unexpectedly has a glContext=%p blitContext=%p", gGLGlobalAssets.defaultContext.glContext, gGLGlobalAssets.blitContext);
+		if (NULL == gGLGlobalAssets.blitContext)
+			gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext;
+	}
+
+	/* Create or update the current port to match the dimensions of this window context */
+	eglQuerySurface(display, surface, EGL_WIDTH,  &surfWidth);
+	eglQuerySurface(display, surface, EGL_HEIGHT, &surfHeight);
 	fWin = FskWindowGetActive();
 	if (NULL == fWin)
 		fWin = FskWindowGetInd(0, NULL);
-	//if (NULL == fWin) {
-		//err = kFskErrOutOfSequence;
-		//goto bail;
-	//}
-
-#if USE_FRAMEBUFFER_VECTORS
-	err = FskFrameBufferGetEGLContext((void**)&display, (void**)&surface, (void**)&context, (void**)&nativeWindow);
-	if (err)
-#endif /* USE_FRAMEBUFFER_VECTORS */
-		err = KplGLInitialize(&display, &surface, &context, &nativeWindow);
-	BAIL_IF_ERR(err);
-
-	FskGLSetNativeWindow(nativeWindow);
-	FskGLSetEGLContext(display, surface, context);
-
-	eglQuerySurface(display, surface, EGL_WIDTH,  &surfWidth);
-	eglQuerySurface(display, surface, EGL_HEIGHT, &surfHeight);
-
 	if (NULL == (glPort = FskGLPortGetCurrent())) {
-		BAIL_IF_ERR(err = FskGLPortNew(surfWidth, surfHeight, fWin, &glPort));
-		LOGD("FskKplGLContextInitialize: FskGLPortNew(%d, %d) = %p", surfWidth, surfHeight, glPort);
+		//BAIL_IF_ERR(err = FskGLPortNew(surfWidth, surfHeight, fWin, &glPort));
+		BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(FskGLPortRecord), &glPort));	/* Fake FskGLPortNew() */
+		glPort->sysContext = fWin;
+		glPort->portWidth  = surfWidth;											/* Setting width and height to nonzero makes this port a destination. */
+		glPort->portHeight = surfHeight;
+		GLPortListInsertPort(&gGLGlobalAssets.activePorts, glPort);				/* Insert this port into the active list */
+		FskGLPortSetCurrent(glPort);
+		LOGD("GLWindowContextInitialize: fake FskGLPortNew(%d, %d) = %p", surfWidth, surfHeight, glPort);
 	}
 	else {
 		LOGD("FskKplGLContextInitialize: FskGLPortGetCurrent = %p; Resizing port from (%u, %u) to (%d, %d)",
@@ -3828,8 +3730,11 @@ FskErr FskKplGLContextInitialize() {
 		FskGLSetGLView(glPort);				/* We toss away the error code, because GL may not be fully initialized. */
 		FskGLPortSetSysContext(glPort, fWin);
 	}
+	LOGD("FskKplGLContextInitialize is successful");
 
 bail:
+	if (err)
+		LOGD("FskKplGLContextInitialize returns %d: %s", err, FskInstrumentationGetErrorString(err));
 	return err;
 }
 #endif /* TARGET_OS_KPL */
@@ -4022,13 +3927,19 @@ static FskErr InitGlobalGLAssets() {
 		#ifdef LOG_INIT
 			LOGD("InitGlobalGLAssets: Calling FskEGLWindowContextInitialize");
 		#endif /* LOG_INIT */
-		BAIL_IF_ERR(err = FskEGLWindowContextInitialize(565, NULL));	/* We do this in case initialization is deferred */
+		BAIL_IF_ERR(err = FskEGLWindowContextInitialize(kFskBitmapFormat16RGB565LE, NULL));	/* We do this in case initialization is deferred */
 		#ifdef LOG_INIT
 			LOGD("InitGlobalGLAssets: FskEGLWindowContextInitialize succeeded; checking FskGLCapabilitiesGet");
 		#endif /* LOG_INIT */
 	#elif TARGET_OS_WIN32 && (FSK_OPENGLES_ANGLE == 1)
-		BAIL_IF_ERR(err = FskEGLWindowContextInitialize(565, NULL));
+		#ifdef LOG_INIT
+			LOGD("InitGlobalGLAssets: Calling FskEGLWindowContextInitialize");
+		#endif /* LOG_INIT */
+		BAIL_IF_ERR(err = FskEGLWindowContextInitialize(kFskBitmapFormat16RGB565LE, NULL));
 	#elif TARGET_OS_KPL
+		#ifdef LOG_INIT
+			LOGD("InitGlobalGLAssets: Calling FskKplGLContextInitialize");
+		#endif /* LOG_INIT */
 		BAIL_IF_ERR(err = FskKplGLContextInitialize());
 	#endif /* TARGET_OS */
 
@@ -4572,7 +4483,35 @@ static FskErr InitGlobalGLAssets() {
 	PRINT_IF_ERROR(err, __LINE__, "FskGLContextNewFromCurrentContext");
 	BAIL_IF_ERR(err);
 	gGLGlobalAssets.defaultContext.glContextMine = true;								/* Remember to deallocate this context when shutting down */
+	#if defined(LOG_CONTEXT) || defined(LOG_INIT)
+		#ifdef EGL_VERSION
+		{	EGLContext tContext;	EGLDisplay tDisplay;	EGLSurface tSurface;
+			FskGLContextGetEGL(gGLGlobalAssets.defaultContext.glContext, &tDisplay, &tSurface, &tContext);
+			// if (gGLGlobalAssets.defaultContext.eglDisplay != tDisplay	||
+			// 	gGLGlobalAssets.defaultContext.eglSurface != tSurface	||
+			// 	gGLGlobalAssets.defaultContext.eglContext != tContext
+			// )
+			// 	LOGD("INCONSISTENT GLCONTEXT EGL: disp: %p%c=%p surf: %p%c=%p cntx: %p%c=%p",
+			// 		tDisplay, (tDisplay == gGLGlobalAssets.defaultContext.eglDisplay ? '=' : '!'), gGLGlobalAssets.defaultContext.eglDisplay,
+			// 		tSurface, (tSurface == gGLGlobalAssets.defaultContext.eglSurface ? '=' : '!'), gGLGlobalAssets.defaultContext.eglSurface,
+			// 		tContext, (tContext == gGLGlobalAssets.defaultContext.eglContext ? '=' : '!'), gGLGlobalAssets.defaultContext.eglContext
+			// 	);
+			// else
+				LOGD("GLContext EGL: disp=%p surf=%p cntx=%p", tDisplay, tSurface, tContext);
 
+		}
+		#elif TARGET_OS_MAC && !TARGET_OS_IPHONE
+		{	CGLContextObj tContext;
+			FskGLContexGetCGL(gGLGlobalAssets.defaultContext.glContext, &tContext);
+			LOGD("CGL context: %p", tContext);
+		}
+		#elif TARGET_OS_MAC && TARGET_OS_IPHONE
+		{	EAGLContext *tContext;
+			FskGLContextGetEAGL(gGLGlobalAssets.defaultContext.glContext, &tContext);
+			LOGD("EAGL context: %p", tContext);
+		}
+		#endif /* EGL_VERSION */
+	#endif /* LOG_CONTEXT  || LOG_INIT */
 
 	inited = true;
 	#ifdef LOG_INIT
@@ -4619,7 +4558,11 @@ bail:
 #endif
 	}
 	else {										/* If anything failed ... */
+		#ifdef LOG_SHUTDOWN
+			LOGD("InitGlobalGLAssets: calling DisposeGLObjects");
+		#endif /* LOG_SHUTDOWN */
 		DisposeGLObjects();						/* ... go back to square one */
+		gGLGlobalAssets.blitContext = NULL;
 	}
 
 	#ifdef LOG_INIT
@@ -5995,8 +5938,19 @@ bail:
  ********************************************************************************/
 
 static void BG3CDPBitmapDispose(FskBitmap bm, void *refcon) {
+	EGLDisplay eglDisplay;
+
+	#ifdef LOG_PARAMETERS
+		LOGD("BG3CDPBitmapDispose(bm=%p refcon=%p)", bm, refcon);
+	#endif /* LOG_PARAMETERS */
+
+	if (!gGLGlobalAssets.blitContext->glContext)
+		return;
+	FskGLContextGetEGL(gGLGlobalAssets.blitContext->glContext, &eglDisplay, NULL, NULL);
+	if (EGL_NO_DISPLAY == eglDisplay)
+		return;
 	if (bm->lastImageKhr)
-		eglDestroyImageKHR(gGLGlobalAssets.blitContext->eglDisplay, bm->lastImageKhr);
+		eglDestroyImageKHR(eglDisplay, bm->lastImageKhr);
 	if (bm->lastInternalSurf)
 		gcoSURF_Destroy(bm->lastInternalSurf);
 	bm->doDispose = NULL;
@@ -6037,6 +5991,11 @@ static FskErr GCSurfaceNew(
     gctPOINTER	memory[3];
     gctUINT		address[3];
 
+	#ifdef LOG_PARAMETERS
+		LOGD("GCSurfaceNew(width=%d height=%d rowBytes=%d format=%d pPhys=%p pVirt=%p pSurf=%p",
+			width, height, rowBytes, format, pPhys, pVirt, pSurf);
+	#endif /* LOG_PARAMETERS */
+
 	*pSurf = NULL;
 	BAIL_IF_NEGATIVE(gcoOS_Construct(NULL, &os), err, kFskErrEGLBadSurface);
 	BAIL_IF_NEGATIVE(gcoHAL_Construct(NULL, os, &hal), err, kFskErrEGLBadSurface);
@@ -6067,6 +6026,10 @@ static FskErr SetEXTTexture(FskConstBitmap srcBM, FskConstRectangle texRect, GLT
 	EGLClientBuffer	clientBuffer;
 	gceSURF_FORMAT	yuvTexFormat;
 
+	#ifdef LOG_PARAMETERS
+		LOGD("SetEXTTexture(srcBM=%p texRect=%p tx=%p", srcBM, texRect, tx);
+	#endif /* LOG_PARAMETERS */
+
 	if (NULL == SRCBM->physicalAddr)
 		BAIL(kFskErrUnimplemented);
 
@@ -6092,16 +6055,18 @@ static FskErr SetEXTTexture(FskConstBitmap srcBM, FskConstRectangle texRect, GLT
 		gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext;
 
 	if (NULL == SRCBM->lastImageKhr) {
+		EGLDisplay eglDisplay;
+		FskGLContextGetEGL(gGLGlobalAssets.blitContext->glContext, &eglDisplay, NULL, NULL);
 		#if defined(LOG_YUV)
 			LOGD("eglCreateImageKHR(display=%p, context=%p, target=%d, buffer=%p, attrib_list=%p)",
-				gGLGlobalAssets.blitContext->eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, NULL);
+				eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, NULL);
 		#endif /* LOG_YUV */
-		SRCBM->lastImageKhr = eglCreateImageKHR(gGLGlobalAssets.blitContext->eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, NULL);
+		SRCBM->lastImageKhr = eglCreateImageKHR(eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, NULL);
 		SRCBM->doDispose = &BG3CDPBitmapDispose;										/* Make sure to dispose the lastImageKhr when the bitmap is disposed */
 		#if CHECK_GL_ERROR
 			err = GetFskEGLError();
 			PRINT_IF_ERROR(err, __LINE__, "eglCreateImageKHR(%p, %p, %d, %p, %p)",
-				gGLGlobalAssets.blitContext->eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, 0);
+				eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, 0);
 		#endif /* CHECK_GL_ERROR */
 		BAIL_IF_FALSE(EGL_NO_IMAGE_KHR != SRCBM->lastImageKhr, err, kFskErrEGLBadNativePixmap);
 	}
@@ -6230,25 +6195,27 @@ static FskErr SetGLTexture(FskConstBitmap srcBM, FskConstRectangle texRect, GLTe
 				if (NULL == SRCBM->lastInternalSurf) {
 					#if defined(LOG_YUV)
 						LOGD("GCSurfaceNew(width=%d, height=%d, rowBytes=%d, yuvTexFormat=%d, phys=%p, virt=%pm, pSurf=%p)",
-							(int)SRCBM->bounds.width, (int)SRCBM->bounds.height, (int)SRCBM->rowBytes, yuvTexFormat, &SRCBM->physicalAddr, &SRCBM->bits, &SRCBM->lastInternalSurf);
+							(int)SRCBM->bounds.width, (int)SRCBM->bounds.height, (int)SRCBM->rowBytes, yuvTexFormat, &SRCBM->physicalAddr, &SRCBM->bits, (void*)&SRCBM->lastInternalSurf);
 					#endif /* LOG_YUV */
-					BAIL_IF_ERR(err = GCSurfaceNew(SRCBM->bounds.width, SRCBM->bounds.height, SRCBM->rowBytes, yuvTexFormat, &SRCBM->physicalAddr, &SRCBM->bits, &SRCBM->lastInternalSurf));
+					BAIL_IF_ERR(err = GCSurfaceNew(SRCBM->bounds.width, SRCBM->bounds.height, SRCBM->rowBytes, yuvTexFormat, &SRCBM->physicalAddr, &SRCBM->bits, (void*)&SRCBM->lastInternalSurf));
 					SRCBM->doDispose = &BG3CDPBitmapDispose;										/* Make sure to dispose the lastInternalSurf when the bitmap is disposed */
 				}
 
 				/* Create a KHR image from the gco surface */
 				if (NULL == SRCBM->lastImageKhr) {
+					EGLDisplay eglDisplay;
+					FskGLContextGetEGL(gGLGlobalAssets.blitContext->glContext, &eglDisplay, NULL, NULL);
 					EGLClientBuffer	clientBuffer = (EGLClientBuffer)(SRCBM->lastInternalSurf);
 					#if defined(LOG_YUV)
 						LOGD("eglCreateImageKHR(display=%p, context=%p, target=%d, buffer=%p, attrib_list=%p)",
-							gGLGlobalAssets.blitContext->eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, NULL);
+							eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, NULL);
 					#endif /* LOG_YUV */
-					SRCBM->lastImageKhr = eglCreateImageKHR(gGLGlobalAssets.blitContext->eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, NULL);
+					SRCBM->lastImageKhr = eglCreateImageKHR(eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, NULL);
 					SRCBM->doDispose = &BG3CDPBitmapDispose;										/* Make sure to dispose the lastImageKhr when the bitmap is disposed */
 					#if CHECK_GL_ERROR
 						err = GetFskEGLError();
 						PRINT_IF_ERROR(err, __LINE__, "eglCreateImageKHR(%p, %p, %d, %p, %p)",
-							gGLGlobalAssets.blitContext->eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, 0);
+							eglDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID, clientBuffer, 0);
 					#endif /* CHECK_GL_ERROR */
 					BAIL_IF_FALSE(EGL_NO_IMAGE_KHR != SRCBM->lastImageKhr, err, kFskErrEGLBadNativePixmap);
 				}
@@ -8218,7 +8185,7 @@ static FskErr SetupBlit(
 	ShaderState						**shaderState
 ) {
 	FskErr				err		= kFskErrNone;
-	GLTextureRecord		*tx;
+	GLTextureRecord		*tx		= NULL;
 	FskRectangleRecord	texRect;
 
 	if (!srcRect)
@@ -8237,7 +8204,8 @@ static FskErr SetupBlit(
 	#else /* GLES_VERSION == 2 */
 
 		#ifdef LOG_YUV
-			tx = (srcBM && srcBM->glPort && srcBM->glPort->texture.name) ? &srcBM->glPort->texture : NULL;
+			if (srcBM && srcBM->glPort && srcBM->glPort->texture.name)
+				tx = &srcBM->glPort->texture;
 		#endif /* LOG_YUV */
 		switch (srcBM->pixelFormat) {
 			case kFskBitmapFormatYUV420:
@@ -9242,10 +9210,10 @@ FskErr FskGLTypeFaceNew(const char *fontName, UInt32 textSize, UInt32 textStyle,
 	typeFace->cache				= cache;
 	typeFace->glyphTabSize		= 16384;												/* Initial size of codepoint to glyph table: allocated below */
 
-    if ((integerTextSize = textSize) > 0x8000)											/* If the text size is too large to be considered an integer, ... */
-    	integerTextSize = ROUND_FIXED_TO_INT(integerTextSize);							/* ... interpret it as a 16.16 fixed point number */
-    typeFace->numStrikes = SmallestContainingPowerOfTwo(3072 / integerTextSize);		/* Initial size of strike directory, which determines the initial size of the bitmap */
-    if (typeFace->numStrikes > 256)
+	if ((integerTextSize = textSize) > 0x8000)											/* If the text size is too large to be considered an integer, ... */
+		integerTextSize = ROUND_FIXED_TO_INT(integerTextSize);							/* ... interpret it as a 16.16 fixed point number */
+	typeFace->numStrikes = SmallestContainingPowerOfTwo(3072 / integerTextSize);		/* Initial size of strike directory, which determines the initial size of the bitmap */
+	if (typeFace->numStrikes > 256)
 		typeFace->numStrikes = 256;
 
 	typeFace->dirty				= 1;
@@ -9899,10 +9867,10 @@ static FskGLBlitContext* FindGLBlitContext(FskGLBlitContext ctx) {
 
 
 /********************************************************************************
- * RemoveGLBlitContext
+ * UnlinkGLBlitContext
  ********************************************************************************/
 
-static FskErr RemoveGLBlitContext(FskGLBlitContext ctx) {
+static FskErr UnlinkGLBlitContext(FskGLBlitContext ctx) {
 	FskGLBlitContext *p = FindGLBlitContext(ctx);
 	if (NULL != p) {
 		*p = ctx->next;
@@ -10337,7 +10305,7 @@ FskErr FskGLInit(void *v) {
 		 * (1) in the same thread of the virtual machine.
 		 * (2) with a pointer to the native window, passed as the parameter v.
 		 */
-		BAIL_IF_ERR(err = FskEGLWindowContextInitialize(565, v));
+		BAIL_IF_ERR(err = FskEGLWindowContextInitialize(kFskBitmapFormat16RGB565LE, v));
 	#else /* !TARGET_OS_ANDROID */
 		if (v) {}	/* Get rid of "unused" messages. */
 	#endif /* TARGET_OS_ANDROID */
@@ -10820,7 +10788,8 @@ void   FskGLPortFocus(FskGLPort port) {
 	if (port && port->portWidth && port->portHeight) {	/* if (FskGLPortIsDestination(port) */
 		if (port->sysContext && gGLGlobalAssets.focus)
 			(*gGLGlobalAssets.focus)(port->sysContext);
-		(void)FskGLSetGLView(port);
+		if (GL_GLOBAL_ASSETS_ARE_INITIALIZED())
+			(void)FskGLSetGLView(port);
 	}
 	#if CHECK_GL_ERROR
 	{	FskErr err = GetFskGLError();
@@ -10848,7 +10817,18 @@ void   FskGLPortDefocus(FskConstGLPort port) {
 	#endif /* CHECK_GL_ERROR */
 }
 
+
+/********************************************************************************/
 #define DEFAULT_CONTEXT_EXISTS()	(NULL != gGLGlobalAssets.blitContext)
+#ifdef EGL_VERSION
+	#define kFskErr_GLBadContext kFskErrEGLBadContext		/**< Bad context error for EGL. */
+#elif TARGET_OS_MAC && !TARGET_OS_IPHONE
+	#define kFskErr_GLBadContext kFskErrCGLBadContext		/**< Bad context error for Macintosh. */
+#elif TARGET_OS_MAC && TARGET_OS_IPHONE
+	#define kFskErr_GLBadContext kFskErrEAGLBadContext		/**< Bad context error for iOS. */
+#else /* Unspecified GL context */
+	#define kFskErr_GLBadContext kFskErrGraphicsContext		/**< Bad context error for unspecified GL. */
+#endif /* GL context */
 
 
 /********************************************************************************
@@ -10858,18 +10838,6 @@ void   FskGLPortDefocus(FskConstGLPort port) {
 static void SetGLContextOfBlitContext(FskGLContext glContext, FskGLBlitContext blitContext) {
 	blitContext->glContext  = glContext;
 	blitContext->defaultFBO = FskGLContextFrameBuffer(glContext);
-
-	#if defined(EGL_VERSION)
-		FskGLContextGetEGL(glContext,
-			(void**)(&blitContext->eglDisplay),
-			(void**)(&blitContext->eglSurface),
-			(void**)(&blitContext->eglContext)
-		);
-	#elif TARGET_OS_IPHONE
-	#elif TARGET_OS_MAC
-	#else
-		#error Unknown GL context
-	#endif /* TARGET */
 }
 
 
@@ -10890,6 +10858,7 @@ void FskGLBlitContextInitDefault(FskGLContext glContext) {
 
 /********************************************************************************
  * FskGLBlitContextNew
+ * This does not make this blit context current by default.
  ********************************************************************************/
 
 FskErr FskGLBlitContextNew(FskGLContext glContext, FskGLBlitContext *pBlitContext) {
@@ -10901,6 +10870,7 @@ FskErr FskGLBlitContextNew(FskGLContext glContext, FskGLBlitContext *pBlitContex
 
 	BAIL_IF_NULL(pBlitContext, err, kFskErrInvalidParameter);
 	*pBlitContext = NULL;
+	BAIL_IF_NULL(glContext, err, kFskErr_GLBadContext);									/* Return the bad context error code appropriate for the system */
 
 	if (DEFAULT_CONTEXT_EXISTS()) {														/* We already have established a default context, so this one is secondary */
 		FskGLBlitContext ctx;
@@ -10908,15 +10878,22 @@ FskErr FskGLBlitContextNew(FskGLContext glContext, FskGLBlitContext *pBlitContex
 		ctx = *pBlitContext;
 		ctx->next = gGLGlobalAssets.defaultContext.next;								/* Maintain a linked list of contexts, ... */
 		gGLGlobalAssets.defaultContext.next = ctx;										/* ... so we can manage their lifetimes. */
-		SetGLContextOfBlitContext(glContext, ctx);
-		{	FskGLBlitContext saveContext = FskGLBlitContextGetCurrent();
-			BAIL_IF_ERR(err = FskGLBlitContextMakeCurrent(ctx));
-			InitContextState();
-			BAIL_IF_ERR(err = FskGLBlitContextMakeCurrent(saveContext));
+		SetGLContextOfBlitContext(glContext, ctx);										/* Sets context and defaultFBO */
+		{	FskGLBlitContext saveContext = FskGLBlitContextGetCurrent(false);			/* Save the previous context (there will always be one, since the default context exists */
+			BAIL_IF_ERR(err = FskGLBlitContextMakeCurrent(ctx));						/* Set this context, for appropriate initialization */
+			InitContextState();															/* This just initializes this new context */
+			if (saveContext)															/* This should never be NULL */
+				BAIL_IF_ERR(err = FskGLBlitContextMakeCurrent(saveContext));			/* Restore the previous context */
 		}
 	}
-	else {																				/* No default context yet: allocate the default */
-		SetGLContextOfBlitContext(glContext, (*pBlitContext = gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext));
+	else {																				/* No default context yet: initialize GL and allocate the default */
+		FskGLContextStorage	oldCtxStore;
+		FskGLContext		oldCtx;
+		(void)FskGLContextGetCurrentContext(&oldCtxStore, &oldCtx);						/* Save the previous context; NULL if there was none */
+		FskGLContextMakeCurrent(glContext);												/* Make sure that there is a current GL context for InitGlobalGLAssets() */
+		SetGLContextOfBlitContext(glContext, (*pBlitContext = gGLGlobalAssets.blitContext = &gGLGlobalAssets.defaultContext));	/* Sets context and defaultFBO */
+		InitGlobalGLAssets();															/* This initializes everything: shaders, programs, ..., including this default context */
+		if (oldCtx)	(void)FskGLContextMakeCurrent(oldCtx);								/* Restore the previous GL context if there was one */
 	}
 
 bail:
@@ -10971,7 +10948,11 @@ bail:
 
 /********************************************************************************
  * FskGLBlitContextDispose
- *	TODO: Do we need to specify terminateGL?
+ *	There are several situations
+ *	(1) The context is neither the default nor the current context. We simply delete the context.
+ *	(2) The context is the current, but not default context. We switch to the default context and delete the given context.
+ *	(3) The context is the default context, and another is the current. We copy the current to the default, and return an error.
+ *	(4) The context is the default context and there are no other contexts. We shut down GL.
  ********************************************************************************/
 
 FskErr FskGLBlitContextDispose(FskGLBlitContext blitContext) {
@@ -10986,16 +10967,10 @@ FskErr FskGLBlitContextDispose(FskGLBlitContext blitContext) {
 	BAIL_IF_FALSE(blitContext != &gGLGlobalAssets.defaultContext, err, kFskErrGLStackUnderflow);	/* We cannot dispose of the default context */
 	if ((curCtx = gGLGlobalAssets.blitContext) == blitContext)										/* If this is the current context, ... */
 		curCtx = &gGLGlobalAssets.defaultContext;													/* ... restore later to the default context */
-
-	FskGLBlitContextMakeCurrent(blitContext);														/* Set to a this context */
 	if (blitContext->glContextMine)																	/* If we created the GL context, ... */
-		FskGLContextDispose(blitContext->glContext, false);											/* ... we dispose of it. Current context is unknown. */
-	err = RemoveGLBlitContext(blitContext);															/* Remove this blit context from our linked list */
-	#if defined(LOG_CONTEXT)
-		if (err)
-			LOGD("FskGLBlitContextDispose::RemoveGLBlitContext() returns err=%s", FskInstrumentationGetErrorString(err));
-	#endif
-	FskMemPtrDispose(blitContext);																	/* Dispose of our memory allocation */
+		FskGLContextDispose(blitContext->glContext, false);											/* ... we dispose of it. Current GL context is unknown. */
+	if (kFskErrNotFound != (err = UnlinkGLBlitContext(blitContext)))								/* Remove this blit context from our linked list */
+		FskMemPtrDispose(blitContext);																/* Dispose of our memory allocation, if it was not the default blit context */
 	FskGLBlitContextMakeCurrent(curCtx);															/* Set to a valid context */
 
 bail:
@@ -11056,18 +11031,19 @@ FskErr FskGLBlitContextMakeCurrent(FskGLBlitContext blitContext) {
  * FskGLBlitContextGetCurrent
  ********************************************************************************/
 
-FskGLBlitContext FskGLBlitContextGetCurrent(void) {
-	if (!gGLGlobalAssets.blitContext) {
+FskGLBlitContext FskGLBlitContextGetCurrent(Boolean create) {
+	if (!gGLGlobalAssets.blitContext && create) {
 		if (kFskErrNone != InitGlobalGLAssets()) {
 			#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
-				LOGD("FskGLBlitContextGetCurrent() returns NULL");
+				LOGD("FskGLBlitContextGetCurrent(%d) returns NULL", (int)create);
 			#endif /* LOG_PARAMETERS */
 			return NULL;
 		}
 	}
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
-		LOGD("FskGLBlitContextGetCurrent() returns %p[glContext=%p]", gGLGlobalAssets.blitContext, gGLGlobalAssets.blitContext->glContext);
+		LOGD("FskGLBlitContextGetCurrent(%d) is returning %p[glContext=%p]", (int)create, gGLGlobalAssets.blitContext,
+			(gGLGlobalAssets.blitContext ? gGLGlobalAssets.blitContext->glContext : NULL));
 	#endif /* LOG_PARAMETERS */
 
 	return gGLGlobalAssets.blitContext;
@@ -11079,7 +11055,7 @@ FskGLBlitContext FskGLBlitContextGetCurrent(void) {
  ********************************************************************************/
 
 FskErr FskGLBlitContextSwapCurrent(FskGLBlitContext *pBlitContext) {
-	FskGLBlitContext	ctx	= FskGLBlitContextGetCurrent();
+	FskGLBlitContext	ctx	= FskGLBlitContextGetCurrent(false);
 	FskErr				err	= FskGLBlitContextMakeCurrent(*pBlitContext);
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
@@ -11096,11 +11072,22 @@ FskErr FskGLBlitContextSwapCurrent(FskGLBlitContext *pBlitContext) {
  ********************************************************************************/
 
 FskErr FskGLBlitContextGetGLContext(FskGLBlitContext blitContext, struct FskGLContextRecord **glContext) {
+	#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
+		LOGD("FskGLBlitContextGetGLContext(blitContext=%p) isInited=%d returning %p", blitContext,
+			(SInt32)gGLGlobalAssets.isInited, (blitContext ?  blitContext->glContext : NULL)
+		);
+	#endif /* LOG_PARAMETERS */
+
 	if (blitContext && gGLGlobalAssets.isInited) {
 		*glContext = blitContext->glContext;
 		return kFskErrNone;
 	}
 	else {
+		#if defined(LOG_CONTEXT)
+			LOGD("FskGLBlitContextGetGLContext(blitContext=%p) isInited=%d returning %p", blitContext,
+				(SInt32)gGLGlobalAssets.isInited, (blitContext ?  blitContext->glContext : NULL)
+			);
+		#endif /* LOG_CONTEXT */
 		*glContext = NULL;
 		return kFskErrGraphicsContext;
 	}
@@ -12276,11 +12263,11 @@ FskErr FskGLPortSwapBuffers(FskConstGLPort port) {
 	if (gGLGlobalAssets.rendererIsTiled)	glFinish();	/* Tiled renderers crash if you only flush; they need to be be completely finished before swapping buffers. */
 	else									glFlush();	/* Documentation says that flush is not necessary, but experience shows that it crashes otherwise. */
 	if (port) {											/* TODO: We don't really use the port. */
-		EGLBoolean success = eglSwapBuffers(gGLGlobalAssets.blitContext->eglDisplay, gGLGlobalAssets.blitContext->eglSurface);
+		FskErr err = FskGLContextSwapBuffers(gGLGlobalAssets.blitContext->glContext);
 		#if defined(LOG_SWAPBUFFERS)
-			LOGD("GLPortSwapBuffers%10d.%06d: %s, eglSwapBuffers returns %s", time.seconds, time.useconds, glend[gGLGlobalAssets.rendererIsTiled], success ? "success" : "failure");
+			LOGD("GLPortSwapBuffers%10d.%06d: %s, eglSwapBuffers returns %s", time.seconds, time.useconds, glend[gGLGlobalAssets.rendererIsTiled], err ? "failure" : "success");
 		#endif /* GL_DEBUG */
-		return success? kFskErrNone : kFskErrOperationFailed;
+		return err;
 	}
 	#if defined(LOG_SWAPBUFFERS)
 		else
@@ -12548,6 +12535,8 @@ FskErr FskGLRenderToBitmapTexture(FskBitmap bm, FskConstColorRGBA clear) {
 		LogColor(clear, "clear");
 	#endif /* LOG_PARAMETERS */
 
+	BAIL_IF_FALSE(gGLGlobalAssets.isInited, err, kFskErrGraphicsContext);
+
 	if (bm && bm->glPort) {	/* If the texture is persistent, swap textures to save the previous frame */
 		GLTexture tx = &bm->glPort->texture;
 		#if TARGET_OS_ANDROID
@@ -12603,8 +12592,8 @@ FskErr FskGLRenderToBitmapTexture(FskBitmap bm, FskConstColorRGBA clear) {
 
 	#if CHECK_GL_ERROR
 		err = GetFskGLError();
-bail:
 	#endif /* CHECK_GL_ERROR */
+bail:
 	return err;
 
 #else /* GLES_VERSION == 1 */
@@ -13369,7 +13358,7 @@ FskErr FskGLPerspectiveTransformBitmap(
 	const FskFixedPoint2D			*points,
 	FskBitmap						dstBM,
 	FskConstRectangle				dstClip,
-	const float						M[3][3],
+	float							(*const M)[3],
 	FskConstColorRGBA				opColor,
 	UInt32							mode,
 	FskConstGraphicsModeParameters	modeParams
@@ -13516,7 +13505,7 @@ FskErr FskGLProjectBitmap(
 	FskConstRectangle				srcRect,
 	FskBitmap						dstBM,
 	FskConstRectangle				dstClip,
-	const float						M[3][3],
+	float							(*const M)[3],
 	FskConstColorRGBA				opColor,
 	UInt32							mode,
 	FskConstGraphicsModeParameters	modeParams

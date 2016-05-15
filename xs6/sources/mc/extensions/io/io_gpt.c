@@ -35,7 +35,10 @@ typedef struct {
 	int id;
 	int channel;
 	int running;
+	uint32_t interval;
 } mc_gpt_t;
+
+#define GPT_PWM_INTERVAL	(0xffffffff/50)
 
 void
 xs_gpt_constructor(xsMachine *the)
@@ -43,6 +46,7 @@ xs_gpt_constructor(xsMachine *the)
 	int id = xsToInteger(xsArg(0));
 	int channel = xsToInteger(xsArg(1));
 	mc_gpt_t *gpt;
+	mdev_t *mdev;
 
 	if (id >= MC_GPT_MAX_ID)
 		mc_xs_throw(the, "gpt: bad arg");
@@ -55,6 +59,11 @@ xs_gpt_constructor(xsMachine *the)
 	gpt->id = id;
 	gpt->channel = channel;
 	gpt->running = 0;
+	gpt->interval = GPT_PWM_INTERVAL;
+	if ((mdev = gpt_drv_open(gpt->id)) != NULL) {
+		gpt_drv_set(mdev, gpt->interval);
+		gpt_drv_close(mdev);
+	}
 	xsSetHostData(xsThis, gpt);
 }
 
@@ -99,7 +108,10 @@ xs_gpt_start(xsMachine *the)
 
 	if ((mdev = gpt_drv_open(gpt->id)) == NULL)
 		return;
-	gpt_drv_set(mdev, interval);
+	if (gpt->interval != interval) {
+		gpt_drv_set(mdev, interval);
+		gpt->interval = interval;
+	}
 	gpt_drv_start(mdev);
 	gpt_drv_close(mdev);
 	gpt->running++;
@@ -127,14 +139,28 @@ xs_gpt_pwm(xsMachine *the)
 	double on = xsToNumber(xsArg(0));	/* in ms */
 	double off = xsToNumber(xsArg(1));	/* ditto */
 	mdev_t *mdev;
+	GPT_ChannelOutputConfig_Type type;
 
 	if ((mdev = gpt_drv_open(gpt->id)) == NULL)
 		return;
-	gpt_drv_set(mdev, 0xffffffff/50);
-	gpt_drv_pwm(mdev, gpt->channel, (uint32_t)(on * 50000), (uint32_t)(off * 50000));	/* @ 50MHz? */
-	gpt_drv_start(mdev);
+	if (gpt->interval != GPT_PWM_INTERVAL) {
+		gpt->interval = GPT_PWM_INTERVAL;
+		gpt_drv_set(mdev, gpt->interval);
+	}
+
+	/* gpt_drv_pwm(mdev, gpt->channel, (uint32_t)(on * 50000), (uint32_t)(off * 50000)); */	/* @ 50MHz? */
+	GPT_ChannelFuncSelect(mdev->port_id, gpt->channel, GPT_CH_FUNC_PWM_EDGE);
+	type.polarity = GPT_CH_WAVE_POL_POS;
+	type.cntMatchVal0 = (uint32_t)(on * 50000);
+	type.cntMatchVal1 = (uint32_t)(off * 50000);
+	GPT_ChannelOutputConfig(mdev->port_id, gpt->channel, &type);
+
+	if (!gpt->running) {
+		GPT_ChannelReset(mdev->port_id, (1 << gpt->channel));
+		gpt_drv_start(mdev);
+		gpt->running++;
+	}
 	gpt_drv_close(mdev);
-	gpt->running++;
 	xsSetTrue(xsResult);
 }
 

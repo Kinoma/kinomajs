@@ -14,8 +14,20 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-MODULE = utils
-JS_SRC = utils.js
-C_SRCS =
+JS_DIR = $(F_HOME)/xs6/sources/mc/extensions
+OBJECTS = $(DEST_DIR)/utils.xsb
 
-include library.mk
+
+.PHONY: archive
+
+all archive: $(OBJECTS)
+	make -f utils/makefile $@
+
+clean:
+	rm -f $(OBJECTS)
+	make -f utils/makefile $@
+
+# rules
+$(DEST_DIR)/%.xsb: $(JS_DIR)/%.js
+	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(DEST_DIR) $<
+

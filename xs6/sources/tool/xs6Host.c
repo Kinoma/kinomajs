@@ -982,3 +982,21 @@ void fx_setTimeoutCallback(txJob* job)
 	}
 	fxEndHost(the);
 }
+
+mxExport txScript* fxGetScript(void *it, txString path);
+
+txScript* fxGetScript(void *it, txString path)
+{
+	txArchive* archive = it;
+	if (archive) {
+		txInteger c = archive->scriptCount;
+		txScript* script = archive->scripts;
+		while (c > 0) {
+			if (!c_strcmp(path, script->path))
+				return script;
+			c--;
+			script++;
+		}
+	}
+	return NULL;
+}

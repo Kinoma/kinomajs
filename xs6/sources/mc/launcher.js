@@ -16,33 +16,6 @@
  */
 import System from "system";
 
-/*
-	Unused 
-
-function verify(app)
-{
-	let Files = require.weak("files");
-	var Crypt = require.weak("crypt");
-	var base = Files.applicationDirectory + "/" + app;
-	// first check if the signature file exists
-	var sig = Files.read(base + ".sig");
-	if (!sig) {
-		console.log(base + ".sig" + " not found");
-		return false;
-	}
-	var f = new File(base + ".xsb");
-	var buf = new ArrayBuffer(128);
-	var dgst = new Crypt.SHA1();
-	while (f._read(128, buf)) {
-		dgst.update(buf);
-	}
-	f.close();
-	var h = dgst.close();
-	var pk = new Crypt.PKCS1_5(Crypt.X509.decodeSPKI(Files.read("xssig.der")));
-	return pk.verify(h, sig);
-}
-*/
-
 var Launcher = {
 	s: null,
 	get state() {
@@ -56,15 +29,8 @@ var Launcher = {
 	},
 	start(mode) {
 		let app = System.get("APPLICATION");
-		if (app) {
-			/*
-			if (!verify(app)) {
-				console.log(app + ": verification failed");
-				return;
-			}
-			*/
+		if (app)
 			this.launch(app);
-		}
 	},
 	stop(mode) {
 		this.quit();
@@ -89,16 +55,21 @@ var Launcher = {
 		}
 		System.gc();
 	},
-	launch(path, ...params) {
-		this.quit();
+	_launch(path, ...params) {
 		let module = require.weak(path);
-		this.state.module = module;
-		if (module && module.onLaunch) {
-			try {
-				return module.onLaunch(...params);
-			} catch(e) {
-				console.log("launcher: onLaunch: caught an exception");
-			}
+		if (module) {
+			module._path = path;
+			if (module.onLaunch)
+				module.onLaunch(...params);
+		}
+		return module;
+	},
+	launch(path, ...params) {
+		try {
+			this.quit();
+			this.state.module = this._launch(path, ...params);
+		} catch(e) {
+			console.log("launcher: onLaunch: caught an exception");
 		}
 	},
 	quit() {
@@ -120,7 +91,7 @@ var Launcher = {
 		var n = instances.length;
 		while (--n >= 0) {
 			let o = instances[n];
-			if (o.cb) {
+			if (o && o.cb) {
 				try {
 					o.cb(o.instance);
 				} catch(e) {
@@ -141,6 +112,13 @@ var Launcher = {
 				console.log("launcher: onLaunch: caught an exception");
 			}
 		}
+	},
+	verify() {
+		if (!this.state.module || !this.state.module._path)
+			return false;
+		return true;	// until the helper app is signed
+		let xssig = require.weak("xssig");
+		return xssig.verify(this.state.module._path);
 	},
 };
 

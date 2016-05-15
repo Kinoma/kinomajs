@@ -353,6 +353,10 @@ class ShellBehavior extends Behavior {
 					if ("pin" in pin)
 						states[pin.pin] = 1;
 					break;
+				case "PWM":
+					if ("pin" in pin)
+						states[pin.pin] = 10;
+					break;
 				}
 			}
 		}

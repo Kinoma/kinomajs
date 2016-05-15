@@ -43,7 +43,7 @@ var synctime = {
 				t += (t2 - t1) / 2;	// + the roundtrip time / 2
 				System.time = t;
 				System.init_rng(t);
-				console.log("-stderr", "setting RTC: " + Date());	// going to the log file
+				console.log("setting RTC: " + Date());	// going to the log file
 			}
 			application.remove(synctime);
 			synctime._req = undefined;

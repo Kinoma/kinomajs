@@ -286,3 +286,35 @@ txBoolean xsVTrace(txMachine *the, const char *theFormat, ...)
 	}
 	return 0;
 }
+
+extern void* fxMapArchive(txString path, txCallbackAt callbackAt);
+extern void fxUnmapArchive(void* it);
+extern txScript* fxGetScript(void* it, txString path);
+
+static txCallback callbackAt(txID i)
+{
+	return NULL;
+}
+
+void *xsReadArchive(txString base)
+{
+	return fxMapArchive(base, callbackAt);
+}
+
+void xsFreeArchive(void *archive)
+{
+	fxUnmapArchive(archive);
+}
+
+txBoolean xsGetCode(txMachine *the, void *archive, txString path, void **addr, txInteger *size)
+{
+	txScript *script;
+	char buf[PATH_MAX];
+
+	snprintf(buf, sizeof(buf), "%s.xsb", path);	/* @@ should try .xsb -> .jsb -> .js? */
+	if ((script = fxGetScript(archive == NULL ? the->archive : archive, buf)) == NULL)
+		return 0;
+	*addr = script->codeBuffer;
+	*size = script->codeSize;
+	return 1;
+}

@@ -304,6 +304,10 @@ class ShellBehavior extends Behavior {
 		var console = this.CONSOLE.first;
 		console.behavior.doLog(console, text);
 	}
+	doLogRaw(shell, text) {
+		var console = this.CONSOLE.first;
+		console.behavior.doLogRaw(console, text);
+	}
 
 	doCloseURL(shell, url) {
 		trace("### doCloseURL " + url + "\n");
@@ -446,13 +450,13 @@ class ShellBehavior extends Behavior {
 			items: [],
 		};
 		this.debugPort = 5003;
+		this.deviceUUID = "";
 		this.errors = {
 			expanded: true,
 			items: [],
 		};
 		this.home = "";
-		this.createSimulator = mergeURI(shell.url, "../../simulators/CreateShell.app");
-		this.elementSimulator = mergeURI(shell.url, "../../simulators/ElementShell.app");
+		this.simulatorsURI = mergeURI(shell.url, "../../simulators/");
 		this.history = [
 		];
 		this.projectsDirectory = mergeURI(Files.documentsDirectory, "Kinoma%20Code/Projects/");
@@ -461,6 +465,9 @@ class ShellBehavior extends Behavior {
 		this.url = undefined;
 		this.at = undefined;
 		this.eula = false;
+		
+		this.createSoftwareUpdatePreRelease = false;
+		this.elementSoftwareUpdatePreRelease = false;
 		
 		this.SSID = "";
 		this.interfaces = {};
@@ -592,8 +599,9 @@ class ShellBehavior extends Behavior {
 	readPreferences() {
 		try {
 			var url = mergeURI(Files.preferencesDirectory, this.preferences);
+			var preferences = {};
 			if (Files.exists(url)) {
-				var preferences = JSON.parse(Files.readText(url));
+				preferences = JSON.parse(Files.readText(url));
 				if ("windowState" in preferences)
 					shell.windowState = preferences.windowState;
 				if ("arrangement" in preferences)
@@ -612,19 +620,16 @@ class ShellBehavior extends Behavior {
 					this.verticalMainDividerStatus = preferences.verticalMainDividerStatus;
 										
 				if ("debugPort" in preferences)
-					this.debugPort = preferences.debugPort
+					this.debugPort = preferences.debugPort;
+				if ("deviceUUID" in preferences)
+					this.deviceUUID = preferences.deviceUUID;
+					
 				if ("featureIndex" in preferences)
 					this.currentFeature = this.features[preferences.featureIndex];
 				if ("history" in preferences)
 					this.history = preferences.history
 				if ("home" in preferences)
 					this.home = preferences.home
-				if ("createSimulator" in preferences)
-					if (Files.exists(preferences.createSimulator))
-							this.createSimulator = preferences.createSimulator;
-				if ("elementSimulator" in preferences)
-					if (Files.exists(preferences.elementSimulator))
-						this.elementSimulator = preferences.elementSimulator;
 				if ("projectsDirectory" in preferences)
 					this.projectsDirectory = preferences.projectsDirectory
 				if ("projectsDomain" in preferences)
@@ -637,13 +642,17 @@ class ShellBehavior extends Behavior {
 				}
 				if ("eula" in preferences)
 					this.eula = preferences.eula
+				if ("createSoftwareUpdatePreRelease" in preferences)
+					this.createSoftwareUpdatePreRelease = preferences.createSoftwareUpdatePreRelease;
+				if ("elementSoftwareUpdatePreRelease" in preferences)
+					this.elementSoftwareUpdatePreRelease = preferences.elementSoftwareUpdatePreRelease
 					
 				if ("breakpoints" in preferences) {
 					this.breakpoints.expanded = preferences.breakpoints.expanded;
 					this.breakpoints.items = preferences.breakpoints.items;
 				}
-				this.features.forEach(feature => feature.read(preferences));
 			}
+			this.features.forEach(feature => feature.read(preferences));
 		}
 		catch(e) {
 		}
@@ -662,20 +671,22 @@ class ShellBehavior extends Behavior {
 				verticalMainDividerCurrent: (content = this.VERTICAL_MAIN_DIVIDER) ? content.behavior.current : this.verticalMainDividerCurrent,
 				verticalMainDividerStatus: (content = this.VERTICAL_MAIN_DIVIDER) ? content.behavior.status : this.verticalMainDividerStatus,
 				debugPort: this.debugPort,
+				deviceUUID: this.deviceUUID,
 				featureIndex: this.features.indexOf(this.currentFeature),
 				breakpoints: this.breakpoints,
 				history: this.history,
 				home: this.home,
-				createSimulator: this.createSimulator,
-				elementSimulator: this.elementSimulator,
 				projectsDirectory: this.projectsDirectory,
 				projectsDomain: this.projectsDomain,
 				samplesDirectory: this.samplesDirectory,
 				url: this.url,
 				eula: this.eula,
+				createSoftwareUpdatePreRelease: this.createSoftwareUpdatePreRelease,
+				elementSoftwareUpdatePreRelease: this.elementSoftwareUpdatePreRelease,
 			};
 			this.features.forEach(feature => feature.write(preferences));
 			Files.deleteFile(url);
+			trace("writing preferences " + url + "\n");
 			Files.writeText(url, JSON.stringify(preferences, null, 4));
 		}
 		catch(e) {

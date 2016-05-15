@@ -884,7 +884,7 @@ class RunContext {
 }
 
 class BuildContext {
-	constructor(project) {
+	constructor(project, config) {
 		this.title = project.title;
 		this.id = project.id;
 		this.di = this.id.split(".").reverse().join(".");
@@ -895,6 +895,7 @@ class BuildContext {
 		this.output = PATH.fromURI(url);
 		this.archive = PATH.fromURI(mergeURI(shell.url, "../../tools/tools.xsa"))
 		this.paths = PATH.fromURI(mergeURI(shell.url, "../../tools")) + ":/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+		this.config = config;
 	}
 }
 
@@ -946,11 +947,29 @@ class BuildTask extends Task {
 		var context = this.context;
 		var empty = queue.tasks.length == 0;
 		queue.push(new CommandTask(context, "osascript -e 'quit app \"" + context.title + "\"'"));
-		queue.push(new CommandTask(context, "xsr6", [ "-a", context.archive, "kprconfig", "-d", "-i" ]));
+		let url = context.config.output.directory;
+		let options = context.config.options;
+		let path = Files.toPath(url);
+		var params = [ "-a", context.archive, "kprconfig", "-o", path ];
+		if (options.debug)
+			params.push("-d");
+		if (options.xsdebug)
+			params.push("-X");
+		if (options.instrumentation)
+			params.push("-i");
+		if (options.memory)
+			params.push("-l");
+		if (options.platform)
+			params.push("-p", options.platform);
+		Files.ensureDirectory(url);
+		queue.push(new CommandTask(context, "xsr6", params));
 		var task = new Queue(context);
-		queue.push(task)
-		task.push(new MakeTask(context, "make", [ "-s", "-n", "-f", context.home + "/tmp/mac/debug/" + context.title + "/makefile" ]));
-		queue.push(new CommandTask(context, "open " + context.home + "/bin/mac/debug/" + context.title + ".app"));
+		queue.push(task);
+		let tmp = path + "/tmp/" + options.platform + "/" + (options.debug ? "debug" : "release") + "/" + context.title;
+		let bin = path + "/bin/" + options.platform + "/" + (options.debug ? "debug" : "release") + "/" + context.title;
+		task.push(new MakeTask(context, "make", [ "-s", "-n", "-f", tmp + "/makefile" ]));
+		queue.push(new CommandTask(context, "open \"" + bin + ".app\""));
+
 		if (empty)
 			queue.run();
 	}
@@ -964,23 +983,23 @@ class Tool extends Queue {
 		let message = device.newStudioMessage("./disconnect");
 		message.invoke();
 	}
-	build(project) {
+	build(project, config) {
 		let home = shell.behavior.home;
 		if (home) 
-			this.buildCallback(project); 
+			this.buildCallback(project, config);
 		else {
 			var dictionary = { message:"Locate kinomajs", prompt:"Open", url:Files.documentsDirectory };
 			system.openDirectory(dictionary, url => { 
 				if (url) {
 					shell.behavior.home = url;
-					this.buildCallback(project); 
+					this.buildCallback(project, config);
 				}
 			});
 			return;
 		}
 	}
-	buildCallback(project) {
-		let context = new BuildContext(project);
+	buildCallback(project, config) {
+		let context = new BuildContext(project, config);
 		let task = new BuildTask(context);
 		task.execute(this);
 	}

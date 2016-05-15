@@ -258,15 +258,22 @@ void KprLabelDraw(void* it, FskPort port, FskRectangle area UNUSED)
 		KprSkinFill(self->skin, port, &bounds, self->variant, self->state, self->coordinates.horizontal, self->coordinates.vertical);
 	KprMarginsApply(&style->margins, &bounds, &bounds);
 	FskPortGetPenColor(port, &color);
-	if ((self->flags & kprTextSelectable) && KprContentIsFocus((KprContent)self)) {
+	if ((self->flags & kprTextEditable) && KprContentIsFocus((KprContent)self)) {
 		FskRectangleSet(&selection, bounds.x + self->left, bounds.y, self->right - self->left, bounds.height);
 		if (self->from == self->to) {
-			if ((self->flags & kprTextEditable) && (self->shell->caretFlags & 2)) {
+			if (self->shell->caretFlags & 2) {
 				FskPortSetPenColor(port, &style->colors[0]);
 				FskPortRectangleFill(port, &selection);
 			}
 		}
 		else if (self->skin) {
+			double state = (self->shell->flags & kprWindowActive) ? 3 : 2;
+			KprSkinFill(self->skin, port, &selection, self->variant, state, kprCenter, kprMiddle);
+		}
+	}
+	else if (self->flags & kprTextSelectable) {
+		if ((self->skin) && (self->from < self->to)) {
+			FskRectangleSet(&selection, bounds.x + self->left, bounds.y, self->right - self->left, bounds.height);
 			double state = (self->shell->flags & kprWindowActive) ? 3 : 2;
 			KprSkinFill(self->skin, port, &selection, self->variant, state, kprCenter, kprMiddle);
 		}

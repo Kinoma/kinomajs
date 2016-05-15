@@ -22,11 +22,16 @@ import {
 } from "common/menu";
 
 import {
+	BOLD_FONT,
+	BOLD_ITALIC_FONT,
 	DARK_GRAY,
 	DARKER_CYAN,
 	DARKER_GRAY,
 	DARKER_GREEN,
+	FIXED_FONT,
+	ITALIC_FONT,
 	LIGHT_GRAY,
+	NORMAL_FONT,
 	PASTEL_CYAN,
 	PASTEL_GRAY,
 	PASTEL_YELLOW,
@@ -45,11 +50,7 @@ const TABLE_BORDER_COLOR = "#808080";
 const TABLE_HEADER_COLOR = "#fafafa";
 const TEXT_COLOR = "#505050";
 
-const BOLD_FONT = "Open Sans Bold";
-const BOLD_ITALIC_FONT = "Open Sans Bold Italic";
-const ITALIC_FONT = "Open Sans Italic";
-const NORMAL_FONT = "Open Sans";
-const CODE_FONT = "Menlo";
+const CODE_FONT = FIXED_FONT;
 
 export var markdownOptions = {
 	skinHorizontalRule:new Skin({ texture:new Texture("assets/horizontalRule.png", 1), x:0, y:0, width:1000, height:20 }),

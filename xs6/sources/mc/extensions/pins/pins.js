@@ -242,7 +242,6 @@ var Pins = {
 			};
 			break;
 		case "setPinMux":
-			this.close();
 			this.pinmux.fill(0);
 			for (let i = 0; i < f.leftPins.length; i++)
 				this.pinmux[i] = f.leftPins[i];

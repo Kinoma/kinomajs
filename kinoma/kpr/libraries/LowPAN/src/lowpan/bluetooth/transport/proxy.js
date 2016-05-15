@@ -21,24 +21,34 @@
  * Bluetooth v4.2 - BLL Proxy Transport Layer
  */
 
-var Pins = require("pins");
+const Pins = require("pins");
 
-var _bll = "hci";
+class Transport {
+	constructor(bll = null) {
+		this._bll = (bll == null) ? "hci" : bll;
+	}
+	sendCommand(command) {
+		/* Do not use TypedArray directly */
+		command.buffer = (command.data != null) ? command.data.buffer : null;
+		command.data = null;
+		Pins.invoke("/" + this._bll + "/sendCommand", command);
+	}
+	sendACLData(acl) {
+		/* Do not use TypedArray directly */
+		acl.buffer = (acl.data != null) ? acl.data.buffer : null;
+		acl.data = null;
+		Pins.invoke("/" + this._bll + "/sendACLData", acl);
+	}
+}
+exports.Transport = Transport;
 
-exports.setBLLName = function (bll) {
-	_bll = bll;
-};
-
-exports.sendCommand = function (command) {
-	/* Do not use TypedArray directly */
-	command.buffer = (command.data != null) ? command.data.buffer : null;
-	command.data = null;
-	Pins.invoke("/" + _bll + "/sendCommand", command);
-};
-
-exports.sendACLData = function (acl) {
-	/* Do not use TypedArray directly */
-	acl.buffer = (acl.data != null) ? acl.data.buffer : null;
-	acl.data = null;
-	Pins.invoke("/" + _bll + "/sendACLData", acl);
+exports.notificationReceived = (gap, responses) => {
+	for (let i = 0; i < responses.length; i++) {
+		/* Recover TypedArray from array buffer */
+		if (responses[i].length > 0) {
+			responses[i].data = new Uint8Array(
+				responses[i].buffer, 0, responses[i].length);
+		}
+		gap.hci.transportReceived(responses[i]);
+	}
 };

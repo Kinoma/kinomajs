@@ -581,10 +581,10 @@ void* fxMapArchive(txString base, txCallbackAt callbackAt)
 	struct stat statbuf;
 #endif
 
-#if mxMC
 	archive = c_malloc(sizeof(txArchive));
 	bailElse(archive);
 	c_memset(archive, 0, sizeof(txArchive));
+#if mxMC
 	archive->address = (void *)mc_xsa;
 	archive->size = sizeof(mc_xsa);
 #else
@@ -1016,3 +1016,21 @@ void fxDisposeParserChunks(txParser* parser)
 
 #endif /* mxMC */
 #endif /* mxParse */
+
+mxExport txScript* fxGetScript(void *it, txString path);
+
+txScript* fxGetScript(void *it, txString path)
+{
+	txArchive* archive = it;
+	if (archive) {
+		txInteger c = archive->scriptCount;
+		txScript* script = archive->scripts;
+		while (c > 0) {
+			if (!c_strcmp(path, script->path))
+				return script;
+			c--;
+			script++;
+		}
+	}
+	return NULL;
+}

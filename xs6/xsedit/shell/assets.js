@@ -14,10 +14,17 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-export const BOLD_FONT = "Open Sans Bold";
-export const LIGHT_FONT = "Open Sans Light";
-export const NORMAL_FONT = "Open Sans";
-export const SEMIBOLD_FONT = "Open Sans Semibold";
+const isMac = system.platform == "mac";
+
+export const FIXED_FONT = isMac ? "Menlo" : "Fira Mono";
+export const BOLD_FIXED_FONT = isMac ? "bold Menlo" : "bold Fira Mono";
+
+export const BOLD_FONT = isMac ? "Open Sans Bold" : "OpenSans-Bold";
+export const BOLD_ITALIC_FONT = isMac ? "Open Sans Bold Italic" : "OpenSans-BoldItalic";
+export const ITALIC_FONT = isMac ? "Open Sans Italic" : "OpenSans-Italic";
+export const LIGHT_FONT = isMac ? "Open Sans Light" : "OpenSans-Light";
+export const NORMAL_FONT = isMac ? "Open Sans" : "OpenSans-Regular";
+export const SEMIBOLD_FONT = isMac ? "Open Sans Semibold" : "OpenSans-Semibold";
 
 export const BLACK = "black";
 export const TRANSPARENT = "transparent";
@@ -27,6 +34,7 @@ export const PASTEL_ALPHA = 0.70;
 export const LIGHT_ALPHA = 0.50;
 export const DARK_ALPHA = 0.10;
 export const DARKER_ALPHA = 0.20;
+export const DARKEST_ALPHA = 0.40;
 
 export const CYAN = "#6497ff";
 export const PASTEL_CYAN = blendColors(PASTEL_ALPHA, CYAN, WHITE);
@@ -39,6 +47,7 @@ export const PASTEL_GRAY = blendColors(PASTEL_ALPHA, GRAY, WHITE);
 export const LIGHT_GRAY = blendColors(LIGHT_ALPHA, GRAY, WHITE);
 export const DARK_GRAY = blendColors(DARK_ALPHA, GRAY, BLACK);
 export const DARKER_GRAY = blendColors(DARKER_ALPHA, GRAY, BLACK);
+export const DARKEST_GRAY = blendColors(DARKEST_ALPHA, GRAY, BLACK);
 
 export const GREEN = "#7fbd3b";
 export const PASTEL_GREEN = blendColors(PASTEL_ALPHA, GREEN, WHITE);

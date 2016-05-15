@@ -17,6 +17,7 @@
 import System from "system";
 import Pins from "pins";
 import { WebSocketClient } from "websocket";
+import LED from "board_led";
 
 const PINMUX_DISCONNECTED = 0;
 const PINMUX_POWER = 1;
@@ -42,6 +43,34 @@ const TYPE_PWM = "PWM";
 const HTTP_ERROR_505 = "Internal Server Error";
 
 let handlers = {
+	blinkLight(helper, query) {
+		if (query.config) {
+			let offColor = [0, 0, 0];
+			let interval = query.config.interval ? 250 : 1000;
+			let color = query.config.color;
+			let onColor = [color.red ? 1:0, color.green ? 1:0, color.blue ? 1:0];
+			if (!helper.led_default) {
+				helper.led_default = LED._default;
+				LED._default = null;
+			}
+			if (helper.led)
+				helper.led.stop();
+			helper.led = new LED({interval, onColor, offColor});
+			if (color.red || color.green || color.blue)
+				helper.led.run();
+			else
+				helper.led.on(0);
+		}
+		else if (helper.led) {
+			if (helper.led_default) {
+				LED._default = helper.led_default;
+				helper.led_default = null;
+			}
+			helper.led.stop();
+			delete helper.led;
+		}
+		helper.wsResponse();
+	},
 	getNetworkLevel(helper, query) {
 		let Wifi = require.weak("wifi");
 		helper.wsResponse(Wifi.rssi);
@@ -151,6 +180,8 @@ class XSEditHelper {
 	}
 	onQuit() {
 		this.wsDisconnect();
+		if (this.led)
+			this.led.stop();
 	}
 	// pins
 	pinExplorerAddPin(explorer, pin, type, voltage) {

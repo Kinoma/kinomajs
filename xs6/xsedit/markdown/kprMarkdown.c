@@ -371,7 +371,7 @@ void KPR_text_formatMarkdownP(xsMachine* the, KprText self, KprMarkdownOptions o
 		xsStringValue string = xsToString(xsArg(argString));
 		if (element->type == kprMarkdownLI) {
 			SInt32 BULLET_LEN = FskStrLen(BULLET);
-			KprTextConcatText(self, BULLET, BULLET_LEN);
+			KprTextConcatText(text, BULLET, BULLET_LEN);
 			KprTextConcatText(text, " ", 1);
 		}
 		for (i = 0; i < c; i++) {
@@ -880,26 +880,37 @@ void KPR_text_formatMarkdownInline(xsMachine* the, KprText self, KprMarkdownOpti
 				KprTextEndSpan(self);
 				break;
 				
-			case kprMarkdownMarkupBreak:
-				KprTextBeginSpan(self, NULL, NULL);
-				KprTextConcatText(self, "\n", 1);
-				KprTextEndSpan(self);
-				break;
-				
-			case kprMarkdownMarkupStyleSpan:
-				style = NULL;
-				if (spanRun->u.s.v.length > 0) {
-					_KprMarkdownBuffer(the, spanRun->offset + spanRun->u.s.v.offset, spanRun->u.s.v.length);
-					xsResult = xsCallFunction1(xsGet(xsArg(argOptions), xsID("SpanStyleHelper")), xsNull, xsVar(varBuffer));
-					if (xsIsInstanceOf(xsResult, xsObjectPrototype))
-						style = kprGetHostData(xsResult, style, style);
-					string = xsToString(xsArg(argString));
+			case kprMarkdownMarkupSpan:
+				if (spanRun->u.element && (spanRun->shaper == 1)) {
+					KprMarkdownAttribute attribute = NULL;
+					KprMarkdownElement element = spanRun->u.element;
+					switch (element->type) {
+					case kprMarkdownBR:
+						KprTextBeginSpan(self, NULL, NULL);
+						KprTextConcatText(self, "\n", 1);
+						KprTextEndSpan(self);
+						break;
+					case kprMarkdownSPAN:
+						attribute = KPR_text_markdownAttribute(the, spanRun, element->attributes, "style");
+						if (attribute && (attribute->v.length > 0)) {
+							_KprMarkdownBuffer(the, spanRun->offset + attribute->v.offset, attribute->v.length);
+							xsResult = xsCallFunction1(xsGet(xsArg(argOptions), xsID("SpanStyleHelper")), xsNull, xsVar(varBuffer));
+							if (xsIsInstanceOf(xsResult, xsObjectPrototype))
+								style = kprGetHostData(xsResult, style, style);
+							string = xsToString(xsArg(argString));
+						}
+						KprTextBeginSpan(self, style, NULL);
+						if (spanRun->u.element && spanRun->u.element->t.length > 0)
+							KPR_text_formatMarkdownInline(the, self, options, parser, spanRun);
+						KprTextEndSpan(self);
+						style = NULL;
+						break;
+					default:
+						if (spanRun->u.element && spanRun->u.element->t.length > 0)
+							KPR_text_formatMarkdownInline(the, self, options, parser, spanRun);
+						break;
+					}
 				}
-				
-				KprTextBeginSpan(self, style, NULL);
-				KPR_text_formatMarkdownInline(the, self, options, parser, spanRun);
-				KprTextEndSpan(self);
-				style = NULL;
 				break;
 				
 			default:
@@ -908,6 +919,8 @@ void KPR_text_formatMarkdownInline(xsMachine* the, KprText self, KprMarkdownOpti
 			}
 		}
 	}
+	else if (inlineRun->type == kprMarkdownMarkupSpan)
+		KprTextConcatText(self, string + inlineRun->offset + inlineRun->u.element->t.offset, inlineRun->u.element->t.length);
 	else if ((inlineRun->type == kprMarkdownLinkReferenceSpan) && (parser->referenceDefinitionCount == 0))
 		KprTextConcatText(self, string + inlineRun->offset, inlineRun->length);
 	else if (inlineRun->u.s.t.length > 0)
@@ -1166,8 +1179,6 @@ void KPR_text_formatMarkdown(xsMachine* the)
 					break;
 					
 				case kprMarkdownTableLine:
-					// note: image, link, style spans and text runs (emphasis and dash)
-					//       not supported here - use html table instead
 					if (lineRun->count) {
 						KprCoordinatesRecord lineCoordinates = { kprLeft, kprMiddle, 0, 0, 0, 0, 0, 0 };
 						KprCoordinatesRecord textCoordinates = { kprWidth, kprMiddle, 0, optionsRecord.columnWidth, 0, 0, 0, 0 };

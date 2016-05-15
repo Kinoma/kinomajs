@@ -126,7 +126,7 @@ export function encode(message) {
 	var tokenLength = token ? token.byteLength : 0;
 	var flag = ((version & 0x3) << 6) | ((message.type & 0x3) << 4) | (tokenLength & 0xf);
 	writeChr(flag);
-	writeChr(((code[0] & 0x3) << 5) | (code[1] & 0x1f));
+	writeChr(((code[0] & 0x7) << 5) | (code[1] & 0x1f));
 	writeChr((message.messageId & 0xff00) >> 8);
 	writeChr(message.messageId & 0x00ff);
 	if (tokenLength > 0) writeBytes(token);

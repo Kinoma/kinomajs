@@ -123,112 +123,120 @@ var PINS = {
 		shell.delegate("onPinsClose");
 	},
 	configure(configurations) {
-		var constructors = this.constructors;
-		var behaviors = {};
-		for (var i in configurations) {
-			var configuration = configurations[i];
-			var defaults = undefined;
-			if (!("require" in configuration)) {
-				if (!("type" in configuration))
-					throw new Error("!!!!require property missing in configuration " + i + ": " + JSON.stringify(configuration));
-				var type = configuration.type.toLowerCase();
-				var config = {};
-				config.require = type;
-				config.pins = {};
-				config.pins[type] = configurations[i];
-				configurations[i] = config;
-				configuration = config;
+		try {
+			var constructors = this.constructors;
+			var behaviors = {};
+			for (var i in configurations) {
+				var configuration = configurations[i];
+				var defaults = undefined;
+				if (!("require" in configuration)) {
+					if (!("type" in configuration))
+						throw new Error("!!!!require property missing in configuration " + i + ": " + JSON.stringify(configuration));
+					var type = configuration.type;
+					var config = {};
+					config.require = type;
+					config.pins = {};
+					config.pins[type.toLowerCase()] = configurations[i];
+					configurations[i] = config;
+					configuration = config;
+				}
+				var prototype = require(configuration.require);
+				var behavior = Object.create(prototype);
+				var defaults;
+				behavior.id = i;
+				if ("pins" in behavior)
+					defaults = behavior.pins;
+				var pins = configuration.pins;
+				for (var j in pins) {
+					var pin = pins[j];
+					if (defaults && (j in defaults))
+						this.merge(defaults[j], pin);
+					var type = pin.type;
+					if (!type)
+						throw new Error("Pin " + j + " missing type: " + JSON.stringify(pin));
+					if (!(type in constructors))
+						throw new Error("Unsupported pin type on pin " + j + ": " + JSON.stringify(pin));
+					behavior[j] = new (constructors[type])(pin);
+				}
+				if ("configure" in behavior)
+					behavior.configure(configuration, i);	// passing i for debugging / simulators
+				behaviors[i] = behavior;
 			}
-			var prototype = require(configuration.require);
-			var behavior = Object.create(prototype);
-			var defaults;
-			behavior.id = i;
-			if ("pins" in behavior)
-				defaults = behavior.pins;
-			var pins = configuration.pins;
-			for (var j in pins) {
-				var pin = pins[j];
-				if (defaults && (j in defaults))
-					this.merge(defaults[j], pin);
-				var type = pin.type;
-				if (!type)
-					throw new Error("Pin " + j + " missing type: " + JSON.stringify(pin));
-				if (!(type in constructors))
-					throw new Error("Unsupported pin type on pin " + j + ": " + JSON.stringify(pin));
-				behavior[j] = new (constructors[type])(pin);
-			}
-			if ("configure" in behavior)
-				behavior.configure(configuration, i);	// passing i for debugging / simulators
-			behaviors[i] = behavior;
+			this.behaviors = behaviors;
+			shell.delegate("onPinsConfigure", configurations);
+			this.configurations = configurations;
+			this.pinmux = null;
+			return configurations;
 		}
-		this.behaviors = behaviors;
-		shell.delegate("onPinsConfigure", configurations);
-		this.configurations = configurations;
-		this.pinmux = null;
-		return configurations;
+		catch(e) {
+		}
 	},
 	invoke(path, object) {
-		if (path == "getPinMux") {
-			var result = this.pinmux ? this.pinmux : this.configurationToMux(this.configurations);;
-			shell.delegate("onPinsInvoke", path, object, result);
-			return result;
-		}
-		if (path == "metadata") {
-			var result = {};
-			for (var i in this.behaviors) {
-				var behavior = this.behaviors[i];
-				result[i] = behavior.metadata;
+		try {
+			if (path == "getPinMux") {
+				var result = this.pinmux ? this.pinmux : this.configurationToMux(this.configurations);;
+				shell.delegate("onPinsInvoke", path, object, result);
+				return result;
 			}
-			shell.delegate("onPinsInvoke", path, object, result);
-			return result;
-		}
-		if (path == "setPinMux") {
-			this.pinmux = object;
-			return;
-		}
-		if (path == "configuration") {
-			return this.configurations;
-		}
-		var behaviors = this.behaviors;
-		var result;
-		var a = path.split("/");
-		if (a.length == 2) {
-			var f = a[0];
-			var m = a[1];
-			if (f == "metadata") {
+			if (path == "metadata") {
+				var result = {};
+				for (var i in this.behaviors) {
+					var behavior = this.behaviors[i];
+					result[i] = behavior.metadata;
+				}
+				shell.delegate("onPinsInvoke", path, object, result);
+				return result;
+			}
+			if (path == "setPinMux") {
+				this.pinmux = object;
+				return;
+			}
+			if (path == "configuration") {
+				return this.configurations;
+			}
+			var behaviors = this.behaviors;
+			var result;
+			var a = path.split("/");
+			if (a.length == 2) {
+				var f = a[0];
+				var m = a[1];
+				if (f == "metadata") {
+					if (m in behaviors) {
+						var behavior = behaviors[m];
+						if (f in behavior) {
+							result = behavior[f];
+							shell.delegate("onPinsInvoke", path, object, result);
+						}
+						else
+							shell.delegate("onPinsError", path, object, "invalid metadata");
+					}
+					else
+						shell.delegate("onPinsError", path, object, "invalid module");
+				}
+				else
+					shell.delegate("onPinsError", path, object, "invalid path");
+			}
+			else if (a.length > 2) {
+				var m = a[1];
+				var f = a[2];
 				if (m in behaviors) {
 					var behavior = behaviors[m];
 					if (f in behavior) {
-						result = behavior[f];
+						result = behavior[f](object);
 						shell.delegate("onPinsInvoke", path, object, result);
 					}
 					else
-						shell.delegate("onPinsError", path, object, "invalid metadata");
+						shell.delegate("onPinsError", path, object, "invalid function");
 				}
 				else
 					shell.delegate("onPinsError", path, object, "invalid module");
 			}
 			else
 				shell.delegate("onPinsError", path, object, "invalid path");
+			return result;
 		}
-		else if (a.length > 2) {
-			var m = a[1];
-			var f = a[2];
-			if (m in behaviors) {
-				var behavior = behaviors[m];
-				if (f in behavior) {
-					result = behavior[f](object);
-					shell.delegate("onPinsInvoke", path, object, result);
-				}
-				else
-					shell.delegate("onPinsError", path, object, "invalid function");
-			}
-			else
-				shell.delegate("onPinsError", path, object, "invalid module");
+		catch(e) {
 		}
-		else
-			shell.delegate("onPinsError", path, object, "invalid path");
-		return result;
 	},
 	merge(defaultPin, configurationPin) {
 		for (var i in defaultPin) {
@@ -237,28 +245,32 @@ var PINS = {
 		}
 	},
 	repeat(path, object) {
-		var result;
-		var a = path.split("/");
-		if (a.length > 2) {
-			var m = a[1];
-			var f = a[2];
-			var behaviors = this.behaviors;
-			if (m in behaviors) {
-				var behavior = behaviors[m];
-				if (f in behavior) {
-					result = behavior[f](object);
-					if (result !== undefined)
-						shell.delegate("onPinsRepeat", path, object, result);
+		try {
+			var result;
+			var a = path.split("/");
+			if (a.length > 2) {
+				var m = a[1];
+				var f = a[2];
+				var behaviors = this.behaviors;
+				if (m in behaviors) {
+					var behavior = behaviors[m];
+					if (f in behavior) {
+						result = behavior[f](object);
+						if (result !== undefined)
+							shell.delegate("onPinsRepeat", path, object, result);
+					}
+					else
+						shell.delegate("onPinsError", path, object, "invalid function");
 				}
 				else
-					shell.delegate("onPinsError", path, object, "invalid function");
+					shell.delegate("onPinsError", path, object, "invalid module");
 			}
 			else
-				shell.delegate("onPinsError", path, object, "invalid module");
+				shell.delegate("onPinsError", path, object, "invalid path");
+			return result;
 		}
-		else
-			shell.delegate("onPinsError", path, object, "invalid path");
-		return result;
+		catch(e) {
+		}
 	},
 	setPin(mux, index, type) {
 		if (index < 9)

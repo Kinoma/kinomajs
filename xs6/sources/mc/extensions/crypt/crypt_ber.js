@@ -233,7 +233,7 @@ export default class BER {
 				(date.getUTCHours()).toString() +
 				(date.getUTCMinutes()).toString() +
 				(date.getUTCSeconds()).toString() +
-				(tag == 0x18 ? "." + (date.getUTCMiliSedonds()).toString(): "") +
+				(tag == 0x18 ? "." + (date.getUTCMilliSedonds()).toString(): "") +
 				"Z";
 			*/
 			var s = "";
@@ -247,7 +247,7 @@ export default class BER {
 			s += this.itoa(date.getUTCMinutes());
 			s += this.itoa(date.getUTCSeconds());
 			if (tag == 0x18)
-				s += this.itoa(date.getUTCMiliSedonds());
+				s += this.itoa(date.getUTCMilliSedonds());
 			s += "Z";
 			var c = ArrayBuffer.fromString(s);
 			b.putLength(c.byteLength);

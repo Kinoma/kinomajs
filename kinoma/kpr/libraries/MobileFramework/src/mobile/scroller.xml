@@ -15,7 +15,6 @@
 |     limitations under the License.
 -->
 <module xmlns="http://www.kinoma.com/kpr/1">
-
 	<script><![CDATA[
 		var easeOut = function(start, stop, fraction) {
 			return start + Math.round((1 - Math.pow(1 - fraction, 2)) * (stop - start));

@@ -23,13 +23,19 @@
 extern "C" {
 #endif /* __cplusplus */
 
+//#define kprMarkdownBaseText 0
+//#define kprMarkdownLineMark 1
+//#define kprMarkdownLineText kprMarkdownLineMark
+//#define kprMarkdownSpanMark 2
+//#define kprMarkdownSpanText 3
+
 #define kprMarkdownColorMask 0x3
-#define kprMarkdownColorMixFlag 0x40
+#define kprMarkdownColorMixFlag 0x10
 #define kprMarkdownColorMixShift 2
 
 // color 0: text (black)
 #define kprMarkdownTextColor 0x0
-#define kprMarkdownTextColorMix 0x40
+#define kprMarkdownTextColorMix 0x10
 // color 1: line marker / line markup (blue) *
 #define kprMarkdownLineMarkerColor 0x1
 #define kprMarkdownLineMarkupColor 0x1
@@ -38,11 +44,11 @@ extern "C" {
 #define kprMarkdownSpanMarkupColor 0x2
 // color 3: code / code span / text span (green) **
 #define kprMarkdownCodeColor 0x3
-#define kprMarkdownCodeColorMix 0x4C
+#define kprMarkdownCodeColorMix 0x1C
 #define kprMarkdownCodeSpanColor 0x3
-#define kprMarkdownCodeSpanColorMix 0x4C
+#define kprMarkdownCodeSpanColorMix 0x1C
 #define kprMarkdownTextSpanColor 0x3
-#define kprMarkdownTextSpanColorMix 0x4C
+#define kprMarkdownTextSpanColorMix 0x1C
 //  * note: lines with no span items are color 1 (blue)
 // ** note: spans with no text items are color 3 (green)
 
@@ -88,13 +94,14 @@ typedef enum {
 	kprMarkdownSPAN = 23,
 	kprMarkdownSTRIKE = 24,
 	kprMarkdownSTRONG = 25,
-	kprMarkdownTABLE = 26,
-	kprMarkdownTBODY = 27,
-	kprMarkdownTD = 28,
-	kprMarkdownTH = 29,
-	kprMarkdownTHEAD = 30,
-	kprMarkdownTR = 31,
-	kprMarkdownUL = 32,
+	kprMarkdownSUP = 26,
+	kprMarkdownTABLE = 27,
+	kprMarkdownTBODY = 28,
+	kprMarkdownTD = 29,
+	kprMarkdownTH = 30,
+	kprMarkdownTHEAD = 31,
+	kprMarkdownTR = 32,
+	kprMarkdownUL = 33,
 } KprMarkdownElementType;
 
 typedef struct KprMarkdownElementStruct KprMarkdownElementRecord, *KprMarkdownElement;
@@ -116,6 +123,10 @@ struct KprMarkdownElementStruct {
 	KprMarkdownAttribute attributes;
 	KprMarkdownElement elements;
 	struct {
+		SInt16 length;
+		SInt16 offset; // relative offset
+	} n; // name
+	struct {
 		SInt16 length; // -1 no text
 		SInt16 offset; // relative offset
 	} t; // text
@@ -124,6 +135,10 @@ struct KprMarkdownElementStruct {
 typedef struct KprMarkdownParserStruct KprMarkdownParserRecord, *KprMarkdownParser;
 typedef struct KprMarkdownStateStruct KprMarkdownStateRecord, *KprMarkdownState;
 typedef struct KprMarkdownRunStruct KprMarkdownRunRecord, *KprMarkdownRun;
+
+typedef enum {
+	kprMarkdownCountDirective = -1,
+} KprMarkdownCount;
 
 typedef enum {
 	kprMarkdownBlankLine = 1, // empty
@@ -144,14 +159,13 @@ typedef enum {
 	kprMarkdownLinkReferenceSpan = 16,
 	kprMarkdownLinkSpan = 17,
 	kprMarkdownListLine = 18,
-	kprMarkdownMarkupBreak = 19, // empty
-	kprMarkdownMarkupLine = 20, // empty
-	kprMarkdownMarkupStyleSpan = 21,
-	kprMarkdownParagraphLine = 22,
-	kprMarkdownReferenceDefinitionLine = 23, // empty
-	kprMarkdownTableColumnDivider = 24,
-	kprMarkdownTableLine = 25, // empty with table optimization
-	kprMarkdownTextSpan = 26,
+	kprMarkdownMarkupLine = 19, // empty
+	kprMarkdownMarkupSpan = 20,
+	kprMarkdownParagraphLine = 21,
+	kprMarkdownReferenceDefinitionLine = 22, // empty
+	kprMarkdownTableColumnDivider = 23,
+	kprMarkdownTableLine = 24, // empty with table optimization
+	kprMarkdownTextSpan = 25,
 } KprMarkdownType;
 
 typedef enum {
@@ -161,7 +175,6 @@ typedef enum {
 } KprMarkdownFontStyle;
 
 struct KprMarkdownParserStruct {
-//	KprMarkdownElement elements;
 	KprMarkdownRun runs;
 	SInt32 codeRunByte;
 	SInt32 columnCount;
@@ -228,7 +241,7 @@ FskErr KprMarkdownParserDispose(KprMarkdownParser parser);
 FskErr KprMarkdownParserNew(KprMarkdownParser *parserReference, SInt32 option, SInt32 tab);
 
 FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt32 length, SInt32 flags);
-FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset, SInt32 length, KprMarkdownRun inlineRun);
+FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset, SInt32 length, SInt32 flags, SInt32 inlineIndex, KprMarkdownRun inlineRun);
 
 #ifdef mxDebug
 FskErr KprMarkdownPrintDebugInfo(KprMarkdownParser parser, char *str, SInt32 flags);

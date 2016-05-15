@@ -388,7 +388,7 @@ static void FskGtkWindowLoop(void *refcon)
 
 	FskMutexNew(&gtkWin->bufMutex, "drawAreaBuffer");
 	FskMutexNew(&gtkWin->menuMutex, "GTKMenuItems");
-	gtkWin->menuStatus = false;
+	gtkWin->menuStatus = true;
 
 	gtkWin->queue = g_async_queue_new();
 	gtk_widget_add_events(GTK_WIDGET(win), GDK_EXPOSURE_MASK | GDK_KEY_PRESS_MASK);

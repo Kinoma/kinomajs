@@ -1149,24 +1149,36 @@ static	FskCanvas2dColorSource*	GetFillColorSourcePtr(  FskCanvas2dContext ctx)	{
 /****************************************************************************//**
  * Clone a bitmap: same size, format, and content.
  *	\param[in]	src	the source bitmap.
- *	\param[out]	dst	a place to store the resultant cloned bitmap.
- *	\return		kFskErrNone	if the operation was completed successfully.
+ *	\param[out]	pDst	a place to store the resultant cloned bitmap.
+ *	\return		kFskErrNone					if the operation was completed successfully.
+ *	\return		kFskErrUnsupportedPixelType	if the pixel format is neither supported nor chunky format.
  ********************************************************************************/
 
 static FskErr
-FskBitmapClone(FskConstBitmap src, FskBitmap *dst)
+FskBitmapClone(FskConstBitmap src, FskBitmap *pDst)
 {
 	FskErr	err	= kFskErrNone;
 	Boolean	val;
 
-	BAIL_IF_NULL(dst, err, kFskErrInvalidParameter);
-	*dst = NULL;
+	BAIL_IF_NULL(pDst, err, kFskErrInvalidParameter);
+	*pDst = NULL;
 	if (src == NULL)
 		goto bail;
-	BAIL_IF_ERR(err = FskBitmapNew(src->bounds.width, src->bounds.height, src->pixelFormat, dst));
-	FskBitmapGetHasAlpha(*dst, &val);				FskBitmapSetHasAlpha(*dst,  val);
-	FskBitmapGetAlphaIsPremultiplied(*dst, &val);	FskBitmapSetAlphaIsPremultiplied(*dst,  val);
-	BAIL_IF_ERR(err = FskBitmapDraw(src, NULL, *dst, NULL, NULL, NULL, kFskGraphicsModeCopy, NULL));
+	BAIL_IF_ERR(err = FskBitmapNew(src->bounds.width, src->bounds.height, src->pixelFormat, pDst));
+	FskBitmapGetHasAlpha(*pDst, &val);				FskBitmapSetHasAlpha(*pDst,  val);
+	FskBitmapGetAlphaIsPremultiplied(*pDst, &val);	FskBitmapSetAlphaIsPremultiplied(*pDst,  val);
+	err = FskBitmapDraw(src, NULL, *pDst, NULL, NULL, NULL, kFskGraphicsModeCopy, NULL);
+	if (err && (FskBitmapFormatPixelPacking(src->pixelFormat) == fskUniformChunkyPixelPacking)) {			/* If the pixel type is not supported as src or dst (e.g. 8G), ... */
+		SInt32 srb, drb, pb, h;
+		const UInt8 *s;
+		UInt8 *d;
+		BAIL_IF_ERR(err = FskBitmapReadBegin((FskBitmap)src, (const void**)(const void*)&s, &srb, NULL));
+		BAIL_IF_ERR(err = FskBitmapWriteBegin(        *pDst,       (void**)(      void*)&d, &drb, NULL));
+		for (h = src->bounds.height, pb = (src->depth >> 3) * src->bounds.width; h--; s += srb, d += drb)	/* ... 	implement our own copy */
+			FskMemCopy(d, s, pb);
+		FskBitmapWriteEnd(*pDst);
+		FskBitmapReadEnd((FskBitmap)src);
+	}
 
 bail:
 
@@ -1658,7 +1670,7 @@ static FskErr DrawTransformedBitmap(const FskCanvas2dContextState *st,
 	srcPts[0][1] = srcPts[3][1] = (float)(sy)				- zeroish;
 	srcPts[1][1] = srcPts[2][1] = (float)(sy + sh - 1.)	+ zeroish;
 
-	err = FskProjectImage(	sp, src->pixelFormat, src->rowBytes, src->bounds.width, src->bounds.height, (const float(*)[3])U, 4, (const float(*)[2])srcPts, mode, NULL,
+	err = FskProjectImage(	sp, src->pixelFormat, src->rowBytes, src->bounds.width, src->bounds.height, U, 4, (const float(*)[2])srcPts, mode, NULL,
 							dp, dst->pixelFormat, dst->rowBytes, dst->bounds.width, dst->bounds.height, 0, NULL);
 
 bail:

@@ -175,16 +175,71 @@ struct FskGLContextRecord {
 	EGLSurface	surface;
 	EGLContext	context;
 	GLuint		framebuffer;
-	const char*	format;
+	void		*nativeWindow;
+	const char	*format;
 };
 
 #ifdef LOG_PARAMETERS /* EGL */
 static void LogFskGLContext(FskConstGLContext ctx, const char *name) {
 	if (!ctx)	return;
 	if (!name)	name = "context";
-	LOGD("\t%s(type=EGL display=%p surface=%p context=%p framebuffer=%u format=%s)", name, ctx->display, ctx->surface, ctx->context, ctx->framebuffer, ctx->format);
+	LOGD("\t%s(type=EGL display=%p surface=%p context=%p framebuffer=%u nativeWindow=%p format=%s)",
+		name, ctx->display, ctx->surface, ctx->context, ctx->framebuffer, ctx->nativeWindow, ctx->format);
 }
 #endif /* LOG_PARAMETERS */
+
+
+/********************************************************************************
+ * FskGLWindowContextNew - EGL
+ ********************************************************************************/
+
+FskErr FskGLWindowContextNew(void *nativeWindow, FskBitmapFormatEnum pixelFormat, UInt32 version, FskGLContext share, FskGLContext *pCtx) {
+	EGLint	configAttribs[] = {
+		EGL_BUFFER_SIZE,		FskBitmapFormatDepth(pixelFormat),
+		EGL_ALPHA_SIZE,			FskBitmapFormatAlphaBits(pixelFormat),
+		EGL_RED_SIZE,			FskBitmapFormatRedBits(pixelFormat),
+		EGL_GREEN_SIZE,			FskBitmapFormatGreenBits(pixelFormat),
+		EGL_BLUE_SIZE,			FskBitmapFormatBlueBits(pixelFormat),
+		EGL_DEPTH_SIZE,			0,
+		EGL_STENCIL_SIZE,		0,
+		EGL_SAMPLES,			0,
+		EGL_COLOR_BUFFER_TYPE,	EGL_RGB_BUFFER,
+		EGL_RENDERABLE_TYPE,	(version == 1) ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_ES2_BIT,
+		EGL_SURFACE_TYPE,		EGL_WINDOW_BIT,
+		EGL_NONE,				0
+	};
+	EGLint	ctxAttr[] = {
+		EGL_CONTEXT_CLIENT_VERSION,	version,
+		EGL_NONE,					EGL_NONE
+	};
+	EGLConfig		cfg;
+	FskErr			err;
+	FskGLContext	ctx;
+
+	#ifdef LOG_PARAMETERS
+		LOGD("FskGLWindowContextNew(win=%p format=%s version=%u share=%p)", nativeWindow, FskBitmapFormatName(pixelFormat), (unsigned)version, share);
+	#endif /* LOG_PARAMETERS */
+
+	*pCtx = NULL;
+	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(**pCtx), pCtx));
+	ctx = *pCtx;
+	ctx->format = FskBitmapFormatName(pixelFormat);																	/* Primarily for debugging */
+	ctx->nativeWindow = nativeWindow;
+	BAIL_IF_FALSE(EGL_NO_DISPLAY != (ctx->display = eglGetDisplay((NativeDisplayType)EGL_DEFAULT_DISPLAY)),			err, kFskErrEGLBadDisplay);
+	BAIL_IF_FALSE(                  eglInitialize(ctx->display, NULL, NULL),										err, kFskErrEGLNotInitialized);	/* (display, &major, &minor) */
+	BAIL_IF_NULL(                   (cfg = FskChooseBestEGLConfig(ctx->display, (void*)&configAttribs)),			err, kFskErrUnsupportedPixelType);
+	BAIL_IF_FALSE(EGL_NO_SURFACE !=	(ctx->surface = eglCreateWindowSurface(ctx->display, cfg, nativeWindow, NULL)),	err, kFskErrEGLBadSurface);
+	ctx->context = eglCreateContext(ctx->display, cfg, (share ? share->context : EGL_NO_CONTEXT), ctxAttr);
+	if (EGL_NO_CONTEXT == ctx->context) {
+		if (kFskErrNone == (err = FskErrorFromEGLError(eglGetError())))
+			err = kFskErrEGLBadContext;
+		BAIL(err);
+	}
+
+bail:
+	if (err) { FskGLContextDispose(*pCtx, false); *pCtx = NULL; }
+	return err;
+}
 
 
 /********************************************************************************
@@ -192,62 +247,52 @@ static void LogFskGLContext(FskConstGLContext ctx, const char *name) {
  ********************************************************************************/
 
 FskErr FskGLOffscreenContextNew(UInt32 width, UInt32 height, FskBitmapFormatEnum pixelFormat, UInt32 version, FskGLContext share, FskGLContext *pCtx) {
-	FskErr			err	= kFskErrNone;
-	FskGLContext	ctx;
+	EGLint	configAttribs[] = {
+		EGL_SURFACE_TYPE,		EGL_PBUFFER_BIT,
+		EGL_COLOR_BUFFER_TYPE,	EGL_RGB_BUFFER,
+		EGL_DEPTH_SIZE,			0,
+		EGL_STENCIL_SIZE,		0,
+		EGL_SAMPLES,			0,
+		EGL_RENDERABLE_TYPE,	(version == 1) ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_ES2_BIT,
+		EGL_BUFFER_SIZE,		FskBitmapFormatDepth(pixelFormat),
+		EGL_ALPHA_SIZE,			FskBitmapFormatAlphaBits(pixelFormat),
+		EGL_RED_SIZE,			FskBitmapFormatRedBits(pixelFormat),
+		EGL_GREEN_SIZE,			FskBitmapFormatGreenBits(pixelFormat),
+		EGL_BLUE_SIZE,			FskBitmapFormatBlueBits(pixelFormat),
+		EGL_NONE,				EGL_NONE
+	};
+	EGLint contextAttribs[] = {
+		EGL_CONTEXT_CLIENT_VERSION,	version,
+		EGL_NONE,					EGL_NONE
+	};
+	EGLint	pbufAttribs[] = {
+		EGL_WIDTH,	width,
+		EGL_HEIGHT,	height,
+		EGL_NONE
+	};
 	EGLConfig		cfg;
-	EGLint			configAttribs[24], contextAttribs[4], pbufAttribs[6], *a;
+	FskErr			err;
+	FskGLContext	ctx;
 
 	#ifdef LOG_PARAMETERS
 		LogFskGLOffscreenContextNew(width, height, pixelFormat, version, share, pCtx);
 	#endif /* LOG_PARAMETERS */
 
-	/* Specify configuration attributes */
-	a = configAttribs;
-	*a++ = EGL_SURFACE_TYPE;			*a++ = EGL_PBUFFER_BIT;											/*  2 */
-	*a++ = EGL_COLOR_BUFFER_TYPE;		*a++ = EGL_RGB_BUFFER;											/*  4 */
-	*a++ = EGL_DEPTH_SIZE;				*a++ = 0;														/*  6 */
-	*a++ = EGL_STENCIL_SIZE;			*a++ = 0;														/*  8 */
-	*a++ = EGL_SAMPLES;					*a++ = 0;														/* 10 */
-	*a++ = EGL_RENDERABLE_TYPE;			*a++ = (version == 1) ? EGL_OPENGL_ES_BIT : EGL_OPENGL_ES2_BIT;	/* 12 */
-	*a++ = EGL_BUFFER_SIZE;				*a++ = FskBitmapFormatDepth(pixelFormat);						/* 14 */
-	*a++ = EGL_ALPHA_SIZE;				*a++ = FskBitmapFormatAlphaBits(pixelFormat);					/* 16 */
-	*a++ = EGL_RED_SIZE;				*a++ = FskBitmapFormatRedBits(pixelFormat);						/* 18 */
-	*a++ = EGL_GREEN_SIZE;				*a++ = FskBitmapFormatGreenBits(pixelFormat);					/* 20 */
-	*a++ = EGL_BLUE_SIZE;				*a++ = FskBitmapFormatBlueBits(pixelFormat);					/* 22 */
-	*a++ = EGL_NONE;					*a   = EGL_NONE;												/* 24 */
-
-	/* Specify context attributes */
-	a = contextAttribs;
-	*a++ = EGL_CONTEXT_CLIENT_VERSION;	*a++ = version;													/*  2 */
-	*a++ = EGL_NONE;					*a   = EGL_NONE;												/*  4 */
-
-	/* Specify PBuffer attributes */
-	a = pbufAttribs;
-	if (width && height) {
-		*a++ = EGL_WIDTH;				*a++ = width;													/*  2 */
-		*a++ = EGL_HEIGHT;				*a++ = height;													/*  4 */
-	}
-	*a++ = EGL_NONE;					*a   = EGL_NONE;												/*  6 */
-
 	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(**pCtx), pCtx));
 	ctx = *pCtx;
-	ctx->format = (FskBitmapFormatDepth(pixelFormat) == 16) ? "RGB565-Pbuffer" : "RGBA8888-Pbuffer";
+	ctx->format = FskBitmapFormatName(pixelFormat);															/* Primarily for debugging */
 	BAIL_IF_FALSE(EGL_NO_DISPLAY != (ctx->display = eglGetDisplay((NativeDisplayType)EGL_DEFAULT_DISPLAY)),	err, kFskErrEGLBadDisplay);
-	BAIL_IF_FALSE(                   eglInitialize(ctx->display, NULL, NULL),								err, kFskErrEGLBadDisplay);
+	BAIL_IF_FALSE(                   eglInitialize(ctx->display, NULL, NULL),								err, kFskErrEGLNotInitialized);
 	BAIL_IF_NULL(                   (cfg = FskChooseBestEGLConfig(ctx->display, &configAttribs[0])),		err, kFskErrUnsupportedPixelType);
-	ctx->surface = eglCreatePbufferSurface(ctx->display, cfg, pbufAttribs);
-	if ((EGL_NO_SURFACE == ctx->surface) && (width == 0) && (height == 0)) {
-		a = pbufAttribs;
-		pbufAttribs[0] = EGL_WIDTH;
-		pbufAttribs[1] = 16;
-		pbufAttribs[2] = EGL_HEIGHT;
-		pbufAttribs[3] = 16;
-		pbufAttribs[4] = EGL_NONE;
-		ctx->surface = eglCreatePbufferSurface(ctx->display, cfg, pbufAttribs);
+	if (!width && !height) {																				/* If no PBuffer dimensions were specified, ... */
+		pbufAttribs[0] = EGL_NONE;																			/* ... try creating an unspecified PBuffer, ... */
+		if (EGL_NO_SURFACE == (ctx->surface = eglCreatePbufferSurface(ctx->display, cfg, pbufAttribs))) {	/* ... and if that fails, ... */
+			pbufAttribs[0] = EGL_WIDTH;
+			pbufAttribs[1] = pbufAttribs[3] = 16;															/* ... create a small one */
+		}
 	}
-	BAIL_IF_FALSE(EGL_NO_SURFACE != ctx->surface, err, kFskErrEGLBadSurface);
-	//BAIL_IF_FALSE(EGL_NO_CONTEXT != (ctx->context = eglCreateContext(ctx->display, cfg, (share ? share->context : NULL), contextAttribs)), err, kFskErrEGLBadContext);
-	ctx->context = eglCreateContext(ctx->display, cfg, (share ? share->context : NULL), contextAttribs);
+	BAIL_IF_FALSE(EGL_NO_SURFACE != (ctx->surface = eglCreatePbufferSurface(ctx->display, cfg, pbufAttribs)), err, kFskErrEGLBadSurface);
+	ctx->context = eglCreateContext(ctx->display, cfg, (share ? share->context : EGL_NO_CONTEXT), contextAttribs);
 	if (EGL_NO_CONTEXT == ctx->context) {
 		if (kFskErrNone == (err = FskErrorFromEGLError(eglGetError())))
 			err = kFskErrEGLBadContext;
@@ -268,7 +313,7 @@ FskErr FskGLContextNewFromEGL(void* display, void* surface, void* context, FskGL
 	FskErr			err;
 
 	#ifdef LOG_PARAMETERS
-		LOGD("FskGLOffscreenContextNew(display=%p surface=%p context=%p pCtx=%p)", display, surface, context, pCtx);
+		LOGD("FskGLContextNewFromEGL(display=%p surface=%p context=%p pCtx=%p)", display, surface, context, pCtx);
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_FALSE(EGL_NO_CONTEXT != context, err, kFskErrEGLBadContext);							/* Parameter validation */
@@ -339,7 +384,7 @@ FskErr FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext 
 	ctx->context = context;
 
 bail:
-	if (pCtx)	*pCtx = ctx;
+	if (pCtx)	*pCtx = ctx;	/* Returns NULL if there is no current context */
 	return err;
 }
 
@@ -355,7 +400,6 @@ void FskGLContextDispose(FskGLContext ctx, Boolean terminateGL) {
 
 	if (ctx) {
 		if (ctx->display) {
-			eglMakeCurrent(ctx->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 			if (ctx->context)	eglDestroyContext(ctx->display, ctx->context);
 			if (ctx->surface)	eglDestroySurface(ctx->display, ctx->surface);
 		}
@@ -672,7 +716,7 @@ FskErr FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext 
 	(void)glGetError();		/* Clear errors */
 
 bail:
-	if (pCtx)	*pCtx = ctx;
+	if (pCtx)	*pCtx = ctx;	/* Returns NULL if there is no current context */
 	return err;
 }
 
@@ -900,9 +944,6 @@ bail:
  ********************************************************************************/
 
 FskErr FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext *pCtx) {
-#if 1
-	return kFskErrUnimplemented;
-#else
 	FskErr			err		= kFskErrNone;
 	FskGLContext	ctx		= NULL;
 	EAGLContext		*context;
@@ -926,9 +967,8 @@ FskErr FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext 
 	(void)glGetError();		/* Clear errors */
 
 bail:
-	if (pCtx)	*pCtx = ctx;
+	if (pCtx)	*pCtx = ctx;	/* Returns NULL if there is no current context */
 	return err;
-#endif
 }
 
 
@@ -957,7 +997,8 @@ void FskGLContextDispose(FskGLContext ctx, Boolean terminateGL) {
 		}
 		// FskEAGLContextDispose(ctx->context); /* Apparently setCurrentContext invokes automatic reference counting mode, so release is not necessary nor available. */
 		FskMemPtrDispose(ctx);
-		FskEAGLContextSetCurrent(ocx);													/* Restore the context */
+		if (ocx)
+			FskEAGLContextSetCurrent(ocx);												/* Restore the context */
 	}
 }
 

@@ -24,4 +24,5 @@ export default {
 	kinomaStudio: true,	// enable KinomaStudio
 	setup: true,		// enable the setup service
 	mfiPins: undefined,	// set I2C pins if the MFi chip is present, like {scl: 19, sda: 18}
+	printEncryptedEnvironment: false,
 };

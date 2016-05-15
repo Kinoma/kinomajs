@@ -51,6 +51,21 @@ export default class extends Feature {
 		];
 		
 		this.Configs = [];
+		this.DiscoveryConfigs = [];
+		this.SerialConfigs = [];
+		this.SimulatorConfigs = [
+			CreateSimulatorConfig,
+			ElementSimulatorConfig,
+		];
+		if (Files.exists(mergeURI(model.simulatorsURI, EmbedSimulatorConfig.defaultURL)))
+			this.SimulatorConfigs.push(EmbedSimulatorConfig);
+		
+		this.PlatformConfigs = [
+//			MacOSPlatformConfig,
+//			iOSPlatformConfig,
+//			AndroidPlatformConfig,
+		];
+		
 		this.networkInterface = [];
 		let url = mergeURI(shell.url, "../features/devices/configs/");
 		let iterator = new Files.Iterator(url);
@@ -60,22 +75,31 @@ export default class extends Feature {
 				try {
 					let Config = require(mergeURI(url, info.path + "/" + info.path));
 					this.Configs.push(Config);
+					if (!Config.id.endsWith(".factory"))
+						this.DiscoveryConfigs.push(Config);
+					if ("serial" in Config)
+						this.SerialConfigs.push(Config);
 				}
 				catch(e) {
 				}
 			}
 			info = iterator.getNext();
 		}
+		this.DiscoveryConfigs.sort((a, b) => a.product.compare(b.product));
+		this.SerialConfigs.sort((a, b) => a.product.compare(b.product));
 		
 		this.server = new HTTP.Server({ port: 9999 });
 		this.server.behavior = this;
 		this.server.start();
-		this.devices = [
-			new CreateSimulatorConfig(),
-			new ElementSimulatorConfig(),
-		];
+		this.devices = this.SimulatorConfigs.concat(this.PlatformConfigs).map(Config => new Config);
 		this.authorizations = {};
 		this.currentDevice = this.devices[0];
+		this.discoveryFlags = {};
+		this.filteredDevices = [];
+		this.platformFlags = {};
+		this.serialFlags = {};
+		this.simulatorFiles = {};
+		this.simulatorFlags = {};
 		this.ssdp = new SSDP.Client(ssdpDeviceType);
 		this.ssdp.behavior = this;
 		this.ssdp.start();
@@ -85,6 +109,10 @@ export default class extends Feature {
 		this.updates = {};
 		this.ssdpHelpers = [];
  		this.wsServerStart();
+ 		
+		this.serialNotifier = new Serial.Notifier();
+		this.serialNotifier.behavior = this;
+		this.serialNotifier.start();
 	}
 	createDevice(discovery) {
 		if (!this.findDeviceByUUID(discovery.uuid)) {
@@ -93,6 +121,34 @@ export default class extends Feature {
 					return new Config(this, discovery);
 			}
 		}
+	}
+	filterDevices(device) {
+		let filteredDevices = this.filteredDevices = this.devices.filter(device => {
+			let id = device.constructor.id;
+			if (device instanceof PlatformConfig)
+				return this.platformFlags[id];
+			if (device instanceof SimulatorConfig)
+				return this.simulatorFlags[id];
+			if (device instanceof SerialConfig)
+				return this.serialFlags[device.configID];
+			if (device.simulatorConfig)
+				return this.simulatorFlags[device.simulatorConfig.constructor.id];
+			if (id.endsWith(".factory"))
+				id = id.slice(0, -8);
+			return this.discoveryFlags[id];
+		});
+		shell.distribute("onDevicesChanged", filteredDevices);
+		if (!device || (filteredDevices.indexOf(device) < 0)) {
+			device = this.currentDevice;
+			if (!device || (filteredDevices.indexOf(device) < 0)) {
+				if (filteredDevices.length)
+					device = filteredDevices[0];
+				else
+					device = null;
+			}
+		}
+		if (this.currentDevice != device)
+			this.selectDevice(device);
 	}
 	findDeviceByAddress(address) {
 		let ip = address.slice(0, address.lastIndexOf(":"));
@@ -112,6 +168,12 @@ export default class extends Feature {
 	idle(now) {
 		// ping
 	}
+	networkInterfaceIndexToName(index) {
+		let name = this.networkInterface[index];
+		if (!name)
+			name = this.networkInterface[index] = system.networkInterfaceIndexToName(index);
+		return name;
+	}
 	notify() {
 		this.dirty = !((model.currentFeature == model.devicesFeature)
 			|| (model.currentFeature == model.filesFeature)
@@ -120,19 +182,63 @@ export default class extends Feature {
 		shell.distribute("onFeatureChanged", this);
 	}
 	read(json) {
-		if ("authorizations" in json) {
+		if ("authorizations" in json)
 			this.authorizations = json.authorizations;
+		if ("discoveryFlags" in json)
+			this.discoveryFlags = json.discoveryFlags;
+		this.DiscoveryConfigs.forEach(Config => {
+			let id = Config.id;
+			if (!(id in this.discoveryFlags))
+				 this.discoveryFlags[id] = Config.preferences.discoveryFlag;
+		});
+		if ("platformFlags" in json)
+			this.platformFlags = json.platformFlags;
+		this.PlatformConfigs.forEach(Config => {
+			let id = Config.id;
+			if (!(id in this.platformFlags))
+				 this.platformFlags[id] = Config.preferences.platformFlag;
+		});
+		if ("serialFlags" in json)
+			this.serialFlags = json.serialFlags;
+		this.SerialConfigs.forEach(Config => {
+			let id = Config.id;
+			if (!(id in this.serialFlags))
+				 this.serialFlags[id] = Config.preferences.serialFlag;
+		});
+		if ("simulatorFiles" in json)
+			this.simulatorFiles = json.simulatorFiles;
+		if ("simulatorFlags" in json)
+			this.simulatorFlags = json.simulatorFlags;
+		this.SimulatorConfigs.forEach(Config => {
+			let id = Config.id;
+			if (!(id in this.simulatorFiles))
+				 this.simulatorFiles[id] = Config.defaultURL;
+			if (!(id in this.simulatorFlags))
+				 this.simulatorFlags[id] = Config.preferences.simulatorFlag;
+		});
+		this.devices.forEach(device => device.read(json));
+		this.filterDevices();
+	}
+	selectDevice(device) {
+		this.currentDevice = device;
+		if (device) {
+			device.authorize();
+			if ("uuid" in device)
+				model.deviceUUID = device.uuid;
 		}
+		shell.distribute("onDeviceSelected", device);
+		model.debugFeature.selectMachineByDevice(device);
 	}
 	write(json) {
 		json.authorizations = this.authorizations;
+		json.discoveryFlags = this.discoveryFlags;
+		json.platformFlags = this.platformFlags;
+		json.serialFlags = this.serialFlags;
+		json.simulatorFiles = this.simulatorFiles;
+		json.simulatorFlags = this.simulatorFlags;
+		this.devices.forEach(device => device.write(json));
 	}
-	networkInterfaceIndexToName(index) {
-		let name = this.networkInterface[index];
-		if (!name)
-			name = this.networkInterface[index] = system.networkInterfaceIndexToName(index);
-		return name;
-	}
+	
 	onDeviceDown(device, interfaceName) {
 		if (!device) return;
 		trace("onDeviceDown " + device.name + " " + interfaceName + "\n");
@@ -141,26 +247,23 @@ export default class extends Feature {
 			let index = devices.findIndex(it => it.uuid == device.uuid);
 			if (index < 0) return
 			if (device.softwareStatus.updating || device.systemStatus.updating) return;
-			
-			let currentIndex = devices.indexOf(this.currentDevice);
 			let simulator;
 			if (device.local) {
 				if (device.constructor.tag == "Create")
 					simulator = new CreateSimulatorConfig();
 				else if (device.constructor.tag == "Element")
 					simulator = new ElementSimulatorConfig();
+				else
+					simulator = new EmbedSimulatorConfig();
 			}
 			if (simulator) {
+				let currentIndex = devices.indexOf(this.currentDevice);
 				devices[index] = simulator;
-				shell.distribute("onDevicesChanged", devices);
-				if (currentIndex == index)
-					this.selectDevice(simulator);
+				this.filterDevices((currentIndex == index) ? simulator : null);
 			}
 			else {
 				devices.splice(index, 1);
-				shell.distribute("onDevicesChanged", devices);
-				if (currentIndex == index)
-					this.selectDevice((devices.length) ? devices[0] : null);
+				this.filterDevices(null);
 			}
 			if (!interfaceName)
 				this.ssdp.remove(device.uuid);
@@ -181,18 +284,22 @@ export default class extends Feature {
 					index = devices.findIndex(device => device.constructor.tag == "CreateShell");
 				else if (device.constructor.tag == "Element")
 					index = devices.findIndex(device => device.constructor.tag == "ElementShell");
+				else
+					index = devices.findIndex(device => device.constructor.tag == "EmbedShell");
 				if (index >= 0) {
 					device.simulatorConfig = devices[index];
 					devices[index] = device;
 				}
-				else
+				else {
+					index = devices.length;
 					devices.push(device);
+				}
+				this.filterDevices((index >= 0) ? device : null);
 			}
-			else
+			else {
 				devices.push(device);
-			shell.distribute("onDevicesChanged", devices);
-			if (index >= 0)
-				this.selectDevice(device);
+				this.filterDevices((model.deviceUUID == device.uuid) ? device : null);
+			}
 			this.notify();
 		}
 	}
@@ -293,13 +400,35 @@ export default class extends Feature {
 			this.onDeviceDown(this.findDeviceByName(service.name), this.networkInterfaceIndexToName(service.interfaceIndex));
 		}
 	}
-	selectDevice(device) {
-		this.currentDevice = device;
-		if (device)
-			device.authorize();
-		shell.distribute("onDeviceSelected", device);
-		model.debugFeature.selectMachineByDevice(device);
+	
+	onSerialRegistered(discovery) {
+		trace("onSerialRegistered: " + JSON.stringify(discovery) + "\n");
+		for (let Config of this.Configs) {
+			if ("serial" in Config) {
+				let description = Config.serial.description;
+				if ((discovery.vendor == description.vendor) && (discovery.product == description.product)) {
+					let devices = this.devices;
+					let device = new SerialConfig(this, discovery, Config);
+					devices.push(device);
+					this.filterDevices();
+					this.notify();
+				}
+			}
+		}
+		
 	}
+	onSerialUnregistered(discovery) {
+		trace("onSerialUnregistered: " + JSON.stringify(discovery) + "\n");
+		let devices = this.devices;
+		let currentIndex = devices.indexOf(this.currentDevice);
+		let index = devices.findIndex(device => ("discovery" in device) && (device.discovery.path == discovery.path));
+		if (index < 0) return
+		let device = devices[index];
+		device.close();
+		devices.splice(index, 1);
+		this.filterDevices();
+	}
+	
 	onInvoke(hanlder, message) {
 		message.status = 404;
 		if (message.path == "/xsedit") {
@@ -535,8 +664,11 @@ export class DeviceConfig {
 	get softwareVersion() {
 		return this.description.version;
 	}
+	get softwareUpdateTarget() {
+	}
 	get softwareUpdateVersion() {
-		return (this.update) ? this.update[0].ver : undefined;
+		let target = this.softwareUpdateTarget;
+		return (this.update && (target in this.update)) ? this.update[target][0].version : undefined;
 	}
 	get softwareUpdate() {
 		let current = this.softwareVersion;
@@ -548,8 +680,11 @@ export class DeviceConfig {
 	get systemVersion() {
 		return this.description.firmware;
 	}
+	get systemUpdateTarget() {
+	}
 	get systemUpdateVersion() {
-		return (this.update) ? this.update[1].ver : undefined;
+		let target = this.systemUpdateTarget;
+		return (target && this.update && (target in this.update)) ? this.update[target][0].version : undefined;
 	}
 	get systemUpdate() {
 		let current = this.systemVersion;
@@ -572,6 +707,8 @@ export class DeviceConfig {
 	}
 	isSimulator() {
 		return false;
+	}
+	read(json) {
 	}
 	run(project) {
 		this.currentProject
@@ -637,6 +774,8 @@ export class DeviceConfig {
 		this.systemStatus = {
 			"updating": false,
 		};
+	}
+	write(json) {
 	}
 	// websocket
 	wsClose() {
@@ -728,12 +867,184 @@ export class DeviceConfig {
 	}
 }
 
+class PlatformConfig {
+	constructor() {
+		this.authorized = true;
+		this.authorizing = false;
+		this.running = true;
+		this.ip = "";
+		this.local = true;
+		this.machineCount = 0;
+		this.ButtonTemplate = PlatformMenuButton;
+		this.ItemTemplate = PlatformMenuItemLine;
+		this.uuid = system.getUUID(this.constructor.tag);
+		this.options = {
+			debug: true,
+			instrumentation: true,
+			memory: false,
+			xs: false,
+			platform:"mac",
+		};
+		this.output = {
+			directory:mergeURI(Files.documentsDirectory, "Kinoma%20Code/Applications/"),
+		};
+	}
+	authorize() {
+	}
+	get name() {
+		return this.constructor.product;
+	}
+	hasIP(ip) {
+		return false;
+	}
+	read(json) {
+		let id = this.constructor.id;
+		if (id in json) {
+			let preferences = json[id];
+			if ("options" in preferences)
+				this.options = preferences.options;
+			if ("output" in preferences)
+				this.output = preferences.output;
+		}
+	}
+	write(json) {
+		json[this.constructor.id] = {
+			options: this.options,
+			output: this.output,
+		}
+	}
+}
+
+import {
+	MacOSTile,
+	MacOSView,
+} from "features/devices/apps/platforms/macOS";
+
+class MacOSPlatformConfig extends PlatformConfig {
+}
+
+MacOSPlatformConfig.iconSkin = new Skin({ texture:new Texture("./assets/macOS.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
+MacOSPlatformConfig.id = "com.marvell.kinoma.platform.mac";
+MacOSPlatformConfig.product = "Mac OS";
+MacOSPlatformConfig.tag = "mac";
+MacOSPlatformConfig.apps = {
+	macOS: {
+		Tile: MacOSTile,
+		View: MacOSView
+	},
+}
+MacOSPlatformConfig.preferences = {
+	platformFlag: false,
+}
+
+import {
+	iOSTile,
+	iOSView,
+} from "features/devices/apps/platforms/iOS";
+
+class iOSPlatformConfig extends PlatformConfig {
+}
+
+iOSPlatformConfig.iconSkin = new Skin({ texture:new Texture("./assets/iOS.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
+iOSPlatformConfig.id = "com.marvell.kinoma.platform.ios";
+iOSPlatformConfig.product = "iOS";
+iOSPlatformConfig.tag = "ios";
+iOSPlatformConfig.apps = {
+	iOS: {
+		Tile: iOSTile,
+		View: iOSView
+	},
+}
+iOSPlatformConfig.preferences = {
+	platformFlag: false,
+}
+
+import {
+	AndroidTile,
+	AndroidView,
+} from "features/devices/apps/platforms/android";
+
+class AndroidPlatformConfig extends PlatformConfig {
+}
+
+AndroidPlatformConfig.iconSkin = new Skin({ texture:new Texture("./assets/android.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
+AndroidPlatformConfig.id = "com.marvell.kinoma.platform.android";
+AndroidPlatformConfig.product = "Android";
+AndroidPlatformConfig.tag = "android";
+AndroidPlatformConfig.apps = {
+	Android: {
+		Tile: AndroidTile,
+		View: AndroidView
+	},
+}
+AndroidPlatformConfig.preferences = {
+	platformFlag: false,
+}
+
+class SerialConfig {
+	constructor(feature, discovery, Config) {
+		this.authorized = true;
+		this.authorizing = false;
+		this.discovery = discovery;
+		this.iconSkin = Config.iconSkin;
+		this.configID = Config.id;
+		this.ip = "";
+		this.machineCount = 0;
+		this.running = false;
+		this.settings = Config.serial.settings;
+		this.shortcuts =  Config.serial.shortcuts;
+		this.ButtonTemplate = SerialMenuButton;
+		this.ItemTemplate = SerialMenuItemLine;
+		this.serialDevice = null;
+	}
+	authorize() {
+	}
+	close() {
+		let serialDevice = this.serialDevice;
+		if (serialDevice) {
+			serialDevice.close();
+			this.serialDevice = null;
+		}
+	}
+	execute(command) {
+		let serialDevice = this.serialDevice;
+		if (serialDevice)
+			serialDevice.write(command + "\n");
+	}
+	open() {
+		let serialDevice = this.serialDevice;
+		if (!serialDevice) {
+			let settings = this.settings;
+			serialDevice = this.serialDevice = new Serial.Device(this.discovery.path);
+			serialDevice.behavior = this;
+			serialDevice.open(settings.baud, settings.bits, settings.parity, settings.stop);
+		}
+	}
+	get name() {
+		return this.discovery.path;
+	}
+	get product() {
+		return this.settings.name; 
+	}
+	hasIP(ip) {
+		return false;
+	}
+	onSerialData(string) {
+		model.doLogRaw(shell, string);
+	}
+	read(json) {
+	}
+	write(json) {
+	}
+}
+
 class SimulatorConfig {
 	constructor() {
 		this.authorized = true;
 		this.authorizing = false;
 		this.ip = "";
 		this.machineCount = 0;
+		this.name = this.constructor.product + " Simulator";
 		this.running = false;
 		this.ButtonTemplate = SimulatorMenuButton;
 		this.ItemTemplate = SimulatorMenuItemLine;
@@ -744,44 +1055,83 @@ class SimulatorConfig {
 		return false;
 	}
 	launch() {
-		let url = model[this.property];
+		let constructor = this.constructor;
+		let id = constructor.id;
+		let url = mergeURI(model.simulatorsURI, model.devicesFeature.simulatorFiles[id]);
 		if (!url || !Files.exists(url)) {
-			var dictionary = { message:"Locate " + this.name, prompt:"Open", url:mergeURI(shell.url, "../../../../../") };
-			system.openFile(dictionary, url => { 
-				if (url) {
-					model[this.property] = url;
-					launchURI(url);
+			system.alert({ 
+				type:"stop", 
+				prompt:"Simulator not found.", 
+				info:"Do you want to use the default simulator?", 
+				buttons:["Locate", "Cancel", "Use Default"]
+			}, ok => {
+				if (ok === undefined)
+					return;
+				if (ok) {
+					var dictionary = { message:"Locate " + constructor.defaultURL, prompt:"Open", url:mergeURI(shell.url, "../../../../../") };
+					system.openFile(dictionary, url => { 
+						if (url) {
+							model.devicesFeature.simulatorFiles[id] = url;
+							shell.distribute("onSimulatorFilesChanged", id, url);
+							launchURI(url);
+						}
+					});
+				}
+				else {
+					let url = constructor.defaultURL;
+					model.devicesFeature.simulatorFiles[id] = url;
+					shell.distribute("onSimulatorFilesChanged", id, url);
+					launchURI(mergeURI(model.simulatorsURI, url));
 				}
 			});
 		}
 		else
 			launchURI(url);
 	}
+	read(json) {
+	}
+	write(json) {
+	}
+	static get defaultURL() {
+		return this.tag + ".app";
+	}
 }
 
 class CreateSimulatorConfig extends SimulatorConfig {
 	constructor() {
 		super();
-		this.name = "Kinoma Create Simulator";
-		this.property = "createSimulator";
 	}
 }
 
 CreateSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/create-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
 CreateSimulatorConfig.id = "com.marvell.kinoma.launcher.create";
+CreateSimulatorConfig.preferences = { simulatorFlag: true }
+CreateSimulatorConfig.product = "Kinoma Create";
 CreateSimulatorConfig.tag = "CreateShell";
 
 class ElementSimulatorConfig extends SimulatorConfig {
 	constructor() {
 		super();
-		this.name = "Kinoma Element Simulator";
-		this.property = "elementSimulator";
 	}
 }
 
 ElementSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/element-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
 ElementSimulatorConfig.id = "com.marvell.kinoma.launcher.element";
+ElementSimulatorConfig.preferences = { simulatorFlag: true }
+ElementSimulatorConfig.product = "Kinoma Element";
 ElementSimulatorConfig.tag = "ElementShell";
+
+class EmbedSimulatorConfig extends SimulatorConfig {
+	constructor() {
+		super();
+	}
+}
+
+EmbedSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/embed-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
+EmbedSimulatorConfig.id = "com.marvell.kinoma.launcher.embed";
+EmbedSimulatorConfig.preferences = { simulatorFlag: false }
+EmbedSimulatorConfig.product = "Kinoma Embed";
+EmbedSimulatorConfig.tag = "EmbedShell";
 
 // ASSETS
 
@@ -792,6 +1142,7 @@ import {
 
 import {
 	BLACK,
+	FIXED_FONT,
 	LIGHT_FONT,
 	NORMAL_FONT,
 	SEMIBOLD_FONT,
@@ -832,6 +1183,15 @@ var menuLineVariantStyle = new Style({ font:NORMAL_FONT, size:12, color:BLACK, h
 // var menuHeaderVariantStyle = new Style({ font:LIGHT_FONT, size:12, color:WHITE, horizontal:"left" })
 // var menuLineVariantStyle = new Style({ font:LIGHT_FONT, size:12, color:BLACK, horizontal:"left" })
 
+var textSkin = new Skin({ fill:["transparent", "transparent", "#e0e0e0", "#cbe1fa"] })
+var textStyle = new Style({ 
+	font:FIXED_FONT,
+	size:12, 
+	horizontal:"left",
+	left:8, right:8,
+	color: [ "black", "#103ffb", "#b22821", "#008d32" ]
+})
+
 // BEHAVIORS
 
 import { 
@@ -841,10 +1201,13 @@ import {
 
 import {
 	ScrollerBehavior,
+	HorizontalScrollbar,
 	VerticalScrollbar,
 } from "common/scrollbar";
 
 import { 
+	CodeBehavior, 
+	CodeScrollerBehavior, 
 	LineBehavior,
 } from "shell/behaviors";
 
@@ -852,7 +1215,22 @@ import {
 	FeaturePaneBehavior,
 } from "shell/feature";
 
+
 class DevicePaneBehavior extends FeaturePaneBehavior {
+	onDeviceSelected(container, device) {
+		let content;
+		if (device) {
+			if (device instanceof SerialConfig)
+				content = new SerialDeviceContainer(device);
+			else if (device.authorized && device.running)
+				content = new DeviceScroller(device);
+			else
+				content = new NoDevicesContainer();
+		}
+		else
+			content = new NoDevicesContainer();
+		container.replace(container.last, content);
+	}
 	onDisplaying(container) {
 		let data = this.data;
 		container.distribute("onDeviceSelected", data.currentDevice);
@@ -869,7 +1247,9 @@ class DeviceHeaderBehavior extends Behavior {
 	onDeviceSelected(container, device) {
 		let content, tools;
 		if (device) {
-			if (device.authorized)
+			if (device instanceof SerialConfig)
+				tools = new DeviceCommandLine(device);
+			else if (device.authorized)
 				tools = new DebugToolsHeader(model.debugFeature);
 			else if (device.authorizing)
 				tools = new DeviceConnectingLine(this.data);
@@ -890,26 +1270,63 @@ class DeviceHeaderBehavior extends Behavior {
 	}
 }
 
+class DeviceCommandLineBehavior extends Behavior {
+	onCreate(container, device) {
+		this.device = device;
+	}
+	onDisplayed(container) {
+		this.device.open();
+	}
+	onEnter(container) {
+		let device = this.device;
+		let label = container.first.first;
+		device.execute(label.string);
+		label.string = "";
+		label.next.visible = true;
+		return true;
+	}
+	onKeyDown(container, key, repeat, ticks) {
+		var c = key.charCodeAt(0);
+		if ((c == 3) || (c == 13));
+			return true;
+		return false;
+	}
+	onKeyUp(container, key, repeat, ticks) {
+		var c = key.charCodeAt(0);
+		if ((c == 3) || (c == 13)) {
+			this.onEnter(container);
+			return true;
+		}
+		return false;
+	}
+	onUndisplayed(container) {
+		this.device.close();
+	}
+}
+
 class DeviceMenuHeaderBehavior extends LineBehavior {
 	onDescribeMenu(container) {
 		let data = this.data;
 		return {
 			ItemTemplate: DeviceMenuItemLine,
-			items: data.devices,
-			selection: data.devices.findIndex(device => data.currentDevice == device),
+			items: data.filteredDevices,
+			selection: data.filteredDevices.findIndex(device => data.currentDevice == device),
 			context: shell,
 		};
 	}
 	onDisplaying(container) {
 		let data = this.data;
-		this.onDevicesChanged(container, data.devices);
+		this.onDevicesChanged(container, data.filteredDevices);
 	}
 	onDevicesChanged(container, devices) {
  		container.active = devices.length > 1;
  		container.last.visible = this.arrow && container.active;
 	}
 	onDeviceSelected(container, device) {
-		container.replace(container.first, new device.ButtonTemplate(device));
+		if (device)
+			container.replace(container.first, new device.ButtonTemplate(device));
+		else
+			container.replace(container.first, new NoDevicesButton(null));
 	}
 	onLaunch(container, device) {
  		device.launch();
@@ -933,17 +1350,6 @@ class DeviceMenuHeaderBehavior extends LineBehavior {
 	}
 }
 
-class DeviceScrollerBehavior extends ScrollerBehavior {
-	onDeviceSelected(scroller, device) {
-		let content;
-		if (device.authorized && device.running)
-			content = new DeviceLayout(device);
-		else
-			content = new NoDevicesContainer();
-		scroller.replace(scroller.first, content);
-	}
-}
-
 const tileWidth = 120;
 const tileFiller = 10;
 
@@ -955,7 +1361,11 @@ class DeviceLayoutBehavior extends Behavior {
 			if (!("Test" in apps[name]) || (apps[name].Test(device)))
 			layout.add(new apps[name].Tile({ device, url:"device://" + device.uuid + "/" + name }));
 		model.filesFeature.projects.items.forEach(project => {
-			if (project[constructor.tag])
+			if (device instanceof PlatformConfig) {
+				if (project.standalone && (device.constructor.tag in project.standalone.platforms))
+					layout.add(new ProjectTile({ device, project }));
+			}
+			else if (project[constructor.tag])
 				layout.add(new ProjectTile({ device, project }));
 		});
 	}
@@ -1029,7 +1439,7 @@ export var DevicePane = Container.template($ => ({
 	contents: [
 		DeviceHeader($, { }),
 		Scroller($, {
-			left:10, right:0, top:90, bottom:0, clip:true, active:true, Behavior:DeviceScrollerBehavior,
+			left:10, right:0, top:90, bottom:0, clip:true, active:true, Behavior:ScrollerBehavior,
 			contents: [
 				NoDevicesContainer($, {}),
 				VerticalScrollbar($, { right:0 }),
@@ -1056,6 +1466,43 @@ export var DeviceMenuHeader = Container.template($ => ({
 	]
 }));
 
+var NoDevicesButton = Line.template($ => ({
+	left:0, right:0, top:0, bottom:0, skin:grayHeaderSkin,
+	contents: [
+		Container($, {
+			width:60, height:60,
+			contents: [
+				Picture($, {
+					width:60, height:60, url:"../devices/assets/searching.png",
+					Behavior: class extends Behavior {
+						onCreate(picture) {
+							picture.opacity = 0.66;
+							picture.origin = { x:30, y:30 };
+						}
+						onDisplayed(picture) {
+							picture.start();
+						}
+						onTimeChanged(picture) {
+							var rotation = picture.rotation;
+							rotation += 1;
+							if (rotation > 360) rotation = 0;
+							picture.rotation = rotation;
+						}
+					},
+				}),
+			],
+		}),
+		Content($, { width:10 }),
+		Column($, {
+			left:0, right:0, height:40,
+			contents: [
+				Label($, { left:0, right:0, style:tableHeaderStyle, string:"DEVICES" }),
+				Label($, { left:0, right:0, style:menuHeaderVariantStyle, string:system.SSID }),
+			],
+		}),
+	],
+}));
+
 var DeviceMenuButton = Line.template($ => ({
 	left:0, right:0, top:0, bottom:0, skin:grayHeaderSkin,
 	contents: [
@@ -1075,6 +1522,47 @@ var DeviceMenuButton = Line.template($ => ({
 						Label($, { style:menuHeaderTitleStyle, string:$.name, }),
 						Label($, { left:0, right:0, style:menuHeaderAddressStyle, string:$.ip ? $.ip : model.interfaces[$.interfaces[0]].ip, }),
 						Content($, { width:20, height:20, skin:deviceAddressSkin, state:0, variant:$.simulatorConfig ? 1 : 0 }),
+						Content($, { width:5 }),
+					],
+				}),
+				Label($, { left:0, right:0, style:menuHeaderVariantStyle, string:$.product, }),
+			],
+		}),
+	]
+}));
+
+var PlatformMenuButton = Line.template($ => ({
+	left:0, right:0, top:0, bottom:0, skin:grayHeaderSkin,
+	contents: [
+		Container($, {
+			width:60, height:60,
+			contents: [
+				Content($, { width:60, height:60, skin:$.constructor.iconSkin, state:1  }),
+			],
+		}),
+		Content($, { width:10 }),
+		Label($, { left:0, right:0, style:menuHeaderVariantStyle, string:$.constructor.product }),
+	]
+}));
+
+var SerialMenuButton = Line.template($ => ({
+	left:0, right:0, top:0, bottom:0, skin:grayHeaderSkin,
+	contents: [
+		Container($, {
+			width:60, height:60,
+			contents: [
+				Content($, { width:60, height:60, skin:$.iconSkin, state:1  }),
+			],
+		}),
+		Content($, { width:10 }),
+		Column($, {
+			left:0, right:0, height:40,
+			contents: [
+				Line($, {
+					left:0, right:0, height:20,
+					contents: [
+						Label($, { left:0, right:0, style:menuHeaderTitleStyle, string:$.name, }),
+						Content($, { width:20, height:20, skin:deviceAddressSkin, state:0, variant:2 }),
 						Content($, { width:5 }),
 					],
 				}),
@@ -1203,6 +1691,49 @@ var DeviceMenuItemLine = Line.template($ => ({
 	]
 }));
 
+var PlatformMenuItemLine = Line.template($ => ({
+	left:0, right:0, height:60, skin: menuLineSkin, active:true,
+	Behavior: MenuItemBehavior,
+	contents: [
+		Container($, { 
+			width:60, height:60,
+			contents: [
+				Content($, { width:60, height:60, skin:$.constructor.iconSkin }),
+			],
+		}),
+		Content($, { width:10 }),
+		Label($, { style:menuLineVariantStyle, string:$.constructor.product }),
+	]
+}));
+
+var SerialMenuItemLine = Line.template($ => ({
+	left:0, right:0, height:60, skin: menuLineSkin, active:true,
+	Behavior: MenuItemBehavior,
+	contents: [
+		Container($, { 
+			width:60, height:60,
+			contents: [
+				Content($, { width:60, height:60, skin:$.iconSkin }),
+			],
+		}),
+		Content($, { width:10 }),
+		Column($, {
+			left:0, right:0, height:40,
+			contents: [
+				Line($, {
+					left:0, right:0, height:20,
+					contents: [
+						Label($, { left:0, right:0, style:menuLineTitleStyle, string:$.name}),
+						Content($, { width:20, height:20, skin:deviceAddressSkin, state:1, variant:2 }),
+						Content($, { width:5 }),
+					],
+				}),
+				Label($, { left:0, right:0, style:menuLineVariantStyle, string:$.product, }),
+			],
+		}),
+	]
+}));
+
 var SimulatorMenuItemLine = Line.template($ => ({
 	left:0, right:0, height:60, skin: menuLineSkin, active:true,
 	Behavior: MenuItemBehavior,
@@ -1255,14 +1786,56 @@ var DeviceConnectingLine = Line.template($ => ({
 	],
 }));
 
-var DeviceLayout = Layout.template($ => ({ 
-	left:0, top:0, Behavior: DeviceLayoutBehavior 
+var DeviceCommandLine = Line.template($ => ({
+	left:10, right:10, top:60, height:30, skin:grayBorderSkin,
+	Behavior: DeviceCommandLineBehavior,
+	contents: [
+		Scroller($, {
+			left:5, right:5, top:5, bottom:5, skin: fieldScrollerSkin, clip:true, active:true,
+			Behavior: FieldScrollerBehavior,
+			contents: [
+				Label($, {
+					left: 0, top:2, bottom:2, skin:fieldLabelSkin, style:fieldLabelStyle, editable:true,
+					Behavior: class extends FieldLabelBehavior {
+						onDisplaying(label) {
+							label.focus();
+						}
+						onEdited(label) {
+							label.next.visible = label.string.length == 0;
+						}
+					},
+				}),
+				Label($, { left:0, top:2, bottom:2, style:fieldHintStyle, string:"Command" }),
+			],
+		}),
+		Container($, {
+			width:80, skin:blackButtonSkin, active:true, name:"onEnter", Behavior: ButtonBehavior,
+			contents: [
+				Label($, { left:0, right:0, style:blackButtonStyle, string:"Run" }),
+			],
+		}),
+	],
 }));
 
-var NoDevicesContainer = Container.template($ => ({ 
-	left:0, right:0, top:0, bottom:0, active:true,
+var DeviceScroller = Container.template($ => ({
+	left:10, right:0, top:90, bottom:0, clip:true, active:true, Behavior:ScrollerBehavior,
+	contents: [
+		Layout($, { left:0, top:0, Behavior: DeviceLayoutBehavior }),
+		VerticalScrollbar($, { right:0 }),
+	]
+}));
+
+var NoDevicesContainer = Container.template($ => ({
+	left:10, right:0, top:90, bottom:0,
 	contents: [
 		Text($, { left:0, right:0, style:featureEmptyStyle, string:"Simulator not running.\nUse \"Launch\" to start the simulator." }),
+	]
+}));
+
+var SerialDeviceContainer = Container.template($ => ({
+	left:10, right:0, top:90, bottom:0,
+	contents: [
+		Text($, { left:0, right:0, style:featureEmptyStyle, string:"" }),
 	]
 }));
 

@@ -1077,8 +1077,6 @@ typedef struct {
 	UInt32 quality;
 } FskPortBitmapProjectParams;
 
-typedef const float (*TCFloatX3)[3];
-typedef const float (*TCFloatX2)[2];
 
 static FskErr FskPortBitmapProjectPrepareProc(FskPort port, void *paramsIn UNUSED, UInt32 paramsSize UNUSED)
 {
@@ -1109,7 +1107,7 @@ static FskErr FskPortBitmapProjectProc(FskPort port, void *paramsIn, UInt32 para
 	FskSLinearTransform(p->transform[0], dstTransform[0], transform[0], 3, 3, 3);
 #if FSKBITMAP_OPENGL
 	if (FskBitmapIsOpenGLDestinationAccelerated(dstBits))
-		err = FskGLProjectBitmap(srcBits, &p->srcRect, dstBits, &dstClip, (TCFloatX3)transform, &port->penColor, port->graphicsMode, port->graphicsModeParameters);
+		err = FskGLProjectBitmap(srcBits, &p->srcRect, dstBits, &dstClip, transform, &port->penColor, port->graphicsMode, port->graphicsModeParameters);
 	else
 #endif
 	{
@@ -1125,11 +1123,11 @@ static FskErr FskPortBitmapProjectProc(FskPort port, void *paramsIn, UInt32 para
 			}
 			else {
 				graphicsMode |= kFskGraphicsModeAffine;
-				FskProjectBitmap(srcBits, &p->srcRect, dstBits, &dstClip, (TCFloatX3)transform, &port->penColor, graphicsMode, port->graphicsModeParameters);
+				FskProjectBitmap(srcBits, &p->srcRect, dstBits, &dstClip, transform, &port->penColor, graphicsMode, port->graphicsModeParameters);
 			}
 		}
 		else {
-			FskProjectBitmap(srcBits, &p->srcRect, dstBits, &dstClip, (TCFloatX3)transform, &port->penColor, graphicsMode, port->graphicsModeParameters);
+			FskProjectBitmap(srcBits, &p->srcRect, dstBits, &dstClip, transform, &port->penColor, graphicsMode, port->graphicsModeParameters);
 		}
 	}
 	if (--(srcBits->useCount) < 0)

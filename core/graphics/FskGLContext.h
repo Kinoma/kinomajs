@@ -37,7 +37,7 @@ typedef const struct FskGLContextRecord	*FskConstGLContext;		/**< Immutable GL c
 
 /** Storage for context. */
 struct FskGLContextStorage {
-	void *storage[8];											/**< Storage large enough to store the GL context on any platform. */
+	void *storage[6];											/**< Storage large enough to store the GL context on any platform. */
 };
 typedef struct FskGLContextStorage FskGLContextStorage;			/**< Storage large enough to store the GL context on any platform. */
 
@@ -86,7 +86,7 @@ FskAPI(FskErr)		FskGLContextNewFromCurrentContext(FskGLContext *pCtx);
  **	\param[in]	storage	a pointer to storage for the GL context.
  **	\param[out]	pCtx	a place to store the resultant context. This can be NULL, because we merely set *pCtx = (FskGLContext)storage;
  **	\return		kFskErrNone				if the operation completed successfully.
- **	\return		kFskErrNotAccelerated	if there is no currently active GL context.
+ **	\return		kFskErrNotAccelerated	if there is no currently active GL context. In this case, *pCtx is set to NULL.
  **	\note		Do not call FskGLContextDispose() with the value returned in pCtx; it is intended only for interfacing to FskGLContextMakeCurrent().
  **/
 FskAPI(FskErr)		FskGLContextGetCurrentContext(FskGLContextStorage *storage, FskGLContext *pCtx);
@@ -122,6 +122,19 @@ FskAPI(FskErr)		FskGLContextSwapBuffers(FskGLContext ctx);
 	 **	\param[out]	pContext	a place to store the EGL context (can be NULL).
 	 **/
 	FskAPI(void)	FskGLContextGetEGL(FskGLContext ctx, void** pDisplay, void** pSurface, void** pContext);
+
+
+	/**	Create a new GL window context.
+	 **	\param[in]	nativeWindow	a pointer to the native window to be associated with this context.
+	 **	\param[in]	height			the desired offscreen height (can be 0).
+	 **	\param[in]	pixelFormat		the desired pixel precision (coarse: RGB, RGBA 565).
+	 **	\param[in]	version			the desired Open GL version.
+	 **	\param[in]	share			share assets with this other context; if NULL, then no assets are shared.
+	 **	\param[out]	ctx				the resultant context.
+	 **	\return		kFskErrNone		if the operation succeeded.
+	 **	\todo		Make this cross-platform.
+	 **/
+	FskAPI(FskErr)	FskGLWindowContextNew(void *nativeWindow, FskBitmapFormatEnum pixelFormat, UInt32 version, FskGLContext share, FskGLContext *pCtx);
 #endif /* EGL_VERSION */
 
 
@@ -153,7 +166,7 @@ FskAPI(FskErr)		FskGLContextSwapBuffers(FskGLContext ctx);
 		#ifndef _EAGL_H_
 			#include <OpenGLES/EAGL.h>
 		#endif /* _EAGL_H_ */
-	#else /* !__OBJC__ */
+	#elif !defined(__FSKCOCOASUPPORTPHONE__) /* !__OBJC__ */
 		struct EAGLContext;
 		typedef struct EAGLContext EAGLContext;
 	#endif /* __OBJC__ */

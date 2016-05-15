@@ -19,6 +19,7 @@
 #include "FskText.h"
 #include "FskTextConvert.h"
 #include "FskUtilities.h"
+#include "FskUUID.h"
 #if TARGET_OS_IPHONE
 	#include "FskCocoaSupportPhone.h"
 #endif
@@ -1719,6 +1720,14 @@ void KPR_shell_changeCursor(xsMachine* the)
 	KprShell self = xsGetHostData(xsThis);
 	(void)FskWindowSetCursorShape(self->window, xsToInteger(xsArg(0)));
 }
+
+void KPR_system_getUUID(xsMachine *the)
+{
+	char* id = xsToString(xsArg(0));
+	char* uuid = FskUUIDGetForKey(id);
+	xsResult = xsString(uuid);
+}
+
 
 void KPR_Shell_patch(xsMachine* the)
 {

@@ -100,11 +100,15 @@ var Wifi = {
 			let Configuration = require.weak("config");
 			var mac = Wifi.mac;
 			var mask = Configuration.envKey;
-			var len = mask.length;
-			var key = new Uint8Array(len);
-			for (var i = 0; i < len; i++)
-				key[i] = mask.charCodeAt(i) ^ mac.charCodeAt(i % mac.length);
-			System._init_key(key.buffer);
+			if (mask) {
+				var len = mask.length;
+				var key = new Uint8Array(len);
+				for (var i = 0; i < len; i++)
+					key[i] = mask.charCodeAt(i) ^ mac.charCodeAt(i % mac.length);
+				System._init_key(key.buffer);
+			}
+			else
+				System._init_key(ArrayBuffer.fromString(mac));
 		};
 
 		if (System.config.wakeupButtons) {
@@ -202,7 +206,7 @@ var Wifi = {
 						conf.save = false;	// turn off the save flag to avoid saving it again
 						if (!aps)
 							aps = new Environment("wifi", true, true);		// access points
-						aps.set(conf.bssid, JSON.stringify(conf));
+						aps.set(conf.bssid, JSON.stringify(conf), 0);
 					}
 				}
 				status = this.mode & this.STA ? System.connection.STA : System.connection.UAP;

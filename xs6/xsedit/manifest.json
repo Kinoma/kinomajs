@@ -11,14 +11,16 @@
 		"SHELL_HOME":"$(F_HOME)/xs6/xsedit",
 	},
 	"environment":{
-		"VERSION":"1.0b3",
+		"VERSION":"1.0b4",
 		"NAME":"Kinoma Code",
 		"NAMESPACE":"com.marvell.kinoma.code.shell",
 		"CA_list":"ca-bundle.crt",
 		
 		"CREATE_SOFTWARE_TARGET":"CREATE_SHELL_RELEASE",
+		"CREATE_SOFTWARE_TEST":"CREATE_SHELL_QA",
 		"CREATE_FIRMWARE_TARGET":"CREATE_FIRMWARE_RELEASE",
 		"ELEMENT_FIRMWARE_TARGET":"ELEMENT_FIRMWARE_RELEASE",
+		"ELEMENT_FIRMWARE_TEST":"ELEMENT_FIRMWARE_QA",
 
 		"modulePath":"../",
 		"shellPath":"[applicationPath]modules/shell/main.xsb",
@@ -57,7 +59,6 @@
 	"resources":{
 		"~":[
 			"$(SHELL_HOME)/features/devices/helpers/element/icon.png",
-			"$(SHELL_HOME)/features/devices/configs/hd",
 		],
 		".":[
 			"$(F_HOME)/data/sslcert/ca-bundle.crt",
@@ -121,6 +122,11 @@
 				],
 				"simulators": [
 				],
+			},
+		},
+		"win":{
+			"environment":{
+				"NAME":"Kinoma_Code",
 			},
 		},
 	},

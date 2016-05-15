@@ -615,6 +615,21 @@ class UpdateSettingBehavior extends ButtonSettingBehavior {
 	}
 }
 
+class UpdateSystemSettingBehavior extends ButtonSettingBehavior {
+	onCreate(line, data) {
+		super.onCreate(line, data);
+		this.onDeviceChanged(line, data.device);
+	}
+	onDeviceChanged(line, device) {
+		let data = this.data;
+		var active = device[this.data.updateAvailable] && !device.isSimulator();
+		data.LABEL.string = data.value;
+		data.VERSION.visible = active;
+		data.VERSION.string = "Version " + device[this.data.updateVersion];
+		data.UPDATE.string = active ? "AVAILABLE" : "";
+	}
+}
+
 class ValueSettingBehavior extends SettingBehavior {
 	onCreate(line, data) {
 		super.onCreate(line, data);
@@ -677,7 +692,7 @@ var CreateSettingsScroller = Scroller.template($ => ({
 				URLSettingLine(new StartupAppSetting($), {}),
 // 				Separator($, {}),
 				UpdateSettingLine(new UpdateSoftwareSetting($), {}),
-				UpdateSettingLine(new UpdateSystemSetting($), {}),
+				UpdateSystemSettingLine(new UpdateSystemSetting($), {}),
 				URLSettingLine(new MACAddressSetting($), {}),
 // 				Separator($, {}),
 				DialogSettingLine(new CacheSetting($), {}),
@@ -700,7 +715,7 @@ var ElementSettingsScroller = Scroller.template($ => ({
 				URLSettingLine(new TimezoneSetting($), {}),
 // 				Separator($, {}),
 				UpdateSettingLine(new UpdateSoftwareSetting($), {}),
-				UpdateSettingLine(new UpdateSystemSetting($), {}),
+				UpdateSystemSettingLine(new UpdateSystemSetting($), {}),
 				URLSettingLine(new MACAddressSetting($), {}),
 			]
 		}),
@@ -836,6 +851,18 @@ var UpdateSettingLine = Line.template($ => ({
 				Label($, { left:0, right:0, style:whiteButtonStyle, string:"Apply" }),
 			],
 		}),
+		Content($, { width:30 }),
+		Label($, { anchor:"UPDATE", style:settingAlertStyle, string:"" }),
+	],
+}));
+
+var UpdateSystemSettingLine = Line.template($ => ({
+	left:0, right:0, height:40, skin:settingLineSkin,
+	Behavior: UpdateSystemSettingBehavior,
+	contents: [
+		Label($, { width:160, style:settingNameStyle, string:$.title }),
+		Label($, { anchor:"LABEL", left:0, right:0, style:settingValueStyle }),
+		Label($, { anchor:"VERSION", left:0, right:0, style:whiteButtonStyle, string:"", visible:false }),
 		Content($, { width:30 }),
 		Label($, { anchor:"UPDATE", style:settingAlertStyle, string:"" }),
 	],

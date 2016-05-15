@@ -217,3 +217,8 @@ Pi.apps = {
 //		View: BLLExplorerView
 //	},
 }
+
+Pi.preferences = {
+	discoveryFlag: false,
+	serialFlag: false,
+}

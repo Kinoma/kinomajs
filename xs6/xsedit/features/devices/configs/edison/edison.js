@@ -218,3 +218,9 @@ IntelEdison.apps = {
 //		View: BLLExplorerView
 //	},
 }
+
+IntelEdison.preferences = {
+	discoveryFlag: false,
+	serialFlag: false,
+}
+

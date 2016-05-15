@@ -68,6 +68,7 @@ class Tool extends TOOL {
 		this.cmakeGenerate = true;
 		this.cmakeFlags = [];
 		this.debug = false;
+		this.docker = null;
 		this.errorCount = 0;		
 		this.help = false;
 		this.helpItems = {};
@@ -180,6 +181,12 @@ class Tool extends TOOL {
 				break;
 			case "-d":
 				this.debug = true;
+				break;
+			case "-docker":
+				argi++;
+				if (argi >= argc)
+					throw new Error("--docker: no image name!");
+				this.docker = { image: argv[argi], args: argv };
 				break;
 			case "-D":
 				argi++;
@@ -330,7 +337,7 @@ class Tool extends TOOL {
 		}
 		variables.forEach((variable, index) => {
 			var value = process.getenv(variable);
-			if (!value)
+			if (!value && !this.docker)
 				throw new Error(variable + ": no environment variable!");
 			this.environment[variable] = value;
 		});
@@ -757,9 +764,23 @@ class Tool extends TOOL {
 			this.displayHelp(tool);
 			return;
 		}
+
 		if (this.cleanall) {
 			this.deleteDirectory(this.outputPath + this.slash + "bin");
 			this.deleteDirectory(this.outputPath + this.slash + "tmp");
+			return;
+		}
+
+		if (this.docker != null) {
+			let args = this.docker.args;
+			let image = this.docker.image;
+			let command = ["docker", "run", "--rm", "-e", "F_HOME=" + this.homePath, "-v", this.homePath + ":" + this.homePath, "-it", image];
+			let dockerIndex = this.docker.args.indexOf("-docker");
+			args.splice(dockerIndex, 2);
+			args.splice(0, 1);
+			command = command.concat(args);
+			this.report(command.join(' '));
+			process.then.apply(this, command);
 			return;
 		}
 

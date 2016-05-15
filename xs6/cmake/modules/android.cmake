@@ -151,6 +151,7 @@ macro(BUILD)
 
 	add_custom_target(ndk ALL
 		COMMENT "Building NDK Parts"
+		COMMAND sh gradlew -q :modules:Fsk:clean
 		COMMAND sh gradlew -q assembleArm$<CONFIG>
 		COMMAND ${CMAKE_COMMAND} -E copy ${NDK_PROJECT_PATH}/modules/Fsk/build/outputs/native/$<LOWER_CASE:$<CONFIG>>/arm/lib/armeabi/libFsk.so ${TMP_DIR}
 		WORKING_DIRECTORY ${NDK_PROJECT_PATH}

@@ -30,7 +30,7 @@ function process(http, args)
 		else
 			http.errorResponse(405, "Method Not Allowed");
 	} catch(error) {
-		http.errorResponse(505, "Internal Server Error");
+		http.errorResponse(500, "Internal Server Error");
 	}
 }
 

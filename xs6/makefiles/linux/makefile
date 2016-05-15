@@ -26,11 +26,11 @@ debug:
 	#make debug -f xsrb6.make
 	make debug -f tools.make
 	make debug -f kct6.make
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kprconfig $$*' > $(XS6)/bin/linux/debug/kprconfig6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kprconfig "$$@"' > $(XS6)/bin/linux/debug/kprconfig6
 	chmod +x $(XS6)/bin/linux/debug/kprconfig6
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js $$*' > $(XS6)/bin/linux/debug/kpr2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js "$$@"' > $(XS6)/bin/linux/debug/kpr2js6
 	chmod +x $(XS6)/bin/linux/debug/kpr2js6
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js $$*' > $(XS6)/bin/linux/debug/xs2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js "$$@"' > $(XS6)/bin/linux/debug/xs2js6
 	chmod +x $(XS6)/bin/linux/debug/xs2js6
 #	make debug -f xsbug.make
 	
@@ -42,11 +42,11 @@ release:
 	#make release -f xsrb6.make
 	make release -f tools.make
 	make release -f kct6.make
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kprconfig $$*' > $(XS6)/bin/linux/release/kprconfig6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kprconfig "$$@"' > $(XS6)/bin/linux/release/kprconfig6
 	chmod +x $(XS6)/bin/linux/release/kprconfig6
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js $$*' > $(XS6)/bin/linux/release/kpr2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js "$$@"' > $(XS6)/bin/linux/release/kpr2js6
 	chmod +x $(XS6)/bin/linux/release/kpr2js6
-	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js $$*' > $(XS6)/bin/linux/release/xs2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/linux/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js "$$@"' > $(XS6)/bin/linux/release/xs2js6
 	chmod +x $(XS6)/bin/linux/release/xs2js6
 #	make release -f xsbug.make
 	

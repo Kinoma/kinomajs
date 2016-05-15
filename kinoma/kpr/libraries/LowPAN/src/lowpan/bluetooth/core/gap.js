@@ -25,33 +25,26 @@ const Utils = require("../../common/utils");
 const Logger = Utils.Logger;
 const Buffers = require("../../common/buffers");
 const ByteBuffer = Buffers.ByteBuffer;
+const AESCMAC = require("../../common/aescmac");
 
 const BTUtils = require("./btutils");
 const BluetoothAddress = BTUtils.BluetoothAddress;
 
-const logger = new Logger("GAP");
-logger.loggingLevel = Utils.Logger.Level.INFO;
-
-exports.setLoggingLevel = level => logger.loggingLevel = level;
+const logger = Logger.getLogger("GAP");
 
 /* BT Stack Layer */
 const HCI = require("./hci");
 const L2CAP = require("./l2cap");
-const GATT = require("./gatt");
 const SM = require("./sm");
-exports.HCI = HCI;
-exports.L2CAP = L2CAP;
-exports.GATT = GATT;
-exports.SM = SM;
 
 /* Bypass ADType flag */
 const DISCOVER_BYPASS = true;
 
-const SCAN_FAST_INTERVAL = 0x0030;		// TGAP(scan_fast_interval)		30ms to 60ms
+const SCAN_FAST_INTERVAL = 0x0030;			// TGAP(scan_fast_interval)		30ms to 60ms
 const SCAN_FAST_WINDOW = 0x0030;			// TGAP(scan_fast_window)		30ms
-const SCAN_SLOW_INTERVAL1 = 0x0800;		// TGAP(scan_slow_interval1)	1.28s
+const SCAN_SLOW_INTERVAL1 = 0x0800;			// TGAP(scan_slow_interval1)	1.28s
 const SCAN_SLOW_WINDOW1 = 0x0012;			// TGAP(scan_slow_window1)		11.25ms
-const SCAN_SLOW_INTERVAL2 = 0x1000;		// TGAP(scan_slow_interval2)	2.56s
+const SCAN_SLOW_INTERVAL2 = 0x1000;			// TGAP(scan_slow_interval2)	2.56s
 const SCAN_SLOW_WINDOW2 = 0x0024;			// TGAP(scan_slow_window2)		22.5ms
 const ADV_FAST_INTERVAL1 = {				// TGAP(adv_fast_interval1)		30ms to 60ms
 	intervalMin: 0x0030,
@@ -61,17 +54,15 @@ const ADV_FAST_INTERVAL2 = {				// TGAP(adv_fast_interval2)		100ms to 150ms
 	intervalMin: 0x00A0,
 	intervalMax: 0x00F0
 };
-const ADV_SLOW_INTERVAL = {				// TGAP(adv_slow_interval)		1s to 1.2s
+const ADV_SLOW_INTERVAL = {					// TGAP(adv_slow_interval)		1s to 1.2s
 	intervalMin: 0x0640,
 	intervalMax: 0x0780
 };
-var MIN_INITIAL_CONN_INTERVAL = 0x18;	// TGAP(initial_conn_interval)	30ms to 50ms
-var MAX_INITIAL_CONN_INTERVAL = 0x28;	// TGAP(initial_conn_interval)	30ms to 50ms
+var MIN_INITIAL_CONN_INTERVAL = 0x18;		// TGAP(initial_conn_interval)	30ms to 50ms
+var MAX_INITIAL_CONN_INTERVAL = 0x28;		// TGAP(initial_conn_interval)	30ms to 50ms
 
 const DEFAULT_IR = [0x82, 0xA2, 0xE2, 0x62, 0x62, 0x63, 0x63, 0x63, 0x88, 0x88, 0x89, 0x8A, 0x8C, 0x80, 0x98, 0xA8];
 const DEFAULT_ER = [0xEC, 0x2C, 0xAC, 0xAC, 0xAC, 0xAC, 0xAC, 0xAC, 0xD9, 0xDB, 0xDE, 0xD4, 0xC0, 0xE8, 0xB8, 0x18];
-
-const DEFAULT_MTU = 158;
 
 const DiscoverableMode = {
 	NON_DISCOVERABLE: 0,
@@ -87,86 +78,348 @@ const ConnectableMode = {
 };
 exports.ConnectableMode = ConnectableMode;
 
-/** GAP local context */
-var _profile = new GATT.Profile();
-var _database = new GATT.ATT.AttributeDatabase();
-var _privacyEnabled = false;
-var _privateAddress = null;
-var _staticAddress = null;
-var _ownAddressType = HCI.LE.OwnAddressType.PUBLIC;
-var _keyMgmt = new SM.DefaultKeyManagement(DEFAULT_IR, DEFAULT_ER);
-var _localIRK = null;
-var _connectableMode = ConnectableMode.NON_CONNECTABLE;
-var _discoverableMode = DiscoverableMode.NON_DISCOVERABLE;
-
-/** Upper layer application instance/module */
-var _application = null;
-var _storage = null;
-
-exports.activate = function (transport, application, storage, resetHCI = true) {
-	if (application == null) {
-		throw "application is null";
+const SecurityMode = {
+	MODE1_LEVEL1: null,
+	MODE1_LEVEL2: {
+		authentication: false,
+		encryption: true,
+		secureConnection: false
+	},
+	MODE1_LEVEL3: {
+		authentication: true,
+		encryption: true,
+		secureConnection: false
+	},
+	MODE1_LEVEL4: {
+		authentication: true,
+		encryption: true,
+		secureConnection: true
+	},
+	MODE2_LEVEL1: {
+		authentication: false,
+		encryption: false,
+		secureConnection: false
+	},
+	MODE2_LEVEL2: {
+		authentication: true,
+		encryption: false,
+		secureConnection: false
 	}
-	_application = application;
-	_storage = storage;
+};
+exports.SecurityMode = SecurityMode;
 
-	HCI.registerTransport(transport);
-	HCI.LE.callback.discovered = reports => {
-		let discoveredList = new Array();
-		for (let i = 0; i < reports.length; i++) {
-			let discovered = processDiscovered(reports[i]);
-			if (discovered != null) {
-				discoveredList.push(discovered);
-			}
-		}
-		if (discoveredList.length > 0) {
-			_application.gapDiscovered(discoveredList);
-		}
-	};
-
-	L2CAP.registerDelegate({
-		l2capReady: function () {
-			logger.debug("L2CAP Ready");
-			_application.gapReady();
-		},
-		l2capConnected: function (connectionManager) {
-			logger.debug("L2CAP Connected");
-			let link = connectionManager.getHCILink();
-			if (!link.isLELink()) {
-				logger.debug("Ignore Non-LE Connection");
-				return;
-			}
-			if (_ownAddressType == HCI.LE.OwnAddressType.RANDOM) {
-				if (_privacyEnabled) {
-					link.localAddress = _privateAddress;
-				} else {
-					link.localAddress = _staticAddress;
-				}
-			}
-			let gapCtx = new GAPContext(connectionManager);
-			if (link.remoteAddress.isResolvable()) {
-				logger.debug("Connected peer uses RPA: " + link.remoteAddress.toString());
-				resolvePrivateAddress(link.remoteAddress).then(address => {
-					let rpa = link.remoteAddress;
-					if (address != null) {
-						logger.debug("Update remote identity: " + address.toString());
-						link.remoteAddress = address;
-					}
-					_application.gapConnected(gapCtx, rpa);
-				});
-			} else {
-				_application.gapConnected(gapCtx, null);
-			}
-		}
-	});
-	L2CAP.registerHCI(HCI);
-	SM.registerHCI(HCI);
-
-	HCI.activate(resetHCI);
+exports.createLayer = (application, storage) => {
+	logger.info("Init");
+	return new Context(application, storage);
 };
 
+class Context {
+	constructor(application, storage) {
+		this._application = application;
+		this._storage = storage;
+		this._privacyEnabled = false;
+		this._privateAddress = null;
+		this._staticAddress = null;
+		this._ownAddressType = HCI.LEConst.OwnAddressType.PUBLIC;
+		this._keyMgmt = new SM.DefaultKeyManagement(DEFAULT_IR, DEFAULT_ER);
+		this._localIRK = null;
+		this._connectableMode = ConnectableMode.NON_CONNECTABLE;
+		this._discoverableMode = DiscoverableMode.NON_DISCOVERABLE;
+	}
+	init(transport, resetHCI = true) {
+		/* HCI Layer */
+		this._hci = HCI.createLayer(transport);
+		this._hci.discoveryCallback = reports => {
+			let discoveredList = new Array();
+			for (let i = 0; i < reports.length; i++) {
+				let discovered = processDiscovered(reports[i]);
+				if (discovered != null) {
+					discoveredList.push(discovered);
+				}
+			}
+			if (discoveredList.length > 0) {
+				this._application.gapDiscovered(discoveredList);
+			}
+		};
+		/* L2CAP Layer */
+		this._l2cap = L2CAP.createLayer(this._hci);
+		this._l2cap.delegate = this;
+		this._hci.init(resetHCI);
+	}
+	get hci() {
+		return this._hci;
+	}
+	get storage() {
+		return this._storage;
+	}
+	get keyManagement() {
+		return this._keyMgmt;
+	}
+	/* L2CAP Callback */
+	l2capReady() {
+		logger.debug("L2CAP Ready");
+		this._keyMgmt.encrypt = this._hci.encrypt;
+		this._keyMgmt.random64 = this._hci.random64;
+		this._application.gapReady();
+	}
+	/* L2CAP Callback */
+	l2capConnected(connectionManager) {
+		logger.debug("L2CAP Connected");
+		let link = connectionManager.link;
+		if (!link.isLELink()) {
+			logger.debug("Ignore Non-LE Connection");
+			return;
+		}
+		if (this._ownAddressType == HCI.LEConst.OwnAddressType.RANDOM) {
+			if (this._privacyEnabled) {
+				link.localAddress = this._privateAddress;
+			} else {
+				link.localAddress = this._staticAddress;
+			}
+		}
+		let gapConn = new GAPConnection(this, connectionManager);
+		// TODO: Check if there is bonding
+		if (link.remoteAddress.isResolvable()) {
+			logger.debug("Connected peer uses RPA: " + link.remoteAddress.toString());
+			this.resolvePrivateAddress(link.remoteAddress).then(address => {
+				let rpa = link.remoteAddress;
+				if (address != null) {
+					logger.debug("Update remote identity: " + address.toString());
+					link.remoteAddress = address;
+				}
+				this._application.gapConnected(gapConn, rpa);
+			});
+		} else {
+			this._application.gapConnected(gapConn, null);
+		}
+	}
+	/**
+	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
+	 * 9.3.9 Connection Parameter Update Procedure
+	 */
+	updateConnectionParameter(gapConn, connParameter) {
+		this._hci.commands.le.connectionUpdate(gapConn.handle, connParameter);
+	}
+	disconnect(gapConn, reason) {
+		let handle = gapConn.handle;
+		logger.debug("Disconnect link: handle=" + Utils.toHexString(handle, 2));
+		this._hci.commands.linkControl.disconnect(handle, reason);
+	}
+	_updateRandomAddress(address) {
+		this._hci.commands.le.setRandomAddress(address, {
+			commandComplete: (opcode, buffer) => {
+				let status = buffer.getInt8();
+				if (status == 0) {
+					logger.debug("OwnAddressType is changed to Random");
+					this._ownAddressType = HCI.LEConst.OwnAddressType.RANDOM;
+					this._privacyEnabled = address.isResolvable();
+					if (this._privacyEnabled) {
+						this._hci.commands.le.setAdvertiseEnable(true);
+						// TODO: Need to schedule RPA refresing for at least every 15min
+						this._application.privacyEnabled(address);
+					}
+				} else {
+					// TODO: Failed
+				}
+			}
+		});
+	}
+	_restoreIdentityAddress() {
+		if (this._staticAddress == null) {
+			logger.debug("OwnAddressType is changed to Public");
+			this._ownAddressType = HCI.LEConst.OwnAddressType.PUBLIC;
+			return;
+		}
+		this._updateRandomAddress(this._staticAddress);
+	}
+	/**
+	 * Core 4.2 Specification, Vol 6, Part B: Link Layer Specification
+	 * 1.3.2.1 Static Device Address
+	 */
+	setStaticAddress(address) {
+		if (address != null && (!address.isRandom() || !address.isIdentity())) {
+			logger.error("Not a static random address");
+			return;
+		}
+		this._staticAddress = address;
+		if (this._privacyEnabled) {
+			return;
+		}
+		this._restoreIdentityAddress();
+	}
+	_refreshLocalRPA() {
+		SM.generatePrivateAddress(this._hci.encrypt, this._hci.random64, this._localIRK).then(rpa => {
+			logger.debug("RPA is generated:" + rpa.toString());
+			this._privateAddress = rpa;
+			_updateRandomAddress(this._privateAddress);
+		});
+	}
+	/**
+	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
+	 * 10.7 Privacy Feature
+	 */
+	enablePrivacyFeature(enabled) {
+		if (enabled) {
+			if (this._localIRK == null) {
+				this._keyMgmt.generateIRK().then(irk => {
+					this._localIRK = irk;
+					this._refreshLocalRPA();
+				});
+			} else {
+				this._refreshLocalRPA();
+			}
+		} else {
+			this._restoreIdentityAddress();
+		}
+	}
+	/**
+	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
+	 * 10.8.2.3 Resolvable Private Address Resolution Procedure
+	 */
+	resolvePrivateAddress(address) {
+		if (!address.isResolvable()) {
+			logger.error("Not a resolvable address");
+			return;
+		}
+		let bonds = this._storage.getBonds();
+		let _loop = ctx => {
+			for (let i = ctx.index; i < bonds.length; i++) {
+				let bond = bonds[ctx.index];
+				if (bond.hasOwnProperty("pairingInfo") && bond.pairingInfo.keys.identityResolvingKey != null) {
+					let irk = bond.pairingInfo.keys.identityResolvingKey;
+					return SM.resolvePrivateAddress(this._hci.encrypt, irk, address).then(resolved => {
+						if (resolved) {
+							return bond.address;
+						} else {
+							ctx.index++;
+							return _loop(ctx);
+						}
+					});
+				}
+			}
+			return Promise.resolve(null);
+
+		};
+		return _loop({
+			index: 0
+		});
+	}
+	/**
+	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
+	 * 9.2.6 General Discovery Procedure
+	 */
+	startScanning(interval, window, duplicatesFilter) {
+		if (duplicatesFilter === undefined) {
+			duplicatesFilter = true;
+		}
+		this._hci.commands.le.setScanParameters({
+			scanType: HCI.LEConst.ScanType.ACTIVE,				// Active scanning
+			interval,
+			window,
+			addressType: this._ownAddressType,
+			filterPolicy: HCI.LEConst.ScanningFilterPolicy.ALL,	// Accept all
+		});
+		this._hci.commands.le.setScanEnable(true, duplicatesFilter);
+	}
+	stopScanning() {
+		this._hci.commands.le.setScanEnable(false, true);
+	}
+	/**
+	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
+	 * 9.3.8 Direct Connection Establishment Procedure
+	 */
+	directConnection(address, connParameter) {
+		if (connParameter === undefined || connParameter == null) {
+			/* Default parameters as described in 9.3.12.2 */
+			connParameter = {
+				intervalMin: MIN_INITIAL_CONN_INTERVAL,
+				intervalMax: MAX_INITIAL_CONN_INTERVAL,
+				latency: 0,
+				supervisionTimeout: supervisionTimeout,	// FIXME
+				minimumCELength: 0,			// Most implementation uses zero
+				maximumCELength: 0			// Most implementation uses zero
+			};
+		}
+		this._hci.commands.le.createConnection(
+			/* Scan Parameter as described in 9.3.11.2 */
+			{
+				interval: SCAN_FAST_INTERVAL,
+				window: SCAN_FAST_WINDOW
+			},
+			false,							// Ignore white list
+			address.isRandom() ? 0x01 : 0x00,
+			address,
+			this._ownAddressType,
+			connParameter
+		);
+	}
+	/**
+	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
+	 * 9.2 Discovery Modes and Procedures
+	 */
+	setDiscoverableMode(discoverableMode) {
+		if (this._discoverableMode == discoverableMode) {
+			return;
+		}
+		this._discoverableMode = discoverableMode;
+	}
+	/**
+	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
+	 * 9.3 Connection Modes and Procedures
+	 */
+	setConnectableMode(connectableMode) {
+		if (this._connectableMode == connectableMode) {
+			return;
+		}
+		this._connectableMode = connectableMode;
+	}
+	startAdvertising(intervalMin, intervalMax, structures = null) {
+		if (this._connectableMode == ConnectableMode.DIRECTED) {
+			logger.error("TODO: Directed connectable mode is not supported");
+			return;
+		}
+		if (structures == null) {
+			structures = new Array();
+		}
+		let flags = Flags.NO_BR_EDR;
+		switch (this._discoverableMode) {
+		case DiscoverableMode.LIMITED:
+			flags |= Flags.LE_LIMITED_DISCOVERABLE_MODE;
+			break;
+		case DiscoverableMode.GENERAL:
+			flags |= Flags.LE_GENERAL_DISCOVERABLE_MODE;
+			break;
+		}
+		structures.push({
+			type: ADType.FLAGS,
+			data: [flags]
+		});
+		this._hci.commands.le.setAdvertisingData(toAdvertisingDataArray(structures));
+		let advType = HCI.LEConst.AdvertisingType.ADV_IND;
+		if (this._connectableMode == ConnectableMode.NON_CONNECTABLE) {
+			advType = HCI.LEConst.AdvertisingType.ADV_NONCONN_IND;		// XXX: Or ADV_SCAN_IND
+			// TODO: Check intervals
+		}
+		this._hci.commands.le.setAdvertisingParameters(
+			{intervalMin, intervalMax},
+			advType,
+			this._ownAddressType,
+			0, null,
+			0x7,											// XXX: All channel
+			HCI.LEConst.AdvertisingFilterPolicy.ALL
+		);
+		this._hci.commands.le.setAdvertiseEnable(true);
+	}
+	stopAdvertising() {
+		this._hci.commands.le.setAdvertiseEnable(false);
+	}
+	setScanResponseData(structures) {
+		this._hci.commands.le.setScanResponseData(toAdvertisingDataArray(structures));
+	}
+}
+
 function processDiscovered(report) {
-	if (report.eventType == HCI.LEEvent.EventType.ADV_DIRECT_IND) {
+	if (report.eventType == HCI.LEConst.EventType.ADV_DIRECT_IND) {
 		// TODO
 		return null;
 	}
@@ -205,23 +458,126 @@ function processDiscovered(report) {
 	}
 }
 
-class GAPContext {
-	constructor(connectionManager) {
+function toAdvertisingDataArray(structures) {
+	var buffer = ByteBuffer.allocateUint8Array(MAX_AD_LENGTH, true);
+	writeAdvertisingData(buffer, structures);
+	buffer.flip();
+	return buffer.getByteArray();
+}
+
+class ATTConnection {
+	constructor(hci, connection) {
+		this._hci = hci;
+		this._connection = connection;
+		this._connection.delegate = this;
+		this._onReceived = null;
+		this._pairingInfo = null;
+		this._signCounter = 0;	// XXX: Need to be stored in extarnal database
+	}
+	set onReceived(callback) {
+		this._onReceived = callback;
+	}
+	get identifier() {
+		return this._connection.link.handle;
+	}
+	get pairingInfo() {
+		return this._pairingInfo;
+	}
+	set pairingInfo(info) {
+		logger.debug("pairingInfo is updated on ATT connection");
+		this._pairingInfo = info;
+	}
+	get encrypted() {
+		return this._connection.link.encrptionStatus == 0x01;
+	}
+	sendAttributePDU(pdu) {
+		let signed = (pdu[0] & 0x80) > 0;
+		if (signed) {
+			logger.debug("Signature flag is enabled in PDU");
+			if (this._pairingInfo == null || this._pairingInfo.keys.signatureKey == null) {
+				logger.error("TODO: CSRK is not available (Calculation)");
+				return;
+			}
+			let csrk = this._pairingInfo.keys.signatureKey;
+			let message = new Uint8Array(pdu.length + 12);
+			message.set(pdu);
+			message.set(Utils.toByteArray(this._signCounter, Utils.INT_32_SIZE, true), pdu.length);
+			AESCMAC.cmac(this._hci.encrypt, csrk, message, pdu.length + Utils.INT_32_SIZE).then(mac => {
+				mac = mac.slice(Util.INT_64_SIZE);
+				logger.debug("CMAC is calculated: mac=" + Utils.toFrameString(mac)
+					+ ", signCounter=" + this._signCounter);
+				this._signCounter++;
+				message.set(mac, pdu.length + Utils.INT_32_SIZE);
+				this._connection.sendBasicFrame(message);
+			});
+		} else {
+			this._connection.sendBasicFrame(pdu);
+		}
+	}
+	_received(buffer) {
+		// TODO: FIFO Buffer
+		if (this._onReceived == null) {
+			logger.warn("ATT Received but no callback");
+		} else {
+			this._onReceived(buffer);
+		}
+	}
+	/** L2CAP Connection delegate method */
+	received(buffer) {
+		const opcode = buffer.peek();
+		logger.debug("ATT Received: opcode=" + Utils.toHexString(opcode));
+		if ((opcode & 0x80) > 0) {
+			logger.debug("Signature flag is enabled in PDU (RX)");
+			if (this._pairingInfo == null || this._pairingInfo.keys.signatureKey == null) {
+				logger.error("TODO: CSRK is not available (RX)");
+				return;
+			}
+			buffer.mark();
+			let csrk = this._pairingInfo.keys.signatureKey;
+			let message = buffer.getByteArray(buffer.remaining() - Util.INT_64_SIZE);
+			let signature = buffer.getByteArray();
+			buffer.reset();
+			AESCMAC.cmac(this._hci.encrypt, csrk, message).then(mac => {
+				mac = mac.slice(Util.INT_64_SIZE);
+				logger.debug("CMAC is calculated (RX): " + Utils.toFrameString(mac));
+				opcode &= ~0x80;
+				if (BTUtils.isArrayEquals(signature, mac)) {
+					logger.debug("Signature verified");
+					// TODO: Store counter
+					this._received(buffer);
+				} else {
+					logger.error("Signature verification has failed");
+				}
+			});
+		} else {
+			this._received(buffer);
+		}
+	}
+	/** L2CAP Connection delegate method */
+	disconnected() {
+	//	logger.info("Disconnected: pendingPDUs=" + this.pendingTransactions.length);
+		this._connection = null;
+	}
+}
+
+class GAPConnection {
+	constructor(ctx, connectionManager) {
+		this._ctx = ctx;
 		this._connectionManager = connectionManager;
 		this._connectionManager.delegate = this;
 		this._delegate = null;
 		// TODO: Open SDP Channel
 		/* Open ATT Channel */
 		let attCID = L2CAP.LEChannel.ATTRIBUTE_PROTOCOL;
-		this._bearer = new GATT.ATT.ATTBearer(
-			connectionManager.openConnection(attCID, attCID),
-			_database);
-		this._bearer.mtu = DEFAULT_MTU;
+		this._attConnection = new ATTConnection(
+			ctx.hci,
+			connectionManager.openConnection(attCID, attCID));
 		/* Open SMP Channel */
 		let smpCID = L2CAP.LEChannel.SECURITY_MANAGER_PROTOCOL;
 		this._security = new SM.SecurityManagement(
+			ctx.hci,
 			connectionManager.openConnection(smpCID, smpCID),
-			_keyMgmt,
+			ctx.keyManagement,
 			{
 				bonding: false,
 				outOfBand: false,
@@ -234,11 +590,14 @@ class GAPContext {
 			});
 		this._security.delegate = this;
 	}
-	get peripheral() {
-		return this._connectionManager.getHCILink().isLESlave();
+	get handle() {
+		return this._connectionManager.link.handle;
 	}
-	get bearer() {
-		return this._bearer;
+	get peripheral() {
+		return this._connectionManager.link.isLESlave();
+	}
+	get attConnection() {
+		return this._attConnection;
 	}
 	get security() {
 		return this._security;
@@ -247,16 +606,7 @@ class GAPContext {
 		this._delegate = delegate;
 	}
 	isDisconnected() {
-		return this._connectionManager.getHCILink() == null;
-	}
-	disconnect(reason) {
-		let link = this._connectionManager.getHCILink();
-		if (link == null) {
-			logger.info("GAP connection has already been disconnected");
-			return;
-		}
-		logger.debug("Disconnect link: handle=" + Utils.toHexString(link.handle, 2));
-		link.disconnect(reason);
+		return this._connectionManager.link == null;
 	}
 	/* L2CAP Callback (ConnectionManager) */
 	disconnected() {
@@ -275,9 +625,15 @@ class GAPContext {
 	encryptionCompleted(div, pairingInfo) {
 		if (pairingInfo == null) {
 			logger.info("Encryption completed with bonded device");
+			let bond = this._ctx.storage.getBond(div);
+			if (bond == null) {
+				logger.warn("Could not find the bonding info: div=" + div);
+			} else {
+				pairingInfo = bond.pairingInfo;
+			}
 		} else {
 			let identityAddress = null;
-			let link = this._connectionManager.getHCILink();
+			let link = this._connectionManager.link;
 			if (link.remoteAddress.isIdentity()) {
 				identityAddress = link.remoteAddress;
 			} else if (pairingInfo.keys.address != null) {
@@ -293,12 +649,12 @@ class GAPContext {
 				logger.warn("Cannot bond with non identity address");
 			}
 			if (pairingInfo.bonding && identityAddress != null) {
-				_storage.storeBond(div, {pairingInfo, address: identityAddress});
+				this._ctx.storage.storeBond(div, {pairingInfo, address: identityAddress});
 				logger.debug("Bonding Information stored: DIV=" + div);
 			}
 		}
-		// TODO: Update security level on ATT Bearer
-		this._delegate.encryptionCompleted(div, pairingInfo);
+		this._attConnection.pairingInfo = pairingInfo;	// Update security information
+		this._delegate.encryptionCompleted(pairingInfo);
 	}
 	/* SM Callback (SecurityManagement) */
 	encryptionFailed(status) {
@@ -308,279 +664,34 @@ class GAPContext {
 	/* SM Callback (SecurityManagement) */
 	findBondByAddress(address) {
 		logger.debug("Bonding Information requested");
-		let link = this._connectionManager.getHCILink();
+		let link = this._connectionManager.link;
 		let remoteAddress = link.remoteAddress;
 		if (!remoteAddress.isIdentity()) {
 			logger.error("Not an identity address");
 			return null;
 		}
-		let div = _storage.findBondIndexByAddress(remoteAddress);
+		let div = this._ctx.storage.findBondIndexByAddress(remoteAddress);
 		if (div != -1) {
 			// TODO: Check security level
-			return _storage.getBond(div);
+			let bond = this._ctx.storage.getBond(div);
+			if (bond != null) {
+				return bond.pairingInfo;
+			}
 		}
 		return null;
 	}
 	/* SM Callback (SecurityManagement) */
 	findBondByDIV(div) {
-		return _storage.getBond(div);
+		let bond = this._ctx.storage.getBond(div);
+		if (bond != null) {
+			return bond.pairingInfo;
+		}
 	}
 	/* SM Callback (SecurityManagement) */
 	generateDIV() {
-		return _storage.allocateBond();
+		return this._ctx.storage.allocateBond();
 	}
 }
-
-/**
- * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
- * 9.3.9 Connection Parameter Update Procedure
- */
-exports.updateConnectionParameter = function (bearer, connParameter) {
-	var handle = bearer.connection.getHCIHandle();
-	HCI.LE.connectionUpdate(handle, connParameter);
-};
-
-function updateRandomAddress(address) {
-	HCI.LE.setRandomAddress(address, {
-		commandComplete: (opcode, buffer) => {
-			let status = buffer.getInt8();
-			if (status == 0) {
-				logger.debug("OwnAddressType is changed to Random");
-				_ownAddressType = HCI.LE.OwnAddressType.RANDOM;
-				_privacyEnabled = address.isResolvable();
-				if (_privacyEnabled) {
-					HCI.LE.setAdvertiseEnable(true);
-					// TODO: Need to schedule RPA refresing for at least every 15min
-					_application.privacyEnabled(address);
-				}
-			} else {
-				// TODO: Failed
-			}
-		}
-	});
-}
-
-function restoreIdentityAddress() {
-	if (_staticAddress == null) {
-		logger.debug("OwnAddressType is changed to Public");
-		_ownAddressType = HCI.LE.OwnAddressType.PUBLIC;
-		return;
-	}
-	updateRandomAddress(_staticAddress);
-}
-
-/**
- * Core 4.2 Specification, Vol 6, Part B: Link Layer Specification
- * 1.3.2.1 Static Device Address
- */
-exports.setStaticAddress = function (address) {
-	if (address != null && (!address.isRandom() || !address.isIdentity())) {
-		logger.error("Not a static random address");
-		return;
-	}
-	_staticAddress = address;
-	if (_privacyEnabled) {
-		return;
-	}
-	restoreIdentityAddress();
-};
-
-function refreshLocalRPA() {
-	SM.generatePrivateAddress(_localIRK).then(rpa => {
-		logger.debug("RPA is generated:" + rpa.toString());
-		_privateAddress = rpa;
-		updateRandomAddress(_privateAddress);
-	});
-}
-
-/**
- * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
- * 10.7 Privacy Feature
- */
-exports.enablePrivacyFeature = function (enabled) {
-	if (enabled) {
-		if (_localIRK == null) {
-			_keyMgmt.generateIRK().then(irk => {
-				_localIRK = irk;
-				refreshLocalRPA();
-			});
-		} else {
-			refreshLocalRPA();
-		}
-	} else {
-		restoreIdentityAddress();
-	}
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
- * 10.8.2.3 Resolvable Private Address Resolution Procedure
- */
-function resolvePrivateAddress(address) {
-	if (!address.isResolvable()) {
-		logger.error("Not a resolvable address");
-		return;
-	}
-	let bonds = _storage.getBonds();
-	let _loop = ctx => {
-		for (let i = ctx.index; i < bonds.length; i++) {
-			let bond = bonds[ctx.index];
-			if (bond.hasOwnProperty("pairingInfo") && bond.pairingInfo.keys.identityResolvingKey != null) {
-				let irk = bond.pairingInfo.keys.identityResolvingKey;
-				return SM.resolvePrivateAddress(irk, address).then(resolved => {
-					if (resolved) {
-						return bond.address;
-					} else {
-						ctx.index++;
-						return _loop(ctx);
-					}
-				});
-			}
-		}
-		return Promise.resolve(null);
-
-	};
-	return _loop({
-		index: 0
-	});
-};
-exports.resolvePrivateAddress = resolvePrivateAddress;
-
-exports.deployServices = function (services) {
-	return _profile.deployServices(_database, services);
-};
-
-exports.getServiceByUUID = function (uuid) {
-	return _profile.getServiceByUUID(uuid);
-};
-
-/******************************************************************************
- * LE Central
- ******************************************************************************/
-
-/**
- * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
- * 9.2.6 General Discovery Procedure
- */
-exports.startScanning = function (interval, window, duplicatesFilter) {
-	if (duplicatesFilter === undefined) {
-		duplicatesFilter = true;
-	}
-	HCI.LE.setScanParameters({
-		scanType: HCI.LE.LEScanType.ACTIVE,				// Active scanning
-		interval,
-		window,
-		addressType: _ownAddressType,
-		filterPolicy: HCI.LE.ScanningFilterPolicy.ALL,	// Accept all
-	});
-	HCI.LE.setScanEnable(true, duplicatesFilter);
-};
-
-exports.stopScanning = function () {
-	HCI.LE.setScanEnable(false, true);
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
- * 9.3.8 Direct Connection Establishment Procedure
- */
-exports.directConnection = function (address, connParameter) {
-	if (connParameter === undefined || connParameter == null) {
-		/* Default parameters as described in 9.3.12.2 */
-		connParameter = {
-			intervalMin: MIN_INITIAL_CONN_INTERVAL,
-			intervalMax: MAX_INITIAL_CONN_INTERVAL,
-			latency: 0,
-			supervisionTimeout: supervisionTimeout,
-			minimumCELength: 0,			// Most implementation uses zero
-			maximumCELength: 0			// Most implementation uses zero
-		};
-	}
-	HCI.LE.createConnection(
-		/* Scan Parameter as described in 9.3.11.2 */
-		{
-			interval: SCAN_FAST_INTERVAL,
-			window: SCAN_FAST_WINDOW
-		},
-		false,							// Ignore white list
-		address.isRandom() ? 0x01 : 0x00,
-		address,
-		_ownAddressType,
-		connParameter
-	);
-};
-
-/******************************************************************************
- * LE Peripheral
- ******************************************************************************/
-
-/**
- * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
- * 9.2 Discovery Modes and Procedures
- */
-exports.setDiscoverableMode = function (discoverableMode) {
-	if (_discoverableMode == discoverableMode) {
-		return;
-	}
-	_discoverableMode = discoverableMode;
-};
-
-/**
- * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
- * 9.3 Connection Modes and Procedures
- */
-exports.setConnectableMode = function (connectableMode) {
-	if (_connectableMode == connectableMode) {
-		return;
-	}
-	_connectableMode = connectableMode;
-};
-
-exports.startAdvertising = function (intervalMin, intervalMax, structures = null) {
-	if (_connectableMode == ConnectableMode.DIRECTED) {
-		logger.error("TODO: Directed connectable mode is not supported");
-		return;
-	}
-	if (structures == null) {
-		structures = new Array();
-	}
-	let flags = Flags.NO_BR_EDR;
-	switch (_discoverableMode) {
-	case DiscoverableMode.LIMITED:
-		flags |= Flags.LE_LIMITED_DISCOVERABLE_MODE;
-		break;
-	case DiscoverableMode.GENERAL:
-		flags |= Flags.LE_GENERAL_DISCOVERABLE_MODE;
-		break;
-	}
-	structures.push({
-		type: ADType.FLAGS,
-		data: [flags]
-	});
-	HCI.LE.setAdvertisingData(toAdvertisingDataArray(structures));
-	let advType = HCI.LE.AdvertisingType.ADV_IND;
-	if (_connectableMode == ConnectableMode.NON_CONNECTABLE) {
-		advType = HCI.LE.AdvertisingType.ADV_NONCONN_IND;		// XXX: Or ADV_SCAN_IND
-		// TODO: Check intervals
-	}
-	HCI.LE.setAdvertisingParameters(
-		{intervalMin, intervalMax},
-		advType,
-		_ownAddressType,
-		0, null,
-		0x7,											// XXX: All channel
-		HCI.LE.AdvertisingFilterPolicy.ALL
-	);
-	HCI.LE.setAdvertiseEnable(true);
-};
-
-exports.stopAdvertising = function () {
-	HCI.LE.setAdvertiseEnable(false);
-};
-
-exports.setScanResponseData = function (structures) {
-	HCI.LE.setScanResponseData(toAdvertisingDataArray(structures));
-};
 
 /******************************************************************************
  * Advertisement Data
@@ -634,13 +745,6 @@ var Flags = {
 	LE_BR_EDR_CONTROLLER: 0x08,
 	LE_BR_EDR_HOST: 0x10,
 };
-
-function toAdvertisingDataArray(structures) {
-	var buffer = ByteBuffer.allocateUint8Array(MAX_AD_LENGTH, true);
-	writeAdvertisingData(buffer, structures);
-	buffer.flip();
-	return buffer.getByteArray();
-}
 
 function readAdvertisingData(buffer) {
 	var structures = [];

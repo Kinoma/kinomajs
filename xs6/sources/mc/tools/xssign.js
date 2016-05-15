@@ -14,18 +14,25 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-import Crypt from "crypt";
+
+import xssig from "xssig";
 import Files from "files";
-import Arith from "arith";
+import Bin from "bin";
 
-var pk = new Crypt.PKCS1_5(Crypt.PKCS8.parse(Files.read("xssig.priv")), true);
-
-var argv = process.execArgv();
-for (var argi = 1, argc = argv.length; argi < argc; argi++) {
-	var xsb = argv[argi];
-	var i = xsb.indexOf(".xsb");
-	var sig = (i >= 0 ? xsb.substr(0, i) : xsb) + ".sig";
-	var h = (new Crypt.SHA1()).process(Files.read(xsb));
-	console.log("h = " + (new Arith.Integer(h)).toString(16));
-	Files.write(sig, pk.sign(h));
-}
+(function() {
+	let argv = process.execArgv(), archive, paths = [];
+	for (let argi = 1, argc = argv.length; argi < argc; argi++) {
+		if (argv[argi] == "-l") {
+			argi++;
+			if (argi >= argc) {
+				console.log("xssign: no archive");
+				return;
+			}
+			archive = argv[argi];
+			continue;
+		}
+		paths.push(argv[argi]);
+	}
+	let signatures = xssig.sign(paths, archive);
+	Files.write("/k2/mc.xsa.sig", JSON.stringify(signatures.map(function(s, i) {return {path: paths[i], sig: Bin.encode(s)}})));
+})();

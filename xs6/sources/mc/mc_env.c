@@ -107,7 +107,7 @@ mc_env_store(mc_env_t *env)
 }
 
 int
-mc_env_new(mc_env_t *env, const char *path, int encrypt)
+mc_env_new(mc_env_t *env, const char *path, int encrypt, int recovery)
 {
 	int err = 0;
 	char buf[PATH_MAX];
@@ -127,6 +127,10 @@ mc_env_new(mc_env_t *env, const char *path, int encrypt)
 		goto bail;
 	}
 	if (mc_env_load(env) != 0 || env->size < sizeof(MC_ENV_MAGIC) || memcmp(env->buf, MC_ENV_MAGIC, sizeof(MC_ENV_MAGIC) - 1) != 0) {
+		if (!recovery) {
+			err = -1;
+			goto bail;
+		}
 		mc_log_notice("mc_env: initializing %s\n", path);
 		if (env->buf != NULL)
 			mc_free(env->buf);
@@ -180,9 +184,10 @@ mc_env_get(mc_env_t *env, const char *name)
 }
 
 int
-mc_env_set(mc_env_t *env, const char *name, const char *val)
+mc_env_set(mc_env_t *env, const char *name, const char *val, int pos)
 {
-	char *p, *found = NULL;
+	char *p, *endp, *found = NULL;
+	int i;
 
 	if (env == NULL)
 		env = &mc_default_env;
@@ -190,17 +195,25 @@ mc_env_set(mc_env_t *env, const char *name, const char *val)
 		errno = ENOENT;
 		return -1;
 	}
+	if (pos >= 0)
+		pos++;	/* for the magic number */
 	p = env->buf;
+	i = 0;
 	while (*p != '\0') {
 		char *v = p + strlen(p) + 1;
 		if (strcmp(p, name) == 0) {
-			if (val != NULL && strlen(val) == strlen(v)) {
-				strcpy(v, val);
-				goto bail;
+			if ((pos < 0 || pos == i) && val != NULL && strlen(val) == strlen(v)) {
+				if (strcmp(v, val) != 0) {
+					strcpy(v, val);
+					if (env->autosave)
+						return mc_env_store(env);
+				}
+				return 0;
 			}
 			found = p;
 		}
 		p = v + strlen(v) + 1;
+		i++;
 	}
 	env->size = p - env->buf + 1;	/* adjust the size in case the file size is larger than the actual size */
 	if (found != NULL) {
@@ -209,21 +222,27 @@ mc_env_set(mc_env_t *env, const char *name, const char *val)
 		env->size -= next - found;
 	}
 	if (val != NULL) {
-		/* append the new name&value */
 		int len = strlen(name) + strlen(val) + 2 /* each '\0' */;
 		env->size += len;
 		if ((env->buf = mc_realloc(env->buf, env->size)) == NULL) {
 			mc_log_error("env: no more core\n");
 			return -1;
 		}
-		p = env->buf + env->size - len - 1;
+		p = env->buf;
+		endp = p + env->size - len - 1;
+		if (pos >= 0) {
+			for (p = env->buf; --pos >= 0 && p < endp;) {
+				p += strlen(p) + 1;
+				p += strlen(p) + 1;
+			}
+		}
+		else
+			p = endp;
+		memmove(p + len, p, endp - p + 1);	/* including the last \0 */
 		strcpy(p, name);
 		p += strlen(name) + 1;
 		strcpy(p, val);
-		p += strlen(val) + 1;
-		*p = '\0';
 	}
-bail:
 	if (env->autosave)
 		return mc_env_store(env);
 	return 0;
@@ -234,7 +253,7 @@ mc_env_unset(mc_env_t *env, const char *name)
 {
 	if (env == NULL)
 		env = &mc_default_env;
-	return mc_env_set(env, name, NULL);
+	return mc_env_set(env, name, NULL, -1);
 }
 
 int
@@ -250,7 +269,7 @@ mc_env_clear(mc_env_t *env)
 		return -1;
 	enc = env->encrypt;
 	mc_env_free(env);
-	mc_env_new(env, fname, enc);
+	mc_env_new(env, fname, enc, 1);
 	mc_free(fname);
 	return 0;
 }
@@ -327,7 +346,7 @@ mc_env_init()
 	if (mc_default_env.buf != NULL)
 		return 0;
 	mc_file_init();
-	return mc_env_new(&mc_default_env, MC_ENV_DEFAULT_PATH, 0);
+	return mc_env_new(&mc_default_env, MC_ENV_DEFAULT_PATH, 0, 1);
 }
 
 void

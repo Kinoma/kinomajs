@@ -3751,8 +3751,8 @@ FskErr FskGLEffectsInit(void) {
 		LOGE("FskGLEffectsInit");
 	#endif /* LOG_PARAMETERS */
 
-	FskMemSet(&gEffectsGlobals, 0, sizeof(gEffectsGlobals));
-
+	if (gEffectsGlobals.gidCopyProgram)	/* If the effects have been already initialized, ... */
+		return kFskErrNone;				/* ... do not do it again. */
 
 	/* Determine capabilities */
 	gEffectsGlobals.canWrapNPOT =	FskStrStr(extensions, "GL_OES_texture_npot")

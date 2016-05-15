@@ -173,7 +173,7 @@ MC_OBJECTS = \
 
 ifeq ($(XS_ARCHIVE), 1)
 GEN_OBJECTS += $(TMP_DIR)/$(ARCHIVE).xs.o
-GEN_FILES += $(TMP_DIR)/$(ARCHIVE).xs.c $(TMP_DIR)/$(ARCHIVE).xs.h $(TMP_DIR)/$(ARCHIVE).xsa $(TMP_DIR)/$(ARCHIVE).xsa.h
+GEN_FILES += $(TMP_DIR)/$(ARCHIVE).xs.c $(TMP_DIR)/$(ARCHIVE).xs.h $(TMP_DIR)/$(ARCHIVE).xsa $(TMP_DIR)/$(ARCHIVE).xsa.h $(TMP_DIR)/mc_mapped_files.h
 archive = archive
 endif
 
@@ -187,6 +187,8 @@ EXTRA_LIBS = $(TMP_DIR)/$(LIBMODULE)
 endif
 
 LIBRARIES = $(wildcard $(SDK_PATH)/libs/*.a)
+
+SIGNED_MODULES = setup/_download
 
 .PHONY: modules extensions archive ftfs external proprietary
 .SUFFIXES: .config .temp .update
@@ -232,6 +234,9 @@ endif
 	(cd $(TMP_DIR); $(SDK_PATH)/tools/bin/flash_pack.py 1 $(PROGRAM).ftfs fs)
 	cp -pf $(TMP_DIR)/$(PROGRAM).ftfs $(BIN_DIR)/$(PROGRAM).ftfs
 
+$(TMP_DIR)/mc_mapped_files.h: rodata
+	sh tools/mkmap.sh $@
+
 $(BIN_DIR)/flash_$(BOARD).config: flash/config.temp
 	sed -e 's:$$(SDK_PATH):$(SDK_PATH):' -e 's:$$(BIN_DIR):$(BIN_DIR):' -e 's:$$(BOARD):$(BOARD):' $< > $@
 $(BIN_DIR)/layout.txt: flash/layout.txt
@@ -244,6 +249,7 @@ $(BIN_DIR)/boot2.bin: flash/boot2.bin
 $(XS6_OBJECTS) $(XS6_MC_OBJECTS): $(XS6_SRC_DIR)/mc/xs6Platform.h $(XS6_SRC_DIR)/xs6Common.h $(XS6_SRC_DIR)/xs6All.h $(XS6_SRC_DIR)/xs6Script.h
 $(TMP_DIR)/xs6Host.o: $(TMP_DIR)/$(ARCHIVE).xsa.h $(TMP_DIR)/$(ARCHIVE).xs.c
 $(TMP_DIR)/mc_dl.o: $(TMP_DIR)/ext_stubs.sym.h
+$(TMP_DIR)/mc_file.o: $(TMP_DIR)/mc_mapped_files.h
 $(XS6_OBJECTS): $(TMP_DIR)/%.o: $(XS6_SRC_DIR)/%.c
 	$(CC) $< $(C_OPTIONS) -c -o $@
 $(XS6_MC_OBJECTS): $(TMP_DIR)/%.o: $(XS6_SRC_DIR)/mc/%.c
@@ -274,6 +280,10 @@ END	{printf("};\n")}' $< > $@
 %.temp:;
 
 %.update:;
+
+sign:
+	$(XS6_TOOL_DIR)/xsr6 -a $(XS6_TOOL_DIR)/modules/$(ARCHIVE).xsa xssign -l $(TMP_DIR)/$(ARCHIVE).xsa $(SIGNED_MODULES)
+	cp -pf ${HOME}/tmp/mc/k2/mc.xsa.sig $(XS6_MC_DIR)/data
 
 clean:
 	rm -f $(OBJECTS) $(GEN_FILES) $(TMP_DIR)/ext_stubs.sym.h $(TMP_DIR)/ext_stubs.o $(TMP_DIR)/$(LIBMODULE) $(TMP_DIR)/stubs/*.[so] $(addsuffix .d, $(basename $(OBJECTS))) $(TMP_DIR)/application.xsb $(TMP_DIR)/inetd.xsb $(TMP_DIR)/launcher.xsb $(TMP_DIR)/synctime.xsb

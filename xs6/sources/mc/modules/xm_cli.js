@@ -121,7 +121,7 @@ function nameToFullPath(name, type, exists) {
 			break;
 		}
 		if ((type & 2) == 0)
-			throw name + ": Is a directoy";
+			throw name + ": Is a directory";
 
 		comp.pop();
 	}
@@ -307,7 +307,13 @@ function services(func) {
 		case "printenv":
 			name = arguments[1], encryption = arguments[2];
 			Environment = require.weak("env");
-			env = name ? new Environment(name, false, encryption) : new Environment();
+			if (encryption) {
+				if (!System.config.printEncryptedEnvironment) {
+					result = "Error: cannot print encrypted data";
+					break;
+				}
+			}
+			env = name ? new Environment(name, false, encryption, false) : new Environment();
 			for (let e of env)
 				log(e + "=" + env.get(e));
 			break;
@@ -411,7 +417,7 @@ function services(func) {
 		case "setenv":
 			Environment = require.weak("env");
 			env = new Environment();
-			env.set(arguments[1], arguments[2]);
+			env.set(arguments[1], arguments[2], arguments[3]);
 			break;
 		case "shutdown":
 			System.shutdown(arguments[1]);
@@ -447,7 +453,7 @@ function services(func) {
 				},
 			};
 			let Launcher = require.weak("launcher");
-			Launcher.launch("setup/download", nullhttp, args);
+			Launcher._launch("setup/download", nullhttp, args);
 			}
 			break;
 		case "version":

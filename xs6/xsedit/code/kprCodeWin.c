@@ -19,7 +19,27 @@
 #include "kprContent.h"
 #include "kprShell.h"
 
-void KPR_shell_chooseDirectory(xsMachine* the)
+void KPR_system_getClipboardText(xsMachine* the)
+{
+}
+
+void KPR_system_setClipboardText(xsMachine* the)
+{
+}
+
+void KPR_system_alert(xsMachine* the)
+{
+}
+
+void KPR_system_beginModal(xsMachine* the)
+{
+}
+
+void KPR_system_endModal(xsMachine* the)
+{
+}
+
+void KPR_system_openDirectory(xsMachine* the)
 {
 	FskErr err;
 	int argc = xsToInteger(xsArgc);
@@ -35,8 +55,9 @@ void KPR_shell_chooseDirectory(xsMachine* the)
 	FskMemPtrDispose(prompt);
 }
 
-void KPR_shell_chooseFiles(xsMachine* the)
+void KPR_system_openFile(xsMachine* the)
 {
+	FskErr err;
 	KprShell self = xsGetHostData(xsThis);
 	KprScriptBehavior behavior = (KprScriptBehavior)self->behavior;
 	int argc = xsToInteger(xsArgc);
@@ -70,7 +91,11 @@ void KPR_shell_chooseFiles(xsMachine* the)
 	FskMemPtrDispose(prompt);
 }
 
-void KPR_shell_createFile(xsMachine* the)
+void KPR_system_saveDirectory(xsMachine* the)
+{
+}
+
+void KPR_system_saveFile(xsMachine* the)
 {
 	FskErr err;
 	int argc = xsToInteger(xsArgc);
@@ -87,3 +112,21 @@ void KPR_shell_createFile(xsMachine* the)
 	FskMemPtrDispose(prompt);
 	FskMemPtrDispose(initialPath);
 }
+
+void KPR_shell_execute(xsMachine* the)
+{
+}
+
+void KPR_shell_splitError(xsMachine* the)
+{
+}
+
+
+void KPR_system_getWifiInfo(xsMachine* the)
+{
+}
+
+void KPR_system_networkInterfaceIndexToName(xsMachine* the)
+{
+}
+

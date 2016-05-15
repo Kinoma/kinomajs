@@ -41,9 +41,11 @@
 </platform>
 <platform name="mac">
 	<source name="kprCodeMac.m"/>
+	<source name="kprCodeSerial.c"/>
 </platform>
 <platform name="win">
 	<source name="kprCodeWin.c"/>
+	<source name="kprCodeSerial.c"/>
 </platform>
 
 </makefile>

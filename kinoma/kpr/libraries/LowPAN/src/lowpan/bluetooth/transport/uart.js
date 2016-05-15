@@ -21,107 +21,35 @@
  * Bluetooth v4.2 - UART Transport Layer
  */
 
-var Utils = require("../../common/utils");
-var Ringbuffer = Utils.Ringbuffer;
-var Buffers = require("../../common/buffers");
-var SerialBuffer = Buffers.SerialBuffer;
-var ByteBuffer = Buffers.ByteBuffer;
+const Utils = require("../../common/utils");
+const Ringbuffer = Utils.Ringbuffer;
+const Buffers = require("../../common/buffers");
+const SerialBuffer = Buffers.SerialBuffer;
+const ByteBuffer = Buffers.ByteBuffer;
 
 var logger = new Utils.Logger("UART");
 logger.loggingLevel = Utils.Logger.Level.INFO;
 
-var DEFAULT_UART_DEVICE = "/dev/mbtchar0";
-var DEFAULT_UART_BAUDRATE = 115200;
+const UART_COMMAND_PACKET = 0x01;
+const UART_ACL_DATA_PACKET = 0x02;
+const UART_SYNC_DATA_PACKET = 0x03;
+const UART_EVENT_PACKET = 0x04;
 
-var UART_COMMAND_PACKET = 0x01;
-var UART_ACL_DATA_PACKET = 0x02;
-var UART_SYNC_DATA_PACKET = 0x03;
-var UART_EVENT_PACKET = 0x04;
+const HCI_MAX_ACL_SIZE = 2048;
+const HCI_MAX_SCO_SIZE = 255;
+const HCI_MAX_EVENT_SIZE = 260;
+const HCI_MAX_FRAME_SIZE = (HCI_MAX_ACL_SIZE + 4);
 
-var HCI_MAX_ACL_SIZE = 2048;
-var HCI_MAX_SCO_SIZE = 255;
-var HCI_MAX_EVENT_SIZE = 260;
-var HCI_MAX_FRAME_SIZE = (HCI_MAX_ACL_SIZE + 4);
+const MAX_RX_BUFFER = 16384;
 
-var MAX_RX_BUFFER = 16384;
+const STATE_PACKET_TYPE = 0;
+const STATE_PREAMBLE = 1;
+const STATE_DATA = 2;
 
-var STATE_PACKET_TYPE = 0;
-var STATE_PREAMBLE = 1;
-var STATE_DATA = 2;
-
-var state = STATE_PACKET_TYPE;
-var expectedLength = 1;
-var packetType = 0;
-var readRingbuffer;
-
-var tempObject = null;
-
-var preambleSize = [];
-var packetReader = [];
-
-var _serial = null;
-var writeBuffer;
-
-/** Debugging purpose */
-var DEBUG_PARSER = true;
-var MAX_COUNT = 1000;
-var elapsedTime;
-var totalLength = 0;
-var totalResponses = 0;
-var totalTime = 0;
-var counter = 0;
-
-exports.open = function () {
-	_serial = PINS.create({
-		type: "Serial",
-		path: DEFAULT_UART_DEVICE,
-		baud: DEFAULT_UART_BAUDRATE
-	});
-	_serial.init();
-	writeBuffer = new SerialBuffer(_serial, HCI_MAX_ACL_SIZE, true);
-	readRingbuffer = new Ringbuffer(MAX_RX_BUFFER);
-	return _serial;
-};
-
-exports.close = function () {
-	_serial.close();
-};
-
-exports.sendCommand = function (command) {
-	logger.trace("<==sendCommand");
-	writeBuffer.clear();
-	writeBuffer.putInt8(UART_COMMAND_PACKET);
-	writeBuffer.putInt16(command.opcode);
-	writeBuffer.putInt8(command.length);
-	if (command.data != null) {
-		writeBuffer.putByteArray(command.data);
-	}
-	writeBuffer.flush();
-	logger.trace("==>sendCommand");
-};
-
-exports.sendACLData = function (acl) {
-	logger.trace("<==sendACLData");
-	logger.debug("ACL (handle="
-		+ Utils.toHexString(acl.handle, 2)
-		+ "): << " + Utils.toFrameString(acl.data, 0, acl.length));
-	writeBuffer.clear();
-	writeBuffer.putInt8(UART_ACL_DATA_PACKET);
-	writeBuffer.putInt16(
-		(acl.handle & 0xFFF) |
-		((acl.packetBoundary & 0x3) << 12) |
-		((acl.broadcast & 0x3) << 14)
-	);
-	writeBuffer.putInt16(acl.length);
-	if (acl.data != null) {
-		writeBuffer.putByteArray(acl.data);
-	}
-	writeBuffer.flush();
-	logger.trace("==>sendACLData");
-};
-
-preambleSize[UART_ACL_DATA_PACKET - 1] = 4;
-packetReader[UART_ACL_DATA_PACKET - 1] = function (buffer) {
+var PREAMBLE_SIZE = [];
+var PACKET_READER = [];
+PREAMBLE_SIZE[UART_ACL_DATA_PACKET - 1] = 4;
+PACKET_READER[UART_ACL_DATA_PACKET - 1] = function (buffer) {
 	var tmp = buffer.readByte() | (buffer.readByte() << 8);
 	return {
 		handle: tmp & 0xFFF,
@@ -132,22 +60,8 @@ packetReader[UART_ACL_DATA_PACKET - 1] = function (buffer) {
 	};
 };
 
-exports.sendSynchronousData = function (handle, packetStatus, length, data) {
-	writeBuffer.clear();
-	writeBuffer.putInt8(UART_SYNC_DATA_PACKET);
-	writeBuffer.putInt16(
-		(handle & 0xFFF) |
-		((packetStatus & 0x3) << 12)
-	);
-	writeBuffer.putInt8(length);
-	if (data != null) {
-		writeBuffer.putByteArray(data);
-	}
-	writeBuffer.flush();
-};
-
-preambleSize[UART_SYNC_DATA_PACKET - 1] = 3;
-packetReader[UART_SYNC_DATA_PACKET - 1] = function (buffer) {
+PREAMBLE_SIZE[UART_SYNC_DATA_PACKET - 1] = 3;
+PACKET_READER[UART_SYNC_DATA_PACKET - 1] = function (buffer) {
 	var tmp = buffer.getInt16();
 	return {
 		handle: tmp & 0xFFF,
@@ -157,8 +71,8 @@ packetReader[UART_SYNC_DATA_PACKET - 1] = function (buffer) {
 	};
 };
 
-preambleSize[UART_EVENT_PACKET - 1] = 2;
-packetReader[UART_EVENT_PACKET - 1] = function (buffer) {
+PREAMBLE_SIZE[UART_EVENT_PACKET - 1] = 2;
+PACKET_READER[UART_EVENT_PACKET - 1] = function (buffer) {
 	return {
 		eventCode: buffer.readByte(),
 		length: buffer.readByte(),
@@ -166,73 +80,99 @@ packetReader[UART_EVENT_PACKET - 1] = function (buffer) {
 	};
 };
 
-exports.receive = function () {
-	var responses = [];
-
-	var rxStartTime = new Date();
-
-	var buffer = _serial.read("ArrayBuffer");
-	if (buffer.byteLength == 0) {
-		logger.debug("serial.read returns 0");
-		return responses;
+class Transport {
+	constructor(serial) {
+		this._txBuffer = new SerialBuffer(serial, HCI_MAX_ACL_SIZE, true);
+		this._rxRingbuffer = new Ringbuffer(MAX_RX_BUFFER);
+		this._reset();
 	}
-	readRingbuffer.write(new Uint8Array(buffer), 0, buffer.byteLength);
-
-	if (DEBUG_PARSER) {
-		elapsedTime = new Date().getTime() - rxStartTime.getTime();
-		logger.trace("RX Time: " + elapsedTime);
-		if (elapsedTime > 100) {
-			logger.loggingLevel = Utils.Logger.Level.TRACE;
+	_reset() {
+		this._tempObject = null;
+		this._expectedLength = 1;
+		this._packetType = 0;
+		this._state = STATE_PACKET_TYPE;
+	}
+	sendCommand(command) {
+		logger.trace("<==sendCommand");
+		this._txBuffer.clear();
+		this._txBuffer.putInt8(UART_COMMAND_PACKET);
+		this._txBuffer.putInt16(command.opcode);
+		this._txBuffer.putInt8(command.length);
+		if (command.data != null) {
+			this._txBuffer.putByteArray(command.data);
 		}
-		totalLength += buffer.byteLength;
+		this._txBuffer.flush();
+		logger.trace("==>sendCommand");
 	}
+	sendACLData(acl) {
+		logger.trace("<==sendACLData");
+		logger.debug("ACL (handle="
+			+ Utils.toHexString(acl.handle, 2)
+			+ "): << " + Utils.toFrameString(acl.data, 0, acl.length));
+		this._txBuffer.clear();
+		this._txBuffer.putInt8(UART_ACL_DATA_PACKET);
+		this._txBuffer.putInt16(
+			(acl.handle & 0xFFF) |
+			((acl.packetBoundary & 0x3) << 12) |
+			((acl.broadcast & 0x3) << 14)
+		);
+		this._txBuffer.putInt16(acl.length);
+		if (acl.data != null) {
+			this._txBuffer.putByteArray(acl.data);
+		}
+		this._txBuffer.flush();
+		logger.trace("==>sendACLData");
+	}
+	sendSynchronousData(handle, packetStatus, length, data) {
+		this._txBuffer.clear();
+		this._txBuffer.putInt8(UART_SYNC_DATA_PACKET);
+		this._txBuffer.putInt16(
+			(handle & 0xFFF) |
+			((packetStatus & 0x3) << 12)
+		);
+		this._txBuffer.putInt8(length);
+		if (data != null) {
+			this._txBuffer.putByteArray(data);
+		}
+		this._txBuffer.flush();
+	}
+	receive(byteArray, offset, length) {
+		let responses = [];
 
-	while (readRingbuffer.available() >= expectedLength) {
-		switch (state) {
-		case STATE_PACKET_TYPE:
-			logger.trace("Read Packet Type");
-			packetType = readRingbuffer.readByte();
-			if ((packetType < UART_ACL_DATA_PACKET) || (UART_EVENT_PACKET < packetType)) {
-				logger.error("Unexpected packet type: " + Utils.toHexString(packetType));
+		this._rxRingbuffer.write(byteArray, offset, length);
+
+		while (this._rxRingbuffer.available() >= this._expectedLength) {
+			switch (this._state) {
+			case STATE_PACKET_TYPE:
+				logger.trace("Read Packet Type");
+				this._packetType = this._rxRingbuffer.readByte();
+				if ((this._packetType < UART_ACL_DATA_PACKET) || (UART_EVENT_PACKET < this._packetType)) {
+					logger.error("Unexpected packet type: " + Utils.toHexString(this._packetType));
+					break;
+				}
+				this._expectedLength = PREAMBLE_SIZE[this._packetType - 1];
+				this._state = STATE_PREAMBLE;
+				break;
+			case STATE_PREAMBLE:
+				logger.trace("Read Preamble");
+				this._tempObject = PACKET_READER[this._packetType - 1](this._rxRingbuffer);
+				this._tempObject.packetType = this._packetType;
+				this._expectedLength = this._tempObject.length;
+				this._state = STATE_DATA;
+				break;
+			case STATE_DATA:
+				logger.trace("Read Data: length=" + this._tempObject.length);
+				if (this._tempObject.length > 0) {
+					this._tempObject.data = new Uint8Array(this._tempObject.length);
+					this._rxRingbuffer.read(this._tempObject.data, 0, this._tempObject.length);
+				}
+				responses.push(this._tempObject);
+				this._reset();
 				break;
 			}
-			expectedLength = preambleSize[packetType - 1];
-			state = STATE_PREAMBLE;
-			break;
-		case STATE_PREAMBLE:
-			logger.trace("Read Preamble");
-			tempObject = packetReader[packetType - 1](readRingbuffer);
-			tempObject.packetType = packetType;
-			expectedLength = tempObject.length;
-			state = STATE_DATA;
-			break;
-		case STATE_DATA:
-			logger.trace("Read Data: length=" + tempObject.length);
-			if (tempObject.length > 0) {
-				tempObject.data = new Uint8Array(tempObject.length);
-				readRingbuffer.read(tempObject.data, 0, tempObject.length);
-			}
-			responses.push(tempObject);
-			tempObject = null;
-			expectedLength = 1;
-			state = STATE_PACKET_TYPE;
-			break;
 		}
-	}
 
-	if (DEBUG_PARSER) {
-		totalTime += elapsedTime;
-		totalResponses += responses.length;
-		if (++counter > MAX_COUNT) {
-			logger.info("Average length=" + (totalLength / MAX_COUNT)
-				+ ", responses=" + (totalResponses / MAX_COUNT)
-				+ ", time=" + (totalTime / MAX_COUNT));
-			totalLength = 0;
-			totalResponses = 0;
-			totalTime = 0;
-			counter = 0;
-		}
-	}
-
-	return responses;
-};
+		return responses;
+	};
+}
+exports.Transport = Transport;

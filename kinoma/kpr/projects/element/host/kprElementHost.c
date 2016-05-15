@@ -191,7 +191,8 @@ void PINS_configure(xsMachine* the)
 	xsResult = xsDemarshallAlien(gElementHostResult);
 	FskMemPtrDisposeAt(&gElementHostResult);
 	FskMutexRelease(gElementHostMutex);
-	xsCallFunction1(xsArg(1), xsUndefined, xsResult);
+	if (xsTest(xsArg(1)))
+		xsCallFunction1(xsArg(1), xsUndefined, xsResult);
 }
 
 void PINS_invoke_callback(void* path, void* object)
@@ -219,7 +220,8 @@ void PINS_invoke(xsMachine* the)
 	xsResult = xsDemarshallAlien(gElementHostResult);
 	FskMemPtrDisposeAt(&gElementHostResult);
 	FskMutexRelease(gElementHostMutex);
-	xsCallFunction1(xsArg(2), xsUndefined, xsResult);
+	if (xsTest(xsArg(2)))
+		xsCallFunction1(xsArg(2), xsUndefined, xsResult);
 }
 
 void PINS_repeat_callback(void* path, void* object)
@@ -247,7 +249,7 @@ void PINS_repeat(xsMachine* the)
 	xsResult = xsDemarshallAlien(gElementHostResult);
 	FskMemPtrDisposeAt(&gElementHostResult);
 	FskMutexRelease(gElementHostMutex);
-	if ((xsTypeOf(xsResult) != xsUndefinedType))
+	if (xsTest(xsArg(2)) && ((xsTypeOf(xsResult) != xsUndefinedType)))
 		xsCallFunction1(xsArg(2), xsUndefined, xsResult);
 }
 

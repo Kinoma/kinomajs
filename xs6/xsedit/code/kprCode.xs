@@ -84,7 +84,34 @@
 		<function name="endModal" c="KPR_system_endModal" script="true"/>
 		<function name="getWifiInfo" c="KPR_system_getWifiInfo" script="true"/>
 		<function name="networkInterfaceIndexToName" c="KPR_system_networkInterfaceIndexToName" script="true"/>
+		
+		<function name="getUUID" params="id" c="KPR_system_getUUID" script="true"/>
 	</patch>
+
+	<object name="Serial">
+		<!-- server -->
+		<object name="notifier" c="Serial_nofifier">
+			<function name="get behavior" c="Serial_nofifier_get_behavior"/>
+			<function name="set behavior" params="it" c="Serial_nofifier_set_behavior"/>
+			<function name="start" c="Serial_nofifier_start"/>
+			<function name="stop" c="Serial_nofifier_stop"/>
+			<!-- ids for callbacks to the behavior -->
+			<null name="onSerialRegistered"/> <!-- params="notification" -->
+			<null name="onSerialUnregistered"/> <!-- params="notification" -->
+		</object>
+		<function name="Notifier" prototype="Serial.notifier" c="Serial_Nofifier"/>
+		
+		<object name="device" c="Serial_device">
+			<function name="get behavior" c="Serial_device_get_behavior"/>
+			<function name="set behavior" params="it" c="Serial_device_set_behavior"/>
+			<function name="open" params="baud, bits, parity, stop" c="Serial_device_open"/>
+			<function name="close" c="Serial_device_close"/>
+			<function name="write" params="data" c="Serial_device_write"/>
+			<!-- ids for callbacks to the behavior -->
+			<null name="onSerialData"/> <!-- params="device, data" -->
+		</object>
+		<function name="Device" params="path" prototype="Serial.device" c="Serial_Device"/>
+	</object>
 
 ]</package>
 

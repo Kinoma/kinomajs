@@ -14,7 +14,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-SETUP_JS_SRCS = connect.js download.js scan.js description.js config.js rssi.js ssid.js app.js
+SETUP_JS_SRCS = connect.js _download.js download.js scan.js description.js config.js rssi.js ssid.js app.js
 
 SETUP_BINARIES = $(addprefix $(DEST_DIR)/setup/, $(addsuffix .xsb, $(basename $(SETUP_JS_SRCS))))
 

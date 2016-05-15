@@ -21,27 +21,52 @@
  * Bluetooth v4.2 - UART Transport Layer (BLL Wrapper)
  */
 
-var UART = require("./uart");
+const UART = require("./uart");
 
+const DEFAULT_UART_DEVICE = "/dev/mbtchar0";
+const DEFAULT_UART_BAUDRATE = 115200;
+
+/* Pins instances */
 var _notification = null;
+var _serial = null;
 var _repeat = null;
+
+/* Transport */
+var _transport = null;
+
+// ----------------------------------------------------------------------------------
+// Pins Configuration
+// ----------------------------------------------------------------------------------
+
+function pollTransport() {
+	let buffer = _serial.read("ArrayBuffer");
+	if (buffer.byteLength == 0) {
+		logger.debug("serial.read returns 0");
+		return;
+	}
+	let responses = _transport.receive(new Uint8Array(buffer), 0, buffer.byteLength);
+	if (responses.length > 0) {
+		for (let i = 0; i < responses.length; i++) {
+			/* Do not use TypedArray directly */
+			responses[i].buffer = (responses[i].data != null) ? responses[i].data.buffer : null;
+			responses[i].data = null;
+		}
+		_notification.invoke(responses);
+	}
+}
 
 exports.configure = function () {
 	this.notification = _notification = PINS.create({
 		type: "Notification"
 	});
-	this.serial = UART.open();
-	_repeat = PINS.repeat("serial", this, function () {
-		var responses = UART.receive();
-		if (responses.length > 0) {
-			for (var i = 0; i < responses.length; i++) {
-				/* Do not use TypedArray directly */
-				responses[i].buffer = (responses[i].data != null) ? responses[i].data.buffer : null;
-				responses[i].data = null;
-			}
-			_notification.invoke(responses);
-		}
+	this.serial = _serial = PINS.create({
+		type: "Serial",
+		path: DEFAULT_UART_DEVICE,
+		baud: DEFAULT_UART_BAUDRATE
 	});
+	_serial.init();
+	_repeat = PINS.repeat("serial", this, pollTransport);
+	_transport = new UART.Transport(_serial);
 };
 
 exports.sendCommand = function (command) {
@@ -49,7 +74,7 @@ exports.sendCommand = function (command) {
 	if (command.length > 0) {
 		command.data = new Uint8Array(command.buffer, 0, command.length);
 	}
-	UART.sendCommand(command);
+	_transport.sendCommand(command);
 };
 
 exports.sendACLData = function (acl) {
@@ -57,11 +82,11 @@ exports.sendACLData = function (acl) {
 	if (acl.length > 0) {
 		acl.data = new Uint8Array(acl.buffer, 0, acl.length);
 	}
-	UART.sendACLData(acl);
+	_transport.sendACLData(acl);
 };
 
 exports.close = function () {
-	_repeat.close();
-	UART.close();
 	_notification.close();
+	_repeat.close();
+	_serial.close();
 };

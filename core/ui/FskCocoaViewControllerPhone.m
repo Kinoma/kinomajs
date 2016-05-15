@@ -176,7 +176,11 @@ extern void mainExtensionTerminate(void);
 
 static NSUInteger gSupportedInterfaceOrientations = 0;
 
+#if __IPHONE_OS_VERSION_MAX_ALLOWED < 90000
 - (NSUInteger)supportedInterfaceOrientations
+#else
+- (UIInterfaceOrientationMask)supportedInterfaceOrientations
+#endif
 {
     if (gSupportedInterfaceOrientations == 0)
     {

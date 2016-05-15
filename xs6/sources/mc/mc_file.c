@@ -208,7 +208,7 @@ static const char *flash_path(const char *name)
 	const char *dir;
 
 	dir = mc_resolve_path(name, 1);
-	sprintf(path, "%s.dat", dir);
+	snprintf(path, sizeof(path), "%s.dat", dir);
 	return path;
 }
 
@@ -367,7 +367,7 @@ struct fs *ftfs_init(struct ftfs_super *sb, flash_desc_t *fd)
 
 file *ft_fopen(struct fs *fs, const char *path, const char *mode)
 {
-	path = mc_resolve_path(path, 0);
+	path = mc_resolve_path(path, (*mode == 'r') ? 0 : 1);
 	errno = 0;
 	return fopen(path, mode);
 }
@@ -400,7 +400,10 @@ ft_creat(const char *path, mode_t mode)
 int
 ft_unlink(const char *path)
 {
-	return unlink(mc_resolve_path(path, 1));
+	int status = unlink(mc_resolve_path(path, 0));
+	if (status == 0)
+		mc_resolve_path(path, -1);
+	return status;
 }
 
 static bool sync_with_native_path(const char *path)
@@ -1357,9 +1360,6 @@ mc_fopen(const char *fullPath, const char *mode)
 			// changes will also be written on the native file,
 			// so that xsr can load .xsb from the native file.
 			fp->fd = ft_fopen(NULL, fullPath, mode);
-			
-			// @@ if fullPath has sub-directory, ft_open will fail. Just ignore this.
-			errno = 0;
 		}
 #endif
 	}
@@ -1897,8 +1897,8 @@ mc_readdir(MC_DIR *dir)
 	int blk;
 	uint32_t offset;
 	ffs_header_t *h;
+	uint8_t data[sizeof(h) - FT_MAX_FILENAME + PATH_MAX];
 	static struct mc_dirent dirent;
-	uint8_t data[FFS_SECTOR_SIZE];
 
 	mc_check_stack();
 
@@ -2090,21 +2090,56 @@ mc_resolve_path(const char *path, int create)
 		return p;
 	while (*path == '/')
 		path++;
-	if (create) {
-		if ((p = strchr(path, '/')) != NULL) {
+	if (create > 0) {	// create
+		char *prev = (char *)path;
+		bool volumeName = true;
+		while ((p = strchr(prev, '/')) != NULL) {
+			if (p - path >= sizeof(tmp))
+				break;
 			strncpy(tmp, path, p - path);
 			tmp[p - path] = '\0';
 			snprintf(resolv, sizeof(resolv), "%s/tmp/mc/%s", home, tmp);
 			mkdir(resolv, 0777);
-			snprintf(resolv, sizeof(resolv), "%s/tmp/mc/%s", home, path);
+			prev = p + 1;
+			volumeName = false;
 		}
-		else {
-			snprintf(resolv, sizeof(resolv), "%s/tmp/mc/%s", home, path);
+		snprintf(resolv, sizeof(resolv), "%s/tmp/mc/%s", home, path);
+		if (volumeName) {
 			mkdir(resolv, 0777);
 		}
 	}
-	else
+	else if (create < 0) {	// delete empty sub directories
+		char *filePath;
+		strncpy(tmp, path, PATH_MAX);
+		if ((filePath = strchr(tmp, '/')) != NULL) {	// exclude volume name
+			filePath++;
+			while ((p = strrchr(filePath, '/')) != NULL) {
+				*p = '\0';
+				snprintf(resolv, sizeof(resolv), "%s/tmp/mc/%s", home, tmp);
+				rmdir(resolv);
+			}
+		}
+	}
+	else	// read
 		snprintf(resolv, sizeof(resolv), "%s/tmp/mc/%s", home, path);
 	return resolv;
 }
 #endif	/* !mxMC */
+
+#include "mc_mapped_files.h"
+
+#define NUM_MAPPED_FILES	(sizeof(mc_mapped_files) / sizeof(mc_mapped_files[0]))
+
+const void *
+mc_mmap(const char *path, size_t *sizep)
+{
+	unsigned int i;
+
+	for (i = 0; i < NUM_MAPPED_FILES; i++) {
+		if (strcmp(mc_mapped_files[i].name, path) == 0) {
+			*sizep = mc_mapped_files[i].size;
+			return mc_mapped_files[i].data;
+		}
+	}
+	return NULL;
+}

@@ -582,6 +582,8 @@ xs_wm_load(xsMachine *the)
 	xsNewHostProperty(xsThis, xsID("NOTRUNNING"), xsVar(0), xsDontDelete | xsDontEnum | xsDontSet, xsDefault);
 	xsSetInteger(xsVar(0), MC_CONNECTION_PENDING);
 	xsNewHostProperty(xsThis, xsID("PENDING"), xsVar(0), xsDontDelete | xsDontEnum | xsDontSet, xsDefault);
+	xsSetInteger(xsVar(0), MC_CONNECTION_FATAL);
+	xsNewHostProperty(xsThis, xsID("FATAL"), xsVar(0), xsDontDelete | xsDontEnum | xsDontSet, xsDefault);
 }
 
 void

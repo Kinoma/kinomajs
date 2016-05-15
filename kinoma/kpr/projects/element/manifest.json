@@ -1,4 +1,10 @@
 {
+	"xsdebug":{
+		"enabled":true,
+	},
+	"xsprofile":{
+		"enabled":true,
+	},
 	"build":{
 		"F_EXTENSIONS":"$(F_HOME)/extensions",
 		"F_KINOMA":"$(F_HOME)/kinoma",

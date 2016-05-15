@@ -73,13 +73,6 @@ function* __VolumeIterator() {
 };
 
 export default class Files {
-	static get directoryType() {
-		return "directory";
-	};
-	static get fileType() {
-		return "file";
-	}
-
 	static deleteFile(path) @ "xs_files_delete";
 	static _renameFile(from, to) @ "xs_files_rename";
 	static renameFile(from, to) {
@@ -102,7 +95,7 @@ export default class Files {
 		let result = this._getInfo(path);
 		if (result) {
 			result.type = this.fileType;
-		} else {
+		} else if (path.indexOf("/") >= 0) {
 			let iter = this.Iterator(path);
 			let item;
 			if (iter && (item = iter.next()) && !item.done) {
@@ -180,6 +173,14 @@ export default class Files {
 
 	static updatePathName() @ "xs_files_updatePathName";
 };
+
+class Map @ "xs_files_map_destructor" {
+	constructor(path) @ "xs_files_map_constructor";
+};
+
+Files.directoryType = "directory";
+Files.fileType = "file";
+Files.Map = Map;
 
 Files._init();	// only for host
 delete Files._init;

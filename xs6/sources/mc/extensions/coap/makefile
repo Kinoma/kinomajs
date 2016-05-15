@@ -14,7 +14,7 @@
 #     See the License for the specific language governing permissions and
 #     limitations under the License.
 #
-SOURCES = coap_socket.js common.js create_request decode.js encode.js
+SOURCES = client.js common.js endpoint.js create_request decode.js encode.js server.js transport.js
 OBJECTS = $(addprefix $(DEST_DIR)/coap/, $(addsuffix .xsb, $(basename $(SOURCES))))
 JS_DIR = $(F_HOME)/xs6/sources/mc/extensions/coap
 

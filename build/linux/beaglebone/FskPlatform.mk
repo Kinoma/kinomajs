@@ -29,7 +29,6 @@
 	<input name="$(F_HOME)/build/linux/kpl"/>
 	<input name="$(F_HOME)/core/kpl"/>
 	<input name="$(F_HOME)/libraries/libjpeg"/>
-	<!--input name="$(PI_SYSROOT)/usr/include/directfb"/-->
 
 
 	<header name="FskPlatform.h"/>

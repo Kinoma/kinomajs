@@ -27,8 +27,8 @@
 
 #if IGNORE_NETINTERFACE
 	#if TARGET_OS_ANDROID
-		#define NUM_IGNORE_NET	2
-		char *ignoreInterfaces[NUM_IGNORE_NET] = { "usb0", "p2p0" };
+		#define NUM_IGNORE_NET	3
+		char *ignoreInterfaces[NUM_IGNORE_NET] = { "usb0", "p2p0", "lo" };
 	#elif TARGET_OS_LINUX || TARGET_OS_MAC
 		#define NUM_IGNORE_NET	5
 		char *ignoreInterfaces[NUM_IGNORE_NET] = { "usb0", "vnic0", "vnic1", "vboxnet0", "p2p0" };
@@ -521,6 +521,26 @@ static FskErr sFskNetInterfaceEnumerate(FskNetInterfaceRecord **interfaceList)
 
 		FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation,"IP: %x, Netmask: %x [%s]", theIP, theNetmask, theStatus ? "UP " : "DOWN ");
 
+#if TARGET_OS_ANDROID
+		FskMemPtrNewClear(sizeof(FskNetInterfaceRecord), (FskMemPtr*)(void*)&nir);
+		if (!nir) {
+			closedir(d);
+			BAIL(kFskErrMemFull);
+		}
+		nir->MAC[0] = 0x02;
+		nir->MAC[1] = 0;
+		nir->MAC[2] = 0;
+		nir->MAC[3] = 0;
+		nir->MAC[4] = 0;
+		nir->MAC[5] = 0;
+
+		nir->name = FskStrDoCopy(ifname);
+		nir->ip = theIP;
+		nir->netmask = theNetmask;
+		nir->status = theStatus;
+
+		FskListAppend((FskList*)interfaceList, nir);
+#else
 		if (ioctl(fd, SIOCGIFHWADDR, &ifr) >= 0) {
 			FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, "Got HWADDR ");
 
@@ -544,6 +564,7 @@ static FskErr sFskNetInterfaceEnumerate(FskNetInterfaceRecord **interfaceList)
 				FskInstrumentedTypePrintfDebug(&gNetInterfaceNotifierTypeInstrumentation, " Family not ETHER Huh?");
 			}
 		}
+#endif
 	}
 	closedir(d);
 skip:

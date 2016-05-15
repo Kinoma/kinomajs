@@ -45,54 +45,15 @@ Visualizations
 
 */
 
-// Notes:
-// `` not supported (i.e. code span escape)
-// code line with tabs potential rendering issues
-// line based (block - process in script)
-// markup not supported
-// no &gt; type entities
-// no footnote
-// no image title
-// no inline header semantics (needs review - cannot escape characters)
-// no line break (i.e. line end with 2 spaces - process in script)
-// no link title
-// no simple inline link
-// no trailing # in atx header
-// simple blockquote (nested but no other types supported)
-// simple inline link and image semantics
-// unix (LF) 8-bit text:
-//   doc-template-151216a-CR.md ("the basic ASCII character set")
-//     ragel-guide.pdf (6.9) 5.3 Getkey Statement
-//   using-fractional-coordinates-for-animation-in-kinomajs-151019-CR.md (uses 3 byte code 'E2 80 8B')
-//     zero-width space character is encoded in Unicode as U+200B ZERO WIDTH SPACE (&#8203;)
-//     http://utf8-chartable.de/unicode-utf8-table.pl?start=8192&number=128
-//   $F_HOME/unitytest/README.md (uses 3 byte code 'e3 80 80' for space)
-//     http://orange-factory.com/sample/utf8/code3-e3.html
-// misc:
-//   doc-style-sheet-151221.md
-//     #####I<sup>2</sup>C
-//   garbage-collection-in-kinomajs-151118-CR.md
-//     <iframe width="560" height="315" src="https://www.youtube.com/embed/0iRfQfzcKvg" frameborder="0" allowfullscreen></iframe>  
-//     note: there is also a trailing double space after the closing iframe tag - is it accidental or intentional?
-//   overview.md
-//     XML includes elements—collectively called *content elements* and *container elements*—that correspond to various types of `content` and `container` objects and describe a branch of the containment hierarchy.
-//     line 1332 <div class="xmlcode"></div> for JavaScript...
-//      	var BackBehavior = function(content, $) {
-//   pins-simulators-151215-CR.md
-//     <td><img style="display: block; margin-left: auto; margin-right: auto;"...
-//   shell/assets/about.md
-//     Copyright (c) 2004 by Internet Systems Consortium, Inc. (\"ISC\").
-//   xs.md
-//     <td><code>@<i>attribute</i></code></td>
-//     <td><code><i>element</i></code></td>
-
-// https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/Content_categories
-// https://guides.github.com/features/mastering-markdown/
-// https://help.github.com/articles/basic-writing-and-formatting-syntax/
-// https://help.github.com/articles/github-flavored-markdown/
-// https://help.github.com/articles/markdown-basics/
-
 #include "kprMarkdownParser.h"
+
+#if TARGET_OS_WIN32
+#define _IsSpace(c) (iswspace(c))
+#define _IsPunct(c) (iswpunct(c))
+#else
+#define _IsSpace(c) (isspace(c))
+#define _IsPunct(c) (ispunct(c))
+#endif
 
 char* _FontStyles[] = {
 /* 0 */ "normal",
@@ -118,7 +79,7 @@ static Boolean _blank(char *p, char *pe, SInt32 length)
 	else if (length == -1)
 		length = pe - p;
 	while ((p < pe) && (length > 0)) {
-		if (!isspace(*p))
+		if (!_IsSpace(*p))
 			return false;
 		length--;
 		p++;
@@ -216,7 +177,8 @@ static KprMarkdownElementInfoRecord kprMarkdownElementInfo[] = {
 	{ "del",         3, 0x1, kprMarkdownDEL        }, // strikethrough
 	{ "div",         3, 0x3, kprMarkdownDIV        },
 	{ "img",         3, 0x0, kprMarkdownIMG        },
-	{ "pre",         3, 0x3, kprMarkdownPRE        }, // escape issue / CDATA?
+	{ "pre",         3, 0x3, kprMarkdownPRE        },
+	{ "sup",         3, 0x1, kprMarkdownSUP        },
 	{ "code",        4, 0x1, kprMarkdownCODE       },
 	{ "span",        4, 0x1, kprMarkdownSPAN       },
 	{ "table",       5, 0x2, kprMarkdownTABLE      },
@@ -238,7 +200,7 @@ static FskErr doAttribute(KprMarkdownParser parser, char *str, KprMarkdownState 
 	if (state->flags & kprMarkdownParseElements) {
 		KprMarkdownElement element = state->stack[state->top];
 		if (element->attributes == NULL) {
-			bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownAttributeRecord), sizeof(KprMarkdownAttributeRecord) * kprMarkdownDefaultAttributesOption, (FskGrowableArray*)&(element->attributes)));
+			bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownAttributeRecord), kprMarkdownDefaultAttributesOption, (FskGrowableArray*)&(element->attributes)));
 		}
 		bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)element->attributes, (void *)&(state->attributeRecord)));
 	}
@@ -274,6 +236,8 @@ static FskErr doEnterElement(KprMarkdownParser parser, char *str, KprMarkdownSta
 		KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
 		if (state->top == -1) {
 			bailIfError(FskMemPtrNewClear(sizeof(KprMarkdownElementRecord), (FskMemPtr *)&element));
+			element->n.length = state->elementStop - state->elementStart;
+			element->n.offset = (SInt16)(state->elementStart - str - state->offset);
 			element->t.length = -1;
 			element->t.offset = 0;
 			element->type = info ? info->type : -1;
@@ -281,11 +245,15 @@ static FskErr doEnterElement(KprMarkdownParser parser, char *str, KprMarkdownSta
 		else {
 			element = state->stack[state->top];
 			if (element->elements == NULL) {
-				bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), sizeof(KprMarkdownElementRecord) * kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
+				bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
 			}
+			state->elementRecord.n.length = state->elementStop - state->elementStart;
+			state->elementRecord.n.offset = (SInt16)(state->elementStart - str - state->offset);
 			state->elementRecord.type = info ? info->type : -1;
 			bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)element->elements, (void *)&(state->elementRecord)));
 			FskGrowableArrayGetPointerToItem((FskGrowableArray)element->elements, FskGrowableArrayGetItemCount((FskGrowableArray)element->elements) - 1, (void **)&element);
+			state->elementRecord.n.length = -1;
+			state->elementRecord.n.offset = 0;
 		}
 	}
 	state->depth++;
@@ -352,7 +320,7 @@ static FskErr doProcessMarkup(KprMarkdownParser parser, char *str, KprMarkdownSt
 			KprMarkdownRunRecord runRecord;
 			KprMarkdownRun run = &runRecord;
 			FskMemSet(run, 0, sizeof(runRecord));
-			runRecord.type = kprMarkdownMarkupLine; // no line span
+			runRecord.type = kprMarkdownMarkupLine;
 			runRecord.colors = kprMarkdownLineMarkupColor;
 			runRecord.length = pc + 1 - state->holdPC;
 			runRecord.offset = state->holdPC - str;
@@ -387,7 +355,7 @@ static FskErr doProcessText(KprMarkdownParser parser, char *str, KprMarkdownStat
 	if (state->depth > 0) {
 		char *text = state->textStart;
 		while (text < state->textStop) {
-			if (!isspace(*text))
+			if (!_IsSpace(*text))
 				break;
 			space++;
 			text++;
@@ -398,7 +366,7 @@ static FskErr doProcessText(KprMarkdownParser parser, char *str, KprMarkdownStat
 			KprMarkdownElement element = state->stack[state->top];
 			if (element) {
 				if (element->elements == NULL) {
-					bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), sizeof(KprMarkdownElementRecord) * kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
+					bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
 				}
 				state->elementRecord.type = 0;
 				state->elementRecord.t.length = state->textStop - state->textStart;
@@ -420,6 +388,15 @@ bail:
 	return err;
 }
 
+static FskErr doProcessTextSpecial(KprMarkdownParser parser, char *str, KprMarkdownState state, char *stop, SInt32 line)
+{
+	if (state->stack[0]) {
+		state->stack[0]->t.length = state->textStop - state->textStart;
+		state->stack[0]->t.offset = (SInt16)(state->textStart - str - state->offset);
+	}
+	return kFskErrNone;
+}
+
 static FskErr doResetState(KprMarkdownParser parser, char *str, KprMarkdownState state, SInt32 flags)
 {
 	state->elementStart = NULL;
@@ -439,15 +416,32 @@ static FskErr doResetState(KprMarkdownParser parser, char *str, KprMarkdownState
 		state->holdLine = 0;
 		state->holdPC = NULL;
 		state->markPC = NULL;
-		state->line = 1;
+		if (flags & 0x8)
+			state->line = 0;
+		else
+			state->line = 1;
 		state->pc = NULL;
 	}
+	state->elementRecord.n.length = -1;
+	state->elementRecord.n.offset = 0;
 	state->elementRecord.t.length = -1;
 	state->elementRecord.t.offset = 0;
 	if (flags & 0x2)
 		state->marker = 0;
 	if (flags & 0x1)
 		state->tableRow = 0;
+	return kFskErrNone;
+}
+
+static FskErr doSetStateFlags(KprMarkdownParser parser, char *str, KprMarkdownState state, SInt32 flags)
+{
+	state->flags = flags;
+	return kFskErrNone;
+}
+
+static FskErr doSetStateOffset(KprMarkdownParser parser, char *str, KprMarkdownState state, SInt32 offset)
+{
+	state->offset = offset;
 	return kFskErrNone;
 }
 
@@ -476,6 +470,8 @@ static FskErr doStopComment(KprMarkdownParser parser, char *str, KprMarkdownStat
 	KprMarkdownElement element = NULL;
 	if (state->top == -1) {
 		bailIfError(FskMemPtrNewClear(sizeof(KprMarkdownElementRecord), (FskMemPtr *)&element));
+		element->n.length = -1;
+		element->n.offset = 0;
 		element->t.length = state->textStop - state->textStart;
 		element->t.offset = (SInt16)(state->textStart - str - state->offset);
 		element->type = 0;
@@ -556,12 +552,12 @@ FskErr KprMarkdownParserDispose(KprMarkdownParser parser)
 {
 	if (parser) {
 		if (parser->runs) {
-			KprMarkdownRun lineRun = NULL;
-			SInt32 lineCount = parser->lineCount, lineIndex;
-			for (lineIndex = 0; lineIndex < lineCount; lineIndex++) {
-				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, lineIndex, (void **)&lineRun);
-				if ((lineRun->type == kprMarkdownMarkupLine) && lineRun->u.element) {
-					KprMarkdownElementDispose(parser, lineRun->u.element);
+			KprMarkdownRun run = NULL;
+			SInt32 count = (SInt32)FskGrowableArrayGetItemCount((FskGrowableArray)parser->runs), index;
+			for (index = 0; index < count; index++) {
+				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, index, (void **)&run);
+				if (((run->type == kprMarkdownMarkupLine) || (run->type == kprMarkdownMarkupSpan)) && run->u.element) {
+					KprMarkdownElementDispose(parser, run->u.element);
 				}
 			}
 			FskGrowableArrayDispose((FskGrowableArray)parser->runs);
@@ -575,7 +571,7 @@ FskErr KprMarkdownParserNew(KprMarkdownParser *parserReference, SInt32 option, S
 {
 	FskErr err = kFskErrNone;
 	bailIfError(FskMemPtrNewClear(sizeof(KprMarkdownParserRecord), (FskMemPtr *)parserReference));
-	bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownRunRecord), sizeof(KprMarkdownRunRecord) * (option ? option : kprMarkdownParserDefaultOption), (FskGrowableArray*)&((*parserReference)->runs)));
+	bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownRunRecord), option ? option : kprMarkdownParserDefaultOption, (FskGrowableArray*)&((*parserReference)->runs)));
 	(*parserReference)->tab = tab;
 bail:
 	return err;
@@ -596,7 +592,7 @@ static Boolean _indentedCodeLine(char *str, char *ts, char *te, KprMarkdownRun r
 		int indent = _indent(ts, te - 1, state->marker + 4, 0);
 		int length = te - 1 - ts - indent;
 		int offset = indent; //@@ ts - str
-		run->type = kprMarkdownIndentedCodeLine; // no line span
+		run->type = kprMarkdownIndentedCodeLine;
 		run->colors = kprMarkdownCodeColor;
 		run->length = te - ts;
 		run->offset = ts - str;
@@ -621,7 +617,7 @@ static Boolean _mergeTableColumnDivider(KprMarkdownParser parser, char *str, SIn
 			char *t1 = str + textRun->offset + textRun->u.s.t.offset;
 			char *t2 = t1 + textRun->u.s.t.length - 1;
 			while (t2 >= t1) {
-				if (!isspace(*t2))
+				if (!_IsSpace(*t2))
 					break;
 				length++;
 				t2--;
@@ -673,7 +669,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 	KprMarkdownStateRecord stateRecord;
 	KprMarkdownState state = &stateRecord;
 	doResetState(parser, str, state, 0x7);
-	state->flags = flags;
+	doSetStateFlags(parser, str, state, flags);
 	state->pc = p; // markup error on the first line
 	
 	%%{
@@ -693,6 +689,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 			KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
 			if (info && ((info->type == kprMarkdownBR) || (info->type == kprMarkdownSPAN)) && (state->depth == 1)) {
 				p = state->pc; // backtrack (block level <br> and <span> to markdown)
+				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
 				doResetState(parser, str, state, 0x0);
 				state->holdPC = NULL;
 				state->markPC = NULL;
@@ -714,6 +711,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 			KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
 			if (info && ((info->type == kprMarkdownBR) || (info->type == kprMarkdownSPAN)) && (state->depth == 1)) {
 				p = state->pc; // backtrack (block level <br> and <span> to markdown)
+				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
 				doResetState(parser, str, state, 0x0);
 				state->holdPC = NULL;
 				state->markPC = NULL;
@@ -873,7 +871,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 					doProcessText(parser, str, state, fpc, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownFencedCodeEndLine; // no line span
+				runRecord.type = kprMarkdownFencedCodeEndLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -896,7 +894,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 					doProcessText(parser, str, state, fpc, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownFencedCodeLine; // no line span
+				runRecord.type = kprMarkdownFencedCodeLine;
 				runRecord.colors = kprMarkdownCodeColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -944,7 +942,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 					doProcessText(parser, str, state, fpc, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownBlankLine; // no line span
+				runRecord.type = kprMarkdownBlankLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = b - ts;
 				runRecord.offset = ts - str;
@@ -957,7 +955,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				if (te > b) {
 					FskMemSet(run, 0, sizeof(runRecord));
-					runRecord.type = kprMarkdownBlankLine; // no line span
+					runRecord.type = kprMarkdownBlankLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - b;
 					runRecord.offset = b - str;
@@ -983,7 +981,8 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
 					state->marker = _column(ts, t1, -1);
-					runRecord.type = kprMarkdownBlockquoteLine | 0x80; // line span
+					runRecord.count = kprMarkdownCountDirective;
+					runRecord.type = kprMarkdownBlockquoteLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1005,7 +1004,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownFencedCodeBeginLine; // no line span
+					runRecord.type = kprMarkdownFencedCodeBeginLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1028,7 +1027,8 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 					doProcessText(parser, str, state, fpc, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHeaderLine | 0x80; // line span
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownHeaderLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1055,7 +1055,8 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 					doProcessText(parser, str, state, fpc, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHeaderLine | 0x80; // line span
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownHeaderLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = h - ts;
 				runRecord.offset = ts - str;
@@ -1067,7 +1068,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				runRecord.u.s.v.offset = 0;
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHeaderZeroLine; // no line span
+				runRecord.type = kprMarkdownHeaderZeroLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - h;
 				runRecord.offset = h - str;
@@ -1094,7 +1095,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 					doProcessText(parser, str, state, fpc, state->line - 1);
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHorizontalRuleLine; // no line span
+				runRecord.type = kprMarkdownHorizontalRuleLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1116,7 +1117,8 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
 					state->marker = _column(ts, t1, -1);
-					runRecord.type = kprMarkdownListLine | 0x80; // line span
+					runRecord.count = kprMarkdownCountDirective;
+					runRecord.type = kprMarkdownListLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1138,7 +1140,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				#endif
 				parser->referenceDefinitionCount++;
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownReferenceDefinitionLine; // no line span
+				runRecord.type = kprMarkdownReferenceDefinitionLine;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1159,7 +1161,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownTableLine; // no line span
+					runRecord.type = kprMarkdownTableLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1181,7 +1183,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownTableLine; // no line span
+					runRecord.type = kprMarkdownTableLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1203,7 +1205,8 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				#endif
 				FskMemSet(run, 0, sizeof(runRecord));
 				if (!_indentedCodeLine(str, ts, te, run, state)) {
-					runRecord.type = kprMarkdownTableLine | 0x80; // line span
+					runRecord.count = kprMarkdownCountDirective;
+					runRecord.type = kprMarkdownTableLine;
 					runRecord.colors = kprMarkdownLineMarkerColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1232,7 +1235,8 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 					int indent = _indent(ts, te - 1, (state->spaces < state->marker) ? state->spaces : state->marker, 0);
 					int length = te - 1 - ts - indent;
 					state->marker = (state->spaces < state->marker) ? state->spaces : state->marker;
-					runRecord.type = kprMarkdownParagraphLine | 0x80; // line span
+					runRecord.count = kprMarkdownCountDirective;
+					runRecord.type = kprMarkdownParagraphLine;
 					runRecord.colors = kprMarkdownTextColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1282,15 +1286,29 @@ bail:
 	parser->lineCount = state->line;
 	if (err == kFskErrNone) {
 		KprMarkdownRun blankLineRun = NULL, formerLineRun = NULL, lineRun = NULL;
-		SInt32 lineCount = parser->lineCount, lineIndex;
+		SInt32 blankLineIndex = -1, formerLineIndex = -1, lineCount = parser->lineCount, lineIndex;
 		for (lineIndex = 0; lineIndex < lineCount; lineIndex++) {
 			FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, lineIndex, (void **)&lineRun);
-			if (lineRun->type & 0x80) { // line span flag
-				lineRun->type &= ~0x80; // clear line span flag
+			if (lineRun->count == kprMarkdownCountDirective) {
 				if (flags & kprMarkdownParseAll) {
 					lineRun->index = (SInt32)FskGrowableArrayGetItemCount((FskGrowableArray)parser->runs);
-					bailIfError(KprMarkdownParseInline(parser, str, lineRun->offset + lineRun->u.s.t.offset, lineRun->u.s.t.length, lineRun));
+					bailIfError(KprMarkdownParseInline(parser, str, lineRun->offset + lineRun->u.s.t.offset, lineRun->u.s.t.length, flags, lineIndex, lineRun));
+					if (blankLineIndex >= 0) {
+						FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, blankLineIndex, (void **)&blankLineRun);
+					}
+					else {
+						blankLineRun = NULL;
+					}
+					if (formerLineIndex >= 0) {
+						FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, formerLineIndex, (void **)&formerLineRun);
+					}
+					else {
+						formerLineRun = NULL;
+					}
+					FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, lineIndex, (void **)&lineRun);
 				}
+				else
+					lineRun->count = 0;
 			}
 			if (lineRun->type == kprMarkdownBlankLine) {
 				if (blankLineRun && (blankLineRun->type == kprMarkdownBlankLine)) {
@@ -1302,9 +1320,11 @@ bail:
 						formerLineRun->type = kprMarkdownBlankLine;
 						formerLineRun->shaper = 1; // indented code line -> blank line
 					}
+					blankLineIndex = lineIndex;
 					blankLineRun = lineRun;
 				}
 				else {
+					blankLineIndex = -1;
 					blankLineRun = NULL;
 				}
 				parser->fontStyle = 0;
@@ -1330,8 +1350,10 @@ bail:
 						}
 					}
 				}
+				blankLineIndex = -1;
 				blankLineRun = NULL;
 			}
+			formerLineIndex = lineIndex;
 			formerLineRun = lineRun;
 			n = lineRun->length - 1;
 			if (n > parser->columnCount) {
@@ -1357,7 +1379,7 @@ bail:
 
 #pragma unused (md_inline_en_main)
 
-FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset, SInt32 length, KprMarkdownRun inlineRun)
+FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset, SInt32 length, SInt32 flags, SInt32 inlineIndex, KprMarkdownRun inlineRun)
 {
 	char *p = str + offset, *pe = p + length, *eof = pe, *te, *ts;
 	char *t1, *t2, *v1, *v2;
@@ -1367,8 +1389,96 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 	FskErr err = kFskErrNone;
 	KprMarkdownRunRecord runRecord;
 	KprMarkdownRun run = &runRecord;
+	KprMarkdownStateRecord stateRecord;
+	KprMarkdownState state = &stateRecord;
+	doResetState(parser, str, state, 0xF);
+	doSetStateFlags(parser, str, state, flags);
+	doSetStateOffset(parser, str, state, offset);
 	
 	%%{
+		action attribute {
+			bailIfError(doAttribute(parser, str, state));
+		}
+		
+		action attribute_name {
+			bailIfError(doAttributeName(parser, str, state));
+		}
+		
+		action attribute_value {
+			bailIfError(doAttributeValue(parser, str, state));
+		}
+		
+		action element {
+			// nop
+		}
+		
+		action enter_element {
+			bailIfError(doEnterElement(parser, str, state));
+		}
+		
+		action exit_element {
+			bailIfError(doExitElement(parser, str, state));
+		}
+		
+		action hold {
+			bailIfError(doHold(parser, str, state, fpc, state->line));
+		}
+		
+		action mark {
+			bailIfError(doMark(parser, str, state, fpc));
+		}
+		
+		action process_text {
+			bailIfError(doProcessTextSpecial(parser, str, state, fpc, state->line));
+		}
+		
+		action start_comment {
+			bailIfError(doStartComment(parser, str, state, fpc));
+		}
+		
+		action start_element {
+			bailIfError(doStartElement(parser, str, state, fpc));
+		}
+		
+		action start_text {
+			bailIfError(doStartText(parser, str, state, fpc));
+		}
+		
+		action stop_comment {
+			bailIfError(doStopComment(parser, str, state, fpc));
+		}
+		
+		action stop_element {
+			bailIfError(doStopElement(parser, str, state, fpc));
+		}
+		
+		action stop_text {
+			bailIfError(doStopText(parser, str, state, fpc));
+		}
+		
+		action stop_text_back {
+			bailIfError(doStopText(parser, str, state, fpc - 1));
+		}
+		
+		action use_markup {
+			// nop
+		}
+		
+		attribute_name = ( alpha ( alnum | '-' | '_' | ':' )* ); # minimal name support
+		attribute_value = ( '"' [^"\n\0]* '"' | '\'' [^'\n\0]* '\'' ); # minimal value support (no escape)
+		attribute = ( attribute_name >start_text %stop_text %attribute_name ( '=' attribute_value >start_text %stop_text )? %attribute_value ) %attribute;
+		
+		comment = ( ( '<!--' [^\n\0]* >start_text %stop_text_back :>> '-->' ) >start_comment %stop_comment );
+		
+		element_name_char = ( alnum | '-' | '_' | '.' | ':' );
+		element_name_start_char = ( alpha | '_' );
+		element_name = ( element_name_start_char element_name_char* );
+		element = ( '<' element_name >start_element %stop_element %enter_element ( [ ]+ attribute )* [ ]?
+					( '/>' @exit_element | '>' @element ( ( [<] | [^<]* ) >start_text %stop_text %process_text
+					  '</' element_name >start_element %stop_element [ ]? '>' @exit_element )? ) );
+		
+		# markdown
+		
 		action T1 { t1 = fpc; }
 		action T2 { t2 = fpc; }
 		action V1 { v1 = fpc; }
@@ -1420,9 +1530,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 		
 		image_span = ( '!' link_span );
 		
-		markup_break = ( '<br' [ ]? '/'? '>' >V1 %V2 );
-		
-		markup_style_span = ( '<span' @{ v1 = NULL; } ( [ ]+ 'style=' ( '"' [^"]* >V1 %V2 '"' | '\'' [^']* >V1 %V2 '\'' ) )? '>' ( [<] | [^<]* ) >T1 %T2 '</span>' );
+		markup_span = ( ( ( comment | element ) >mark ) >hold @use_markup );
 		
 		table_column_divider = ( [|] [\t ]* ) >V1 %V2;
 		
@@ -1432,7 +1540,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 		
 			backslash_escape => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownTextSpan; // no span text
+				runRecord.type = kprMarkdownTextSpan;
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1445,7 +1553,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 			
 			code_span => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownCodeSpan; // no span text
+				runRecord.type = kprMarkdownCodeSpan;
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownCodeSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1458,7 +1566,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 			
 			double_dash => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownDoubleDash; // no span text
+				runRecord.type = kprMarkdownDoubleDash;
 				runRecord.colors = kprMarkdownSpanMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1475,7 +1583,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 				t1 = str + offset;
 				t2 = str + offset + length;
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownFontStyle; // no span text
+				runRecord.type = kprMarkdownFontStyle;
 				runRecord.colors = kprMarkdownSpanMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1486,16 +1594,16 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 				if (size == 1) {
 					if (parser->fontStyle & kprMarkdownEmphasis) {
 						if ((matched = (
-										(v1 == t1 || !isspace(*(v1 - 1)))
+										(v1 == t1 || !_IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || isspace(*v2) || ispunct(*v2))
+										(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 						))) parser->fontStyle ^= kprMarkdownEmphasis;
 					}
 					else {
 						if ((matched = (
-										(v1 == t1 || isspace(*(v1 - 1)))
+										(v1 == t1 || _IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || !isspace(*v2))
+										(v2 == t2 || !_IsSpace(*v2))
 						))) parser->fontStyle ^= kprMarkdownEmphasis;
 					}
 				}
@@ -1506,16 +1614,16 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 					else {
 						if (parser->fontStyle & kprMarkdownStrong) {
 							if ((matched = (
-											(v1 == t1 || !isspace(*(v1 - 1)))
+											(v1 == t1 || !_IsSpace(*(v1 - 1)))
 										&&
-											(v2 == t2 || isspace(*v2) || ispunct(*v2))
+											(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 							))) parser->fontStyle ^= kprMarkdownStrong;
 						}
 						else {
 							if ((matched = (
-											(v1 == t1 || isspace(*(v1 - 1)))
+											(v1 == t1 || _IsSpace(*(v1 - 1)))
 										&&
-											(v2 == t2 || !isspace(*v2))
+											(v2 == t2 || !_IsSpace(*v2))
 							))) parser->fontStyle ^= kprMarkdownStrong;
 						}
 					}
@@ -1524,16 +1632,16 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 					int strongEmphasis = kprMarkdownStrong | kprMarkdownEmphasis;
 					if ((parser->fontStyle & strongEmphasis) == strongEmphasis) {
 						if ((matched = (
-										(v1 == t1 || !isspace(*(v1 - 1)))
+										(v1 == t1 || !_IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || isspace(*v2) || ispunct(*v2))
+										(v2 == t2 || _IsSpace(*v2) || _IsPunct(*v2))
 						))) parser->fontStyle &= ~strongEmphasis;
 					}
 					else {
 						if ((matched = (
-										(v1 == t1 || isspace(*(v1 - 1)))
+										(v1 == t1 || _IsSpace(*(v1 - 1)))
 									&&
-										(v2 == t2 || !isspace(*v2))
+										(v2 == t2 || !_IsSpace(*v2))
 						))) parser->fontStyle |= strongEmphasis;
 					}
 				}
@@ -1542,7 +1650,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 					bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				}
 				else if (!_mergeTextSpan(parser, str, offset, ts, te)) {
-					runRecord.type = kprMarkdownTextSpan; // no span text
+					runRecord.type = kprMarkdownTextSpan;
 					runRecord.colors = kprMarkdownTextColor;
 					runRecord.u.s.t.length = runRecord.u.s.v.length;
 					runRecord.u.s.t.offset = runRecord.u.s.v.offset;
@@ -1554,7 +1662,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 			
 			html_entity => { // union special case: u.codepoints
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownHTMLEntity; // no span text
+				runRecord.type = kprMarkdownHTMLEntity;
 				runRecord.colors = kprMarkdownSpanMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1565,7 +1673,8 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 			
 			image_ref_span => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownImageReferenceSpan | 0x80; // span text (not displayed, not searched)
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownImageReferenceSpan; // not displayed, not searched
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1578,7 +1687,8 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 			
 			image_span => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownImageSpan | 0x80; // span text (not displayed, not searched)
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownImageSpan; // not displayed, not searched
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1591,7 +1701,8 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 			
 			link_ref_span => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownLinkReferenceSpan | 0x80; // span text
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownLinkReferenceSpan;
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1604,7 +1715,8 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 			
 			link_span => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownLinkSpan | 0x80; // span text
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownLinkSpan;
 				runRecord.colors = kprMarkdownSpanMarkerColor | kprMarkdownTextSpanColorMix;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1615,41 +1727,22 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 			};
 			
-			markup_break => {
+			markup_span => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownMarkupBreak; // no span text
+				runRecord.count = kprMarkdownCountDirective;
+				runRecord.type = kprMarkdownMarkupSpan;
 				runRecord.colors = kprMarkdownSpanMarkupColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
-				runRecord.u.s.t.length = -1;
-				runRecord.u.s.t.offset = 0;
-				runRecord.u.s.v.length = v2 - v1;
-				runRecord.u.s.v.offset = v1 - str - runRecord.offset;
+				runRecord.shaper = (state->depth == -1) ? 0 : 1;
+				runRecord.u.element = state->stack[0];
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
-			};
-			
-			markup_style_span => {
-				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownMarkupStyleSpan | 0x80; // span text
-				runRecord.colors = kprMarkdownSpanMarkupColor | kprMarkdownTextSpanColorMix;
-				runRecord.length = te - ts;
-				runRecord.offset = ts - str;
-				runRecord.u.s.t.length = t2 - t1;
-				runRecord.u.s.t.offset = t1 - str - runRecord.offset;
-				if (v1) { // style attribute value
-					runRecord.u.s.v.length = v2 - v1;
-					runRecord.u.s.v.offset = v1 - str - runRecord.offset;
-				}
-				else {
-					runRecord.u.s.v.length = -1;
-					runRecord.u.s.v.offset = 0;
-				}
-				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
+				state->stack[0] = NULL;
 			};
 			
 			table_column_divider => {
 				FskMemSet(run, 0, sizeof(runRecord));
-				runRecord.type = kprMarkdownTableColumnDivider; // no span text
+				runRecord.type = kprMarkdownTableColumnDivider;
 				runRecord.colors = kprMarkdownLineMarkerColor;
 				runRecord.length = te - ts;
 				runRecord.offset = ts - str;
@@ -1659,6 +1752,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 				runRecord.u.s.v.offset = v1 - str - runRecord.offset;
 				(void)_mergeTableColumnDivider(parser, str, offset, ts, te, run);
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
+				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, inlineIndex, (void **)&inlineRun);
 				if (inlineRun->type == kprMarkdownParagraphLine) {
 					inlineRun->type = kprMarkdownTableLine; // change table line type
 				}
@@ -1668,13 +1762,14 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 			
 			text_span => {
 				// caution: runs concurrently with other line patterns
+				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
 				if (inlineRun && (length == (te - ts))) {
 					// optimization where text is the span text
 					// there is no need to record any item
 				}
 				else if (!_mergeTextSpan(parser, str, offset, ts, te)) {
 					FskMemSet(run, 0, sizeof(runRecord));
-					runRecord.type = kprMarkdownTextSpan; // no span text
+					runRecord.type = kprMarkdownTextSpan;
 					runRecord.colors = kprMarkdownTextColor;
 					runRecord.length = te - ts;
 					runRecord.offset = ts - str;
@@ -1697,16 +1792,28 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 	}
 bail:
 	if (inlineRun) {
+		FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, inlineIndex, (void **)&inlineRun);
 		inlineRun->count = (SInt32)FskGrowableArrayGetItemCount((FskGrowableArray)parser->runs) - inlineRun->index;
 		if (err == kFskErrNone) {
 			KprMarkdownRun spanRun = NULL;
 			SInt32 count = inlineRun->count, index;
 			for (index = 0; index < count; index++) {
-				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, inlineRun->index + index, (void **)&spanRun);
-				if (spanRun->type & 0x80) { // span text flag
-					spanRun->type &= ~0x80; // clear span text flag
+				SInt32 spanIndex = inlineRun->index + index;
+				FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, spanIndex, (void **)&spanRun);
+				if (spanRun->count == kprMarkdownCountDirective) {
 					spanRun->index = (SInt32)FskGrowableArrayGetItemCount((FskGrowableArray)parser->runs);
-					bailIfError(KprMarkdownParseInline(parser, str, spanRun->offset + spanRun->u.s.t.offset, spanRun->u.s.t.length, spanRun));
+					if (spanRun->type == kprMarkdownMarkupSpan) { // union special case: u.element
+						if (spanRun->u.element && spanRun->u.element->t.length > 0) {
+							bailIfError(KprMarkdownParseInline(parser, str, spanRun->offset + spanRun->u.element->t.offset, spanRun->u.element->t.length, flags, spanIndex, spanRun));
+							FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, spanIndex, (void **)&spanRun);
+						}
+						else
+							spanRun->count = 0;
+					}
+					else {
+						bailIfError(KprMarkdownParseInline(parser, str, spanRun->offset + spanRun->u.s.t.offset, spanRun->u.s.t.length, flags, spanIndex, spanRun));
+						FskGrowableArrayGetPointerToItem((FskGrowableArray)parser->runs, spanIndex, (void **)&spanRun);
+					}
 				}
 			}
 			for (index = 0; index < count; index++) {
@@ -1934,18 +2041,12 @@ FskErr KprMarkdownPrintDebugInfoInline(KprMarkdownParser parser, char *str, KprM
 				fprintf(stdout, "\n");
 				break;
 				
-			case kprMarkdownMarkupBreak:
-				fprintf(stdout, "%d%*d%*d markup_break: ", (int)depth, (int)indent, (int)offset, INDENT, (int)length);
-				fwrite(str + spanRun->offset + spanRun->u.s.v.offset, spanRun->u.s.v.length, 1, stdout);
-				fprintf(stdout, "\n");
-				break;
-				
-			case kprMarkdownMarkupStyleSpan:
-				fprintf(stdout, "%d%*d%*d markup_style_span: ", (int)depth, (int)indent, (int)offset, INDENT, (int)length);
-				fwrite(str + spanRun->offset + spanRun->u.s.t.offset, spanRun->u.s.t.length, 1, stdout);
-				if (spanRun->u.s.v.length > 1) {
+			case kprMarkdownMarkupSpan: // union special case: u.element
+				fprintf(stdout, "%d%*d%*d markup_span[%d]: ", (int)depth, (int)indent, (int)offset, INDENT, (int)length, (int)spanRun->shaper);
+				fwrite(str + spanRun->offset, spanRun->length, 1, stdout);
+				if (spanRun->u.element && spanRun->u.element->t.length > 0) {
 					fprintf(stdout, " | ");
-					fwrite(str + spanRun->offset + spanRun->u.s.v.offset, spanRun->u.s.v.length, 1, stdout);
+					fwrite(str + spanRun->offset + spanRun->u.element->t.offset, spanRun->u.element->t.length, 1, stdout);
 				}
 				fprintf(stdout, "\n");
 				break;
@@ -2073,6 +2174,7 @@ FskErr KprMarkdownWriteHTML(KprMarkdownParser parser, char *str, FILE *stream)
 				break;
 				
 			case kprMarkdownMarkupLine: // union special case: u.element
+				fprintf(stream, "\n");
 				fwrite(str + lineRun->offset, lineRun->length - 1, 1, stream);
 				break;
 				
@@ -2203,20 +2305,8 @@ FskErr KprMarkdownWriteHTMLInline(KprMarkdownParser parser, char *str, FILE *str
 					fprintf(stream, "</a>");
 					break;
 					
-				case kprMarkdownMarkupBreak:
-					fprintf(stream, "<br />");
-					break;
-					
-				case kprMarkdownMarkupStyleSpan:
-					fprintf(stream, "<span");
-					if (spanRun->u.s.v.length > 0) {
-						fprintf(stream, " style=\"");
-						fwrite(str + spanRun->offset + spanRun->u.s.v.offset, spanRun->u.s.v.length, 1, stream);
-						fprintf(stream, "\"");
-					}
-					fprintf(stream, ">");
-					bailIfError(KprMarkdownWriteHTMLInline(parser, str, stream, spanRun));
-					fprintf(stream, "</span>");
+				case kprMarkdownMarkupSpan: // union special case: u.element
+					fwrite(str + spanRun->offset, spanRun->length - 0, 1, stream);
 					break;
 					
 				case kprMarkdownTableColumnDivider:
