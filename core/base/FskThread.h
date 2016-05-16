@@ -202,7 +202,7 @@ typedef Boolean (*FskThreadEventHandlerRoutine)(FskEvent event, void *refCon);
 			UInt32						extensionsTypeCount;
 			void						*extensions;		// FskExtensionType
 
-#if BG3CDP || RASPBERRY_PI || EDISON || BEAGLEBONE
+#if TARGET_OS_KPL
 			FskTimeRecord	lastSleepTime;
 			FskTimeRecord	lastLogTime;
 #endif
