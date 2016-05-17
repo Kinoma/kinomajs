@@ -161,7 +161,6 @@ static FskMediaPropertyEntryRecord gKplScreenProperties[] = {
 void devFBFlip(KplScreen screen) {
 	UInt32 dummy;
 
-MLOG("wait for VSYNC\n");
     if (ioctl(screen->fbfd, FBIO_WAITFORVSYNC, &dummy) < 0) {
         fprintf(stderr, "   devFBFlip - problems with WAITFORVSYNC - %d\n", errno);
     }
@@ -235,7 +234,6 @@ FskErr KplScreenGetBitmap(KplBitmap *bitmap)
 
 		gScreenWidth = screen->vinfo.xres_virtual;
 		gScreenHeight = screen->vinfo.yres;
-fprintf(stderr, "gScreenWidth %d, gScreenHeight %d\n", gScreenWidth, gScreenHeight);
 
 		// @@ Try to run Indigo at 60 FPS
 //		gKplScreen->vSyncInterval = MAX_FRAMERATE_MS;
@@ -819,6 +817,37 @@ done:
 	return err;
 }
 
+void scaleRotatePoint(FskWindow win, SInt32 scale, SInt32 rotate, FskPointAndTicksRecord *pt) {
+	SInt32 v, temp;
+
+	// scale
+	v = pt->pt.x << 16;
+	pt->pt.x = FskFixDiv(v, touchScale) >> 16;
+	v = pt->pt.y << 16;
+	pt->pt.y = FskFixDiv(v, touchScale) >> 16;
+
+	// rotate
+	if (0 != rotate) {
+		FskRectangleRecord bounds;
+		FskPortGetBounds(win->port, &bounds);
+		switch(rotate) {
+			case 90:
+				temp = pt->pt.x;
+				pt->pt.x = pt->pt.y;
+				pt->pt.y = bounds.height - temp;
+				break;
+			case 180:
+				pt->pt.x = bounds.width - pt->pt.x;
+				pt->pt.y = bounds.height - pt->pt.y;
+				break;
+			case 270:
+				temp = pt->pt.x;
+				pt->pt.x = bounds.width - pt->pt.y;
+				pt->pt.y = temp;
+				break;
+		}
+	}
+}
 void motionMovedCB(struct FskTimeCallBackRecord *callback, const FskTime time, void *param) {
 	FskEvent ev = NULL;
     // FskErr err = kFskErrNone;
@@ -828,7 +857,6 @@ void motionMovedCB(struct FskTimeCallBackRecord *callback, const FskTime time, v
 
 	if (gNumPts > 0) {
 		FskTimeAddMS(&mouseTimeR, gPts[gNumPts - 1].ticks);
-ILOG("motionMovedCB - blasting %d points @ time[%d,%d]\n",gNumPts, mouseTimeR.seconds, mouseTimeR.useconds);
 
 		FskEventNew(&ev, kFskEventMouseMoved, &mouseTimeR, kFskEventModifierNone);
 		FskEventParameterAdd(ev, kFskEventParameterMouseLocation, gNumPts * sizeof(FskPointAndTicksRecord), gPts);
@@ -847,10 +875,8 @@ ILOG("motionMovedCB - blasting %d points @ time[%d,%d]\n",gNumPts, mouseTimeR.se
     }
 	else {
         ILOG("no mousedown - stop motionMovedCB\n");
-        // fprintf(stderr, "no mousedown - stop motionMovedCB\n");
 		FskWindowCancelStillDownEvents(win);
 		FskTimeCallbackRemove(touchMovedTimer);
-        // fprintf(stderr, "touchMovedTimer removed\n");
 		touchMovedTimer = NULL;
 	}
 }
@@ -865,9 +891,6 @@ FskErr addAMoved(FskWindow win, int x, int y, UInt32 ms, int pointer) {
 		return kFskErrNone;
 	}
 
-	glastX[pointer] = x;
-	glastY[pointer] = y;
-    
 	gNumPts += 1;
   	err = FskMemPtrRealloc(gNumPts * sizeof(FskPointAndTicksRecord), &gPts);
    	if (err) {
@@ -876,59 +899,14 @@ FskErr addAMoved(FskWindow win, int x, int y, UInt32 ms, int pointer) {
 	}
 	glastX[pointer] = x;
 	glastY[pointer] = y;
-	if (gPts) {
-		gNumPts += 1;
-		err = FskMemPtrRealloc(gNumPts * sizeof(FskPointAndTicksRecord), &gPts);
-		if (err) {
-			gNumPts --;
-			goto bail;
-		}
-	}
-	else {
-		gNumPts = 1;
-		err = FskMemPtrNew(sizeof(FskPointAndTicksRecord), &gPts);
-		if (err) {
-			gNumPts = 0;
-			goto bail;
-		}
-	}
-	
-	// rotation
-	if (0 != rotate) {
-		SInt32 temp;
-		switch(rotate) {
-			case 90:
-				//temp = x;
-				//x = y;
-				//y = temp;
-				x = win->bits->bounds.width - x;
-				y = win->bits->bounds.height - y;
-				break;
-			case 180:
-				//x = win->bits->bounds.width - x;
-				//y = win->bits->bounds.height - y;
-				temp = x;
-				x = win->bits->bounds.width - y;
-				y = temp;
-				break;
-			case 270:
-				//temp = x;
-				//x = win->bits->bounds.width - y;
-				//y = temp;
-				break;
-		}
-	}
-
-	// scale
-	if (win) {
-		x = FskFixDiv(x << 16, touchScale) >> 16;
-		y = FskFixDiv(y << 16, touchScale) >> 16;
-	}
 
    	gPts[gNumPts-1].ticks = ms;
    	gPts[gNumPts-1].pt.x = x;
    	gPts[gNumPts-1].pt.y = y;
    	gPts[gNumPts-1].index = pointer;
+
+	scaleRotatePoint(win, touchScale, rotate, &gPts[gNumPts-1]);
+	
 
 bail:
 	if (gNumPts >= 18) {  //small number for better response
@@ -972,6 +950,7 @@ char *inputTypeString(int code) {
 	EV_SYN
 	
  */
+static int pendingBtnDown = 0;
 static void inputHandler(struct input_event *event, inputDevice dev)
 {
 	FskWindow win = FskWindowGetActive();
@@ -984,11 +963,12 @@ static void inputHandler(struct input_event *event, inputDevice dev)
     UInt32      val; // param;
 	FskEvent ev = NULL;
 	FskPointAndTicksRecord pt;
-	int doBtnTouch = 0;
 	SInt32 rotate;
 
 	if (NULL == win)
 		return;
+
+	touchScale = FskPortScaleGet(win->port);
 
     val = event->value;
     ILOG("inputEvent from %s type: %d (%s) code: %d (x%x) val: %d\n", dev->fullPath, event->type, inputTypeString(event->type), event->code, event->code, event->value);  
@@ -1002,7 +982,7 @@ static void inputHandler(struct input_event *event, inputDevice dev)
 				if (event->code == BTN_TOUCH) {
 					ILOG("BTN_TOUCH: %d\n", val);
 					if (1 == event->value)
-						doBtnTouch = 1;
+						pendingBtnDown = 1;
 					break;
 				}
 
@@ -1034,7 +1014,7 @@ static void inputHandler(struct input_event *event, inputDevice dev)
                 case ABS_MT_TOUCH_MAJOR:
 					ILOG("ABS_MT_TOUCH_MAJOR: %d\n", val);
 					break;
-				case ABS_PRESSURE:
+//				case ABS_PRESSURE:
 				case ABS_MT_PRESSURE:
 					ILOG("ABS_MT_PRESSURE: %d\n", val);
 					break;
@@ -1054,14 +1034,14 @@ static void inputHandler(struct input_event *event, inputDevice dev)
 					}
 					break;
                 case ABS_MT_POSITION_X:
-                case ABS_X:
+//                case ABS_X:
 //					touchPoints[currentPointer].x = val;
 					touchPoints[currentPointer].x = TOUCH_SCALE_X(val);
 					touchPoints[currentPointer].x = PIN(touchPoints[currentPointer].x, 0, gScreenWidth);
 ILOG("ABS_X - touch[%d].x = %d scaled %d\n", currentPointer, val, TOUCH_SCALE_X(val));
                     break;
                 case ABS_MT_POSITION_Y:
-                case ABS_Y:
+//                case ABS_Y:
 					touchPoints[currentPointer].y = TOUCH_SCALE_Y(val);
 					touchPoints[currentPointer].y = PIN(touchPoints[currentPointer].y, 0, gScreenHeight);
 ILOG("ABS_Y - touch[%d].y = %d scaled %d\n", currentPointer, val, TOUCH_SCALE_Y(val));
@@ -1076,6 +1056,12 @@ ILOG("type, code and value all 0 - push MouseMoved\n");
 					FskKplInputPrintfDebug("type, code and value all 0 - push MouseMoved");
 					cod = kFskEventMouseMoved;
 				}
+				else if (pendingBtnDown) {
+ILOG("type, code and value all 0 - and pendingBtnDown - send MouseDown \n");
+					pendingBtnDown = 0;
+					sentMouseDown[currentPointer] = -1;
+					cod = kFskEventMouseDown;
+				}
 				else {
 					cod = kFskEventNone;
 				}
@@ -1083,15 +1069,6 @@ ILOG("type, code and value all 0 - push MouseMoved\n");
         default:
             break;
     }
-
-	if (doBtnTouch) {
-		doBtnTouch = 0;
-		ILOG("doBtnTouch - sentMouseDown[%d] is %d\n", currentPointer, sentMouseDown[currentPointer]);
-		if (!sentMouseDown[currentPointer]) {
-			sentMouseDown[currentPointer] = -1;
-			cod = kFskEventMouseDown;
-		}
-	}
 
     if (cod) {
 		UInt32 ticks;
@@ -1131,7 +1108,6 @@ ILOG(" - kFskEventMouseDown - ptr %d at %d, %d\n", pt.index, pt.pt.x, pt.pt.y);
 			mod = kFskEventModifierMouseButton;
 			clicks = 1;
 			trackMouseDown(currentPointer);
-			// touchScale = FskPortScaleGet(win->port);
 
 			if (!touchMovedTimer) {
 ILOG("touchMovedTimer installed - updateInterval %d\n", win->updateInterval);
@@ -1141,42 +1117,9 @@ ILOG("touchMovedTimer installed - updateInterval %d\n", win->updateInterval);
 			}
 		}
 
-		// rotation
 		rotate = FskWindowRotateGet(win);
-		//if (0 != rotate) {
-			SInt32 temp;
-			switch(rotate) {
-				case 0:
-					temp = pt.pt.x;
-					pt.pt.x = pt.pt.y;
-					pt.pt.y = temp;
-				case 90:
-					//temp = pt.pt.x;
-					//pt.pt.x = pt.pt.y;
-					//pt.pt.y = temp;
-					pt.pt.x = win->bits->bounds.width - pt.pt.x;
-					pt.pt.y = win->bits->bounds.height - pt.pt.y;
-					break;
-				case 180:
-					//pt.pt.x = win->bits->bounds.width - pt.pt.x;
-					//pt.pt.y = win->bits->bounds.height - pt.pt.y;
-					temp = pt.pt.x;
-					pt.pt.x = win->bits->bounds.width - pt.pt.y;
-					pt.pt.y = temp;
-					break;
-				case 270:
-					//temp = pt.pt.x;
-					//pt.pt.x = win->bits->bounds.width - pt.pt.y;
-					//pt.pt.y = temp;
-					break;
-			}
-		//}
+		scaleRotatePoint(win, touchScale, rotate, &pt);
 
-		// scale
-		// v = x << 16;
-		// pt.pt.x = FskFixDiv(v, touchScale) >> 16;
-		// v = y << 16;
-		// pt.pt.y = FskFixDiv(v, touchScale) >> 16;
 
 		FskEventParameterAdd(ev, kFskEventParameterMouseLocation, sizeof(pt), &pt);
 		if (clicks) {
