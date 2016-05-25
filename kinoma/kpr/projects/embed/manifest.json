@@ -192,6 +192,40 @@
 						"kprTouchd":null,
 					},
 				},
+                "linkit7688":{
+                    "build":{
+                        "DEVICE":true,
+                        "DEVICE_HOME":"$(SHELL_HOME)/devices/linkit7688",
+                    },
+                    "environment":{
+                        "KPR_BINARY_NAME":"EmbedShell",
+                        "debugger":"10.0.1.200:5002",
+                        "useGL":"1",
+                    },
+                    "extensions":{
+                        "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+                        "FskPinDigitalMRAA":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalMRAA/FskPinDigitalMRAA.mk",
+                        "FskPinAnalogMRAA":"$(KPR_HOME)/extensions/pins/pins/FskPinAnalogMRAA/FskPinAnalogMRAA.mk",
+                        "FskPinI2CMRAA":"$(KPR_HOME)/extensions/pins/pins/FskPinI2CMRAA/FskPinI2CMRAA.mk",
+                        "FskPinPWMMRAA":"$(KPR_HOME)/extensions/pins/pins/FskPinPWMMRAA/FskPinPWMMRAA.mk",
+                        "FskPinSerialMRAA":"$(KPR_HOME)/extensions/pins/pins/FskPinSerialMRAA/FskPinSerialMRAA.mk",
+
+                        "kinomaaacipp":null,
+                        "kinomaavc":null,
+                        "kinomamp3ipp":null,
+                        "kinomamp4ipp":null,
+                        "kinomaaacdecipp":null,
+                        "kinomaavcdecipp":null,
+                        "kinomamp2decipp":null,
+                        "kinomamp3decipp":null,
+                        "kinomamp4decipp":null,
+                        "kinomapngdecipp":null,
+                        "kinomawmadecipp":null,
+                        "kinomawmvdecipp":null,
+                        "k4validation":null,
+                        "kprTouchd":null,
+                    },
+                },
 				"beaglebone":{
 					"build":{
 						"DEVICE":true,

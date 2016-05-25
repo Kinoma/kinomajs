@@ -70,7 +70,7 @@ C_OPTIONS += \
 <platform name="mac">
 	<source name="kprZeroconfApple.c"/>
 </platform>
-<platform name="linux/pxa1908,linux/bg3cdp,linux/gtk,linux/headless,linux/pi_gl,linux/pi,linux/beaglebone,linux/edison">
+<platform name="linux/pxa1908,linux/linkit7688,linux/bg3cdp,linux/gtk,linux/headless,linux/pi_gl,linux/pi,linux/beaglebone,linux/edison">
 	<cmake name="mDNSResponder" build="$(F_HOME)/libraries/mDNSResponder/CMakeLists.txt" />
 	<input name="$(F_HOME)/libraries/mDNSResponder/mDNSShared/"/>
 	<!--library name="-ldns_sd"/-->
