@@ -155,6 +155,14 @@
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 					},
 				},
+				"pine64":{
+					"build":{
+						"DEVICE":true,
+					},
+					"extensions":{
+						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+					},
+				},
 				"bg3cdp":{
 					"build":{
 						"DEVICE":true,
