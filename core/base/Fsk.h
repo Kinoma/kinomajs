@@ -46,7 +46,7 @@
 		#endif
 	#endif
 #elif defined(__GNUC__)
-	#if defined(__i386__) || defined(i386) || defined(intel) || defined(arm) || defined(__arm__) || defined(__arm64__)
+	#if defined(__i386__) || defined(i386) || defined(intel) || defined(arm) || defined(__arm__) || defined(__arm64__) || defined(__aarch64__)
 		#define TARGET_OS_LINUX	1
 		#define TARGET_RT_LITTLE_ENDIAN 1
 	#elif defined(__ppc__) || defined(powerpc) || defined(ppc)
@@ -175,7 +175,7 @@ typedef FskInt64 FskFileOffset;
 		#define TARGET_CPU_X86	1
 	#elif defined(powerpc) || defined(ppc) || defined(__ppc__) || defined(__POWERPC__) || defined(__ppc64__)
 		#define TARGET_CPU_PPC	1
-	#elif (defined(_ARM_) && _ARM_) || defined(arm) || defined(__arm__) || defined(__ARM__) || defined(__arm64__)
+	#elif (defined(_ARM_) && _ARM_) || defined(arm) || defined(__arm__) || defined(__ARM__) || defined(__arm64__) || defined(__aarch64__)
 		#define TARGET_CPU_ARM	1
 	#elif defined(mips) || defined(_mips)
 		#define TARGET_CPU_MIPS	1
@@ -195,6 +195,10 @@ typedef FskInt64 FskFileOffset;
 #ifndef TARGET_CPU_MIPS
 	#define TARGET_CPU_MIPS	0
 #endif /* TARGET_CPU_MIPS */
+
+#if defined(__aarch64__)
+#define TARGET_CPU_ARM64 1
+#endif
 
 /* special treatment for 64bit architectures */
 #if TARGET_CPU_ARM64
