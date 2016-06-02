@@ -2760,6 +2760,18 @@ void fxModuleNodeCode(void* it, void* param)
 	fxCoderAddByte(param, 1, XS_CODE_SCOPE);
 	fxCoderAddByte(param, -1, XS_CODE_POP);
 	count = 1 + fxScopeCodeSpecifierNodes(self->scope, coder);
+	
+	specifier = self->firstEmptySpecifier;
+	while (specifier) {
+		fxCoderAddByte(coder, 1, XS_CODE_NULL);
+		fxStringNodeCode(specifier->from, coder);
+		fxCoderAddByte(coder, 1, XS_CODE_NULL);
+		fxCoderAddInteger(coder, 1, XS_CODE_INTEGER_1, 3);
+		fxCoderAddByte(coder, -3, XS_CODE_TRANSFER);
+		specifier = specifier->nextSpecifier;
+		count++;
+	}	
+	
 	specifier = coder->firstExportSpecifier;
 	while (specifier) {
 		fxCoderAddByte(coder, 1, XS_CODE_NULL);

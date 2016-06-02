@@ -35,17 +35,18 @@
 <input name="$(F_HOME)/xs6/sources/fsk"/>
 <wrap name="kprCodeSearch.c"/>
 <wrap name="kprCodeService.c"/>
+<wrap name="kprCodeSerial.c"/>
 
 <platform name="linux">
 	<source name="kprCodeLinux.c"/>
 </platform>
 <platform name="mac">
 	<source name="kprCodeMac.m"/>
-	<source name="kprCodeSerial.c"/>
 </platform>
 <platform name="win">
-	<source name="kprCodeWin.c"/>
-	<source name="kprCodeSerial.c"/>
+	<source name="kprCodeWin.cpp"/>
+	<library name="Wlanapi.lib"/>
+	<library name="IPHLPAPI.lib"/>
 </platform>
 
 </makefile>

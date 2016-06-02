@@ -73,6 +73,8 @@ let handlers = {
 		Pins.invoke("getPinMux", pinmux => {
 //			trace(JSON.stringify(pinmux, null, " ") + "\n");
 			let explorer = {};
+			explorer.leftVoltage = pinmux.leftVoltage;
+			explorer.rightVoltage = pinmux.rightVoltage;
 			let leftPins = pinmux.leftPins;
 			for (let pin = 0, c = leftPins.length; pin < c; pin++) {
 				helper.pinExplorerAddPin(explorer, 51 + pin, leftPins[pin], pinmux.leftVoltage);
@@ -87,10 +89,10 @@ let handlers = {
 				if (url)
 					helper.wsResponse(url)
 				else
-					helper.wsErrorResponse(505, "Internal Server Error")
+					helper.wsErrorResponse(500, "Internal Server Error")
 			}, error => {
 				helper.pinsStopSharing();
-				helper.wsErrorResponse(505, "Internal Server Error");
+				helper.wsErrorResponse(500, "Internal Server Error");
 			});
 		});
 	},
@@ -421,7 +423,7 @@ let model = application.behavior = Behavior({
 					handlers[handler](helper, json);
 			}
 			catch (e) {
-				this.helper.wsErrorResponse(505, "Internal Server Error");
+				this.helper.wsErrorResponse(500, "Internal Server Error");
 			}
 		}
 		ws.onclose = function() {

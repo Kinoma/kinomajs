@@ -93,9 +93,10 @@ const onOffSwitchTextSkin = new Skin({ texture:onOffButtonTexture, x:400, y:0, w
 
 class BigOnOffSwitchBehavior extends SwitchButtonBehavior {
 	onCreate(container, data) {
-		var initialValue = 0;					//* read ?
+		var initialValue = data.value;
 		var switchData = this.data = { explorerData:data, sizeInset:18, value:initialValue };
 		super.onCreate(container, switchData);
+		this.onValueChanged(container, initialValue)
 	}
 	onValueChanged(container, value) {
 		super.onValueChanged(container, value);
@@ -187,17 +188,17 @@ const motorLEDSwitchTextSkin = new Skin({ texture:motorLEDButtonTexture, x:200, 
 class MotorLEDSwitchBehavior extends SwitchButtonBehavior {
 	onCreate(container, data) {
 		this.data = data;
+		var selection = this.data.pwmMode;
 		var info = data.info;
-		var selection = info.selection;
 		var pin = info.pin;
-		var switchData = this.data = { explorerData:data, sizeInset:9, value:(selection == "motor") ? 0 : 1, pinNumber:pin };
+		var switchData = this.data = { explorerData:data, sizeInset:9, value:(selection == "motor") ? 1 : 0, pinNumber:pin };
 		SwitchButtonBehavior.prototype.onCreate.call(this, container, switchData);
 	}
 	onValueChanged(container, value) {
 		SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
-		var selection = this.data.explorerData.info.selection;
+		var selection = this.data.explorerData.pwmMode;
 		var toggledSelection = (selection == "motor") ? "led" : "motor";
-		container.container.delegate("setSelection", toggledSelection);		
+		container.container.delegate("setPWMMode", toggledSelection);		
 	}
 };
 
@@ -269,12 +270,10 @@ const digitalOutControlSkins = [
 
 const itemStyle = new Style({ font:SEMIBOLD_FONT, size:20, color:[BLACK, WHITE], horizontal:"left" });
 
-export var gSelectedDigitalOutControlIndex = 0;
-
 const DigitalOutControlTypeMenu = Column.template($ => ({
 	left:0, right:0, top:0, height:(gearSize+pinBorder)*digitalOutControlTitle.length+pinBorder,
 	contents: [
-		digitalOutControlTitle.map((title, index) => new DigitalOutControlItem({index, title, selected:gSelectedDigitalOutControlIndex == index})),
+		digitalOutControlTitle.map((title, index) => new DigitalOutControlItem({index, title, selected:$.data.controlIndex == index})),
 	]
 }));
 
@@ -304,8 +303,8 @@ class DigitalOutControlsButtonBehavior extends LineBehavior {
 		shell.focus();
 	}
 	onSelected(button, data) {
-		if (gSelectedDigitalOutControlIndex != data.index) {
-			gSelectedDigitalOutControlIndex = data.index;
+		if (this.data.controlIndex != data.index) {
+			this.data.controlIndex = data.index;
 			this.data.CONTROL_CONTAINER.delegate("rebuildControl");
 		}
 	}

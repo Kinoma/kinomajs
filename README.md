@@ -534,7 +534,7 @@ The build system uses `linux/beaglebone`, `linux/edison`, or `linux\pi_gl` as th
   $ sudo apt-get install zlib1g:i386 lib32stdc++6
   ```
 3. Install the toolchain and `sysroot`.
-	See the document [Setup for Building for Embedded Devices](https://github.com/Kinoma/kinomajs/blob/master/EmbeddedSetup.md) to set up the cross-compilation environment and libraries for your build target. 
+	See the document [Setup for Building for Embedded Devices](https://github.com/Kinoma/kinomajs/blob/master/doc/EmbeddedSetup.md) to set up the cross-compilation environment and libraries for your build target. 
 4. Get a copy of the KinomaJS source code. It can be downloaded using your web browser from the [KinomaJS repository on GitHub](http://github.org/kinoma/kinomajs) or using the `git` command-line tool, as follows:
   ```
   $ git clone https://github.com/kinoma/kinomajs.git

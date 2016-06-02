@@ -40,7 +40,7 @@ const TYPE_I2C = "I2C"
 const TYPE_SERIAL = "Serial";
 const TYPE_PWM = "PWM";
 
-const HTTP_ERROR_505 = "Internal Server Error";
+const HTTP_ERROR_500 = "Internal Server Error";
 
 let handlers = {
 	blinkLight(helper, query) {
@@ -102,7 +102,7 @@ let handlers = {
 			Wifi.connect(query.config);
 		}
 		else 
-			helper.wsErrorResponse(505, HTTP_ERROR_505);
+			helper.wsErrorResponse(500, HTTP_ERROR_500);
 	},
 	pinExplorerStart(helper, query) {
 		Pins.invoke("getPinMux", pinmux => {
@@ -120,10 +120,10 @@ let handlers = {
 				if (url)
 					helper.wsResponse(url)
 				else
-					helper.wsErrorResponse(505, HTTP_ERROR_505)
+					helper.wsErrorResponse(500, HTTP_ERROR_500)
 			}, error => {
 				helper.pinsStopSharing();
-				helper.wsErrorResponse(505, HTTP_ERROR_505);
+				helper.wsErrorResponse(500, HTTP_ERROR_500);
 			});
 		});
 	},
@@ -137,7 +137,7 @@ let handlers = {
 			if (url)
 				helper.wsResponse(url)
 			else
-				helper.wsErrorResponse(505, HTTP_ERROR_505)
+				helper.wsErrorResponse(500, HTTP_ERROR_500)
 		}
 		else {
 			helper.pinsStopSharing();
@@ -261,7 +261,7 @@ class XSEditHelper {
 				this.send(uuid.get());
 			}
 			catch (e) {
-				this.helper.wsErrorResponse(505, HTTP_ERROR_505);
+				this.helper.wsErrorResponse(500, HTTP_ERROR_500);
 			}
 		}
 		ws.onmessage = function(message) {
@@ -274,7 +274,7 @@ class XSEditHelper {
 					handlers[handler](helper, json);
 			}
 			catch (e) {
-				this.helper.wsErrorResponse(505, HTTP_ERROR_505);
+				this.helper.wsErrorResponse(500, HTTP_ERROR_500);
 			}
 		}
 		ws.onclose = function() {

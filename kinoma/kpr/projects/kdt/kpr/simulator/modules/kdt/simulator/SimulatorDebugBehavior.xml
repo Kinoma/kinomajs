@@ -692,7 +692,7 @@
         
         <method id="doAbout" params="shell, item">
             <![CDATA[
-                shell.alert( "about", "Kinoma Simulator", "Copyright © 2015 Marvell. All rights reserved. Kinoma is a registered trademark of Kinoma, Inc." );
+                shell.alert( "about", "Kinoma Create Simulator", "Copyright © 2016 Marvell. All rights reserved. Kinoma is a registered trademark of Kinoma, Inc." );
             ]]>
         </method>
     </class>

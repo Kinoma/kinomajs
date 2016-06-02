@@ -66,9 +66,11 @@ export default {
 		this.pinsSimulator.delegate("setValue", "value", value);
 	},
 	setDirection(direction) {
+		var saveValue = this.pinsSimulator.delegate("getValue");
 		this.digital.direction = direction;
 		this.close();									// rebuild simulator
 		this.configure();
+		this.pinsSimulator.delegate("setValue", "value", saveValue.value);
 		return direction;
 	},
 	getDirection() {

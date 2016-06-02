@@ -96,6 +96,8 @@
 				"enabled":true,
 			},
 			"environment":{
+				"NAME":"Kinoma_Code",
+				"debugger":"192.168.56.1:5002",
 			},
 			"fonts":{
 				"default": "Fira Sans",
@@ -127,6 +129,26 @@
 		"win":{
 			"environment":{
 				"NAME":"Kinoma_Code",
+ 			},
+			"fonts":{
+				"default": "Fira Sans",
+				"path": "[applicationPath]fonts/"
+			},
+			"resources":{
+				"fonts": [
+					"$(F_HOME)/data/fonts/FiraMono-Regular.ttf",
+					"$(F_HOME)/data/fonts/FiraSans-Bold.ttf",
+					"$(F_HOME)/data/fonts/FiraSans-Regular.ttf",
+				],
+				"simulators": [
+					"$(F_HOME)/bin/win/release/EmbedShell",
+				],
+				"tools": [
+					"$(F_HOME)/xs6/bin/win/release/xsc6.exe",
+					"$(F_HOME)/xs6/bin/win/release/xsr6.exe",
+					"$(F_HOME)/xs6/bin/win/release/modules/tools.dll",
+					"$(F_HOME)/xs6/bin/win/release/modules/tools.xsa",
+				],
 			},
 		},
 	},

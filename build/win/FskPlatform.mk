@@ -51,7 +51,6 @@
 	<c option="/DWIN32"/>
 	<c option="/DFSK_WINDOWS_DEFAULT_WINDOW_ICON_ID=IDI_ICON1"/>
 
-	<library name="/incremental"/>
 	<library name="/machine:I386"/>
 	<library name="/nologo"/>
 	<library name="/subsystem:windows"/>
@@ -68,10 +67,12 @@
 		<c option="/MTd"/>
 		<c option="/Od"/>
 		<c option="/RTC1"/>
-		<c option="/ZI"/>
+		<c option="/Zi"/>
+		<c option="/Fd$(TMP_DIR)\fsk.pdb"/>
 	
 		<library name="/debug"/>
-		<library name="/pdb:$(TMP_DIR)\$(APP).pdb"/>
+		<library name="/incremental"/>
+		<library name="/pdb:$(TMP_DIR)\fsk.pdb"/>
 		<library name="/nodefaultlib:msvcrtd"/>
 	</version>
 
@@ -81,6 +82,7 @@
 		<c option="/O2"/>
 		<c option="/MT"/>
 	
+		<library name="/LTCG"/>
 		<library name="/nodefaultlib:msvcrt"/>
 	</version>
 </makefile>

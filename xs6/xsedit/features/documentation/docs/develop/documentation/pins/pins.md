@@ -271,9 +271,17 @@ I2C -> I<sup>2</sup>C Samples
 
 ### PWM
 
-<pre><code>{<span class="bll-defined">type</span>: "PWM", <span class="app-defined">pin</span>: 4};</code></pre>
+<pre><code>{<span class="bll-defined">type</span>: "PWM", <span class="app-defined">pin</span>: 54};</code></pre>
 
-`pwm.write(value)` -- Sets the PWM frequency to the floating-point value provided (between 0 and 1.0)
+	
+`pwm.write(value[, period])` -- Without *period*, sets the duty cycle to *value* (a floating-point value between 0 and 1.0). 
+
+When the *period* argument is specified, sets the PWM output pulse width to *value* and the period (cycle duration, or 1/*frequency*) to *period*. Pulse width and period are specified in milliseconds. Pulse width and period can also be specified as an array, for example `pwm.write([width, period])`
+
+Kinoma Create front panel PWMs default to a period of 20ms (50Hz) when a single duty cycle parameter is passed. Specified pulse widths are rounded to multiples of 128µs.  The maximum period is 32.64ms (30.64Hz).
+
+Kinoma Create rear header PWMs only support parameters specifying duty cycle. The PWM frequency of the rear header PWMs is fixed at 12.7KHz (78770ns/cycle) and specified pulse widths are rounded to 1023 multiples of 77ns).
+
 
 ### Serial
 
@@ -300,29 +308,29 @@ I2C -> I<sup>2</sup>C Samples
 
 <pre><code>{<span class="bll-defined">type</span>: "I2C", <span class="app-defined">sda</span>: 27, <span class="app-defined">clock</span>: 29, <span class="bll-defined">address</span>: 0x36};</code></pre>
 
-> **Note:** The `address` property is the I<sup>2</sup>C slave address.
+> **Note:** The `address` property is the I<sup>2</sup>C slave address.  The data sheet for some I²C devices specifies different slave addresses for read and write, differing only in the least significant bit. If this is the case, use the most significant 7 bits for the slave address here.
 
-`i2c.readByte()` -- Reads one byte (Linux: `read`)
+`i2c.readByte()` -- Reads one byte <!--(Linux: `read`)-->
 
-`i2c.readBlock(count, format)` -- Reads the number of bytes specified by `count`. Pass `Chunk` for the `format` parameter to return the data in a chunk, or `Array` to return an array of integer character codes between 0 and 255. (Linux: `read`)
+`i2c.readBlock(count, format)` -- Reads the number of bytes specified by `count`. Pass `Chunk` for the `format` parameter to return the data in a chunk, or `Array` to return an array of integer character codes between 0 and 255. <!--(Linux: `read`)-->
 
-`i2c.readByteDataSMB(register)` -- Reads one byte from the specified register (Linux: `i2c_smbus_read_byte_data`)
+`i2c.readByteDataSMB(register)` -- Reads one byte from the specified register <!--(Linux: `i2c_smbus_read_byte_data`)-->
 
-`i2c.readWordDataSMB(register)` -- Reads two bytes from the specified register (Linux: `i2c_smbus_read_word_data`)
+`i2c.readWordDataSMB(register)` -- Reads two bytes from the specified register <!--(Linux: `i2c_smbus_read_word_data`)-->
 
-`i2c.readBlockDataSMB(register, count, format)` -- Reads `count` bytes starting at the specified register. Pass `Chunk` for the `format` parameter to return the data in a chunk, or `Array` to return an array of integer character codes between 0 and 255. (Linux: `i2c_smbus_read_i2c_block_data`)
+`i2c.readBlockDataSMB(register, count, format)` -- Reads `count` bytes starting at the specified register. Pass `Chunk` for the `format` parameter to return the data in a chunk, or `Array` to return an array of integer character codes between 0 and 255. <!--(Linux: `i2c_smbus_read_i2c_block_data`)-->
 
-`i2c.writeByte(value)` -- Writes one byte (Linux: `write`)
+`i2c.writeByte(value)` -- Writes one byte <!--(Linux: `write`)-->
 
-`i2c.writeBlock(value, ...)` -- Writes the values provided. The value(s) are treated in the same way as by `serial.write`. (Linux: `write`)
+`i2c.writeBlock(value, ...)` -- Writes the values provided. The value(s) are treated in the same way as by `serial.write`. <!--(Linux: `write`)-->
 
-`i2c.writeByteDataSMB(register, value)` -- Writes one byte to the specified register (Linux: `i2c_smbus_write_byte_data`)
+`i2c.writeByteDataSMB(register, value)` -- Writes one byte to the specified register <!--(Linux: `i2c_smbus_write_byte_data`)-->
 
-`i2c.writeWordDataSMB(register, value)` -- Writes two bytes to specified register (Linux: `i2c_smbus_write_word_data`)
+`i2c.writeWordDataSMB(register, value)` -- Writes two bytes to specified register <!--(Linux: `i2c_smbus_write_word_data`)-->
 
-`i2c.writeBlockDataSMB(register, value, ...)` -- Writes up to 32 bytes starting at the specified register. The value(s) are treated in the same way as by `serial.write`. (Linux: `i2c_smbus_write_i2c_block_data)`
+`i2c.writeBlockDataSMB(register, value, ...)` -- Writes up to 32 bytes starting at the specified register. The value(s) are treated in the same way as by `serial.write`. <!--(Linux: `i2c_smbus_write_i2c_block_data)`-->
 
-`i2c.writeQuickSMB(value)` -- Sends the low bit of `value` using the I<sup>2</sup>C `write_quick` command (Linux: `i2c_smbus_write_quick`)
+`i2c.writeQuickSMB(value)` -- Sends the low bit of `value` using the I<sup>2</sup>C `write_quick` command <!--(Linux: `i2c_smbus_write_quick`)-->
 
 `i2c.processCallSMB(register, value)` -- Writes two bytes to the specified register and, after the write completes, reads two bytes and returns the resulting data word
 

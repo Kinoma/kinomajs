@@ -1,0 +1,36 @@
+Portable crypt modules for xs6.
+
+See crypt.js and arith.js for APIs. It is recommended to use only those two objects, like:
+
+    new Crypt.SHA1()
+
+instead of
+
+    import SHA1 from "crypt/sha1";
+    new SHA1();
+
+=== Install ===
+The modules use only three standard include files:
+- <stdint.h>	-- for unit32_t, etc.
+- <stddef.h>	-- only for size_t
+- <string.h>	-- strlen, etc.
+
+Besides above, those modules need three C functions defined in "crypt.h":
+- void *crypt_malloc(size_t sz)
+- void crypt_free(void *p)
+- void crypt_rng(void *buf, size_t sz)
+
+It is a user's responsibility to implement those functions. crypt_rng
+is expected to return cryptographic secure random data. (Don't even
+think to use random() or rand().)
+
+No other APIs or definisions are necessary.
+
+=== How to make ===
+makefile expects $(TMP_DIR) and $(DEST_DIR) are exported. The target
+"archive" creates only .o files in $(TMP_DIR)/crypt and .xsb files
+$(DEST_DIR)/crypt and $(DEST_DIR)/arith.
+The "all" target creates .so files besides those .xsb files.
+$(C_OPTIONS) and $(MOD_LINK_OPTIONS) have to be set appropriately depending on platforms.
+$(XSC_OPTIONS) has to include -e for archive.
+$(XS6_TOOL_DIR)/xsc6 is the xs compiler.

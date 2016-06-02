@@ -673,7 +673,7 @@ void KprTextDraw(void* it, FskPort port, FskRectangle area)
 void KprTextFitHorizontally(void* it) 
 {
 	KprText self = it;
-	SInt32 height;
+	SInt32 height = 0;
 	KprContentFitHorizontally(it);
 	if (self->textWidth == self->bounds.width) {
 		height = self->textHeight;
@@ -1260,7 +1260,7 @@ FskErr KprTextFormat(KprText self, SInt32 theWidth, SInt32* theHeight)
 					bounds->x = 0;
 					bounds->y = lineBounds.y;
 					KprTextFormatLine(self, text, style, true, &startOffset, offset, &startRun, run, &lineBounds, blockX, blockWidth);
-					startOffset = stopOffset = firstOffset = offset + advance;
+					startOffset = stopOffset = firstOffset = offset;
 					breakWidth = 0;
 					textWidth = 0;
 					startRun = stopRun = run;

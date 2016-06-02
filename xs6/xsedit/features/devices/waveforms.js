@@ -16,7 +16,9 @@
  */
 import {
 	BLACK,
+	BOLD_FONT,
 	SEMIBOLD_FONT,
+	NORMAL_FONT,
 	WHITE,
 } from "shell/assets";
 
@@ -152,7 +154,7 @@ var AnalogWaveformControl = Container.template($ => ({
 				Column($, {
 					contents: [
 						HertzSliderLabel($, {}),
-						HertzSlider($, {})
+						HertzSlider({parentData:$}, {})
 					]
 				})
 			]
@@ -165,7 +167,7 @@ var DigitalWaveformControl = Column.template($ => ({
 	Behavior: WaveformControlBehavior,
 	contents: [
 		HertzSliderLabel($, {}),
-		HertzSlider($, {}),
+		HertzSlider({parentData:$}, {}),
 	],
 }));
 
@@ -483,6 +485,9 @@ class SliderBehavior extends Behavior {
 	getValue(container) {
 		return this.data.value;
 	}
+	getFractionalValue(container) {
+		return this.getValue(container) / (this.getMax(container) - this.getMin(container));
+	}
 	onAdapt(container) {
 		this.onLayoutChanged(container);
 	}
@@ -518,7 +523,7 @@ class SliderBehavior extends Behavior {
 	}
 }
 
-class CanvasSliderBehavior extends SliderBehavior {
+export class CanvasSliderBehavior extends SliderBehavior {
 	onDisplaying(canvas) {
 		this.thumbTouchBeganXOffset = 0;
 		this.knobHeight = canvas.height;
@@ -599,57 +604,20 @@ class CanvasSliderBehavior extends SliderBehavior {
 		roundRect(ctx, b.x, b.y, b.width, b.height, 4, true, true);
 	}
 }
-    
-class AnalogOutputSliderBehavior extends CanvasSliderBehavior {
-	onCreate(canvas, data) {
-		if (false == "min" in data)	data.min = 0;
-		if (false == "max" in data) data.max = 1;
-		if (false == "value" in data) data.value = 0;
-		CanvasSliderBehavior.prototype.onCreate.call(this, canvas, data);
-		this.data = data;
-		this.pinNumber = data.pinNumber;
-	}
-	assertValue(canvas) {
-		var value = this.data.value;
-		this.data.write(value);
-	}
-}
 
-class PWMSliderBehavior extends AnalogOutputSliderBehavior {
-	onCreate(canvas, data) {
-		AnalogOutputSliderBehavior.prototype.onCreate.call(this, canvas, data);
-		data.deleteWaveGenerator();
-	}
-	onDisplaying(canvas) {
-		AnalogOutputSliderBehavior.prototype.onDisplaying.call(this, canvas);
-		canvas.start();
-	}
-	onTimeChanged(canvas) {
-		this.assertValue(canvas);
-	}
-}
-
-export var PWMSlider = Container.template($ => ({
-	contents: [
-		Canvas($, { left:0, top:0, right:0, bottom:0, active:true, Behavior:PWMSliderBehavior })
-	],
-}));
-   
-var gHertzValue = 0.5;
- 
 class HertzSliderBehavior extends CanvasSliderBehavior {
 	onCreate(canvas, data) {
 		this.data = data;
 		data.min = 0;
 		data.max = 1;
-		data.value = gHertzValue;
+		data.value = data.parentData.hertzValue;
 		super.onCreate(canvas, data);
 	}
 	onValueChanged(canvas) {
 		super.onValueChanged(canvas);
 		let value = this.data.value;
-		gHertzValue = value;
-		this.data.WAVEFORM_CONTROL.delegate("onHertzFractionChanged", value);	
+		this.data.parentData.hertzValue = value;
+		this.data.parentData.WAVEFORM_CONTROL.delegate("onHertzFractionChanged", value);	
 	}
 }
 
@@ -671,110 +639,7 @@ const HertzSliderLabel = Label.template($ => ({
 }));
 
 
-class PWMPeriodSliderBehavior extends CanvasSliderBehavior {
-	onCreate(canvas, data) {
-		this.data = data;
-		var sliderData = { min: 1, max: 30, value: 30, parentData: data };
-		CanvasSliderBehavior.prototype.onCreate.call(this, canvas, sliderData);
-	}
-	onDisplaying(canvas) {
-		var parentData = this.data.parentData;
-
-		var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
-		var period = pinHandler.getPeriod();
-		if (period == undefined)
-			period = this.data.value;
-
-		canvas.delegate("setValue", period);
-
-		CanvasSliderBehavior.prototype.onDisplaying.call(this, canvas);		// calls onValueChanged()
-	}
-	onValueChanged(canvas) {
-		this.data.value = Math.round(this.data.value);
-		CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
-
-		var parentData = this.data.parentData;
-		parentData.periodValueLabel.string = this.data.value.toString();
-
-		var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
-		pinHandler.setPeriod(this.data.value);
-
-		parentData.dutyCycleSlider.first.delegate("onPeriodChanged", this.data.value);
-	}
-}
-
-var PWMPeriodSlider = Container.template($ => ({
-	left:0, top:0, width:240, height:40,
-	contents: [
-		Canvas($, { left:0, top:0, right:0, bottom:0, active:true, Behavior:PWMPeriodSliderBehavior })
-	],
-}));
-
-class PWMDutyCycleSliderBehavior extends CanvasSliderBehavior {
-
-	onCreate(canvas, data) {
-		this.data = data;
-		this.afterOnDisplaying = false;
-		var sliderData = { min: 0, max: 30, value: 15, parentData: data };
-		CanvasSliderBehavior.prototype.onCreate.call(this, canvas, sliderData);
-	}
-	onPeriodChanged(canvas, period) {
-		this.data.max = period;
-
-		var parentData = this.data.parentData;
-		if (this.data.value > period) {
-			var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
-			pinHandler.setDutyCycle(period);
-
-			canvas.delegate("setValue", period);
-		}
-
-		if (this.afterOnDisplaying)
-			canvas.delegate("onValueChanged");
-
-		parentData.dutyCycleMaxLabel.string = period;
-
-		var parentData = this.data.parentData;
-		var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
-
-		var dutyCycle = pinHandler.getDutyCycle();
-		if (dutyCycle != undefined)
-			pinHandler.writeDutyCyclePeriod( dutyCycle, period );
-	}
-	onDisplaying(canvas) {
-		var parentData = this.data.parentData;
-
-		var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
-		var dutyCycle = pinHandler.getDutyCycle();
-		if (dutyCycle == undefined)
-			dutyCycle = this.data.value;
-
-		canvas.delegate("setValue", dutyCycle);
-
-		CanvasSliderBehavior.prototype.onDisplaying.call(this, canvas);
-
-		this.afterOnDisplaying = true;
-	}
-	onValueChanged(canvas) {
-		//this.data.value = Math.round(this.data.value);
-		CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
-
-		var parentData = this.data.parentData;
-		parentData.dutyCycleValueLabel.string = (Math.round(this.data.value * 100) / 100).toFixed(2).toString();
-
-		var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
-		pinHandler.setDutyCycle(this.data.value);
-
-		var dutyCycle = this.data.value;
-		var period = pinHandler.getPeriod();
-		pinHandler.writeDutyCyclePeriod( dutyCycle, period );
-	}
-}
-
-var PWMDutyCycleSlider = Container.template($ => ({
-	left:0, top:0, width:240, height:40,
-	contents: [
-		Canvas($, { left:0, top:0, right:0, bottom:0, active:true, Behavior:PWMDutyCycleSliderBehavior })
-	],
-}));
+		
+		
+		
 

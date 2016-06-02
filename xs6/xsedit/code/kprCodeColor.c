@@ -74,7 +74,7 @@ FskErr KprCodeParserBegin(KprCode self, KprCodeParser* parser)
 	FskErr err = kFskErrNone;
 	FskGrowableArrayDispose(self->runs);
 	self->runs = NULL;
-	bailIfError(FskGrowableArrayNew(sizeof(KprCodeRunRecord), sizeof(KprCodeRunRecord) * 1024, &(self->runs)));
+	bailIfError(FskGrowableArrayNew(sizeof(KprCodeRunRecord), 1024, &(self->runs)));
 	parser->runs = self->runs;
 	parser->columnCount = 0;
 	parser->columnIndex = -1;

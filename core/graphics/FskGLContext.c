@@ -92,7 +92,12 @@
 FskInstrumentedSimpleType(GLContext, glcontext);												/**< This declares the types needed for instrumentation. */
 
 #if GLCONTEXT_DEBUG
+#if 0//TARGET_OS_ANDROID
+	#include <android/log.h>
+	#define LOGD(...) ((void)__android_log_print(ANDROID_LOG_DEBUG, "glcontext", __VA_ARGS__))
+#else
 	#define	LOGD(...)	FskGLContextPrintfDebug(__VA_ARGS__)									/**< Print debugging logs. */
+#endif
 	#define	LOGI(...)	FskGLContextPrintfVerbose(__VA_ARGS__)									/**< Print information logs. */
 #endif	/* GLCONTEXT_DEBUG */
 #define		LOGE(...)	FskGLContextPrintfMinimal(__VA_ARGS__)									/**< Print error logs always, when instrumentation is on. */
@@ -235,6 +240,9 @@ FskErr FskGLWindowContextNew(void *nativeWindow, FskBitmapFormatEnum pixelFormat
 			err = kFskErrEGLBadContext;
 		BAIL(err);
 	}
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLWindowContextNew");
+	#endif /* LOG_ALL */
 
 bail:
 	if (err) { FskGLContextDispose(*pCtx, false); *pCtx = NULL; }
@@ -298,6 +306,9 @@ FskErr FskGLOffscreenContextNew(UInt32 width, UInt32 height, FskBitmapFormatEnum
 			err = kFskErrEGLBadContext;
 		BAIL(err);
 	}
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLOffscreenContextNew");
+	#endif /* LOG_ALL */
 
 bail:
 	if (err) {	FskGLContextDispose(*pCtx, false); *pCtx = NULL; }
@@ -326,6 +337,9 @@ FskErr FskGLContextNewFromEGL(void* display, void* surface, void* context, FskGL
 	(**pCtx).display = display;
 	(**pCtx).surface = surface;
 	(**pCtx).context = context;
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLContextNewFromEGL");
+	#endif /* LOG_ALL */
 
 bail:
 	return err;
@@ -352,6 +366,9 @@ FskErr FskGLContextNewFromCurrentContext(FskGLContext *pCtx) {
 	BAIL_IF_FALSE(EGL_NO_SURFACE != surface, err, kFskErrEGLCurrentSurface);						/* Validate that we have a current surface */
 
 	err = FskGLContextNewFromEGL(display, surface, context, pCtx);									/* We validate the display and context here */
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLContextNewFromCurrentContext");
+	#endif /* LOG_ALL */
 
 bail:
 	return err;
@@ -400,11 +417,15 @@ void FskGLContextDispose(FskGLContext ctx, Boolean terminateGL) {
 
 	if (ctx) {
 		if (ctx->display) {
+			if (ctx->context == eglGetCurrentContext() || ctx->surface == eglGetCurrentSurface(EGL_DRAW) || ctx->surface == eglGetCurrentSurface(EGL_READ)) {
+				eglMakeCurrent(ctx->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);	/* Cannot destroy a current context or surface */
+				(void)eglGetError();
+			}
 			if (ctx->context)	eglDestroyContext(ctx->display, ctx->context);
 			if (ctx->surface)	eglDestroySurface(ctx->display, ctx->surface);
+			if (terminateGL)
+				eglTerminate(ctx->display);
 		}
-		if (terminateGL)
-			eglTerminate(ctx->display);
 		FskMemPtrDispose(ctx);
 	}
 }
@@ -600,6 +621,9 @@ FskErr FskGLOffscreenContextNew(UInt32 width, UInt32 height, FskBitmapFormatEnum
 	}
 
 	/* err =*/ FskErrorFromGLError(glGetError());
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLOffscreenContextNew");
+	#endif /* LOG_ALL */
 
 bail:
 	CGLSetCurrentContext(saveContext);
@@ -651,6 +675,9 @@ FskErr FskGLContextNewFromCGLContext(CGLContextObj context, FskGLContext *pCtx) 
 
 	glGetError();
 	//BAIL_IF_ERR(err = FskErrorFromGLError(glGetError()));								/* See if there were any GL errors */
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLContextNewFromCGLContext");
+	#endif /* LOG_ALL */
 
 bail:
 	if (saveContext)	CGLSetCurrentContext(saveContext);
@@ -675,6 +702,9 @@ FskErr FskGLContextNewFromCurrentContext(FskGLContext *pCtx) {
 	BAIL_IF_NULL(context, err, kFskErrCGLBadContext);
 
 	err = FskGLContextNewFromCGLContext(context, pCtx);
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLContextNewFromCurrentContext");
+	#endif /* LOG_ALL */
 
 bail:
 	return err;
@@ -865,6 +895,9 @@ FskErr FskGLOffscreenContextNew(UInt32 width, UInt32 height, FskBitmapFormatEnum
 	}
 
 	err = FskErrorFromGLError(glGetError());
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLOffscreenContextNew");
+	#endif /* LOG_ALL */
 
 bail:
 	FskEAGLContextSetCurrent(saveContext);
@@ -912,6 +945,9 @@ FskErr FskGLContextNewFromEAGLContext(EAGLContext *context, FskGLContext *pCtx) 
 	ctx->fbTexture = num;
 
 	glGetError();																		/* Clear any GL errors */
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLContextNewFromEAGLContext");
+	#endif /* LOG_ALL */
 
 bail:
 	if (err) { FskGLContextDispose(*pCtx, false); *pCtx = NULL; }
@@ -933,6 +969,9 @@ FskErr FskGLContextNewFromCurrentContext(FskGLContext *pCtx) {
 	BAIL_IF_NULL(context = FskEAGLContextGetCurrent(), err, kFskErrCGLBadContext);
 
 	err = FskGLContextNewFromEAGLContext(context, pCtx);
+	#ifdef LOG_ALL
+		LogFskGLContext(*pCtx, "FskGLContextNewFromCurrentContext");
+	#endif /* LOG_ALL */
 
 bail:
 	return err;

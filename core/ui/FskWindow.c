@@ -16,7 +16,7 @@
  */
 #define __FSKTHREAD_PRIV__
 
-#define _WIN32_WINNT 0x0400
+#define _WIN32_WINNT 0x0600
 
 #define __FSKWINDOW_PRIV__
 #define __FSKPORT_PRIV__
@@ -222,7 +222,7 @@ FskErr FskWindowNew(FskWindow *windowOut, UInt32 width, UInt32 height, UInt32 wi
 		wc.cbWndExtra = 0;
 		wc.hInstance = hInst;
 #if FSK_WINDOWS_DEFAULT_WINDOW_ICON_ID
-		wc.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(FSK_WINDOWS_DEFAULT_WINDOW_ICON_ID));
+		wc.hIcon = LoadIcon(hInst, MAKEINTRESOURCE(100));
 #else /* !FSK_WINDOWS_DEFAULT_WINDOW_ICON_ID */
 		wc.hIcon = NULL;
 #endif /* !FSK_WINDOWS_DEFAULT_WINDOW_ICON_ID */
@@ -1728,6 +1728,11 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 #endif /* SUPPORT_INSTRUMENTATION */
 
 	switch (msg) {
+		case WM_ACTIVATE:
+			if (kFskErrNone == FskEventNew(&fskEvent, wParam ? kFskEventWindowActivated : kFskEventWindowDeactivated, NULL, kFskEventModifierNotSet))
+				FskWindowEventSend(win, fskEvent);
+			return 0;
+		
 		case WM_NCACTIVATE:
 			if (0 == wParam)
 				FskECMAScriptHibernate();
@@ -1986,17 +1991,30 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 			}
 			break;
 
-		case WM_MOUSEWHEEL: {
+		case WM_MOUSEHWHEEL: {
 			INT delta = GET_WHEEL_DELTA_WPARAM(wParam);
-			float deltaF = (float)delta / (float)WHEEL_DELTA;
-
+			float deltaX = (float)delta;
+			float deltaY = 0;
 			if (kFskErrNone == FskEventNew(&fskEvent, kFskEventMouseWheel, NULL, kFskEventModifierNotSet)) {
-				FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDelta, sizeof(deltaF), &deltaF);
+				FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaX, sizeof(deltaX), &deltaX);
+				FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaY, sizeof(deltaY), &deltaY);
 				doOrQueue(win, fskEvent);
 				checkUpdate = true;
 			}
+		}
+		break;
+		case WM_MOUSEWHEEL: {
+			INT delta = GET_WHEEL_DELTA_WPARAM(wParam);
+			float deltaX = 0;
+			float deltaY = (float)delta;
+			if (kFskErrNone == FskEventNew(&fskEvent, kFskEventMouseWheel, NULL, kFskEventModifierNotSet)) {
+				FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaX, sizeof(deltaX), &deltaX);
+				FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaY, sizeof(deltaY), &deltaY);
+				doOrQueue(win, fskEvent);
+				checkUpdate = true;
 			}
-			break;
+		}
+		break;
 
 		case WM_KEYDOWN:
 		case WM_KEYUP:

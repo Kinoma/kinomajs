@@ -66,6 +66,7 @@
 	<library name="-lpthread"/>
 	<library name="-lresolv"/>
 	
+	<c option="-DTARGET_RT_ALSA=1"/>
 	<c option="-DBAD_FTRUNCATE=1"/>
 	<c option="-DCLOSED_SSL=1"/>
 	<c option="-DFSK_APPLICATION_$(FSK_APPLICATION)=1"/>

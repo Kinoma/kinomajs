@@ -195,3 +195,23 @@ xs_file_setLength(xsMachine *the)
 	if (mc_ftruncate(fp, length) != 0)
 		mc_xs_throw(the, "ftruncate failed");
 }
+
+void
+xs_file_map_destructor(void *data)
+{
+	/* nothing to do */
+}
+
+void
+xs_file_map_constructor(xsMachine *the)
+{
+	size_t sz;
+	const void *data;
+
+	if ((data = mc_mmap(xsToString(xsArg(0)), &sz)) == NULL)
+		mc_xs_throw(the, "mmap");
+	xsVars(1);
+	xsSetHostData(xsThis, (void *)data);
+	xsSetInteger(xsVar(0), sz);
+	xsSet(xsThis, xsID("byteLength"), xsVar(0));
+}

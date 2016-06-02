@@ -223,13 +223,14 @@ export var PathLayout = Layout.template($ => ({
 			left:0, style:pathSpanStyle, active:true,
 			Behavior: class extends Behavior {
 				onCreate(text, data) {
+					let separator = (system.platform == "win") ? "\\" : "/";
 					let path = Files.toPath(data.url);
-					let items = path.split("/");
+					let items = path.split(separator);
 					let url = "file://";
 					let name = items.pop();
 					items = items.map(string => {
-						string += "/";
-						url += string;
+						url += string + "/";
+						string += separator;
 						let behavior = new PathSpanBehavior(url);
 						return { behavior, string };
 					});

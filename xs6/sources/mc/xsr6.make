@@ -38,7 +38,7 @@ include $(SDK_PATH)/.config
 
 PROGRAM = xsr6_mc
 
-C_OPTIONS = -I$(XS6_MC_DIR) -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/pcre -I$(XS6_SRC_DIR)/mc -I$(XS6_MC_DIR)/extensions/crypt -DmxRun=1 -DmxMC=1 -DmxNoFunctionLength -DmxNoFunctionName -DWMSDK_VERSION=$(WMSDK_VERSION) -DXIP=$(XIP) -DXS_ARCHIVE=$(XS_ARCHIVE)
+C_OPTIONS = -I$(XS6_MC_DIR) -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/pcre -I$(XS6_SRC_DIR)/mc -I$(XS6)/extensions/crypt -DmxRun=1 -DmxMC=1 -DmxNoFunctionLength -DmxNoFunctionName -DWMSDK_VERSION=$(WMSDK_VERSION) -DXIP=$(XIP) -DXS_ARCHIVE=$(XS_ARCHIVE)
 AS_OPTIONS = -I $(XS6_MC_DIR)
 
 ifeq ($(XS_ARCHIVE), 1)

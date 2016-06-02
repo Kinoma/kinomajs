@@ -21,3 +21,19 @@ void KPR_gotoFront(xsMachine *the)
 {
 	[[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];
 }
+
+void KPR_Files_toPath(xsMachine *the)
+{
+	char* path;
+	xsThrowIfFskErr(KprURLToPath(xsToString(xsArg(0)), &path));
+	xsResult = xsString(path);
+	FskMemPtrDispose(path);
+}
+
+void KPR_Files_toURI(xsMachine *the)
+{
+	char* url;
+	xsThrowIfFskErr(KprPathToURL(xsToString(xsArg(0)), &url));
+	xsResult = xsString(url);
+	FskMemPtrDispose(url);
+}

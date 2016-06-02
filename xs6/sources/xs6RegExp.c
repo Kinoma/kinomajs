@@ -15,6 +15,7 @@
  *     limitations under the License.
  */
 #include "xs6All.h"
+#define STATIC
 #include "xs_pcre.h"
 
 #define mxOffsetCount 30

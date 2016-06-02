@@ -14,6 +14,7 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+#define PCRE_STATIC
 #include "pcre.h"
 #define __FSKPORT_PRIV__
 #include "FskText.h"
@@ -275,7 +276,7 @@ FskErr KprCodeSearch(KprCode self, UInt32 size)
 		capture *= 3;
 		itemCount = 0;
 		itemSize = sizeof(KprCodeResultRecord) + (capture * sizeof(int));
-		bailIfError(FskGrowableArrayNew(itemSize, itemSize, &(self->results)));
+		bailIfError(FskGrowableArrayNew(itemSize, 1, &(self->results)));
 		for (;;) {
 			FskGrowableArraySetItemCount(self->results, itemCount + 1);
 			FskGrowableArrayGetPointerToItem(self->results, itemCount, (void **)&result);
@@ -295,7 +296,7 @@ FskErr KprCodeSearch(KprCode self, UInt32 size)
 		}
 	}
 	else {
-		bailIfError(FskGrowableArrayNew(sizeof(KprCodeResultRecord), sizeof(KprCodeResultRecord), &(self->results)));
+		bailIfError(FskGrowableArrayNew(sizeof(KprCodeResultRecord), 1, &(self->results)));
 		FskGrowableArraySetItemCount(self->results, 1);
 		FskGrowableArrayGetPointerToItem(self->results, 0, (void **)&result);
 		result->count = -1;
@@ -729,7 +730,7 @@ FskErr KprCodeMeasureText(KprCode self)
 	
 	FskGrowableArrayDispose(self->runs);
 	self->runs = NULL;
-	bailIfError(FskGrowableArrayNew(sizeof(KprCodeRunRecord), sizeof(KprCodeRunRecord) * 1024, &(self->runs)));
+	bailIfError(FskGrowableArrayNew(sizeof(KprCodeRunRecord), 1024, &(self->runs)));
 	while (*p) {
 		SInt32 advance = FskTextUTF8Advance((unsigned char*)p, 0, 1);	
 		if (advance == 1) {
@@ -1321,7 +1322,9 @@ void KPR_code_findWordBreak(xsMachine *the)
 void KPR_code_hitOffset(xsMachine *the)
 {
 	KprCode self = kprGetHostData(xsThis, this, code);
-	UInt32 offset = KprCodeHitOffset(self, xsToInteger(xsArg(0)), xsToInteger(xsArg(1)));
+	xsIntegerValue x = xsToInteger(xsArg(0));
+	xsIntegerValue y = xsToInteger(xsArg(1));
+	UInt32 offset = KprCodeHitOffset(self, x, y);
 	xsResult = xsInteger(offset);
 }
 
@@ -1616,7 +1619,9 @@ bail:
 void KPR_code_select(xsMachine *the)
 {
 	KprCode self = kprGetHostData(xsThis, this, code);
-	KprCodeSelect(self, xsToInteger(xsArg(0)), xsToInteger(xsArg(1)));
+	xsIntegerValue offset = xsToInteger(xsArg(0));
+	xsIntegerValue length = xsToInteger(xsArg(1));
+	KprCodeSelect(self, offset, length);
 }
 
 void KPR_code_tab(xsMachine *the)

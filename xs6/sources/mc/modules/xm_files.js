@@ -174,13 +174,8 @@ export default class Files {
 	static updatePathName() @ "xs_files_updatePathName";
 };
 
-class Map @ "xs_files_map_destructor" {
-	constructor(path) @ "xs_files_map_constructor";
-};
-
 Files.directoryType = "directory";
 Files.fileType = "file";
-Files.Map = Map;
 
 Files._init();	// only for host
 delete Files._init;

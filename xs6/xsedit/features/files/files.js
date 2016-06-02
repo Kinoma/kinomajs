@@ -106,6 +106,7 @@ export default class extends Feature {
 		}
 	}
 	removeAllDocuments() {
+		this.documents.items.forEach(document => document.dispose());
 		this.documents.items = [];
 		shell.distribute("onDocumentsChanged");
 	}
@@ -207,12 +208,12 @@ export default class extends Feature {
 						document.save();
 					else
 						document.clean();
-					this.removeDocumentAt(index);
+					document.close();
 					shell.delegate("doCloseURL", url);
 				});
 			}
 			else {
-				this.removeDocumentAt(index);	
+				document.close();
 				shell.delegate("doCloseURL", url);
 			}
 		}
@@ -343,18 +344,23 @@ export class Document {
 		shell.distribute("onDocumentChanged", this);
 	}
 	close() {
+		this.dispose();
+		model.filesFeature.removeDocument(this);
+	}
+	dispose() {
 		if (this.folderNotifier)
 			this.folderNotifier.close();
 		if (this.notifier)
 			this.notifier.close();
-		model.filesFeature.removeDocument(this);
 	}
 	initialize() {
 		this.dirty = false;
 		this.state = null;
 		this.CODE = null;
-		let url = this.url.slice(0, 0 - this.name.length - 1);
-		this.folderNotifier = new Files.DirectoryNotifier(url, url => this.onFolderChanged(url));
+		let url = this.url.slice(0, 0 - this.name.length);
+		this.folderNotifier = new Files.DirectoryNotifier(url, url => {
+			this.onFolderChanged(url);
+		});
 		this.fileNotifier = new Files.DirectoryNotifier(this.url, () => {
 			this.onFileChanged();
 		});
@@ -444,18 +450,21 @@ export class Project {
 		return false;
 	}
 	close() {
-		if (this.fileNotifier)
-			this.fileNotifier.close();
-		if (this.folderNotifier)
-			this.folderNotifier.close();
-		if (this.notifier)
-			this.notifier.close();
+		this.dispose();
 		let feature = model.filesFeature;
 		let items = feature.projects.items;
 		items.splice(items.indexOf(this), 1);
 		shell.distribute("onProjectsChanged");
 		if (feature.currentProject == this)
 			feature.selectProject(null);
+	}
+	dispose() {
+		if (this.fileNotifier)
+			this.fileNotifier.close();
+		if (this.folderNotifier)
+			this.folderNotifier.close();
+		if (this.notifier)
+			this.notifier.close();
 	}
 	doRun(tool, device, url, debug) {
 		if (device && this[device.constructor.tag])
@@ -474,7 +483,9 @@ export class Project {
 	initialize() {
 		let url = this.url.slice(0, 0 - this.name.length - 1);
 		this.fileNotifier = null;
-		this.folderNotifier = new Files.DirectoryNotifier(url, url => this.onFolderChanged(url));
+		this.folderNotifier = new Files.DirectoryNotifier(url, url => {
+			this.onFolderChanged(url);
+		});
 		this.notifier = new Files.DirectoryNotifier(this.url, () => {
 			if (this.fileNotifier) {
 				this.fileNotifier.close();
@@ -905,7 +916,9 @@ export class FolderTableBehavior extends TableBehavior {
 		data.expanded = expandIt;
 		if (expandIt) {
 			header.behavior.expand(header, true);
-			this.notifier = new Files.DirectoryNotifier(data.url, url => this.onDirectoryChanged(column, url));
+			this.notifier = new Files.DirectoryNotifier(data.url, url => {
+				this.onDirectoryChanged(column, url);
+			});
 			this.onDirectoryChanged(column);
 		}
 		else {
@@ -919,7 +932,9 @@ export class FolderTableBehavior extends TableBehavior {
 		this.data = data;
 		this.emptyIndex = 1;
 		if (data.expanded) {
-			this.notifier = new Files.DirectoryNotifier(data.url, url => this.onDirectoryChanged(column, url));
+			this.notifier = new Files.DirectoryNotifier(data.url, url => {
+				this.onDirectoryChanged(column, url);
+			});
 			this.onDirectoryChanged(column);
 		}
 	}

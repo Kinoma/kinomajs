@@ -149,7 +149,7 @@ FskErr KprCodeMeasureMarkdown(KprCode self)
 	KprMarkdownParser parser = NULL;
 	FskGrowableArrayDispose(self->runs);
 	self->runs = NULL;
-	bailIfError(FskGrowableArrayNew(sizeof(KprCodeRunRecord), sizeof(KprCodeRunRecord) * 1024, &(self->runs)));
+	bailIfError(FskGrowableArrayNew(sizeof(KprCodeRunRecord), 1024, &(self->runs)));
 	xsBeginHost(self->the);
 	{
 		xsIndex parseMarkdownID = xsID("parseMarkdown");

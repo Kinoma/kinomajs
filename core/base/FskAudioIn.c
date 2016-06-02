@@ -23,7 +23,7 @@
 #include "FskTime.h"
 #include "FskHardware.h"
 
-#if MINITV && !BG3CDP && !ANDROID_PLATFORM      /* @@ better conditional than this? */
+#if TARGET_RT_ALSA && !BG3CDP && !ANDROID_PLATFORM      /* @@ better conditional than this? */
     #define TARGET_RT_ALSA 1
 #else
     #define TARGET_RT_ALSA 0

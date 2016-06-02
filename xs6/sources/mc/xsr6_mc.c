@@ -162,6 +162,7 @@ powerground_init()
 		GPIO_WritePinOutput(pins[1][PIN_D2], digital58 & 0x80 ? GPIO_IO_HIGH : GPIO_IO_LOW);
 		GPIO_WritePinOutput(pins[0][PIN_D1], analog14 & 0x80 ? GPIO_IO_HIGH : GPIO_IO_LOW);
 		GPIO_WritePinOutput(pins[0][PIN_D2], analog58 & 0x80 ? GPIO_IO_HIGH : GPIO_IO_LOW);
+		mc_usleep(1000);
 		GPIO_WritePinOutput(pins[0][PIN_CP], GPIO_IO_HIGH);
 		GPIO_WritePinOutput(pins[1][PIN_CP], GPIO_IO_HIGH);
 		digital14 <<= 1;

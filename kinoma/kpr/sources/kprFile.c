@@ -370,6 +370,9 @@ typedef struct {
 	FskDirectoryChangeNotifier notifier;
 	xsMachine* the;
 	xsSlot slot;
+#if TARGET_OS_WIN32	
+	char* path;
+#endif	
 } KprDirectoryChangeNotifierRecord, *KprDirectoryChangeNotifier;
 
 static FskErr KPR_Files_DirectoryNotifier_callback(UInt32 flags, const char *path, void *it);
@@ -386,6 +389,18 @@ void KPR_Files_DirectoryNotifier(xsMachine* the)
 	data->the = the;
 	data->slot = xsThis;
 	xsSetHostData(xsThis, data);
+#if TARGET_OS_WIN32	
+	{
+		char* slash = FskStrRChr(path, '/');
+		if (slash) {
+			slash++;
+			if (*slash) {
+				data->path = FskStrDoCopy(slash);
+				*slash = 0;
+			}
+		}
+	}
+#endif	
 	bailIfError(FskDirectoryChangeNotifierNew(path, flags, KPR_Files_DirectoryNotifier_callback, data, &data->notifier));
 bail:
 	FskMemPtrDispose(path);
@@ -396,17 +411,16 @@ FskErr KPR_Files_DirectoryNotifier_callback(UInt32 flags, const char *path, void
 {
 	FskErr err = kFskErrNone;
 	KprDirectoryChangeNotifier self = (KprDirectoryChangeNotifier)it;
-	char* url = NULL;
-	if (path) {
-		bailIfError(KprPathToURL((char*)path, &url));
-	}	
+#if TARGET_OS_WIN32	
+	if (self->path && (!path || FskStrCompare(self->path, path)))
+		return err;
+#endif	
 	xsBeginHost(self->the);
 	xsThis = self->slot;
 	xsResult = xsGet(xsThis, xsID_callback);
-	(void)xsCallFunction2(xsResult, xsThis, url ? xsString(url) : xsNull, xsInteger(flags));
+	(void)xsCallFunction2(xsResult, xsThis, xsNull, xsInteger(flags));
 	xsEndHost(self->the);
 bail:
-	FskMemPtrDispose(url);
 	return err;
 }
 

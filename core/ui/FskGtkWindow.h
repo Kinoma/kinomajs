@@ -75,7 +75,7 @@ void	FskGtkWindowInvalidDaRect(FskGtkWindow win, FskRectangle area);
 void	FskGtkWindowSetMenuBar(FskGtkWindow win, GtkWidget* menuBar, int id);
 void	FskGtkWindowMenuBarClear(FskGtkWindow win);
 void	FskGtkWindowSetMenuItemCallback(FskGtkWindow win, GtkWidget* menuitem, int id);
-void	FskGtkWindowSetMenuItemStatus(FskGtkWindow win, int id, Boolean enabled, Boolean checked);
+void	FskGtkWindowSetMenuItemStatus(FskGtkWindow win, int id, char* title, Boolean enabled, Boolean checked);
 
 void	FskGtkWindowSetDialog(FskGtkWindow win,  GtkMessageType type, const char* title, const char* message);
 

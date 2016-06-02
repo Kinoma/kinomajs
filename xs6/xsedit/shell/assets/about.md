@@ -19,11 +19,17 @@
 
 ### What's New
 
-In addition to many bug fixes, we've added the following features:
+In addition to some bug fixes and documentation improvements, we've added PWM support to Pin Explorer.
+
+####Noteworthy Bug Fixes
+- Debugger view now displays properly when debugging
+- Pin Explorer now remembers settings when sections are reopened
+
+### Release Notes - Version 1.0b4
 
 - Kinoma Element Simulator now implemented.
-- Serial console!  When Kinoma Element or Kinoma Create is connected to the computer via USB, a new device will appear in the device popup list that heads the left column of the Devices Debugger, Projects and Samples views.  The new device will be named as it appears in the `/dev` directory on the computer, for example `/dev/cu.usbmodem1411`.  This will allow you to run CLI commands; output appears at the console.  See the "Kinoma Element CLI Reference" section in the **Programmer's Guide to Kinoma Element** for a list of the commands supported by Kinoma Element.
-- New Blink Light app in Device View for Kinoma Element.  You can set up a distinctive color flashing on the built-in LED on Kinoma Element.  This is helpful when trying to identify the Kinoma Element you've selected in the IDE among many on your network.
+- Serial console for devices connected via USB
+- New Blink Light app for Kinoma Element.
 - Clicking on a part of the path in the header of the main editing screen will open that folder on the desktop.
 - Lots of new documentation.
 - Twirldown states are remembered in the Debugger view.
@@ -31,9 +37,6 @@ In addition to many bug fixes, we've added the following features:
 - More Zeroconf information (the `txt` record) is displayed in Net Scanner, if available.
 - Supports more HTTP certificate types -- Certain web sites are now accessible via `https`.
 - Preferences have been reorganized and redesigned
-
-####Noteworthy Bug Fixes
-
 - Updated GitHub authentication key -- Samples view works again
 - Element Samples now work with the Kinoma Element Simulator
 - Bundled Simulators are now used by default. If a custom-built Simulator has been specified, there is now a way to restore the setting to use the bundled Simulators.

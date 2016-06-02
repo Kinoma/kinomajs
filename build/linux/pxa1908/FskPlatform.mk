@@ -31,6 +31,10 @@
 	<input name="$(F_HOME)/build/linux/kpl"/>
 	<input name="$(F_HOME)/core/kpl"/>
 	<input name="$(F_HOME)/libraries/libjpeg"/>
+	<input name="$(F_HOME)/libraries/zlib/arm"/>
+    <input name="$(F_HOME)/libraries/libtess2"/>
+    <input name="$(F_HOME)/libraries/libtess2/Include"/>
+    <input name="$(F_HOME)/libraries/libtess2/Source"/>
 
 	<input name="$(PXA1908_SYSROOT)/usr/include"/>
 
@@ -39,45 +43,36 @@
 	<header name="FskPlatform.h"/>
 	
 	<source name="KplAudioLinuxALSA.c"/>
-	<source name="KplAudioLinux.c"/>
-	<!--source name="KplScreenLinuxK4.c"/-->
 	<source name="KplScreenLinux-pxa1908.c"/>
 
 	<source name="yuv420torgb-arm-v4-v5.gas"/>
+	<source name="yuv420torgb-arm-v6.gas"/>
 	<source name="yuv420torgb565le-arm.gas"/>
 	<header name="yuv420torgb-arm-s.h"/>
 	
-	<!--source name="FskBilerp565SE-arm.wmmx"/-->
-	<!--source name="FskBilerpAndBlend565SE-arm.wmmx"/-->
-	<!--source name="FskBlit-arm.wmmx"/-->
-	<source name="FskFixedMath-arm.gas"/>
-	<!--source name="FskRectBlitTo16-arm.wmmx"/-->
-	<!--source name="FskRotate-arm.wmmx"/-->
-	<!--source name="FskTransferAlphaBlit-arm.wmmx"/-->
 	<source name="FskYUV420Copy-arm.gas"/>
 	<source name="FskYUV420iCopy-arm.gas"/>
-	<!--source name="yuv420torgb-arm.wmmx"/-->
+	<source name="FskYUV420iCopy-arm-v6.gas"/>
+	<source name="jidctfst2-arm.gas"/>
+	<source name="jidctfst2-arm-v6.gas"/>
+	<source name="jidctfst2-arm-v7.gas7"/>
+
+	<source name="FskBlit-arm.gas7"/>
+	<source name="AAScaleBitmap-arm.gas7"/>
+	<source name="FskTransferAlphaBlit-arm.gas7"/>
+	<source name="HVfilter-arm.gas7"/>
+
+	<source name="FskFixedMath-arm.gas"/>
 
 	<source name="FskGLBlit.c"/>
 	<source name="FskGLEffects.c"/>
 	<source name="FskGLContext.c"/>
     <source name="KplGL.c"/>
 
-	<library name="-Wl,-rpath,$(PXA1908_SYSROOT)/usr/lib,-z,muldefs"/>
-    <library name="-Wl,-rpath,.,-rpath,'$ORIGIN/lib'"/>
-	<library name="-L$(PXA1908_SYSROOT)/usr/lib"/>
-	<library name="-lm"/>
-	<library name="-ldl"/>
-	<library name="-lrt"/>
-	<library name="-lpthread"/>
-	<library name="-lresolv"/>
-	<library name="-lasound"/>
-	<library name="-lEGL"/>
-	<library name="-lGLESv2"/>
-	<library name="-pg"/>
+	<asm option="-ftree-vectorize"/>
+	<asm option="-x assembler-with-cpp"/>
 
 	<c option="-DBAD_FTRUNCATE=1"/>
-	<c option="-pg"/>
 	<c option="-DCLOSED_SSL=1"/>
 	<c option="-DFSK_APPLICATION_$(FSK_APPLICATION)=1"/>
 	<c option="-DFSK_EMBED=1"/>
@@ -90,7 +85,7 @@
 	<c option="-DUSE_FRAMEBUFFER_VECTORS=1"/>
 	<c option="-DUSE_POLL=1"/>
 	<c option="-DUSE_POSIX_CLOCK=1"/>
-	<c option="-DUSE_X=1"/>
+	<c option="-DUSE_INOTIFY=1"/>
 	<c option="-D_FILE_OFFSET_BITS=64"/>
 	<c option="-D_LARGEFILE64_SOURCE"/>
 	<c option="-D_LARGEFILE_SOURCE"/>
@@ -101,6 +96,10 @@
 	<c option="-DUSE_WPACONFIG=1"/>
 	<c option="-DLINUX=1"/>
 	<c option="-DEGL_API_FB=1"/>
+	<c option="-DKINOMA_IDICT_IFAST_SUPPORTED"/>
+	<c option="-DKINOMA_YUV2RGB565_IFAST_ARM_SUPPORTED"/>
+	<c option="-DYUV420i_RGB_ARM_IMPLEMENTATION=1"/>
+	<c option="-DTARGET_RT_ALSA=1"/>
 	<c option="-fsigned-char"/>
 
 	<c option="-Wall"/>
@@ -110,6 +109,18 @@
 	<c option="-Wunused-variable"/>
 	<c option="-Wno-multichar"/>
 	
+	<library name="-Wl,-rpath,$(PXA1908_SYSROOT)/usr/lib,-z,muldefs"/>
+    <library name="-Wl,-rpath,.,-rpath,'$ORIGIN/lib'"/>
+	<library name="-L$(PXA1908_SYSROOT)/usr/lib"/>
+	<library name="-lm"/>
+	<library name="-ldl"/>
+	<library name="-lrt"/>
+	<library name="-lpthread"/>
+	<library name="-lresolv"/>
+	<library name="-lasound"/>
+	<library name="-lEGL"/>
+	<library name="-lGLESv2"/>
+
 	<c option="-I$(F_HOME)/libraries/freetype/include"/>
 	<version name="debug">
 		<c option="-DmxDebug"/>

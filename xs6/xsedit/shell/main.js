@@ -200,6 +200,9 @@ class ShellBehavior extends Behavior {
 	canSaveAll() {
 		return this.filesFeature.canSaveAll();
 	}
+	canQuit() {
+		return true;
+	}
 	doNewDirectory() {
 		//this.filesFeature.doNewDirectory();
 		this.samplesFeature.doNewProject();
@@ -502,9 +505,8 @@ class ShellBehavior extends Behavior {
 			if (viewers) {
 				Viewer.register(viewers);
 			}
-			viewMenu.items.push({ title:feature.title, key:i.toString(), command:"View", value:i });
+			viewMenu.items.push({ title:feature.title, key:(i + 1).toString(), command:"View", value:i, check:false });
 		});
-		viewMenu.items.push(null);
 		Viewer.register([ new PreferencesViewer() ]);
 		
 		this.currentFeature = this.features[0];

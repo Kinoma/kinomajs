@@ -1,0 +1,38 @@
+#include "windows.h"
+#include "commctrl.h"
+#include "winver.h"
+
+100 ICON DISCARDABLE "resource.ico"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "04090000"
+        BEGIN
+            VALUE "CompanyName", " Kinoma, Inc."
+            VALUE "FileDescription", "EmbedShell"
+            VALUE "FileVersion", "1.0b1"
+            VALUE "InternalName", "EmbedShell"
+            VALUE "LegalCopyright", "Copyright (c) 2015  Kinoma, Inc."
+            VALUE "OriginalFilename", "Kinoma_Code.exe"
+            VALUE "ProductName", "EmbedShell"
+            VALUE "ProductVersion", "1.0b1"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 0
+    END
+END

@@ -545,7 +545,7 @@ void fxImportNodeHoist(void* it, void* param)
 {
 	txImportNode* self = it;
 	txHoister* hoister = param;
-	if (self->specifiers) {
+	if (self->specifiers && self->specifiers->length) {
 		txSpecifierNode* specifier = (txSpecifierNode*)self->specifiers->first;
 		while (specifier) {
 			txSymbol* symbol = specifier->asSymbol ? specifier->asSymbol : specifier->symbol;
@@ -562,6 +562,15 @@ void fxImportNodeHoist(void* it, void* param)
 			}
 			specifier = (txSpecifierNode*)specifier->next;
 		}
+	}
+	else {
+		txModuleNode* module = (txModuleNode*)hoister->scope->node;
+		txSpecifierNode* specifier = fxSpecifierNodeNew(hoister->parser, XS_TOKEN_SPECIFIER);
+		txSpecifierNode** address = &(module->firstEmptySpecifier);
+		specifier->from = self->from;
+		while (*address)
+			address = &((*address)->nextSpecifier);
+		*address = specifier;
 	}
 }
 

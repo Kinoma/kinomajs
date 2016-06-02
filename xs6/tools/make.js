@@ -422,7 +422,7 @@ export class Manifest {
 		
 		if (tool.windows) {
 			file.write("C_INCLUDES = /I$(F_HOME)\\xs6\\includes /I$(F_HOME)\\xs6\\patches /I$(TMP_DIR) $(FskPlatform_C_INCLUDES)\n");
-			file.write("C_OPTIONS = /Fd$(TMP_DIR)\\fsk.pdb /DXS6=1 $(FskPlatform_C_OPTIONS)");
+			file.write("C_OPTIONS = /DXS6=1 $(FskPlatform_C_OPTIONS)");
 			file.write(" /DSUPPORT_XS_DEBUG=$(SUPPORT_XS_DEBUG)");
 			file.write(" /DSUPPORT_XS_PROFILE=$(SUPPORT_XS_PROFILE)\n");
 			file.write("HEADERS = $(F_HOME)\\xs6\\includes\\xs.h $(FskPlatform_HEADERS)\n");

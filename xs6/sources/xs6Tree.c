@@ -182,6 +182,13 @@ txEvalNode* fxEvalNodeNew(txParser* parser, txToken token, txScope* scope)
 	return node;
 }
 
+txSpecifierNode* fxSpecifierNodeNew(txParser* parser, txToken token)
+{
+	txSpecifierNode* node = fxNewParserChunkClear(parser, sizeof(txSpecifierNode));
+	node->description = &gxTokenDescriptions[token];
+	return node;
+}
+
 txNode* fxValueNodeNew(txParser* parser, txToken token)
 {
 	txNode* node = fxNewParserChunkClear(parser, sizeof(txNode));

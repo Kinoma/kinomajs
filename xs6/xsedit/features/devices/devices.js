@@ -34,9 +34,9 @@ const ssdpDeviceType = "urn:schemas-kinoma-com:device:shell:1";
 const mdnsServiceType = "_kinoma_setup._tcp.";
 
 export const updateCredentials = {
-//	certificates: Files.readText(mergeURI(shell.url, "../../certs/xsedit.cert.pem")),
+	certificates: Files.readText(mergeURI(shell.url, "../../certs/xsedit.cert.pem")),
 	policies: "allowOrphan",
-//	key: Files.readText(mergeURI(shell.url, "../../certs/xsedit.priv.pem"))
+	key: Files.readText(mergeURI(shell.url, "../../certs/xsedit.priv.pem"))
 }
 
 let wsIndex = 0;
@@ -53,10 +53,11 @@ export default class extends Feature {
 		this.Configs = [];
 		this.DiscoveryConfigs = [];
 		this.SerialConfigs = [];
-		this.SimulatorConfigs = [
-			CreateSimulatorConfig,
-			ElementSimulatorConfig,
-		];
+		this.SimulatorConfigs = [];
+		if (Files.exists(mergeURI(model.simulatorsURI, CreateSimulatorConfig.defaultURL)))
+			this.SimulatorConfigs.push(CreateSimulatorConfig);
+		if (Files.exists(mergeURI(model.simulatorsURI, ElementSimulatorConfig.defaultURL)))
+			this.SimulatorConfigs.push(ElementSimulatorConfig);
 		if (Files.exists(mergeURI(model.simulatorsURI, EmbedSimulatorConfig.defaultURL)))
 			this.SimulatorConfigs.push(EmbedSimulatorConfig);
 		
@@ -783,7 +784,7 @@ export class DeviceConfig {
 			let ws = this.ws;
 			ws.queue.forEach(promise => {
 // 				trace("WC " + ws.wsIndex + " " + ws.readyState + ": cancel " + JSON.stringify(promise.json) + "\n");
-				promise.reject({ status:505, reason:"Internal Server Error" });
+				promise.reject({ status:500, reason:"Internal Server Error" });
 			});
 			shell.distribute("onDeviceHelperDown", this);
 			this.ws.close();
@@ -794,7 +795,7 @@ export class DeviceConfig {
 	wsRequest(json) {
 		let ws = this.ws;
 		if (!ws || (ws.readyState != WebSocket.OPEN))
-			return new Promise((resolve, reject) => reject({ status:505, reason:"Internal Server Error" }));
+			return new Promise((resolve, reject) => reject({ status:500, reason:"Internal Server Error" }));
 		return new Promise((resolve, reject) => {
 			let length = ws.queue.push({ resolve, reject, json });
 			if (length == 1) {
@@ -1093,7 +1094,7 @@ class SimulatorConfig {
 	write(json) {
 	}
 	static get defaultURL() {
-		return this.tag + ".app";
+		return this.tag + ((system.platform == "mac") ? ".app" : "/" + this.tag + ".exe");
 	}
 }
 
@@ -1105,7 +1106,7 @@ class CreateSimulatorConfig extends SimulatorConfig {
 
 CreateSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/create-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
 CreateSimulatorConfig.id = "com.marvell.kinoma.launcher.create";
-CreateSimulatorConfig.preferences = { simulatorFlag: true }
+CreateSimulatorConfig.preferences = { simulatorFlag: (system.platform == "mac") }
 CreateSimulatorConfig.product = "Kinoma Create";
 CreateSimulatorConfig.tag = "CreateShell";
 
@@ -1117,7 +1118,7 @@ class ElementSimulatorConfig extends SimulatorConfig {
 
 ElementSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/element-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
 ElementSimulatorConfig.id = "com.marvell.kinoma.launcher.element";
-ElementSimulatorConfig.preferences = { simulatorFlag: true }
+ElementSimulatorConfig.preferences = { simulatorFlag: (system.platform == "mac") }
 ElementSimulatorConfig.product = "Kinoma Element";
 ElementSimulatorConfig.tag = "ElementShell";
 
@@ -1129,7 +1130,7 @@ class EmbedSimulatorConfig extends SimulatorConfig {
 
 EmbedSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/embed-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
 EmbedSimulatorConfig.id = "com.marvell.kinoma.launcher.embed";
-EmbedSimulatorConfig.preferences = { simulatorFlag: false }
+EmbedSimulatorConfig.preferences = { simulatorFlag: (system.platform == "win") }
 EmbedSimulatorConfig.product = "Kinoma Embed";
 EmbedSimulatorConfig.tag = "EmbedShell";
 
@@ -1497,7 +1498,7 @@ var NoDevicesButton = Line.template($ => ({
 			left:0, right:0, height:40,
 			contents: [
 				Label($, { left:0, right:0, style:tableHeaderStyle, string:"DEVICES" }),
-				Label($, { left:0, right:0, style:menuHeaderVariantStyle, string:system.SSID }),
+				Label($, { left:0, right:0, style:menuHeaderVariantStyle, string:model.SSID }),
 			],
 		}),
 	],

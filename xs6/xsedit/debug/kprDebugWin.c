@@ -15,7 +15,49 @@
  *     limitations under the License.
  */
 #include "kpr.h"
+#include "kprURL.h"
 
 void KPR_gotoFront(xsMachine *the)
 {
+}
+
+void KPR_Files_toPath(xsMachine *the)
+{
+	char* path;
+	char* slash;
+	char c;
+	xsThrowIfFskErr(KprURLToPath(xsToString(xsArg(0)), &path));
+	slash = path;
+	while ((c = *slash)) {
+		if (c == '/')
+			*slash = '\\';
+		slash++;
+	}
+	xsResult = xsString(path);
+	FskMemPtrDispose(path);
+}
+
+void KPR_Files_toURI(xsMachine *the)
+{
+	char* path = xsToString(xsArg(0));
+	char* slash;
+	char c;
+	FskErr err;
+	char* url;
+	slash = path;
+	while ((c = *slash)) {
+		if (c == '\\')
+			*slash = '/';
+		slash++;
+	}
+	err = KprPathToURL(path, &url);
+	slash = path;
+	while ((c = *slash)) {
+		if (c == '/')
+			*slash = '\\';
+		slash++;
+	}
+	xsThrowIfFskErr(err);
+	xsResult = xsString(url);
+	FskMemPtrDispose(url);
 }

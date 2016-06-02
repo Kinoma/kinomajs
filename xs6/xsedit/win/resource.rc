@@ -5,8 +5,8 @@
 100 ICON DISCARDABLE "resource.ico"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 6,0,0,0
- PRODUCTVERSION 6,0,0,0
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -22,13 +22,13 @@ BEGIN
         BLOCK "04090000"
         BEGIN
             VALUE "CompanyName", " Kinoma, Inc."
-            VALUE "FileDescription", "xsbug"
-            VALUE "FileVersion", "6.0.0"
-            VALUE "InternalName", "xsbug"
+            VALUE "FileDescription", "Kinoma Code"
+            VALUE "FileVersion", "1.0b1"
+            VALUE "InternalName", "Kinoma Code"
             VALUE "LegalCopyright", "Copyright (c) 2015  Kinoma, Inc."
-            VALUE "OriginalFilename", "xsbug.exe"
-            VALUE "ProductName", "xsbug"
-            VALUE "ProductVersion", "6.0.0"
+            VALUE "OriginalFilename", "Kinoma_Code.exe"
+            VALUE "ProductName", "Kinoma Code"
+            VALUE "ProductVersion", "1.0b1"
         END
     END
     BLOCK "VarFileInfo"

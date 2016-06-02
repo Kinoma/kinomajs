@@ -19,13 +19,15 @@ import {
 } from "shell/main";
 
 var PATH = {
+	paths: ":/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+	separator: "/",
 	basename(path, extension) {
-		let from = path.lastIndexOf("/") + 1;
+		let from = path.lastIndexOf(this.separator) + 1;
 		let to = (extension && path.endsWith(extension)) ? path.length - extension.length : path.length;
 		return path.slice(from, to);
 	},
 	dirname(path) {
-		let slash = path.lastIndexOf("/");
+		let slash = path.lastIndexOf(this.separator);
 		if (slash >= 0)
 			return path.slice(0, slash);
 		return path;
@@ -42,6 +44,10 @@ var PATH = {
 	toURI(path) {
 		return Files.toURI(path);
 	},
+}
+if (system.platform == "win") {
+	PATH.paths = "";
+	PATH.separator = "\\";
 }
 
 var console = {
@@ -127,11 +133,14 @@ class CommandTask extends Task {
 		this.command = command;
 		this.parameters = parameters;
 	}
+	escape(parameter) {
+		return parameter.replace(/ /g, "\\ ")
+	}
 	execute(queue) {
 		var context = this.context;
 		var command = this.command;
 		if (this.parameters)
-			command += " " + this.parameters.map(parameter => parameter.replace(/ /g, "\\ ")).join(" ");
+			command += " " + this.parameters.map(parameter => this.escape(parameter)).join(" ");
 		console.log(command);
 		this.exec = shell.execute(command, {
 			callback: status => {
@@ -149,6 +158,21 @@ class CommandTask extends Task {
 			stdout: text => shell.behavior.doLog(shell, text),
 		});
 	}
+}
+if (system.platform == "win") {
+	CommandTask.prototype.escape = function(path) {
+		return (path.indexOf(" ") >= 0) ? '"' + path + '"' : path;
+	};
+	CommandTask.cp = "copy /Y";
+	CommandTask.mkdir = "mkdir";
+	CommandTask.rm = "del";
+	CommandTask.rmdir = "del";
+}
+else {
+	CommandTask.cp = "cp";
+	CommandTask.mkdir = "mkdir";
+	CommandTask.rm = "rm";
+	CommandTask.rmdir = "rmdir";
 }
 
 class CreateApplicationTask extends Task {
@@ -202,7 +226,7 @@ class Directory extends Task {
 	}
 	clone(queue, path) {
 		var context = this.context;
-		queue.push(new CommandTask(context, "mkdir", [ path ]));
+		queue.push(new CommandTask(context, CommandTask.mkdir, [ path ]));
 		return new Directory(context, path, []);
 	}
 	compare(from) {
@@ -212,10 +236,10 @@ class Directory extends Task {
 		this.files.forEach(function(file) {
 			file.remove(queue);
 		});
-		queue.push(new CommandTask(this.context, "rmdir", [ this.path ]));
+		queue.push(new CommandTask(this.context, CommandTask.rmdir, [ this.path ]));
 	}
 	sync(queue, from) {
-		var path = this.path + "/";
+		var path = this.path + PATH.separator;
 		var fromFiles = from.files;
 		var fromLength = fromFiles.length;
 		var toFiles = this.files;
@@ -281,7 +305,7 @@ class File extends Task {
 	}
 	remove(queue) {
 		var context = this.context;
-		queue.push(new CommandTask(context, "rm", [ this.path ]));
+		queue.push(new CommandTask(context, CommandTask.rm, [ this.path ]));
 		var checksumPath = this.path.slice(context.output.length + 1);
 		var uploadPath = "applications/" + context.di + "/" + checksumPath;
 		if (checksumPath in context.manifest.checksums) {
@@ -295,16 +319,16 @@ class File extends Task {
 		if (this.date < from.date) {
 			if (this.extension == ".jsb") {
 				if (from.extension == ".xml") {
-					var temporary = PATH.dirname(this.path) + "/" + PATH.basename(this.path, ".jsb") + ".js";
+					var temporary = PATH.dirname(this.path) + PATH.separator + PATH.basename(this.path, ".jsb") + ".js";
 					queue.push(new CommandTask(context, "xsr6", [ "-a", context.archive, "kpr2js", from.path, "-o", PATH.dirname(temporary) ]));
 					queue.push(new CommandTask(context, "xsc6", [ "-b", "-d", temporary, "-o", PATH.dirname(temporary) ]));
-					queue.push(new CommandTask(context, "rm", [ temporary ]));
+					queue.push(new CommandTask(context, CommandTask.rm, [ temporary ]));
 				}
-				else 
+				else
 					queue.push(new CommandTask(context, "xsc6", [ "-b", "-d", from.path, "-o", PATH.dirname(this.path) ]));
 			}
 			else
-				queue.push(new CommandTask(context, "cp", [ from.path, this.path ]));
+				queue.push(new CommandTask(context, CommandTask.cp, [ from.path, this.path ]));
 		}
 		queue.push(new ChecksumTask(context, this.path));
 	}
@@ -330,7 +354,7 @@ class FSTask extends Task {
 			var iterator = new Files.Iterator(url + "/");
 			info = iterator.getNext();
 			while (info) {
-				files.push(this.recurseFiles(path + "/" + info.path));
+				files.push(this.recurseFiles(path + PATH.separator + info.path));
 				info = iterator.getNext();
 			}
 			return new Directory(context, path, files);
@@ -431,7 +455,7 @@ class SyncTask extends FSTask {
 			var path = toApplicationFile ? toApplicationFile.path : this.path + "/application.xml";
 			if (fromApplicationFile) {
 				if (!toApplicationFile || (toApplicationFile.date < fromApplicationFile.date)) {
-					queue.push(new CommandTask(context, "cp", [ fromApplicationFile.path, path ]));
+					queue.push(new CommandTask(context, CommandTask.cp, [ fromApplicationFile.path, path ]));
 					queue.push(new ChecksumTask(context, path));
 				}
 			}
@@ -877,8 +901,7 @@ class RunContext {
 		this.temporary = true;
 		
 		this.archive = PATH.fromURI(mergeURI(shell.url, "../../tools/tools.xsa"))
-		this.paths = PATH.fromURI(mergeURI(shell.url, "../../tools")) + ":/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-		
+		this.paths = PATH.fromURI(mergeURI(shell.url, "../../tools")) + PATH.paths;
 		HTTP.Cache.clear();
 	}
 }
@@ -894,7 +917,7 @@ class BuildContext {
 		Files.ensureDirectory(url + "/");
 		this.output = PATH.fromURI(url);
 		this.archive = PATH.fromURI(mergeURI(shell.url, "../../tools/tools.xsa"))
-		this.paths = PATH.fromURI(mergeURI(shell.url, "../../tools")) + ":/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+		this.paths = PATH.fromURI(mergeURI(shell.url, "../../tools")) + PATH.paths;
 		this.config = config;
 	}
 }

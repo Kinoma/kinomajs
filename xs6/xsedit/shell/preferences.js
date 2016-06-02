@@ -110,73 +110,80 @@ export class PreferencesViewer extends Viewer {
 	}
 	create(parts, url) {
 		let devicesFeature = model.devicesFeature;
+		let devicesItems = [];
+		devicesItems.push({
+			Template: ToggleTable,
+			expanded: false,
+			comment: "Discover devices on Wi-Fi",
+			name: "Discovery",
+			value: 1,
+			items: devicesFeature.DiscoveryConfigs.map(Config => new DiscoveryItem(Config)),
+		});
+		/*
+		devicesItems.push({
+			Template: ToggleTable,
+			comment: "Build standalone applications",
+			expanded: false,
+			name: "Platforms",
+			items: devicesFeature.PlatformConfigs.map(Config => new PlatformItem(Config)),
+		});
+		*/
+		if (system.platform == "mac") {
+			devicesItems.push({
+				Template: ToggleTable,
+				comment: "Control devices on USB",
+				expanded: false,
+				name: "Serial Console",
+				items: devicesFeature.SerialConfigs.map(Config => new SerialItem(Config)),
+			});
+		}
+		if (devicesFeature.SimulatorConfigs.length) {
+			devicesItems.push({
+				Template: ToggleTable,
+				comment: "Launch simulators",
+				expanded: false,
+				name: "Simulators",
+				items: devicesFeature.SimulatorConfigs.map(Config => new SimulatorItem(Config)),
+			});
+		}
+		devicesItems.push({
+			Template: ToggleTable,
+			comment: "Enable installation of beta software",
+			expanded: false,
+			name: "Beta Program",
+			items:[
+				{
+					Template: ToggleLine,
+					comment: "Enable Kinoma Create beta software updates",
+					name: "Kinoma Create",
+					get value() {
+						return model.createSoftwareUpdatePreRelease;
+					},
+					set value(it) {
+						model.createSoftwareUpdatePreRelease = it;
+					},
+				},
+				{
+					Template: ToggleLine,
+					comment: "Enable Kinoma Element beta software updates",
+					name: "Kinoma Element",
+					get value() {
+						return model.elementSoftwareUpdatePreRelease;
+					},
+					set value(it) {
+						model.elementSoftwareUpdatePreRelease = it;
+					},
+				},
+			],
+		});
+		
 		let preferences = {
 			items: [
 				{
 					Template: PreferencesTable,
 					expanded: true,
 					name: "DEVICES",
-					items: [
-						{
-							Template: ToggleTable,
-							expanded: false,
-							comment: "Discover devices on Wi-Fi",
-							name: "Discovery",
-							value: 1,
-							items: devicesFeature.DiscoveryConfigs.map(Config => new DiscoveryItem(Config)),
-						},
-//						{
-//							Template: ToggleTable,
-//							comment: "Build standalone applications",
-//							expanded: false,
-//							name: "Platforms",
-//							items: devicesFeature.PlatformConfigs.map(Config => new PlatformItem(Config)),
-//						},
-						{
-							Template: ToggleTable,
-							comment: "Control devices on USB",
-							expanded: false,
-							name: "Serial Console",
-							items: devicesFeature.SerialConfigs.map(Config => new SerialItem(Config)),
-						},
-						{
-							Template: ToggleTable,
-							comment: "Launch simulators",
-							expanded: false,
-							name: "Simulators",
-							items: devicesFeature.SimulatorConfigs.map(Config => new SimulatorItem(Config)),
-						},
-						{
-							Template: ToggleTable,
-							comment: "Enable installation of beta software",
-							expanded: false,
-							name: "Beta Program",
-							items:[
-								{
-									Template: ToggleLine,
-									comment: "Enable Kinoma Create beta software updates",
-									name: "Kinoma Create",
-									get value() {
-										return model.createSoftwareUpdatePreRelease;
-									},
-									set value(it) {
-										model.createSoftwareUpdatePreRelease = it;
-									},
-								},
-								{
-									Template: ToggleLine,
-									comment: "Enable Kinoma Element beta software updates",
-									name: "Kinoma Element",
-									get value() {
-										return model.elementSoftwareUpdatePreRelease;
-									},
-									set value(it) {
-										model.elementSoftwareUpdatePreRelease = it;
-									},
-								},
-							],
-						},
-					],
+					items: devicesItems,
 				},
 				{
 					Template: PreferencesTable,

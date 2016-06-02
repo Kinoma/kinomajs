@@ -37,7 +37,7 @@
 /************************************************ Debugging configuration ************************************************/
 #if SUPPORT_INSTRUMENTATION
 	//#define LOG_COLOR				/**< Log when changing color. */
-	//#define LOG_CONTEXT			/**< Log context calls. */
+	#define LOG_CONTEXT			/**< Log context calls. */
 	//#define LOG_EPHEMERAL			/**< Log ephemeral texture usage. */
 	//#define LOG_GL_API			/**< Log the OpenGL API calls. */
 	#define LOG_INIT				/**< Log calls related to initialization and shutdown. */
@@ -135,7 +135,12 @@
 FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the types needed for instrumentation. */
 
 #if GL_DEBUG
+#if 0//TARGET_OS_ANDROID
+	#include <android/log.h>
+	#define LOGD(...) ((void)__android_log_print(ANDROID_LOG_DEBUG, "opengl", __VA_ARGS__))
+#else
 	#define	LOGD(...)	FskOpenGLPrintfDebug(__VA_ARGS__)									/**< Print debugging logs. */
+#endif
 	#define	LOGI(...)	FskOpenGLPrintfVerbose(__VA_ARGS__)									/**< Print information logs. */
 #endif /* GL_DEBUG */
 #define		LOGE(...)	FskOpenGLPrintfMinimal(__VA_ARGS__)									/**< Print error logs always, when instrumentation is on. */
@@ -163,6 +168,7 @@ FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the ty
 		#endif /* GLES_VERSION == 2 */
 	#else /* !TARGET_OS_IPHONE */
 		#include <OpenGL/gl.h>			// Header File For The OpenGL Library
+		#include <OpenGL/glext.h>
 	#endif /* !TARGET_OS_IPHONE */
 #elif TARGET_OS_ANDROID || TARGET_OS_KPL || defined(__linux__) || (FSK_OPENGLES_ANGLE == 1)
 	#define GL_GLEXT_PROTOTYPES
@@ -253,6 +259,11 @@ FskInstrumentedSimpleType(OpenGL, opengl);													/**< This declares the ty
 #define	TEXTURE_BLOCK_VERTICAL				4	/**< All textures will have heights that are multiples of this value. */
 #define ALPHA_BLOCK_VERTICAL				32	/**< Alpha textures need to be a multiple of 32 to avoids crashing on Qualcomm Adreno */
 #define SAVE_TEX_DIM						256	/**< Dispose of textures larger than this in any dimension. */
+#if 0 /* || defined(BAD_GPU) */
+	#define ENFORCE_NPOT_BLOCKING			1	/**< Some GL drivers crash if some textures are not block sized. */
+#else /* GOOD_GPU */
+	#define ENFORCE_NPOT_BLOCKING			0	/**< We prefer tight textures so edge wrapping works properly. */
+#endif /* GOOD_GPU */
 
 #define EPHEMERAL_TEXTURE_CACHE_SIZE		0	/**< This is the number of ephemeral texture objects kept around. 6 allows ping pong {Y,U,V}. */
 #define USE_PORT_POOL						1	/**< Saves disposed glPorts in a pool. */
@@ -719,7 +730,7 @@ typedef struct FskGLGlobalAssetsRecord {			/* Members set once, at initializatio
 		IdYUV444		yuv444;						/**< IDs for the program to be used for transferring YUV 444 images. */
 	#if defined(EGL_VERSION) && defined(BG3CDP_GL)
 		IdDrawBG3CDPBitmap	drawBG3CDPBitmap;
-	#endif /* defined(EGL_VERSION) && defined(BG3CDP) */
+	#endif /* defined(EGL_VERSION) && defined(BG3CDP_GL) */
 
 		/* View matrix */
 		UInt32			matrixSeed;					/**< A sequence number that is incremented when the view matrix is changed. */
@@ -1952,6 +1963,9 @@ static const char* GLQualityNameFromCode(int quality) {
 	};
 	return LookupCodeToName(lookupTab, quality);
 }
+#if !defined(GL_FRAMEBUFFER_UNDEFINED) && defined(GL_FRAMEBUFFER_UNDEFINED_OES)
+	#define GL_FRAMEBUFFER_UNDEFINED GL_FRAMEBUFFER_UNDEFINED_OES
+#endif /* GL_FRAMEBUFFER_UNDEFINED */
 static const char* GLFrameBufferStatusStringFromCode(int status) {
 	static const LookupEntry lookupTab[] = {
 		#if   defined(GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT)
@@ -1993,6 +2007,10 @@ static const char* GLFrameBufferStatusStringFromCode(int status) {
 		#if defined(GL_FRAMEBUFFER_COMPLETE)
 			{	GL_FRAMEBUFFER_COMPLETE,							"GL FRAMEBUFFER: COMPLETE"						},
 		#endif   /* GL_FRAMEBUFFER_COMPLETE */
+		#if defined(GL_FRAMEBUFFER_UNDEFINED)
+			{	GL_FRAMEBUFFER_UNDEFINED,							"GL FRAMEBUFFER: UNDEFINED"						},
+		#endif /* GL_FRAMEBUFFER_UNDEFINED */
+
 			{	0,													"GL FRAMEBUFFER: NOT ACCELERATED"				}
 	};
 	return LookupCodeToName(lookupTab, status);
@@ -2043,6 +2061,9 @@ static const char* GLErrorStringFromCode(int err) {
 	#ifdef GL_STACK_UNDERFLOW
 		{  GL_STACK_UNDERFLOW,								"Command would cause a stack underflow."																				},
 	#endif /* GL_STACK_UNDERFLOW */
+	#ifdef GL_FRAMEBUFFER_UNDEFINED
+		{  GL_FRAMEBUFFER_UNDEFINED,						"The target is the default framebuffer, but the default framebuffer does not exist."																				},
+	#endif /* GL_FRAMEBUFFER_UNDEFINED */
 	#ifdef GL_FRAMEBUFFER_COMPLETE
 		{  GL_FRAMEBUFFER_COMPLETE,							"No error: the framebuffer is complete."																				},
 	#endif /* GL_FRAMEBUFFER_COMPLETE */
@@ -2980,11 +3001,15 @@ static void DisposeGLObjects() {
 		FskGLBlitContextDispose(ctx);
 
 	}
-	FskGLBlitContextMakeCurrent(&gGLGlobalAssets.defaultContext);		/* Make the default context current */
+	FskGLBlitContextMakeCurrent(NULL);		/* Make the default context current */
 	#ifdef LOG_SHUTDOWN
 		LOGD("Disposing glContext=%p", gGLGlobalAssets.defaultContext.glContext);
 	#endif /* LOG_SHUTDOWN */
-	FskMemPtrDisposeAt(&gGLGlobalAssets.defaultContext.glContext);		/* Don't dispose the main context -- just our memory of it */
+	//FskMemPtrDisposeAt(&gGLGlobalAssets.defaultContext.glContext);		/* Don't dispose the main context -- just our memory of it */
+    if (gGLGlobalAssets.defaultContext.glContextMine) {
+        FskGLContextDispose(gGLGlobalAssets.defaultContext.glContext, false);
+		gGLGlobalAssets.defaultContext.glContext = NULL;
+	}
 }
 
 
@@ -3016,6 +3041,16 @@ static void DisposeGlobalGLAssets(void) {
 
 	if (gGLGlobalAssets.registeredLowMemoryWarning)
 		FskNotificationUnregister(kFskNotificationLowMemory, purgeGL, NULL);
+
+	if (gGLGlobalAssets.defaultContext.glContext) {					/* If there is a current Fsk GL Blit Context */
+		#ifdef LOG_SHUTDOWN
+			LOGD("DisposeGlobalGLAssets: %sdisposing glContext=%p)", gGLGlobalAssets.defaultContext.glContextMine ? "" : "not ", gGLGlobalAssets.defaultContext.glContext);
+		#endif /* LOG_SHUTDOWN */
+		if (gGLGlobalAssets.defaultContext.glContextMine) {
+			FskGLContextDispose(gGLGlobalAssets.defaultContext.glContext, true);	// TODO: Do we really want to terminate?
+			gGLGlobalAssets.defaultContext.glContext = NULL;
+		}
+	}
 
 	#ifdef EGL_VERSION
 		#ifdef LOG_SHUTDOWN
@@ -3394,7 +3429,7 @@ static FskErr FskEGLWindowContextShutdown(void)
 	/* Shut down the GL surface, context, and display. */
 	if (gGLGlobalAssets.defaultContext.glContext) {					/* If there is a current Fsk GL Blit Context */
 		#ifdef LOG_SHUTDOWN
-			LOGD("FskEGLWindowContextShutdown: %sdisposing glContext=%p)", gGLGlobalAssets.defaultContext.glContextMine ? "" : "not ");
+			LOGD("FskEGLWindowContextShutdown: %sdisposing glContext=%p)", gGLGlobalAssets.defaultContext.glContextMine ? "" : "not ", gGLGlobalAssets.defaultContext.glContext);
 		#endif /* LOG_SHUTDOWN */
 		if (gGLGlobalAssets.defaultContext.glContextMine)
 			FskGLContextDispose(gGLGlobalAssets.defaultContext.glContext, true);	// TODO: Do we really want to terminate?
@@ -5037,13 +5072,13 @@ static FskErr ReshapeYUV420Textures(GLsizei width, GLsizei height, GLTexture tx,
 	#endif /* LOG_TEXTURE_LIFE */
 
 	/* (re)allocate texture storage */
-	if (gGLGlobalAssets.hasNPOT) {
-		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL/*2*/);												/* Should the block should be twice as big so U and V will be properly aligned? */
-		height = BLOCKIFY(height,     ALPHA_BLOCK_VERTICAL/*2*/);
-	}
-	else {
+	if (!gGLGlobalAssets.hasNPOT) {
 		width  = SmallestContainingPowerOfTwo(width);
 		height = SmallestContainingPowerOfTwo(height);
+	}
+	else if (ENFORCE_NPOT_BLOCKING || FskGLHardwareSupportsPixelFormat(kFskBitmapFormatYUV420)) {				/* We prefer not to pad NPOT for edge clamping, ... */
+		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);													/* ... but some hardware has blocking requirements, ... */
+		height = BLOCKIFY(height, ALPHA_BLOCK_VERTICAL    );													/* ... so we trade off speed for quality */
 	}
 	if (width  < TEXTURE_MIN_DIM)
 		width  = TEXTURE_MIN_DIM;
@@ -5151,14 +5186,14 @@ static FskErr ReshapeYUV420spTextures(GLsizei width, GLsizei height, GLTexture t
 				inHeight	= height;
 	#endif /* LOG_TEXTURE_LIFE */
 
-	if (gGLGlobalAssets.hasNPOT) {
-		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL/*2*/);												/* Should the block should be twice as big so U and V will be properly aligned? */
-		height = BLOCKIFY(height,     ALPHA_BLOCK_VERTICAL/*2*/);
-	}
-	else {
+	if (!gGLGlobalAssets.hasNPOT) {
 		width  = SmallestContainingPowerOfTwo(width);
 		height = SmallestContainingPowerOfTwo(height);
 	}
+	else if (ENFORCE_NPOT_BLOCKING) {																			/* There is no need to blockify */
+ 		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL/*2*/);
+ 		height = BLOCKIFY(height, ALPHA_BLOCK_VERTICAL    /*2*/);
+ 	}
 	if (width  < TEXTURE_MIN_DIM)
 		width  = TEXTURE_MIN_DIM;
 	if (height < TEXTURE_MIN_DIM)
@@ -5256,14 +5291,14 @@ static FskErr ReshapeUYVYTexture(GLsizei width, GLsizei height, GLTexture tx, GL
 
 	BAIL_IF_ERR(err = FskGLGetFormatAndTypeFromPixelFormat(kFskBitmapFormat32RGBA, &glFormat, &glType, &glIntFmt));
 
-	if (gGLGlobalAssets.hasNPOT) {
-		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);
-		height = BLOCKIFY(height, TEXTURE_BLOCK_VERTICAL);
-	}
-	else {
+	if (!gGLGlobalAssets.hasNPOT) {
 		width  = SmallestContainingPowerOfTwo(width);
 		height = SmallestContainingPowerOfTwo(height);
 	}
+	else if (ENFORCE_NPOT_BLOCKING || FskGLHardwareSupportsPixelFormat(kFskBitmapFormatUYVY)) {				/* We prefer not to pad NPOT for edge clamping, ... */
+		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);												/* ... but some hardware has blocking requirements, ... */
+		height = BLOCKIFY(height, TEXTURE_BLOCK_VERTICAL);													/* ... so we trade off speed for quality */
+ 	}
 	if (width  < TEXTURE_MIN_DIM)
 		width  = TEXTURE_MIN_DIM;
 	if (height < TEXTURE_MIN_DIM)
@@ -5459,14 +5494,15 @@ static FskErr ReshapeRGBTexture(GLInternalFormat internalGLFormat, GLsizei width
 	#endif /* LOG_TEXTURE_LIFE */
 
 	/* (re)allocate texture storage */
-	if (gGLGlobalAssets.hasNPOT) {								/* If the GPU can handle non-power-of-two textures, ... */
-		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);	/* ... we allocate a texture that has a certain block size for speed of uploading */
-		height = BLOCKIFY(height, TEXTURE_BLOCK_VERTICAL);
-	}
-	else {														/* If the GPU cannot handle non-power-of-two textures, ... */
+	if (!gGLGlobalAssets.hasNPOT) {								/* If the GPU cannot handle non-power-of-two textures, ... */
 		width  = SmallestContainingPowerOfTwo(width);			/* ... we allocate a texture that is the next power of two larger */
 		height = SmallestContainingPowerOfTwo(height);
 	}
+	else if (ENFORCE_NPOT_BLOCKING) {							/* We prefer not blocking so that edge wrapping will work properly */
+		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);	/* If the GPU can handle non-power-of-two textures, ... */
+		height = BLOCKIFY(height, TEXTURE_BLOCK_VERTICAL);		/* ... we allocate a texture that has a certain block size for speed of uploading */
+	}
+
 	if (width  < TEXTURE_MIN_DIM)								/* For reusability, ... */
 		width  = TEXTURE_MIN_DIM;								/* ... we only allocate ... */
 	if (height < TEXTURE_MIN_DIM)								/* ... a minimum size ... */
@@ -8337,11 +8373,11 @@ FskErr FskGLDstPort(FskBitmap bm, FskGLPort *glPortPtr) {
 	}
 	else {
 		glPort = bm->glPort;
-		if (glPort->texture.name != gGLGlobalAssets.blitContext->fboTexture) {				/* If we are changing frame buffers */
-			if (glPort->texture.name)	err = FskGLRenderToBitmapTexture(bm, NULL);			/* Render to texture */
-			else						err = FskGLRenderToBitmapTexture(NULL, NULL);		/* Render to screen */
-			BAIL_IF_ERR(err);
-		}
+	}
+	if (glPort->texture.name != gGLGlobalAssets.blitContext->fboTexture) {				/* If we are changing frame buffers */
+		if (glPort->texture.name)	err = FskGLRenderToBitmapTexture(bm, NULL);			/* Render to texture */
+		else						err = FskGLRenderToBitmapTexture(NULL, NULL);		/* Render to screen */
+		BAIL_IF_ERR(err);
 	}
 #endif /* AUTO_SET_FRAMEBUFFER_OBJECT */
 	BAIL_IF_FALSE(glPort->portWidth > 0 && glPort->portHeight > 0, err, kFskErrNotAccelerated);
@@ -9661,6 +9697,14 @@ static FskErr NewTextMesh(
 		case kFskTextAlignCenter:	textBounds.x += (dstWidth - ((textBounds.width + 1) & ~1)) >> 1;		break;
 		case kFskTextAlignRight:	textBounds.x +=  dstWidth -   textBounds.width;							break;
 		case kFskTextAlignLeft:		textBounds.x +=  0;														break;
+	#elif TARGET_OS_ANDROID
+		case kFskTextAlignCenter:	textBounds.x +=    (dstWidth - textBounds.width + 1) / 2;				break;
+		case kFskTextAlignRight:	textBounds.x +=     dstWidth - textBounds.width;						break;
+		case kFskTextAlignLeft:		textBounds.x +=  0;														break;
+	#elif TARGET_OS_IPHONE
+		case kFskTextAlignCenter:	textBounds.x +=    (dstWidth - textBounds.width - 1) / 2;				break;
+		case kFskTextAlignRight:	textBounds.x +=     dstWidth - textBounds.width;						break;
+		case kFskTextAlignLeft:		textBounds.x +=  0;														break;
 	#else
 		case kFskTextAlignCenter:	textBounds.x +=    (dstWidth - textBounds.width) / 2;					break;
 		case kFskTextAlignRight:	textBounds.x +=     dstWidth - textBounds.width;						break;
@@ -9678,8 +9722,8 @@ static FskErr NewTextMesh(
 	{
 #if USE_GLYPH
 //@@jph
-//@@		float dx = (float)roundf(textBounds.x);		/* Move to the nearest integer to align with the native API */
-		float dx = textBounds.x;
+//@@	float dx = (float)roundf(textBounds.x);		/* Move to the nearest integer to align with the native API */
+		float dx = textBounds.x;					/* Retain subpixel layout */
 #else
 		float dx = (float)textBounds.x;
 #endif
@@ -9848,7 +9892,7 @@ void FskGLSetAllowNearestBitmap(Boolean allow) {
 
 static void PerturbFloat(float *f) {
 	UInt32 *u = (UInt32*)(void*)f;
-	(*u) ^= 1;
+	(*u) += 1;
 }
 #endif /* GLES_VERSION == 2 */
 
@@ -10896,6 +10940,10 @@ FskErr FskGLBlitContextNew(FskGLContext glContext, FskGLBlitContext *pBlitContex
 		if (oldCtx)	(void)FskGLContextMakeCurrent(oldCtx);								/* Restore the previous GL context if there was one */
 	}
 
+	#ifdef LOG_CONTEXT
+		LOGD("\treturning blitContext=%p glContext=%p mine=%d defaultFBO=%u frameBufferObject=%u fboTexture=%u", *pBlitContext,
+			(**pBlitContext).glContext, (**pBlitContext).glContextMine, (**pBlitContext).defaultFBO, (**pBlitContext).frameBufferObject, (**pBlitContext).fboTexture);
+	#endif /* LOG_CONTEXT */
 bail:
 	return err;
 }
@@ -10960,7 +11008,7 @@ FskErr FskGLBlitContextDispose(FskGLBlitContext blitContext) {
 	FskErr				err;
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
-		LOGD("FskGLBlitContextDispose(blitContext=%p)", blitContext);
+		LOGD("FskGLBlitContextDispose(blitContext=%p) %s mine", blitContext, (blitContext && blitContext->glContextMine) ? "is" : "not");
 	#endif /* LOG_PARAMETERS */
 
 	BAIL_IF_NULL(blitContext, err, kFskErrNone);
@@ -10994,7 +11042,7 @@ FskErr FskGLBlitContextMakeCurrent(FskGLBlitContext blitContext) {
 	}
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
-		LOGD("FskGLBlitContextMakeCurrent(blitContext=%p[glContext=%p]), was %p", blitContext, blitContext->glContext, ocx);
+		LOGD("FskGLBlitContextMakeCurrent(blitContext=%p[glContext=%p]), was %p", blitContext, (blitContext ? blitContext->glContext : NULL), ocx);
 	#endif /* LOG_PARAMETERS */
 
 	#if GLES_VERSION == 2
@@ -11005,24 +11053,37 @@ FskErr FskGLBlitContextMakeCurrent(FskGLBlitContext blitContext) {
 		#endif /* CHECK_GL_ERROR */
 	#endif /* GLES_VERSION == 2 */
 	gGLGlobalAssets.blitContext = blitContext;														/* Remember that we changed the context */
-	err = FskGLContextMakeCurrent(blitContext->glContext);											/* Actually change the GL context */
-	#if defined(LOG_CONTEXT)
-		PRINT_IF_ERROR(err, __LINE__, "FskGLBlitContextMakeCurrent::FskGLContextMakeCurrent");
+	if (blitContext) {
+		err = FskGLContextMakeCurrent(blitContext->glContext);										/* Actually change the GL context */
+		#if defined(LOG_CONTEXT)
+			PRINT_IF_ERROR(err, __LINE__, "FskGLBlitContextMakeCurrent::FskGLContextMakeCurrent");
+		#endif /* LOG_CONTEXT */
+		glBindFramebuffer(GL_FRAMEBUFFER, gGLGlobalAssets.blitContext->defaultFBO);					/* Render to the screen */
+		gGLGlobalAssets.blitContext->fboTexture = 0;
+		#if GLES_VERSION == 2
+			(void)FskGLUseProgram(0);																/* Force to set the program next time */
+			gGLGlobalAssets.blitContext->fill.lastParams.level			= 0;						/* Force to change the opColor next time -- TODO: This shouldn't be necessary */
+			gGLGlobalAssets.blitContext->drawBitmap.lastParams.level	= 0;
+			gGLGlobalAssets.blitContext->transferAlpha.lastParams.level	= 0;
+			gGLGlobalAssets.blitContext->drawBCBitmap.lastParams.level	= 0;
+			gGLGlobalAssets.blitContext->tileBitmap.lastParams.level	= 0;
+			gGLGlobalAssets.blitContext->perspective.lastParams.level	= 0;
+			gGLGlobalAssets.blitContext->yuv420.lastParams.level		= 0;
+			gGLGlobalAssets.blitContext->yuv420sp.lastParams.level		= 0;
+			gGLGlobalAssets.blitContext->yuv422.lastParams.level		= 0;
+			gGLGlobalAssets.blitContext->yuv444.lastParams.level		= 0;
+			#if defined(EGL_VERSION) && defined(BG3CDP_GL)
+				gGLGlobalAssets.blitContext->drawBG3CDPBitmap.lastParams.level = 0;
+			#endif /* defined(EGL_VERSION) && defined(BG3CDP_GL) */
+			PerturbFloat(&gGLGlobalAssets.matrix[0][0]);											/* Force the view to be recomputed, and cause FskGLSetGLView() to clear to opaque black */
+		#endif /* GLES_VERSION == 2 */
+	}
+	#ifdef LOG_CONTEXT
+	{	int res = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		LOGD("FskGLBlitContextMakeCurrent frameBufferStatus=%d: %s, line %d", res, GLErrorStringFromCode(res), __LINE__);
+		err = (res == GL_FRAMEBUFFER_COMPLETE) ? kFskErrNone : FskErrorFromGLError(res);
+	}
 	#endif /* LOG_CONTEXT */
-	#if GLES_VERSION == 2
-		(void)FskGLUseProgram(0);																	/* Force to set the program next time */
-		gGLGlobalAssets.blitContext->fill.lastParams.level			= 0;							/* Force to change the opColor next time -- TODO: This shouldn't be necessary */
-		gGLGlobalAssets.blitContext->drawBitmap.lastParams.level	= 0;
-		gGLGlobalAssets.blitContext->transferAlpha.lastParams.level	= 0;
-		gGLGlobalAssets.blitContext->drawBCBitmap.lastParams.level	= 0;
-		gGLGlobalAssets.blitContext->tileBitmap.lastParams.level	= 0;
-		gGLGlobalAssets.blitContext->perspective.lastParams.level	= 0;
-		gGLGlobalAssets.blitContext->yuv420.lastParams.level		= 0;
-		gGLGlobalAssets.blitContext->yuv420sp.lastParams.level		= 0;
-		gGLGlobalAssets.blitContext->yuv422.lastParams.level		= 0;
-		gGLGlobalAssets.blitContext->yuv444.lastParams.level		= 0;
-		PerturbFloat(&gGLGlobalAssets.matrix[0][0]);												/* Force the view to be recomputed, and cause FskGLSetGLView() to clear to opaque black */
-	#endif /* GLES_VERSION == 2 */
 	return err;
 }
 
@@ -11042,7 +11103,7 @@ FskGLBlitContext FskGLBlitContextGetCurrent(Boolean create) {
 	}
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_CONTEXT)
-		LOGD("FskGLBlitContextGetCurrent(%d) is returning %p[glContext=%p]", (int)create, gGLGlobalAssets.blitContext,
+		LOGD("FskGLBlitContextGetCurrent(%d) is returning %p [glContext=%p]", (int)create, gGLGlobalAssets.blitContext,
 			(gGLGlobalAssets.blitContext ? gGLGlobalAssets.blitContext->glContext : NULL));
 	#endif /* LOG_PARAMETERS */
 
@@ -11091,6 +11152,16 @@ FskErr FskGLBlitContextGetGLContext(FskGLBlitContext blitContext, struct FskGLCo
 		*glContext = NULL;
 		return kFskErrGraphicsContext;
 	}
+}
+
+
+/********************************************************************************
+ * FskGLBlitContextGetDefaultFBO
+ ********************************************************************************/
+
+unsigned FskGLBlitContextGetDefaultFBO(FskGLBlitContext ctx) {
+	if (!ctx) ctx = gGLGlobalAssets.blitContext;
+	return ctx ? ctx->defaultFBO : 0;
 }
 
 
@@ -11584,13 +11655,13 @@ static FskErr GetCompatibleFreePortTexture(FskConstBitmap bm, FskGLPort *newPort
 
 	width  = bm->rowBytes ? (GLint)(bm->rowBytes / (bm->depth >> 3)) : (GLint)bm->bounds.width;
 	height = bm->bounds.height;
-	if (gGLGlobalAssets.hasNPOT) {
-		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);
-		height = BLOCKIFY(height, TEXTURE_BLOCK_VERTICAL);
-	}
-	else {
+	if (!gGLGlobalAssets.hasNPOT) {
 		width  = SmallestContainingPowerOfTwo(width);
 		height = SmallestContainingPowerOfTwo(height);
+	}
+	else if (ENFORCE_NPOT_BLOCKING) {
+		width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);
+		height = BLOCKIFY(height, TEXTURE_BLOCK_VERTICAL);
 	}
 
 	/* Look for an exact match (glPort), but also reserve a same-species candidate (ssPort), in case we don't find one */
@@ -11638,13 +11709,13 @@ static FskErr GetCompatibleFreePortTexture(FskConstBitmap bm, FskGLPort *newPort
 			if (gGLGlobalAssets.texImageUYVY && CanDoHardwareVideo(bm)) goto hardwareVideo;		/* Hardware UYVY only requires a single texture */
 			BAIL_IF_ERR(err = FskGLGetFormatAndTypeFromPixelFormat(kFskBitmapFormat32RGBA, &glFormat, &glType, &glIntFormat));
 			width  = bm->rowBytes / ((bm->depth >> 3) << 1);									/* Chrominance width */
-			if (gGLGlobalAssets.hasNPOT) {
-				width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);
-				height = BLOCKIFY(height, TEXTURE_BLOCK_VERTICAL);
-			}
-			else {
+			if (!gGLGlobalAssets.hasNPOT) {
 				width  = SmallestContainingPowerOfTwo(width);
 				height = SmallestContainingPowerOfTwo(height);
+			}
+			else if (ENFORCE_NPOT_BLOCKING) {
+				width  = BLOCKIFY(width,  TEXTURE_BLOCK_HORIZONTAL);
+				height = BLOCKIFY(height, TEXTURE_BLOCK_VERTICAL);
 			}
 			goto hardwareVideo;																	/* Shader UYVY only requires a single texture, but of half the width */
 
@@ -12379,7 +12450,7 @@ FskErr FskGLBitmapTextureTargetSet(FskBitmap bm) {
 	FskGLPort	glPort	= bm ? bm->glPort : NULL;
 
 	#if defined(LOG_PARAMETERS) || defined(LOG_RENDER_TO_TEXTURE)
-		LOGD("FskGLBitmapTextureTargetSet(bm=%p)", bm);
+		LOGD("FskGLBitmapTextureTargetSet(bm=%p) when ctx.fbo=%p ctx.fboTex=%u", bm, gGLGlobalAssets.blitContext->frameBufferObject, gGLGlobalAssets.blitContext->fboTexture);
 		LogSrcBitmap(bm, "bm");
 	#endif /* LOG_PARAMETERS */
 
@@ -12432,7 +12503,6 @@ FskErr FskGLBitmapTextureTargetSet(FskBitmap bm) {
 				LOGD("PANIC: fboTexture=%d while frameBufferObject=%d", gGLGlobalAssets.blitContext->fboTexture, gGLGlobalAssets.blitContext->frameBufferObject);
 		#endif /* LOG_RENDER_TO_TEXTURE */
 
-		//@@jph this call to glFramebufferTexture2D seems unnecessary
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);		/* No texture on framebuffer */
 
 		glBindFramebuffer(GL_FRAMEBUFFER, gGLGlobalAssets.blitContext->defaultFBO);				/* Render to the screen */
@@ -12441,9 +12511,17 @@ FskErr FskGLBitmapTextureTargetSet(FskBitmap bm) {
 		FskGLSetGLView(gCurrentGLPort);
 	}
 
-#if CHECK_GL_ERROR || GL_DEBUG
+#if CHECK_GL_ERROR
+	{	GLint curFB, shouldFB;
+		glGetIntegerv(GL_FRAMEBUFFER_BINDING, &curFB);
+		shouldFB = (glPort && glPort->texture.name) ? gGLGlobalAssets.blitContext->frameBufferObject : gGLGlobalAssets.blitContext->defaultFBO;
+		if (curFB != shouldFB)
+			LOGD("WTF: curFB for is %d, whereas we expect %d", curFB, shouldFB);
+	}
 	if (!err)					/* Don't overwrite the first error */
 		err = GetFskGLError();
+#endif /* CHECK_GL_ERROR */
+#if CHECK_GL_ERROR || GL_DEBUG
 bail:
 #endif /* CHECK_GL_ERROR || GL_DEBUG */
 

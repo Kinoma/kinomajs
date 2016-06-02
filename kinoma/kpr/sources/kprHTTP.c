@@ -133,8 +133,11 @@ void KPR_MD5(xsMachine *the)
 		char *str = xsToString(xsArg(0));
 		KprCryptMD5((unsigned char *)str, FskStrLen(str), NULL, buffer);
 	}
-	else
-		KprCryptMD5(xsGetHostData(xsArg(0)), xsToInteger(xsGet(xsArg(0), xsID("length"))), NULL, buffer);
+	else {
+		xsIntegerValue length = xsToInteger(xsGet(xsArg(0), xsID_length));
+		KprCryptMD5(xsGetHostData(xsArg(0)), length, NULL, buffer);
+
+	}
 	xsResult = xsString(buffer);
 }
 

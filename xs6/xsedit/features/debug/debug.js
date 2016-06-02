@@ -322,7 +322,7 @@ export default class extends Feature {
 				title = "application";
 		}
 		machine.title = kind + title;
-		this.debug.addBreakpoints(address, this.model.breakpoints.items);
+		this.debug.addBreakpoints(address, this.model.breakpoints.items.map(item => ({ path:Files.toPath(item.url), line:item.line })));
 		this.debuggees = this.machines.filter((machine, pos) => this.machines.findIndex(target => target.tag == machine.tag) == pos);
 		shell.distribute("onMachinesChanged", this.machines, this.debuggees);
 		if (!this.currentMachine || (this.currentMachine == machine))
@@ -544,11 +544,11 @@ class DebugPaneBehavior extends FeaturePaneBehavior {
 		column.empty(1);
 		if (machine) {
 			if (model.home)
-				column.add(FileTable(data, {})),
-			column.add(CallTable(data, {})),
-			column.add(DebugTable(data, { Behavior:LocalsTableBehavior })),
-			column.add(DebugTable(data, { Behavior:ModulesTableBehavior })),
-			column.add(DebugTable(data, { Behavior:GlobalsTableBehavior })),
+				column.add(FileTable(data, {}));
+			column.add(CallTable(data, {}));
+			column.add(DebugTable(data, { Behavior:LocalsTableBehavior }));
+			column.add(DebugTable(data, { Behavior:ModulesTableBehavior }));
+			column.add(DebugTable(data, { Behavior:GlobalsTableBehavior }));
 		}
 		else {
 			scroller.add(new NoDebuggeesContainer());

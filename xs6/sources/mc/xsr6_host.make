@@ -24,7 +24,7 @@ export TARGET_SYSTEM = mac
 export MACOS_ARCH = -arch i386
 export MACOS_VERSION_MIN = -mmacosx-version-min=10.7
 
-C_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN) -DmxRun=1 -DmxDebug=1 -g -Wall -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/tool -I$(XS6_MC_DIR) -I$(XS6_MC_DIR)/extensions/crypt -DXS_ARCHIVE=$(XS_ARCHIVE)
+C_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN) -DmxRun=1 -DmxDebug=1 -g -Wall -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/tool -I$(XS6_MC_DIR) -I$(XS6)/extensions/crypt -DXS_ARCHIVE=$(XS_ARCHIVE)
 LINK_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN)
 LIBRARIES = -framework CoreServices
 

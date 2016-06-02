@@ -1325,7 +1325,6 @@ void KPR_debug_addBreakpoints(xsMachine *the)
 	xsIntegerValue c = xsToInteger(xsArgc), i;
 	static char aBuffer[16 * 1024];
 	static char aValue[4096];
-	char* url = NULL;
 	char* path = NULL;
 	SInt32 line = -1;
 	if ((c >= 2) && (xsTypeOf(xsArg(0)) == xsStringType) && (xsIsInstanceOf(xsArg(1), xsArrayPrototype))) {
@@ -1338,10 +1337,8 @@ void KPR_debug_addBreakpoints(xsMachine *the)
 		for (i = 0; i < c; i++) {
 			xsResult = xsGetAt(xsArg(1), xsInteger(i));
 			strcat(aBuffer, "<breakpoint path=\"");
-			url = xsToString(xsGet(xsResult, xsID("url")));
-			xsThrowIfFskErr(KprURLToPath(url, &path));
+			path = xsToString(xsGet(xsResult, xsID("path")));
 			strcat(aBuffer, path);
-			FskMemPtrDispose(path);
 			strcat(aBuffer, "\" line=\"");
 			line = xsToInteger(xsGet(xsResult, xsID("line")));
 			sprintf(aValue, "%ld", line);
@@ -1536,20 +1533,4 @@ void KPR_system_getenv(xsMachine *the)
 		if (value)
 			xsResult = xsString(value);
 	}
-}
-
-void KPR_Files_toPath(xsMachine *the)
-{
-	char* path;
-	xsThrowIfFskErr(KprURLToPath(xsToString(xsArg(0)), &path));
-	xsResult = xsString(path);
-	FskMemPtrDispose(path);
-}
-
-void KPR_Files_toURI(xsMachine *the)
-{
-	char* url;
-	xsThrowIfFskErr(KprPathToURL(xsToString(xsArg(0)), &url));
-	xsResult = xsString(url);
-	FskMemPtrDispose(url);
 }

@@ -116,6 +116,7 @@ class ShellBehavior extends EmbedShellBehavior {
 		this.window = new Window(this);
 		shell.add(this.window);
 		shell.updateMenus();
+		shell.windowTitle = "EmbedShell";
 		super.onOpen();
 	}
 	onNameChanged() {

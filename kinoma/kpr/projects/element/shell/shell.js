@@ -273,7 +273,7 @@ class ShellBehavior extends Behavior {
 		return true; 
 	}
 	doAbout() {
-		shell.alert("about", "Kinoma Simulator", "Copyright © 2012 Marvell. All rights reserved. Kinoma is a registered trademark of Kinoma, Inc."); 
+		shell.alert("about", "Kinoma Element Simulator", "Copyright © 2016 Marvell. All rights reserved. Kinoma is a registered trademark of Kinoma, Inc."); 
 	}
 	doBreakApplication() {
 		this.host.debugger(); 

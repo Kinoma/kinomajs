@@ -246,8 +246,10 @@ exports.share = function(shares, advertise)
 		exports.invoke("configuration", function(configuration) {
 			var bll = [];
 			for (var c in configuration) {
-				if (-1 == bll.indexOf(configuration[c].require))
-					bll.push(configuration[c].require);
+				if ((c != "leftVoltage") && (c != "rightVoltage")) {
+					if (-1 == bll.indexOf(configuration[c].require))
+						bll.push(configuration[c].require);
+				}
 			}
 			var txt = {bll: bll.join(","), uuid: advertise.uuid};
 			for (var i = 0; i < shares.length; i++) {
@@ -399,6 +401,8 @@ function configurationToMux(config)
 	};
 
 	for (var bll in config) {
+		if ((bll == "leftVoltage") || (bll == "rightVoltage"))
+			continue;
 		if (!("pins" in config[bll]))
 			continue;
 		var pins = config[bll].pins;

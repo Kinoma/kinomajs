@@ -39,3 +39,9 @@ export default class File @ "xs_file_destructor" {
 	get position() @ "xs_file_getPosition";
 	set position(n) @ "xs_file_setPosition";
 };
+
+class Map @ "xs_file_map_destructor" {
+	constructor(path) @ "xs_file_map_constructor";
+};
+
+File.Map = Map;

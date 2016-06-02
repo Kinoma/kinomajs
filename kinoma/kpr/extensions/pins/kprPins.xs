@@ -86,42 +86,44 @@
 			var behaviors = {};
 			var configurations = configurationsNS.sandbox;
 			for (var i in configurations) {
-				var configuration = configurations[i].sandbox;
-				var defaults = undefined;
-                if (!("require" in configuration)) {
-					if (!("type" in configuration))
-						throw new Error("required property missing in configuration " + i + ": " + JSON.stringify(configuration));
-					var type = configuration.type;
-					var config = {};
-					config.sandbox.require = type;
-					config.sandbox.pins = {};
-					config.sandbox.pins.sandbox[type.toLowerCase()] = configurations[i];
-					configurations[i] = config;
-					configuration = config.sandbox;
-				}
-				var prototype = require(configuration.require);
-				var behavior = Object.create(prototype);
-				behavior.sandbox.id = i;
-				if ("pins" in behavior.sandbox)
-					defaults = behavior.sandbox.pins.sandbox;
-				var pins = ("pins" in configuration) ? configuration.pins.sandbox : undefined;
-				if (pins) {
-					for (var j in pins) {
-						var pin = pins[j].sandbox;
-						if (defaults && (j in defaults))
-							this.merge(defaults[j].sandbox, pin);
-						var type = pin.type;
-						if (!type)
-							throw new Error("Pin " + j + " missing type: " + JSON.stringify(pin));
-						if (!(type in constructors))
-							throw new Error("Unsupported pin type on pin " + j + ": " + JSON.stringify(pin));
-						if (construct)
-							behavior.sandbox[j] = new (constructors[type])(pin);
+				if ((i != "leftVoltage") && (i != "rightVoltage")) {
+					var configuration = configurations[i].sandbox;
+					var defaults = undefined;
+					if (!("require" in configuration)) {
+						if (!("type" in configuration))
+							throw new Error("required property missing in configuration " + i + ": " + JSON.stringify(configuration));
+						var type = configuration.type;
+						var config = {};
+						config.sandbox.require = type;
+						config.sandbox.pins = {};
+						config.sandbox.pins.sandbox[type.toLowerCase()] = configurations[i];
+						configurations[i] = config;
+						configuration = config.sandbox;
 					}
+					var prototype = require(configuration.require);
+					var behavior = Object.create(prototype);
+					behavior.sandbox.id = i;
+					if ("pins" in behavior.sandbox)
+						defaults = behavior.sandbox.pins.sandbox;
+					var pins = ("pins" in configuration) ? configuration.pins.sandbox : undefined;
+					if (pins) {
+						for (var j in pins) {
+							var pin = pins[j].sandbox;
+							if (defaults && (j in defaults))
+								this.merge(defaults[j].sandbox, pin);
+							var type = pin.type;
+							if (!type)
+								throw new Error("Pin " + j + " missing type: " + JSON.stringify(pin));
+							if (!(type in constructors))
+								throw new Error("Unsupported pin type on pin " + j + ": " + JSON.stringify(pin));
+							if (construct)
+								behavior.sandbox[j] = new (constructors[type])(pin);
+						}
+					}
+					if (construct && ("configure" in behavior.sandbox))
+						behavior.sandbox.configure(configuration, i);	// passing i for debugging / simulators
+					behaviors.sandbox[i] = behavior;
 				}
-				if (construct && ("configure" in behavior.sandbox))
-					behavior.sandbox.configure(configuration, i);	// passing i for debugging / simulators
-				behaviors.sandbox[i] = behavior;
 			}
 			if (construct)
 				this.behaviors = behaviors;

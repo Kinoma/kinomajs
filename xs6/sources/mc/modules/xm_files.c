@@ -205,22 +205,3 @@ xs_files_updatePathName(xsMachine *the)
 	mc_update_path_name();
 #endif
 }
-
-void
-xs_files_map_destructor(void *data)
-{
-	/* nothing to do */
-}
-
-void
-xs_files_map_constructor(xsMachine *the)
-{
-	size_t sz;
-	const void *data;
-
-	if ((data = mc_mmap(xsToString(xsArg(0)), &sz)) == NULL)
-		mc_xs_throw(the, "mmap");
-	xsSetHostData(xsThis, (void *)data);
-	xsSetInteger(xsResult, sz);
-	xsSet(xsThis, xsID("byteLength"), xsResult);
-}

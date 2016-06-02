@@ -282,6 +282,7 @@ static FskErr parseScanResults(char *response, char **parsed)
 	char **lines = NULL;
 	char *json = NULL;
 	UInt32 i, lineCount;
+	Boolean wroteOne = false;
 
 	bailIfError(parseWPALines(response, &lines, &lineCount));
 	bailIfError(FskMemPtrNew(3, &json));
@@ -316,12 +317,13 @@ static FskErr parseScanResults(char *response, char **parsed)
 
 		snprintf(lineBuffer, sizeof(lineBuffer), kScanResultsTemplate, bssid, (unsigned long)FskStrToNum(frequency), (unsigned long)FskStrToNum(signal_level), flags, ssid);
 		bailIfError(FskMemPtrRealloc(FskStrLen(json) + FskStrLen(lineBuffer) + 4, &json));
-		if (1 != i)
+		if (wroteOne)
 			FskStrCat(json, ",");
 		FskStrCat(json, lineBuffer);
+		wroteOne = true;
 	}
 	FskStrCat(json, "]");
-
+	
 bail:
 	if (err)
 		FskMemPtrDisposeAt(&json);

@@ -18,6 +18,7 @@ import Pins from "pins";
 
 import {
 	BLACK,
+	NORMAL_FONT,
 	SEMIBOLD_FONT,
 	WHITE,
 	fileGlyphsSkin,
@@ -47,17 +48,15 @@ import {
 	DigitalOutControlsButton,
 	MomentaryButton,
 	MotorLEDSwitch,
-	gSelectedDigitalOutControlIndex,
-	
 	gSelectedPWMControlIndex,
 	PWMControlsButton,
 } from "controls";
 
 import {
 	SquareWaveformControl,
-	PWMSlider,
 	SineWaveformControl,
-	TriangleWaveformControl
+	TriangleWaveformControl,
+	CanvasSliderBehavior,
 } from "features/devices/waveforms";
 
 // import { HorizontalSlider, HorizontalSliderBehavior, horizontalSliderBarSkin, horizontalSliderButtonSkin } from "common/slider";
@@ -324,7 +323,7 @@ var DigitalOutputPinPane = Container.template($ => ({
 				rebuildControl(container) {
 					this.data.CONTROL_CONTAINER.empty();
 					this.data.deleteWaveGenerator();
-					switch(gSelectedDigitalOutControlIndex) {
+					switch(this.data.controlIndex) {
 						case this.CONTROL_TYPES.momentaryButton:
 							var button = new MomentaryButton(this.data);
 							this.data.CONTROL_CONTAINER.add( button );
@@ -365,24 +364,61 @@ class PWMPinExplorerBehavior extends Behavior {
 		this.data = data;
 	}
 	onDisplaying(container) {
+		container.delegate("setPWMMode", this.data.pwmMode);
+	}
+	setPWMMode(container, mode) {
+		let ledPane = this.data.PWMLEDPane;
+		let motorPane = this.data.PWMMotorPane;
+		if (mode == "led") {
+			motorPane.visible = motorPane.active = false;
+			motorPane.stop();
+			ledPane.visible = ledPane.active = true;
+			ledPane.start();
+		}
+		else {
+			ledPane.visible = ledPane.active = false;
+			ledPane.stop();
+			motorPane.visible = motorPane.active = true;
+			motorPane.start();
+		}
+		this.data.pwmMode = mode;
 	}
 	onUpdate(container) {
-		this.data.PWMPane.delegate("onUpdate");
+		if (this.data.pwmMode == "led")
+			this.data.PWMLEDPane.delegate("onUpdate");
+		else
+			this.data.PWMMotorPane.delegate("onUpdate");
 	}
 }
 
 var PWMPinExplorer = Container.template($ => ({
-	left:0, right:0, height:155, skin:whiteSkin,
+	left:0, right:0, height:205, skin:whiteSkin,
 	Behavior: PWMPinExplorerBehavior,
 	contents: [
-		PWMPane($, {anchor:"PWMPane", left:0, top:0, right:0, bottom:0 ,}),
-//*		MotorLEDSwitch($, { left:20, top:6 } ),
-		SampleGraphContainer($, { anchor: "GRAPH" }),
-		SampleGraphProbeContainer($),
+		Container($, {left:0, top:0, right:0, bottom:0,
+			contents: [
+				PWMLEDPane($, {anchor:"PWMLEDPane", left:0, top:0, right:0, bottom:0 }),
+				PWMMotorPane($, {anchor:"PWMMotorPane", left:0, top:0, right:0, bottom:0 }),
+			]
+		}),
+		MotorLEDSwitch($, { left:20, top:0 } ),
 	],
 }));
 
-var PWMPane = Container.template($ => ({
+class PWMLEDPaneBehavior extends Behavior {
+	onCreate(column, data) {
+		this.data = data;
+	}
+	onTimeChanged(container) {
+		if ("LED_GRAPH" in this.data) {
+			let graph = this.data.LED_GRAPH;
+			graph.delegate("onUpdate", this.data.value);
+		}
+	}
+}
+
+var PWMLEDPane = Container.template($ => ({
+	Behavior:PWMLEDPaneBehavior,
 	left:0, right:0, top:0, bottom:0,
 	contents: [
 		Container($, { anchor: "CONTROL_CONTAINER", left:0, top:0, bottom:70, right:0,
@@ -398,7 +434,7 @@ var PWMPane = Container.template($ => ({
 					this.data.deleteWaveGenerator();
 					switch(gSelectedPWMControlIndex) {
 						case this.CONTROL_TYPES.slider:
-							controlContainer.add( new PWMSlider(this.data, { left:140, right:140, top:20, height:40 }) );
+							controlContainer.add( new PWMSlider(this.data, { left:10, right:10, top:60, height:40 }) );
 						break
 						case this.CONTROL_TYPES.sine:
 							controlContainer.add( new SineWaveformControl(this.data) );
@@ -416,9 +452,224 @@ var PWMPane = Container.template($ => ({
 			]
 		}),		
 		PWMControlsButton($, { top:0, right:20 } ),
+		SampleGraphContainer($, { anchor: "LED_GRAPH" }),
+		SampleGraphProbeContainer($),
 	],
 }));
 
+class PWMMotorPaneBehavior extends Behavior {
+	onCreate(column, data) {
+		this.data = data;
+	}
+	onTimeChanged(container) {
+		let data = this.data;
+		if ("PERIOD_GRAPH" in data && (undefined != gPeriodValue)) {
+			let periodGraph = data.PERIOD_GRAPH;
+			let periodSlider = data.PWM_PERIOD_SLIDER;
+			let fraction = periodSlider.delegate("getFractionalValue");
+			periodGraph.delegate("onUpdate", fraction);
+		}
+		if ("DUTY_CYCLE_GRAPH" in data && (undefined != gDutyCycleValue)) {
+			let dutyCycleGraph = data.DUTY_CYCLE_GRAPH;
+			let dutyCycleSlider = data.PWM_DUTY_CYCLE_SLIDER;
+			let fraction = dutyCycleSlider.delegate("getFractionalValue");
+			dutyCycleGraph.delegate("onUpdate", fraction);
+		}
+	}
+}
+
+var PWMMotorPane = Container.template($ => ({
+	Behavior:PWMMotorPaneBehavior,
+	left:0, right:0, top:0, bottom:0,
+	contents: [
+		Layout($, {
+			left:0, top:40, bottom:0, right:0,
+			Behavior:SplitHorizontalLayoutBehavior,
+			contents: [
+				PWMPeriodColumn($, {}),
+				PWMDutyCycleColumn($, {}),
+			]
+		}),
+	],
+}));
+
+    
+class AnalogOutputSliderBehavior extends CanvasSliderBehavior {
+	onCreate(canvas, data) {
+		if (false == "min" in data)	data.min = 0;
+		if (false == "max" in data) data.max = 1;
+		if (false == "value" in data) data.value = 0;
+		CanvasSliderBehavior.prototype.onCreate.call(this, canvas, data);
+		this.data = data;
+		this.pinNumber = data.pinNumber;
+	}
+	onValueChanged(canvas) {
+		CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
+		this.assertValue(canvas);
+	}
+	assertValue(canvas) {
+		var value = this.data.value;
+		this.data.write(value);
+	}
+}
+
+class PWMSliderBehavior extends AnalogOutputSliderBehavior {
+	onCreate(canvas, data) {
+		AnalogOutputSliderBehavior.prototype.onCreate.call(this, canvas, data);
+		data.deleteWaveGenerator();
+	}
+	onDisplaying(canvas) {
+		AnalogOutputSliderBehavior.prototype.onDisplaying.call(this, canvas);
+		canvas.start();
+	}
+	onTimeChanged(canvas) {
+//		this.assertValue(canvas);
+	}
+}
+
+export var PWMSlider = Container.template($ => ({
+	contents: [
+		Canvas($, { left:0, top:0, right:0, bottom:0, active:true, Behavior:PWMSliderBehavior })
+	],
+}));
+   
+var gPeriodValue = 30;
+
+class PWMPeriodSliderBehavior extends CanvasSliderBehavior {
+	onCreate(canvas, data) {
+		this.data = data;
+		var sliderData = { min: 1, max: 30, value: gPeriodValue, parentData: data };
+		CanvasSliderBehavior.prototype.onCreate.call(this, canvas, sliderData);
+	}
+	onDisplaying(canvas) {
+		canvas.delegate("setValue", gPeriodValue);
+		CanvasSliderBehavior.prototype.onDisplaying.call(this, canvas);		// calls onValueChanged()
+	}
+	onValueChanged(canvas) {
+		this.data.value = gPeriodValue = Math.round(this.data.value);
+		CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
+
+		var parentData = this.data.parentData;
+		parentData.PERIOD_LABEL.string = "Period: " + this.data.value.toString() + "ms";
+
+		parentData.PWM_DUTY_CYCLE_SLIDER.delegate("onPeriodChanged", gPeriodValue);
+	}
+}
+
+var PWMPeriodSlider = Container.template($ => ({
+	left:0, top:0, width:240, height:40,
+	contents: [
+		Canvas($, { anchor:"PWM_PERIOD_SLIDER", left:0, top:0, right:0, bottom:0, active:true, Behavior:PWMPeriodSliderBehavior })
+	],
+}));
+
+var gDutyCycleValue = 30;
+
+class PWMDutyCycleSliderBehavior extends CanvasSliderBehavior {
+	onCreate(canvas, data) {
+		this.data = data;
+		this.afterOnDisplaying = false;
+		var sliderData = { min: 0, max: 30, value: gDutyCycleValue, parentData: data };
+		CanvasSliderBehavior.prototype.onCreate.call(this, canvas, sliderData);
+	}
+	onPeriodChanged(canvas, period) {
+		this.data.max = period;
+
+		var parentData = this.data.parentData;
+		if (this.data.value > period) {
+			gDutyCycleValue = period;
+			canvas.delegate("setValue", period);
+		}
+
+		if (this.afterOnDisplaying)
+			canvas.delegate("onValueChanged");
+
+		parentData.DUTY_CYCLE_MAX_LABEL.string = period;
+
+		parentData.writeDutyCyclePeriod(gDutyCycleValue, period);
+	}
+	onDisplaying(canvas) {
+		canvas.delegate("setValue", gDutyCycleValue);
+		CanvasSliderBehavior.prototype.onDisplaying.call(this, canvas);
+		this.afterOnDisplaying = true;
+	}
+	onValueChanged(canvas) {
+		CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
+		var parentData = this.data.parentData;
+		gDutyCycleValue = this.data.value;
+		parentData.DUTY_CYCLE_LABEL.string = "Pulse Width: " + (Math.round(gDutyCycleValue * 100) / 100).toFixed(2).toString() + "ms";
+		parentData.writeDutyCyclePeriod(gDutyCycleValue, gPeriodValue);
+	}
+}
+
+var PWMDutyCycleSlider = Container.template($ => ({
+	left:0, top:0, width:240, height:40,
+	contents: [
+		Canvas($, { anchor: "PWM_DUTY_CYCLE_SLIDER", left:0, top:0, right:0, bottom:0, active:true, Behavior:PWMDutyCycleSliderBehavior })
+	],
+}));
+
+const leftSliderLabelStyle = new Style({ font:NORMAL_FONT, size:20, color:BLACK, horizontal:"left" });
+const centerSliderLabelStyle = new Style({ font:NORMAL_FONT, size:20, color:BLACK, horizontal:"center" });
+const rightSliderLabelStyle = new Style({ font:NORMAL_FONT, size:20, color:BLACK, horizontal:"right" });
+
+export var PWMPeriodColumn = Column.template($ => ({
+	left:0, top:42, right:0,
+	contents: [
+		Label($, { anchor:"PERIOD_LABEL", top:0, left:24, right:0, string:"Period: 30ms", style:leftSliderLabelStyle }),
+		PWMPeriodSlider($, { left:10, top:-4, right:10 }),
+		Container($, { 
+			left:0, top:-4, right:0,
+			contents: [
+				Label($, { top:0, left:20, string:"1", style:leftSliderLabelStyle }),
+				Label($, { top:0, right:15, string:"30", style:rightSliderLabelStyle }),
+			]
+		}),
+		Container($, {
+			left:20, right:0, top:0, bottom:0,
+			contents: [
+				SampleGraphContainer($, { anchor: "PERIOD_GRAPH" }),
+				SampleGraphProbeContainer($),
+			]
+		}),
+	],
+}));
+
+const dutyCycleValueLabelStyle = new Style({ font:NORMAL_FONT, size:20, color:BLACK, horizontal:"center,middle" });
+
+export var PWMDutyCycleColumn = Column.template($ => ({
+	left:0, top:0, right:0,
+	contents: [
+		Label($, { anchor:"DUTY_CYCLE_LABEL", top:0, left:24, right:0, string:"Pulse Width", style:leftSliderLabelStyle }),
+		PWMDutyCycleSlider($, { left:10, top:-4, right:10 }),
+		Container($, { 
+			left:0, top:-4, right:0,
+			contents: [
+				Label($, { top:0, left:20, string:"0", style:leftSliderLabelStyle }),
+				Label($, { anchor:"DUTY_CYCLE_MAX_LABEL", top:0, right:15, string:"30", style:rightSliderLabelStyle }),
+			]
+		}),
+		Container($, {
+			left:20, right:0, top:0, bottom:0,
+			contents: [
+				SampleGraphContainer($, { anchor: "DUTY_CYCLE_GRAPH" }),
+				SampleGraphProbeContainer($),
+			]
+		}),
+	],
+}));
+
+
+export class SplitHorizontalLayoutBehavior extends Behavior {
+	onMeasureVertically(layout, width) {	
+		var leftWidth = Math.floor(layout.width / 2);
+		var leftContainer = layout.first;
+		leftContainer.coordinates = { left:0, top:0, bottom:0, width:leftWidth };
+		var rightWidth = layout.width - leftWidth;
+		var rightContainer = layout.first.next;
+		rightContainer.coordinates = { left:leftWidth, top:0, bottom:0, width:rightWidth }
+	}
+};
 
 // PIN CLASSES
 
@@ -536,6 +787,10 @@ class AnalogPin extends GenericPin {
 }
 
 class DigitalPin extends GenericPin {
+	constructor(device, pins, pin, info) {
+		super(device, pins, pin, info);
+		this.controlIndex = 0;
+	}
 	canExpand() {
 		return true;
 	}
@@ -567,7 +822,7 @@ class DigitalPin extends GenericPin {
 			this.waveGenerator.onTimeChanged(this.container.time);
 	}
 	start(container) {
-		let interval = 50;
+		let interval = 100;
 		if (this.isReadable)
 			this.repeat = this.pins.repeat(this.readPath, interval, value => this.onRepeat(value));
 		this.container = container;
@@ -616,8 +871,32 @@ class SerialPin extends GenericPin {
 }
 
 class PWMPin extends GenericPin {
+	constructor(device, pins, pin, info) {
+		super(device, pins, pin, info);
+		this.mode = "led";				// "led" | "motor"
+		this.period = undefined;
+		this.dutyCycle = undefined;
+	}
 	get type() {
 		return "PWM";
+	}
+	get hasMotorMode() {
+		switch (this.device.constructor.tag) {
+			case "Create":
+				return this.isFront;
+			break;
+			case "Element":
+				return true;
+			break;
+		}
+	}
+	get pwmMode() {
+		return this.mode;
+	}
+	set pwmMode(mode) {
+		if (false == this.hasMotorMode)
+			return
+		this.mode = mode;
 	}
 	canExpand() {
 		return true;
@@ -631,15 +910,20 @@ class PWMPin extends GenericPin {
 	get writePath() {
 		return "/" + this.pin + "/write";
 	}
+	get writeDutyCyclePeriodPath() {
+		return "/" + this.pin + "/writeDutyCyclePeriod";
+	}
 	get explorer() {
 		return PWMPinExplorer;
 	}
+/*
 	onRepeat(value) {
 		this.value = value;
 		this.container.delegate("onUpdate");
 		if (this.waveGenerator != null)
 			this.waveGenerator.onTimeChanged(this.container.time);
 	}
+*/
 	start(container) {
 		this.container = container;
 		container.time = 0;
@@ -649,7 +933,13 @@ class PWMPin extends GenericPin {
 		container.stop();
 	}
 	write(value) {
-		this.pins.invoke(this.writePath, value);
+		if (this.pwmMode == "led")
+			this.pins.invoke(this.writePath, value);
+	}
+	writeDutyCyclePeriod(dutyCycle, period) {
+		if (this.pwmMode == "motor") {
+			this.pins.invoke(this.writeDutyCyclePeriodPath, { dutyCycle:dutyCycle, period:period });
+		}
 	}
 }
 
@@ -670,9 +960,11 @@ export class PinManager {
 	static createProbes(device, pins, configuration) {
 		let probes = [];
 		for (let pin in configuration) {
-			let probe = PinManager.createProbe(device, pins, pin, configuration[pin].pins);
-			if (probe) {
-				probes.push(probe);
+			if ((pin != "leftVoltage") && (pin != "rightVoltage")) {
+				let probe = PinManager.createProbe(device, pins, pin, configuration[pin].pins);
+				if (probe) {
+					probes.push(probe);
+				}
 			}
 		}
 		probes.sort(function(a, b) {

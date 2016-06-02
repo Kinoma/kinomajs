@@ -85,10 +85,10 @@ let handlers = {
 				if (url)
 					helper.wsResponse(url)
 				else
-					helper.wsErrorResponse(505, "Internal Server Error")
+					helper.wsErrorResponse(500, "Internal Server Error")
 			}, error => {
 				helper.pinsStopSharing();
-				helper.wsErrorResponse(505, "Internal Server Error");
+				helper.wsErrorResponse(500, "Internal Server Error");
 			});
 		});
 	},
@@ -346,7 +346,7 @@ let model = application.behavior = Behavior({
 					handlers[handler](helper, json);
 			}
 			catch (e) {
-				this.helper.wsErrorResponse(505, "Internal Server Error");
+				this.helper.wsErrorResponse(500, "Internal Server Error");
 			}
 		}
 		ws.onclose = function() {

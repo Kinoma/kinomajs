@@ -62,6 +62,17 @@ FskAPI(FskErr)		FskGLOffscreenContextNew(UInt32 width, UInt32 height, FskBitmapF
 FskAPI(void)		FskGLContextDispose(FskGLContext ctx, Boolean terminateGL);
 
 
+/** Dispose of the cross-platform storage for an Fsk GL Context.
+ ** The OpenGL context is not disposed, though.
+ ** This is useful to prevent memory leaks when the context is transferred
+ ** and managed elsewhere, as in an FskGLBlitContext.
+ **	\param[in]	ctx			the context to be disposed. Can be NULL.
+ **	\return		kFskErrNone	when complete.
+ **/
+FskErr	FskGLContextDisposeStorage(FskGLContext ctx);
+#define FskGLContextDisposeStorage(ctx)	FskMemPtrDispose(ctx)
+
+
 /** Retrieve the frame buffer from the context.
  **	\param[in]	ctx		the context to be queried. NULL will always return 0.
  **	\return		the frame buffer associated with the context.

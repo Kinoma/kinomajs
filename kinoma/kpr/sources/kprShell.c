@@ -884,6 +884,11 @@ Boolean KprShellEventHandler(FskEvent event, UInt32 eventCode, FskWindow window 
 				if ((self->coordinates.width != (SInt32)width) || (self->coordinates.height != (SInt32)height)) {
 					KprShellReflow(self, kprWidthChanged | kprHeightChanged);
 				}
+				else {
+					FskRectangleRecord area;
+					FskRectangleSet(&area, 0, 0, width, height);
+					KprShellInvalidated(self, &area);
+				}
 			}
 			break;
 		case kFskEventWindowAfterResize:
@@ -1511,7 +1516,7 @@ void KprShellMenuStatus(KprShell self, FskEvent event)
                                     CheckMenuItem(menu, j, MF_BYPOSITION | MF_UNCHECKED);
 #elif (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
 								FskGtkWindow win = self->window->gtkWin;
-								FskGtkWindowSetMenuItemStatus(win, id, enabled, checked);
+								FskGtkWindowSetMenuItemStatus(win, id, xsToString(xsGet(xsVar(2), xsID("title"))), enabled, checked);
 #endif
 							}
 						}
@@ -2330,14 +2335,10 @@ void KPR_shell_updateMenus(xsMachine* the)
 					if (key && (acceleratorCount < 256)) {
 						ACCEL* accelerator = accelerators + acceleratorCount;
 						BYTE mask = FCONTROL | FVIRTKEY;
-						xsStringValue p;
-						if ((p = FskStrRChr(key, '+'))) {
-							if (FskStrStr(key, "Shift")) mask |= FSHIFT;
-							if (FskStrStr(key, "Alt")) mask |= FALT;
-							key = p + 1;
-						}
+						if (FskStrStr(key, "Shift")) mask |= FSHIFT;
+						if (FskStrStr(key, "Alt")) mask |= FALT;
 						accelerator->fVirt = mask;
-						accelerator->key = LOBYTE(VkKeyScan(key[0]));
+						accelerator->key = LOBYTE(VkKeyScan(key[FskStrLen(key) - 1]));
 						accelerator->cmd = id;
 						acceleratorCount++;
 						FskStrCopy(buffer, title);
@@ -2391,13 +2392,13 @@ void KPR_shell_updateMenus(xsMachine* the)
 			xsVar(0) = xsGetAt(xsResult, xsInteger(i));
 			xsStringValue title = xsToString(xsGet(xsVar(0), xsID("title")));
 			GtkWidget *menuItem;
-			GtkWidget *menuGroup = gtk_menu_new();
+			GtkWidget *menu = gtk_menu_new();
 
 			FskStrCopy(buffer0, "_");
 			FskStrCat(buffer0, title);
 			menuItem = gtk_menu_item_new_with_mnemonic(buffer0);
-			gtk_menu_item_set_submenu(GTK_MENU_ITEM(menuItem), menuGroup);
-			gtk_widget_show(menuGroup);
+			gtk_menu_item_set_submenu(GTK_MENU_ITEM(menuItem), menu);
+			gtk_widget_show(menu);
 			FskGtkWindowSetMenuBar(win, menuItem, (i<<8)); // Attach current menuItem to menuBar
 
 			xsVar(1) = xsGet(xsVar(0), xsID("items"));
@@ -2425,19 +2426,25 @@ void KPR_shell_updateMenus(xsMachine* the)
 					xsSet(xsVar(2), xsID("doID"), xsInteger(doID));
 					// FIXME: here we should use gtk_check_menu_item_new_with_label, but it has display bug on Ubutun-12
 					//  So use gtk_check_menu_item_new_with_mnemonic for workaround
-					GtkWidget* menu = gtk_check_menu_item_new_with_mnemonic(title);
-					gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menu), FALSE); //Default is not checked
-					gtk_menu_shell_append(GTK_MENU_SHELL(menuGroup), menu);
-					FskGtkWindowSetMenuItemCallback(win, menu, id);
-					if( (FskStrLen(key) == 1) && (key[0] >= '0' && key[0] <= 'z')) {
-						gtk_widget_add_accelerator(menu, "activate", win->accelGroup, (GdkModifierType)key[0], GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+					if (xsHas(xsVar(2), xsID("check"))) {
+						menuItem = gtk_check_menu_item_new_with_mnemonic(title);
+						gtk_check_menu_item_set_active(GTK_CHECK_MENU_ITEM(menuItem), FALSE); //Default is not checked
 					}
-
+					else {
+						menuItem = gtk_menu_item_new_with_mnemonic(title);
+					}
+					
+					gtk_menu_shell_append(GTK_MENU_SHELL(menu), menuItem);
+					FskGtkWindowSetMenuItemCallback(win, menuItem, id);
+					if( (FskStrLen(key) == 1) && (key[0] >= '0' && key[0] <= 'z')) {
+						gtk_widget_add_accelerator(menuItem, "activate", win->accelGroup, (GdkModifierType)key[0], GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE);
+					}
 				} else {
 					GtkWidget* separator = gtk_separator_menu_item_new();
-					gtk_menu_shell_append(GTK_MENU_SHELL(menuGroup), separator);
+					gtk_menu_shell_append(GTK_MENU_SHELL(menu), separator);
 				}
 			}
+			gtk_widget_set_events(GTK_WIDGET(menu), GDK_ALL_EVENTS_MASK);
 		}
 	}
 	xsLeaveSandbox();

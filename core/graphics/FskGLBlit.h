@@ -377,6 +377,14 @@ FskAPI(FskErr)	FskGLBlitContextSwapCurrent(FskGLBlitContext *pBlitContext);
 FskAPI(FskErr)	FskGLBlitContextGetGLContext(FskGLBlitContext blitContext, struct FskGLContextRecord **glContext);
 
 
+/** Get the default frame buffer object from the given GL Blit context.
+ *	\param[in]	blitContext	the blit context (NULL implies the current context).
+ *	\return		the default FBO for the given (or current) GL Blit context.
+ **/
+FskAPI(unsigned) FskGLBlitContextGetDefaultFBO(FskGLBlitContext blitContext);
+
+
+
 /*********************************************************************************
  *********************************************************************************
  **							Utility Functions									**
@@ -1030,7 +1038,7 @@ FskAPI(UInt32) FskGLEstimateTextureMemoryUsage(void);
 	FskAPI(FskErr)			FskGLResetAllState(FskConstGLPort port);
 	FskAPI(void)			FskGLSetBlend(Boolean doBlend, unsigned int srcRGB, unsigned int dstRGB, unsigned int srcAlpha, unsigned int dstAlpha);
 	FskAPI(void)			FskGLUnbindBMTexture(FskConstBitmap bm);
-	#if TARGET_OS_ANDROID || TARGET_OS_KPL || defined(__linux__) || (FSK_OPENGLES_ANGLE == 1)
+	#if TARGET_OS_ANDROID || TARGET_OS_KPL || defined(__linux__) || (FSK_OPENGLES_ANGLE == 1) || (defined(FSK_OPENGLES_KPL) && FSK_OPENGLES_KPL)
 		#ifndef EGL_VERSION
 			#include <EGL/egl.h>
 		#endif /* EGL_VERSION */

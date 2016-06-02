@@ -86,10 +86,10 @@ let handlers = {
 				if (url)
 					helper.wsResponse(url)
 				else
-					helper.wsErrorResponse(505, "Internal Server Error")
+					helper.wsErrorResponse(500, "Internal Server Error")
 			}, error => {
 				helper.pinsStopSharing();
-				helper.wsErrorResponse(505, "Internal Server Error");
+				helper.wsErrorResponse(500, "Internal Server Error");
 			});
 		});
 	},

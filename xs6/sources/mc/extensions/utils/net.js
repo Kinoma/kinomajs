@@ -77,7 +77,6 @@ export function parseUrl(url) {
 					parts.port = parseInt(substr(semi + 1, p));
 				} else {
 					if (parts.scheme) {
-						const {portForScheme} = require.weak('utils/net');
 						parts.port = portForScheme(parts.scheme);
 					}
 					parts.host = substr(host, p);

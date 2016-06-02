@@ -15,6 +15,8 @@
  *     limitations under the License.
  */
 #include "xs6Platform.h"
+#undef mxImport
+#define mxImport extern
 #include "expat.h"
 #include "xs.h"
 #ifdef KPR_CONFIG

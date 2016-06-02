@@ -15,6 +15,8 @@
  *     limitations under the License.
  */
 #include "xs6Script.h"
+#undef mxImport
+#define mxImport extern
 #include "FskGrowableStorage.h"
 #include "kpr.h"
 #include "kprCode.h"

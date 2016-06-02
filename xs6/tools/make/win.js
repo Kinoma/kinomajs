@@ -49,7 +49,7 @@ class Makefile extends MAKE.Makefile {
 		file.write(this.name);
 		file.write(".lib: $(");
 		file.write(this.name);
-		file.write("_OBJECTS)\n\tlib /LTCG /NOLOGO /OUT:$(TMP_DIR)\\");
+		file.write("_OBJECTS)\n\tlib /NOLOGO /OUT:$(TMP_DIR)\\");
 		file.write(this.name);
 		file.write(".lib $(");
 		file.write(this.name);
@@ -88,7 +88,7 @@ class Manifest extends MAKE.Manifest {
 			
 			APP:this.tree.application,
 			APP_EXE: bin + "\\" + this.tree.application + ".exe",
-			RESOURCE: FS.existsSync(resource) ? resource : "$(F_HOME)\\kinoma\\kpr\\cmake\\win\\resource.rc",
+			RESOURCE: FS.existsSync(resource) ? resource : "$(F_HOME)\\build\\win\\resource.rc",
 			// FskPlatform.mk
 			BUILD_TMP: tmp,
 		};
@@ -98,7 +98,7 @@ class Manifest extends MAKE.Manifest {
 all: $(APP_EXE) $(FOLDERS) $(FILES)
 
 $(APP_EXE): $(TMP_DIR)\\resource.res $(OBJECTS)
-	link /LTCG /OUT:$(APP_EXE) $(LIBRARIES) $(TMP_DIR)\\resource.res $(OBJECTS)
+	link /OUT:$(APP_EXE) $(LIBRARIES) $(TMP_DIR)\\resource.res $(OBJECTS)
 	
 $(TMP_DIR)\\resource.res: $(RESOURCE)
 	rc /fo$(TMP_DIR)\\resource.res $(RESOURCE) 

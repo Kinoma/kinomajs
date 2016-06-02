@@ -84,7 +84,6 @@ C_OPTIONS += \
 <platform name="win">
 	<input name="$(F_HOME)/libraries/BonjourSDK/Include/"/>
 	<source name="kprZeroconfApple.c"/>
-	<library name="/NODEFAULTLIB:libcmt.lib"/>
 	<library name="$(F_HOME)/libraries/BonjourSDK\Lib\Win32\dnssd.lib"/>
 </platform>
 </makefile>

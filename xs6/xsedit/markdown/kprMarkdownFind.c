@@ -14,6 +14,7 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+#define PCRE_STATIC
 #include "pcre.h"
 #include "kpr.h"
 #include "kprCode.h"

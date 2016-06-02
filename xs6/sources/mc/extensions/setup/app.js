@@ -16,7 +16,7 @@
  */
 const HTTP_ERROR_400 = "Bad Request";
 const HTTP_ERROR_404 = "Not Found";
-const HTTP_ERROR_505 = "Internal Server Error";
+const HTTP_ERROR_500 = "Internal Server Error";
 
 const HTTP_TYPE_JSON = "application/json";
 
@@ -54,7 +54,7 @@ let handlers = {
 				http.errorResponse(400, HTTP_ERROR_400);
 		}
 		catch(error) {
-			http.errorResponse(500, HTTP_ERROR_505);
+			http.errorResponse(500, HTTP_ERROR_500);
 		}
 	},
 	connect(http, query) {
@@ -68,7 +68,7 @@ let handlers = {
 			if (xs.login(host, name))
 				http.response();
 			else
-				http.errorResponse(500, HTTP_ERROR_505);
+				http.errorResponse(500, HTTP_ERROR_500);
 		}
 		else
 			http.errorResponse(400, HTTP_ERROR_400);
@@ -134,7 +134,7 @@ let handlers = {
 			Files.deleteFile(Files.applicationDirectory + "/" + f);
 			http.response();
 		} catch(error) {
-			http.errorResponse(500, HTTP_ERROR_505);
+			http.errorResponse(500, HTTP_ERROR_500);
 		}
 	},
 	upload(http, query) {
@@ -151,7 +151,7 @@ let handlers = {
 			}
 			http.response();
 		} catch(error) {
-			http.errorResponse(500, HTTP_ERROR_505);
+			http.errorResponse(500, HTTP_ERROR_500);
 		}
 	}
 };
