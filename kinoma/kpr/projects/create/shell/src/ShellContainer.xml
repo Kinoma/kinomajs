@@ -1,0 +1,1954 @@
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<require path="kdt/core/DebugHandlerMessageBehavior" id="DebugHandlerMessageBehavior"/>
+	<require path="kdt/core/AuthenticatedDebugHandlerMessageBehavior" id="AuthenticatedDebugHandlerMessageBehavior"/>
+	<require path="kdt/core/DebugBehavior" id="DEBUG"/>
+	<require path="kdt/core/TransitionHelper" id="TransitionHelper"/>
+	<require path="themes/flat/theme" id="CONTROL_THEME"/>
+	<require path="themes/sample/theme" id="THEME"/>
+	<script><![CDATA[
+		for( var i in CONTROL_THEME )
+			THEME[i] = CONTROL_THEME[i];
+	]]></script>
+	<require path="mobile/scroller" id="SCROLLER"/>
+	<require path="mobile/screen" id="SCREEN"/>
+	<require path="mobile/model" id="MODEL"/>
+	<require path="locale" id="LOCALE"/>
+	<require id="BUTTONS" path="controls/buttons"/>
+	<require id="CDIALOG" path="creations/dialog"/>
+	<require id="KEYBOARD" path="./src/keyboard"/>
+
+	<skin id="background" color="black"/>
+
+	<skin id="defaultTileSkin">
+		<states colors="white,#e5e5e5"/>
+	</skin>
+	<skin id="customTileSkin">
+		<states colors="#76b42e,#669b28"/>
+	</skin>
+	<skin id="settingsTileSkin">
+		<states colors="#ff9900,#e58a00"/>
+	</skin>
+
+	<texture id="bigWifiTexture" small="./src/big-wi-fi-strip.png"/>
+	<skin id="bigWifiSkin" texture="bigWifiTexture" x="0" y="0" width="66" height="60">
+		<variants offset="66"/>
+	</skin>
+	<texture id="bigWifiCompromisedTexture" small="./src/big-wi-fi-strip-compromised.png"/>
+	<skin id="bigWifiCompromisedSkin" texture="bigWifiCompromisedTexture" x="0" y="0" width="66" height="60">
+		<variants offset="66"/>
+	</skin>
+
+	<texture id="batteryIconsTexture" small="./src/battery-icons.png"/>
+	<skin id="batteryIconsSkin" texture="batteryIconsTexture" x="0" y="0" width="60" height="36">
+		<variants offset="60"/>
+	</skin>
+
+	<style id="shellStyle" font="16px Fira Sans"/>
+	<style id="customTileStyle" color="white"/>
+	<style id="defaultTileStyle" color="#444444"/>
+
+	<style id="tileTitleStyle" leading="-17" font="23px">
+		<margins left="4" right="4"/>
+	</style>
+
+	<style id="customTileTitleStyle" leading="-17" font="23px" color="white">
+		<margins left="4" right="4"/>
+	</style>
+	<style id="customTileLineTwoStyle" font="20px" color="white"/>
+	<style id="customTileSubtitleStyle" font="18px" color="white"/>
+	<style id="defaultTileTitleStyle" leading="-17" font="23px" color="#444444">
+		<margins left="4" right="4"/>
+	</style>
+	<style id="settingsTileDateTimeStyle" font="18px" color="white" align="center,middle"/>
+
+	<script>
+		var backGestures = {
+			off: "touch={ width=1024 height=768 } gestures={ capture={ type=path distance=100 points={ 924,668,100,668,100,100,924,100 } action=capture.sh }}",
+			square: "touch={ width=1024 height=768 } gestures={ back={ type=path distance=100 points={ 100,100,100,668,924,668,924,100,100,100 } action=back.sh } capture={ type=path distance=100 points={ 924,668,100,668,100,100,924,100 } action=capture.sh }}",
+			circle: "touch={ width=1024 height=768 } gestures={ back={ type=loop distance=100 points={ 796,384,758,242,654,138,512,100,370,138,266,242,228,384,266,526,370,630,512,668,654,630,758,526,796,384 } action=back.sh } capture={ type=path distance=100 points={ 924,668,100,668,100,100,924,100 } action=capture.sh }}",
+		};
+	</script>
+
+	<behavior id="TileBehavior" like="SCREEN.ListItemBehavior">
+		<method id="onTap" params="tile"><![CDATA[
+			var list = tile.container;
+			list.behavior.onItemTap(list, tile);
+			getBehavior().setSelectedApplication(this.data.info);
+		]]></method>
+	</behavior>
+
+	<column id="DefaultIconTile" left="0" width="104" top="0" skin="defaultTileSkin" active="true" behavior="TileBehavior">
+		<content height="8"/>
+		<thumbnail width="60" height="60" url="$.icon"/>
+		<content height="4"/>
+		<text left="0" right="0" style="defaultTileTitleStyle" string="$.info.title"/>
+		<content height="8"/>
+	</column>
+
+	<column id="CustomTileVertical" left="0" right="0">
+		<content height="12"/>
+		<content skin="$._skin" width="$._width" height="$._height"/>
+		<content height="8"/>
+		<text anchor="TEXT" left="0" right="0" style="tileTitleStyle" string="$.info.title"/>
+		<content height="8"/>
+	</column>
+
+	<line id="CustomTileHorizontal">
+		<content width="4"/>
+		<column>
+			<content height="10"/>
+			<content skin="$._skin" width="$._width" height="$._height"/>
+			<content height="10"/>
+		</column>
+		<content width="4"/>
+		<label style="tileTitleStyle" string="$.info.title"/>
+	</line>
+
+	<behavior id="CustomTileBehavior" like="TileBehavior">
+		<method id="onCreate" params="container, data"><![CDATA[
+			TileBehavior.prototype.onCreate.call(this, container, data);
+			var texture = new Texture(data.icon);
+			var width = texture.width;
+			var height = texture.height;
+			data._skin = new Skin({ texture:texture, x:0, y:0, width:width, height:height, aspect:"stretch" });
+			var maxWidth = 100;
+			if (width > maxWidth) {
+				height = Math.round(height * maxWidth / width);
+				width = maxWidth;
+			}
+			var maxHeight = 75;
+			if (height > maxHeight) {
+				width = Math.round(width * maxHeight / width);
+				height = maxHeight;
+			}
+			data._width = width;
+			data._height = height;
+			var labelSize = tileTitleStyle.measure(data.info.title);
+			var totalWidth = 4 + width + 4 + labelSize.width;
+			var maxWidth = 104;
+			if (totalWidth <= maxWidth)
+				container.add(new CustomTileHorizontal(data));
+			else
+				container.add(new CustomTileVertical(data));
+			delete data._height;
+			delete data._width;
+			delete data._skin;
+		]]></method>
+	</behavior>
+
+	<container id="CustomTile" left="0" width="104" top="0" active="true" skin="customTileSkin" style="customTileStyle" behavior="CustomTileBehavior"/>
+
+	<container id="DefaultCustomTile" left="0" width="104" top="0" active="true" skin="defaultTileSkin" style="defaultTileStyle" behavior="CustomTileBehavior"/>
+
+	<column id="PinmuxTile" left="0" width="104" top="0" skin="customTileSkin" active="true" behavior="TileBehavior">
+		<content height="8"/>
+		<thumbnail width="100" height="40" url="$.icon"/>
+		<text left="0" right="0" style="customTileTitleStyle" string="$.info.title"/>
+		<content height="8"/>
+	</column>
+
+	<column id="BatteryTile" left="0" width="104" top="0" skin="customTileSkin" active="true">
+		<behavior like="TileBehavior">
+			<method id="onCreate" params="column, data"><![CDATA[
+				TileBehavior.prototype.onCreate.call(this, column, data);
+				this.updateBatteryDisplay(column);
+			]]></method>
+			<method id="updateBatteryDisplay" params="column"><![CDATA[
+				var model = getBehavior().data.battery;
+				column.battery.icon.variant = model.isCharging ? 1 : 0;
+				var maxWidth = 28;
+				var width = Math.round(model.batteryLevel * maxWidth);
+				var height = 15;
+				var xOffset = maxWidth - width;
+				var notChargingX = 18;
+				var chargingX = 26;
+				var left = model.isCharging ? (chargingX + xOffset) : (notChargingX + xOffset);
+				var top = 10;
+				column.battery.level.coordinates = { left : left, top : top, width : width, height : height };
+			]]></method>
+            <method id="onBatteryStatus" params="column, isCharging, batteryLevel"><![CDATA[
+                this.updateBatteryDisplay(column);
+            ]]></method>
+		</behavior>
+		<content height="8"/>
+		<container name="battery">
+			<content name="icon" skin="batteryIconsSkin"/>
+			<content name="level" left="26" top="10" width="28" height="15">
+				<skin color="#99FFFFFF"/>
+			</content>
+		</container>
+		<text left="0" right="0" style="customTileTitleStyle" string="$.info.title"/>
+		<content height="8"/>
+	</column>
+
+	<column id="SamplesTile" left="0" width="104" top="0" skin="defaultTileSkin" active="true" behavior="TileBehavior">
+		<content height="8"/>
+		<thumbnail width="80" height="60" url="$.icon"/>
+		<content height="4"/>
+		<text left="0" right="0" style="defaultTileTitleStyle" string="$.info.title"/>
+		<content height="8"/>
+	</column>
+
+	<column id="SettingsTile" left="0" width="104" top="0" skin="settingsTileSkin" active="true" behavior="TileBehavior">
+		<content height="8"/>
+		<thumbnail width="60" height="60" url="$.icon"/>
+		<content height="4"/>
+		<label left="0" right="0" style="customTileTitleStyle" string="'Settings'"/>
+		<label left="0" right="0" style="customTileLineTwoStyle">
+			<behavior>
+				<method id="onCreate" params="text"><![CDATA[
+					this.onDeviceNameChanged(text);
+				]]></method>
+				<method id="onDeviceNameChanged" params="text"><![CDATA[
+					var deviceInfo = getPreferences().getPreference("deviceInfo", { name: "Kinoma Create" });
+					text.string = deviceInfo.name;
+				]]></method>
+			</behavior>
+		</label>
+		<content height="2"/>
+		<label left="0" right="0" height="16" style="settingsTileDateTimeStyle">
+			<behavior>
+				<method id="onDisplaying" params="label"><![CDATA[
+					this.onTimeChanged(label);
+					label.interval = 30000;
+					label.start();
+					var model = getBehavior();
+					var now = new Date();
+					var year = now.getFullYear();
+					if (year >= 2014) {
+						model.data.network.dateSet = true;
+						var timezone = getTimezonePosix();
+						if (timezone)
+							K4.timezone = timezone;
+						this.onTimeChanged(label);
+					}
+					else {
+						label.visible = model.data.network.dateSet;
+					}
+				]]></method>
+				<method id="onTimeChanged" params="label"><![CDATA[
+					var now = new Date();
+					label.string = LOCALE.formatDate(now, null, 0) + '  ' + LOCALE.formatTime(now, null, 0);
+				]]></method>
+				<method id="onDateSet" params="label"><![CDATA[
+					label.visible = true;
+					this.onTimeChanged(label);
+				]]></method>
+			</behavior>
+		</label>
+		<content height="8"/>
+	</column>
+
+	<column id="WifiTile" left="0" width="104" top="0" skin="customTileSkin" active="true">
+		<behavior like="TileBehavior">
+			<method id="computeStrength" params="value"><![CDATA[
+				var low = -120;
+				var high = -40;
+				if (value < low)	value = low;
+				if (value > high)	value = high;
+				return Math.round(4 * ((value - low) / (high - low)));
+			]]></method>
+	        <method id="onComplete" params="column, message, json"><![CDATA[
+				if (!json) {
+					column.wifiLevel.variant = 5;
+					column.cancel();
+					return;
+				}
+				var signal_level = json.signal_level;
+				if (0 != signal_level)
+					this.onNetworkSignalLevelChange(column, signal_level);
+				if (json.ssid)
+					column.ap.string = json.ssid;
+				else
+					column.ap.string = this.data.info.title;
+				if (json.ip_address)
+					column.ip.string = json.ip_address;
+				else
+					column.ip.string = this.noIP;
+				this.onNetworkProxyChange(column, json.proxy);
+				if (json.ssid && json.ip_address)
+					column.cancel();
+			]]></method>
+			<method id="onDisplaying" params="column"><![CDATA[
+				this.noIP = "Tap to connect";
+				this.connecting = false;
+				column.wifiLevel.variant = 0;
+				column.invoke(new Message("/network/status"), Message.JSON);
+				column.wait(2000);
+			]]></method>
+			<method id="onNetworkConnected" params="column, ssid, ip_address"><![CDATA[
+				this.connecting = false;
+				column.ap.string = ssid;
+				column.ip.string = ip_address;
+				column.cancel();
+			]]></method>
+			<method id="onNetworkConnecting" params="column, ssid"><![CDATA[
+				this.connecting = true;
+				column.ap.string = ssid;
+				column.ip.string = "(connecting)";
+			]]></method>
+			<method id="onNetworkInterfaceRemoved" params="column"><![CDATA[
+				if (!this.connecting) {
+					column.ap.string = this.data.info.title;
+					column.ip.string = this.noIP;
+					column.wifiLevel.variant = 5;
+					column.wifiLevel.skin = bigWifiSkin;
+				}
+			]]></method>
+			<method id="onNetworkProxyChange" params="column, proxy"><![CDATA[
+				column.wifiLevel.skin = (proxy ? bigWifiCompromisedSkin : bigWifiSkin);
+			]]></method>
+			<method id="onNetworkSignalLevelChange" params="column, level"><![CDATA[
+				column.wifiLevel.variant = this.computeStrength(level);
+			]]></method>
+		</behavior>
+		<content height="8"/>
+		<content name="wifiLevel" width="66" height="60" variant="0" skin="bigWifiSkin">
+			<behavior>
+				<method id="onNetworkConnected" params="content"><![CDATA[
+					content.stop();
+				]]></method>
+				<method id="onNetworkConnecting" params="content, ssid"><![CDATA[
+					this.bump = +1;
+					content.variant = 0;
+					content.time = 0;
+					content.interval = 1000;
+					content.start();
+				]]></method>
+				<method id="onTimeChanged" params="content"><![CDATA[
+					var variant = content.variant + this.bump;
+					if (variant > 4) {
+						variant = 3;
+						this.bump = -this.bump;
+					}
+					else if (variant < 1) {
+						variant = 2;
+						this.bump = -this.bump;
+					}
+					content.variant = variant;
+				]]></method>
+			</behavior>
+		</content>
+		<content height="4"/>
+		<text name="ap" left="0" right="0" style="customTileTitleStyle"/>
+		<label name="ip" left="0" right="0" style="customTileSubtitleStyle"/>
+		<content height="8"/>
+	</column>
+
+	<container id="ShellContainer" left="0" right="0" top="0" bottom="0" style="shellStyle" skin="background">
+		<behavior>
+			<method id="onCreate" params="list, data"><![CDATA[
+				this.data = data;
+			]]></method>
+			<method id="onDisplaying" params="container"><![CDATA[
+				if (!this.data.eula && (getEnvironmentVariable("noeula") == null)) {
+					container.add(new EULAContainer({url: mergeURI(shell.url, "./src/eula.txt")}));
+				}
+			]]></method>
+		</behavior>
+		<scroller like="SCROLLER.VerticalScroller">
+			<layout anchor="LIST" left="0" right="0" top="0" active="true" backgroundTouch="true">
+				<behavior like="SCREEN.ListBehavior">
+					<method id="addLines" params="list, items, more"><![CDATA[
+						var c = items.length;
+						for (var i = 0; i < c; i++) {
+							var item = items[i];
+							list.add(new item.Tile(item));
+						}
+						list.adjust();
+					]]></method>
+					<method id="onCreate" params="list, data"><![CDATA[
+						if (data.dirty) {
+							var applicationManager = getBehavior().getApplicationManager();
+							var c = applicationManager.getExtensionCount();
+							var items = new Array();
+							for (var i in defaultItems) {
+								if (("bleexplorer.create.kinoma.marvell.com" == i) && !K4.is8887())
+									continue;
+								var info = applicationManager.getExtensionById(i);
+								if (info) {
+									var item = defaultItems[i];
+									item.icon = mergeURI(info.url, "icon.png");
+									item.info = info;
+									items.push(item);
+								}
+							}
+							if (i == "wifi.create.kinoma.marvell.com")
+								items.reverse();
+							for (var i = 0; i < c; i++) {
+								var info = applicationManager.getExtensionByIndex(i);
+								if (!info.temporary && !(info.id in defaultItems)) {
+									var icon = info.icon;
+									var item = {
+										info: info,
+										Tile : DefaultCustomTile
+									};
+                                    if (Files.exists(icon)) {
+                                        item.icon = icon;
+                                    }
+                                    else
+                                        icon = mergeURI(info.url, "icon.png");
+                                    if (Files.exists(icon)) {
+                                        item.icon = icon;
+                                    }
+									else {
+										var defaultIcon = mergeURI(shell.url, "./src/default-icon.png");
+										item.icon = defaultIcon;
+									}
+									items.push(item);
+								}
+							}
+							data.items = items;
+						}
+						this.data = data;
+						this.addLines(list, data.items, false);
+					]]></method>
+					<method id="onMeasureHorizontally" params="container"><![CDATA[
+						return 320;
+					]]></method>
+					<method id="onMeasureVertically" params="container"><![CDATA[
+						var xs = [0, 109, 218];
+						var ys = [0, 0, 0];
+						var content = container.first;
+						while (content) {
+							var min = 0x7FFFFFFF;
+							var j = 0;
+							for ( var i = 0; i < 3; i++ ) {
+								var y = ys[ i ];
+								if ( y < min ) {
+									min = y;
+									j = i;
+								}
+							}
+							var size = content.measure();
+							content.x = container.x + xs[ j ];
+							content.y = container.y + min;
+							ys[ j ] = min + size.height + 5;
+							content = content.next;
+						}
+						var max = 0;
+						for ( var i = 0; i < 3; i++ ) {
+							var y = ys[ i ];
+							if ( y > max )
+								max = y;
+						}
+						this.max = max;
+						return this.max;
+					]]></method>
+				</behavior>
+			</layout>
+		</scroller>
+	</container>
+
+	<texture id="progressTexture" small="./src/progress.png"/>
+	<skin id="progressSkin" texture="progressTexture" x="0" y="0" width="60" height="60">
+		<variants offset="60"/>
+	</skin>
+	<skin id="progressBorderSkin">
+		<borders left="1" right="1" top="1" bottom="1" color="#666666"/>
+	</skin>
+	<style id="progressCenterStyle" font="30px" color="#2870b0"/>
+	<style id="progressLeftStyle" font="16px" color="#666666" align="left"/>
+	<style id="progressRightStyle" font="16px" color="#666666" align="right"/>
+
+	<container id="ShellProgressDialogBox" left="0" right="0" top="0" bottom="0" skin="THEME.cancellerSkin" state="1" active="true">
+		<container left="20" right="20" top="20" bottom="20" skin="THEME.dialogBoxSkin" active="true">
+			<behavior>
+				<method id="onCreate" params="container, $"><![CDATA[
+					this.onDataChanged(container, $);
+				]]></method>
+				<method id="onDataChanged" params="container, $"><![CDATA[
+					this.data = $;
+					var parts = parseURI($.path);
+					container.first.string = parts.name;
+				]]></method>
+			</behavior>
+			<label left="0" right="0" top="160" height="20" style="defaultTileTitleStyle"/>
+			<content left="10" top="40" width="60" height="60" skin="progressSkin"/>
+			<content right="10" top="40" width="60" height="60" skin="progressSkin" variant="1"/>
+			<content left="10" right="10" top="140" height="1" skin="progressBorderSkin"/>
+			<canvas like="CDIALOG.CircularProgressCanvas" top="10">
+				<behavior like="CDIALOG.CircularProgressCanvasBehavior">
+					<method id="computeRatio" params="canvas"><![CDATA[
+						var info = Files.getInfo(this.data.path);
+						if (info) {
+							this.ratio = info.size / this.data.size;
+							canvas.next.string = Math.round(this.ratio * 100) + "%";
+						}
+						else {
+							this.ratio = 0;
+							canvas.next.string = "";
+						}
+					]]></method>
+					<method id="onCreate" params="container, $"><![CDATA[
+                        CDIALOG.CircularProgressCanvasBehavior.prototype.onCreate.call(this, container, $);
+						this.onDataChanged(container, $);
+					]]></method>
+					<method id="onDataChanged" params="canvas, $"><![CDATA[
+						this.data = $;
+					]]></method>
+				</behavior>
+			</canvas>
+			<label left="80" right="80" top="50" height="40" style="progressCenterStyle"/>
+		</container>
+	</container>
+
+	<script><![CDATA[
+		var defaultItems = {
+			"bleexplorer.create.kinoma.marvell.com" : {
+				Tile: CustomTile,
+				backgroundColor : "green"
+			},
+            "pindetective.create.kinoma.marvell.com" : {
+				Tile: CustomTile,
+				backgroundColor : "green"
+            },
+            "bllexplorer.create.kinoma.marvell.com" : {
+				Tile: CustomTile,
+				backgroundColor : "green"
+            },
+            "files.create.kinoma.marvell.com" : {
+				Tile: CustomTile,
+				backgroundColor : "green"
+			},
+			"netscanner.create.kinoma.marvell.com" : {
+				Tile: CustomTile,
+				backgroundColor : "green"
+			},
+			"samples.create.kinoma.marvell.com" : {
+				Tile: SamplesTile,
+				backgroundColor : "white"
+			},
+			"logs.create.kinoma.marvell.com" : {
+				Tile: CustomTile,
+				backgroundColor : "green"
+			},
+			"pinmux.create.kinoma.marvell.com" : {
+				Tile: PinmuxTile,
+				backgroundColor : "green"
+			},
+			"battery.create.kinoma.marvell.com" : {
+				Tile: BatteryTile,
+				backgroundColor : "green"
+			},
+			"filesharing.create.kinoma.marvell.com" : {
+				Tile: CustomTile,
+				backgroundColor : "green"
+			},
+			"settings.create.kinoma.marvell.com" : {
+				Tile: SettingsTile,
+				backgroundColor : "orange"
+			},
+			"wifi.create.kinoma.marvell.com" : {
+				Tile: WifiTile,
+				backgroundColor : "green"
+			},
+		};
+		Date.prototype.toLocaleDateString = function() {
+			return LOCALE.formatDate(this);
+		}
+	]]></script>
+
+	<class id="ShellBehavior" like="DebugBehavior">
+		<method id="createShellContainer"><![CDATA[
+			return new ShellContainer(this.data);
+		]]></method>
+		<method id="closeAlertDialog" params="immediate"><![CDATA[
+			var dialog = this.alertDialog;
+			if (dialog) {
+				var screen = this.getScreen();
+				this.alertDialog = null;
+				if (immediate)
+					screen.remove(dialog)
+				else
+					screen.run(new DialogCloseTransition, dialog);
+			}
+		]]></method>
+		<method id="closeProgressDialog" params="immediate"><![CDATA[
+			var dialog = this.progressDialog;
+			if (dialog) {
+				var screen = this.getScreen();
+				this.progressDialog = null;
+				if (immediate)
+					screen.remove(dialog)
+				else
+					screen.run(new DialogCloseTransition, dialog);
+			}
+		]]></method>
+		<method id="connect" params="host, port">
+			<![CDATA[
+				setEnvironmentVariable( "debugger", port != null ? host + ":" + port : host );
+				/*
+				shell.debugging = true;
+				if (this.applicationContainer != null) {
+				Logger.log( "in applicatioContainer connect" );
+					if (!this.applicationContainer.debugging) {
+						this.applicationContainer.debugging = true;
+						Logger.log(DEBUG.START_MESSAGE);
+					}
+				}
+			    else{
+			                 Logger.log( "in shell connect" );
+
+			       Logger.log(DEBUG.START_MESSAGE);
+			       }
+			   */
+			]]>
+		</method>
+		<method id="dialStart"><![CDATA[
+			this.dialServer = new SSDP.Server("urn:schemas-upnp-org:device:Basic:1", shell.serverPort, "/dial", 1800);
+			this.dialServer.addService("urn:dial-multiscreen-org:service:dial:1");
+			this.dialServer.start();
+		]]></method>
+		<method id="dialStop"><![CDATA[
+			this.dialServer.stop();
+			delete this.dialServer;
+		]]></method>
+		<method id="disconnect" params="close">
+			<![CDATA[
+				if (this.applicationContainer != null) {
+					if (this.applicationContainer.debugging) {
+						//Logger.log(DEBUG.STOP_MESSAGE, false, this.applicationContainer);
+						this.applicationContainer.debugging = false;
+					}
+					if (close) {
+						this.handleApplicationClose();
+				    }
+				}
+				//shell.debugging = false;
+			]]>
+		</method>
+		<method id="getApplicationSearchPaths"><![CDATA[
+			var result = getEnvironmentVariable("applicationURLs");
+			result = result.split(";");
+			var userApplicationDir = getEnvironmentVariable( "userApplicationDir" );
+			if (userApplicationDir)
+                result.push(mergeURI(Files.documentsDirectory, userApplicationDir));
+			result.push(this.getUploadPath(true) + "/applications/");
+			result.push(this.getUploadPath(false) + "/applications/");
+			return result;
+		]]></method>
+		<method id="getDescription"><![CDATA[
+			var description = DebugBehavior.prototype.getDescription.call( this );
+
+            //
+            // read the firmware version
+            //
+	        var version = null;
+	        var versionURL = "file:///version.txt";
+	        var exists = Files.exists(versionURL);
+	        if (exists) {
+	            var text = Files.readText(versionURL);
+	            var lines = text.split("\n");
+	            version = lines[0];
+	            if ( version.length > 10 || version.length < 1 ) version = undefined;
+	        }
+
+            if( version != null )
+                description.firmware = version;
+
+            return description;
+		]]></method>
+		<method id="getDefaultDeviceName"><![CDATA[
+			return "Kinoma Create";
+		]]></method>
+		<method id="getDeviceId">
+			<![CDATA[
+				return "com.marvell.kinoma.launcher.create";
+		]]></method>
+		<method id="getStudioServices">
+			<![CDATA[
+				var services = DebugBehavior.prototype.getStudioServices.call( this );
+
+				services.capture = { path: "/capture" };
+
+				return services;
+		]]></method>
+		<method id="getLogFilePath"><![CDATA[
+			return K4.logPath;
+		]]></method>
+
+		<method id="getIcon">
+            <![CDATA[
+                var userIconUrl = mergeURI( Files.preferencesDirectory, "kdt/launcher/icon.png" );
+                if( Files.exists( userIconUrl ) )
+                    return userIconUrl;
+                else
+                    return mergeURI( shell.url, "icon.png" );
+            ]]>
+        </method>
+        <method id="getPreferencesPath">
+            <![CDATA[
+                return mergeURI( Files.preferencesDirectory, "kdt/launcher/preferences.json" );
+            ]]>
+        </method>
+		<method id="getDeviceSearchPaths"><![CDATA[
+			var result = getEnvironmentVariable("deviceURLs");
+			result = result.split(";");
+			return result;
+		]]></method>
+		<method id="getInfo" params="temporary"><![CDATA[
+			var info = DebugBehavior.prototype.getInfo.call( this, temporary );
+			info.status = this.getStatus();
+			return info;
+		]]></method>
+		<method id="getStatus"><![CDATA[
+			return "ready";
+		]]></method>
+		<method id="handleApplicationClose" params="immediate"><![CDATA[
+			if (this.selectedApplication) {
+				var data = this.data;
+                var id = this.selectedApplication.id;
+				this.onSetSystemKeyboardVisible(shell, false);
+				this.shellContainer = this.createShellContainer();
+				if (immediate || this.selectedApplication.temporary) {
+					this.getScreen().run( new ZoomOutToCenterTransition(), this.applicationContainer, this.shellContainer );
+				}
+				else {
+					data.items.some(function(item, index) {
+						if (item.info.id == id) {
+							data.selection = index;
+							return true;
+						}
+					});
+					this.getScreen().run(new ZoomOutTransition, this.applicationContainer, this.shellContainer, null, this.data);
+				}
+				this.applicationContainer = null;
+				this.selectedApplication = null;
+
+				// stop the hardwarepins repeats
+                var message = new Message("pins:close");
+                message.setRequestHeader("referrer", "xkpr://" + id);
+				shell.invoke(message);
+
+				// reset the modulePath environment variable
+				setEnvironmentVariable( "modulePath", this.getSystemModulePath() );
+
+				// remove dial handler
+				var info = this.getApplicationManager().getExtensionById(id);
+				if ("handler" in info) {
+					Handler.remove(info.handler);
+					delete info.handler;
+				}
+			}
+		]]></method>
+		<method id="handleUploadBegan" params="path, size"><![CDATA[
+			shell.stop();
+			var data = this.progressData;
+			var dialog = this.progressDialog;
+			data.path = path;
+			data.size = size;
+			if (dialog)
+				dialog.distribute("onDataChanged", data);
+			else {
+				var screen = this.getScreen();
+				dialog = this.progressDialog = new ShellProgressDialogBox(data);
+				screen.run(new DialogOpenTransition, dialog);
+			}
+		]]></method>
+		<method id="handleUploadEnded"><![CDATA[
+			shell.duration = 1000;
+			shell.time = 0;
+			shell.start();
+		]]></method>
+		<method id="hasNetwork"><![CDATA[
+			return this.data.network.active;
+		]]></method>
+		<method id="initialize" params="shell"><![CDATA[
+			DebugBehavior.prototype.initialize.call(this, shell);
+		]]></method>
+		<method id="installApplication" params="url, temporary"><![CDATA[
+			shell.stop();
+			this.onFinished(shell);
+			var applicationInfo = this.getApplicationManager().registerExtension(url, temporary);
+			if (applicationInfo != null) {
+				if (!applicationInfo.temporary) {
+					this.data.dirty = true;
+					var former = this.shellContainer;
+					if (former) {
+						var currentSelection = -1;
+						this.data.items.some(function(item, index) {
+							if (item.info == applicationInfo) {
+								currentSelection = index;
+								return true;
+							}
+						});
+						if (currentSelection < 0) {
+							this.shellContainer = this.createShellContainer();
+							this.getScreen().replace(former, this.shellContainer);
+						}
+					}
+				}
+			}
+			return applicationInfo;
+		]]></method>
+        <method id="installDevice" params="url">
+            <![CDATA[
+            ]]>
+        </method>
+		<method id="loadKnownNetworks"><![CDATA[
+			var path = Files.preferencesDirectory + "k4.networks.json";
+			if (Files.exists(path)) {
+				try {
+					var text = Files.readText(path);
+					this.knownNetworks = JSON.parse(text);
+				}
+				catch(e) {
+				}
+			}
+			if (!("knownNetworks" in this)) {
+				this.knownNetworks = [];
+				Files.writeText(path, JSON.stringify(this.knownNetworks));
+			}
+		]]></method>
+		<method id="onDateSet" params="shell"><![CDATA[
+			K4.log("system", "Date/time synchronized with network");
+		]]></method>
+        <method id="onDeviceDebugSettingsChanged" params="shell"><![CDATA[
+            if (shell.shared)
+                shell.shared = false;
+            if (this.isDebuggingAllowed())
+                shell.share( this.getShareConfig() );
+        ]]></method>
+		<method id="onDeviceNameChanged" params="shell"><![CDATA[
+            // toggle shared to broadcast new name
+            if (shell.shared)
+                shell.shared = false;
+            if( this.isDebuggingAllowed() )
+                shell.share( this.getShareConfig() );
+			var deviceInfo = getPreferences().getPreference("deviceInfo", { name: "Kinoma Create" });
+			if (deviceInfo && deviceInfo.name) {
+				//shell.invoke(new Message("xkpr://bluetooth/device/rename?" + serializeQuery({name: deviceInfo.name})));
+				//K4.log("bluetooth", "Setting bluetooth name to '" + deviceInfo.name + "'");
+			}
+		]]></method>
+		<method id="onEULAAccepted" params="shell"><![CDATA[
+			this.data.eula = 1;
+			var preferences = getPreferences();
+			preferences.setPreference("eula", this.data.eula);
+			preferences.write();
+			var shellContainer = this.shellContainer;
+			shellContainer.run(new EULAZoomOutTransition, shellContainer.last);
+		]]></method>
+		<method id="onFinished" params="shell"><![CDATA[
+			this.closeProgressDialog();
+		]]></method>
+		<method id="onGetSystemKeyboardVisible" params="shell, showIt"><![CDATA[
+			return KEYBOARD.isShown();
+		]]></method>
+		<method id="onHibernate" params="shell"><![CDATA[
+			this.data.network.hibernating = true;
+		]]></method>
+		<method id="onInvoke" params="shell, message"><![CDATA[
+			var path = message.path;
+			if (this.selectedApplication && (path == "/dial/apps/" + this.selectedApplication.id + "/run")) {	//@@ shouldn't this be DELETE method only?'
+				this.handleApplicationClose();
+				message.status = 201;
+			}
+			else if (path.indexOf("/dial/apps/") == 0) {
+				var id = message.name
+				var info = this.getApplicationManager().getExtensionById(id);
+				if (info) {
+					var running = this.selectedApplication && (this.selectedApplication.id == id);
+					if (message.method == "GET") {
+						var text = '<?xml version="1.0" encoding="UTF-8"?>';
+						text += '<service xmlns="urn:dial-multiscreen-org:schemas:dial" dialVer="1.7">';
+						text += '<name>' + id + '</name>';
+						text += '<options allowStop="true"/>';
+						text += '<state>' + (running ? "running" : "stopped") + '</state>';
+						if (running)
+							text += '<link rel="run" href="run"/>';
+						text += '</service>';
+						message.setResponseHeader("Content-Length", text.length);
+						message.setResponseHeader("Content-Type", "text/xml; charset=\"utf-8\"");
+						message.responseText = text;
+						message.status = 200;
+					}
+					else if (message.method == "POST") {
+						var applicationInstanceURL = mergeURI(message.url, id + "/run");
+						if (running) {
+							message.status = 200;
+						}
+						else {
+							this.setSelectedApplication(info);
+							message.setResponseHeader("LOCATION", applicationInstanceURL);
+							message.status = 201;
+							var handler = new Handler(message.path);
+							handler.behavior = new DialHandlerBehavior(handler);
+							Handler.put(handler);
+							info.handler = handler;
+						}
+						shell.invoke(new Message("xkpr://" + id + "/dial?" + message.requestText));
+					}
+					else {
+						message.status = 501;
+					}
+				}
+				else {
+					message.status = 404;
+				}
+			}
+		]]></method>
+		<method id="onLaunch" params="shell"><![CDATA[
+			this.initialize(shell);
+			this.data = {
+				dirty: true,
+				netInterfaces: {},
+				network: {
+					active: false,
+					internet: false,
+					proxy: false,
+					dateSet: false,
+					ssid: "",
+					ip_address: "",
+					signal_level: 0,
+					connecting: false,
+					scanning: false,
+					scanned: [],
+					autoconnect: {
+						index: -1,
+					},
+					hibernating: false
+				},
+				items: [],
+				scroll: { x:0, y:0 },
+				selection: -1,
+                battery: {isCharging: false, batteryLevel: 1, history: [], max: 120},
+				eula: getPreferences().getPreference("eula", 0),
+				applyingUpdate: false
+			};
+
+			K4.log("system", "Launcher started");
+			shell.invoke(new Message("xkpr://k4/fixWiFi"));
+
+			this.progressData = {
+				path: "",
+				size: 0
+			};
+			this.progressDialog = null;
+
+			this.alertDialog = null;
+
+			this.networkPasswordKey = new Chunk("CJIVkp5oAeBwe6ecahPAtQ==");
+			this.loadKnownNetworks();
+
+			var backGestureName = getPreferences().getPreference("backGesture", "circle");
+			system.backGesture = backGestures[backGestureName];
+
+			// Set the bluetooth device name
+			// ?! bluetooth device name not being set in onDeviceNameChange().. should
+			// probably be a separate call, since we dont want to call onDeviceNameChanged
+			// on launch, since it restarts the http server...
+			//this.onDeviceNameChanged(shell);
+
+            if( this.isDebuggingAllowed() )
+                shell.share( this.getShareConfig() );
+            else
+                shell.shared = false;
+			this.dialStart();
+
+            // configure shell BLLs
+            shell.invoke(new MessageWithObject("pins:configure", {
+                    pinmux: {
+                        require: "pinsconfigure",
+                        pins: {
+                        }
+                    },
+                    battery: {
+                        require: "MAX17058",
+                        pins: {
+                            microUSBCharger: {}
+                        }
+                    },
+                    backlight: {
+                        require: "backlight",
+                        pins: {
+                        }
+                    },
+                    pics: {
+                    	require: "PICmcus",
+                    	pins: {
+                    		leftPIC: {},
+                    		rightPIC: {}
+                    	}
+                    }
+                }));
+
+            // battery monitor
+//          this.data.battery.history = getPreferences().getPreference("batteryHistory", []);
+            shell.invoke(new Message("/battery/read"));
+            shell.invoke(new MessageWithObject("pins:/battery/chargerDetect?repeat=on&callback=/battery/charger&timer=microUSBCharger"));
+
+//            chargerStatus = 0;
+//            chargerStatusTime = Date.now();
+//            shell.invoke(new MessageWithObject("pins:/battery/chargerStatus?repeat=on&callback=/battery/chargerStatus&interval=1000"));
+
+            shell.invoke(new MessageWithObject("pins:/backlight/write", getPreferences().getPreference("backlight", 0.6)));
+
+            //PIC updater
+            setEnvironmentVariable("PICsNeedUpdate", "false");
+			shell.invoke(new Message("/checkPICVersion"));
+
+			var startupApp = getPreferences().getPreference("startupApp", { name : "None", id : "None" } );
+			var info = this.getApplicationManager().getExtensionById(startupApp.id);
+			if (info) {
+				this.setApplicationEnvironment(info);
+				var host = this.applicationContainer = this.getApplicationManager().createApplicationContainer(info, false);
+				this.selectedApplication = info;
+				this.shellContainer = null;
+				this.getScreen().add(host);
+				K4.log("system", "Launching " + info.title);
+				host.launch();
+				host.adapt();
+			}
+			else {
+				this.applicationContainer = null;
+				this.selectedApplication = null;
+				this.shellContainer = this.createShellContainer();
+				this.getScreen().add(this.shellContainer);
+			}
+
+			// network monitors
+			shell.invoke(new Message("/network/autoconnect/monitor/start"));
+			shell.invoke(new Message("/network/wifi/level/monitor/start"));
+
+            // call super behavior onLaunch
+            DebugBehavior.prototype.onLaunch.call( this, shell );
+        ]]></method>
+		<method id="onKeyDown" params="shell, key, modifiers, repeat, ticks"><![CDATA[
+			var code = key.charCodeAt(0);
+            if ((Event.FunctionKeyPower == code) || (0xF000C == code)) {
+            	if ((repeat == 1) && !this.data.applyingUpdate) {
+					this.closeAlertDialog();
+					this.closeProgressDialog();
+                    shell.invoke(new Message("/power"));
+                }
+                return true;
+            }
+		]]></method>
+		<method id="onKeyUp" params="shell, key, modifiers, repeat, ticks"><![CDATA[
+			var code = key.charCodeAt(0);
+            if ((Event.FunctionKeyPower == code) || (0xF000C == code)) {
+            	return true;
+           	}
+		]]></method>
+		<method id="onNetworkInterfaceRemoved" params="shell, ssid"><![CDATA[
+		]]></method>
+		<method id="onSetSystemKeyboardVisible" params="shell, showIt"><![CDATA[
+			KEYBOARD.show(showIt, this.getScreen(), this.applicationContainer);
+		]]></method>
+		<method id="refreshShellContainer"><![CDATA[
+			this.data.dirty = true;
+			var former = this.shellContainer;
+			if (former) {
+				this.shellContainer = this.createShellContainer();
+				this.getScreen().replace(former, this.shellContainer);
+			}
+		]]></method>
+		<method id="saveKnownNetworks"><![CDATA[
+			var path = Files.preferencesDirectory + "k4.networks.json";
+			Files.writeText(path, JSON.stringify(this.knownNetworks));
+		]]></method>
+		<method id="setSelectedApplication" params="applicationInfo, debug, breakOnExceptions"><![CDATA[
+			if (/*null == this.applicationContainer &&*/ this.selectedApplication != applicationInfo) {
+				this.setApplicationEnvironment(applicationInfo);
+				var data = this.data;
+				var formerSelection = data.selection;
+				var currentSelection = -1;
+				var boe = breakOnExceptions != null ? breakOnExceptions : true;
+				data.items.some(function(item, index) {
+					if (item.info == applicationInfo) {
+						currentSelection = index;
+						return true;
+					}
+				});
+                shell.invoke( new Message( "pins:breakOnException?break=" + boe ) );
+                shell.invoke( new Message( "pins:breakOnLaunch?break=" + (debug ? "true" : "false") ) );
+
+				var current = this.getApplicationManager().createApplicationContainer(applicationInfo, debug, boe);
+				data.selection = currentSelection;
+				if (this.selectedApplication) {
+					var former = this.applicationContainer;
+					this.applicationContainer = current;
+					if( debug == true )
+					   this.applicationContainer.debugging = true;
+		            // set breakpoints before launch
+		            //this.handleSetBreakpoints( this.breakpoints );
+					this.getScreen().run(new PushLeftTransition, former, current, null, null);
+					//this.getScreen().run(new TransitionHelper.PushTransition( 350, former, current,
+					//		(formerSelection < currentSelection) ? TransitionHelper.LEFT : TransitionHelper.RIGHT, 0 ));
+				}
+				else {
+					var former = this.shellContainer;
+					this.applicationContainer = current;
+		            // set breakpoints before launch
+		            //this.handleSetBreakpoints( this.breakpoints );
+					K4.log("system", "Launching " + applicationInfo.title);
+					this.getScreen().run(new ZoomInTransition, former, current, data, null);
+					this.shellContainer = null;
+				}
+                if( this.profiling )
+                {
+                   if( this.profilingDirectory != null )
+                       current.profilingDirectory = this.profilingDirectory;
+
+                   current.profiling = true;
+                }
+				this.selectedApplication = applicationInfo;
+			}
+		]]></method>
+		<method id="uninstallApplication" params="url"><![CDATA[
+			var applicationInfo = DebugBehavior.prototype.uninstallApplication.call(this, url);
+			if (applicationInfo) {
+				MODEL.ApplicationBehavior.prototype.deleteAllPreferences.call(this, applicationInfo.di);
+				this.refreshShellContainer();
+			}
+		]]></method>
+		<method id="updateBattery" params="status"><![CDATA[
+            var behavior = getBehavior();
+            var model = behavior.data.battery;
+            var history = model.history;
+            var batteryLevel = (undefined === status.batteryLevel) ? 0 : Math.min(status.batteryLevel, 1);
+            var when = Date.now();
+            var chargeState = status.chargeState;
+
+            if (0 == chargeState)
+                chargeState = 1;        // map pre-charge state to charging - seems safe in practice
+            if (batteryLevel <= 0.05)
+                chargeState = 4;        // when battery is below 5%, always in red
+
+            var item = {
+                batteryLevel: batteryLevel,
+                when: when,
+                rawChargeState: status.chargeState,
+                chargeState: chargeState
+            };
+
+            if (history.length >= model.max) {
+                for (var i = 1, length = model.max; i < length; i++)
+                    history[i - 1] = history[i];
+                history[length - 1] = item;
+            }
+            else
+                history.push(item);
+
+            if (batteryLevel !== model.batteryLevel) {
+                model.batteryLevel = batteryLevel;
+                shell.distribute("onBatteryStatus", model.isCharging, batteryLevel);
+            }
+
+            var applicationInfo = behavior.selectedApplication;
+            if (applicationInfo && ("battery.create.kinoma.marvell.com" == applicationInfo.id)) {
+                var message = new Message("xkpr://battery.create.kinoma.marvell.com/update");
+                message.requestObject = model.history;
+                shell.invoke(message);
+            }
+		]]></method>
+	</class>
+
+	<function id="getBehavior">
+		return shell.behavior;
+	</function>
+	<function id="getPreferences">
+		return getBehavior().getPreferences();
+	</function>
+
+	<handler path="/close">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				message.status = 204;
+				getBehavior().handleApplicationClose();
+			]]></method>
+		</behavior>
+	</handler>
+
+	<handler path="/checkPICVersion">
+	    <behavior>
+	        <method id="onInvoke" params="handler, message"><![CDATA[
+	            handler.invoke(new MessageWithObject("pins:/pics/getVersion"), Message.JSON);
+	         ]]></method>
+
+	        <method id="onComplete" params="handler, message, JSON"><![CDATA[
+	            if (! JSON.inSimulator ){
+	            	var currentPICVersion = getEnvironmentVariable("PICVersion");
+	         		if (JSON.left != currentPICVersion || JSON.right != currentPICVersion) setEnvironmentVariable("PICsNeedUpdate", "true");
+	         	}
+	         ]]></method>
+	    </behavior>
+	</handler>
+
+	<handler path="/capture">
+		<behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <method id="processMessage" params="handler, message, params">
+                <![CDATA[
+					var http = params.getValue( "output" ) == "http";
+					var screen = getBehavior().getScreen();
+					var x = screen.x, y = screen.y, width = screen.width, height = screen.height;
+					var result = K4.captureScreen(http, screen.x, screen.y, screen.width, screen.height);
+
+					if (http) {
+						message.status = 200;
+						message.responseBuffer = result;
+						message.setResponseHeader("Content-Type", "image/bmp");
+					}
+					else {
+						message.status = 204;
+
+						var dir = Files.documentsDirectory + "screen/";
+						Files.ensureDirectory(dir);
+
+						for (var index = 1; true; index++) {
+							var i = index.toString();
+							if (index < 10) i = "0" + i;
+							if (index < 100) i = "0" + i;
+							var path = dir + "capture "+ i + ".bmp";
+							if (Files.exists(path))
+								continue;
+
+							Files.writeBuffer(path, result);
+							break;
+						}
+					}
+                ]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<handler path="/quitLauncher">
+	    <behavior>
+	        <method id="onInvoke" params="handler, message"><![CDATA[
+	            shell.quit();
+	        ]]></method>
+	    </behavior>
+	</handler>
+
+	<handler path="/delay">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				var duration = query.duration;
+				handler.wait(duration);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/setBacklight">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				var value = query.value;
+            	shell.invoke(new MessageWithObject("pins:/backlight/write", value));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/software/update/start">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                var model = getBehavior().data;
+				model.applyingUpdate = true;
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/software/update/complete">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                var model = getBehavior().data;
+				model.applyingUpdate = false;
+			}
+		]]></behavior>
+	</handler>
+
+	<!-- handlers invoked by Samples app -->
+
+	<handler path="/app/check">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var query = parseQuery(message.query);
+				var applicationInfo = getBehavior().getApplicationManager().getExtensionById(query.id);
+				var result = {success: applicationInfo ? true : false, path: applicationInfo ? true : false};
+				var result;
+				if (applicationInfo)
+					result = {success: true, url: applicationInfo.url.slice(0, applicationInfo.url.lastIndexOf("/"))};
+				else
+					result = {success: false};
+				message.responseText = JSON.stringify(result);
+				message.status = 200;
+			]]></method>
+		</behavior>
+	</handler>
+
+	<script><![CDATA[
+		var standardTimeZonePosixMap = [ "SST+11:00", "HST+10:00", "AKST+09:00", "PST+08:00", "MST+07:00",
+							"CST+06:00", "EST+05:00", "AST+04:00", "UYT+03:00", "PMST+02:00",
+							"AZOST+01:00", "GMT+00:00", "CET-01:00", "EET-02:00", "IOT-03:00",
+							"AST-04:00", "PKT-05:00", "BST-06:00", "THA-07:00",
+							"CST-08:00", "JST-09:00", "AEST-10:00", "VUT-11:00", "NZST-12:00" ];
+
+		var daylightTimeZonePosixMap = [ "SST+11:00", "HADT+09:00", "AKDT+08:00", "PDT+07:00", "MDT+06:00",
+							"CDT+05:00", "EDT+04:00", "ADT+03:00", "UYST+02:00", "PMDT+02:00",
+							"AZOST+01:00", "GMT+00:00", "CEDT-02:00", "EEDT-03:00", "IOT-03:00",
+							"AST-04:00", "PKT-05:00", "BST-06:00", "THA-07:00",
+							"CST-08:00", "JST-09:00", "AEDT-11:00", "VUT-11:00", "NZDT-13:00" ];
+
+		var getTimezonePosix = function() {
+			var timezone = getPreferences().getPreference("timeZone", { zone: -8, "daylight-savings": false });
+			if (timezone) {
+				var dst = timezone["daylight-savings"];
+				var zone = timezone.zone + 11;	// @@ how to share globals from timezone.xml??
+				timezone = (dst ? daylightTimeZonePosixMap[zone] : standardTimeZonePosixMap[zone]);
+			}
+			return timezone;
+		}
+	]]></script>
+
+	<!-- battery / power handlers -->
+	<handler path="/battery/status">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                getBehavior().updateBattery(message.requestObject);
+            }
+		]]></behavior>
+	</handler>
+
+	<handler path="/battery/history">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                message.requestObject = getBehavior().data.battery.history;
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/battery/read">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                handler.invoke(new MessageWithObject("pins:/battery/read"), Message.JSON);
+			}
+            function onComplete(handler, message, json) {
+                getBehavior().updateBattery(json);
+                shell.invoke(new MessageWithObject("pins:/battery/read?repeat=on&callback=/battery/status&interval=60000"));
+            }
+		]]></behavior>
+	</handler>
+
+	<handler path="/battery/charger">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                var model = getBehavior().data.battery;
+                var isCharging = message.requestObject;
+                if (isCharging !== model.isCharging) {
+                    model.isCharging = isCharging;
+                    shell.distribute("onBatteryStatus", isCharging, model.batteryLevel);
+                }
+			}
+		]]></behavior>
+	</handler>
+
+	<behavior id="PowerDialogBoxButtonBehavior" like="BUTTONS.ButtonBehavior">
+		<method id="onCreate" params="container, data"><![CDATA[
+			BUTTONS.ButtonBehavior.prototype.onCreate.call(this, container, data);
+			this.blocked = false;
+		]]></method>
+		<method id="onTouchBegan" params="container, id, x, y, ticks"><![CDATA[
+			if (!this.blocked)
+				BUTTONS.ButtonBehavior.prototype.onTouchBegan.call(this, container, id, x, y, ticks);
+         ]]></method>
+		<method id="onTouchCancelled" params="container, id, x, y, ticks"><![CDATA[
+			if (!this.blocked)
+				BUTTONS.ButtonBehavior.prototype.onTouchCancelled.call(this, container, id, x, y, ticks);
+         ]]></method>
+		<method id="onTouchEnded" params="container, id, x, y, ticks"><![CDATA[
+			if (!this.blocked)
+				BUTTONS.ButtonBehavior.prototype.onTouchEnded.call(this, container, id, x, y, ticks);
+         ]]></method>
+		<method id="onTransitionBeginning" params="container"><![CDATA[
+			this.blocked = true;
+		]]></method>
+		<method id="onTransitionEnded" params="container"><![CDATA[
+			this.blocked = false;
+		]]></method>
+	</behavior>
+
+
+	<texture id="shutdownTexture" small="./src/shutdown.png"/>
+	<skin id="shutdownSkin" texture="shutdownTexture" x="0" y="0" width="140" height="140">
+	</skin>
+	<container id="ShutdownScreen" left="0" right="0" top="0" bottom="0" skin="THEME.blackSkin">
+		<content skin="shutdownSkin"/>
+	</container>
+
+	<container id="PowerDialogBox" left="0" right="0" top="0" bottom="0" style="pinmuxStyle" skin="THEME.cancellerSkin" state="1" active="true">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+                this.powerPressed = false;
+			]]></method>
+			<method id="onDisplayed" params="container"><![CDATA[
+				this.former = container.focus();
+			]]></method>
+			<method id="onKeyDown" params="container, key, modifiers, repeat, ticks"><![CDATA[
+				var code = key.charCodeAt(0);
+				if ((Event.FunctionKeyPower == code) || (0xF000C == code)) {
+					if (repeat == 1) {
+                        this.powerPressed = true;
+						this.data.CANCEL.delegate("onTouchBegan", 0, 0, 0, ticks);
+					}
+					return true;
+				}
+			]]></method>
+			<method id="onKeyUp" params="container, key, modifiers, repeat, ticks"><![CDATA[
+				var code = key.charCodeAt(0);
+				if ((Event.FunctionKeyPower == code) || (0xF000C == code)) {
+                    if (this.powerPressed)
+					this.data.CANCEL.delegate("onTouchEnded", 0, 0, 0, ticks);
+					return true;
+			   }
+			]]></method>
+			<method id="onTouchBegan" params="container, id, x, y, ticks"><![CDATA[
+				this.data.CANCEL.delegate("onTouchBegan", id, x, y, ticks);
+			]]></method>
+			<method id="onTouchEnded" params="container, id, x, y, ticks"><![CDATA[
+				this.data.CANCEL.delegate("onTouchEnded", id, x, y, ticks);
+			]]></method>
+			<method id="onUndisplayed" params="container"><![CDATA[
+				if (this.former)
+					this.former.focus();
+			]]></method>
+		</behavior>
+		<column top="0" width="140" skin="THEME.dialogBoxSkin">
+			<content height="10"/>
+			<select on="getBehavior().selectedApplication">
+				<container width="120" height="40" skin="pinmuxButtonSkin" state="1" active="true">
+					<behavior like="PowerDialogBoxButtonBehavior">
+						<method id="onTap" params="container"><![CDATA[
+							var behavior = getBehavior();
+							var dialog = behavior.alertDialog;
+							var screen = behavior.getScreen();
+							behavior.alertDialog = null;
+							screen.run(new PowerDialogCloseTransition, dialog);
+							behavior.handleApplicationClose();
+						]]></method>
+					</behavior>
+					<label left="0" right="0" top="0" bottom="0" style="pinmuxCancelStyle" string="'Home'"/>
+				</container>
+				<content height="10"/>
+			</select>
+			<container width="120" height="40" skin="pinmuxButtonSkin" state="1" variant="1" active="true">
+				<behavior like="PowerDialogBoxButtonBehavior">
+					<method id="onTap" params="container"><![CDATA[
+						var behavior = getBehavior();
+						var content = new ShutdownScreen();
+						var screen = behavior.getScreen();
+						screen.run(new ShutdownTransition, content);
+						screen.run(new AfterShutdownTransition, content);
+					]]></method>
+				</behavior>
+				<label left="0" right="0" top="0" bottom="0" style="pinmuxOKStyle" string="'Shutdown'"/>
+			</container>
+			<content height="10"/>
+			<container width="120" height="40" skin="pinmuxButtonSkin" state="1" variant="1" active="true">
+				<behavior like="PowerDialogBoxButtonBehavior">
+					<method id="onTap" params="container"><![CDATA[
+						var behavior = getBehavior();
+						var dialog = behavior.alertDialog;
+						var screen = behavior.getScreen();
+						behavior.alertDialog = null;
+						screen.run(new BeforeHibernateTransition, dialog);
+						screen.run(new HibernateTransition);
+						screen.run(new AfterHibernateTransition, dialog);
+					]]></method>
+				</behavior>
+				<label left="0" right="0" top="0" bottom="0" style="pinmuxOKStyle" string="'Sleep'"/>
+			</container>
+			<content height="10"/>
+			<container anchor="CANCEL" width="120" height="40" skin="pinmuxButtonSkin" state="1" active="true">
+				<behavior like="PowerDialogBoxButtonBehavior">
+					<method id="onTap" params="container"><![CDATA[
+						var behavior = getBehavior();
+						var dialog = behavior.alertDialog;
+						var screen = behavior.getScreen();
+						behavior.alertDialog = null;
+						screen.run(new PowerDialogCloseTransition, dialog);
+					]]></method>
+				</behavior>
+				<label left="0" right="0" top="0" bottom="0" style="pinmuxCancelStyle" string="'Cancel'"/>
+			</container>
+			<content height="10"/>
+		</column>
+	</container>
+
+	<handler path="/power">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var behavior = getBehavior();
+				var dialog = behavior.alertDialog = new PowerDialogBox({});
+				var screen = behavior.getScreen();
+				screen.run(new PowerDialogOpenTransition, dialog);
+			]]></method>
+		</behavior>
+	</handler>
+
+	<transition id="BeforeHibernateTransition" duration="300">
+		<method id="onBegin" params="container, canceller"><![CDATA[
+			canceller.distribute("onTransitionBeginning");
+			this.box = canceller.first;
+			this.canceller = canceller;
+			this.y = this.box.y;
+            shell.invoke(new MessageWithObject("pins:/pinmux/hibernate"));
+            shell.shared = false;
+            getBehavior().dialStop();
+		]]></method>
+		<method id="onEnd" params="container, dialog"><![CDATA[
+			dialog.remove(dialog.first);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseIn(fraction);
+			this.box.y = this.y - (240 * fraction);
+		]]></method>
+	</transition>
+
+    <transition id="HibernateTransition" duration="1200">
+        <method id="onBegin" params="container"><![CDATA[
+        ]]></method>
+        <method id="onEnd" params="container"><![CDATA[
+			shell.distribute("onHibernate");
+            K4.hibernate();
+            if( getBehavior().isDebuggingAllowed() )
+                shell.share( getBehavior().getShareConfig() );
+            else
+                shell.shared = false;
+            getBehavior().dialStart();
+        ]]></method>
+    </transition>
+
+	<transition id="AfterHibernateTransition" duration="800">
+		<method id="onBegin" params="container, canceller"><![CDATA[
+			this.canceller = canceller;
+            shell.invoke(new MessageWithObject("pins:/pinmux/wake"));
+		]]></method>
+		<method id="onEnd" params="container, canceller"><![CDATA[
+			canceller.distribute("onTransitionEnded");
+			container.remove(canceller);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseIn(fraction);
+			this.canceller.state = 1 - fraction;
+		]]></method>
+	</transition>
+
+	<transition id="PowerDialogCloseTransition" duration="300">
+		<method id="onBegin" params="container, canceller"><![CDATA[
+			canceller.distribute("onTransitionBeginning");
+			this.box = canceller.first;
+			this.canceller = canceller;
+			this.y = this.box.y;
+		]]></method>
+		<method id="onEnd" params="container, canceller"><![CDATA[
+			canceller.distribute("onTransitionEnded");
+			container.remove(canceller);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseIn(fraction);
+			this.box.y = this.y - (240 * fraction);
+			this.canceller.state = 1 - fraction;
+		]]></method>
+	</transition>
+
+	<transition id="PowerDialogOpenTransition" duration="300">
+		<method id="onBegin" params="container, canceller"><![CDATA[
+			container.add(canceller);
+			canceller.distribute("onTransitionBeginning");
+			this.box = canceller.first;
+			this.canceller = canceller;
+			this.y = this.box.y;
+		]]></method>
+		<method id="onEnd" params="container, canceller"><![CDATA[
+			canceller.distribute("onTransitionEnded");
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			this.box.y = this.y - (240 * (1 - fraction));
+			this.canceller.state = fraction;
+		]]></method>
+	</transition>
+
+	<transition id="ShutdownTransition" duration="300">
+		<method id="onBegin" params="container, content"><![CDATA[
+			container.add(content);
+			var layer = this.layer = new Layer({alpha: false});
+			layer.attach(content);
+			shell.shared = false;
+			getBehavior().dialStop();
+		]]></method>
+		<method id="onEnd" params="container, content"><![CDATA[
+			this.layer.detach();
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			this.layer.opacity = Math.quadEaseOut(fraction);
+		]]></method>
+	</transition>
+
+    <transition id="AfterShutdownTransition" duration="1200">
+        <method id="onBegin" params="container"><![CDATA[
+        ]]></method>
+        <method id="onEnd" params="container"><![CDATA[
+            shell.invoke(new Message("/quitLauncher"));
+			K4.shutdown();      //@@ defer to quitLauncher with a parameter?
+        ]]></method>
+    </transition>
+
+	<transition id="DialogOpenTransition" duration="300">
+		<method id="onBegin" params="container, content"><![CDATA[
+			container.add(content);
+			this.canceller = content;
+			var layer = this.layer = new Layer({alpha: false});
+			layer.attach(content.first);
+			layer.origin = { x: layer.width / 2 };
+			this.starts = [
+				{ x: 0.2, y: 0.49 },
+				{ x: 0.8, y: 0.49 },
+				{ x: 1.2, y: 0.51 },
+				{ x: -0.2, y: 0.51 },
+			];
+			this.stops = [
+				{ x: 0, y: 0 },
+				{ x: 1, y: 0 },
+				{ x: 1, y: 1 },
+				{ x: 0, y: 1 },
+			];
+			this.steps = [
+				{ x: 0, y: 0 },
+				{ x: 1, y: 0 },
+				{ x: 1, y: 1 },
+				{ x: 0, y: 1 },
+			];
+		]]></method>
+		<method id="onEnd" params="container, content"><![CDATA[
+			this.layer.detach();
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			var starts = this.starts;
+			var stops = this.stops;
+			var steps = this.steps;
+			for (var i = 0; i < 4; i++) {
+				var start = this.starts[i];
+				var stop = this.stops[i];
+				var step = this.steps[i];
+				step.x = (start.x * (1 - fraction)) + (stop.x * fraction);
+				step.y = (start.y * (1 - fraction)) + (stop.y * fraction);
+			}
+			this.layer.corners = steps;
+			this.canceller.state = fraction;
+		]]></method>
+	</transition>
+
+	<transition id="DialogCloseTransition" duration="300">
+		<method id="onBegin" params="container, content"><![CDATA[
+			this.canceller = content;
+			var layer = this.layer = new Layer({alpha: false});
+			layer.attach(content.first);
+			layer.origin = { x: layer.width / 2 };
+			this.starts = [
+				{ x: 0, y: 0 },
+				{ x: 1, y: 0 },
+				{ x: 1, y: 1 },
+				{ x: 0, y: 1 },
+			];
+			this.stops = [
+				{ x: -0.2, y: 0.49 },
+				{ x: 1.2, y: 0.49 },
+				{ x: 0.8, y: 0.51 },
+				{ x: 0.2, y: 0.51 },
+			];
+			this.steps = [
+				{ x: 0, y: 0 },
+				{ x: 1, y: 0 },
+				{ x: 1, y: 1 },
+				{ x: 0, y: 1 },
+			];
+		]]></method>
+		<method id="onEnd" params="container, content"><![CDATA[
+			this.layer.detach();
+			container.remove(content);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseIn(fraction);
+			var starts = this.starts;
+			var stops = this.stops;
+			var steps = this.steps;
+			for (var i = 0; i < 4; i++) {
+				var start = this.starts[i];
+				var stop = this.stops[i];
+				var step = this.steps[i];
+				step.x = (start.x * (1 - fraction)) + (stop.x * fraction);
+				step.y = (start.y * (1 - fraction)) + (stop.y * fraction);
+			}
+			this.layer.corners = steps;
+			this.canceller.state = 1 - fraction;
+		]]></method>
+	</transition>
+
+	<transition id="ZoomInTransition" duration="500">
+		<method id="onBegin" params="container, former, current, formerData, currentData"><![CDATA[
+		    // for some reason the formerData.selection is set to -1 after calling
+		    // current.adapt() in the simulator... so save the selection first
+		    var selection = formerData.selection;
+			if (former.next)
+				container.insert(current, former.next);
+			else
+				container.add(current);
+			current.launch();
+			current.adapt();
+			if (selection >= 0) {
+				var tile = formerData.LIST[selection];
+				this.scale = {
+					x: (tile.width / 320) - 1,
+					y: (tile.width / 320) - 1,
+				};
+				this.translation = {
+					x: tile.x - container.x,
+					y: tile.y - container.y,
+				};
+			}
+			else {
+				this.scale = {
+					x: -1,
+					y: -1,
+				};
+				this.translation = {
+					x: 160,
+					y: 120,
+				};
+			}
+			var layer = this.formerLayer = new Layer({alpha: false});
+			layer.attach(former);
+			var layer = this.currentLayer = new Layer({alpha: false});
+			layer.attach(current);
+		]]></method>
+		<method id="onEnd" params="container, former, current, formerData, currentData"><![CDATA[
+			this.currentLayer.detach();
+			this.formerLayer.detach();
+			container.remove(former);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseIn(fraction);
+			var layer = this.currentLayer;
+			layer.opacity = fraction;
+			layer.scale = { x: 1 + (this.scale.x * (1 - fraction)), y: 1 + (this.scale.y * (1 - fraction)) };
+			layer.translation = { x: this.translation.x * (1 - fraction), y: this.translation.y * (1 - fraction) };
+		]]></method>
+	</transition>
+
+	<transition id="PushLeftTransition" duration="350">
+		<method id="onBegin" params="container, former, current"><![CDATA[
+			if (former.next)
+				container.insert(current, former.next);
+			else
+				container.add(current);
+			current.launch();
+			current.adapt();
+			former.quitting();
+			var layer = this.formerLayer = new Layer({alpha: false});
+			layer.attach(former);
+			var layer = this.currentLayer = new Layer({alpha: false});
+			layer.attach(current);
+			this.delta = container.width;
+		]]></method>
+		<method id="onEnd" params="container, former, current"><![CDATA[
+			this.currentLayer.detach();
+			this.formerLayer.detach();
+			former.quit();
+			container.remove(former);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			this.formerLayer.translation = { x: 0 - (this.delta * fraction) };
+			this.currentLayer.translation = { x: this.delta * (1 - fraction) };
+		]]></method>
+	</transition>
+
+	<transition id="ZoomOutTransition" duration="500">
+		<method id="onBegin" params="container, former, current, formerData, currentData"><![CDATA[
+			container.insert(current, former);
+			former.quitting();
+			var tile = currentData.LIST[currentData.selection];
+			this.scale = {
+				x: (tile.width / 320) - 1,
+				y: (tile.width / 320) - 1,
+			};
+			this.translation = {
+				x: tile.x - container.x,
+				y: tile.y - container.y,
+			};
+			var layer = this.formerLayer = new Layer({alpha: false});
+			layer.attach(former);
+			var layer = this.currentLayer = new Layer({alpha: false});
+			layer.attach(current);
+		]]></method>
+		<method id="onEnd" params="container, former, current"><![CDATA[
+			this.currentLayer.detach();
+			this.formerLayer.detach();
+			former.quit();
+			container.remove(former);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			var layer = this.formerLayer;
+			layer.opacity = 1 - fraction;
+			layer.scale = { x: 1 + (this.scale.x * fraction), y: 1 + (this.scale.y * fraction) };
+			layer.translation = { x: this.translation.x * fraction, y: this.translation.y * fraction };
+		]]></method>
+	</transition>
+
+	<transition id="ZoomOutToCenterTransition" duration="500">
+		<method id="onBegin" params="container, former, current"><![CDATA[
+			container.insert(current, former);
+			former.quitting();
+			this.toScale = 0.1;
+			var layer = this.formerLayer = new Layer({alpha: false});
+			layer.origin = { x : 160, y : 120 }
+			layer.attach(former);
+			var layer = this.currentLayer = new Layer({alpha: false});
+			layer.attach(current);
+		]]></method>
+		<method id="onEnd" params="container, former, current"><![CDATA[
+			this.currentLayer.detach();
+			this.formerLayer.detach();
+			former.quit();
+			container.remove(former);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			var layer = this.formerLayer;
+			layer.opacity = 1 - fraction;
+			var scale = 1 - (fraction * (1 - this.toScale));
+			layer.scale = { x: scale, y: scale };
+		]]></method>
+	</transition>
+
+    <transition id="ZoomAndSlideForward" duration="400">
+   		<method id="onBegin" params="container, formerContent, currentContent, options"><![CDATA[
+			container.add( currentContent );
+
+			currentContent.launch();
+			currentContent.adapt();
+
+			this.formerLayer = new Layer({alpha: false});
+			this.currentLayer = new Layer({alpha: false});
+			this.formerLayer.attach( formerContent );
+			this.currentLayer.attach( currentContent );
+ 			this.formerLayer.origin = { x : this.formerLayer.width / 2, y : this.formerLayer.height / 2 };
+			this.currentLayer.origin = { x : this.currentLayer.width / 2, y : this.currentLayer.height / 2 };
+
+			this.currentaFromX = currentContent.width
+			this.formerFromY = this.formerToY = this.currentFromY = this.currentToY = 0;
+			this.fromFormerScale = 1.0;
+			this.toFormerScale = 0.8;
+			this.currentLayer.translation = { x : currentContent.width, y : 0 };
+			this.currentFromX = currentContent.width;
+			this.currentToX = 0;
+        ]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut( fraction );
+			var formerScale = lerp( this.fromFormerScale, this.toFormerScale, fraction);
+			this.formerLayer.scale = { x : formerScale, y : formerScale };
+			var currentX = lerp( this.currentFromX, this.currentToX, fraction );
+			this.currentLayer.translation = { x : currentX, y : 0 };
+ 		]]></method>
+        <method id="onEnd" params="container, formerContent, currentContent"><![CDATA[
+			this.currentLayer.detach();
+            this.formerLayer.detach();
+            container.remove( formerContent);
+         ]]></method>
+ 	</transition>
+
+    <transition id="ZoomAndSlideBack" duration="400">
+   		<method id="onBegin" params="container, formerContent, currentContent, options"><![CDATA[
+			container.insert( currentContent, container.first );
+			this.formerLayer = new Layer({alpha: false});
+			this.currentLayer = new Layer({alpha: false});
+			this.formerLayer.attach( formerContent );
+			this.currentLayer.attach( currentContent );
+ 			this.formerLayer.origin = { x : this.formerLayer.width / 2, y : this.formerLayer.height / 2 };
+			this.currentLayer.origin = { x : this.currentLayer.width / 2, y : this.currentLayer.height / 2 };
+
+			this.fromCurrentScale = 0.8;
+			this.toCurrentScale = 1.0;
+			this.formerLayer.translation = { x : 0, y : 0 };
+			this.formerFromX = 0;
+			this.formerToX = currentContent.width
+        ]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut( fraction );
+			var currentScale = lerp( this.fromCurrentScale, this.toCurrentScale, fraction);
+			this.currentLayer.scale = { x : currentScale, y : currentScale };
+			var formerX = lerp( this.formerFromX, this.formerToX, fraction );
+			this.formerLayer.translation = { x : formerX, y : 0 };
+ 		]]></method>
+        <method id="onEnd" params="container, formerContent, currentContent"><![CDATA[
+			this.currentLayer.detach();
+            this.formerLayer.detach();
+
+            formerContent.quit();
+
+            container.remove( formerContent);
+         ]]></method>
+ 	</transition>
+
+ 	<script>
+        <![CDATA[
+        	var lerp = function(from, to, fraction) {
+        		return from + fraction * (to - from);
+        	}
+			var decryptNetworkPassword = function(password) {
+				var result;
+                var model = getBehavior();
+				var iv = new Chunk(16);
+				for (var i = 0; i < 16; ++i)
+					iv.poke(i, 0);
+				var cbc = new Crypt.CBC(new Crypt.AES(new Chunk(model.networkPasswordKey)), iv, -1);
+				var encrypted_data = new Chunk(password);
+				result = decodeBase64(cbc.decrypt(encrypted_data));
+				iv.free();
+				encrypted_data.free();
+				return result;
+			}
+			var encryptNetworkPassword = function(password) {
+				var result;
+                var model = getBehavior();
+				var iv = new Chunk(16);
+				for (var i = 0; i < 16; ++i)
+					iv.poke(i, 0);
+				var cbc = new Crypt.CBC(new Crypt.AES(model.networkPasswordKey), iv, -1);
+				var encrypted_data = cbc.encrypt(password);
+				result = encrypted_data.toString();
+				iv.free();
+				encrypted_data.free();
+				return result;
+			}
+        ]]>
+    </script>
+
+	<include path="./src/SettingsHandlers"/>
+	<include path="./src/NetworkHandlers"/>
+	<include path="./src/PinmuxAlert"/>
+	<include path="./src/eula"/>
+</program>

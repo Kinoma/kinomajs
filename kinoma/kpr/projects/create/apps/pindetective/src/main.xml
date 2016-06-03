@@ -1,0 +1,1907 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+ 	<require id="CONTROL_THEME" path="themes/flat/theme"/>
+ 	<require id="THEME" path="themes/sample/theme"/>
+
+	<script>
+        <![CDATA[
+        
+			for (var i in CONTROL_THEME)
+				THEME[i] = CONTROL_THEME[i];
+				
+			var gI2Cdata = null;
+			var gSerialData = null;
+
+			var Tabs = { frontPinsTab : 0, backDigitalPinsTab : 1, backOtherPinsTab : 2 };
+			
+			var backToFrontMirrorMap = [];
+				backToFrontMirrorMap[38] = 51;
+				backToFrontMirrorMap[37] = 52;
+				backToFrontMirrorMap[40] = 53;
+				backToFrontMirrorMap[39] = 54;
+				backToFrontMirrorMap[44] = 55;
+				backToFrontMirrorMap[43] = 56;
+				backToFrontMirrorMap[48] = 57;
+				backToFrontMirrorMap[47] = 58;
+			
+			var frontToBackMirrorMap = [];
+				frontToBackMirrorMap[51] = 38;
+				frontToBackMirrorMap[52] = 37;
+				frontToBackMirrorMap[53] = 40;
+				frontToBackMirrorMap[54] = 39;
+				frontToBackMirrorMap[55] = 44;
+				frontToBackMirrorMap[56] = 43;
+				frontToBackMirrorMap[57] = 48;
+				frontToBackMirrorMap[58] = 47;
+				
+			var hexDigits = ["0","1","2","3","4","5","6","7","8","9","A","B","C","D","E","F"];
+			
+			var gData = null;
+			
+			var gAssertedValues = {};
+			var gSelectedSettingsControl = {};
+			var gWaveGenerators = {};
+			
+			var gMinRanges = {};
+			var gMaxRanges = {};
+			var gHertzValues = {};
+			
+			var gPinScrolls = { frontPinsScroller : -1, backDigitalPinsScroller : -1, backOtherPinsScroller : -1 };
+			
+			var gReadPinMuxComplete = false;
+			
+			// THREE MODES OF OPERATION
+			//		Server mode:			SERVER_MODE: true
+			//		Local client Mode		SERVER_MODE: false, USE_REMOTE_PINS: false
+			//		Remote client mode		SERVER_MODE: false, USE_REMOTE_PINS: true
+			
+			var SERVER_MODE = false;
+			var ZERO_CONF = false;
+			var USE_REMOTE_PINS = false;
+			var REMOTE_INTERVAL = 100;
+
+			if (SERVER_MODE || USE_REMOTE_PINS)
+				var Dialer = require("Dialer");
+
+			var gServerSharedPins = null;
+        ]]>
+    </script> 
+
+	<require id="CREATIONS" path="creations/creations"/>	
+	<require id="CREATIONS" path="creations/creations"/>	
+	<require id="SAMPLEGRAPH" path="creations/sampleGraph"/>
+	<require id="CDIALOG" path="creations/dialog"/>	
+	<require id="KEYBOARD" path="creations/keyboard"/>
+	<require id="MIXED" path="creations/mixedInput"/>
+
+   	<require id="BUTTONS" path="controls/buttons"/>
+   	<require id="SWITCH" path="controls/switch"/>
+    <require id="SLIDERS" path="controls/sliders"/>
+	<require id="MODEL" path="mobile/model"/>
+	<require id="SCREEN" path="mobile/screen"/>
+	<require id="SCROLLER" path="mobile/scroller"/>
+	<require id="TOOL" path="mobile/tool"/>
+	<require id="DIALOG" path="mobile/dialog"/>
+	<require id="CONTROL" path="mobile/control"/>
+	<require id="TRANSITIONS" path="transitions"/>
+
+	<require id="Pins" path="pins"/>
+
+	<include path="./pinManager"/>
+    <include path="./explorerCommon"/>
+    <include path="./hexInputDials"/>
+    <include path="./inspectors"/>
+    <include path="./settings"/>
+   		
+	<style id="applicationStyle" font="18px Fira Sans"/>
+	
+	<style id="pinTypeLineStyle" font="22px" color="black" align="left,center" lines="1"/>
+	<style id="slotTypeLineStyle" font="bold 22px" color="black" align="left,center" lines="1"/>
+
+	<texture id="listArrowTexture" small="assets/list-arrow.png"/>
+	<skin id="listArrowSkin" texture="listArrowTexture" x="0" y="0" width="32" height="32">
+        <states offset="32"/>
+    </skin>
+ 	
+ 	<content id="ListArrow" right="0" skin="listArrowSkin"/>
+
+	<handler path="/main">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+				return false;
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+ 					gData = {
+						Screen: PinDetectiveScreen,
+						pinData : null,
+						directions : null,
+						selectedPinsTab : Tabs.frontPinsTab,
+						selectedFrontPin : 0,
+						selectedBackDigitalPin : 0,
+						selectedBackOtherPin : 0
+					}
+					return gData;
+ 				]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<behavior id="PinTypeLineBehavior" like="SCREEN.ListItemBehavior">
+		<method id="onPinmuxingKnown" params="container"> <![CDATA[
+			container.active = true;
+		]]></method>
+	</behavior>
+	
+ 	<container id="PinTypeLine" left="0" right="0" top="0" height="40" active="false" behavior="PinTypeLineBehavior">
+		<label top="0" left="8" bottom="0" style="pinTypeLineStyle" string="$.label"/>
+		<content bottom="1" left="0" height="1" right="0" skin="dividerSkin"/>
+		<content name="listArrow" like="ListArrow"/>
+	</container>   
+
+   	<skin id="levelMeterColorSkin" color="#5ab021"/>
+
+	<!-- CanvasSlider -->
+
+    <container id="AnalogOutputSlider">
+        <canvas name="canvas" left="0" right="0" top="0" bottom="0" active="true" behavior="AnalogOutputSliderBehavior"/>
+    </container>
+
+   	<container id="FrontLeftSlotLine" left="0" right="0" top="0" height="40" active="true" behavior="SCREEN.ListItemBehavior">
+		<label top="0" left="8" bottom="0" style="slotTypeLineStyle" string="'Front Left Slot'"/>
+		<content bottom="1" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>   
+
+ 	<container id="FrontRightSlotLine" left="0" right="0" top="0" height="40" active="true" behavior="SCREEN.ListItemBehavior">
+		<label top="0" left="8" bottom="0" style="slotTypeLineStyle" string="'Front Right Slot'"/>
+		<content bottom="1" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>   
+
+ 	<container id="BackPinsLine" left="0" right="0" top="0" height="40" active="true" behavior="SCREEN.ListItemBehavior">
+		<label top="0" left="8" bottom="0" style="slotTypeLineStyle" string="'Back Pins'"/>
+		<content bottom="1" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>   
+
+	<!-- Analog Input -->
+
+	<handler path="/analog-input-pins">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);  
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: AnalogInputPinsScreen,
+						title : "Analog Inputs",	
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1
+					};                
+				]]>
+            </method>
+		</behavior>
+	</handler>
+   			
+	<!-- Analog Input -->
+	
+	<handler path="/gotAnalogInputValue">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[	
+				var result = message.requestObject;				
+				var value = result.value;
+				var pinNumber = result.pinNumber;
+				application.distribute("onLevelChanged", pinNumber, value);
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<function id="extractAnalogPins" params="pinData"><![CDATA[
+		var analogPins = new Array(2);
+		analogPins[0] = [];					// left slot { pinName, pinNumber }
+		analogPins[1] = [];					// right slot { pinName, pinNumber }
+		analogPins[2] = [];					// simple list of only pin numbers
+		simpleList = analogPins[2];
+		if( "leftPins" in pinData ) {
+			var leftSlot = analogPins[0];
+			for (var i=0; i < pinData.leftPins.length; i++) {
+				var pinID = pinData.leftPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "Analog") {
+					var pinNumber = leftSlotBasePinNumber + i;
+					leftSlot.push( { pinName : pinName, pinNumber : pinNumber } );
+					simpleList.push(pinNumber);
+				}
+			}
+		}
+		if( "rightPins" in pinData ) {
+			for (var i=0; i < pinData.rightPins.length; i++) {
+				var rightSlot = analogPins[1];
+				var pinID = pinData.rightPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "Analog") {
+					var pinNumber = rightSlotBasePinNumber + i;
+					rightSlot.push( { pinName : pinName, pinNumber : pinNumber } );
+					simpleList.push(pinNumber);
+				}
+			}
+		}
+		return analogPins;
+	]]></function>
+
+	<!-- PWM -->
+	
+	<function id="extractPWMPins" params="pinData"><![CDATA[
+		var pwmPins = new Array(2);
+		pwmPins[0] = [];					// left slot { pinName, pinNumber }
+		pwmPins[1] = [];					// right slot { pinName, pinNumber }
+		pwmPins[2] = [];					// simple list of only pin numbers
+		simpleList = pwmPins[2];
+		if( "leftPins" in pinData ) {
+			var leftSlot = pwmPins[0];
+			for (var i=0; i < pinData.leftPins.length; i++) {
+				var pinID = pinData.leftPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "PWM") {
+					var pinNumber = leftSlotBasePinNumber + i;
+					leftSlot.push( { pinName : pinName, pinNumber : pinNumber } );
+					simpleList.push(pinNumber);
+				}
+			}
+		}
+		if( "rightPins" in pinData ) {
+			for (var i=0; i < pinData.rightPins.length; i++) {
+				var rightSlot = pwmPins[1];
+				var pinID = pinData.rightPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "PWM") {
+					var pinNumber = rightSlotBasePinNumber + i;
+					rightSlot.push( { pinName : pinName, pinNumber : pinNumber } );
+					simpleList.push(pinNumber);
+				}
+			}
+		}
+		return pwmPins;
+	]]></function>
+
+
+	<!-- Digital Input -->
+	
+	<handler path="/gotDigitalInputValue">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[	
+				var result = message.requestObject;				
+				var value = result.value;
+				var pinNumber = result.pinNumber;				
+				application.distribute("onLevelChanged", pinNumber, value);
+				//trace("\n onLevelChanged pinNumber: " + pinNumber );
+			]]></method>
+		</behavior>
+	</handler>    
+	
+	<function id="extractDigitalInputPins" params="pinData"><![CDATA[
+		var digitalPins = new Array(2);
+		digitalPins[0] = [];					// left slot { pinName, pinNumber }
+		digitalPins[1] = [];					// right slot { pinName, pinNumber }
+		digitalPins[2] = [];					// simple list of only pin numbers
+		simpleList = digitalPins[2];
+				
+		if( "leftPins" in pinData ) {
+			var leftSlot = digitalPins[0];
+			for (var i=0; i < pinData.leftPins.length; i++) {
+				var pinID = pinData.leftPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "Digital Input") {
+					var pinNumber = leftSlotBasePinNumber + i;
+					leftSlot.push( { pinName : pinName, pinNumber : pinNumber } );
+					simpleList.push(pinNumber);
+				}
+			}
+		}
+		if( "rightPins" in pinData ) {
+			for (var i=0; i < pinData.rightPins.length; i++) {
+				var rightSlot = digitalPins[1];
+				var pinID = pinData.rightPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "Digital Input") {
+					var pinNumber = rightSlotBasePinNumber + i;
+					rightSlot.push( { pinName : pinName, pinNumber : pinNumber } );
+					simpleList.push(pinNumber);
+				}
+			}
+		}
+		return digitalPins;
+	]]></function>
+
+	<!-- Digital Output -->
+   
+	<function id="extractDigitalOutputPins" params="pinData"><![CDATA[
+		var digitalPins = new Array(2);
+		digitalPins[0] = [];					// left slot { pinName, pinNumber }
+		digitalPins[1] = [];					// right slot { pinName, pinNumber }
+		digitalPins[2] = [];					// simple list of only pin numbers
+		simpleList = digitalPins[2];
+				
+		if( "leftPins" in pinData ) {
+			var leftSlot = digitalPins[0];
+			for (var i=0; i < pinData.leftPins.length; i++) {
+				var pinID = pinData.leftPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "Digital Output") {
+					var pinNumber = leftSlotBasePinNumber + i;
+					leftSlot.push( { pinName : pinName, pinNumber : pinNumber } );
+					simpleList.push(pinNumber);
+				}
+			}
+		}
+		if( "rightPins" in pinData ) {
+			for (var i=0; i < pinData.rightPins.length; i++) {
+				var rightSlot = digitalPins[1];
+				var pinID = pinData.rightPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "Digital Output") {
+					var pinNumber = rightSlotBasePinNumber + i;
+					rightSlot.push( { pinName : pinName, pinNumber : pinNumber } );
+					simpleList.push(pinNumber);
+				}
+			}
+		}
+		return digitalPins;
+	]]></function>
+
+    <!-- Serial Input -->
+
+	<handler path="/gotSerialInputValueAsIntegerArray">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[	
+				var intArray = message.requestObject;				
+				if (intArray.length > 0)
+					application.distribute("onSerialInputReceived", intArray);
+			]]></method>
+		</behavior>
+	</handler>    
+
+	<script><![CDATA[
+		var gData;
+		var gHexEditerData = null;
+	]]></script>  			
+
+	<handler path="/byte-input-screen">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);  
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+                	var p = query.propertyName;                	
+                	if (p == "readByteResult")
+                		p = "value";
+                	var screen =  (p == "address") ? AddressEntryScreen : HexByteEntryScreen;
+                	var firstChar = p.charAt(0).toUpperCase();
+                	var rest = p.substring(1, p.length);
+                	var title = "Enter " + firstChar + rest;
+					return {
+						Screen: screen,
+						OpenTransition: TRANSITIONS.Reveal,
+						CloseTransition: TRANSITIONS.Hide,
+						title : title,	
+						okLabel : "OK",
+						cancelLabel : "Cancel",
+						propertyName : query.propertyName,
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+					};                
+				]]>
+            </method>
+		</behavior>
+	</handler>
+   			
+	<handler path="/word-input-screen">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);  
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+                	var p = query.propertyName;
+                	if (p == "readWordResult")
+                		p = "value";
+                	var firstChar = p.charAt(0).toUpperCase();
+                	var rest = p.substring(1, p.length);
+                	var title = "Enter " + firstChar + rest;
+					return {
+						Screen: HexWordEntryScreen,
+						OpenTransition: TRANSITIONS.Reveal,
+						CloseTransition: TRANSITIONS.Hide,
+						title : title,	
+						okLabel : "OK",
+						cancelLabel : "Cancel",
+						propertyName : query.propertyName,
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+					};                
+				]]>
+            </method>
+		</behavior>
+	</handler>
+   			   			
+	<!-- I2C -->
+
+	<function id="extractI2CPins" params="pinData"><![CDATA[
+		var i2cPins = new Array(2);
+		i2cPins[0] = [];					// left slot { pinName, sda, clock }
+		i2cPins[1] = [];					// right slot { pinName, sda, clock }
+		i2cPins[2] = [];					// simple list of only pin numbers
+		simpleList = i2cPins[2];
+		
+		if( "leftPins" in pinData ) {
+			var sda = -1;
+			var clock = -1;
+			var leftSlot = i2cPins[0];
+			for (var i=0; i < pinData.leftPins.length; i++) {
+				var pinID = pinData.leftPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "I2C Data")
+					sda = leftSlotBasePinNumber + i;
+				else if (pinName == "I2C Clock")
+					clock = leftSlotBasePinNumber + i;
+			}
+			// for now we just assume a single I2C clock and data pin in one slot
+			if (sda != -1 && clock != -1) {	
+				var i2cName = getI2CPartName(sda, clock);
+				leftSlot.push( { i2cName : i2cName, sda : sda, clock : clock, pinName : "I2C" } );
+				simpleList.push({sda: sda, clock: clock});
+			}
+		}
+		if( "rightPins" in pinData ) {
+			var sda = -1;
+			var clock = -1;
+			var rightSlot = i2cPins[1];
+			for (var i=0; i < pinData.rightPins.length; i++) {
+				var pinID = pinData.rightPins[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				if (pinName == "I2C Data")				
+					sda = rightSlotBasePinNumber + i;
+				else if (pinName == "I2C Clock")
+					clock = rightSlotBasePinNumber + i;
+			}
+			// for now we just assume a single I2C clock and data pin in one slot
+			if (sda != -1 && clock != -1) {	
+				var i2cName = getI2CPartName(sda, clock);
+				rightSlot.push( { i2cName : i2cName, sda : sda, clock : clock, pinName : "I2C" } );
+				simpleList.push({sda: sda, clock: clock});
+			}
+		}				
+		
+		return i2cPins;
+	]]></function>
+	<function id="getI2CPartName" params="sda, clock"><![CDATA[
+		return "I2C sda " + sda + " scl " + clock;
+	]]></function>						
+
+	<function id="getSerialPartName"><![CDATA[
+		return "Serial";
+	]]></function>					
+
+	<!-- New Pins Extraction for Front Pins, Back Digital, and Back Other -->
+	
+	<function id="extractFrontPins" params="pinData"><![CDATA[
+		var frontPins = [];
+		
+		if ("leftPins" in pinData) {
+			var leftSlot = pinData.leftPins;
+			for (var i=0; i < leftSlot.length; i++) {
+				var pinNumber = leftSlotBasePinNumber + i;
+				var pinID = leftSlot[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				frontPins[pinNumber] = pinName;
+			}
+		}
+		if ("rightPins" in pinData) {
+			var rightSlot = pinData.rightPins;
+			for (var i=0; i < rightSlot.length; i++) {
+				var pinNumber = rightSlotBasePinNumber + i;
+				var pinID = rightSlot[i];
+				var pinName = pinDescriptionsHash[pinID].longName;
+				frontPins[pinNumber] = pinName;
+			}
+		}
+		return frontPins;
+	]]></function>
+
+
+	<!-- Main Screen -->
+
+	<texture id="headerMenuTexture" small="assets/header-menu-strip.png"/>
+	<skin id="headerMenuSkin" texture="headerMenuTexture" x="0" y="0" width="34" height="9">
+        <variants offset="34"/>
+    </skin>
+		
+	<style id="tabButtonStyle" font="18px" color="black" align="left,middle" lines="1"/>
+
+	<container id="TabButton" width="96" active="true" skin="tabButtonSkin">
+		<behavior>
+			<method id="onTouchBegan" params="container, id, x, y, ticks">
+				<![CDATA[
+					container.container.delegate("onTabButtonTapped", container.name);
+				]]>
+			</method>
+		</behavior>
+	</container>
+
+	<!-- PWM, Digital In, Digital Out, Analog, I2C -->
+    	
+	<container anchor="topTabs" id="TabButtonContainer">
+		<behavior>
+			<method id="onTabButtonTapped" params="container, name">
+				<![CDATA[
+					for (var i=0; i < container.length; i++) {
+						var aTabButton = container.content(i);
+						if (aTabButton.name == name)
+							aTabButton.state = 1;
+						else
+							aTabButton.state = 0;
+					}
+					
+					switch (name) {
+						case "frontPins":
+							gData.selectedPinsTab = Tabs.frontPinsTab;
+						break
+						case "backDigitalPins":
+							gData.selectedPinsTab = Tabs.backDigitalPinsTab;
+						break
+						case "backOtherPins":
+							gData.selectedPinsTab = Tabs.backOtherPinsTab;
+						break
+					}
+					
+					application.first.first.delegate("onPinsTabSelected");
+				]]>
+			</method>
+			<method id="syncVisualState" params="container">
+				<![CDATA[
+					for (var i=0; i < container.length; i++) {
+						var aTab = container.content(i);
+						if (i == gData.selectedPinsTab)
+							aTab.state = 1;
+						else
+							aTab.state = 0;
+					}
+				]]>
+			</method>			
+		</behavior>		
+	</container>
+	
+	<style id="bottomTabButtonStyle" font="18px" color="black" align="right,middle" lines="1"/>
+
+	<behavior id="BottomTabButtonBehavior">
+		<method id="onCreate" params="container, data, items">
+			<![CDATA[
+				this.pinData = data;
+				container.variant = data.variant;
+			]]>
+		</method>
+		<method id="onTouchBegan" params="container, id, x, y, ticks">
+			<![CDATA[
+				this.tracking = false;
+				if (container.state != 2) {
+					this.tracking = true;
+					container.state = 1;
+				}
+			]]>
+		</method>
+		<method id="onTouchEnded" params="container, id, x, y, ticks">
+			<![CDATA[
+				if (this.tracking)
+					this.select(container);
+			]]>
+		</method>
+		<method id="onTouchCancelled" params="container, id, x, y, ticks">
+			<![CDATA[
+				if (this.tracking)
+					container.state = 0;
+			]]>
+		</method>
+		<method id="select" params="container">
+			<![CDATA[
+				var selectedTabIndex = getContentIndex(container.container);
+				switch (gData.selectedPinsTab) {
+					case Tabs.frontPinsTab:
+						gData.selectedFrontPin = selectedTabIndex;
+					break
+					case Tabs.backDigitalPinsTab:
+						gData.selectedBackDigitalPin = selectedTabIndex;
+					break
+					case Tabs.backOtherPinsTab:
+						gData.selectedBackOtherPin = selectedTabIndex;
+					break
+				}
+			
+				container.bubble("onBottomTabButtonTapped", container.container.name);
+				var inspector = this.pinData.newInspector();
+				application.distribute("onInspectorChanged", inspector);
+			]]>
+		</method>
+		<method id="onSelected" params="container"><![CDATA[
+			var pinHandler = this.pinData.getPinHandler();
+			if (pinHandler)
+				pinHandler.onSelected();
+		]]></method>
+		<method id="onUnselected" params="container"><![CDATA[
+			var pinHandler = this.pinData.getPinHandler();
+			if (pinHandler)
+				pinHandler.onUnselected();
+		]]></method>
+	</behavior>
+
+	<container id="BottomTabButton" left="0" height="55" width="80">
+		<container left="0" height="55" width="79" active="true" skin="pinTilesSkin" behavior="BottomTabButtonBehavior">	
+			<content like="PartTypeIcon"/>
+			<container like="PinLabel"/>
+	
+			<label bottom="0" left="4" right="4" style="bottomTabButtonStyle" string="$.label"/>
+		</container>
+	</container>
+	
+	<container id="PWMBottomTabButton" like="BottomTabButton">
+		
+	</container>
+
+	<container id="DigitalInBottomTabButton" like="BottomTabButton">
+		
+	</container>
+
+	<container id="DigitalOutBottomTabButton" like="BottomTabButton">
+		
+	</container>
+
+	<container id="AnalogBottomTabButton" like="BottomTabButton">
+		
+	</container>
+
+	<container id="AllDisconnectedBottomTabButton" visible="false" like="BottomTabButton">
+		
+	</container>
+
+	<container id="I2CBottomTabButton" left="0" height="55" width="80">
+		<container left="0" height="55" width="79" active="true" skin="pinTilesSkin" behavior="BottomTabButtonBehavior">	
+			<content like="PartTypeIcon"/>
+			<line right="0" top="0">
+				<container like="I2CDataPinLabel"/>
+				<container like="I2CClockPinLabel"/>
+			</line>
+			<label bottom="0" left="4" right="4" style="bottomTabButtonStyle" string="$.label"/>
+		</container>
+	</container>
+	
+    <style id="pinLabelStyle" font="bold 20px" color="white" align="center,middle" lines="1"/>
+	
+	<behavior id="PinLabelBehavior">
+		<method id="onCreate" params="container, data"><![CDATA[
+			if (data.pinNumber.toString().length == 1) {
+				var c = container.coordinates;
+				var coords = { width : 16 };
+				if ("top" in c)		coords.top = c.top;
+				if ("bottom" in c)	coords.bottom = c.bottom;
+				if ("left" in c)	coords.left = c.left;
+				if ("right" in c)	coords.right = c.right;
+				if ("height" in c)	coords.height = c.height;
+				container.coordinates = coords;
+			}
+		]]></method>
+	</behavior>
+
+	<container id="PinLabel" right="0" top="15" width="22" height="18" skin="blackSkin" behavior="PinLabelBehavior">
+		<label style="pinLabelStyle" string="$.pinNumber"/>
+	</container>
+
+	
+	<container id="I2CDataPinLabel" right="1" top="15" width="20" height="18" skin="blackSkin">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				if (data.sda.toString().length == 1) {
+					var c = container.coordinates;
+					container.coordinates = { right : c.right, top : c.top, width : 16, height : c.height };
+				}
+			]]></method>
+		</behavior>
+		<label style="pinLabelStyle" string="$.sda"/>
+	</container>
+	
+	<container id="I2CClockPinLabel" right="0" top="15" width="20" height="18" skin="blackSkin">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				if (data.clock.toString().length == 1) {
+					var c = container.coordinates;
+					container.coordinates = { right : c.right, top : c.top, width : 16, height : c.height };
+				}
+			]]></method>
+		</behavior>
+		<label style="pinLabelStyle" string="$.clock"/>
+	</container>
+
+	<container id="I2CMirroredDataPinLabel" right="1" top="15" width="20" height="18" skin="blackSkin">
+		<content left="1" top="1" right="1" bottom="1" skin="whiteSkin"/>
+		<label style="mirroredPinLabelStyle">
+			<behavior>
+				<method id="onCreate" params="label, data"><![CDATA[
+					this.data = data;
+				]]></method>
+				<method id="onDisplaying" params="label"><![CDATA[
+					if (this.data.isMirrored)
+						label.string = backToFrontMirrorMap[this.data.sda];
+					else
+						label.container.coordinates = { left : 0, top : 0, width : 0, height : 0 };
+				]]></method>
+			</behavior>
+		</label>
+	</container>
+	
+	<container id="I2CMirroredClockPinLabel" right="1" top="15" width="20" height="18" skin="blackSkin">
+		<content left="1" top="1" right="1" bottom="1" skin="whiteSkin"/>
+		<label style="mirroredPinLabelStyle">
+			<behavior>
+				<method id="onCreate" params="label, data"><![CDATA[
+					this.data = data;
+				]]></method>
+				<method id="onDisplaying" params="label"><![CDATA[
+					if (this.data.isMirrored)
+						label.string = backToFrontMirrorMap[this.data.clock];
+					else
+						label.container.coordinates = { left : 0, top : 0, width : 0, height : 0 };
+				]]></method>
+			</behavior>
+		</label>
+	</container>
+ 
+ 	<container id="SerialTxPinLabel" right="0" top="15" width="22" height="18" skin="blackSkin" behavior="PinLabelBehavior">
+		<label style="pinLabelStyle" string="$.tx"/>
+	</container>
+
+ 	<container id="SerialxRPinLabel" right="0" top="15" width="22" height="18" skin="blackSkin" behavior="PinLabelBehavior">
+		<label style="pinLabelStyle" string="$.rx"/>
+	</container>
+
+ 	<container id="SerialBottomTabButton" left="0" height="55" width="80">
+		<container left="0" height="55" width="79" active="true" skin="pinTilesSkin" behavior="BottomTabButtonBehavior">	
+			<content like="PartTypeIcon"/>
+			<line right="0" top="0">
+				<container like="SerialTxPinLabel"/>
+				<container like="SerialRxPinLabel"/>
+			</line>
+			<label bottom="0" left="4" right="4" style="bottomTabButtonStyle" string="$.label"/>
+		</container>
+	</container>
+	
+	<container id="SerialTxPinLabel" right="1" top="15" width="20" height="18" skin="blackSkin">
+		<label style="pinLabelStyle" string="$.tx"/>
+	</container>
+	
+	<container id="SerialRxPinLabel" right="0" top="15" width="20" height="18" skin="blackSkin">
+		<label style="pinLabelStyle" string="$.rx"/>
+	</container>
+
+
+ 	<texture id="sensorTypeTexture" small="assets/sensor-type-strip.png"/>
+	<skin id="sensorTypeSkin" texture="sensorTypeTexture" x="0" y="0" width="50" height="50" aspect="fit">
+        <variants offset="50"/>
+    </skin>
+    	
+	<content id="PartTypeIcon" left="0" top="15" width="40" height="40" skin="sensorTypeSkin" variant="$.iconVariant">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				var c = container.coordinates;
+				if (data.variant == 2)
+					container.coordinates = { left : c.left - 3, top : c.top + 2, width : 30, height : 30 };
+				else if (data.variant == 1)
+					container.coordinates = { left : c.left + 2, top : c.top, width : c.width, height : c.height };
+			]]></method>
+		</behavior>
+	</content>
+		
+	<scroller id="PinScroller" like="SCROLLER.HorizontalScroller" bottom="0" left="0" right="0" height="46">
+		<behavior like="SCROLLER.HorizontalScrollerBehavior">
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				SCROLLER.HorizontalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+				scroller.coordinates = { bottom : 0, left : 0, right : 0, height : 46 };
+			]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				var xScroll = gPinScrolls[this.data.scrollerID];
+				if (xScroll != -1)
+					scroller.scroll = { x : xScroll, y : 0 };
+			]]></method>
+			<method id="onScrolled" params="scroller"><![CDATA[
+				gPinScrolls[this.data.scrollerID] = scroller.scroll.x;
+			]]></method>
+			<method id="snap" params="scroller, position, direction"><![CDATA[
+				var tabWidth = 80;
+				if (direction < 0)
+					position = tabWidth * Math.ceil(position / tabWidth);
+				else if (direction > 0)
+					position = tabWidth * Math.floor(position / tabWidth);
+				else
+					position = tabWidth * Math.round(position / tabWidth);
+				return position;
+			]]></method>
+		</behavior>
+				
+		<line name="partsLine" left="0" bottom="0" height="55">
+			<behavior>
+				<method id="onCreate" params="line, data">
+					<![CDATA[
+						var items = data.items;
+						for (var i=0; i < items.length; i++) {
+							var aPinDataItem = items[i];
+							var tabButton = aPinDataItem.newBottomTabButton();
+							tabButton.name = i.toString();
+							line.add( tabButton );
+						}
+					]]>
+				</method>
+				<method id="onBottomTabButtonTapped" params="container, name">
+					<![CDATA[
+						for (var i=0; i < container.length; i++) {
+							var aTabButton = container.content(i);
+							if (aTabButton.name == name) {
+								aTabButton.first.state = 2;
+								aTabButton.distribute("onSelected");
+							}
+							else {
+								aTabButton.first.state = 0;
+								aTabButton.distribute("onUnselected");
+							}
+						}
+					]]>
+				</method>
+			</behavior>
+		</line>
+	</scroller>
+	
+	<!--
+			Pin Explorer Client Initialization (remote and local pins)
+			
+				getPins
+					remote: discover and connect
+					local: use Pins
+					
+				getPinMux
+					both: Pins.getPinMux
+					
+				handleConfiguration
+					remote: nothing
+					local: build and configure
+					server: build and configure and share
+					
+				buildPinHandlers
+				
+				buildGUI
+	-->
+
+	<container id="PinDetectiveScreen" anchor="MAIN_SCREEN" left="0" top="0" right="0" bottom="0" skin="inspectorSkin">
+		<container anchor="inspectorContainer" left="0" right="0" top="32" bottom="40">
+			<behavior>
+			
+				<method id="onDisplaying" params="container"><![CDATA[
+					this.container = container;
+					if (gPinManager == null)
+						this.getPins();
+					else
+						this.rebuildTabs();
+				]]></method>
+
+<!-- Pins.discover 	
+				<method id="getPins"><![CDATA[
+					if (USE_REMOTE_PINS)
+						this.discover = new Pins.discover( bindCallback(this, "connectionFound"), bindCallback(this, "connectionLost" ) );
+					else
+						this.gotPins(Pins);
+				]]></method>		
+				<method id="connectionFound" params="connectionDesc"><![CDATA[
+					this.connectionDesc = connectionDesc;
+					var sharedPins = Pins.connect(this.connectionDesc);
+					this.gotPins(sharedPins);
+				]]></method>		
+				<method id="connectionLost" params="connectionDesc"><![CDATA[
+					debugger 	// have never got this
+				]]></method>
+-->
+
+<!-- Dialer -->
+				<method id="getPins"><![CDATA[
+				
+					if (USE_REMOTE_PINS) {
+						var pinExplorerServerID = "pinexplorerserver.create.kinoma.marvell.com";
+						this.discover = new Dialer.discover( pinExplorerServerID, bindCallback(this, "dialersFound" ), bindCallback(this, "dialersLost") );
+					}
+					else
+						this.gotPins(Pins);
+				]]></method>		
+				<method id="dialersFound" params="remote"><![CDATA[
+					trace("\n dialerFound: " + remote.url);
+					var isServer = remote.url.indexOf("10000") > 0;
+					if (isServer) {
+						trace("\n Dialer.launch" );
+						Dialer.launch( remote, { pinsshare: true }, bindCallback(this, "dialerLaunched") );
+					}
+				]]></method>		
+				<method id="dialersLost" params="remote"><![CDATA[
+					debugger
+				]]></method>		
+				<method id="dialerLaunched" params="status, remote"><![CDATA[
+					var authority = parseURI(remote.url).authority;
+					
+					if ("pins" in remote.additionalData) {
+						var pins = remote.additionalData.pins;
+						var sharedPins = Pins.connect(JSON.parse(pins).replace("*", authority.split(":")[0]));
+					
+						trace("\n dialerLaunched and got pins!");
+						this.gotPins(sharedPins);
+					}
+					else
+						trace("\n got dialerLaunched without pins in additinalData");
+				]]></method>		
+		
+				<method id="gotPins" params="pins"><![CDATA[
+					this.sharedPins = pins;
+					this.getPinmux();
+				]]></method>		
+
+				<method id="getPinmux"><![CDATA[
+					this.sharedPins.invoke("getPinMux", bindCallback(this, "gotPinmux"));					
+				]]></method>
+				<method id="gotPinmux" params="pinmux"><![CDATA[
+					this.pinmux = pinmux;
+					gData.pinData = pinmux;				
+					gData.directions = pinmux.back;
+					this.configurePins();
+				]]></method>
+
+				<method id="configurePins"><![CDATA[
+					if (USE_REMOTE_PINS)
+						this.pinsConfigured(true);					
+					else {
+						var configuration = this.buildLocalPinsConfiguration(this.container);
+						Pins.configure(configuration, bindCallback(this, "pinsConfigured") );
+					}
+				]]></method>
+				<method id="pinsConfigured" params="success"><![CDATA[
+					if (success) {
+						this.createPinManager();
+						this.rebuildTabs();
+						if (SERVER_MODE && ZERO_CONF) {
+							this.wsShare = Pins.share("ws", {zeroconf: true, name: "PinExplorer"});
+							trace("\n Pin Explorer sharing pins over web sockets");
+						}
+					}
+					else
+						trace("\n error: Pins.configure failed");
+				]]></method>
+				
+				<method id="createPinManager"><![CDATA[
+					gPinManager = new PinManager(this.sharedPins);					
+					this.createPinHandlers();
+				]]></method>			
+				<method id="rebuildTabs"><![CDATA[
+					this.buildPinScrollers(this.container);
+					this.onPinsTabSelected(this.container);
+				]]></method>			
+				<method id="createPinHandlers"><![CDATA[
+
+					// create front pins (and mirrored back pins) pin handlers
+					this.createAnalogInputPinHandlers();
+					this.createPWMPinHandlers();
+					this.createDigitalInputPinHandlers();
+					this.createDigitalOutputPinHandlers();
+					this.createI2CPinHandlers();
+				
+					// create non mirrored back pinHandlers
+					this.createBackPWMPinHandlers();
+					this.createBackGPIOPinHandlers(gData.directions);
+					this.createBackI2CPinHandlers();
+					this.createBackSerialPinHandlers();
+				]]></method>
+				<method id="createAnalogInputPinHandlers" ><![CDATA[
+					var analogPins = extractAnalogPins(this.pinmux);
+					var simpleList = analogPins[2];
+					var analogInputCount = simpleList.length;
+					for (var i=analogInputCount - 1; i >= 0; i--) {
+						
+						// front
+						var pinNumber = simpleList[i];
+						
+						var pinHandler = new AnalogSourcePinHandler(this.sharedPins, pinNumber);
+						gPinManager.addPinHandler(pinHandler);
+						
+						// mirrored in back
+						if (pinNumber < rightSlotBasePinNumber) {
+							var pinNumber = frontToBackMirrorMap[pinNumber];
+							var pinHandler = new AnalogSourcePinHandler(this.sharedPins, pinNumber);
+							gPinManager.addPinHandler(pinHandler);
+						}
+					}
+				]]></method>
+				<method id="createPWMPinHandlers" ><![CDATA[
+					var pwmPins = extractPWMPins(this.pinmux);
+					var simpleList = pwmPins[2];
+					var pwmInputCount = simpleList.length;
+					for (var i=pwmInputCount - 1; i >= 0; i--) {
+						
+						// front
+						var pinNumber = simpleList[i];
+						
+						var pinHandler = new PWMPinHandler(this.sharedPins, pinNumber);
+						gPinManager.addPinHandler(pinHandler);
+
+						// mirrored in back
+						if (pinNumber < rightSlotBasePinNumber) {
+							var pinNumber = frontToBackMirrorMap[pinNumber];
+							var pinHandler = new PWMPinHandler(this.sharedPins, pinNumber);
+							gPinManager.addPinHandler(pinHandler);
+						}
+					}
+				]]></method>
+				<method id="createDigitalInputPinHandlers" ><![CDATA[
+					var digitalPins = extractDigitalInputPins(this.pinmux);
+					var simpleList = digitalPins[2];
+					var digitalInputCount = simpleList.length;
+					for (var i=digitalInputCount - 1; i >= 0; i--) {
+					
+						// front
+						var pinNumber = simpleList[i];
+						var pinHandler = new DigitalPinHandler(this.sharedPins, pinNumber, "input");
+						gPinManager.addPinHandler(pinHandler);
+
+						// mirrored in back
+						if (pinNumber < rightSlotBasePinNumber) {
+							var pinNumber = frontToBackMirrorMap[pinNumber];
+							var pinHandler = new DigitalPinHandler(this.sharedPins, pinNumber, "input");
+							gPinManager.addPinHandler(pinHandler);
+						}
+					}
+				]]></method>
+				<method id="createDigitalOutputPinHandlers" ><![CDATA[
+					var digitalPins = extractDigitalOutputPins(this.pinmux);
+					var simpleList = digitalPins[2];
+					var digitalOutputCount = simpleList.length;
+					for (var i=digitalOutputCount - 1; i >= 0; i--) {
+					
+						// front
+						var pinNumber = simpleList[i];
+						var pinHandler = new DigitalPinHandler(this.sharedPins, pinNumber, "output");
+						gPinManager.addPinHandler(pinHandler);
+						
+						// mirrored in back
+						if (pinNumber < rightSlotBasePinNumber) {
+							var pinNumber = frontToBackMirrorMap[pinNumber];
+							var pinHandler = new DigitalPinHandler(this.sharedPins, pinNumber, "output");
+							gPinManager.addPinHandler(pinHandler);
+						}
+					}
+				]]></method>
+				<method id="createI2CPinHandlers" ><![CDATA[
+					var i2cPins = extractI2CPins(this.pinmux);
+					var simpleList = i2cPins[2];
+					var i2cCount = simpleList.length;
+					for (var i=i2cCount - 1; i >= 0; i--) {
+					
+						// front
+						var sda = simpleList[i].sda;
+						var clock = simpleList[i].clock;
+						var defaultAddress = 0;
+						var pinHandler = new I2CPinHandler(this.sharedPins, sda, clock, defaultAddress);
+						gPinManager.addPinHandler(pinHandler);
+						
+						// mirrored in back
+						if (sda < rightSlotBasePinNumber) {
+							var mirroredSDA = frontToBackMirrorMap[sda];
+							var mirroredClock = frontToBackMirrorMap[clock];
+							var pinHandler = new I2CPinHandler(this.sharedPins, mirroredSDA, mirroredClock, defaultAddress);
+							gPinManager.addPinHandler(pinHandler);
+						}
+					}
+				]]></method>
+				<method id="createBackPWMPinHandlers"><![CDATA[
+					gPinManager.addPinHandler( new PWMPinHandler(this.sharedPins, 28) );
+					gPinManager.addPinHandler( new PWMPinHandler(this.sharedPins, 30) );
+					gPinManager.addPinHandler( new PWMPinHandler(this.sharedPins, 34) );
+				]]></method>
+				<method id="createBackGPIOPinHandlers" params="directions"><![CDATA[
+					for (var pinNumber = 3; pinNumber <= 12; pinNumber++)
+						this.createBackGPIOPinHandler(pinNumber, directions[pinNumber]);
+					for (var pinNumber = 15; pinNumber <= 24; pinNumber++)
+						this.createBackGPIOPinHandler(pinNumber, directions[pinNumber]);
+				]]></method>
+				<method id="createBackGPIOPinHandler" params="pinNumber, direction"><![CDATA[
+					gPinManager.addPinHandler( new DigitalPinHandler(this.sharedPins, pinNumber, direction) );
+				]]></method>					
+				<method id="createBackI2CPinHandlers"><![CDATA[
+					var sda = 27;
+					var clock = 29;
+					var defaultAddress = 0;
+					gPinManager.addPinHandler( new I2CPinHandler(this.sharedPins, sda, clock, defaultAddress) );
+				]]></method>
+				<method id="createBackSerialPinHandlers"><![CDATA[
+					var tx = 31;
+					var rx = 33;
+					var baud = 9600;
+					gPinManager.addPinHandler( new SerialPinHandler(this.sharedPins, tx, rx, baud) );
+				]]></method>
+				
+				<!-- COMMON -->			
+				<method id="onInspectorChanged" params="container, newInspector"><![CDATA[
+					container.empty();
+					container.add( newInspector );
+				]]></method>			
+				<method id="buildPinScrollers" params="container"><![CDATA[		
+					var pinData = gData.pinData;
+					var frontPinNames = extractFrontPins(pinData);			// array of long pin names indexed by pin numbers 51-66
+					this.frontPinsScroller = this.buildFrontPinsScroller(container, frontPinNames);
+					this.backDigitalPinsScroller = this.buildBackDigitalPinsScroller(container);
+					this.backOtherPinsScroller = this.buildBackOtherPinsScroller(container, frontPinNames);
+				]]></method>
+
+				<method id="noPinsAreMuxed" params="container, frontPinNames"><![CDATA[
+					for (var i=leftSlotBasePinNumber; i <= lastFrontPinNumber; i++) {
+						var pinName = frontPinNames[i]
+						if ((pinName != "Disconnected") && (pinName != "Power") && (pinName != "Ground"))
+							return false;
+					}
+					return true; 
+				]]></method>
+
+				<method id="buildFrontPinsScroller" params="container, frontPinNames"><![CDATA[
+					var data = { 
+						scroll: { x: 0, y: 0 },
+						items : [],
+						scrollerID : "frontPinsScroller"
+					};
+					
+					var items = data.items;
+
+					if (this.noPinsAreMuxed(container, frontPinNames)) {
+						items.push( new AllDisconnectedPinData(Tabs.frontPinsTab, false, 0) );
+					}
+					else {
+						var i2CDataPin = -1;
+						var i2CClockPin = -1;
+						for (var pinNumber = leftSlotBasePinNumber; pinNumber < rightSlotBasePinNumber; pinNumber++) {
+							var pinName = frontPinNames[pinNumber];
+							if (pinName == "I2C Clock" && i2CClockPin == -1)
+								i2CClockPin = pinNumber;
+							else if (pinName == "I2C Data" && i2CDataPin == -1)
+								i2CDataPin = pinNumber;
+							else  {
+								var pinHandler = gPinManager.getPinHandler(pinNumber);
+								if (null != pinHandler)
+									items.push(pinHandler.getGUIData());
+							}
+						}		
+						if (i2CDataPin != -1 && i2CClockPin != -1)
+							items.push( gPinManager.getPinHandler(i2CDataPin).getGUIData() );
+					
+						var i2CDataPin = -1;
+						var i2CClockPin = -1;
+						for (var pinNumber = rightSlotBasePinNumber; pinNumber <= lastFrontPinNumber; pinNumber++) {
+							var pinName = frontPinNames[pinNumber];
+							if (pinName == "I2C Clock" && i2CClockPin == -1)
+								i2CClockPin = pinNumber;
+							else if (pinName == "I2C Data" && i2CDataPin == -1)
+								i2CDataPin = pinNumber;
+							else  {
+								var pinHandler = gPinManager.getPinHandler(pinNumber);
+								if (null != pinHandler)
+									items.push(pinHandler.getGUIData());
+							}
+						}			
+						if (i2CDataPin != -1 && i2CClockPin != -1)
+							items.push( gPinManager.getPinHandler(i2CDataPin).getGUIData() );
+					}
+					return new PinScroller(data);
+				]]></method>
+				<method id="buildBackDigitalPinsScroller" params="container"><![CDATA[
+					var data = { 
+						scroll: { x: 0, y: 0 },
+						items : [],
+						scrollerID : "backDigitalPinsScroller"
+					};
+					var items = data.items;
+					
+					for (var pinNumber=3; pinNumber <= 12; pinNumber++)
+						items.push( gPinManager.getPinHandler(pinNumber).getGUIData() )
+					for (var pinNumber=15; pinNumber <= 24; pinNumber++)
+						items.push( gPinManager.getPinHandler(pinNumber).getGUIData() )
+
+					return new PinScroller(data);
+				]]></method>
+				<method id="buildBackOtherPinsScroller" params="container, frontPinNames"><![CDATA[
+					var data = { 
+						scroll: { x: 0, y: 0 },
+						items : [],
+						scrollerID : "backOtherPinsScroller"
+					};
+					var items = data.items;
+					
+					items.push( gPinManager.getPinHandler(27).getGUIData() );			// i2c
+
+					items.push( gPinManager.getPinHandler(31).getGUIData() );			// serial
+
+					items.push( gPinManager.getPinHandler(28).getGUIData() );			// pwm
+					items.push( gPinManager.getPinHandler(30).getGUIData() );
+					items.push( gPinManager.getPinHandler(34).getGUIData() );
+
+					// mirrored front pins
+					var i2CDataPin = -1;
+					var i2CClockPin = -1;
+					for (var pinNumber = leftSlotBasePinNumber; pinNumber < rightSlotBasePinNumber; pinNumber++) {
+						var mirrorPinNumber = frontToBackMirrorMap[pinNumber];
+						var pinName = frontPinNames[pinNumber];
+						if (pinName == "I2C Clock" && i2CClockPin == -1)
+							i2CClockPin = mirrorPinNumber;
+						else if (pinName == "I2C Data" && i2CDataPin == -1)
+							i2CDataPin = mirrorPinNumber;
+						else  {
+							var pinHandler = gPinManager.getPinHandler(mirrorPinNumber);
+							if (null != pinHandler)
+								items.push(pinHandler.getGUIData());
+						}
+					}		
+					if (i2CDataPin != -1 && i2CClockPin != -1)
+						items.push( gPinManager.getPinHandler(i2CDataPin).getGUIData() );
+
+					return new PinScroller(data);
+				]]></method>
+			
+				<method id="onPinsTabSelected" params="container"><![CDATA[
+					gData.topTabs.delegate("syncVisualState");
+					var pinDetectiveScreen = container.container;
+					pinDetectiveScreen.remove(pinDetectiveScreen.last);
+					switch (gData.selectedPinsTab) {
+						case Tabs.frontPinsTab:
+							pinDetectiveScreen.add( this.frontPinsScroller );
+							this.frontPinsScroller.partsLine.content(gData.selectedFrontPin).distribute("select");
+						break
+						case Tabs.backDigitalPinsTab:
+							pinDetectiveScreen.add( this.backDigitalPinsScroller );
+							this.backDigitalPinsScroller.partsLine.content(gData.selectedBackDigitalPin).distribute("select");
+						break
+						case Tabs.backOtherPinsTab:
+							pinDetectiveScreen.add( this.backOtherPinsScroller );
+							this.backOtherPinsScroller.partsLine.content(gData.selectedBackOtherPin).distribute("select");
+						break
+					}
+				]]></method>
+			
+				<method id="buildLocalPinsConfiguration" params="list"><![CDATA[
+				
+					// first close the pins
+					application.invoke(new MessageWithObject("pins:close"));
+
+					var configuration = {};
+				
+					var pinData = gData.pinData;
+					
+					// add the left and right voltage settings
+					configuration.leftVoltage = pinData.leftVoltage;
+					configuration.rightVoltage = pinData.rightVoltage;
+					
+					// collect front pins (and mirrored back pins) configs		
+					this.appendPowerAndGroundConfigData(list, pinData, configuration);
+					this.appendAnalogInputPinsConfigData(list, pinData, configuration);
+					
+					this.appendPWMPinsConfigData(list, pinData, configuration);
+					this.appendDigitalInputPinsConfigData(list, pinData, configuration);
+					this.appendDigitalOutputPinsConfigData(list, pinData, configuration);
+					this.appendI2CPinsConfigData(list, pinData, configuration);
+					
+					// collect non mirrored back pin configs
+					this.appendBackPWMPinsConfigData(list, configuration);
+					this.appendBackGPIOPinsConfigData(list, gData.directions, configuration);
+					this.appendBackI2CPinsConfigData(list, configuration);
+					this.appendBackSerialPinsConfigData(list, configuration);
+				
+					// add i2cscan
+					this.appendI2CScanConfigData(list, gData.directions, configuration);
+
+					return configuration;
+				]]></method>
+
+				<!-- PI_Model_B_Plus -->
+				
+				<method id="buildLocalPinsConfiguration_PI_Model_B_Plus" params="list"><![CDATA[
+				
+					// first close the pins
+					application.invoke(new MessageWithObject("pins:close"));
+
+					var configuration = {};
+				
+					var pinData = gData.pinData;
+					
+					// build back pin configs
+					this.appendBackGPIOPinsConfigData(list, gData.directions, configuration);
+					this.appendBackI2CPinsConfigData(list, configuration);
+					this.appendBackSerialPinsConfigData(list, configuration);
+				
+					// add i2cscan
+					this.appendI2CScanConfigData(list, gData.directions, configuration);
+
+					return configuration;
+				]]></method>
+				
+				<method id="appendPowerAndGroundConfigData" params="container, pinData, configuration"><![CDATA[
+					if( "leftPins" in pinData ) {
+						for (var i=0; i < pinData.leftPins.length; i++) {
+							var pinID = pinData.leftPins[i];
+							var pinNumber = leftSlotBasePinNumber + i;
+							if (pinID == 1) {
+								var pinName = this.getPowerName(container, pinNumber);
+								configuration[pinName] = {
+									require: "Power",
+									pins: {
+										power: { pin: pinNumber, voltage: pinData.leftVoltage, type: "Power" },
+									}
+								}
+							}
+							else if (pinID == 2) {
+								var pinName = this.getGroundName(container, pinNumber);
+								configuration[pinName] = {
+									require: "Ground",
+									pins: {
+										ground: { pin: pinNumber, type: "Ground" },
+									}
+								}
+							}
+						}
+					}
+					if( "rightPins" in pinData ) {
+						for (var i=0; i < pinData.rightPins.length; i++) {
+							var pinID = pinData.rightPins[i];
+							var pinNumber = rightSlotBasePinNumber + i;
+							if (pinID == 1) {
+								var pinName = this.getPowerName(container, pinNumber);
+								configuration[pinName] = {
+									require: "Power",
+									pins: {
+										power: { pin: pinNumber, voltage: pinData.rightVoltage, type: "Power" },
+									}
+								}
+							}
+							else if (pinID == 2) {
+								var pinName = this.getGroundName(container, pinNumber);
+								configuration[pinName] = {
+									require: "Ground",
+									pins: {
+										ground: { pin: pinNumber, type: "Ground" },
+									}
+								}
+							}
+						}
+					}
+				]]></method>
+
+				<method id="appendAnalogInputPinsConfigData" params="container, pinData, configuration"><![CDATA[
+					var analogPins = extractAnalogPins(pinData);
+					var simpleList = analogPins[2];
+					var analogInputCount = simpleList.length;
+					for (var i=analogInputCount - 1; i >= 0; i--) {
+						
+						// front
+						var pinNumber = simpleList[i];
+						var inputName = this.getAnalogInputName(container, pinNumber);
+						configuration[inputName] = {
+							require: "analogInputBLL",
+							pins: {
+								analogInput: { type: "A2D", direction: "input", pin : pinNumber }
+							}
+						}
+
+						// mirrored in back
+						if (pinNumber < rightSlotBasePinNumber) {
+							var pinNumber = frontToBackMirrorMap[pinNumber];
+							var inputName = this.getAnalogInputName(container, pinNumber);
+							configuration[inputName] = {
+								require: "analogInputBLL",
+								pins: {
+									analogInput: { type: "A2D", direction: "input", pin : pinNumber }
+								}
+							}
+						}
+					}
+				]]></method>
+
+				<method id="getAnalogInputName" params="container, pinNumber"><![CDATA[
+					return "Analog" + pinNumber;
+				]]></method>
+
+				<method id="appendPWMPinsConfigData" params="container, pinData, configuration"><![CDATA[
+					var pwmPins = extractPWMPins(pinData);
+					var simpleList = pwmPins[2];
+					var pwmInputCount = simpleList.length;
+					for (var i=pwmInputCount - 1; i >= 0; i--) {
+						
+						// front
+						var pinNumber = simpleList[i];
+						var inputName = this.getPWMInputName(container, pinNumber);
+						configuration[inputName] = {
+							require: "pwmBLL",
+							pins: {
+								pwm: { type: "PWM", pin : pinNumber }
+							}
+						}
+
+						// mirrored in back
+						if (pinNumber < rightSlotBasePinNumber) {
+							var pinNumber = frontToBackMirrorMap[pinNumber];
+							var inputName = this.getPWMInputName(container, pinNumber);
+							configuration[inputName] = {
+								require: "pwmBLL",
+								pins: {
+									pwm: { type: "PWM", pin : pinNumber }
+								}
+							}
+						}
+					}
+				]]></method>
+
+				<method id="getPWMInputName" params="container, pinNumber"><![CDATA[
+					return "PWM" + pinNumber;
+				]]></method>
+				
+				<method id="getPowerName" params="container, pinNumber"><![CDATA[
+					return "Power" + pinNumber;
+				]]></method>
+			
+				<method id="getGroundName" params="container, pinNumber"><![CDATA[
+					return "Ground" + pinNumber;
+				]]></method>
+			
+				<method id="appendDigitalInputPinsConfigData" params="container, pinData, configuration"><![CDATA[
+					var digitalPins = extractDigitalInputPins(pinData);
+					var simpleList = digitalPins[2];
+					var digitalInputCount = simpleList.length;
+					for (var i=digitalInputCount - 1; i >= 0; i--) {
+					
+						// front
+						var pinNumber = simpleList[i];
+						var inputName = this.getDigitalInputName(container, pinNumber);
+						configuration[inputName] = {
+							require: "digitalBLL",
+							pins: {
+								digital: { type: "Digital", direction: "input", pin : pinNumber }
+							}
+						}
+
+						// mirrored in back
+						if (pinNumber < rightSlotBasePinNumber) {
+							var pinNumber = frontToBackMirrorMap[pinNumber];
+							var inputName = this.getDigitalInputName(container, pinNumber);
+							configuration[inputName] = {
+								require: "digitalBLL",
+								pins: {
+									digital: { type: "Digital", direction: "input", pin : pinNumber }
+								}
+							}
+						}
+					}
+				]]></method>
+
+				<method id="getDigitalInputName" params="container, pinNumber"><![CDATA[
+					return "Digital" + pinNumber;
+				]]></method>					
+			
+				<method id="appendDigitalOutputPinsConfigData" params="container, pinData, configuration"><![CDATA[
+					var digitalPins = extractDigitalOutputPins(pinData);
+					var simpleList = digitalPins[2];
+					var digitalOutputCount = simpleList.length;
+					for (var i=digitalOutputCount - 1; i >= 0; i--) {
+					
+						// front
+						var pinNumber = simpleList[i];
+						var outputName = this.getDigitalOutputName(container, pinNumber);
+						configuration[outputName] = {
+							require: "digitalBLL",
+							pins: {
+								digital: { type: "Digital", direction: "output", pin : pinNumber }
+							}
+						}
+						
+						// mirrored in back
+						if (pinNumber < rightSlotBasePinNumber) {
+							var pinNumber = frontToBackMirrorMap[pinNumber];
+							var outputName = this.getDigitalOutputName(container, pinNumber);
+							configuration[outputName] = {
+								require: "digitalBLL",
+								pins: {
+									digital: { type: "Digital", direction: "output", pin : pinNumber }
+								}
+							}
+						}
+					}
+				]]></method>
+				<method id="getDigitalOutputName" params="container, pinNumber"><![CDATA[
+					return "Digital" + pinNumber;
+				]]></method>
+							
+				<method id="appendBackPWMPinsConfigData" params="container, configuration"><![CDATA[
+					this.appendBackPWMPin(container, 28, configuration);
+					this.appendBackPWMPin(container, 30, configuration);
+					this.appendBackPWMPin(container, 34, configuration);
+				]]></method>
+				<method id="appendBackPWMPin" params="container, pinNumber, configuration"><![CDATA[
+					var pinName = this.getBackPWMName(container, pinNumber);
+					configuration[pinName] = {
+						require: "pwmBLL",
+						pins: {
+							pwm: { type: "PWM", pin : pinNumber }
+						}
+					}
+				]]></method>					
+				<method id="getBackPWMName" params="container, pinNumber"><![CDATA[
+					return "PWM" + pinNumber;
+				]]></method>
+
+				<method id="appendI2CPinsConfigData" params="container, pinData, configuration"><![CDATA[
+					var i2cPins = extractI2CPins(pinData);
+					
+					var simpleList = i2cPins[2];
+					var i2cCount = simpleList.length;
+					for (var i=i2cCount - 1; i >= 0; i--) {
+
+						// front
+						var sda = simpleList[i].sda;
+						var clock = simpleList[i].clock;
+						var outputName = getI2CPartName(sda, clock);
+						var defaultAddress = 0;
+						configuration[outputName] = {
+							require: "i2cBLL",
+							pins: {
+								i2c: { type: "I2C", sda : sda, clock : clock, address : defaultAddress }
+							}
+						}
+
+						// mirrored in back
+						if (sda < rightSlotBasePinNumber) {
+							var mirroredSDA = frontToBackMirrorMap[sda];
+							var mirroredClock = frontToBackMirrorMap[clock];
+							var outputName = getI2CPartName(mirroredSDA, mirroredClock);
+							configuration[outputName] = {
+								require: "i2cBLL",
+								pins: {
+									i2c: { type: "I2C", sda : mirroredSDA, clock : mirroredClock, address : defaultAddress }
+								}
+							}
+						}
+					}
+				]]></method>							
+
+				<method id="appendBackI2CPinsConfigData" params="container, configuration"><![CDATA[
+					var sda = 27;
+					var clock = 29;
+					var outputName = getI2CPartName(sda, clock);
+					var defaultAddress = 0;
+					configuration[outputName] = {
+						require: "i2cBLL",
+						pins: {
+							i2c: { type: "I2C", sda : sda, clock : clock, address : defaultAddress }
+						}
+					}
+				]]></method>
+
+				<method id="appendBackSerialPinsConfigData" params="container, configuration"><![CDATA[
+					var baudRate = recallSelectedBaudRateValue();
+					var partName = getSerialPartName();
+					configuration[partName] = {
+						require: "serialBLL",
+						pins: {
+							serial: { type: "Serial", baud: baudRate }
+						}
+					}
+				]]></method>
+
+				<method id="appendI2CScanConfigData" params="container, pinData, configuration"><![CDATA[
+					configuration.i2cscan = {
+						require: "i2cscan",
+						pins: {
+						}
+					}
+				]]></method>
+				
+				<method id="appendBackGPIOPinsConfigData" params="container, directions, configuration"><![CDATA[
+					for (var pinNumber = 3; pinNumber <= 12; pinNumber++)
+						this.appendBackGPIOPin(container, pinNumber, configuration, directions);
+					for (var pinNumber = 15; pinNumber <= 24; pinNumber++)
+						this.appendBackGPIOPin(container, pinNumber, configuration, directions);
+				]]></method>
+				
+				<method id="appendBackGPIOPin" params="container, pinNumber, configuration, directions"><![CDATA[
+					var direction = directions[pinNumber];
+					var pinName = this.getBackGPIOPinName(container, pinNumber, direction);
+					if (direction == "input") {
+						configuration[pinName] = {
+							require: "digitalBLL",
+							pins: {
+								digital: { type: "Digital", direction: "input", pin : pinNumber }
+							}
+						}
+					}
+					else {
+						configuration[pinName] = {
+							require: "digitalBLL",
+							pins: {
+								digital: { type: "Digital", direction: "output", pin : pinNumber }
+							}
+						}
+					}
+				]]></method>					
+				<method id="getBackGPIOPinName" params="container, pinNumber, direction"><![CDATA[
+					if (direction == "input")
+						return this.getDigitalInputName(container, pinNumber);
+					else
+						return this.getDigitalOutputName(container, pinNumber);
+				]]></method>
+			</behavior>
+		</container>
+		
+		<container left="0" top="0" width="320" height="32" skin="lightGraySkin" behavior="CREATIONS.DynamicHeaderBehavior">
+			<container like="CREATIONS.CreationBackButton" active="true"/>
+			<container like="TabButtonContainer" left="32" right="0" top="0" bottom="0" skin="whiteSkin">
+				<container like="TabButton" name="frontPins" state="1" left="1" width="96-1" top="0" bottom="0">
+					<line left="6" top="0" bottom="0">
+						<container width="47" top="0" bottom="0">
+							<content width="34" height="9" skin="headerMenuSkin" variant="2"/>
+						</container>
+						<content width="1"/>
+						<label width="47" top="0" bottom="0" style="tabButtonStyle" string="'Front'"/>
+					</line> 
+				</container>
+				<container like="TabButton" name="backDigitalPins" left="96+1" width="96-1" top="0" bottom="0">
+					<line left="6" top="0" bottom="0">
+						<container width="47" top="0" bottom="0">
+							<content width="34" height="9" skin="headerMenuSkin" variant="0"/>
+						</container>
+						<content width="1"/>
+						<label width="47" top="0" bottom="0" style="tabButtonStyle" string="'Back'"/>
+					</line> 
+				</container>
+				<container like="TabButton" name="backOtherPins" left="96+96+1" width="96-1" top="0" bottom="0">
+					<line left="6" top="0" bottom="0">
+						<container width="47" top="0" bottom="0">
+							<content width="34" height="9" skin="headerMenuSkin" variant="1"/>
+						</container>
+						<content width="1"/>
+						<label width="47" top="0" bottom="0" style="tabButtonStyle" string="'Back'"/>
+					</line> 
+				</container>
+			</container>
+		</container>
+		
+		<content left="0" bottom="0" right="0" height="40" skin="footerSkin"/>
+
+		<content name="scrollerPlaceHolder"/>	<!-- current scroller with pin tabs goes here -->
+	</container>	
+
+	<class id="ShortPinDescription">
+		<field id="shortName"/>
+		<field id="longName"/>
+		<constructor params="shortName, longName">
+            <![CDATA[
+				this.shortName = shortName;
+                this.longName = longName;
+            ]]>
+        </constructor>
+    </class>
+   		
+	<behavior id="PinExplorerApplicationBehavior" like="MODEL.ApplicationBehavior">
+		<method id="onCreate" params="container, data"><![CDATA[
+			MODEL.ApplicationBehavior.prototype.onCreate.call(this, container, data);
+			if (USE_REMOTE_PINS)
+				container.interval = REMOTE_INTERVAL;
+			container.start();
+		]]></method>
+		<method id="onTimeChanged" params="container"><![CDATA[
+			tickWaveGenerators(container.time);
+		]]></method>
+		<method id="onQuit" params="container"><![CDATA[
+			if (SERVER_MODE) {
+				application.invoke(new Message("xkpr://shell/dial/additionalInfo?id=" + application.id))
+				if (gServerSharedPins) {
+					Pins.share();
+					gServerSharedPins = null;
+				}
+			}
+		]]></method>
+	</behavior>			
+
+	<script>
+        <![CDATA[  
+        	var leftSlotBasePinNumber = 51;
+        	var rightSlotBasePinNumber = leftSlotBasePinNumber + 8;
+        	var lastFrontPinNumber = 66;
+
+			var pdh = pinDescriptionsHash = {};
+            pdh["Nul"] = pdh[0] = new ShortPinDescription("Nul", "Disconnected");
+            pdh["V+"] = pdh[1] = new ShortPinDescription("V+", "Power");
+            pdh["GND"] = pdh[2] = new ShortPinDescription("GND", "Ground");
+            pdh["Anl"] = pdh[3] = new ShortPinDescription("Anl", "Analog");
+            pdh["Dln"] = pdh[4] = new ShortPinDescription("Dln", "Digital Input");
+            pdh["DOut"] = pdh[5] = new ShortPinDescription("DOut", "Digital Output");
+            pdh["SCL"] = pdh[6] = new ShortPinDescription("SCL", "I2C Clock");
+            pdh["SDA"] = pdh[7] = new ShortPinDescription("SDA", "I2C Data");
+            pdh["PWM"] = pdh[10] = new ShortPinDescription("PWM", "PWM");
+
+			application.style = applicationStyle;
+ 			var model = application.behavior = new PinExplorerApplicationBehavior(application);
+         ]]>
+    </script>
+    
+    <function id="isLeftSlotPin" params="pinNumber"><![CDATA[
+    	return (pinNumber >= leftSlotBasePinNumber) && (pinNumber < rightSlotBasePinNumber);
+    ]]></function>
+    
+    <function id="isRightSlotPin" params="pinNumber"><![CDATA[
+    	return (pinNumber >= rightSlotBasePinNumber) && (pinNumber <= lastFrontPinNumber);
+    ]]></function>
+    
+    <function id="isMirroredLeftSlotBackPin" params="pinNumber"><![CDATA[
+    	switch (pinNumber) {
+    		case 38:
+    		case 37:
+    		case 40:
+    		case 39:
+    		case 44:
+    		case 43:
+    		case 48:
+    		case 47:
+    			return true;
+    		default:
+    			return false;
+    	}
+    ]]></function>
+ 
+     <function id="rememberAssertedValue" params="pinNumber, value"><![CDATA[
+    	gAssertedValues[pinNumber] = value;
+    ]]></function>
+    
+     <function id="recallAssertedValue" params="pinNumber"><![CDATA[
+    	if (pinNumber in gAssertedValues)
+    		return gAssertedValues[pinNumber];
+    	else
+    		return null;
+    ]]></function>
+    
+    <function id="rememberSelectedSettingsControl" params="pinNumber, value"><![CDATA[
+    	gSelectedSettingsControl[pinNumber] = value;
+    ]]></function>
+    
+     <function id="recallSelectedSettingsControl" params="pinNumber"><![CDATA[
+    	if (pinNumber in gSelectedSettingsControl)
+    		return gSelectedSettingsControl[pinNumber];
+    	else
+    		return 0;
+    ]]></function>
+    
+    <function id="rememberMinRange" params="pinNumber, value"><![CDATA[
+    	gMinRanges[pinNumber] = value;
+    ]]></function>
+    
+    <function id="recallMinRange" params="pinNumber"><![CDATA[
+    	if (pinNumber in gMinRanges)
+    		return gMinRanges[pinNumber];
+    	else
+    		return 0;
+    ]]></function>
+    
+   <function id="rememberMaxRange" params="pinNumber, value"><![CDATA[
+    	gMaxRanges[pinNumber] = value;
+    ]]></function>
+    
+    <function id="recallMaxRange" params="pinNumber"><![CDATA[
+    	if (pinNumber in gMaxRanges)
+    		return gMaxRanges[pinNumber];
+    	else
+    		return 1;
+    ]]></function>
+
+   <function id="rememberHertzValue" params="pinNumber, value"><![CDATA[
+    	gHertzValues[pinNumber] = value;
+    ]]></function>
+    
+    <function id="recallHertzValue" params="pinNumber"><![CDATA[
+    	if (pinNumber in gHertzValues)
+    		return gHertzValues[pinNumber];
+    	else
+    		return 0.5;
+    ]]></function>
+
+
+	<handler path="/dial">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var query = parseQuery(message.query);
+				USE_REMOTE_PINS = (( "pinsremote" in query ) && ( "true" == query.pinsremote )) ? true : false;
+				ZERO_CONF = (( "zeroconf" in query ) && ( "true" == query.zeroconf )) ? true : false;
+				SERVER_MODE = (( "pinsshare" in query ) && ( "true" == query.pinsshare )) ? true : false;
+				if (SERVER_MODE) {
+					if ( ! gServerSharedPins ) {
+						gServerSharedPins = Pins.share("ws");
+						var pinsURL = gServerSharedPins[0].instance.url;
+						trace("\n/dial handler on server is returning url: " + pinsURL);
+					}
+				}
+			]]></method>
+		</behavior>
+	</handler>
+
+	<handler path="/dial/additionalData">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				if (SERVER_MODE) {
+					if (gServerSharedPins) {
+						var pinsURL = gServerSharedPins[0].instance.url;
+						message.responseText = JSON.stringify( { pins: pinsURL } );
+						message.status = 200;
+					}
+					else
+						message.status = 404;
+				}
+			]]></method>
+		</behavior>
+	</handler>
+</program>

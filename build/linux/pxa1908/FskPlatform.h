@@ -23,7 +23,7 @@
 #include <time.h>
 
 #define SRC_16RGB565LE			1
-#define SRC_32BGRA				1
+#define SRC_32RGBA				1
 #define SRC_32A16RGB565LE		1
 
 #define SRC_YUV420i				0 
@@ -36,12 +36,12 @@
 #define DST_YUV420				0
 //	#define DST_YUV422				1
 #define DST_8G					0
-#define DST_32BGRA				1
+#define DST_32RGBA				1
 
 #define DST_UNITY_16RGB565LE	1
 
 #define kFskBitmapFormatDefaultRGB  kFskBitmapFormat16RGB565LE
-#define kFskBitmapFormatDefaultRGBA kFskBitmapFormat32BGRA
+#define kFskBitmapFormatDefaultRGBA kFskBitmapFormat32RGBA
 #define kFskBitmapFormatSourceDefaultRGBA	kFskBitmapFormat32A16RGB565LE
 #define kFskBitmapFormatDefault     kFskBitmapFormatDefaultRGB
 

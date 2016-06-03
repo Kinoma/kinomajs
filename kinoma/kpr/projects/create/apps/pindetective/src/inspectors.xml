@@ -1,0 +1,1803 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+
+	<style id="inpsectorPinLabelStyle" font="20px" color="black" align="right,middle" lines="1"/>
+
+	<behavior id="InspectorPinLabelBehavior">
+		<method id="onCreate" params="label, data"><![CDATA[
+			switch (data.pinsTab) {
+				case Tabs.frontPinsTab:
+					label.string = "front";
+				break
+				case Tabs.backDigitalPinsTab:
+					label.string = "back";
+				break
+				case Tabs.backOtherPinsTab:
+					label.string = "back";
+				break
+			}
+		]]></method>
+	</behavior>
+
+	<line id="InspectorLabeledPin">
+<!--		<label style="inpsectorPinLabelStyle" behavior="InspectorPinLabelBehavior"/> -->
+		<content width="6"/>
+		<container like="PinLabel" top="0" bottom="0"/>
+	</line>
+
+	 <style id="mirroredPinLabelStyle" font="12px Bold" color="black" align="center,middle" lines="1"/>
+
+	<line id="InspectorMirroredLabeledPin">
+		<label style="inpsectorPinLabelStyle" string="'front'"/>
+		<content width="8"/>
+		<container right="0" width="22" height="18" skin="blackSkin" behavior="PinLabelBehavior">
+			<content left="1" top="1" right="1" bottom="1" skin="whiteSkin"/>
+			<label style="mirroredPinLabelStyle">
+				<behavior>
+					<method id="onCreate" params="label, data"><![CDATA[
+						this.data = data;
+					]]></method>
+					<method id="onDisplaying" params="label"><![CDATA[
+						if (this.data.isMirrored)
+							label.string = backToFrontMirrorMap[this.data.pinNumber];
+						else
+							label.container.container.visible = false;
+					]]></method>
+				</behavior>
+			</label>
+		</container>
+	</line>
+
+	<style id="inpsectorPartNameLabelStyle" font="26px bold" color="black" align="left,middle" lines="1"/>
+
+	<label id="InspectorPartNameLabel" left="8" top="8" style="inpsectorPartNameLabelStyle" string="$.label"/>
+
+    <behavior id="SwitchButtonBehavior"><![CDATA[
+        function changeOffset(container, offset) {
+            var label = container.last;
+            var line = label.first;
+            var button = line.first.next;
+            var bar = label.previous;
+            var background = bar.previous;
+            if (offset < 0)
+                offset = 0;
+            else if (offset > this.size)
+                offset = this.size;
+            this.offset = offset;
+            bar.width = button.width + Math.round(this.size - offset);
+            line.x = label.x - Math.round(offset);
+        }
+        function onCreate(container, data) {
+            this.data = data;
+        }
+        function onDisplaying(container) {
+            var label = container.last;
+            var line = label.first;
+            var button = line.first.next;
+            var bar = label.previous;
+            var background = bar.previous;
+            this.half = background.width >> 1;
+            this.size = background.width - button.width;
+            line.first.coordinates = line.last.coordinates = { width: this.size - this.data.sizeInset };     //* sizeInset is hard coded in library version
+            this.changeOffset(container, (this.data.value > 0) ? 0 : this.size);
+        }
+        function onFinished(container) {
+        }
+
+        function onTimeChanged(container) {
+            this.changeOffset(container, this.anchor + Math.round(this.delta * container.fraction));
+        }
+        function onTouchBegan(container, id, x, y, ticks) {
+            if (container.running) {
+                container.stop();
+                container.time = container.duration;
+            }
+            this.anchor = x;
+            this.capturing = false;
+            this.delta = this.offset + x;
+            container.last.first.first.next.state = 1;
+        }
+        function onTouchCancelled(container, id, x, y, ticks) {
+            container.last.first.first.next.state = 0;
+        }
+        function onTouchEnded(container, id, x, y, ticks) {
+            var offset = this.offset;
+            var size =  this.size;
+            var delta = size >> 1;
+            if (this.capturing) {
+                if (offset < delta)
+                    delta = 0 - offset;
+                else
+                    delta = size - offset;
+            }
+            else {
+                if (offset == 0)
+                    delta = size;
+                else if (offset == size)
+                    delta = 0 - size;
+                else if (x < this.half)
+                    delta = 0 - offset;
+                else
+                    delta = size - offset;
+            }
+            if (delta) {
+                this.anchor = offset;
+                this.delta = delta;
+                container.duration = 250 * Math.abs(delta) / size;
+                container.time = 0;
+                container.start();
+            }
+            var newValue = ((this.offset + delta) == 0) ? 1 : 0;
+            if (this.data.value != newValue) {
+                this.data.value = newValue;
+                this.onValueChanged(container, this.data.value);
+            }
+
+            container.last.first.first.next.state = 0;
+        }
+        function onTouchMoved(container, id, x, y, ticks) {
+            if (this.capturing) {
+                this.changeOffset(container, this.delta - x);
+            }
+            else if (Math.abs(x - this.anchor) >= 8) {
+                this.capturing = true;
+                container.captureTouch(id, x, y, ticks);
+                this.changeOffset(container, this.delta - x);
+            }
+        }
+        function onValueChanged(container, value) {
+            this.changeOffset(container, value ? 0 : this.size);
+        }
+    ]]></behavior>
+
+	<!-- On / Off Switch Button -->
+
+    <container id="BigOnOffSwitch" width="200" height="80" active="true">
+    	<behavior like="SwitchButtonBehavior">
+			<method id="onCreate" params="container, data"><![CDATA[
+				data.sizeInset = 18;
+				SwitchButtonBehavior.prototype.onCreate.call(this, container, data);
+				forgetWaveGenerator(data.pinNumber)
+				var value = recallAssertedValue(data.pinNumber);
+				if (null != value)
+					data.value = value;
+			]]></method>
+			<method id="onValueChanged" params="container, value"><![CDATA[
+				SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
+				container.valueHandler.delegate("assertValue");
+			]]></method>
+    	</behavior>
+        <content left="0" right="0" top="0" bottom="0" skin="onOffSwitchBarSkin" state="0"/>
+        <content left="0" width="80" top="0" bottom="0" skin="onOffSwitchBarSkin" state="1"/>
+        <container name="valueHandler" left="18" right="18" top="0" bottom="0" clip="true">		<!-- switch animates using time, so place this here -->
+            <behavior>
+				<method id="onCreate" params="container, data"><![CDATA[
+					this.data = data;
+					this.pinNumber = data.pinNumber;
+					this.outputName = "Digital" + data.pinNumber;
+					container.start();
+				]]></method>
+				<method id="onTimeChanged" params="container"><![CDATA[
+					this.assertValue(container);
+				]]></method>
+				<method id="assertValue" params="container"><![CDATA[
+					if (this.data.value == 1) {
+						gPinManager.getPinHandler(this.pinNumber).write(1);
+						application.distribute("onLevelChanged", this.pinNumber, 1);
+					}
+					else {
+						gPinManager.getPinHandler(this.pinNumber).write(0);
+						application.distribute("onLevelChanged", this.pinNumber, 0);
+					}
+					rememberAssertedValue(this.pinNumber, this.data.value);
+				]]></method>
+			</behavior>
+            <line left="0">
+                <content skin="onOffSwitchTextSkin" state="1"/>
+                <content width="80" top="0" bottom="0" skin="onOffSwitchButtonSkin" state="0"/>
+                <content skin="onOffSwitchTextSkin" state="0"/>
+            </line>
+        </container>
+    </container>
+
+    <content id="MomentaryButton" skin="momentaryButtonSkin" width="60" height="60" active="true">
+    	<behavior>
+			<method id="onCreate" params="content, data"><![CDATA[
+				forgetWaveGenerator(data.pinNumber)
+				this.pinNumber = data.pinNumber;
+				this.outputName = "Digital" + data.pinNumber;
+				content.start();
+			]]></method>
+			<method id="onTimeChanged" params="content"><![CDATA[
+				this.assertValue(content);
+			]]></method>
+			<method id="onTouchBegan" params="content, id, x, y, ticks"><![CDATA[
+				content.state = 1;
+				this.assertValue(content);
+			]]></method>
+			<method id="onTouchEnded" params="content, id, x, y, ticks"><![CDATA[
+				content.state = 0;
+				this.assertValue(content);
+			]]></method>
+			<method id="assertValue" params="content"><![CDATA[
+				if (content.state == 1) {
+					gPinManager.getPinHandler(this.pinNumber).write(1);
+					application.distribute("onLevelChanged", this.pinNumber, 1);
+				}
+				else {
+					gPinManager.getPinHandler(this.pinNumber).write(0);
+					application.distribute("onLevelChanged", this.pinNumber, 0);
+				}
+			]]></method>
+    	</behavior>
+    </content>
+
+	<!-- Read / Write Switch Button -->
+
+	<texture id="readWriteButtonTexture" small="assets/read-write-toggle-switch.png"/>
+
+    <skin id="readWriteSwitchBarSkin" texture="readWriteButtonTexture" x="100" y="0" width="60" height="40">
+        <tiles left="20" right="20"/>
+        <states offset="40"/>
+    </skin>
+    <skin id="readWriteSwitchButtonSkin" texture="readWriteButtonTexture" x="160" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    <skin id="readWriteSwitchTextSkin" texture="readWriteButtonTexture" x="200" y="0" width="60" height="40">
+        <states offset="40"/>
+    </skin>
+
+    <container id="I2CReadWriteSwitch" width="100" height="40" active="true">
+    	<behavior like="SwitchButtonBehavior">
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				this.sda = data.sda;
+				var switchData = this.data = { sizeInset : 9, value : getI2CData(this.sda).isWrite ? 1 : 0 };
+				SwitchButtonBehavior.prototype.onCreate.call(this, container, switchData);
+			]]></method>
+			<method id="onValueChanged" params="container, value"><![CDATA[
+				SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
+				if (this.data.value == 1) {
+					container.container.readWritePinsButton.label.string = "Write Pins";
+					getI2CData(this.sda).isWrite = true;
+				}
+				else {
+					container.container.readWritePinsButton.label.string = "Read Pins";
+					getI2CData(this.sda).isWrite = false;
+				}
+				container.container.distribute("onI2CMessageTypeChanged");
+			]]></method>
+    	</behavior>
+        <content left="0" right="0" top="0" bottom="0" skin="readWriteSwitchBarSkin" state="0"/>
+        <content left="0" width="40" top="0" bottom="0" skin="readWriteSwitchBarSkin" state="1"/>
+        <container left="9" right="9" top="0" bottom="0" clip="true">
+            <line left="0">
+                <content skin="readWriteSwitchTextSkin" state="1"/>
+                <content width="40" top="0" bottom="0" skin="readWriteSwitchButtonSkin" state="0"/>
+                <content skin="readWriteSwitchTextSkin" state="0"/>
+            </line>
+        </container>
+    </container>
+
+	<!-- Byte / Word Switch Button -->
+
+	<texture id="byteWordButtonTexture" small="assets/size-toggle-switch.png"/>
+
+    <skin id="byteWordSwitchBarSkin" texture="byteWordButtonTexture" x="100" y="0" width="60" height="40">
+        <tiles left="20" right="20"/>
+        <states offset="40"/>
+    </skin>
+    <skin id="byteWordSwitchButtonSkin" texture="byteWordButtonTexture" x="160" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    <skin id="byteWordSwitchTextSkin" texture="byteWordButtonTexture" x="200" y="0" width="60" height="40">
+        <states offset="40"/>
+    </skin>
+
+    <container id="ByteWordSwitch" width="100" height="40" active="true">
+    	<behavior like="SwitchButtonBehavior">
+			<method id="onCreate" params="canvas, data"><![CDATA[
+				this.sda = data.sda;
+				var switchData = this.data = { sizeInset : 9, value : getI2CData(this.sda).isWord ? 1 : 0 };
+				SwitchButtonBehavior.prototype.onCreate.call(this, canvas, switchData);
+			]]></method>
+			<method id="onValueChanged" params="container, value"><![CDATA[
+				SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
+				if (this.data.value == 1)
+					getI2CData(this.sda).isWord = true;
+				else
+					getI2CData(this.sda).isWord = false;
+				container.container.distribute("onI2CMessageTypeChanged");
+			]]></method>
+    	</behavior>
+        <content left="0" right="0" top="0" bottom="0" skin="byteWordSwitchBarSkin" state="0"/>
+        <content left="0" width="40" top="0" bottom="0" skin="byteWordSwitchBarSkin" state="1"/>
+        <container left="9" right="9" top="0" bottom="0" clip="true">
+            <line left="0">
+                <content skin="byteWordSwitchTextSkin" state="1"/>
+                <content width="40" top="0" bottom="0" skin="byteWordSwitchButtonSkin" state="0"/>
+                <content skin="byteWordSwitchTextSkin" state="0"/>
+            </line>
+        </container>
+    </container>
+
+ 	<!-- Scan / Manual Switch Button -->
+
+	<texture id="scanManualButtonTexture" small="assets/scan-manual-toggle-switch.png"/>
+
+    <skin id="scanManualSwitchBarSkin" texture="scanManualButtonTexture" x="100" y="0" width="60" height="40">
+        <tiles left="20" right="20"/>
+        <states offset="40"/>
+    </skin>
+    <skin id="scanManualSwitchButtonSkin" texture="scanManualButtonTexture" x="160" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    <skin id="scanManualSwitchTextSkin" texture="scanManualButtonTexture" x="200" y="0" width="80" height="40">
+        <states offset="40"/>
+    </skin>
+
+    <container id="ScanManualSwitch" width="120" height="40" active="true">
+    	<behavior like="SwitchButtonBehavior">
+			<method id="onCreate" params="canvas, data"><![CDATA[
+				data.sizeInset = 9;
+				SwitchButtonBehavior.prototype.onCreate.call(this, canvas, data);
+			]]></method>
+			<method id="onValueChanged" params="container, value"><![CDATA[
+				SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
+				application.distribute("onRebuildAddressEditor");
+			]]></method>
+    	</behavior>
+        <content left="0" right="0" top="0" bottom="0" skin="scanManualSwitchBarSkin" state="0"/>
+        <content left="0" width="40" top="0" bottom="0" skin="scanManualSwitchBarSkin" state="1"/>
+        <container left="9" right="9" top="0" bottom="0" clip="true">
+            <line left="0">
+                <content skin="scanManualSwitchTextSkin" state="1"/>
+                <content width="40" top="0" bottom="0" skin="scanManualSwitchButtonSkin" state="0"/>
+                <content skin="scanManualSwitchTextSkin" state="0"/>
+            </line>
+        </container>
+    </container>
+
+    <!-- Pin Data -->
+
+	<class id="PinData">
+		<field id="pinsTab"/>
+		<field id="label"/>
+		<field id="variant"/>
+		<field id="iconVariant"/>
+		<field id="pinNumber"/>
+		<constructor params="pinHandler"><![CDATA[
+        	this.pinHandler = pinHandler;
+         ]]></constructor>
+         <method id="newBottomTabButton">
+         </method>
+         <method id="newInspector">
+         </method>
+         <method id="getPinHandler">
+			return this.pinHandler;
+         </method>
+    </class>
+
+	<class id="AllDisconnectedPinData" like="PinData">
+		<field id="label" value="'Disconnected'"/>
+		<field id="variant" value="3"/>
+		<field id="iconVariant" value="3"/>
+		<constructor params="pinsTab, isMirrored, pinNumber"><![CDATA[
+        	this.pinsTab = pinsTab;
+        	this.isMirrored = isMirrored;
+        	this.pinNumber = pinNumber;
+         ]]></constructor>
+         <method id="newBottomTabButton">
+          	return new AllDisconnectedBottomTabButton(this);
+        </method>
+        <method id="newInspector">
+         	return new AllDisconnectedPinInspector(this);
+         </method>
+         <method id="getPinHandler">
+         	debugger;
+         </method>
+    </class>
+
+	<class id="AnalogPinData" like="PinData">
+		<field id="label" value="'Analog'"/>
+		<field id="variant" value="3"/>
+		<field id="iconVariant" value="3"/>
+		<constructor params="pinHandler"><![CDATA[
+        	PinData.call(this, pinHandler);
+        	this.pinNumber = pinHandler.pinNumber;
+        	this.isMirrored = isMirroredLeftSlotBackPin(this.pinNumber);
+        	this.probeOffset = -6;
+        ]]></constructor>
+         <method id="newBottomTabButton">
+          	return new AnalogBottomTabButton(this);
+        </method>
+        <method id="newInspector">
+         	return new AnalogInputPinInspector(this);
+         </method>
+    </class>
+
+	<class id="PWMPinData" like="PinData">
+		<field id="label" value="'PWM'"/>
+		<field id="variant" value="0"/>
+		<field id="iconVariant" value="5"/>
+		<constructor params="pinHandler"><![CDATA[
+        	PinData.call(this, pinHandler);
+        	this.pinNumber = pinHandler.pinNumber;
+        	this.isMirrored = isMirroredLeftSlotBackPin(this.pinNumber);
+       ]]></constructor>
+         <method id="newBottomTabButton">
+         	return new PWMBottomTabButton(this);
+         </method>
+        <method id="newInspector">
+        	if (this.pinHandler.getMode() == 0)
+         		return new PWMPinInspector(this);
+         	else
+         		return new PWMDutyCyclePinInspector(this);
+         </method>
+    </class>
+
+  	<class id="DigitalPinData" like="PinData">
+		<field id="label" value="'Digital'"/>
+		<field id="variant" value="1"/>
+		<field id="iconVariant" value="0"/>
+		<constructor params="pinHandler"><![CDATA[
+        	PinData.call(this, pinHandler);
+        	this.pinNumber = pinHandler.pinNumber;
+        	this.isMirrored = isMirroredLeftSlotBackPin(this.pinNumber);
+        	this.probeOffset = -6;
+        	this.value = 0;
+         ]]></constructor>
+         <method id="newBottomTabButton">
+         	if (this.pinHandler.getDirection() == "input")
+         		return new DigitalInBottomTabButton(this);
+         	else
+	         	return new DigitalOutBottomTabButton(this);
+         </method>
+        <method id="newInspector">
+         	if (this.pinHandler.getDirection() == "input")
+        		return new ToggleDigitalInputPinInspector(this);
+        	else
+        		return new ToggleDigitalOutputPinInspector(this);
+         </method>
+    </class>
+
+	<class id="I2CPinData" like="PinData">
+		<field id="label" value="'I2C'"/>
+		<field id="variant" value="4"/>
+		<field id="iconVariant" value="4"/>
+		<field id="sda"/>
+		<field id="clock"/>
+		<constructor params="pinHandler"><![CDATA[
+        	PinData.call(this, pinHandler);
+        	this.sda = pinHandler.sda;
+        	this.clock = pinHandler.clock;
+        	this.address = pinHandler.getAddress();
+        	this.isMirrored = isMirroredLeftSlotBackPin(this.sda);
+
+        	this.configuredSda = null;
+        	this.configuredClock = null;
+        	this.configuredAddress = null;
+
+        	this.readByteResult = -1;
+        	this.readWordResult = -1;
+
+        	this.isWrite = false;
+        	this.isWord = false;
+        	this.writeByteValue = 0x00;
+        	this.writeWordValue = 0x0000;
+        	this.register = 0x00;
+         ]]></constructor>
+         <method id="newBottomTabButton">
+         	return new I2CBottomTabButton(this);
+         </method>
+        <method id="newInspector">
+         	return new I2CPinInspector(this);
+         </method>
+    </class>
+
+	<class id="SerialPinData" like="PinData">
+		<field id="label" value="'Serial'"/>
+		<field id="variant" value="5"/>
+		<field id="iconVariant" value="6"/>
+		<field id="tx"/>
+		<field id="rx"/>
+		<field id="inputValue"/>
+		<field id="outputValue"/>
+		<constructor params="pinHandler"><![CDATA[
+        	PinData.call(this, pinHandler);
+        	this.tx = pinHandler.tx;
+        	this.rx = pinHandler.rx;
+        	this.baud = pinHandler.getBaud();
+        	this.inputValue = "";
+        	this.outputValue = "";
+         ]]></constructor>
+         <method id="newBottomTabButton">
+         	return new SerialBottomTabButton(this);
+         </method>
+        <method id="newInspector">
+         	return new SerialPinInspector(this);
+         </method>
+         <method id="getPinHandler">
+         	return gPinManager.getPinHandler(this.tx);
+         </method>
+    </class>
+
+	<function id="getContentIndex" params="content"><![CDATA[
+		var container = content.container;
+		for (var i=0; i < container.length; i++) {
+			if (container.content(i) === content)
+				return i;
+		}
+	]]></function>
+
+	<!-- Part Inspectors -->
+
+	<!-- All Disconnected -->
+	<style id="allDisconnectedStyle" font="26px bold" color="black" align="center,middle" lines="2"/>
+ 	<container id="AllDisconnectedPinInspector" left="0" right="0" top="0" bottom="0">
+    	<text left="8" right="8" style="allDisconnectedStyle" string="'Use Front Pins App to Configure.'"/>
+	</container>
+
+
+	<!-- Analog -->
+
+ 	<container id="AnalogInputPinInspector" left="0" right="0" top="0" bottom="0">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				this.pinNumber = data.pinNumber;
+			]]></method>
+			<method id="onLevelChanged" params="container, pinNumber, level"><![CDATA[
+				if (pinNumber == this.pinNumber)
+					container.levelMeter.distribute("onMeterLevelChanged", level);
+			]]></method>
+		</behavior>
+
+    	<label like="InspectorPartNameLabel"/>
+
+    	<line top="0" right="0">
+			<label like="InspectorMirroredLabeledPin"/>
+			<content width="6"/>
+			<label like="InspectorLabeledPin"/>
+			<content like="GearButton"/>
+		</line>
+
+    	<container name="levelMeter" like="SAMPLEGRAPH.LevelMeterWithProbe" left="7" right="0" top="70" bottom="40"/>
+	</container>
+
+	<handler path="/gotAnalogInputValue">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var result = message.requestObject;
+				var value = result.value;
+				var pinNumber = result.pinNumber;
+				application.distribute("onLevelChanged", pinNumber, value);
+			]]></method>
+		</behavior>
+	</handler>
+
+	<!-- Digital In -->
+
+    <texture id="inOutButtonTexture" small="assets/in-out-toggle-switch.png"/>
+    <skin id="inOutSwitchBarSkin" texture="inOutButtonTexture" x="100" y="0" width="60" height="40">
+        <tiles left="20" right="20"/>
+        <states offset="40"/>
+    </skin>
+    <skin id="inOutSwitchButtonSkin" texture="inOutButtonTexture" x="160" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    <skin id="inOutSwitchTextSkin" texture="inOutButtonTexture" x="200" y="0" width="60" height="40">
+        <states offset="40"/>
+    </skin>
+
+    <container id="InOutSwitch" width="100" height="40" active="true">
+    	<behavior like="SwitchButtonBehavior">
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				var direction
+				if (this.isFrontPin(container)) {
+					if (this.isLeftFrontPin(container)) {
+						var index = this.data.pinNumber - leftSlotBasePinNumber;
+						direction = gData.pinData.leftPins[index] == 4 ? "input" : "output";
+					}
+					else {
+						var index = this.data.pinNumber - rightSlotBasePinNumber;
+						direction = gData.pinData.rightPins[index] == 4 ? "input" : "output";
+					}
+				}
+				else
+					direction = gData.directions[this.data.pinNumber];
+				this.direction = direction;
+				var switchData = this.data = { sizeInset : 9, value : (direction == "input") ? 0 : 1, pinNumber : data.pinNumber };
+				SwitchButtonBehavior.prototype.onCreate.call(this, container, switchData);
+			]]></method>
+			<method id="onValueChanged" params="container, value"><![CDATA[
+				SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
+
+				var direction = this.direction;
+
+				if (direction == "output")
+					forgetWaveGenerator(this.data.pinNumber)
+
+				var toggledDirection = (direction == "input") ? "output" : "input";
+
+				if (this.isFrontPin(container)) {
+					if (this.isLeftFrontPin(container)) {
+						var index = this.data.pinNumber - leftSlotBasePinNumber;
+						gData.pinData.leftPins[index] = gData.pinData.leftPins[index] == 4 ? 5 : 4;
+					}
+					else {
+						var index = this.data.pinNumber - rightSlotBasePinNumber;
+						gData.pinData.rightPins[index] = gData.pinData.rightPins[index] == 4 ? 5 : 4;
+					}
+				}
+				else
+					gData.directions[this.data.pinNumber] = toggledDirection;
+
+				var detective = application.first.first;
+
+				var digitalPinHandler = gPinManager.getPinHandler(this.data.pinNumber);
+				digitalPinHandler.setDirection(toggledDirection);
+
+				detective.delegate("rebuildTabs");
+			]]></method>
+			<method id="isFrontPin" params="container"><![CDATA[
+				return this.data.pinNumber >= leftSlotBasePinNumber;
+			]]></method>
+			<method id="isLeftFrontPin" params="container"><![CDATA[
+				return this.data.pinNumber >= leftSlotBasePinNumber && this.data.pinNumber < rightSlotBasePinNumber;
+			]]></method>
+    	</behavior>
+        <content left="0" right="0" top="0" bottom="0" skin="inOutSwitchBarSkin" state="0"/>
+        <content left="0" width="40" top="0" bottom="0" skin="inOutSwitchBarSkin" state="1"/>
+        <container left="9" right="9" top="0" bottom="0" clip="true">
+            <line left="0">
+                <content skin="inOutSwitchTextSkin" state="1"/>
+                <content width="40" top="0" bottom="0" skin="inOutSwitchButtonSkin" state="0"/>
+                <content skin="inOutSwitchTextSkin" state="0"/>
+            </line>
+        </container>
+    </container>
+
+ 	<container id="ToggleDigitalInputPinInspector" left="0" right="0" top="0" bottom="0">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				this.pinNumber = data.pinNumber;
+			]]></method>
+			<method id="onLevelChanged" params="container, pinNumber, level"><![CDATA[
+				if (pinNumber == this.pinNumber)
+					container.levelMeter.distribute("onMeterLevelChanged", level);
+			]]></method>
+		</behavior>
+
+      	<line top="0" left="0">
+    		<label left="4" like="InspectorPartNameLabel"/>
+    		<container top="2" left="0" like="InOutSwitch"/>
+    	</line>
+
+    	<line top="0" right="0">
+			<label like="InspectorMirroredLabeledPin"/>
+			<content width="6"/>
+			<label like="InspectorLabeledPin"/>
+			<content like="GearButton"/>
+		</line>
+
+    	<container name="levelMeter" like="SAMPLEGRAPH.LevelMeterWithProbe" left="7" right="0" top="70" bottom="40"/>
+
+	</container>
+
+	<handler path="/gotDigitalInputValue">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var result = message.requestObject;
+				var value = result.value;
+				var pinNumber = result.pinNumber;
+				application.distribute("onLevelChanged", pinNumber, value);
+				//trace("\n onLevelChanged pinNumber: " + pinNumber );
+			]]></method>
+		</behavior>
+	</handler>
+
+	<!-- Digital Out -->
+
+ 	<container id="ToggleDigitalOutputPinInspector" left="0" right="0" top="0" bottom="0">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				this.pinNumber = data.pinNumber;
+				this.CONTROL_TYPES = { switchButton : 0, momentaryButton : 1, digitalSquare : 2 };
+				this.controlType = recallSelectedSettingsControl(this.pinNumber);
+				this.rebuildControl();
+			]]></method>
+			<method id="rebuildControl" params="container"><![CDATA[
+				this.data.controlContainer.empty();
+				switch(this.controlType) {
+					case this.CONTROL_TYPES.switchButton:
+						this.data.controlContainer.add( new BigOnOffSwitch(this.data) );
+					break
+					case this.CONTROL_TYPES.momentaryButton:
+						var button = new MomentaryButton(this.data, { top : -15 });
+						this.data.controlContainer.add( button );
+					break
+					case this.CONTROL_TYPES.digitalSquare:
+						var control = new DigitalSquareWaveformControl(this.data, { top : -15 })
+						this.data.controlContainer.add(control);
+					break
+				}
+			]]></method>
+			<method id="onLevelChanged" params="container, pinNumber, level"><![CDATA[
+				if (pinNumber == this.pinNumber)
+					container.levelMeter.distribute("onMeterLevelChanged", level);
+			]]></method>
+			<method id="onDigitalOutControlSelected" params="container, selection"><![CDATA[
+				this.controlType = selection;
+				this.rebuildControl(container);
+			]]></method>
+			<method id="getDigitalOutControlType" params="container"><![CDATA[
+				return this.controlType;
+			]]></method>
+		</behavior>
+
+        <container anchor="controlContainer" left="10" right="10" top="55" height="40"/>
+
+      	<line top="0" left="0">
+    		<label left="4" like="InspectorPartNameLabel"/>
+     		<container top="2" left="0" like="InOutSwitch"/>
+   		</line>
+
+    	<line top="0" right="0">
+			<label like="InspectorMirroredLabeledPin"/>
+			<content width="6"/>
+			<label like="InspectorLabeledPin"/>
+			<content like="DigitalOutGearButton"/>
+		</line>
+
+    	<container name="levelMeter" like="SAMPLEGRAPH.LevelMeterWithProbe" left="7" right="7" bottom="10" height="50"/>
+
+	</container>
+
+
+	<!-- PWM -->
+
+	<behavior id="PWMSliderBehavior" like="AnalogOutputSliderBehavior">
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			AnalogOutputSliderBehavior.prototype.onCreate.call(this, canvas, data);
+			forgetWaveGenerator(data.pinNumber)
+			var value = recallAssertedValue(this.data.pinNumber);
+			if (null != value)
+				this.data.value = value;
+			else
+				this.data.value = 0.5;
+		]]></method>
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			AnalogOutputSliderBehavior.prototype.onDisplaying.call(this, canvas);
+
+			if (USE_REMOTE_PINS)
+				canvas.interval = REMOTE_INTERVAL;
+			canvas.start();
+		]]></method>
+		<method id="onTimeChanged" params="canvas"><![CDATA[
+			this.assertValue(canvas);
+			rememberAssertedValue(this.data.pinNumber, this.data.value);
+			application.distribute("onLevelChanged", this.data.pinNumber, this.data.value);
+		]]></method>
+	</behavior>
+
+    <container id="PWMSlider" left="0" right="0" top="0" bottom="0">
+        <canvas name="canvas" left="0" right="0" top="0" bottom="0" active="true" behavior="PWMSliderBehavior"/>
+    </container>
+
+	<behavior id="WaveformControlBehavior">
+		<method id="onCreate" params="container, data"><![CDATA[
+			this.data = data;
+			this.pinNumber = data.pinNumber;
+			if ("outputName" in data)
+				this.outputName = data.outputName;
+			else
+				this.outputName = "PWM " + data.pinNumber;
+			data.minRange = 0;
+			data.maxRange = 1;
+			this.waveGenerator = this.createWaveGenerator(container);
+			this.waveGenerator.start(0);
+		]]></method>
+		<method id="createWaveGenerator" params="container"><![CDATA[
+		]]></method>
+		<method id="onRangeChanged" params="container, minRange, maxRange"><![CDATA[
+			this.waveGenerator.setRange(minRange, maxRange);
+		]]></method>
+		<method id="onHertzFractionChanged" params="container, hertzFraction"><![CDATA[
+			this.waveGenerator.setHertzFraction(hertzFraction);
+		]]></method>
+	</behavior>
+
+    <container id="WaveformControl" behavior="WaveformControlBehavior" left="0" right="0" top="0" bottom="0">
+		<label like="RangeSliderLabel"/>
+		<container like="RangeSlider"/>
+		<label like="HertzSliderLabel"/>
+		<container like="HertzSlider"/>
+    </container>
+
+	<container id="SineWaveformControl" like="WaveformControl">
+		<behavior like="WaveformControlBehavior">
+			<method id="createWaveGenerator" params="container"><![CDATA[
+				var generator = recallWaveGenerator(this.pinNumber, SineWaveGenerator.prototype);
+				if (null === generator) {
+					generator = new SineWaveGenerator(this.pinNumber, this.outputName, 0, 1, 0.25, 4, 2);
+					rememberWaveGenerator(this.pinNumber, generator);
+				}
+				return generator;
+			]]></method>
+		</behavior>
+	</container>
+
+	<container id="TriangleWaveformControl" like="WaveformControl">
+		<behavior like="WaveformControlBehavior">
+			<method id="createWaveGenerator" params="container"><![CDATA[
+				var generator = recallWaveGenerator(this.pinNumber, TriangleWaveGenerator.prototype);
+				if (null === generator) {
+					generator = new TriangleWaveGenerator(this.pinNumber, this.outputName, 0, 1, 0.25, 4, 1);
+					rememberWaveGenerator(this.pinNumber, generator);
+				}
+				return generator;
+			]]></method>
+		</behavior>
+	</container>
+
+	<container id="SquareWaveformControl" like="WaveformControl">
+		<behavior like="WaveformControlBehavior">
+			<method id="createWaveGenerator" params="container"><![CDATA[
+				var generator = recallWaveGenerator(this.pinNumber, SquareWaveGenerator.prototype);
+				if (null === generator) {
+					generator = new SquareWaveGenerator(this.pinNumber, this.outputName, 0, 1, 0.25, 4, 1);
+					rememberWaveGenerator(this.pinNumber, generator);
+				}
+				return generator;
+			]]></method>
+		</behavior>
+	</container>
+
+	<container id="DigitalSquareWaveformControl">
+		<behavior like="WaveformControlBehavior">
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.outputName = "Digital" + data.pinNumber;
+				this.pinNumber = data.pinNumber;
+				data.outputName = this.outputName;
+				WaveformControlBehavior.prototype.onCreate.call(this, container, data);
+			]]></method>
+			<method id="createWaveGenerator" params="container"><![CDATA[
+				var generator = recallWaveGenerator(this.pinNumber, SquareWaveGenerator.prototype);
+				if (null === generator) {
+					generator = new DigitalSquareWaveGenerator(this.pinNumber, this.outputName, 0, 1, 0.25, 4, 1);
+					rememberWaveGenerator(this.pinNumber, generator);
+				}
+				return generator;
+			]]></method>
+		</behavior>
+		<label like="HertzSliderLabel"/>
+		<container like="HertzSlider"/>
+    </container>
+
+
+    <texture id="pwmToggleTexture" small="assets/pin-explorer-sm-toggle-switch.png"/>
+
+    <skin id="pwmToggleBarSkin" texture="pwmToggleTexture" x="100" y="0" width="60" height="40">
+        <tiles left="20" right="20"/>
+        <states offset="40"/>
+    </skin>
+    <skin id="pwmToggleButtonSkin" texture="pwmToggleTexture" x="160" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    <skin id="pwmToggleTextSkin" texture="pwmToggleTexture" x="200" y="0" width="60" height="40">
+        <states offset="40"/>
+    </skin>
+
+    <container id="PWMToggleSwitch" width="110" height="40" active="true">
+    	<behavior like="SwitchButtonBehavior">
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				var mode = gPinManager.getPinHandler(data.pinNumber).getMode();
+				var switchData = this.data = { sizeInset : 9, value : mode, pinNumber : data.pinNumber };
+				SwitchButtonBehavior.prototype.onCreate.call(this, container, switchData);
+			]]></method>
+			<method id="onValueChanged" params="container, value"><![CDATA[
+				SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
+				gPinManager.getPinHandler(this.data.pinNumber).setMode(value);
+				var detective = application.first.first;
+				detective.delegate("rebuildTabs");
+			]]></method>
+			<method id="isFrontPin" params="container"><![CDATA[
+				return this.data.pinNumber >= leftSlotBasePinNumber;
+			]]></method>
+    	</behavior>
+		<content left="0" right="0" top="0" bottom="0" skin="pwmToggleBarSkin" state="0"/>
+		<content left="0" width="40" top="0" bottom="0" skin="pwmToggleBarSkin" state="1"/>
+		<container left="9" right="9" top="0" bottom="0" clip="true">
+			<line left="0">
+				<content skin="pwmToggleTextSkin" state="1"/>
+				<content width="40" top="0" bottom="0" skin="pwmToggleButtonSkin" state="0"/>
+				<content skin="pwmToggleTextSkin" state="0"/>
+			</line>
+		</container>
+    </container>
+
+ 	<container id="PWMPinInspector" left="0" right="0" top="0" bottom="0">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				this.pinNumber = Number(data.pinNumber);
+				this.CONTROL_TYPES = { slider : 0, sine : 1, square : 2, triangle : 3 };
+				this.controlType = recallSelectedSettingsControl(this.pinNumber);
+				this.rebuildControl(container);
+			]]></method>
+			<method id="onDisplaying" params="container"><![CDATA[
+				var isFrontPin = this.isFrontPin(container);
+				if (false == this.isFrontPin(container)) {
+					var toggleSwitch = this.data.toggleSwitch;
+					toggleSwitch.active = false;
+					toggleSwitch.visible = false;
+				}
+			]]></method>
+			<method id="isFrontPin" params="container"><![CDATA[
+				return this.data.pinNumber >= leftSlotBasePinNumber;
+			]]></method>
+			<method id="rebuildControl" params="container"><![CDATA[
+				this.data.controlContainer.empty();
+				this.controlType = recallSelectedSettingsControl(this.pinNumber);
+				switch(this.controlType) {
+					case this.CONTROL_TYPES.slider:
+						this.data.controlContainer.add( new PWMSlider(this.data) );
+					break
+					case this.CONTROL_TYPES.sine:
+						this.data.controlContainer.add( new SineWaveformControl(this.data) );
+					break
+					case this.CONTROL_TYPES.triangle:
+						this.data.controlContainer.add( new TriangleWaveformControl(this.data) );
+					break
+					case this.CONTROL_TYPES.square:
+						this.data.controlContainer.add( new SquareWaveformControl(this.data) );
+					break
+				}
+			]]></method>
+			<method id="onLevelChanged" params="container, pinNumber, level"><![CDATA[
+				if (pinNumber == this.pinNumber)
+					container.levelMeter.distribute("onMeterLevelChanged", level);
+			]]></method>
+			<method id="onPWMControlSelected" params="container, selection"><![CDATA[
+				this.controlType = selection;
+				this.rebuildControl(container);
+			]]></method>
+			<method id="getPWMControlType" params="container"><![CDATA[
+				return this.controlType;
+			]]></method>
+		</behavior>
+
+<!--    	<label like="InspectorPartNameLabel"/>		-->
+
+      	<line top="0" left="0">
+    		<label like="InspectorPartNameLabel"/>
+     		<container anchor="toggleSwitch" top="2" left="0" like="PWMToggleSwitch"/>
+   		</line>
+
+
+    	<line top="0" right="0">
+			<label like="InspectorMirroredLabeledPin"/>
+			<content width="6"/>
+			<label like="InspectorLabeledPin"/>
+			<content like="PWMGearButton"/>
+		</line>
+
+		<label top="34" left="126" style="dutyCycleLabelStyle" string="'Duty Cycle'"/>
+
+    	<container anchor="controlContainer" left="10" right="10" top="55" height="40"/>
+
+    	<container name="levelMeter" like="SAMPLEGRAPH.LevelMeterWithProbe" left="7" right="7" bottom="10" height="50"/>
+	</container>
+
+	<behavior id="PWMPeriodSliderBehavior" like="CanvasSliderBehavior">
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			this.data = data;
+			var sliderData = { min: 1, max: 30, value: 30, parentData: data };
+			CanvasSliderBehavior.prototype.onCreate.call(this, canvas, sliderData);
+		]]></method>
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			var parentData = this.data.parentData;
+
+			var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
+			var period = pinHandler.getPeriod();
+			if (period == undefined)
+				period = this.data.value;
+
+			canvas.delegate("setValue", period);
+
+			CanvasSliderBehavior.prototype.onDisplaying.call(this, canvas);		// calls onValueChanged()
+		]]></method>
+		<method id="onValueChanged" params="canvas"><![CDATA[
+			this.data.value = Math.round(this.data.value);
+			CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
+
+			var parentData = this.data.parentData;
+			parentData.periodValueLabel.string = this.data.value.toString();
+
+			var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
+			pinHandler.setPeriod(this.data.value);
+
+			parentData.dutyCycleSlider.first.delegate("onPeriodChanged", this.data.value);
+		]]></method>
+	</behavior>
+
+    <container id="PWMPeriodSlider" left="0" top="0" width="240" height="40">
+        <canvas name="canvas" left="0" right="0" top="0" bottom="0" active="true" behavior="PWMPeriodSliderBehavior"/>
+    </container>
+
+	<behavior id="PWMDutyCycleSliderBehavior" like="CanvasSliderBehavior">
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			this.data = data;
+			this.afterOnDisplaying = false;
+			var sliderData = { min: 0, max: 30, value: 15, parentData: data };
+			CanvasSliderBehavior.prototype.onCreate.call(this, canvas, sliderData);
+		]]></method>
+		<method id="onPeriodChanged" params="canvas, period"><![CDATA[
+			this.data.max = period;
+
+			var parentData = this.data.parentData;
+			if (this.data.value > period) {
+				var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
+				pinHandler.setDutyCycle(period);
+
+				canvas.delegate("setValue", period);
+			}
+
+			if (this.afterOnDisplaying)
+				canvas.delegate("onValueChanged");
+
+			parentData.dutyCycleMaxLabel.string = period;
+
+			var parentData = this.data.parentData;
+			var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
+
+			var dutyCycle = pinHandler.getDutyCycle();
+			if (dutyCycle != undefined)
+				pinHandler.writeDutyCyclePeriod( dutyCycle, period );
+		]]></method>
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			var parentData = this.data.parentData;
+
+			var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
+			var dutyCycle = pinHandler.getDutyCycle();
+			if (dutyCycle == undefined)
+				dutyCycle = this.data.value;
+
+			canvas.delegate("setValue", dutyCycle);
+
+			CanvasSliderBehavior.prototype.onDisplaying.call(this, canvas);
+
+			this.afterOnDisplaying = true;
+		]]></method>
+		<method id="onValueChanged" params="canvas"><![CDATA[
+			//this.data.value = Math.round(this.data.value);
+			CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
+
+			var parentData = this.data.parentData;
+			parentData.dutyCycleValueLabel.string = (Math.round(this.data.value * 100) / 100).toFixed(2).toString();
+
+			var pinHandler = gPinManager.getPinHandler(parentData.pinNumber);
+			pinHandler.setDutyCycle(this.data.value);
+
+			var dutyCycle = this.data.value;
+			var period = pinHandler.getPeriod();
+			pinHandler.writeDutyCyclePeriod( dutyCycle, period );
+		]]></method>
+	</behavior>
+
+    <container id="PWMDutyCycleSlider" left="0" top="0" width="240" height="40">
+        <canvas name="canvas" left="0" right="0" top="0" bottom="0" active="true" behavior="PWMDutyCycleSliderBehavior"/>
+    </container>
+
+	<style id="dutyCycleLabelStyle" font="bold 20px" color="black" align="left,middle" lines="1"/>
+	<style id="dutyCycleValueLabelStyle" font="20px" color="black" align="center,middle" lines="1"/>
+
+ 	<container id="PWMDutyCyclePinInspector" left="0" right="0" top="0" bottom="0">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+				this.pinNumber = Number(data.pinNumber);
+			]]></method>
+		</behavior>
+
+      	<line top="0" left="0">
+    		<label like="InspectorPartNameLabel"/>
+     		<container anchor="toggleSwitch" top="2" left="0" like="PWMToggleSwitch"/>
+   		</line>
+
+    	<line top="0" right="0">
+			<label like="InspectorMirroredLabeledPin"/>
+			<content width="6"/>
+			<label like="InspectorLabeledPin"/>
+			<content like="GearButton"/>
+		</line>
+
+		<column left="2" top="42" width="320" style="dutyCycleLabelStyle" >
+			<container left="0" top="-4" right="0">
+				<label top="0" left="14" string="'1'"/>
+				<label top="0" left="96" string="'Period'"/>
+				<label top="0" left="212" string="'30'"/>
+			</container>
+			<container anchor="periodSlider" like="PWMPeriodSlider"  left="0" top="-4"/>
+		</column>
+
+		<container skin="blackSkin" left="248" top="62" width="40" height="26">
+			<content skin="whiteSkin" left="1" top="1" right="1" bottom="1"/>
+			<label anchor="periodValueLabel" style="dutyCycleValueLabelStyle" string="'25'"/>
+			<label style="dutyCycleValueLabelStyle" left="44" string="'ms'"/>
+		</container>
+
+		<column left="2" top="100" width="320" style="dutyCycleLabelStyle" >
+			<container left="0" top="-4" right="0">
+				<label top="0" left="14" string="'0'"/>
+				<label anchor="dutyCycleMaxLabel" top="0" left="212" string="'30'"/>
+				<label top="0" left="80" string="'Pulse Width'"/>
+			</container>
+			<container anchor="dutyCycleSlider" like="PWMDutyCycleSlider"  left="0" top="-4"/>
+		</column>
+
+		<container skin="blackSkin" left="248" top="120" width="40" height="26">
+			<content skin="whiteSkin" left="1" top="1" right="1" bottom="1"/>
+			<label anchor="dutyCycleValueLabel" style="dutyCycleValueLabelStyle" string="'16'"/>
+			<label style="dutyCycleValueLabelStyle" left="44" string="'ms'"/>
+		</container>
+
+	</container>
+	<!-- I2C -->
+
+    <function id="getI2CData" params="sda"><![CDATA[
+    	var pinHandler = gPinManager.getPinHandler(sda);
+    	if (null != pinHandler)
+    		return pinHandler.getGUIData();
+    	else
+    		return null;
+    ]]></function>
+
+	<line id="I2CLabeledDataPin">
+		<label style="inpsectorPinLabelStyle" string="'SDA'"/>
+		<content width="6"/>
+		<container like="I2CMirroredDataPinLabel" top="0" bottom="0"/>
+		<container like="I2CDataPinLabel" top="0" bottom="0"/>
+	</line>
+
+	<line id="I2CLabeledClockPin">
+		<label style="inpsectorPinLabelStyle" string="'SCL'"/>
+		<content width="6"/>
+		<container like="I2CMirroredClockPinLabel" top="0" bottom="0"/>
+		<container like="I2CClockPinLabel" top="0" bottom="0"/>
+	</line>
+
+	<style id="i2cLabelStyle" font="26px" color="black" align="left,middle" lines="1"/>
+
+	<style id="i2cColumnLabelStyle" font="bold 18px" color="black" align="left,middle" lines="1"/>
+
+	<style id="i2cAddressLabelStyle" font="bold 22px" color="black" align="left,middle" lines="1"/>
+
+	<style id="i2CValueStyle" font="24px" align="left,middle" lines="1">
+		<states colors="#5ab021,blue"/>
+	</style>
+
+	<style id="i2CReadOnlyValueStyle" font="24px" color="black" align="left,middle" lines="1"/>
+
+	<style id="readWritePinsButtonStyle" font="22px" color="black" align="center,middle" lines="1"/>
+
+	<texture id="readWritePinsTexture" small="assets/generic-3-part.png"/>
+	<skin id="readWritePinsSkin" texture="readWritePinsTexture" x="0" y="0" width="30" height="30">
+		<tiles left="10" right="10"/>
+        <states offset="30"/>
+    </skin>
+
+	<texture id="readWritePinsTexture2" small="assets/generic-3-part-2.png"/>
+	<skin id="readWritePinsSkin2" texture="readWritePinsTexture2" x="0" y="0" width="25" height="25">
+		<tiles left="5" right="5" top="5" bottom="5"/>
+        <states offset="25"/>
+    </skin>
+
+	<texture id="buttonGroupTexture" small="assets/button-group.png"/>
+	<skin id="buttonGroupSkin" texture="buttonGroupTexture" x="0" y="0" width="62" height="50">
+		<tiles left="10" right="10"/>
+        <states offset="50"/>
+    </skin>
+
+	<container id="I2CReadWritePinsButton" active="true" height="25" width="100" skin="readWritePinsSkin2">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.sda = data.sda;
+			]]></method>
+			<method id="onTouchBegan" params="container, id, x, y, ticks"><![CDATA[
+				container.state = 1;
+			]]></method>
+			<method id="onTouchEnded" params="container, id, x, y, ticks"><![CDATA[
+				container.state = 0;
+				var detective = application.first.first;
+				this.sendI2CMessage(container);
+			]]></method>
+			<method id="sendI2CMessage" params="container"><![CDATA[
+				var i2Cdata = getI2CData(this.sda);
+
+				if (i2Cdata.isWrite) {
+					if (i2Cdata.isWord)				// write word
+						gPinManager.getPinHandler(i2Cdata.sda).writeWordDataSMB(i2Cdata.register, i2Cdata.writeWordValue);
+					else								// write byte
+						gPinManager.getPinHandler(i2Cdata.sda).writeByteDataSMB(i2Cdata.register, i2Cdata.writeByteValue);
+				}
+				else {
+					if (i2Cdata.isWord) {				// read word
+						var callback = bindBehaviorCallback(container, "onReadWordDataSMB");
+						gPinManager.getPinHandler(i2Cdata.sda).readWordDataSMB(i2Cdata.register, callback);
+					}
+					else {								// read byte
+						var callback = bindBehaviorCallback(container, "onReadByteDataSMB");
+						gPinManager.getPinHandler(i2Cdata.sda).readByteDataSMB(i2Cdata.register, callback);
+					}
+				}
+			]]></method>
+			<method id="onReadWordDataSMB" params="container, value"><![CDATA[
+				var i2Cdata = getI2CData(this.sda);
+				i2Cdata.readWordResult = value;
+				trace("distributing onDataPropertyChanged readWordResult: " + value);
+				container.container.distribute("onDataPropertyChanged", "readWordResult");
+			]]></method>
+			<method id="onReadByteDataSMB" params="container, value"><![CDATA[
+				var i2Cdata = getI2CData(this.sda);
+				i2Cdata.readByteResult = value;
+				trace("distributing onDataPropertyChanged readByteResult: " + value);
+				container.container.distribute("onDataPropertyChanged", "readByteResult");
+			]]></method>
+		</behavior>
+		<label name="label" style="readWritePinsButtonStyle">
+			<behavior>
+				<method id="onCreate" params="label, data"><![CDATA[
+					if (data.isWrite)
+						label.string = "Write Pins";
+					else
+						label.string = "Read Pins";
+				]]></method>
+			</behavior>
+		</label>
+	</container>
+
+	<behavior id="ByteLabelBehavior">
+		<method id="onCreate" params="label, data"><![CDATA[
+			this.sda = data.sda;
+			this.updateLabel(label);
+		]]></method>
+		<method id="getDataPropertyName" params="data"><![CDATA[
+			trace("\n must override getDataPropertyName!");
+			debugger;
+		]]></method>
+		<method id="updateLabel" params="label"><![CDATA[
+			var value = getI2CData(this.sda)[this.getDataPropertyName()];
+			if (value == -1)
+				label.string = "None";
+			else
+				label.string = "0x" + decimalToByteHexString(value);
+		]]></method>
+		<method id="onDataPropertyChanged" params="label, propertyName, value"><![CDATA[
+			if (propertyName == this.getDataPropertyName(label))
+				this.updateLabel(label);
+		]]></method>
+	</behavior>
+
+	<behavior id="WordLabelBehavior">
+		<method id="onCreate" params="label, data"><![CDATA[
+			this.sda = data.sda;
+			this.updateLabel(label);
+		]]></method>
+		<method id="getDataPropertyName" params="label"><![CDATA[
+			trace("\n must override getDataPropertyName!");
+			debugger;
+		]]></method>
+		<method id="updateLabel" params="label"><![CDATA[
+			var value = getI2CData(this.sda)[this.getDataPropertyName()];
+			if (value == -1)
+				label.string = "None";
+			else
+				label.string = "0x" + decimalToWordHexString(value);
+		]]></method>
+		<method id="onDataPropertyChanged" params="label, propertyName, value"><![CDATA[
+			if (propertyName == this.getDataPropertyName(label))
+				this.updateLabel(label);
+		]]></method>
+	</behavior>
+
+	<behavior id="EditableByteLabelBehavior" like="LabelButtonBehavior">
+		<method id="onCreate" params="label, data"><![CDATA[
+			this.sda = data.sda;
+			LabelButtonBehavior.prototype.onCreate.call(this, label, data);
+			var i2CData = getI2CData(this.sda);
+			var propertyName = this.getDataPropertyName();
+			var value = i2CData[propertyName];
+			if (value == -1)
+				label.string = "None";
+			else
+				label.string = "0x" + decimalToByteHexString(value);
+		]]></method>
+		<method id="onTap" params="label"><![CDATA[
+			gHexEditerData = getI2CData(this.sda);
+			var propertyName = this.getDataPropertyName();
+			label.invoke( new Message( "/byte-input-screen?propertyName=" + propertyName ) );
+		]]></method>
+		<method id="getDataPropertyName" params="data"><![CDATA[
+			trace("\n must override getDataPropertyName!");
+			debugger;
+		]]></method>
+	</behavior>
+
+	<behavior id="EditableByteLabelClearValueBehavior" like="EditableByteLabelBehavior">
+		<method id="onTap" params="label"><![CDATA[
+			if (this.data.isWord)								// clear the value field
+				this.data.readWordResult = -1;
+			else
+				this.data.readByteResult = -1;
+			EditableByteLabelBehavior.prototype.onTap.call(this, label);
+		]]></method>
+	</behavior>
+
+	<behavior id="EditableWordLabelBehavior" like="LabelButtonBehavior">
+		<method id="onCreate" params="label, data"><![CDATA[
+			this.sda = data.sda;
+			LabelButtonBehavior.prototype.onCreate.call(this, label, data);
+			var value = getI2CData(this.sda)[this.getDataPropertyName()];
+			if (value == -1)
+				label.string = "None";
+			else
+				label.string = "0x" + decimalToWordHexString(value);
+		]]></method>
+		<method id="onTap" params="label"><![CDATA[
+			gHexEditerData = getI2CData(this.sda);
+			var propertyName = this.getDataPropertyName();
+			label.invoke( new Message( "/word-input-screen?propertyName=" + propertyName ) );
+		]]></method>
+		<method id="getDataPropertyName" params="label"><![CDATA[
+			trace("\n must override getDataPropertyName!");
+			debugger;
+		]]></method>
+	</behavior>
+
+	<label id="I2CWordLabel" style="i2CReadOnlyValueStyle" active="true">
+		<behavior like="WordLabelBehavior">
+			<method id="getDataPropertyName" params="data"><![CDATA[
+				return "readWordResult";
+			]]></method>
+		</behavior>
+	</label>
+
+	<label id="I2CByteLabel" style="i2CReadOnlyValueStyle" active="true">
+		<behavior like="ByteLabelBehavior">
+			<method id="getDataPropertyName" params="data"><![CDATA[
+				return "readByteResult";
+			]]></method>
+		</behavior>
+	</label>
+
+	<label id="I2CEditableWordLabel" style="i2CValueStyle" active="true">
+		<behavior like="EditableWordLabelBehavior">
+			<method id="getDataPropertyName" params="data"><![CDATA[
+				return "writeWordValue";
+			]]></method>
+		</behavior>
+	</label>
+
+	<label id="I2CEditableByteLabel" style="i2CValueStyle" active="true">
+		<behavior like="EditableByteLabelBehavior">
+			<method id="getDataPropertyName" params="data"><![CDATA[
+				return "writeByteValue";
+			]]></method>
+		</behavior>
+	</label>
+
+ 	<container id="I2CPinInspector" left="0" right="0" top="0" bottom="0">
+
+    	<label like="InspectorPartNameLabel"/>
+
+    	<line top="0" right="0">
+			<line like="I2CLabeledDataPin"/>
+			<content width="6"/>
+			<line like="I2CLabeledClockPin"/>
+			<content width="6"/>
+			<content like="GearButton"/>
+		</line>
+
+		<line left="10" top="35">
+			<label style="i2cAddressLabelStyle" string="'Address '"/>
+			<content width="6"/>
+			<container skin="blackSkin" width="50" height="26">
+				<content skin="whiteSkin" left="1" top="1" right="1" bottom="1"/>
+				<label style="i2CValueStyle" active="true">
+					<behavior like="EditableByteLabelClearValueBehavior">
+						<method id="getDataPropertyName" params="data"><![CDATA[
+							return "address";
+						]]></method>
+					</behavior>
+				</label>
+			</container>
+		</line>
+
+		<label left="8" bottom="80" style="i2cColumnLabelStyle" string="'Operation'"/>
+		<container like="I2CReadWriteSwitch" left="-2" bottom="48"/>
+
+		<label left="99" bottom="80" style="i2cColumnLabelStyle" string="'Size'"/>
+		<container like="ByteWordSwitch" left="89" bottom="48"/>
+
+		<label left="190" bottom="80" style="i2cColumnLabelStyle" string="'Value'"/>
+		<container skin="blackSkin" left="190" bottom="54" width="62" height="26">
+			<behavior>
+				<method id="onCreate" params="container, data"><![CDATA[
+					this.data = data;
+					this.sda = data.sda;
+					this.onI2CMessageTypeChanged(container);
+				]]></method>
+				<method id="onI2CMessageTypeChanged" params="container"><![CDATA[
+					var i2Cdata = getI2CData(this.sda);
+					if (i2Cdata.isWrite) {
+						if (i2Cdata.isWord)				// write word
+							container.replace(container.last, new I2CEditableWordLabel( this.data ) );
+						else							// write byte
+							container.replace(container.last, new I2CEditableByteLabel( this.data ) );
+					}
+					else {
+						if (i2Cdata.isWord)				// read word
+							container.replace(container.last, new I2CWordLabel( this.data ) );
+						else								// read byte
+							container.replace(container.last, new I2CByteLabel( this.data ) );
+					}
+				]]></method>
+			</behavior>
+			<content skin="whiteSkin" left="1" top="1" right="1" bottom="1"/>
+
+			<label like="I2CWordLabel"/>	<!-- placeholder for dynamically allocated value label (editable/non, byte/word) -->
+		</container>
+
+		<label left="261" bottom="80" style="i2cColumnLabelStyle" string="'Register'"/>
+		<container skin="blackSkin" left="261" bottom="54" width="50" height="26">
+			<content skin="whiteSkin" left="1" top="1" right="1" bottom="1"/>
+			<label style="i2CValueStyle" active="true">
+				<behavior like="EditableByteLabelClearValueBehavior">
+					<method id="getDataPropertyName" params="data"><![CDATA[
+						return "register";
+					]]></method>
+				</behavior>
+			</label>
+		</container>
+
+		<container name="readWritePinsButton" like="I2CReadWritePinsButton" right="10" bottom="10"/>
+	</container>
+
+
+	<!-- Serial -->
+
+	<script>
+        <![CDATA[
+        	var gConsoleLines = [];
+
+        	var consoleClear = function() {
+        		gConsoleLines = [];
+        	}
+        	var consoleAppendOutputLine = function(line) {
+        		gConsoleLines.push( { dir : "out", descriptions : line } );
+        	}
+        	var consoleAppendInputLine = function(line) {
+        		gConsoleLines.push( { dir : "in", descriptions : line } );
+        	}
+         ]]>
+    </script>
+
+	<behavior id="ShowKeyboardBehavior">
+		<method id="onTouchEnded" params="label, id, x, y, ticks"><![CDATA[
+			var keyboardData = {
+				title: "Serial Output",
+				okLabel: "OK",
+				cancelLabel: "Cancel",
+				previousText: "",
+				keyboard: KEYBOARD.mixedKeyboard,
+				hintText: "Enter data to write"
+			}
+			/*
+			application.run(
+				new TRANSITIONS.TimeTravel(),
+				gData.MAIN_SCREEN,
+				new KeyboardScreen(keyboardData), { direction : "forward", easeType : "sineEaseIn", duration : 500,
+													removeFormerContent : false }
+			);
+			*/
+
+			var keyboardScreen = new KeyboardScreen(keyboardData);
+			application.add(keyboardScreen);
+		]]></method>
+	</behavior>
+
+	<container id="KeyboardScreen" left="0" right="0" top="0" bottom="0" skin="whiteSkin" like="KEYBOARD.KeyboardScreen">
+		<behavior like="KEYBOARD.KeyboardScreenBehavior">
+			<method id="onKeyboardCancel" params="container, input"><![CDATA[
+				this.goBack(container);
+			]]></method>
+			<method id="onKeyboardEnter" params="container, input"><![CDATA[
+				this.handleSerialOutput(container, input);
+			]]></method>
+			<method id="onKeyboardOK" params="container, input"><![CDATA[
+				this.handleSerialOutput(container, input);
+			]]></method>
+			<method id="handleSerialOutput" params="container, input"><![CDATA[
+				var tx = 31;
+				gPinManager.getPinHandler(31).getGUIData().outputValue = input;
+				application.distribute("onSerialOutputEntered", input);
+				this.goBack(container);
+			]]></method>
+			<method id="goBack" params="container"><![CDATA[
+
+	//			application.run(new TRANSITIONS.TimeTravel(), application.last, gData.MAIN_SCREEN,
+	//							{ direction : "back", easeType : "sineEaseOut", duration : 500, addCurrentContent : false } );
+				application.remove(application.last);
+			]]></method>
+		</behavior>
+	</container>
+
+	<line id="SerialLabeledTxPin">
+		<label style="inpsectorPinLabelStyle" string="'Tx'"/>
+		<content width="6"/>
+		<container like="SerialTxPinLabel" top="0" bottom="0"/>
+	</line>
+
+	<line id="SerialLabeledRxPin">
+		<label style="inpsectorPinLabelStyle" string="'Rx'"/>
+		<content width="6"/>
+		<container like="SerialRxPinLabel" top="0" bottom="0"/>
+	</line>
+
+	<container id="SerialWriteCharsButton" active="true" height="25" width="60" skin="readWritePinsSkin2">
+		<behavior like="ShowKeyboardBehavior">
+			<method id="onTouchBegan" params="container, id, x, y, ticks"><![CDATA[
+				container.state = 1;
+			]]></method>
+			<method id="onTouchEnded" params="container, id, x, y, ticks"><![CDATA[
+				container.state = 0;
+				ShowKeyboardBehavior.prototype.onTouchEnded.call(this, container, id, x, y, ticks);
+			]]></method>
+		</behavior>
+		<label name="label" style="readWritePinsButtonStyle" string="'Write'"/>
+	</container>
+
+	<container id="ToggleDisplayButton" active="true" height="25" width="60" skin="readWritePinsSkin2">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+			]]></method>
+			<method id="onTouchBegan" params="container, id, x, y, ticks"><![CDATA[
+				var console = this.data.serialConsole;
+				var currentType = console.delegate("getDisplayType");
+				if (currentType == "hex") {
+					console.delegate("setDisplayType", "mixed");
+					container.label.string = "Mixed";
+					container.state = 0;
+				}
+				else {
+					console.delegate("setDisplayType", "hex");
+					container.label.string = "Hex";
+					container.state = 1;
+				}
+			]]></method>
+		</behavior>
+		<label name="label" style="readWritePinsButtonStyle" string="'Mixed'"/>
+	</container>
+
+	<skin id="graySkin" color="#CCCCCC"/>
+
+	<container id="BaudRateButton" active="true" height="50" width="100" skin="buttonGroupSkin">
+		<behavior>
+			<method id="onTouchBegan" params="container, id, x, y, ticks"><![CDATA[
+				container.state = 1;
+			]]></method>
+			<method id="onTouchEnded" params="container, id, x, y, ticks"><![CDATA[
+				container.state = 0;
+				container.invoke( new Message("/baud-input-screen") );
+			]]></method>
+		</behavior>
+		<container top="0" left="0" right="0" height="25">
+			<label name="label" style="readWritePinsButtonStyle" string="'Baud'"/>
+		</container>
+	</container>
+
+	<container id="LineEndingButton" active="true" height="50" width="100" skin="buttonGroupSkin">
+		<behavior>
+			<method id="onTouchBegan" params="container, id, x, y, ticks"><![CDATA[
+				container.state = 1;
+			]]></method>
+			<method id="onTouchEnded" params="container, id, x, y, ticks"><![CDATA[
+				container.state = 0;
+				container.invoke( new Message("/line-ending-input-screen") );
+			]]></method>
+		</behavior>
+		<container top="0" left="0" right="0" height="25">
+			<label name="label" style="readWritePinsButtonStyle" string="'Ending'"/>
+		</container>
+	</container>
+
+	<style id="consoleStyle" font="18px" color="black" align="left" lines="all">
+		<margins left="4" right="4"/>
+	</style>
+
+	<style id="outputStyle" font="18px" color="green" align="left" lines="all">
+		<margins left="4" right="4"/>
+	</style>
+
+	<style id="inputStyle" font="18px" color="blue" align="left" lines="all">
+		<margins left="4" right="4"/>
+	</style>
+
+
+	<behavior id="SerialConsoleBehavior" like="MIXED.MixedConsoleBehavior">
+		<method id="onCreate" params="scroller, data"><![CDATA[
+			MIXED.MixedConsoleBehavior.prototype.onCreate.call(this, scroller, data);
+		]]></method>
+		<method id="onDisplaying" params="scroller"><![CDATA[
+			MIXED.MixedConsoleBehavior.prototype.onDisplaying.call(this, scroller);
+			this.rebuildPersistedConsoleOutput(scroller);
+		]]></method>
+		<method id="rebuildPersistedConsoleOutput" params="scroller"><![CDATA[
+			for (var i=0, c=gConsoleLines.length; i<c; i++) {
+				var line = gConsoleLines[i];
+				switch (line.dir) {
+					case "out":
+						scroller.delegate("addOutputLine", line.descriptions);
+					break
+					case "in":
+						scroller.delegate("addInputLine", line.descriptions);
+					break
+				}
+			}
+		]]></method>
+		<method id="onSerialOutputEntered" params="scroller, description"><![CDATA[
+			var endingChars = recallSelectedLineEndingChars();
+			if (endingChars != "")
+				description.push( { type: "ending",  chars: endingChars } );
+			scroller.delegate("addOutputLine", description);
+			consoleAppendOutputLine(description);
+
+			// write to pins
+			var args = this.descriptionToArgs(scroller, description);
+
+			var tx = 31;
+			gPinManager.getPinHandler(tx).write(args);
+		]]></method>
+		<method id="descriptionToArgs" params="scroller, description"><![CDATA[
+			var args = [];
+			var length = description.length;
+			for (var i=0; i < length; i++) {
+				var span = description[i];
+				switch (span.type) {
+					case "ascii":								// string
+						args.push(span.chars);
+					break
+					case "hex":									// chunk
+						var spanLength = span.chars.length;
+						var chunkSize = spanLength / 2;
+						var chunk = new Chunk(chunkSize);
+						for (var n=0, j=0; n < spanLength; n += 2, j++) {
+							var firstNibble = span.chars.charAt(n);
+							var secondNibble = span.chars.charAt(n+1);
+							var byteString = "0x" + firstNibble + secondNibble
+							var value = parseInt(byteString);
+							chunk.poke(j, value);
+						}
+						args.push(chunk);
+					break
+					case "ending":								// array
+						var array = new Array(span.chars.length);
+						for (var n=0, c=span.chars.length; n < c; n++)
+							array[n] = span.chars.charAt(n);
+						args.push(array);
+					break
+				}
+			}
+			return args;
+		]]></method>
+		<method id="onSerialInputReceived" params="scroller, intArray"><![CDATA[
+			var description = [];
+
+			var asciiSpan = "";
+			var hexSpan = "";
+
+			for (var i=0, c=intArray.length; i < c; i++) {
+				var anInt = intArray[i];
+				if (this.shouldAddAsCharacter(scroller, anInt)) {
+					if (hexSpan != "") {
+						description.push( { type: "hex", chars: hexSpan } );
+						hexSpan = "";
+					}
+					asciiSpan += String.fromCharCode(anInt);
+				}
+				else {
+					if (asciiSpan != "") {
+						description.push( { type: "ascii", chars: asciiSpan } );
+						asciiSpan = "";
+					}
+					var hexStr = anInt.toString(16);
+					if (anInt < 16)
+						hexStr = "0" + hexStr;
+					hexSpan += hexStr;
+				}
+			}
+			if (asciiSpan != "") {
+				description.push( { type: "ascii", chars: asciiSpan } );
+				asciiSpan = "";
+			}
+			if (hexSpan != "") {
+				description.push( { type: "hex", chars: hexSpan } );
+				hexSpan = "";
+			}
+
+//			description.push( { type: "ascii", chars: input } );
+			scroller.delegate("addInputLine", description);
+
+			consoleAppendInputLine(description);
+		]]></method>
+		<method id="shouldAddAsCharacter" params="scroller, charCode"><![CDATA[
+			return (charCode >= 32 && charCode <= 126);
+		]]></method>
+	</behavior>
+
+	<scroller id="SerialConsole" anchor="serialConsole" like="MIXED.MixedConsole" behavior="SerialConsoleBehavior"/>
+
+ 	<container id="SerialPinInspector" left="0" right="0" top="0" bottom="0">
+
+    	<label like="InspectorPartNameLabel"/>
+
+    	<line top="0" right="0">
+			<line like="SerialLabeledTxPin"/>
+			<content width="6"/>
+			<line like="SerialLabeledRxPin"/>
+			<content width="6"/>
+			<content like="GearButton"/>
+		</line>
+
+		<content like="BaudRateButton" right="10" top="100+4" width="60"/>
+
+		<label anchor="baudLabel" right="10" top="125+4" width="60" style="readWritePinsButtonStyle">
+			<behavior>
+				<method id="onDisplaying" params="label">
+					label.string = recallSelectedBaudRateValue();
+				</method>
+			</behavior>
+		</label>
+
+		<content like="LineEndingButton" right="10" top="40+4" width="60"/>
+
+		<label anchor="lineEndingLabel" right="10" top="65+4" width="60" style="readWritePinsButtonStyle">
+			<behavior>
+				<method id="onDisplaying" params="label">
+					label.string = recallSelectedLineEndingLabel();
+				</method>
+			</behavior>
+		</label>
+
+		<container like="SerialWriteCharsButton" top="10" right="113"/>
+
+		<scroller like="SerialConsole" left="10" top="44" right="80" bottom="14"/>
+
+		<container like="ToggleDisplayButton" left="77" top="10"/>
+
+	</container>
+
+</program>

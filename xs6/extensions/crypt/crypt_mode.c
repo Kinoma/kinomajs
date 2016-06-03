@@ -14,11 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
+
 #include "crypt.h"
 #include "crypt_common.h"
 #include "crypt_mode.h"
-#include <string.h>
 
 void
 xs_mode_constructor(xsMachine *the)
@@ -27,7 +26,7 @@ xs_mode_constructor(xsMachine *the)
 
 	if ((mode = crypt_malloc(sizeof(crypt_mode_t))) == NULL)
 		crypt_throw_error(the, "mode: nomem");
-	memset(mode, 0, sizeof(crypt_mode_t));
+	c_memset(mode, 0, sizeof(crypt_mode_t));
 	mode->cipher = xsGetHostData(xsArg(0));
 	if (mode->cipher->blockSize > CRYPT_MAX_BLOCKSIZE)
 		crypt_throw_error(the, "mode: wrong blocksize");

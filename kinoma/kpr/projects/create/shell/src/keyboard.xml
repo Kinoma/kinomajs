@@ -1,0 +1,132 @@
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	<require id="SKEYBOARD" path="creations/keyboard"/>
+	
+	<skin id="keyboardSkin" color="white"/>
+	<style id="keyboardStyle" font="16px Fira Sans"/>
+	<script><![CDATA[
+		var keyboardHeight = 1 + (4 * SKEYBOARD.standardKeyboard.rowHeight);
+	]]></script>
+
+	<container id="Keyboard" left="0" right="0" height="keyboardHeight" bottom="0" skin="keyboardSkin" style="keyboardStyle">
+        <behavior like="SKEYBOARD.KeyboardBehavior">
+			<method id="onAddCharacter" params="container, key"><![CDATA[
+				shell.keyDown(key, 0, 0, 0);
+				shell.keyUp(key, 0, 0, 0);
+			]]></method>
+			<method id="onDeleteCharacter" params="container"><![CDATA[
+				shell.keyDown("\b", 0, 0, 0);
+				shell.keyUp("\b", 0, 0, 0);
+			]]></method>
+			<method id="onEnter" params="container"><![CDATA[
+				shell.keyDown("\r", 0, 0, 0);
+				shell.keyUp("\r", 0, 0, 0);
+			]]></method>
+			<method id="onRebuildKeyboard" params="container, keyboardLayout"><![CDATA[
+				container.remove(container.first);
+               	SKEYBOARD.KeyboardBehavior.prototype.onRebuildKeyboard.call(this, container, keyboardLayout);
+				container.add(new SKEYBOARD.KeyboardLayout(this.data));
+			]]></method>
+		</behavior>
+		<column like="SKEYBOARD.KeyboardLayout"/>
+	</container>
+	
+	<script><![CDATA[
+		var keyboard = new Keyboard({ keyboard: SKEYBOARD.standardKeyboard });
+		
+		var KeyboardShowTransition = function(duration) {
+			Transition.call(this, duration);
+		}
+		KeyboardShowTransition.prototype = Object.create(Transition.prototype, {
+			onBegin: { value: 
+				function(screen, keyboard, host) {
+					screen.add(keyboard);
+					this.layer = new Layer;
+					this.layer.attach(keyboard);
+					this.height = screen.height;
+					this.host = host;
+					this.host.coordinates = { left: 0, right: 0, top: 0, height: this.height };
+				}
+			},
+			onEnd: { value: 
+				function(screen, keyboard, host) {
+					this.layer.detach();
+					this.host.adapt();
+				}
+			},
+			onStep: { value: 
+				function(fraction) {
+					var fraction = Math.quadEaseOut(fraction);
+					this.layer.translation = {y: keyboardHeight * (1 - fraction)};
+					this.host.height = this.height - Math.round(keyboardHeight * fraction);
+				}
+			},
+		});
+
+		var KeyboardHideTransition = function(duration) {
+			Transition.call(this, duration);
+		}
+		KeyboardHideTransition.prototype = Object.create(Transition.prototype, {
+			onBegin: { value: 
+				function(screen, keyboard, host) {
+					this.layer = new Layer;
+					this.layer.attach(keyboard);
+					this.height = screen.height;
+					this.host = host;
+				}
+			},
+			onEnd: { value: 
+				function(screen, keyboard, host) {
+					this.layer.detach();
+					screen.remove(keyboard);
+					this.host.coordinates = { left: 0, right: 0, top: 0, bottom: 0 };
+					this.host.adapt();
+				}
+			},
+			onStep: { value: 
+				function(fraction) {
+					fraction = Math.quadEaseIn(fraction);
+					this.layer.translation = {y: keyboardHeight * fraction};
+					this.host.height = this.height - Math.round(keyboardHeight * (1 - fraction));
+				}
+			},
+		});
+		
+		exports.adapt = function() {
+			if (keyboard.container) {
+				var height = keyboard.behavior.computeHeight(keyboard);
+				keyboard.previous.height = keyboard.container.height - height;
+			}
+		}
+		exports.isShown = function() {
+			return keyboard.container ? true : false;
+		}
+		exports.show = function(showIt, screen, host) {
+			if (showIt) {
+				if (!keyboard.container && !screen.transitioning) {
+					screen.run(new KeyboardShowTransition(250), keyboard, host);
+				}
+			}
+			else {
+				if (keyboard.container) {
+					screen.run(new KeyboardHideTransition(250), keyboard, host);
+				}
+			}
+		}
+	]]></script>
+</module>

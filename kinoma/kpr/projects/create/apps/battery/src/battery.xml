@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+   	<require id="CREATIONS" path="creations/creations"/>
+   	<require id="BUTTONS" path="controls/buttons"/>
+
+	<skin id="whiteSkin" color="white"/>
+
+	<texture id="chargeGlyphTexture" small="assets/charge-glyph.png"/>
+  	
+  	<class id="Sample">
+  		<field id="batteryLevel"/>
+  		<field id="chargeState"/>
+  		<field id="when"/>
+		<constructor params="historySample"><![CDATA[
+			this.batteryLevel = historySample.batteryLevel;
+			this.chargeState = historySample.chargeState;
+			this.when = historySample.when;
+        ]]></constructor>
+  	</class>
+  	
+  	<class id="ChargeStateClass">
+  		<field id="preCharging" value="0"/>
+  		<field id="charging" value="1"/>
+  		<field id="chargingComplete" value="2"/>
+  		<field id="notCharging" value="3"/>
+  		<field id="lowBattery" value="4"/>
+  		<field id="preChargingColor" value="'#f1a91d'"/>
+  		<field id="chargingColor" value="'#b1d33a'"/>
+  		<field id="chargingCompleteColor" value="'#7dbf2e'"/>
+  		<field id="notChargingColor" value="'#f1ea1d'"/>	  	
+  		<field id="lowBatteryColor" value="'#f10000'"/>
+  	</class>
+  	<script> <![CDATA[
+    	var ChargeState = new ChargeStateClass();
+   ]]></script>
+
+	<container id="BatteryScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin" name="batteryContainer">
+		<behavior>
+            <method id="onCreate" params="container"><![CDATA[
+            	this.quitting = false;
+				container.invoke(new Message("xkpr://shell/battery/history"), Message.JSON);
+            ]]></method>
+			<method id="onDisplaying" params="container"><![CDATA[
+				this.samples = [];
+			]]></method>
+			<method id="onBackButton" params="container">
+                <![CDATA[
+					container.invoke(new Message("xkpr://shell/close?id=" + application.id));
+                ]]>
+			</method>
+			<method id="onApplicationQuitting" params="container">
+                <![CDATA[
+					this.quitting = true;
+                ]]>
+			</method>
+			<method id="drawAll" params="container">
+                <![CDATA[
+                	if (false == this.quitting) {
+						container.graph.delegate("draw");
+						container.chargePercents.delegate("draw");
+						container.times.delegate("draw");
+					}
+                ]]>
+			</method>
+			<method id="onComplete" params="container, message"><![CDATA[
+                this.history = message.requestObject;       
+				this.samples = this.readSamples(container);
+				this.drawAll(container);
+			]]></method>
+			<method id="readSamples" params="container"><![CDATA[
+				var samples = this.samples;
+                var history = this.history;
+                if (history) {
+                    var length = this.history.length;
+                    samples.length = length;
+
+                    for (var i = 0; i < length; i++)
+                        samples[i] = new Sample(history[i]);
+                }
+// 				samples = this.buildTestSamples();
+                return samples;
+			]]></method>
+			<method id="buildTestSamples"><![CDATA[
+				var when = 0;
+				var num = 120;
+				this.samples = new Array(num);    
+				var samples = this.samples;
+				for (var i=0; i < 30; i++) {
+					var batteryLevel = this.lerp(0.6, 1, i/30);
+					var chargeState = ChargeState.charging;
+					samples[i] = new Sample( { batteryLevel : batteryLevel, chargeState : chargeState, when : when } );
+				}		
+				for (var i=30; i < 60; i++) {
+					var batteryLevel = this.lerp(1, 1, (i-30)/30);
+					var chargeState = ChargeState.chargingComplete;
+					samples[i] = new Sample( { batteryLevel : batteryLevel, chargeState : chargeState, when : when } );
+				}		
+				for (var i=60; i < 90; i++) {
+					var batteryLevel = this.lerp(1, 0, (i-60)/30);
+					var chargeState = ChargeState.notCharging;
+					samples[i] = new Sample( { batteryLevel : batteryLevel, chargeState : chargeState, when : when } );
+				}
+				for (var i=90; i < 120; i++) {
+					var batteryLevel = this.lerp(0, 0, (i-90)/30);
+					var chargeState = ChargeState.preCharging;
+					samples[i] = new Sample( { batteryLevel : batteryLevel, chargeState : chargeState, when : when } );
+				}
+				return samples;
+			]]></method>
+			<method id="lerp" params="from, to, fraction"><![CDATA[
+            	return from + fraction * (to - from);
+			]]></method>
+		</behavior>
+ 		<canvas name="chargePercents" left="0" width="56" top="32 + 4" bottom="0">
+			<behavior>
+				<method id="onDisplaying" params="canvas"><![CDATA[
+					this.graph = canvas.container.graph.behavior;
+					this.draw(canvas);
+				]]></method>
+				<method id="draw" params="canvas"><![CDATA[
+					var graph = this.graph;
+					var ctx = canvas.getContext("2d");
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					var numLines = graph.numLines;
+					var lineSpace = canvas.container.graph.height / (numLines + 1);
+					var footerHeight = 32 + 6;
+					
+					ctx.font = "12px Arial";
+					ctx.textAlign = 'left';
+					ctx.fillStyle = '#999999';
+					
+					var step = graph.step;
+					for (var i=0; i < (numLines + 2); i++) {
+						var number = graph.minVoltage + (i * step);
+						number = Math.floor(number);
+						var textWidth = ctx.measureText(number).width;
+						var textHeight = 6;
+						var x = canvas.width - textWidth - 28;
+						var y = canvas.height - (i * lineSpace) + (textHeight / 2) - footerHeight;
+						// try one pixel less space for last number to allow more room between voltage label
+						if (i == (numLines + 1))
+							y += 1;
+						ctx.fillText(number, x, y);
+					}
+					
+					ctx.font = "12px Arial";
+					ctx.fillStyle = 'black';
+					var label = "Charge %";
+					var labelWidth = ctx.measureText(label).width;
+					ctx.fillText(label, canvas.width / 2 - labelWidth / 2 + 1, 10);
+				]]></method>
+			</behavior>
+		</canvas>
+		<canvas name="graph" left="38" right="12" top="32 + 22 + 4" bottom="38">
+			<behavior>
+				<method id="onCreate" params="canvas"><![CDATA[
+					this.minVoltage = 0;
+					this.maxVoltage = 100;
+					this.numHistoryHours = 2;
+					this.minutesPerSample = 1;
+					this.numTimeIncrements = this.numHistoryHours * 60 / this.minutesPerSample;
+
+					this.chargingCount = 0;
+					this.minChargingValueForGlyph = 0.27;
+					
+					var step = 0
+					var numLines = 10;
+					while (numLines > 9) {
+						step += 10;
+						numLines = Math.floor((this.maxVoltage - this.minVoltage) / step) - 1;
+					}
+					this.numLines = numLines;
+					
+					this.step = step;
+				]]></method>
+				<method id="onDisplaying" params="canvas"><![CDATA[
+					this.pixelsPerIncrement = canvas.width / (this.numTimeIncrements - 1);
+					var minPixelsForGlyph = 30;
+					this.minChargingCountForGlyph = Math.floor(minPixelsForGlyph / this.pixelsPerIncrement);
+					this.draw(canvas);
+				]]></method>
+				
+				<method id="draw" params="canvas"><![CDATA[
+					var x = 0;
+					var samples = canvas.container.behavior.samples;
+					if ((null == samples) || (samples.length < 1))
+						return
+
+					if (samples.length > (this.numTimeIncrements + 1) )
+						samples = samples.slice((samples.length - this.numTimeIncrements), this.numTimeIncrements);
+					
+					if (samples.length < 120)
+						x = (120 - samples.length) * this.pixelsPerIncrement;
+						
+					var prevBatteryLevel = this.toDisplayLevel(canvas, samples[0].batteryLevel);
+					this.prevChargeState = samples[0].chargeState;
+
+					var ctx = canvas.getContext("2d");
+					ctx.fillStyle = '#ff0000';
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					ctx.beginPath();
+
+					ctx.moveTo(x, canvas.height);
+					ctx.lineTo(x, this.valueToY(canvas, prevBatteryLevel));
+		
+					for (var i=1; i < samples.length; i++) {
+						var curBatteryLevel = this.toDisplayLevel(canvas, samples[i].batteryLevel);
+						prevBatteryLevel = this.toDisplayLevel(canvas, samples[i - 1].batteryLevel);
+						var isLastSample = (i == (samples.length - 1));
+						x += this.pixelsPerIncrement;
+						var y = this.valueToY(canvas, curBatteryLevel);
+						ctx.lineTo(x, y);
+						
+						var curChargeState = samples[i].chargeState;
+						var charging = (1 == curChargeState);
+						if (charging)
+							this.chargingCount++;
+
+						if (curChargeState != this.prevChargeState || isLastSample) {
+							this.completeSegment(canvas, ctx, x, y, this.prevChargeState, samples, i );
+							this.prevChargeState = curChargeState;
+							this.chargingCount = 0;
+						}
+						else if (false == charging)
+							this.chargingCount = 0;
+					}
+					
+					var lineSpace = canvas.height / (this.numLines + 1);
+					
+					var y = canvas.height - lineSpace;
+					ctx.strokeStyle = '#EEEEEE';
+					for (var i=0; i < (this.numLines + 1); i++) {
+						ctx.beginPath();
+						ctx.moveTo(0, y);
+						ctx.lineTo(canvas.width, y);
+						ctx.closePath();
+						ctx.stroke();
+						y -= lineSpace;
+					}
+				]]></method>
+				<method id="toDisplayLevel" params="canvas, value"><![CDATA[
+					var minValue = (2 / canvas.height);
+					return (value < minValue) ? minValue : value;
+				]]></method>
+				<method id="valueToY" params="canvas, value"><![CDATA[
+					var pixelValue = value * canvas.height;
+					var ceilPixelValue = Math.ceil(pixelValue);
+					var y = canvas.height - ceilPixelValue;
+					return y;
+				]]></method>
+				<method id="completeSegment" params="canvas, ctx, x, y, chargeState, samples, endSampleIndex"><![CDATA[
+					ctx.lineTo(x, canvas.height);
+					ctx.closePath();
+					switch (chargeState) {
+						case ChargeState.preCharging:
+							ctx.fillStyle = ChargeState.preChargingColor;
+						break
+						case ChargeState.charging:
+							ctx.fillStyle = ChargeState.chargingColor;
+						break
+						case ChargeState.chargingComplete:
+							ctx.fillStyle = ChargeState.chargingCompleteColor;
+						break
+						case ChargeState.notCharging:
+							ctx.fillStyle = ChargeState.notChargingColor;
+						break
+						case ChargeState.lowBattery:
+							ctx.fillStyle = ChargeState.lowBatteryColor;
+						break
+					}
+					ctx.fill();
+					ctx.beginPath();
+					ctx.moveTo(x, canvas.height);
+					ctx.lineTo(x, y);
+
+					// charging glyph
+					var wideEnough = this.chargingCount >= this.minChargingCountForGlyph;					
+					var tallEnough = false;
+					if (wideEnough) {
+						var sampleOffset = Math.floor(this.chargingCount / 2);
+						var index = Math.floor(endSampleIndex - sampleOffset);
+						var value = this.toDisplayLevel(canvas, samples[index].batteryLevel);
+						tallEnough = value >= this.minChargingValueForGlyph;
+					}
+					if (wideEnough && tallEnough) {
+						var halfWidth = this.pixelsPerIncrement * this.chargingCount / 2;
+						var glyphX = x - halfWidth - (chargeGlyphTexture.width / 2);
+						
+						trace("\n x: " + x + " glyphX: " + glyphX);
+						var glyph
+						ctx.drawImage(chargeGlyphTexture, glyphX, canvas.height - 37);
+					}
+				]]></method>
+			</behavior>
+		</canvas>
+ 		<canvas name="times" left="0" right="0" height="32" bottom="0">
+			<behavior>
+				<method id="onDisplaying" params="canvas"><![CDATA[
+					this.graph = canvas.container.graph.behavior;
+					this.draw(canvas);
+				]]></method>
+				<method id="draw" params="canvas"><![CDATA[
+					var leftBorderWidth = 38;
+					var rightBorderWidth = 12;
+					var graph = this.graph;
+					var ctx = canvas.getContext("2d");
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					var numTimeLabels = 13;
+					var timeLabelDelta = 10;
+					var pixelsPerTimeLabel = canvas.container.graph.width / (numTimeLabels - 1);
+					ctx.font = "12px Arial";
+					ctx.textAlign = 'left';
+					ctx.fillStyle = '#999999';
+					var time = 120;
+					for (var i=0; i < numTimeLabels; i++) {
+						var textWidth = ctx.measureText(time).width;
+						var textHeight = 14;
+						var x = (i * pixelsPerTimeLabel) - (textWidth / 2) + leftBorderWidth;
+						var y = textHeight;
+						ctx.fillText(time, x, y - 4);
+						time -= timeLabelDelta;
+					}
+					
+					ctx.font = "12px Arial";
+					ctx.fillStyle = 'black';
+					var label = "Minutes";
+					var labelWidth = ctx.measureText(label).width;
+					ctx.fillText(label, canvas.width / 2 - labelWidth / 2, canvas.height - 5 - 1);
+				]]></method>
+			</behavior>
+		</canvas>
+ 		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+	
+	<handler path="/update">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                application.batteryContainer.behavior.onComplete(application.batteryContainer, message);
+			}
+		]]></behavior>
+	</handler>
+	
+</module>

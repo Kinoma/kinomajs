@@ -14,10 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+#include "xs6Platform.h"
 #include "xs.h"
 #include "kcl_arith.h"
 #include "arith_common.h"
-#include <string.h>
 
 #define arith_get_integer(mod, slot)	__arith_get_integer(the, &slot, &mod->proto_int)
 #define arith_set_integer(mod, slot, x)	__arith_set_integer(the, &slot, x, &mod->proto_int)
@@ -81,7 +81,7 @@ xs_mod_init(xsMachine *the)
 		err = KCL_ERR_NOMEM;
 		goto bail;
 	}
-	memset(mod, 0, sizeof(mod_t));
+	c_memset(mod, 0, sizeof(mod_t));
 	if ((err = kcl_mod_alloc(&mod->ctx)) != KCL_ERR_NONE)
 		goto bail;
 

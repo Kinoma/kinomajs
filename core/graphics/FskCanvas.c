@@ -2349,18 +2349,20 @@ FskCanvasClear(FskCanvas cnv, UInt8 r, UInt8 g, UInt8 b, UInt8 a)
  *	\param[in]	baseAddr	a pointer to pixel (0,0).
  *	\param[in]	width		the width of the image.
  *	\param[in]	height		the height of the image.
- *	\param[in]	pixBytes	the number of bytes in each pixel, one of {1, 2, 3, 4}.
+ *	\param[in]	numComps	the number of components in each pixel, one of {1, 2, 3, 4}, in formats { L, LA, RGB, RGBA } respectively.
+ *	\param[in]	compBits	the number of bits per component, one of {1, 2, 4, 8, 16}. Only L can accommodate {1, 2, 4}, though.
  *	\param[in]	rowBytes	the stride from one scanline to the next (can be negative).
  *	\param[out]	pngData		a place to store the compressed data.
  *	\param[out]	pngSize		a place to store the number of bytes comprising pngData.
  *	\return		kFskErrNone	if the images was compressed successfully.
+ *							The following pixels formats are accommodated: 8G, 8A, 16GA, 24RGB, 32RGBA.
  ********************************************************************************/
 
-static FskErr PNGEncode(const void *baseAddr, SInt32 width, SInt32 height, SInt32 pixBytes, SInt32 rowBytes, void **pngData, UInt32 *pngSize) {
+static FskErr PNGEncode(const void *baseAddr, SInt32 width, SInt32 height, SInt32 numComps, SInt32 compBits, SInt32 rowBytes, void **pngData, UInt32 *pngSize) {
 	UInt8		*row			= (UInt8*)baseAddr;
 	UInt8		*zbuf			= NULL;
 	UInt8		zero			= 0;
-	int			bytesPerLine	= width * pixBytes;
+	int			bytesPerLine	= (width * numComps * compBits + 7) >> 3;							/* Whole number of bytes per line */
 	z_stream	z				= {0};
 	FskErr		err;
 	UInt32		h, len_out;
@@ -2377,10 +2379,12 @@ static FskErr PNGEncode(const void *baseAddr, SInt32 width, SInt32 height, SInt3
 	}
 	len_out = (UInt32)(z.next_out - zbuf - 41);														/* Total bytes for the compressed image without header & footer */
 
-	{	UInt8 pnghdr[41] = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,												/* \x89PNG\r\n\x1a\n\0\0\0\rIHDR */
-							0, 0, (UInt8)(width>>8), (UInt8)width, 0, 0, (UInt8)(height>>8), (UInt8)height, 8, (UInt8)("\0\0\04\02\06"[pixBytes]), 0, 0, 0, 0, 0, 0, 0,	/* \0\0Ww\0\0Hh\bc0\0\0\0  CRC */
-							(UInt8)(len_out>>24), (UInt8)(len_out>>16), (UInt8)(len_out>>8), (UInt8)len_out, 0x49, 0x44, 0x41, 0x54};									/* len IDAT */
-		h = (UInt32)crc32(0, pnghdr + 12, 17);
+	{	UInt8 pnghdr[41] = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,				/* \x89PNG\r\n\x1a\n\0\0\0\rIHDR */
+							(UInt8)(width >>24), (UInt8)(width >>16), (UInt8)(width >>8), (UInt8)width,
+							(UInt8)(height>>24), (UInt8)(height>>16), (UInt8)(height>>8), (UInt8)height,
+							compBits, (UInt8)("\0\0\04\02\06"[numComps]), 0, 0, 0, 0, 0, 0, 0,											/* WWWWHHHH\bc0\0\0\0  CRC */
+							(UInt8)(len_out>>24), (UInt8)(len_out>>16), (UInt8)(len_out>>8), (UInt8)len_out, 0x49, 0x44, 0x41, 0x54};	/* len IDAT */
+		h = crc32(0, pnghdr + 12, 17);
 		pnghdr[29+0] = h >> 24;	pnghdr[29+1] = h >> 16;	pnghdr[29+2] = h >> 8;	pnghdr[29+3] = h;	/* Write CRC big-endian */
 		FskMemCopy(zbuf, pnghdr, 41);																/* Write header */
 	}
@@ -2423,7 +2427,7 @@ static FskErr FskBitmapEncodePNG(FskConstBitmap bm, void **pngData, UInt32 *pngS
 		default:
 			BAIL(kFskErrUnsupportedPixelType);
 	}
-	err = PNGEncode(bm->bits, bm->bounds.width, bm->bounds.height, bm->depth >> 3, bm->rowBytes, pngData, pngSize);
+	err = PNGEncode(bm->bits, bm->bounds.width, bm->bounds.height, bm->depth >> 3, 8, bm->rowBytes, pngData, pngSize);
 	switch (pixelFormat) {
 		case kFskBitmapFormat32ABGR: case kFskBitmapFormat32ARGB: case kFskBitmapFormat32BGRA:
 			(void)FskCanvasConvertImageDataFormat(&id, kFskBitmapFormat32RGBA, pixelFormat);

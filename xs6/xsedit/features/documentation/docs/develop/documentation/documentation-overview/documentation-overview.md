@@ -32,7 +32,7 @@ The KinomaJS application framework is the foundation for applications on Kinoma 
 
 This document is the primary reference for working with KinomaJS in JavaScript. It describes each object, function, and property in KinomaJS.
 
-## [Introducing KinomaJS Dictionary-based Constructors and Templates](../introducing-kinomajs-dictionary-based-constructors-and-templates/)
+## [Introducing KinomaJS Dictionary-based Constructors and Templates](../technotes/introducing-kinomajs-dictionary-based-constructors-and-templates/)
 
 This tech note introduces dictionary-based constructors and templates to build KinomaJS content, container, skin and style objects. Dictionaries is to simplify the coding of KinomaJS applications in JavaScript. The templates provide mechanisms similar to those provided by XML elements and attributes of KinomaJS XML documents.
 

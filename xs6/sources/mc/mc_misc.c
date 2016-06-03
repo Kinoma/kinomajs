@@ -189,18 +189,6 @@ void (*mc_srng_process_f)(void *buf, size_t bufsize, const uint8_t *seed, size_t
  */
 #include "crypt.h"
 
-void *
-crypt_malloc(size_t sz)
-{
-	return mc_malloc(sz);
-}
-
-void
-crypt_free(void *p)
-{
-	mc_free(p);
-}
-
 void
 crypt_rng(void *buf, size_t sz)
 {

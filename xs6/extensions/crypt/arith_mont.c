@@ -14,9 +14,9 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
-#include "kcl_arith.h"
+
 #include "arith_common.h"
+#include "kcl_arith.h"
 
 void
 xs_mont_init(xsMachine *the)

@@ -41,6 +41,8 @@ debug:
 	chmod +x $(XS6)/bin/mac/debug/kprconfig6
 	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js "$$@"' > $(XS6)/bin/mac/debug/kpr2js6
 	chmod +x $(XS6)/bin/mac/debug/kpr2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa mcconfig "$$@"' > $(XS6)/bin/mac/debug/mcconfig
+	chmod +x $(XS6)/bin/mac/debug/mcconfig
 	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/debug\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js "$$@"' > $(XS6)/bin/mac/debug/xs2js6
 	chmod +x $(XS6)/bin/mac/debug/xs2js6
 	
@@ -57,6 +59,8 @@ release:
 	chmod +x $(XS6)/bin/mac/release/kprconfig6
 	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa kpr2js "$$@"' > $(XS6)/bin/mac/release/kpr2js6
 	chmod +x $(XS6)/bin/mac/release/kpr2js6
+	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa mcconfig "$$@"' > $(XS6)/bin/mac/release/mcconfig
+	chmod +x $(XS6)/bin/mac/release/mcconfig
 	echo '#!/bin/bash\nBASE=$$F_HOME/xs6/bin/mac/release\n$$BASE/xsr6 -a $$BASE/modules/tools.xsa xs2js "$$@"' > $(XS6)/bin/mac/release/xs2js6
 	chmod +x $(XS6)/bin/mac/release/xs2js6
 	

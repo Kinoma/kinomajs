@@ -139,7 +139,7 @@ export class Makefile extends MAKE.Makefile {
 					else
 						file.line("add_definitions(", fixDefinitions(tool, item), ")");
 				for (let item of copts)
-					file.line("set(CMAKE_C_FLAGS", variantSuffix, " \"${CMAKE_C_FLAGS", variantSuffix, "} ", fixVariable(tool, item), "\")");
+					file.line("set(CMAKE_C_FLAGS", variantSuffix, " \"${CMAKE_C_FLAGS", variantSuffix, "} ", toCMakePath(tool, item), "\")");
 			}
 		}
 	}
@@ -267,7 +267,7 @@ export class Manifest extends MAKE.Manifest {
 		file.line("include_directories(${FREETYPE_DIR}/include)");
 		file.write("set(CMAKE_C_FLAGS \"${CMAKE_C_FLAGS} ");
 		if (tool.windows)
-			file.line("/Fd${TMP_DIR}\\\\fsk.pdb /FS /DXS6=1\")");
+			file.line("/FS /DXS6=1\")");
 		else
 			file.line("-DXS6=1\")");
 

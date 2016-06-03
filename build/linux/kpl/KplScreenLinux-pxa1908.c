@@ -436,6 +436,7 @@ void flipThread(void *refcon)
 
 	FskThreadInitializationComplete(FskThreadGetCurrent());
 	while (!gQuitting) {
+		FskSemaphoreAcquire(screen->flipSemaphore);
 		//Save the last Flip time
 		FskTimeGetNow(&gKplScreen->lastFlipTime);
 		FskTimeCopy(&later, &gKplScreen->nextFlipTime);
@@ -449,7 +450,6 @@ void flipThread(void *refcon)
 
 		// Kick off the next cycle
 		if (gKplScreen->drawingPumpEnabled) {
-			FskSemaphoreAcquire(screen->flipSemaphore);
 			devFBFlip(gKplScreen);
 			gKplScreen->callbackPostedCount++;
 			FskThreadPostCallback(mainThread, drawingPumpCallback, (void*)gKplScreen->callbackPostedCount, NULL, NULL, NULL);

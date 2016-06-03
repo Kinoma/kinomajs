@@ -14,7 +14,6 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include <stddef.h>	/* for size_t */
 #include "kcl_symmetric.h"
 
 #define CRYPT_MAX_BLOCKSIZE	16

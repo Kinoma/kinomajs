@@ -1,0 +1,543 @@
+<!--
+  Copyright 2011-2014 Marvell Semiconductor, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+
+    <require id="DebugBehavior" path="kdt/core/DebugBehavior"/>
+    <require id="DebugHandlerMessageBehavior" path="kdt/core/DebugHandlerMessageBehavior"/>
+    <require id="AuthenticatedDebugHandlerMessageBehavior" path="kdt/core/AuthenticatedDebugHandlerMessageBehavior"/>
+    <require id="Theme" path="kdt/core/Theme"/>
+    <require id="Timer" path="kdt/core/Timer"/>
+    <require id="Logger" path="kdt/core/Logger"/>
+
+    <!-- preference constants -->
+    <variable id="AUTHENTICATION" value="'authentication'"/>
+    <variable id="DEVICE_INFO" value="'deviceInfo'"/>
+    
+    <!-- bullet state constants -->
+    <variable id="NONE" value="0"/>
+    <variable id="ACTIVE" value="1"/>
+    <variable id="HIGHLIGHT" value="2"/>
+    <variable id="WARNING" value="3"/>
+
+    <skin id="BlackSkin" color="black" />
+
+    <function id="newInstance">
+        <![CDATA[
+            return new DeviceDebugBehavior();
+        ]]>
+    </function>
+    
+    <class id="DeviceDebugBehavior" like="DebugBehavior">
+        <field id="contentContainer"/>
+        <field id="deviceIdentifierLabel"/>
+        <field id="bulletList"/>
+        <field id="networkName"/>
+        <field id="networkAddress"/>
+        <field id="authentication"/>
+        <field id="theme"/>
+        <field id="eventTarget"/>
+        <field id="statusAnimationTimer"/>
+        <field id="bulletIndex"/>
+        
+        <constructor>
+            <![CDATA[
+                this.contentContainer = null;
+                this.deviceIdentifierLabel = null;
+                this.bulletList = null;
+                
+                this.networkName = null;
+                this.authentication = null;
+                this.theme = null;
+                this.eventTarget = null;
+                
+                this.statusAnimationTimer = null;
+                this.bulletIndex = -1;
+            
+                DebugBehavior.DebugBehavior.call( this );
+            ]]>
+        </constructor>
+        
+        <method id="initialize">
+            <![CDATA[
+                // load the theme
+                this.theme = this.loadTheme();
+
+                // call superclass  method
+                DebugBehavior.prototype.initialize.call( this );
+
+                // load preferences
+                this.authentication = getPreferences().getPreference( AUTHENTICATION, {required:false, username:"kinoma", password:"kinoma"} );
+                
+                // log welcome message
+                if( getTheme().getBool( "wifi" ) ) 
+                {
+                    // enbale telnet server on the device
+                    shell.invoke(  new Message( "xkpr://shell/wifi/enable_telnetd" ), "text" );
+                    
+                    // query the device wifi for valid network info
+                    shell.invoke( new Message( "xkpr://shell/wifi/current" ), "text" );
+                    
+                    // start the waiting animation
+                    this.setStatusAnimation( 1000, this.handleWifiScanningAnimationCallback );
+                }
+                else
+                {
+                    // start the http server to accept debug messages
+                    shell.shared = true;
+
+                    // update the device network info
+                    this.updateDeviceIdentifier();
+
+                    // start the waiting animation
+                    this.setStatusAnimation( 1500, this.handleWaitingAnimationCallback, true );
+                }
+            ]]>
+        </method>
+        
+        <method id="setStatusAnimation" params="duration, callback, invokeNow">
+            <![CDATA[
+                if( this.statusAnimationTimer != null )
+                    this.statusAnimationTimer.stop();
+                    
+                if( invokeNow )
+                    callback.call( this );
+                    
+                this.statusAnimationTimer = Timer.newInstance( duration, 0, Timer.createCallback( callback, this ) );
+                this.statusAnimationTimer.start();
+            ]]>
+        </method>
+        
+        <method id="updateDeviceIdentifier">
+            <![CDATA[
+                var description = this.getDescription();
+                var identifier = description.name;
+                
+                if( this.networkAddress != null )
+                    identifier += "@" + this.networkAddress + ":" + shell.serverPort;
+                
+                this.deviceIdentifierLabel.string = identifier;
+            ]]>
+        </method>
+        
+        <method id="exit"/>
+
+        <method id="getScreen">
+            <![CDATA[
+                return shell;
+            ]]>
+        </method>
+
+        <method id="getStatus">
+            <![CDATA[
+                return "ready";
+            ]]>
+        </method>
+
+        <method id="getInfo">
+            <![CDATA[
+                var info = DebugBehavior.prototype.getInfo.call( this );
+                
+                info.status = this.getStatus();
+                
+                return info;
+            ]]>
+        </method>
+
+         <method id="getIcon">
+            <![CDATA[
+               return mergeURI( shell.url, "icon.png" );
+            ]]>
+         </method>
+
+        <method id="getDescription">
+            <![CDATA[
+                var description = DebugBehavior.prototype.getDescription.call( this );
+                var deviceInfo = getPreferences().getPreference( DEVICE_INFO, null );
+                            
+                if( deviceInfo != null && "name" in deviceInfo && deviceInfo.name != null && deviceInfo.name.length > 0 )
+                    description.name = deviceInfo.name;
+                else
+                    description.name = "Kinoma Debugging Shell";
+
+                var discovery = getTheme().getValue( "discovery" );
+
+                description.debugShell = true;
+                description.id = discovery != null && "id" in discovery ? discovery.id : "com.marvell.kinoma.debugger.generic";
+
+                return description;
+            ]]>
+        </method>
+
+        <method id="getWindowTitle">
+            <![CDATA[
+                return "Kinoma Debugger";
+            ]]>
+        </method>
+
+        <method id="createBackground">
+            <![CDATA[
+                var backgroundContainer = new Container( {left: 0, top: 0, right: 0, bottom:0}, new Skin( getTheme().getValue( "defaultBackgroundColor" ) ) );
+
+                this.contentContainer = this.createContentContainer();
+                
+                backgroundContainer.add( this.contentContainer );
+
+                return backgroundContainer;
+            ]]>
+        </method>
+
+        <method id="createContentContainer">
+            <![CDATA[
+                // create the content container
+                var contentContainer = new Column( {top: 0, left: 0, bottom:0, right: 0} );
+                var topContainer = new Container( {top: 0, left: 0, bottom:0, right: 0} );
+                var topContentContainer = new Column( {left: 0, right: 0} );
+                var profile = null;
+                var bulletVerticalPadding = 10;
+                
+                // load the profile based on the shell size
+                if( shell.width > 750 && shell.height > 600 ) {
+                    profile = getTheme().getValue( "profile" ).large;
+                    bulletVerticalPadding = 25;
+                }
+                else
+                    profile = getTheme().getValue( "profile" ).small;
+                    
+                topContentContainer.add( thumbnail = new Thumbnail( profile.thumbnailSize, profile.thumbnail ) );
+                
+                topContainer.add( topContentContainer );
+                contentContainer.add( topContainer );
+                
+                var middleContainer = new Column( {top: 0, left: 0, bottom:0, right: 0} );
+                
+                contentContainer.add( new Content( {height:bulletVerticalPadding} ) );
+
+                var bulletContainer = new Line();
+                var bulletTexture = this.createBulletTexture( profile.bulletSize );
+                var bulletSkin = new Skin( bulletTexture, {width:profile.bulletSize,height:profile.bulletSize}, null, profile.bulletSize );
+                
+                this.bulletList = new Array();
+
+                for( var j = 0; j < 4; j++ )
+                {
+                    if( j > 0 )
+                        bulletContainer.add( new Content( {width:profile.bulletSpacing} ) );
+                        
+                    this.bulletList.push( new Content( null, bulletSkin ) );
+                        
+                    bulletContainer.add( this.bulletList[j] );
+                }
+                
+                middleContainer.add( bulletContainer );
+                
+                contentContainer.add( middleContainer );
+                
+                contentContainer.add( new Content( {top:0,bottom:0} ) );
+                
+                this.deviceIdentifierLabel = new Label( {left:0,right:0,bottom:15}, null, new Style( profile.textSize + " Arial", "#7f7f7f", "center" ), "" );
+                
+                contentContainer.add( this.deviceIdentifierLabel );
+
+                return contentContainer;
+            ]]>
+        </method>
+
+        <method id="createBulletTexture" params="size">
+            <![CDATA[
+                var modes = ["#D4D4D4","#C8EDA8","#727272","#D2B834"];
+                var canvas = new Canvas( {width:size,height:size*modes.length} );
+                var ctx = canvas.getContext( "2d" );
+                var center = size / 2;
+                
+                for( var j = 0; j < modes.length; j++ )
+                {
+                    var x = center;
+                    var y = (size * j) + center;
+                    var r = center * .80;
+                
+                    ctx.beginPath();
+                    ctx.arc( x, y, r, 0, 2 * Math.PI, false );
+                    ctx.closePath();
+                    ctx.fillStyle = modes[j];
+                    ctx.fill();
+                }
+                
+                return new Texture( canvas );                    
+            ]]>
+        </method>
+        
+        <method id="loadTheme">
+            <![CDATA[
+                var defaultThemeModule = require( "theme/default" );
+                var defaultTheme = defaultThemeModule != null ? defaultThemeModule.newInstance() : null;
+                var url = getEnvironmentVariable( "theme" );
+                var module = url != null ? require( url ) : null;
+                var theme = module != null ? module.newInstance( defaultTheme ) : Theme.newInstance( defaultTheme );
+                
+                return theme;
+            ]]>
+        </method>
+        
+        <method id="getTheme">
+            <![CDATA[
+                return this.theme;
+            ]]>
+        </method>
+
+        <method id="applicationStarted">
+            <![CDATA[
+                this.statusAnimationTimer.stop();
+                
+                this.background.remove( this.contentContainer );
+            ]]>
+        </method>
+
+        <method id="applicationStopped">
+            <![CDATA[
+                // send message to the sensors extension that the application has stopped
+                shell.invoke( new Message( "xkpr://shell/pins/stopApplication" ) );
+            
+                // add the debug shell background
+                this.background.add( this.contentContainer );
+                
+                // start the waiting animation
+                this.setStatusAnimation( 1500, this.handleWaitingAnimationCallback, true );
+            ]]>
+        </method>
+
+        <method id="setEventTarget" params="target">
+            <![CDATA[
+                this.eventTarget = target;
+            ]]>
+        </method>
+
+        <method id="getEventTarget">
+            <![CDATA[
+                return this.eventTarget;
+            ]]>
+        </method>
+
+        <method id="getApplicationID">
+            <![CDATA[
+                var application = this.getSelectedApplication();
+                var target = application != null ? application.id : "shell";
+                
+                return target;
+            ]]>
+        </method>
+
+        <method id="handleWaitingAnimationCallback" params="timer">
+            <![CDATA[
+                if( this.bulletIndex != -1 )
+                    this.bulletList[this.bulletIndex].state = NONE;
+            
+                if( this.bulletIndex < (this.bulletList.length - 1) )
+                    this.bulletIndex++;
+                else
+                    this.bulletIndex = 0;
+
+                this.bulletList[this.bulletIndex].state = HIGHLIGHT;
+            ]]>
+        </method>
+
+        <method id="handleWifiScanningAnimationCallback" params="timer">
+            <![CDATA[
+                if( this.bulletIndex > 0 )
+                    this.bulletList[this.bulletIndex].state = NONE;
+                else
+                    this.bulletList[0].state = this.bulletList[0].state == NONE ? WARNING : NONE;
+            ]]>
+        </method>
+
+        <method id="handleActiveAnimationCallback" params="timer">
+            <![CDATA[
+                if( this.bulletIndex != -1 )
+                    this.bulletList[this.bulletIndex].state = NONE;
+            
+                this.bulletIndex = Math.round( Math.random() * 3 );
+            
+                this.bulletList[this.bulletIndex].state = ACTIVE;
+            ]]>
+        </method>
+        
+        <method id="handleMessageBegin" params="message">
+            <![CDATA[
+                if( this.getSelectedApplication() == null )
+                {
+                    // stop the animation timer for the waiting bullets
+                    this.setStatusAnimation( 200, this.handleWaitingAnimationCallback, true );
+                    
+                    // call the active animation callback to animate the bullets
+                    // using the active state image
+                    this.handleActiveAnimationCallback();
+                }
+            ]]>
+        </method>
+
+        <method id="handleMessageEnd" params="message">
+            <![CDATA[
+                // start animating the waiting timer
+                if( this.getSelectedApplication() == null )
+                    this.setStatusAnimation( 1500, this.handleWaitingAnimationCallback, true );
+            ]]>
+        </method>
+        
+        <method id="forwardMessageToApplication" params="message">
+            <![CDATA[
+                var msg = "xkpr://" + this.getApplicationID() + message.path;
+                
+                if( message.query != null )
+                    msg += "?" + message.query;
+
+                shell.invoke( new Message( msg ) );
+            ]]>
+        </method>
+        
+        <method id="handleShellQuit" params="message">
+            <![CDATA[
+                this.disconnect( true );
+            ]]>
+        </method>
+
+        <method id="onComplete" params="shell, message">
+            <![CDATA[
+                if( message.url == "xkpr://shell/wifi/current" )
+                {
+                    var response = JSON.parse( message.responseText );
+
+                    if( response != null && "ip_address" in response )
+                    {
+                        this.networkName = "Name" in response ? response.Name : "<Unknown>";
+                        this.networkAddress = "ip_address" in response ? response.ip_address : "0.0.0.0";
+                        
+                        // start the http server to accept debug messages
+                        shell.shared = true;
+
+                        // update the device network info
+                        this.updateDeviceIdentifier();
+                    
+                        // start the waiting animation
+                        this.setStatusAnimation( 1500, this.handleWaitingAnimationCallback, true );
+                    }
+                    else
+                        shell.invoke( new Message( "xkpr://shell/wifi/current" ), "text" );
+                }
+            ]]>
+        </method>
+    </class>
+
+    <!-- export the main prototype -->
+    <variable id="prototype" value="DeviceDebugBehavior.prototype"/>
+    
+    <handler path="/kdt/input-event">
+        <behavior>
+            <![CDATA[
+                function onInvoke( handler, message ) 
+                {
+                    if( getBehavior().getSelectedApplication() != null )
+                        getBehavior().forwardMessageToApplication( message );
+                    else
+                    {
+                        // bubble the event
+                        var eventTarget = getBehavior().getEventTarget();
+                        
+                        if( eventTarget != null )
+                            eventTarget.bubble( "handleInputEvent", message );
+                    }
+                }
+            ]]>
+        </behavior>
+    </handler>
+    
+    <handler path="/configure">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message ) 
+                {
+                    var html = mergeURI( module.uri, "html/config.html" );
+                    
+                    if( Files.exists( html ) )
+                       message.responseText = Files.readText( html );
+                }
+            ]]>
+        </behavior>
+    </handler>
+    
+    <handler path="/set-configuration">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message ) 
+                {
+                    var query = parseQuery( message.query );
+                    var deviceInfo = getPreferences().getPreference( DEVICE_INFO, {} );
+                    var authentication = getPreferences().getPreference( AUTHENTICATION, {} );
+                 
+                    if( "name" in query ) {
+                        deviceInfo.name = query.name;
+                        getPreferences().setPreference( DEVICE_INFO, deviceInfo );
+                    }
+
+                    if( "username" in query ) {
+                        authentication.username = query.username;
+                        getPreferences().setPreference( AUTHENTICATION, authentication );
+                    }
+                    
+                    if( "password" in query ) {
+                        authentication.password = query.password;
+                        getPreferences().setPreference( AUTHENTICATION, authentication );
+                    }
+                    
+                    // write the preferences
+                    getPreferences().write();
+                    
+                    // update the device info label
+                    getBehavior().updateDeviceIdentifier();
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/configure/settings.js">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                    var description = getBehavior().getDescription();
+                    var settings = new Object();
+                    
+                    settings.deviceName = description.name;
+                
+                    message.responseText = JSON.stringify( settings );            
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+    <handler path="/configure/image">
+        <behavior like="AuthenticatedDebugHandlerMessageBehavior">
+            <![CDATA[
+                function processMessage( handler, message, params ) 
+                {
+                    var url = mergeURI( module.uri, "html/" + params.getValue( "src" ) );
+                    
+                    if( Files.exists( url ) )
+                       message.responseChunk = Files.readChunk( url );
+                }
+            ]]>
+        </behavior>
+    </handler>
+
+</module>

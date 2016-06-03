@@ -11,8 +11,6 @@ _xsTest
 atoi
 board_cpu_freq
 board_i2c_pin_config
-crypt_malloc
-crypt_free
 crypt_rng
 fprintf
 fxArrayBuffer

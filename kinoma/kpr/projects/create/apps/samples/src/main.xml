@@ -1,0 +1,1058 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<require id="CONTROL_THEME" path="themes/flat/theme"/>
+ 	<require id="THEME" path="themes/sample/theme"/>
+	<script>
+		for (var i in CONTROL_THEME)
+			THEME[i] = CONTROL_THEME[i];
+    </script>
+	<require id="CREATIONS" path="creations/creations"/>
+	<require id="CDIALOG" path="creations/dialog"/>
+    <require id="FILES" path="creations/files"/>
+    <require id="DIALOG" path="mobile/dialog"/>
+	<require id="CONTROL" path="mobile/control"/>
+   	<require id="KEYBOARD" path="mobile/keyboard"/>
+    <require id="SCREEN" path="mobile/screen"/>
+    <require id="MODEL" path="mobile/model"/>
+    <require id="SCROLLER" path="mobile/scroller"/>
+
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- ASSETS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<skin id="whiteSkin" color="white"/>
+	<skin id="dividerSkin" color="#dddddd"/>
+	<skin id="footerSkin" color="#666666"/>
+
+	<texture id="arrowTexture" small="assets/sample-row-arrow.png"/>
+	<skin id="arrowSkin" texture="arrowTexture" x="0" y="0" width="44" height="70">
+		<states offset="70"/>
+	</skin>
+
+	<texture id="marksTexture" small="assets/marks.png"/>
+	<skin id="marksSkin" texture="marksTexture" x="0" y="0" width="30" height="30">
+		<states offset="30"/>
+	</skin>
+
+    <texture id="smallCheckboxTexture" small="assets/lighter-checkbox.png"/>
+    <skin id="smallCheckboxSkin" texture="smallCheckboxTexture" x="0" y="0" width="24" height="24">
+    	<states offset="24"/>
+    </skin>
+        
+	<texture id="sortIconTexture" small="assets/sort-icon.png"/>
+	<skin id="sortIconSkin" texture="sortIconTexture" x="0" y="0" width="38" height="32">
+		<states offset="32"/>
+	</skin>
+
+	<texture id="toolsTexture" small="assets/tools.png"/>
+	<skin id="toolsSkin" texture="toolsTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+		<variants offset="32"/>
+	</skin>
+	<skin id="menuSkin" texture="toolsTexture" x="32" y="0" width="32" height="32">
+		<states offset="32"/>
+		<tiles left="4" right="0" top="0" bottom="0"/>
+	</skin>
+
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- STYLES -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<style id="applicationStyle" font="16px Fira Sans"/>
+
+	<style id="appTitleStyle" font="bold 24px" color="black" align="left,top" lines="1"/>
+	<style id="appDescriptionTrimmedStyle" font="18px" color="black" align="left,top" leading="-14" lines="all"/>
+	<style id="appDescriptionTruncatedStyle" font="18px" color="black" align="left,top" leading="-14" lines="3"/>
+	<style id="appDescriptionDetailsStyle" font="20px" color="black" align="left,top" lines="all">
+		<margins left="5" right="5" top="5"/>
+	</style>
+	<style id="noAppsStyle" font="bold 20px" color="gray" align="middle,center" lines="1"/>
+	<style id="progressMessageStyle" font="24px" color="black" align="center,middle" lines="1"/>
+	<style id="gestureCheckboxStyle" font="20px" color="black" align="left,middle" lines="1"/>
+	<style id="footerStyle" font="24px" align="center,middle">
+		<states colors="white,white,#5ab021"/>
+	</style>
+	<style id="menuCommandStyle" font="bold 20px" align="left">
+		<states colors="white,white,#acd473"/>
+	</style>
+	<style id="textFileStyle" font="18px Fira Mono" color="black" align="left" lines="all">
+		<margins left="4" right="4"/>
+	</style>
+
+	<variable id="appDescriptionLineHeight" value="appDescriptionTrimmedStyle.measure(' ').height"/>
+	<variable id="appLineHeight" value="appDescriptionLineHeight + (appDescriptionTrimmedStyle.measure(' ').height * 3) + 10"/>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- HANDLERS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<handler path="/main">
+		<behavior like="MODEL.ScreenBehavior"><![CDATA[
+			function hasSelection(data, delta) {
+				var selection = data.selection + delta;
+				return (0 <= selection) && (selection < data.items.length);
+			}
+			function getSelection(data, delta) {
+				data.selection += delta;
+				return data.items[data.selection];
+			}
+			function onDescribe(query, selection) {
+				return {
+					Screen: AppsScreen,
+					title : "Samples",
+					progress: "Loading...",
+					items : null,
+					more: false,
+					scroll: {
+						x: 0,
+						y: 0
+					},
+					selection: -1,
+				};
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/launch">
+		<behavior like="MODEL.CommandBehavior"><![CDATA[
+			function onQuery(handler, query) {
+				if ('off' == model.preferences.gesture) {
+					handler.redirect("xkpr://shell/start?id=" + query.id);
+					return;
+				}
+				var params = {
+					message: "Use this gesture to quit apps",
+					id: query.id
+				};
+				handler.redirect("/gesture?" + serializeQuery(params));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/gesture">
+        <behavior like="MODEL.DialogBehavior">
+            <method id="onDescribe" params="query">
+                return {
+                    Dialog: CDIALOG.Box,
+					action: "xkpr://shell/start",
+                    items: [
+						{
+                            Item: DIALOG.Caption,
+                            string: query.message
+						},
+						{
+							Item: DIALOG.Spacer
+						},
+						{
+							Item: Illustration,
+						},
+						{
+							Item: CheckboxLine,
+							value: "on"
+						},
+                    ],
+                    ok: "OK"
+                };
+            </method>
+        </behavior>
+    </handler>
+
+	<handler path="/install">
+		<behavior like="MODEL.ScreenBehavior"><![CDATA[
+			function hasSelection(data, delta) {
+				var selection = data.selection + delta;
+				return (0 <= selection) && (selection < data.items.length);
+			}
+			function getSelection(data, delta) {
+				data.selection += delta;
+				return data.items[data.selection];
+			}
+			function onDescribe(query, selection) {
+				return {
+					Screen: InstallScreen,
+					title : query.title,
+					app: query.app,
+					id: query.id,
+					temporary: ('true' == query.temporary ? true : false),
+					progress: query.progress,
+					complete: query.complete,
+					callback: query.callback,
+					pop: ('true' == query.pop ? true : false),
+					directory: query.directory,
+					more: false,
+					scroll: {
+						x: 0,
+						y: 0
+					},
+					selection: -1
+				};
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/installed">
+        <behavior like="MODEL.DialogBehavior">
+            <method id="onDescribe" params="query">
+                return {
+                    Dialog: CDIALOG.Box,
+					action: query.action,
+                    items: [
+						{
+                            Item: DIALOG.Caption,
+                            string: "The '" + query.app + "' application has been installed."
+						},
+                    ],
+                    ok: "OK"
+                };
+            </method>
+        </behavior>
+    </handler>
+
+	<handler path="/details">
+		<behavior like="MODEL.ScreenBehavior"><![CDATA[
+			function hasSelection(data, delta) {
+				var selection = data.selection + delta;
+				return (0 <= selection) && (selection < data.items.length);
+			}
+			function getSelection(data, delta) {
+				data.selection += delta;
+				return data.items[data.selection];
+			}
+			function onDescribe(query, selection) {
+				return {
+					Screen: DetailsScreen,
+					app: query.app,
+					title : query.title,
+					thumbnail: query.thumbnail,
+					description: query.description,
+					id: query.id,
+					more: false,
+					scroll: {
+						x: 0,
+						y: 0
+					},
+					selection: -1
+				};
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/source">
+		<behavior like="MODEL.ScreenBehavior"><![CDATA[
+			function hasSelection(data, delta) {
+				var selection = data.selection + delta;
+				return (0 <= selection) && (selection < data.items.length);
+			}
+			function getSelection(data, delta) {
+				data.selection += delta;
+				return data.items[data.selection];
+			}
+			function onDescribe(query, selection) {
+				return {
+					Screen: FILES.FilesScreen,
+					title : query.app,
+					items : null,
+					path: query.directory + query.app + "/",
+					editing: false,
+					editable: false,
+					relativePathTitleFrom: query.directory,
+					style: textFileStyle,
+					skin: whiteSkin,
+					more: false,
+					scroll: {
+						x: 0,
+						y: 0
+					},
+					selection: -1
+				};
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/filter">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var query = parseQuery(message.query);
+				model.sort = query.tag;
+				application.distribute("onFilter", query.tag);
+			]]></method>
+		</behavior>
+	</handler>
+
+	<handler path="/repo/catalog">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				if (model.local) {
+					this.onComplete(handler, message, Files.readText(model.localRepositoryPath + "README.md"));
+					return;
+				}
+				var uri = "https://raw.githubusercontent.com" + model.repo + "/master/README.md";
+				var message = new Message(uri);
+				authorize(message);
+				handler.invoke(message, Message.TEXT);
+			]]></method>
+			<method id="onComplete" params="handler, message, text"><![CDATA[
+				if (text) {
+					handler.message.responseText = text;
+					handler.message.status = 200;
+				}
+			]]></method>
+		</behavior>
+	</handler>
+
+	<handler path="/repo/tree">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var uri = model.serviceURI + "/repos" + model.repo + "/git/trees/master?recursive=1";
+				var message = new Message(uri);
+				authorize(message);
+				handler.invoke(message, Message.JSON);
+			]]></method>
+			<method id="onComplete" params="handler, message, json"><![CDATA[
+				var result;
+				if (200 == message.status) {
+					model.tree = json.tree;
+					handler.message.responseText = JSON.stringify({"success": true});
+				}
+				else
+					this.onError(handler, message);
+			]]></method>
+			<method id="onError" params="handler, message"><![CDATA[
+				handler.message.responseText = JSON.stringify({"success": false});
+			]]></method>
+		</behavior>
+	</handler>
+
+	<handler path="/repo/download">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var query = parseQuery(message.query);
+				var path = query.path;
+				var uri = "https://raw.githubusercontent.com" + model.repo + "/master" + path;
+				var message = new Message(uri);
+				authorize(message);
+				handler.invoke(message, Message.BUFFER);
+			]]></method>
+			<method id="onComplete" params="handler, message"><![CDATA[
+				if (200 == message.status) {
+					var query = parseQuery(handler.message.query);
+					var path = query.directory + query.path;
+					var delimeter = path.lastIndexOf("/");
+					var directory = path.slice(0, delimeter + 1);
+					Files.ensureDirectory(directory);
+					Files.deleteFile(path);
+					Files.writeBuffer(path, message.responseBuffer);
+					handler.message.responseText = JSON.stringify({"success": true});
+				}
+				else
+					this.onError(handler, message);
+			]]></method>
+			<method id="onError" params="handler, message"><![CDATA[
+				handler.message.responseText = JSON.stringify({"success": false});
+			]]></method>
+		</behavior>
+	</handler>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- BEHAVIORS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<behavior id="ScreenBehavior">
+		<method id="onCreate" params="container, data"><![CDATA[
+			this.data = data;
+		]]></method>
+        <method id="getScreen" params="container"><![CDATA[
+			return container;
+		]]></method>
+    </behavior>
+    
+	<behavior id="AppListBehavior" like="SCREEN.ListBehavior"><![CDATA[
+		function onCreate(list, data) {
+			SCREEN.ListBehavior.prototype.onCreate.call(this, list, data);
+		}
+		function addItemLine(list, item) {
+			list.add(new AppLine(item));
+		}
+		function addBusyLine(list, item) {
+			list.add(new BusyLine);
+		}
+		function addEmptyLine(list) {
+			list.add(new EmptyLine);
+		}
+		function addLines(list, items, more) {
+			var c = items.length;
+			if ('all' == model.sort) {
+				for (let i = 0; i < c; ++i)
+					this.addItemLine(list, items[i]);
+			}
+			else {
+				for (let i = 0; i < c; ++i) {
+					let item = items[i];
+					if (item.tags.indexOf(model.sort) >= 0)
+						this.addItemLine(list, item)
+				}
+			}
+			if (more)
+				this.addMoreLine(list);
+			if (!list.length)
+				this.addEmptyLine(list);
+		}
+		function load(list, more) {
+			this.addBusyLine(list);
+			list.invoke(this.createMessage(list, this.data), "TEXT");
+		}
+		function createMessage(list, data) {
+			return new Message("/repo/catalog");
+		}
+		function getItems(list, message, catalog) {
+			var items;
+			if (200 == message.status) {
+				items = this.parseCatalog(catalog);
+			}
+			else
+				items = [];
+			
+			// build the filter menu
+			var menu = model.menu = {
+				data: {
+					action: "/filter?tag=",
+					items: [],
+					selection: 0
+				}
+			};
+			let c = menu.data.items.length = model.tags.length;
+			for (let i = 0; i < c; ++i) {
+				let tag = model.tags[i];
+				let item = {command: "doFilter", title: tag.title + ' (' + tag.count + ')', value: tag.name};
+				menu.data.items[i] = item;
+			}
+			menu.data.items.sort((a, b) => a.title.compare(b.title));
+			menu.data.items.unshift({command: "doFilter", title: 'All (' + items.length + ')', value: 'all'});
+			application.distribute("onFilterTagsLoaded");
+			
+			return items;
+		}
+		function hasMore(list, message, result) {
+			return false;
+		}
+		function onModelChanged(list) {
+			list.cancel();
+			list.empty();
+			this.addLines(list, this.data.items, this.data.more);
+		}
+		function parseCatalog(catalog) {
+			var document = DOM.parse("<catalog>" + catalog + "</catalog>");
+			var children = document.element.children;
+			var elementProto = DOM.element;
+			var items = [];
+			var tagItems = model.tags;
+			var state = 0;
+			let tags, title, thumbnail, id, mask, description, platform;
+			children.forEach(child => {
+				let flag = elementProto.isPrototypeOf(child);
+				switch (state) {
+				case 0:
+					if (flag && (child.name == "x-tag-info")) {
+						let tagNames = child.getAttribute("tags").split(',');
+						let tagTitles = child.getAttribute("titles").split(',');
+						let c = tagItems.length = tagNames.length;
+						for (let i = 0; i < c; ++i) {
+							tagItems[i] = {name: tagNames[i], title: tagTitles[i], count: 0};
+						}
+						state = 1;
+					}
+					break;
+				case 1:
+					if (flag && (child.name == "a")) {
+						let parts = parseURI(child.getAttribute("href"));
+						title = child.children[0].value;
+						state = 2;
+					}
+					break;
+				case 2:
+					if (flag && (child.name == "a")) {
+						thumbnail = child.children[0].getAttribute("src");
+						state = 3;
+					}
+					break;
+				case 3:
+					if (flag && (child.name == "x-app-info")) {
+						id = child.getAttribute("id");
+						platform = child.getAttribute("platform");
+						tags = child.children[0].getAttribute("class");
+						let c = tagItems.length;
+						for (let i = 0; i < c; i++) {
+							let tagItem = tagItems[i];
+							if (tags.indexOf(tagItem.name) >= 0) {
+								tagItem.count++;
+							} 
+						}
+						state = 4;
+					}
+					break;
+				case 4:
+					if (!flag) {
+						description = child.value.trim();
+						state = 5;
+					}
+					break;
+				case 5:
+					if (flag && (child.name == "div")) {
+						if (!platform || (platform.indexOf(this.platform) >= 0))
+							items.push({title, id, description, thumbnail, tags});
+						state = 1;
+					}
+					break;
+				}
+			});
+			return items;
+		}
+	]]></behavior>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- LAYOUTS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<container id="Screen" left="0" right="0" top="0" bottom="0" behavior="ScreenBehavior"/>
+
+	<container id="CheckboxLeft" width="40" height="24" active="true">
+		<behavior like="CONTROL.CheckboxBehavior">
+            <method id="onDisplaying" params="container">
+            	// need to override otherwise will set state to 1 if active
+            </method>
+			<method id="onTouchBegan" params="container, id, x, y, ticks">
+				<![CDATA[
+					container.captureTouch(id, x, y, ticks);
+					CONTROL.CheckboxBehavior.prototype.onTouchBegan.call(this, container, id, x, y, ticks);
+				]]>
+			</method>        
+		</behavior>
+		<content skin="smallCheckboxSkin" left="10">
+			<behavior>
+				<method id="onCreate" params="content, data">
+                    <![CDATA[
+                    	CONTROL.CheckboxBehavior.prototype.onCreate.call(this, content, data);
+          	            content.state = (data.value === 'on' ? 1 : 2);
+                    ]]>
+                </method>
+                <method id="setInitialValue" params="content, value">
+                    <![CDATA[
+                    	content.state = (value === 'on' ? 1 : 2);
+                    ]]>
+                </method>
+				<method id="onValueChanged" params="content">
+                    <![CDATA[
+                    	var data = this.data;
+                    	content.state = (data.value === 'on' ? 1 : 2);
+						model.preferences.gesture = data.value;
+						model.writePreferences(application, "preferences", model.preferences);
+                    ]]>
+                </method>
+			</behavior>
+		</content>
+	</container>
+
+	<line id="CheckboxLine" left="45" right="0" height="30">
+		<container left="0" like="CheckboxLeft"/>
+		<label top="0" bottom="0" style="gestureCheckboxStyle" string="'Don\'t show this again'"/>
+	</line>
+
+	<label id="EmptyLine" left="0" right="0" height="50" style="noAppsStyle" string="'No Samples'"/>
+	<column id="BusyLine" left="0" right="0" top="40">
+		<picture like="CREATIONS.BusyPicture" width="100" height="100"/>
+		<content height="20"/>
+		<label bottom="20" style="progressMessageStyle" string="'Loading...'"/>
+	</column>
+
+	<picture id="Illustration" left="0" right="0" height="108">
+		<behavior><![CDATA[
+			function onCreate(picture) {
+				picture.invoke(new Message("xkpr://shell/settings/backGesture"), Message.JSON);
+			}
+			function onComplete(picture, message, text) {
+				if ("square" == text)
+					picture.url = mergeURI(application.url, "assets/quit-gesture-border.png");
+				else if ("circle" == text)
+					picture.url = mergeURI(application.url, "assets/quit-gesture-circle.png");
+			}
+		]]></behavior>
+	</picture>
+
+	<column id="Menu" left="0" top="0"/>
+
+	<line id="MenuCommand" width="160" right="0" height="44" active="true">
+		<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+			function onDisplaying(line) {
+				CONTROL.ButtonBehavior.prototype.onDisplaying.call(this, line);
+				line.first.visible = model.sort == this.data.value;
+			}
+			function onModelChanged(line) {
+				line.first.visible = model.sort == this.data.value;
+			}
+			function onTap(line) {
+				line.bubble(this.data.command, this.data.value);
+			}
+		]]></behavior>
+		<content skin="marksSkin" visible="false"/>
+		<label left="0" right="0" style="menuCommandStyle" string="$.title"/>
+	</line>
+
+	<container id="SortToolButton" left="0" right="0" top="0" bottom="0" active="true">
+		<container like="CREATIONS.ToolButton" skin="sortIconSkin">
+			<behavior like="CREATIONS.ToolButtonBehavior"><![CDATA[
+				function onTap(container) {
+					application.run(new THEME.MenuOpenTransition, new DIALOG.Menu(model.menu.data), container);
+				}
+			]]></behavior>
+		</container>
+	</container>
+
+	<text id="AppDescriptionTrimmed" top="0" left="8" right="8" style="appDescriptionTrimmedStyle" string="$.description"/>
+	<text id="AppDescriptionTruncated" top="0" left="8" right="8" style="appDescriptionTruncatedStyle" string="$.description"/>
+	
+	<column id="AppLine" left="0" right="0" active="true" skin="THEME.lineSkin">
+		<behavior like="SCREEN.ListItemBehavior"><![CDATA[
+			function onTap(line) {
+				SCREEN.ListItemBehavior.prototype.onTouchCancelled.call(this, line);
+				SCREEN.ListItemBehavior.prototype.onTap.call(this, line);
+				line.invoke(new Message("xkpr://shell/app/check?id=" + this.data.id), Message.JSON);
+			}
+			function onComplete(line, message, json) {
+				var persistentURL = model.appPersistentDownloadPath + this.data.title;
+				var temporaryURL = (model.local ? model.localRepositoryPath : model.appTemporaryDownloadPath) + this.data.title;
+				if (json.success) {
+					if ((json.url == persistentURL) || (json.url == temporaryURL)) {
+						line.invoke(new Message("/launch?" + serializeQuery({id: this.data.id})));
+						return;
+					}
+					line.invoke(new Message("xkpr://shell/uninstall?" + serializeQuery({id: this.data.id})));
+				}
+				if (model.local) {
+					line.invoke(new Message("xkpr://shell/install?" + serializeQuery({url: temporaryURL + "/application.xml", temporary: true})));
+					line.invoke(new Message("/launch?" + serializeQuery({id: this.data.id})));
+				}
+				else {
+					var callback = "/launch?" + serializeQuery({id: this.data.id});
+					var message = buildInstallMessage(this.data.title, this.data.id, this.data.title, true, "Loading...", "Loaded", true, model.appTemporaryDownloadPath, callback);
+					line.invoke(message);
+				}
+			}
+		]]></behavior>
+		<line left="0" right="0" height="arrowSkin.height">
+			<thumbnail left="8" top="5" width="80" height="60" url="$.thumbnail"/>
+			<column left="0" right="0" top="1" bottom="0">
+				<scroller clip="true" left="8" right="4" loop="true" behavior="CONTROL.HorizontalTickerBehavior" style="appTitleStyle">
+					<label top="0" left="0" string="$.title + ' '"/>
+				</scroller>
+				<text like="AppDescriptionTrimmed">
+					<behavior><![CDATA[
+						function onCreate(text, data) {
+							this.data = data;
+							var description = data.description;
+							text.string = description.slice(0, description.indexOf('.') + 1);
+						}
+						function onDisplaying(text) {
+							if (text.height > (3 * appDescriptionLineHeight))
+								text.container.replace(text, new AppDescriptionTruncated(this.data));
+						}
+					]]></behavior>
+				</text>
+			</column>
+            <container right="0" width="arrowSkin.width" active="true" skin="arrowSkin">
+                <behavior like="CONTROL.ButtonBehavior"><![CDATA[
+                    function onTap(container) {
+						var data = this.data;
+						var query = {
+							app: data.title,
+							title: data.title,
+							description: data.description,
+							thumbnail: data.thumbnail,
+							id: data.id
+						}
+						container.invoke(new Message("/details?" + serializeQuery(query)));
+                    }
+                ]]></behavior>
+            </container>
+		</line>
+		<content left="0" right="0" bottom="0" height="1" skin="dividerSkin"/>
+	</column>
+
+	<container id="AppsScreen" like="Screen">
+		<container anchor="BODY" left="0" right="0" top="0" bottom="0" skin="whiteSkin">
+			<behavior><![CDATA[
+				function onCreate(container, data) {
+					this.data = data;
+				}
+			]]></behavior>
+			<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" behavior="CREATIONS.DynamicHeaderScrollerBehavior" top="32">
+				<column anchor="LIST" left="0" behavior="AppListBehavior" right="0" top="0"/>
+				<content like="SCROLLER.VerticalScrollbar"/>
+			</scroller>
+		</container>
+		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+		<container width="32" right="4" height="32" top="0" active="true">
+			<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+				function onDisplayed(container) {
+					this.menuVisible = false;
+				}
+				function onTap(container) {
+					if (this.menuVisible)
+						container.container.run(new MenuTransition, container, container.last.width - 4);
+					else
+						container.container.run(new MenuTransition, container, 4 - container.last.width);
+					this.menuVisible = !this.menuVisible;
+				}
+			]]></behavior>
+			<content skin="toolsSkin"/>
+			<layout left="32" top="0" height="32" skin="menuSkin">
+				<behavior><![CDATA[
+					function onMeasureHorizontally(layout) {
+						var size = layout.first.first.measure();
+						return size.width + 4;
+					}
+					function onMeasureVertically(layout) {
+						return application.height;
+					}
+				]]></behavior>
+				<scroller like="SCROLLER.VerticalScroller">
+					<column width="160" like="Menu">
+						<behavior><![CDATA[
+							function doFilter(container, filter) {
+								model.sort = filter;
+								application.distribute("onModelChanged");
+							}
+							function load(column) {
+								var items = model.menu.data.items;
+								for (var i = 0, c = items.length; i < c; ++i)
+									column.add(new MenuCommand(items[i]));
+							}
+							function onCreate(column, data) {
+								if ("menu" in model)
+									this.load(column);
+							}
+							function onFilterTagsLoaded(column) {
+								this.load(column);
+							}
+						]]></behavior>
+					</column>
+					<content left="4" like="SCROLLER.TopScrollerShadow"/>
+					<content left="4" like="SCROLLER.BottomScrollerShadow"/>
+				</scroller>
+			</layout>
+		</container>
+	</container>
+
+	<container id="InstallScreen" like="Screen">
+		<container anchor="BODY" left="0" right="0" top="0" bottom="0" skin="whiteSkin">
+			<behavior><![CDATA[
+				function onCreate(container, data) {
+					this.data = data;
+					this.remaining = 0;
+					this.installed = false;
+					Files.ensureDirectory(this.data.directory);
+				}
+				function onScreenBegan(container, backwards) {
+					if (!model.tree)
+						container.invoke(new Message("/repo/tree"), Message.JSON);
+					else
+						this.download(container);
+				}
+				function onScreenEnding(container, backwards) {
+					if (!backwards && this.data.pop && this.installed) {
+						model.history.pop();
+					}
+				}
+				function onComplete(container, message, json) {
+					var query = parseQuery(message.query);
+					switch(message.path) {
+						case "/repo/tree":
+							if (true == json.success)
+								this.download(container);
+							break;
+						case "/repo/download":
+							if (true == json.success) {
+								if (--this.remaining == 0) {
+									var uri = "xkpr://shell/install?" + serializeQuery({
+										url: this.data.directory + this.data.app + "/application.xml",
+										temporary: this.data.temporary
+									});
+									container.invoke(new Message(uri), Message.TEXT);
+								}
+							}
+							else
+								debugger
+							break;
+						case "/install":
+							if (message.error == 0) {
+								this.installed = true;
+								this.data.BUSY.stop();
+								this.data.PROGRESS.string = this.data.complete;
+								container.invoke(new Message(this.data.callback));
+							}
+							else
+								debugger
+							break;
+						default:
+							break;
+					}
+				}
+				function download(container) {
+					var app = this.data.app;
+					var tree = model.tree;
+					for (var i = 0, c = tree.length; i < c; ++i) {
+						var item = tree[i];
+						if (app == item.path && "tree" == item.type) {
+							while (0 == item.path.indexOf(app)) {
+								if ("tree" != item.type) {
+									var file, index = item.path.lastIndexOf("/");
+									if (-1 != index)
+										file = item.path.slice(index + 1);
+									else
+										file = item.path;
+									if ("." != file.charAt(0)) {
+										container.invoke(new Message("/repo/download?" + serializeQuery({path: '/' + item.path, directory: this.data.directory})), Message.JSON);
+										++this.remaining;
+									}
+								}
+								if (++i == c) break;
+								item = tree[i];
+							}
+							break;
+						}
+					}
+				}
+			]]></behavior>
+			<picture anchor="BUSY" like="CREATIONS.BusyPicture"/>
+			<label anchor="PROGRESS" left="10" right="10" bottom="20" style="progressMessageStyle" string="$.progress"/>
+		</container>
+		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<container id="DetailsThumbnail" left="0" top="0" width="90" height="65">
+		<thumbnail bottom="3" width="80" height="60" url="$"/>
+	</container>
+	
+	<container id="DetailsScreen" like="Screen">
+		<container anchor="BODY" left="0" right="0" top="0" bottom="0" skin="whiteSkin">
+			<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" behavior="CREATIONS.DynamicHeaderScrollerBehavior" top="32" bottom="38">
+				<text left="0" right="0" top="2" style="appDescriptionDetailsStyle" string="$.description">
+					<behavior><![CDATA[
+						function onCreate(text, data) {
+							this.data = data;
+							text.format([
+								{ spans: [
+									{ content: new DetailsThumbnail(this.data.thumbnail), align: "left" },
+									this.data.description
+								]}
+							]);
+						}
+					]]></behavior>
+				</text>
+				<content like="SCROLLER.VerticalScrollbar"/>
+			</scroller>
+		</container>
+		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+		<container anchor="FOOTER" left="0" right="0" bottom="0" height="38" skin="footerSkin" active="true">
+			<line left="0" right="0" style="footerStyle">
+
+				<!-- Run -->
+
+				<container left="0" right="0" active="true">
+					<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+						function onTap(container) {
+							container.invoke(new Message("xkpr://shell/app/check?id=" + this.data.id), Message.JSON);
+						}
+						function onComplete(container, message, json) {
+							var persistentURL = model.appPersistentDownloadPath + this.data.app;
+							var temporaryURL = (model.local ? model.localRepositoryPath : model.appTemporaryDownloadPath) + this.data.app;
+							if (json.success) {
+								if ((json.url == persistentURL) || (json.url == temporaryURL)) {
+									container.invoke(new Message("/launch?" + serializeQuery({id: this.data.id})));
+									return;
+								}
+								container.invoke(new Message("xkpr://shell/uninstall?" + serializeQuery({id: this.data.id})));
+							}
+							else if (model.local) {
+								container.invoke(new Message("xkpr://shell/install?" + serializeQuery({url: temporaryURL + "/application.xml", temporary: true})));
+								container.invoke(new Message("/launch?" + serializeQuery({id: this.data.id})));
+							}
+							else {
+								var callback = "/launch?" + serializeQuery({id: this.data.id});
+								var message = buildInstallMessage(this.data.app, this.data.id, this.data.title, true, "Loading...", "Loaded", true, model.appTemporaryDownloadPath, callback);
+								container.invoke(message);
+							}
+						}
+					]]></behavior>
+					<label string="'Run'"/>
+				</container>
+
+				<!-- View Source -->
+
+				<container left="0" right="0" active="true">
+					<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+						function onTap(container) {
+							container.invoke(new Message("xkpr://shell/app/check?id=" + this.data.id), Message.JSON);
+						}
+						function onComplete(container, message, json) {
+							var persistentURL = model.appPersistentDownloadPath + this.data.app;
+							var temporaryURL = (model.local ? model.localRepositoryPath : model.appTemporaryDownloadPath) + this.data.app;
+							if (json.success) {
+								if ((json.url == persistentURL) || (json.url == temporaryURL)) {
+									container.invoke(new Message("/source?" + serializeQuery({app: this.data.app, directory: json.url.slice(0, 0 - this.data.app.length)})));
+									return;
+								}
+								container.invoke(new Message("xkpr://shell/uninstall?" + serializeQuery({id: this.data.id})));
+							}
+							if (model.local) {
+								container.invoke(new Message("xkpr://shell/install?" + serializeQuery({url: temporaryURL + "/application.xml", temporary: true})));
+								container.invoke(new Message("/source?" + serializeQuery({app: this.data.app, directory: model.localRepositoryPath})));
+							}
+							else {
+								var callback = "/source?" + serializeQuery({app: this.data.app, directory: model.appTemporaryDownloadPath});
+								var message = buildInstallMessage(this.data.app, this.data.id, this.data.title, true, "Loading...", "Loaded", true, model.appTemporaryDownloadPath, callback);
+								container.invoke(message);
+							}
+						}
+					]]></behavior>
+					<label string="'View Source'"/>
+				</container>
+
+				<!-- Install -->
+
+				<container left="0" right="0" active="true">
+					<behavior like="CONTROL.ButtonBehavior"><![CDATA[
+						function onTap(container) {
+							container.invoke(new Message("xkpr://shell/app/check?id=" + this.data.id), Message.JSON);
+						}
+						function onComplete(container, message, json) {
+							var persistentURL = model.appPersistentDownloadPath + this.data.app;
+							var temporaryURL = (model.local ? model.localRepositoryPath : model.appTemporaryDownloadPath) + this.data.app;
+							if (json.success) {
+								if (json.url == persistentURL) {
+									container.invoke(new Message("/installed?" + serializeQuery({app: this.data.app, action: undefined})));
+									return;
+								}
+								if (json.url == temporaryURL) {
+									cloneDirectory(temporaryURL + "/", persistentURL + "/");
+									container.invoke(new Message("xkpr://shell/uninstall?" + serializeQuery({id: this.data.id})));
+									container.invoke(new Message("xkpr://shell/install?" + serializeQuery({url: persistentURL + "/application.xml", temporary: false})));
+									container.invoke(new Message("/installed?" + serializeQuery({app: this.data.app, action: undefined})));
+									return;
+								}
+								container.invoke(new Message("xkpr://shell/uninstall?" + serializeQuery({id: this.data.id})));
+							}
+							if (model.local) {
+								cloneDirectory(temporaryURL + "/", persistentURL + "/");
+								container.invoke(new Message("xkpr://shell/install?" + serializeQuery({url: persistentURL + "/application.xml", temporary: false})));
+								container.invoke(new Message("/installed?" + serializeQuery({app: this.data.app, action: undefined})));
+							}
+							else {
+								var callback = "/installed?" + serializeQuery({app: this.data.app, action: "/back"});
+								var message = buildInstallMessage(this.data.app, this.data.id, this.data.title, false, "Installing...", "Installed", false, model.appPersistentDownloadPath, callback);
+								container.invoke(message);
+							}
+						}
+					]]></behavior>
+					<label string="'Install'"/>
+				</container>
+			</line>
+		</container>
+	</container>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- TRANSITIONS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<transition id="MenuTransition" duration="250"><![CDATA[
+		function onBegin(screen, container, delta) {
+			var toolLayer = this.toolLayer = new Layer({ alpha:true });
+			toolLayer.attach(container.first);
+			var menuLayer = this.menuLayer = new Layer({ alpha:true });
+			menuLayer.attach(container.last);
+			this.delta = delta;
+		}
+		function onEnd(screen, container, delta) {
+			this.menuLayer.detach();
+			this.toolLayer.detach();
+			container.moveBy(delta, 0);
+		}
+		function onStep(fraction) {
+			fraction = Math.quadEaseOut(fraction);
+			this.menuLayer.translation = this.toolLayer.translation = { x: this.delta * fraction };
+		}
+	]]></transition>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- MODEL -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+    <script><![CDATA[
+		application.style = applicationStyle;
+		
+		var model = application.behavior = new MODEL.ApplicationBehavior(application);
+
+		model.serviceURI = "https://api.github.com";
+		model.repo = "/Kinoma/KPR-examples";
+		model.tree = null;
+		model.tags = [];
+		model.sort = 'all';
+		
+		model.appPersistentDownloadPath = Files.preferencesDirectory + "kdt/samples/applications/";
+		model.appTemporaryDownloadPath = Files.preferencesDirectory + "kdt/cache/applications/";
+
+		model.preferences = model.readPreferences(application, "preferences", {gesture: 'on'});
+
+		model.localRepositoryPath = (("linux" == system.platform) ? "file:///mnt/SD2/" : "file:///Users/your_user_name_here/") + model.repo.slice(model.repo.lastIndexOf("/") + 1) + "/";
+		model.local = Files.exists(model.localRepositoryPath);
+
+		var buildInstallMessage = function(app, id, title, temporary, progress, complete, pop, directory, callback) {
+			var uri = "/install?" + serializeQuery({
+				app: app,
+				id: id,
+				title: title,
+				temporary: temporary,
+				progress: progress,
+				complete: complete,
+				pop: pop,
+				directory: directory,
+				callback: callback
+			});
+			return new Message(uri);
+		}
+
+		var authorize = function(message) {
+			message.setRequestHeader("User-Agent", "k4.kinoma.com/1.0");
+		}
+		
+		cloneDirectory = function(src, dst) {
+			Files.ensureDirectory(dst);
+			var info, it = new Files.Iterator(src);
+			while (info = it.getNext()) {
+				if (Files.directoryType == info.type) {
+					this.cloneDirectory(src + info.path + "/", dst + info.path + "/");
+				}
+				else if (Files.fileType == info.type)
+					Files.writeBuffer(dst + info.path, Files.readBuffer(src + info.path));
+			}
+		}
+
+    ]]></script>
+</program>

@@ -1,0 +1,762 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	
+	<require id="CONTROL_THEME" path="themes/flat/theme"/>
+ 	<require id="THEME" path="themes/sample/theme"/>
+	<script>
+		for (var i in CONTROL_THEME)
+			THEME[i] = CONTROL_THEME[i];
+    </script>
+   	<require id="CREATIONS" path="creations/creations"/>
+	<require id="CDIALOG" path="creations/dialog"/>	
+   	<require id="CKEYBOARD" path="creations/keyboard"/>
+   	<require id="BUTTONS" path="controls/buttons"/>
+    <require id="SCREEN" path="mobile/screen"/>
+    <require id="MODEL" path="mobile/model"/>
+   	<require id="TRANSITIONS" path="transitions"/>
+	<require id="DIALOG" path="mobile/dialog"/>
+	<require id="SCROLLER" path="mobile/scroller"/>
+   	<require id="KEYBOARD" path="mobile/keyboard"/>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- ASSETS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<skin id="whiteSkin" color="white"/>
+	<texture id="wifilevelIconsTexture" small="assets/wi-fi-icons-dark.png"/>
+	<skin id="wifiLevelIconsSkin" texture="wifilevelIconsTexture" x="0" y="0" width="32" height="32">
+		<variants offset="32"/>
+	</skin>
+	<texture id="noWiFiIconTexture" small="assets/no-wi-fi-large.png"/>
+	<skin id="noWiFiIconSkin" texture="noWiFiIconTexture" x="0" y="0" width="64" height="52"/>
+	<texture id="padlockBadgeTexture" small="assets/padlock-badge.png"/>
+	<skin id="padlockBadgeSkin" texture="padlockBadgeTexture" x="0" y="0" width="14" height="14"/>
+	<texture id="errorBadgeTexture" small="assets/red-orange-badge.png"/>
+	<skin id="errorBadgeSkin" texture="errorBadgeTexture" x="0" y="0" width="16" height="16">
+		<variants offset="16"/>
+	</skin>
+	<texture id="addNetworkTexture" small="assets/plus-glyph.png"/>
+	<skin id="addNetworkSkin" texture="addNetworkTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+	<texture id="forgetNetworkTexture" small="assets/remove-x-glyph.png"/>
+	<skin id="forgetNetworkSkin" texture="forgetNetworkTexture" x="0" y="0" width="32" height="32" aspect="draw">
+		<states offset="32"/>
+	</skin>
+	<texture id="alertTexture" small="assets/alert.png"/>
+	<skin id="alertSkin" texture="alertTexture" x="0" y="0" width="60" height="60"/>
+	<skin id="networkCategorySkin" color="#6cb535"/>
+	<skin id="dividerLineSkin" color="#e2e2e2"/>
+	<skin id="headerSkin" color="#c2c2c2"/>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- STYLES -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<style id="applicationStyle" font="16px Fira Sans"/>
+	<style id="joiningStyle" font="24px" color="black" align="middle,center" lines="1"/>
+	<style id="networkNameStyle" font="24px" color="black" align="left,middle" lines="1"/>
+	<style id="networkIPStyle" font="19px" color="black" align="left,top" leading="-14" lines="1"/>
+	<style id="knownNetworkStyle" font="19px" color="#999" align="right,middle" lines="1"/>
+	<style id="warningNetworkStyle" font="19px" color="#fc9c00" align="left,middle" leading="-14" lines="all">
+		<margins top="2"/>
+	</style>
+	<style id="errorNetworkStyle" font="19px" color="red" align="left,middle" leading="-14" lines="all">
+		<margins top="2"/>
+	</style>
+	<style id="networkCategoryStyle" font="22px" color="white" align="left,middle" lines="1">
+		<margins left="10" right="10"/>
+	</style>
+	<style id="noNetworksStyle" font="bold 22px" color="black" align="center,middle" lines="1">
+		<margins top="10"/>
+	</style>
+	<style id="cantJoinNetworkSSIDStyle" font="bold 26px" color="red" align="middle,center" lines="1"/>
+	<style id="alertLineOneStyle" font="26px" color="red" align="middle,center" lines="1"/>
+	<style id="alertLineTwoStyle" font="22px" color="black" align="middle,center" lines="1"/>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- BEHAVIORS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<behavior id="ScreenBehavior">
+		<method id="onCreate" params="container, data"><![CDATA[
+			this.data = data;
+        ]]></method>
+        <method id="getScreen" params="container"><![CDATA[
+			return container;
+        ]]></method>
+    </behavior>
+    
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- HANDLERS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<handler path="/connect">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				if ("NONE" == query.authentication || "password" in query) {
+					var data = combineData(gNetworkJoiningScreenData, query);
+					transitionToScreen(application.first, new JoiningNetworkScreen(data), "back");
+				}
+				else {
+					var data = combineData(gPasswordEntryScreenData, query);
+					data.title = query.ssid + " network";
+					transitionToScreen(application.first, new PasswordEntryScreen(data), "forward");
+				}
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/connected">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				application.distribute("onNetworkConnected", query.ssid, query.ip_address);
+			}
+		]]></behavior>
+	</handler>
+		
+	<handler path="/network/configure/timeout">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				application.distribute("onNetworkConnectionTimeout", query.ssid);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/scanned">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				application.distribute("onNetworkScanned", JSON.parse(message.responseText));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/failed">
+		<behavior like="MODEL.CommandBehavior"><![CDATA[
+			function onQuery(handler, query) {
+				var data = combineData(query, gNetworkJoinFailureScreenData);
+				transitionToScreen(application.first, new CouldNotJoinNetworkScreen(data), "forward");
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/exit">
+		<behavior like="MODEL.CommandBehavior"><![CDATA[
+			function onQuery(handler, query) {
+				handler.invoke(new Message("xkpr://shell/close?id=" + application.id));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/forget/confirm">
+        <behavior like="MODEL.DialogBehavior">
+            <method id="onDescribe" params="query">
+                return {
+                    Dialog: CDIALOG.Box,
+                    action: "/network/forget",
+                    items: [
+						{
+                            Item: DIALOG.Caption,
+                            string: query.message
+						},
+                    ],
+                    ok: "OK",
+                    cancel: "Cancel",
+                };
+            </method>
+        </behavior>
+    </handler>
+
+	<handler path="/network/forget">
+		<behavior like="MODEL.CommandBehavior"><![CDATA[
+			function onQuery(handler, query) {
+				var message = new Message("xkpr://shell/network/known?" + serializeQuery({ssid: query.ssid}));
+				message.method = "DELETE";
+				handler.invoke(message);
+				application.distribute("onNetworkForgotten", query.ssid);
+			}
+		]]></behavior>
+	</handler>
+
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+<!-- LAYOUTS -->
+<!-- ++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+	<picture id="BusyLine" like="CREATIONS.BusyPicture" top="40"/>
+
+	<container id="AddNetworkButton" like="CREATIONS.ToolButton" skin="addNetworkSkin">
+		<behavior like="CREATIONS.ToolButtonBehavior"><![CDATA[
+			function onTap(container) {
+				container.bubble("onAddNetwork");
+			}
+		]]></behavior>
+	</container>
+
+	<label id="HeaderOKButton" right="16 + 10" active="true" style="CKEYBOARD.headerButtonsStyle" string="$.okLabel">
+		<behavior like="CKEYBOARD.HeaderButtonBehavior">
+			<method id="onTap" params="label"><![CDATA[
+				label.bubble("onOK");
+			]]></method>
+		</behavior>
+	</label>
+
+	<label id="HeaderCancelButton" left="16 + 10" active="true" style="CKEYBOARD.headerButtonsStyle" string="$.cancelLabel">
+		<behavior like="CKEYBOARD.HeaderButtonBehavior">
+			<method id="onTap" params="label"><![CDATA[
+				label.bubble("onCancel");
+			]]></method>
+		</behavior>
+	</label>
+
+	<container id="Screen" left="0" right="0" top="0" bottom="0" behavior="ScreenBehavior" skin="whiteSkin">
+		<container name="header" left="-16" right="-16" top="0" height="32" skin="CREATIONS.dynamicHeaderSkin">
+			<container left="16" like="CKEYBOARD.BackButton">
+				<behavior like="BUTTONS.ButtonBehavior">        
+					<method id="onTap" params="container"><![CDATA[
+						container.container.container.delegate("onBackButton");
+					]]></method>
+		        </behavior>			
+			</container>
+			<label name="titleLabel" top="0" left="0" bottom="0" right="0" string="$.title" style="CREATIONS.blackDynamicHeaderTitleStyle"/>
+		</container>
+	</container>
+
+	<container id="JoiningNetworkScreen" like="Screen">
+		<behavior><![CDATA[
+            function onBackButton(container) {
+				if ("NONE" != this.data.authentication) {
+					var data = combineData(this.data, gPasswordEntryScreenData);
+					transitionToScreen(container, new PasswordEntryScreen(data), "back");
+				}
+				else {
+					var data = combineData(gNetworkChooserScreenData, null);
+					transitionToScreen(container, new NetworkChooserScreen(data), "back");
+				}
+            }
+			function onCreate(container, data) {
+				this.data = data;
+			}
+			function onDisplayed(container) {
+				var data = this.data;
+				var query = {reset: true, ssid: data.ssid, authentication: data.authentication};
+				query.adhoc = (1 == parseInt(data.adhoc) ? "true" : "false");
+				if (("NONE" != data.authentication) && data.password)
+					query.password = data.password;
+				if ("hiddenNetwork" in data)
+					query.hiddenNetwork = data.hiddenNetwork;
+				this.configuration = query;
+				container.invoke(new Message("xkpr://shell/network/configure?" + serializeQuery(query)));
+			}
+			function onNetworkConnected(container, ssid) {
+				if (ssid != this.data.ssid)
+					this.onFail(container);
+				else
+					container.invoke(new Message("/exit"));
+			}
+			function onNetworkConnectionTimeout(container, ssid) {
+				this.onFail(container);
+			}
+			function onFail(container) {
+				var message = new Message("xkpr://shell/network/known?" + serializeQuery({ssid: this.data.ssid}));
+				message.method = "DELETE";
+				application.invoke(message);
+				container.invoke(new Message("/failed?" + serializeQuery(this.configuration)));
+			}
+		]]></behavior>
+		<picture like="CREATIONS.BusyPicture"/>
+		<label style="joiningStyle" top="185" left="0" right="0" string="$.ssid"/>
+	</container>	
+
+	<label id="NetworkCategoryLine" left="0" right="0" height="24" style="networkCategoryStyle" skin="networkCategorySkin" string="$"/>
+
+	<label id="NetworkSSIDLine" left="2" right="0" top="0" bottom="0" style="networkNameStyle" string="$.ssid"/>
+
+	<text id="NetworkSSIDIPLine" left="2" right="0">
+		<block style="networkNameStyle" string="$.ssid"/>
+		<block style="networkIPStyle" string="$.ip"/>
+	</text>
+
+	<text id="NetworkSSIDWarningLine" left="2" right="0">
+		<block style="networkNameStyle" string="$.ssid"/>
+		<block style="warningNetworkStyle" string="$.warning"/>
+	</text>
+
+	<text id="NetworkSSIDIPWarningLine" left="2" right="0">
+		<block style="networkNameStyle" string="$.ssid"/>
+		<block style="networkIPStyle" string="$.ip"/>
+		<block style="warningNetworkStyle" string="$.warning"/>
+	</text>
+
+	<text id="NetworkSSIDErrorLine" left="2" right="0">
+		<block style="networkNameStyle" string="$.ssid"/>
+		<block style="errorNetworkStyle" string="$.error"/>
+	</text>
+
+	<text id="NetworkSSIDIPErrorLine" left="2" right="0">
+		<block style="networkNameStyle" string="$.ssid"/>
+		<block style="networkIPStyle" string="$.ip"/>
+		<block style="errorNetworkStyle" string="$.error"/>
+	</text>
+
+	<container id="NoNetworksLine" width="application.width" height="application.height - 32">
+		<column left="0" right="0">
+			<content skin="noWiFiIconSkin"/>
+			<label left="0" right="0" style="noNetworksStyle" string="$.message"/>
+		</column>
+	</container>
+
+	<layout id="NetworkLine" left="0" right="0" active="true" skin="THEME.lineSkin" behavior="SCREEN.ListItemBehavior">
+		<column left="0" right="0">
+			<content height="5"/>
+			<line left="0" right="0">
+				<column left="0" top="0" width="46" height="36">
+					<container left="0" right="0" top="0" bottom="0">
+						<content name="icon" left="10" width="32" height="32" skin="wifiLevelIconsSkin" variant="3">
+							<behavior>
+								<method id="onCreate" params="content, data"><![CDATA[
+									this.data = data;
+								]]></method>
+								<method id="onDisplaying" params="content"><![CDATA[
+									content.variant = this.getVariantFromSignalLevel(this.data.signal_level);
+								]]></method>
+								<method id="getVariantFromSignalLevel" params="value"><![CDATA[
+									var low = -120;
+									var high = -40;
+									if (value < low)	value = low;
+									if (value > high)	value = high;
+									return Math.round(4 * ((value - low) / (high - low)));
+								]]></method>
+							</behavior>
+						</content>
+						<content left="4" bottom="2" width="14" height="14" skin="padlockBadgeSkin" visible="'NONE' != $.authentication"/>
+						<content right="0" top="2" width="16" height="16" skin="errorBadgeSkin" visible="$.warning || $.error" variant="$.error ? 0 : 1"/>
+					</container>
+				</column>
+				<column left="0" right="40" top="0" bottom="0">
+					<behavior>
+						<method id="onCreate" params="column, data"><![CDATA[
+							if (data.warning) {
+								if (data.ip)
+									column.add(new NetworkSSIDIPWarningLine(data));
+								else
+									column.add(new NetworkSSIDWarningLine(data));
+							}
+							else if (data.error) {
+								if (data.ip)
+									column.add(new NetworkSSIDIPErrorLine(data));
+								else
+									column.add(new NetworkSSIDErrorLine(data));
+							}
+							else if (data.ip)
+								column.add(new NetworkSSIDIPLine(data));
+							else
+								column.add(new NetworkSSIDLine(data));
+						]]></method>
+					</behavior>
+				</column>
+				<column top="0" bottom="0" width="40" skin="forgetNetworkSkin" visible="$.known" active="true">
+					<behavior like="BUTTONS.ButtonBehavior">
+						<method id="onTap" params="column"><![CDATA[
+							column.invoke(new Message("/network/forget/confirm?" + serializeQuery({ssid: this.data.ssid, message: "Forget '" + this.data.ssid + "' network?"})));
+						]]></method>
+					}
+					</behavior>
+				</column>
+			</line>
+			<content height="5"/>
+			<content left="0" right="0" height="1" skin="dividerLineSkin" visible="$.divider"/>
+		</column>
+	</layout>
+	
+	<container id="NetworkChooserScreen" left="0" right="0" top="0" bottom="0" skin="whiteSkin">
+		<behavior like="ScreenBehavior">
+            <method id="onBackButton" params="container"><![CDATA[
+				container.invoke(new Message("/exit"));
+            ]]></method>
+            <method id="onAddNetwork" params="container"><![CDATA[
+				var data = combineData(gNetworkAddNetworkScreenData, null);
+				transitionToScreen(container, new AddNetworkScreen(data), "forward");
+            ]]></method>
+        </behavior>
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" bottom="22" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior"><![CDATA[
+					function onCreate(list, data) {
+						this.data = data;
+						this.knownNetworks = null;
+						this.currentNetwork = null;
+						list.add(new BusyLine);
+					}
+					function onDisplayed(list) {
+						list.invoke(new Message("xkpr://shell/network/known"), Message.JSON);
+						list.invoke(new Message("xkpr://shell/network/status"), Message.JSON);
+					}
+					function onUndisplayed(list) {
+						application.invoke(new Message("xkpr://shell/network/wifi/scan/stop"));
+					}
+					function onNetworkForgotten(list, ssid) {
+						this.knownNetworks.some(function(item, index, array) {
+							if (item.ssid == ssid) {
+								array.splice(index, 1);
+								return true;
+							}
+						});
+						this.onNetworkScanned(list, this.data.items);
+					}
+					function onNetworkScanned(list, networks) {
+						var data = this.data;
+						networks.forEach(function(network) {
+							network.known = false;
+						});
+						data.items = networks;
+						list.empty();
+						this.addLines(list, data.items, false);
+					}
+					function addLines(list, items, more) {
+						list.delegate("sortAndRemoveDuplicates", items);
+						var c = items.length;
+						var activeNetwork;
+						for (var i = 0; i < c; ++i) {
+							var network = items[i];
+							if (this.currentNetwork.ssid == network.ssid) {
+								--c;
+								network.divider = (0 == c ? true : false);
+								list.add(new NetworkCategoryLine("Active Network"));
+								activeNetwork = items.splice(i, 1)[0];
+								list.add(new NetworkLine(this.buildItem(activeNetwork)));
+								break;
+							}
+						}
+						if (c) {
+							var known = [], others = [];
+							for (var i = 0; i < c; ++i) {
+								var network = items[i];
+								var match = this.matchKnownNetwork(network);
+								if (match) {
+									if (("password" in match) && match.password)
+										network.password = match.password;
+									known.push(network);
+								}
+								else {
+									others.push(network);
+								}
+							}
+							if (known.length) {
+								list.delegate("sortAndRemoveDuplicates", known);
+								list.add(new NetworkCategoryLine("Known Available Networks"));
+								for (var i = 0, c = known.length; i < c; i++) {
+									var network = known[i];
+									network.known = true;
+									network.divider = (i < c - 1 ? true : false);
+									list.add(new NetworkLine(this.buildItem(network)));
+								}
+							}
+							if (others.length) {
+								list.delegate("sortAndRemoveDuplicates", others);
+								list.add(new NetworkCategoryLine(known.length ? "Other Available Networks" : "Available Networks"));
+								for (var i = 0, c = others.length; i < c; i++) {
+									var network = others[i];
+									network.divider = (i < c - 1 ? true : false);
+									list.add(new NetworkLine(this.buildItem(network)));
+								}
+							}
+						}
+						if (activeNetwork)
+							items.unshift(activeNetwork);
+						if (!list.length)
+							list.add(new NoNetworksLine({message: this.data.noNetworksMessage}));
+					}
+					function onComplete(list, message, result) {
+						switch(message.path) {
+							case "/network/known":
+								this.knownNetworks = result;
+								break;
+							case "/network/status":
+								this.currentNetwork = result;
+								break;
+						}
+						if (this.currentNetwork && this.knownNetworks)
+							list.invoke(new Message("xkpr://shell/network/wifi/scan/start"));
+					}
+					function sortAndRemoveDuplicates(list, items) {
+						list.delegate("sort", items);
+						list.delegate("removeDuplicates", items);
+					}
+					function sort(list, items) {
+						items.sort(this.compareNames);
+					}
+					function compareNames(a, b) {
+						return a.ssid.toLowerCase().compare(b.ssid.toLowerCase());
+					}
+					function removeDuplicates(list, items) {
+						for (var i=0, c=items.length - 1; i < c; i++) {
+							if (items[i].ssid == '' || items[i].ssid == items[i+1].ssid) {
+								items.splice(i, 1);
+								c--;
+								i--;
+							}
+						}
+					}
+					function buildItem(network) {
+						if (0 == network.flags.indexOf("[WEP"))
+							network.authentication = "WEP";
+						else if (0 == network.flags.indexOf("[WPA"))
+							network.authentication = "WPA";
+						else
+							network.authentication = "NONE";
+						network.adhoc = (-1 == network.flags.indexOf("[IBSS]")) ? 0 : 1;
+						network.current = ("ssid" in this.currentNetwork && network.ssid == this.currentNetwork.ssid) ? true : false;
+						network.proxy = this.currentNetwork.proxy;
+						if (network.current)
+							network.action = "/exit";
+						else {
+							var query = {
+								ssid: network.ssid,
+								authentication: network.authentication,
+								adhoc: network.adhoc
+							}
+							if ("password" in network)
+								query.password = network.password;
+							network.action = "/connect?" + serializeQuery(query);
+						}
+						network.ip = (network.current && ("ip_address" in this.currentNetwork)) ? this.currentNetwork.ip_address : "";
+						network.warning = (network.adhoc ? this.data.adhocWarningMessage : "");
+						network.error = (network.proxy ? this.data.proxyErrorMessage : "");
+						return network;
+					}
+					function matchKnownNetwork(network) {
+						for (var i = 0, c = this.knownNetworks.length; i < c; ++i) {
+							if (network.ssid == this.knownNetworks[i].ssid) {
+								return this.knownNetworks[i];
+							}
+						}
+					}
+				]]></behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+		</scroller>
+		<container like="CREATIONS.DynamicHeader"/>
+	</container>
+
+	<container id="PasswordEntryScreen" like="CKEYBOARD.WifiKeyboardScreen">
+		<behavior like="CKEYBOARD.KeyboardScreenBehavior">
+            <method id="onKeyboardCancel" params="container, input">
+                <![CDATA[
+					var data = combineData(gNetworkChooserScreenData, null);
+					transitionToScreen(container, new NetworkChooserScreen(data), "back");
+                ]]>
+            </method>
+             <method id="onKeyboardOK" params="container, input">
+                <![CDATA[
+                    this.data.password = input;
+					var data = combineData(this.data, gNetworkJoiningScreenData);
+					transitionToScreen(container, new JoiningNetworkScreen(data), "back");
+                ]]>
+            </method>
+            <method id="onKeyboardEnter" params="container, input">
+                <![CDATA[
+                   this.onKeyboardOK(container, input);
+                ]]>
+            </method>
+		</behavior>
+	</container>		
+
+	<container id="AddNetworkScreen" like="Screen">
+		<container left="0" top="0" right="0" bottom="0" like="CKEYBOARD.KeyboardScreen">
+			<behavior like="CKEYBOARD.KeyboardScreenBehavior">
+				<method id="onKeyboardCancel" params="container, input">
+					<![CDATA[
+						var data = combineData(gNetworkChooserScreenData, null);
+						transitionToScreen(container.container, new NetworkChooserScreen(data), "back");
+					]]>
+				</method>
+				 <method id="onKeyboardOK" params="container, input">
+					<![CDATA[
+						if (0 == input.length) return;
+						var data = combineData(gNetworkSecurityScreenData, {ssid: input});
+						transitionToScreen(container.container, new SecurityScreen(data), "forward");
+					]]>
+				</method>
+				<method id="onKeyboardEnter" params="container, input">
+					<![CDATA[
+					   this.onKeyboardOK(container, input);
+					]]>
+				</method>
+			</behavior>
+		</container>
+	</container>		
+
+	<container id="SecurityLine" left="0" right="0" height="40" active="true" skin="THEME.lineSkin">
+		<behavior like="SCREEN.ListItemBehavior"><![CDATA[
+			function onSecuritySettingsChange(container, authentication) {
+				container.first.next.variant = (authentication == this.data.authentication ? THEME.RADIO_SELECTED : THEME.RADIO_UNSELECTED);
+			}
+			function onTouchEnded(line, id, x, y, ticks) {
+				this.onTouchCancelled(line, id, x, y, ticks);
+				var list = line.container;
+				list.behavior.onItemTap(list, line);
+			}
+		]]></behavior>
+		<label left="8" right="0" top="0" bottom="0" style="networkNameStyle" string="$.title"/>
+		<container right="8" top="5" width="30" height="30" active="false" like="BUTTONS.Radio"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerLineSkin"/>
+	</container>
+
+	<container id="SecurityScreen" like="Screen">
+		<behavior like="ScreenBehavior">
+			<method id="onOK" params="container"><![CDATA[
+				var query = {
+					ssid: this.data.ssid,
+					authentication: this.data.authentication,
+					adhoc: '0',
+					hiddenNetwork: true
+				};
+				container.invoke(new Message("/connect?" + serializeQuery(query)));
+			]]></method>
+			<method id="onCancel" params="container"><![CDATA[
+				var data = combineData(gNetworkChooserScreenData, null);
+				transitionToScreen(container, new NetworkChooserScreen(data), "back");
+			]]></method>
+		</behavior>
+		<scroller like="SCROLLER.VerticalScroller" top="32" bottom="0">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior"><![CDATA[
+					function addLines(list, items, more) {
+						for (var i = 0, c = items.length; i < c; ++i)
+							list.add(new SecurityLine(items[i]));
+						list.distribute("onSecuritySettingsChange", this.data.authentication);
+					}
+					function onItemTap(list, item) {
+						this.data.authentication = item.behavior.data.authentication;
+						list.distribute("onSecuritySettingsChange", this.data.authentication);
+					}
+				]]></behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+		</scroller>
+		<container anchor="HEADER" left="-16" right="-16" top="0" height="32" skin="headerSkin">
+			<label like="HeaderCancelButton"/>
+			<label top="0" left="0" bottom="0" right="0" style="CREATIONS.blackDynamicHeaderTitleStyle" string="$.title"/>
+			<label like="HeaderOKButton"/>
+		</container>
+	</container>
+
+   	<container id="CouldNotJoinNetworkScreen" like="Screen">
+   		<behavior like="ScreenBehavior">
+			<method id="onBackButton" params="container"><![CDATA[
+				if ("NONE" == this.data.authentication) {
+					var data = combineData(gNetworkChooserScreenData, null);
+					transitionToScreen(container, new NetworkChooserScreen(data), "back");
+				}
+				else {
+					var data = combineData(this.data, gPasswordEntryScreenData);
+					transitionToScreen(container, new PasswordEntryScreen(data), "back");
+				}
+			]]></method>
+		</behavior>
+		<column left="0" right="0">
+			<content height="20"/>
+			<content skin="alertSkin"/>
+			<content height="10"/>
+			<label left="0" right="0" style="cantJoinNetworkSSIDStyle" string="$.ssid"/>
+			<content height="3"/>
+			<label left="0" right="0" string="$.message" style="alertLineOneStyle"/>
+			<content height="10"/>
+			<label left="0" right="0" string="$.prompt" style="alertLineTwoStyle"/>
+		</column>
+ 	</container>
+
+	<script>
+        <![CDATA[
+			application.style = applicationStyle;
+ 			var model = application.behavior = new MODEL.ApplicationBehavior(application);
+			
+			var gPasswordEntryScreenData = {
+				keyboard: CKEYBOARD.standardKeyboard,
+				okLabel: "Join",
+				cancelLabel: "Cancel",
+				hidden: true,
+				previousText: "",
+				hintText: "Enter Password"
+			};
+			var gNetworkChooserScreenData = {
+				title: "Wi-Fi Network",
+				ToolButton: AddNetworkButton,
+				adhocWarningMessage: "Internet access unavailable from this adhoc network",
+				proxyErrorMessage: "Unable to connect to Kinoma Studio or the internet from this proxy network",
+				noNetworksMessage: "No Wi-Fi networks found"
+			};
+			var gNetworkJoiningScreenData = {
+				title: "Joining Network"
+			};
+			var gNetworkJoinFailureScreenData = {
+				title: "Connection error",
+				message: "Could not be joined",
+				prompt: "Check password and try again"
+			};
+			var gNetworkNotFoundData = {
+				title: "Wi-Fi Network"
+			};
+			var gNetworkAddNetworkScreenData = {
+				title: "Add Network",
+				hintText: "Enter SSID",
+				keyboard: CKEYBOARD.standardKeyboard,
+				previousText: "",
+				okLabel: "Next",
+				cancelLabel: "Cancel",
+			};
+			var gNetworkSecurityScreenData = {
+				items: [
+					{authentication: "NONE", title: "None"},
+					{authentication: "WEP", title: "WEP"},
+					{authentication: "WPA", title: "WPA-PSK/WPA2-PSK"}
+				],
+				more: false,
+				selection: -1,
+				authentication: "NONE",
+				title: "Security",
+				okLabel: "Next",
+				cancelLabel: "Cancel",
+			};
+
+			var transitionToScreen = function(fromScreen, toScreen, direction) {
+				var properties = { direction : direction, easeType : "sineEaseOut", duration : 500, xOrigin : 160, yOrigin : 92 };
+				application.run( new TRANSITIONS.TimeTravel(), fromScreen, toScreen, properties );
+			}
+			var combineData = function(a, b) {
+				var result = {};
+				if (a)
+					for (var param in a)
+						result[param] = a[param];
+				if (b)
+					for (var param in b)
+						result[param] = b[param];
+				return result;
+			}
+			
+			var __data = {};
+			for (var param in gNetworkChooserScreenData)
+				__data[param] = gNetworkChooserScreenData[param];
+			application.add(new NetworkChooserScreen(__data));
+        ]]>
+    </script>
+</program>

@@ -1,0 +1,444 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<script><![CDATA[ 
+
+		// PinManager
+
+		var gPinManager = null;
+
+		var bindCallback = function(object, functionName) {
+			return function(param, param2) {
+				object[functionName](param, param2);
+			}
+		}
+
+		var bindBehaviorCallback = function(container, functionName) {
+			return function(param) {
+				container.delegate(functionName, param);
+			}
+		}
+
+		var PinManager = function(sharedPins) {
+			this.sharedPins = sharedPins;
+			this.pinHandlerHash = {};
+		};
+		PinManager.prototype = Object.create(Object.prototype, {
+			addPinHandler: {
+				value: function(pinHandler) {
+					this.pinHandlerHash[pinHandler.pinNumber] = pinHandler;
+				}
+			},
+			getPinHandler: {
+				value: function(pinNumber) {
+					if (false == (pinNumber in this.pinHandlerHash))
+						return null;
+					return this.pinHandlerHash[pinNumber];
+				}
+			},
+			close: {
+				value: function() {
+					var pinHandlerHash = this.pinHandlerHash;
+					for (var pinNumber in pinHandlerHash) {
+						pinHandlerHash[pinNumber].close();
+					}
+				}
+			},
+			scanI2CBus: {
+				value: function(bus, scanI2CBusCallback) {
+					this.scanI2CBusCallback = scanI2CBusCallback;
+					this.sharedPins.invoke("/i2cscan/scan", { bus: bus }, bindCallback(this, "scannedI2CBus"));
+				}
+			},
+			scannedI2CBus: {
+				value: function(scannedAddresses) {
+					this.scanI2CBusCallback(scannedAddresses);
+				}
+			},
+		});
+
+		var PinHandler = function(sharedPins, pinNumber) {
+			this.sharedPins = sharedPins;
+			this.pinNumber = pinNumber;
+			this.guiData = null;
+		};
+		PinHandler.prototype = Object.create(Object.prototype, {
+			getBLLInstanceName: {
+				value: function() {
+					debugger;
+				}
+			},
+			close: { 
+				value: function() {
+					debugger;
+				} 
+			},
+			onSelected: { 
+				value: function() {
+				} 
+			},
+			onUnselected: { 
+				value: function() {
+				} 
+			},
+			getGUIData: { 
+				value: function() {
+					debugger
+				} 
+			},
+		});
+
+		var SourcePinHandler = function(sharedPins, pinNumber) {
+			PinHandler.call(this, sharedPins, pinNumber);
+			this.interval = 50;
+			this.repeatCloser = null;
+	
+			if (false == USE_REMOTE_PINS)		// poll only selected if using remote pins, poll all if local pins
+				this.beginRepeat();
+		};
+		SourcePinHandler.prototype = Object.create(PinHandler.prototype, {
+			getSourceFunctionName: {
+				value: function() {
+					debugger;
+				}
+			},
+			beginRepeat: { 
+				value: function() {
+					this.cancelRepeat();
+					var inputName = this.getBLLInstanceName();
+					var sourceFunctionName = this.getSourceFunctionName();
+					var path = "/" + inputName + "/" + sourceFunctionName;
+					this.repeatCloser = this.sharedPins.repeat(path, this.interval, bindCallback(this, "receivedCallbackValue"));
+				} 
+			},
+			receivedCallbackValue: { 
+				value: function(value) {
+					application.distribute("onLevelChanged", this.pinNumber, value);		//* should call via pinData
+				} 
+			},
+			cancelRepeat: { 
+				value: function() {
+					if (this.repeatCloser) {
+						this.repeatCloser.close();
+						this.repeatCloser = null;
+					}
+				} 
+			},
+			close: { 
+				value: function() {
+					this.cancelRepeat();
+				} 
+			},
+			onSelected: { 
+				value: function() {
+					if (USE_REMOTE_PINS)
+						this.beginRepeat();
+				} 
+			},
+			onUnselected: { 
+				value: function() {
+					if (USE_REMOTE_PINS)
+						this.cancelRepeat();
+				} 
+			},
+		});
+
+		var DigitalPinHandler = function(sharedPins, pinNumber, direction) {
+			this.direction = direction;
+			SourcePinHandler.call(this, sharedPins, pinNumber);
+		};
+		DigitalPinHandler.prototype = Object.create(SourcePinHandler.prototype, {
+			getBLLInstanceName: {
+				value: function(pinNumber) {
+					return "Digital" + this.pinNumber;
+				}
+			},
+			getSourceFunctionName: {
+				value: function() {
+					return "read";
+				}
+			},
+			beginRepeat: { 
+				value: function() {
+					if (this.direction == "input")
+						SourcePinHandler.prototype.beginRepeat.call(this);
+				} 
+			},
+			write: {
+				value: function(value) {
+					var path = "/" + this.getBLLInstanceName() + "/write";
+					this.sharedPins.invoke(path, value);
+				}
+			},
+			setDirection: {
+				value: function(direction) {
+					if (direction != this.direction) {
+						this.direction = direction;
+				
+						var path = "/" + this.getBLLInstanceName() + "/setDirection";
+						this.sharedPins.invoke(path, direction);
+										
+						if (this.direction == "input")
+							this.beginRepeat();
+					}
+				}
+			},
+			getDirection: {
+				value: function() {
+					return this.direction;
+				}
+			},
+			getGUIData: { 
+				value: function() {
+					if (null == this.guiData)
+						this.guiData = new DigitalPinData(this);
+					return this.guiData;
+				} 
+			},
+		});
+
+		var AnalogSourcePinHandler = function(sharedPins, pinNumber) {
+			SourcePinHandler.call(this, sharedPins, pinNumber);
+		};
+		AnalogSourcePinHandler.prototype = Object.create(SourcePinHandler.prototype, {
+			getBLLInstanceName: {
+				value: function(pinNumber) {
+					return "Analog" + this.pinNumber;
+				}
+			},
+			getSourceFunctionName: {
+				value: function() {
+					return "getValue";
+				}
+			},
+			getGUIData: { 
+				value: function() {
+					if (null == this.guiData)
+						this.guiData = new AnalogPinData(this);
+					return this.guiData;
+				} 
+			},
+		});
+
+		var SinkPinHandler = function(sharedPins, pinNumber) {
+			PinHandler.call(this, sharedPins, pinNumber);
+		};
+		SinkPinHandler.prototype = Object.create(PinHandler.prototype, {
+		});
+
+		var PWMPinHandler = function(sharedPins, pinNumber) {
+			SinkPinHandler.call(this, sharedPins, pinNumber);
+			this.mode = this.isFrontPin() ? 1 : 0;
+			this.period = undefined;
+			this.dutyCycle = undefined;
+		};
+		PWMPinHandler.prototype = Object.create(SinkPinHandler.prototype, {
+			getBLLInstanceName: {
+				value: function() {
+					return "PWM" + this.pinNumber;
+				}
+			},
+			write: {
+				value: function(value) {
+					if (false == SERVER_MODE) {
+						var path = "/" + this.getBLLInstanceName() + "/write";
+						this.sharedPins.invoke(path, value);
+					}
+				}
+			},
+			writeDutyCyclePeriod: {
+				value: function(dutyCycle, period) {
+					if (false == SERVER_MODE) {
+						var params = { dutyCycle: dutyCycle, period: period };
+						var path = "/" + this.getBLLInstanceName() + "/writeDutyCyclePeriod";
+						this.sharedPins.invoke(path, params);
+					}
+				}
+			},
+			setMode: {
+				value: function(mode) {
+					if (mode != this.mode)
+						this.mode = mode;
+				}
+			},
+			getMode: {
+				value: function() {
+					return this.mode;
+				}
+			},
+			setPeriod: {
+				value: function(period) {
+					if (period != this.period)
+						this.period = period;
+				}
+			},
+			getPeriod: {
+				value: function() {
+					return this.period;
+				}
+			},
+			setDutyCycle: {
+				value: function(dutyCycle) {
+					if (dutyCycle != this.dutyCycle)
+						this.dutyCycle = dutyCycle;
+				}
+			},
+			getDutyCycle: {
+				value: function() {
+					return this.dutyCycle;
+				}
+			},
+			getGUIData: { 
+				value: function() {
+					if (null == this.guiData)
+						this.guiData = new PWMPinData(this);
+					return this.guiData;
+				} 
+			},
+			isFrontPin: {
+				value: function() {
+					return this.pinNumber >= leftSlotBasePinNumber;
+				}
+			},
+		});
+	
+		var I2CPinHandler = function(sharedPins, sda, clock, address) {
+			PinHandler.call(this, sharedPins, sda);
+			this.sda = sda;
+			this.clock = clock;
+			this.address = address;
+		};
+		I2CPinHandler.prototype = Object.create(PinHandler.prototype, {
+			getBLLInstanceName: {
+				value: function() {
+					return "I2C sda " + this.sda + " scl " + this.clock;
+				}
+			},
+			setAddress: {
+				value: function(address) {
+					this.address = address;
+					var path = "/" + this.getBLLInstanceName() + "/setAddress";
+					this.sharedPins.invoke(path, address);
+				}
+			},
+			getAddress: {
+				value: function() {
+					return this.address;
+				}
+			},
+			writeWordDataSMB: {
+				value: function(register, wordData) {
+					var path = "/" + this.getBLLInstanceName() + "/writeWordDataSMB";
+					var params = { register : register, wordData : wordData };
+					this.sharedPins.invoke(path, params);
+				}
+			},
+			writeByteDataSMB: {
+				value: function(register, byteData) {
+					var path = "/" + this.getBLLInstanceName() + "/writeByteDataSMB";
+					var params = { register : register, byteData : byteData };
+					this.sharedPins.invoke(path, params);
+				}
+			},
+			readWordDataSMB: {
+				value: function(register, readWordCallback) {
+					this.readWordCallback = readWordCallback;
+					var path = "/" + this.getBLLInstanceName() + "/readWordDataSMB";
+					var params = { register : register };
+					this.sharedPins.invoke(path, params, bindCallback(this, "onReadWordDataSMB"));
+				}
+			},
+			onReadWordDataSMB: {
+				value: function(value) {
+					this.readWordCallback(value);
+				}
+			},
+			readByteDataSMB: {
+				value: function(register, readByteCallback) {
+					this.readByteCallback = readByteCallback;
+					var path = "/" + this.getBLLInstanceName() + "/readByteDataSMB";
+					var params = { register : register };
+					this.sharedPins.invoke(path, params, bindCallback(this, "onReadByteDataSMB"));
+				}
+			},
+			onReadByteDataSMB: {
+				value: function(value) {
+					this.readByteCallback(value);
+				}
+			},
+			getGUIData: { 
+				value: function() {
+					if (null == this.guiData)
+						this.guiData = new I2CPinData(this);
+					return this.guiData;
+				} 
+			},
+		});		
+
+		var SerialPinHandler = function(sharedPins, tx, rx, baud) {
+			SourcePinHandler.call(this, sharedPins, tx);
+			this.tx = tx;
+			this.rx = rx;
+			this.baud = baud;
+		};
+		SerialPinHandler.prototype = Object.create(SourcePinHandler.prototype, {
+			getBLLInstanceName: {
+				value: function() {
+					return "Serial";
+				}
+			},
+			setBaud: {
+				value: function(baud) {
+					this.baud = baud;
+					var path = "/" + this.getBLLInstanceName() + "/setBaud";
+					this.sharedPins.invoke(path, baud);
+				}
+			},
+			getBaud: {
+				value: function() {
+					return this.baud;
+				}
+			},
+			write: {
+				value: function(args) {
+					var path = "/" + this.getBLLInstanceName() + "/write";
+					this.sharedPins.invoke(path, args);
+				}
+			},
+			getSourceFunctionName: {
+				value: function() {
+					return "readAsIntegerArray";
+				}
+			},
+			receivedCallbackValue: { 
+				value: function(value) {
+					if (value.length > 0)
+						application.distribute("onSerialInputReceived", value);		//* should call via pinData
+				} 
+			},
+			getGUIData: { 
+				value: function() {
+					if (null == this.guiData)
+						this.guiData = new SerialPinData(this);
+					return this.guiData;
+				} 
+			},
+		});
+		
+	]]></script>
+</program>

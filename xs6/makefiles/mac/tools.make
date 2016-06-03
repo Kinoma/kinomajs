@@ -55,6 +55,7 @@ MODULES_DBG = \
 	$(TMP_DIR_DBG)/markup.xsb \
 	$(TMP_DIR_DBG)/makefileGrammar.xsb \
 	$(TMP_DIR_DBG)/manifestGrammar.xsb \
+	$(TMP_DIR_DBG)/mcconfig.xsb \
 	$(TMP_DIR_DBG)/packageGrammar.xsb \
 	$(TMP_DIR_DBG)/plistGrammar.xsb \
 	$(TMP_DIR_DBG)/templateGrammar.xsb \
@@ -81,6 +82,7 @@ MODULES_RLS = \
 	$(TMP_DIR_RLS)/makefileGrammar.xsb \
 	$(TMP_DIR_RLS)/manifestGrammar.xsb \
 	$(TMP_DIR_RLS)/packageGrammar.xsb \
+	$(TMP_DIR_RLS)/mcconfig.xsb \
 	$(TMP_DIR_RLS)/plistGrammar.xsb \
 	$(TMP_DIR_RLS)/templateGrammar.xsb \
 	$(TMP_DIR_RLS)/tool.xsb \
@@ -119,7 +121,7 @@ EXPAT_OBJECTS_RLS = \
 	$(TMP_DIR_RLS)/xmlrole.o \
 	$(TMP_DIR_RLS)/xmltok.o
 
-debug: DEBUG_VARIABLES $(TMP_DIR_DBG) $(TMP_DIR_DBG)/make $(TMP_DIR_DBG)/shared $(BIN_DIR_DBG) $(BIN_DIR_DBG)/tools.xsa $(BIN_DIR_DBG)/tools.so 
+debug: DEBUG_VARIABLES $(TMP_DIR_DBG) $(TMP_DIR_DBG)/mcconfig $(TMP_DIR_DBG)/make $(TMP_DIR_DBG)/shared $(BIN_DIR_DBG) $(BIN_DIR_DBG)/tools.xsa $(BIN_DIR_DBG)/tools.so 
 
 DEBUG_VARIABLES:
 	$(eval XSC6 = $(XS6)/bin/mac/debug/xsc6)
@@ -127,6 +129,9 @@ DEBUG_VARIABLES:
 
 $(TMP_DIR_DBG):
 	mkdir -p $(TMP_DIR_DBG)
+	
+$(TMP_DIR_DBG)/mcconfig:
+	mkdir -p $(TMP_DIR_DBG)/mcconfig
 	
 $(TMP_DIR_DBG)/make:
 	mkdir -p $(TMP_DIR_DBG)/make
@@ -163,7 +168,7 @@ $(TMP_DIR_DBG)/tools.xs.o: $(TMP_DIR_DBG)/tools.xs.c
 	$(CC) $< $(C_OPTIONS_DBG) -c -o $@
 
 	
-release: RELEASE_VARIABLES $(TMP_DIR_RLS) $(TMP_DIR_RLS)/make $(TMP_DIR_RLS)/shared $(BIN_DIR_RLS) $(BIN_DIR_RLS)/tools.xsa $(BIN_DIR_RLS)/tools.so 
+release: RELEASE_VARIABLES $(TMP_DIR_RLS) $(TMP_DIR_RLS)/mcconfig $(TMP_DIR_RLS)/make $(TMP_DIR_RLS)/shared $(BIN_DIR_RLS) $(BIN_DIR_RLS)/tools.xsa $(BIN_DIR_RLS)/tools.so 
 
 RELEASE_VARIABLES:
 	$(eval XSC6 = $(XS6)/bin/mac/release/xsc6)
@@ -171,6 +176,9 @@ RELEASE_VARIABLES:
 
 $(TMP_DIR_RLS):
 	mkdir -p $(TMP_DIR_RLS)
+	
+$(TMP_DIR_RLS)/mcconfig:
+	mkdir -p $(TMP_DIR_RLS)/mcconfig
 	
 $(TMP_DIR_RLS)/make:
 	mkdir -p $(TMP_DIR_RLS)/make

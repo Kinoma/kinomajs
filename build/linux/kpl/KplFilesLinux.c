@@ -1233,7 +1233,12 @@ FskErr KplDirectoryGetSpecialPath(UInt32 type, const Boolean create, const char 
 				*fullPath = FskStrDoCopy("/data/.kinoma/");
 			}
 #else
-				*fullPath = FskStrDoCat(getenv("HOME"), "/.kinoma/");
+			{
+				if (0 == FskStrCompare("/", getenv("HOME")))
+					*fullPath = FskStrDoCopy("/.kinoma/");
+				else
+					*fullPath = FskStrDoCat(getenv("HOME"), "/.kinoma/");
+			}
 #endif
 			else
 				*fullPath = FskStrDoCopy(tmp);
@@ -1317,22 +1322,23 @@ static FskThreadDataSource gDirChangeSource = NULL;
 static FskThreadDataHandler gDirChangeHandler = NULL;
 
 static void doChangesCallback(void *a1, void *a2, void *a3, void *a4) {
-	FskFSDirectoryChangeNotifier dirNot = (FskFSDirectoryChangeNotifier)a1;
-	char *path = (char*)a2;
-	int mask = (int)a3;
+	KplDirectoryChangeNotifierCallbackProc callback = (KplDirectoryChangeNotifierCallbackProc)a3;
+	void* refCon = a4;
+	char *path = (char*)a1;
+	int mask = (int)a2;
 	int flags = 0;
 
-	if (path && dirNot->callback) {
+	if (callback) {
 		if (mask & INOTIFY_CHANGE_FILE_MASK)
 			flags |= kKplDirectoryChangeFileChanged;
 		if (mask & INOTIFY_DELETE_FILE_MASK)
 			flags |= kKplDirectoryChangeFileDeleted;
 		if (mask & INOTIFY_CREATE_FILE_MASK)
 			flags |= kKplDirectoryChangeFileCreated;
-
-		(dirNot->callback)(flags, path, dirNot->refCon);
-		FskMemPtrDispose(path);
+		if (mask)
+			(callback)(flags, NULL, refCon);
 	}
+	FskMemPtrDispose(path);
 }
 
 static void dirChangeHandler(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon) {
@@ -1349,18 +1355,16 @@ static void dirChangeHandler(FskThreadDataHandler handler, FskThreadDataSource s
 		l = sizeof(struct inotify_event) + ev->len;
 		p += l;
 		ret -= l;
-		for (walker = gDirectoryChangeNotifiers; walker != NULL; walker = (FskFSDirectoryChangeNotifier)walker->base.next) {
-			if (ev->wd == walker->wd)
-				break;
+		if (ev->len && ev->name && ev->name[0] == '.') {
+			continue;
 		}
-		if (walker) {
-			char *buffer;
-			if (ev->name && ev->name[0] == '.') {
-				continue;
+		for (walker = gDirectoryChangeNotifiers; walker != NULL; walker = (FskFSDirectoryChangeNotifier)walker->base.next) {
+			if (ev->wd == walker->wd) {
+				char *buffer = NULL;
+				if (ev->len)
+					buffer = FskStrDoCopy(ev->name);
+				FskThreadPostCallback(walker->thread, doChangesCallback, buffer, (void *)ev->mask, walker->callback, walker->refCon);
 			}
-			buffer = FskStrDoCopy(ev->name);
-			walker->count += 1;
-			FskThreadPostCallback(walker->thread, doChangesCallback, walker, buffer, (void *)ev->mask, NULL);
 		}
 	}
 	FskMutexRelease(gDirChangeNotifiersMutex);
@@ -1404,17 +1408,16 @@ FskErr KplDirectoryChangeNotifierNew(const char *path, UInt32 flags, KplDirector
 	FskListPrepend((FskList *)&gDirectoryChangeNotifiers, dirNot);
 	dirNot->wd = -1;
 
-	err = sCheckFullPath(path, kKplPathIsDirectory);
-	if (err) {
-		goto bail;
-	}
-
-	mask = INOTIFY_CHANGE_FILE_MASK | INOTIFY_DELETE_FILE_MASK | INOTIFY_CREATE_FILE_MASK;
+	if (!sCheckFullPath(path, kKplPathIsDirectory))
+		mask = INOTIFY_DELETE_FILE_MASK | INOTIFY_CREATE_FILE_MASK;
+	else if (!sCheckFullPath(path, kKplPathIsFile))
+		mask = INOTIFY_CHANGE_FILE_MASK;
+	else
+		BAIL_IF_ERR(kFskErrInvalidParameter);
+	
 	dirNot->wd = inotify_add_watch(iNotifyFD, path, mask);
-	if (dirNot->wd == -1) {
-		err = kFskErrOperationFailed;
-		goto bail;
-	}
+	if (dirNot->wd == -1)
+		BAIL_IF_ERR(kFskErrOperationFailed);
 
 bail:
 	FskMutexRelease(gDirChangeNotifiersMutex);
@@ -1437,14 +1440,18 @@ FskErr KplDirectoryChangeNotifierDispose(KplDirectoryChangeNotifier dirChangeNtf
 		return kFskErrNone;
 
 	dirNot->callback = NULL;
-	dirNot->count -= 1;
-	if (dirNot->count > 0)
-		return kFskErrNone;
 
 	FskMutexAcquire(gDirChangeNotifiersMutex);
 	FskListRemove((FskList*)&gDirectoryChangeNotifiers, dirNot);
 	if (dirNot->wd != -1) {
-		inotify_rm_watch(iNotifyFD, dirNot->wd);
+		FskFSDirectoryChangeNotifier walker;
+		for (walker = gDirectoryChangeNotifiers; walker != NULL; walker = (FskFSDirectoryChangeNotifier)walker->base.next) {
+			if (dirNot->wd == walker->wd) {
+				break;
+			}
+		}
+		if (!walker)
+			inotify_rm_watch(iNotifyFD, dirNot->wd);
 	}
 	FskMutexRelease(gDirChangeNotifiersMutex);
 	FskMemPtrDispose(dirNot);

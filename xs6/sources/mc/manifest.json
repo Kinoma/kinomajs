@@ -1,0 +1,84 @@
+{
+	"build": {
+		"XS": "$(F_HOME)/xs6",
+		"MC": "$(XS)/sources/mc",
+	},
+	"modules": {
+		"~": [
+			"$(MC)/extensions/mqtt/server",
+			"$(MC)/extensions/setup/network",
+			"$(MC)/extensions/setup/timezone",
+			"$(MC)/tools/ktty",
+			"$(MC)/tools/wmpt",
+		],
+		"CLI": "$(MC)/modules/xm_cli",
+		"HTTPClient": "$(MC)/modules/xm_http_client",
+		"HTTPServer": "$(MC)/modules/xm_http_server",
+		"SecureSocket": "$(MC)/extensions/ext_secure_socket",
+		"StudioHTTPServer": "$(MC)/extensions/inetd_studio",
+		"board_led": "$(MC)/modules/xm_led",
+		"coap/*": "$(MC)/extensions/coap/*",
+		"crypt/*": [
+			"$(MC)/external/crypt_*",
+			"$(MC)/external/c25519/src/*",
+			"$(MC)/external/poly1305-donna/poly1305-*",
+		],
+		"hap/*": "$(MC)/proprietary/hap/hap_*",
+		"io/A2D": "$(MC)/extensions/io/io_a2d",
+		"io/GPT": "$(MC)/extensions/io/io_gpt",
+		"io/I2C": "$(MC)/extensions/io/io_i2c",
+		"io/Serial": "$(MC)/extensions/io/io_uart",
+		"io/SPI": "$(MC)/extensions/io/io_spi",
+		"mqtt/*": "$(MC)/extensions/mqtt/*",
+		"pins/_hap": "$(MC)/proprietary/pins__hap",
+		"pins/*": "$(MC)/extensions/pins/pins_*",
+		"setup/*": "$(MC)/extensions/setup/*",
+		"ssl/cert": "$(XS)/extensions/ssl/ssl_cert_mc",
+		"ssl/*": "$(XS)/extensions/ssl/ssl_*",
+		"utils/*": [
+			"$(MC)/extensions/utils/*",
+			"$(F_HOME)/kinoma/kpr/libraries/Utilities/src/utils/buffer"
+		],
+		"websocket/*": "$(MC)/extensions/websocket/*",
+		"*": [
+			"$(MC)/application",
+			"$(MC)/config",
+			"$(MC)/extensions/ext_*",
+			"$(MC)/extensions/inetd_*",
+			"$(MC)/extensions/pins/bll_*",
+			"$(MC)/extensions/*",
+			"$(MC)/proprietary/hap/hap",
+			"$(MC)/proprietary/hap/wac",
+			"$(MC)/extensions/pins/pins",
+			"$(MC)/inetd",
+			"$(MC)/launcher",
+			"$(MC)/modules/xm_*",
+			"$(MC)/synctime",
+			"$(MC)/tools/*",
+			"$(XS)/extensions/crypt/arith",
+			"$(XS)/extensions/crypt/crypt",
+			"$(XS)/extensions/ssl/ssl",
+		],
+	},
+	"platforms":{
+		"mac":{
+			"modules": {
+				"~": [
+					"$(MC)/extensions/mdns/mdns_server",
+					"$(MC)/extensions/mdns/mdns_service",
+				],
+				"mdns": "$(MC)/extensions/mdns/mdns_host",
+				"mdns/*": "$(MC)/extensions/mdns/mdns_*",
+			},
+		},
+		"wm":{
+			"modules": {
+				"~": [
+					"$(MC)/extensions/mdns/mdns_host"
+				],
+				"mdns": "$(MC)/extensions/mdns/mdns",
+				"mdns/*": "$(MC)/extensions/mdns/mdns_*",
+			},
+		},
+	},
+}

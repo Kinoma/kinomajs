@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<modulepath>
+   <modulepathentry path="com.marvell.kinoma.kpr:/libraries/Transitions.zip" kind="plugin" type="lib"></modulepathentry>
+   <modulepathentry path="com.marvell.kinoma.kpr:/libraries/Controls.zip" kind="plugin" type="lib"></modulepathentry>
+   <modulepathentry path="com.marvell.kinoma.kpr:/libraries/MobileFramework.zip" kind="plugin" type="lib"></modulepathentry>
+   <modulepathentry path="/Users/seanallen/Desktop/Creations/src" kind="path" type="lib"></modulepathentry>
+   <modulepathentry path="src" type="src"></modulepathentry>
+</modulepath>

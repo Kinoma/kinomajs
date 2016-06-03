@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<modulepath>
+   <modulepathentry path="Controls" kind="project" type="lib"></modulepathentry>
+   <modulepathentry path="MobileFramework" kind="project" type="lib"></modulepathentry>
+   <modulepathentry path="Transitions" kind="project" type="lib"></modulepathentry>
+   <modulepathentry path="Creations" kind="project" type="lib"></modulepathentry>
+   <modulepathentry path="src" type="src"></modulepathentry>
+</modulepath>

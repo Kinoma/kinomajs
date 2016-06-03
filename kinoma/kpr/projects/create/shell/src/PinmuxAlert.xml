@@ -1,0 +1,224 @@
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<texture id="pinmuxAlertTexture" small="./src/PinmuxAlert.png"/>
+	<skin id="pinmuxSlotSkin" texture="pinmuxAlertTexture" x="0" y="0" width="12" height="45">
+		<variants offset="12"/>
+	</skin>
+	<skin id="pinmuxBaySkin" texture="pinmuxAlertTexture" x="132" y="0" width="24" height="28">
+		<tiles left="10" right="10" top="10" bottom="10"/>
+	</skin>
+	<skin id="pinmuxPortSkin" texture="pinmuxAlertTexture" x="132" y="28" width="24" height="22">
+		<tiles left="10" right="10"/>
+	</skin>
+	<skin id="pinmuxButtonSkin" texture="pinmuxAlertTexture" x="156" y="-22" width="22" height="22">
+		<tiles left="10" right="10" top="10" bottom="10"/>
+		<states offset="22"/>
+		<variants offset="22"/>
+	</skin>
+	<skin id="pinmuxGlyphSkin" texture="pinmuxAlertTexture" x="200" y="0" width="50" height="50">
+		<variants offset="12"/>
+	</skin>
+	<skin id="pinmuxTitleSkin" color="#7d7d7d"/>
+	
+	<style id="pinmuxStyle" font="16px Fira Sans"/>
+
+	<style id="pinmuxTitleStyle" font="bold 24px" color="white"/>
+	<style id="pinmuxPortStyle" font="bold 20px" color="white"/>
+	<style id="pinmuxCancelStyle" font="bold 24px">
+		<states colors="#646464,#646464,white"/>
+	</style>
+	<style id="pinmuxOKStyle" font="bold 24px" color="white"/>
+	<style id="pinmuxTextStyle" font="bold 18px" color="#f27700" align="left"/>
+
+	<container id="PinmuxDialogBox" left="0" right="0" top="0" bottom="0" style="pinmuxStyle" skin="THEME.cancellerSkin" state="1" active="true">
+		<container left="0" right="0" top="0" bottom="0" skin="THEME.dialogBoxSkin" active="true">
+			<label left="0" right="0" top="0" height="30" skin="pinmuxTitleSkin" style="pinmuxTitleStyle" string="'Apply Pins Settings?'"/>
+			<container left="6" right="6" top="30" height="64" skin="pinmuxBaySkin">
+				<content left="8" width="132" top="34" height="22" skin="pinmuxPortSkin"/>
+				<line left="10" top="6" height="45">
+					<iterate on="$.leftPins">
+						<content width="16" height="45" skin="pinmuxSlotSkin" variant="$"/>
+					</iterate>
+				</line>
+				<label left="42" width="60" top="70" height="22" skin="pinmuxPortSkin" style="pinmuxPortStyle" string="$.leftVoltage + 'v'"/>
+				<content right="8" width="132" top="34" height="22" skin="pinmuxPortSkin"/>
+				<line right="10" top="6" height="45">
+					<iterate on="$.rightPins">
+						<content width="16" height="45" skin="pinmuxSlotSkin" variant="$"/>
+					</iterate>
+				</line>
+				<label right="42" width="60" top="70" height="22" skin="pinmuxPortSkin" style="pinmuxPortStyle" string="$.rightVoltage + 'v'"/>
+			</container>
+			<container left="12" right="12" top="128" height="50">
+				<content left="0" width="50" top="0" height="50" skin="pinmuxGlyphSkin"/>
+				<scroller left="56" right="0" top="0" height="50">
+					<text left="0" right="0" top="0" style="pinmuxTextStyle" string="'Incorrect settings can permanently harm your components and this Kinoma Create device.'"/>
+				</scroller>
+			</container>
+			<container left="18" width="120" bottom="10" height="40" skin="pinmuxButtonSkin" state="1" active="true">
+				<behavior like="BUTTONS.ButtonBehavior"> 
+					<method id="onCreate" params="container, data"><![CDATA[
+						BUTTONS.ButtonBehavior.prototype.onCreate.call(this, container, data);
+						if ("cancelURL" in data) {
+							this.callbackURL = data.cancelURL;
+							delete data.cancelURL;
+						}
+						else
+							this.callbackURL = null;
+					]]></method>
+					<method id="onTap" params="container"><![CDATA[
+						BUTTONS.ButtonBehavior.prototype.onTap.call(this, container);
+						getBehavior().closeAlertDialog();
+						if (this.callbackURL)
+							container.invoke(new MessageWithObject(this.callbackURL, this.data));
+					]]></method>
+				</behavior>
+				<label left="0" right="0" top="0" bottom="0" style="pinmuxCancelStyle" string="'Cancel'"/>
+			</container>
+			<container right="18" width="120" bottom="10" height="40" skin="pinmuxButtonSkin" state="1" variant="1" active="true">
+				<behavior like="BUTTONS.ButtonBehavior"> 
+					<method id="onComplete" params="container, message, json"><![CDATA[
+						if (this.callbackURL)
+							container.invoke(new MessageWithObject(this.callbackURL, json));
+					]]></method>
+					<method id="onCreate" params="container, data"><![CDATA[
+						BUTTONS.ButtonBehavior.prototype.onCreate.call(this, container, data);
+						if ("okURL" in data) {
+							this.callbackURL = data.okURL;
+							delete data.okURL;
+						}
+						else
+							this.callbackURL = null;
+					]]></method>
+					<method id="onTap" params="container"><![CDATA[
+						BUTTONS.ButtonBehavior.prototype.onTap.call(this, container);
+						var behavior = getBehavior();
+						if (("close" in this.data) && this.data.close) {
+							behavior.handleApplicationClose(true);
+						}
+						behavior.closeAlertDialog();
+
+                        container.invoke(new MessageWithObject("pins:/pinmux/set", this.data), Message.JSON);
+
+						// log change
+						var data = this.data;
+						K4.log("front-pins", "Pin state changed");
+						var pinNumber = 51;
+						for (var i=0; i < data.leftPins.length; i++) {
+	                  		var pinIndex = data.leftPins[i];
+	                  		var longName = this.pinIndexToLongName(pinIndex);
+							K4.log("front-pins", " Pin " + pinNumber + ": " + longName);
+							pinNumber++;
+	                  	}
+						for (var i=0; i < data.rightPins.length; i++) {
+	                  		var pinIndex = data.rightPins[i];
+	                  		var longName = this.pinIndexToLongName(pinIndex);
+							K4.log("front-pins", " Pin " + pinNumber + ": " + longName);
+							pinNumber++;
+	                  	}
+						K4.log("front-pins", " Left voltage " + data.leftVoltage);
+						K4.log("front-pins", " Right voltage " + data.rightVoltage);
+					]]></method>
+					<method id="pinIndexToLongName" params="index"><![CDATA[
+						switch (index) {
+							case 0:
+								return "Disconnected";
+							break
+							case 1:
+								return "Power";
+							break
+							case 2:
+								return "Ground";
+							break
+							case 3:
+								return "Analog";
+							break
+							case 4:
+								return "Digital Input";
+							break
+							case 5:
+								return "Digital Output";
+							break
+							case 6:
+								return "I2C Clock";
+							break
+							case 7:
+								return "I2C Data";
+							break
+							case 10:
+								return "PWM";
+							break
+						}
+					]]></method>
+				</behavior>
+				<label left="0" right="0" top="0" bottom="0" style="pinmuxOKStyle" string="'Apply'"/>
+			</container>
+		</container>
+	</container>
+
+	<handler path="/settings/pinmux">
+		<behavior>
+			<method id="onComplete" params="handler, message, json"><![CDATA[
+                handler.message.error = message.error;
+
+				var responseText = JSON.stringify(json);
+				handler.message.setResponseHeader("Content-Length", responseText.length);
+				handler.message.setResponseHeader("Content-Type", "application/json");
+				handler.message.responseText = responseText;
+			]]></method>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				message.status = 200;
+				if (message.method == "PUT") {
+					var behavior = getBehavior();
+					var dialog = behavior.alertDialog;
+					if (!dialog) {
+						var data = JSON.parse(message.requestText);
+						var screen = behavior.getScreen();
+						dialog = behavior.alertDialog = new PinmuxDialogBox(data);
+						screen.run(new DialogOpenTransition, dialog);
+					}
+				}
+				else
+                    handler.invoke(new MessageWithObject("pins:/pinmux/get"), Message.JSON);
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/settings/pinmux/dialog">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				message.status = 200;
+				var behavior = getBehavior();
+				var dialog = behavior.alertDialog;
+				if (!dialog) {
+					var data = message.requestObject;
+					var query = parseQuery(message.query);
+					var referrer = message.getRequestHeader("referrer");
+					if ("ok" in query)
+						data.okURL = mergeURI(referrer, query.ok);
+					if ("cancel" in query)
+						data.cancelURL = mergeURI(referrer, query.cancel);
+					var screen = behavior.getScreen();
+					dialog = behavior.alertDialog = new PinmuxDialogBox(data);
+					screen.run(new DialogOpenTransition, dialog);
+				}
+			]]></method>
+		</behavior>
+	</handler>
+
+</program>

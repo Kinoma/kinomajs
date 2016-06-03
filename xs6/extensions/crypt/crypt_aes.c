@@ -14,7 +14,7 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
+
 #include "crypt.h"
 #include "crypt_cipher.h"
 #include "crypt_common.h"

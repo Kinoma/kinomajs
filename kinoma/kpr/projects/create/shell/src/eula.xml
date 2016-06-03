@@ -1,0 +1,97 @@
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<require id="CREATIONS" path="creations/creations"/>
+   	<require id="SKEYBOARD" path="creations/keyboard"/>
+
+	<skin id="whiteSkin" color="white"/>
+
+	<style id="eulaStyle" font="20px" color="black" align="left"/>
+
+	<label id="OKLabel" right="16 + 10" active="true" style="SKEYBOARD.headerButtonsStyle" string="'Accept'">
+		<behavior like="SKEYBOARD.HeaderButtonBehavior">
+			<method id="onTap" params="label">
+				<![CDATA[
+					label.bubble("onEULAAccepted");
+				]]>
+			</method>
+		</behavior>
+	</label>
+
+	<label id="CancelLabel" left="16 + 10" active="true" style="SKEYBOARD.headerButtonsStyle" string="'Shutdown'">
+		<behavior like="SKEYBOARD.HeaderButtonBehavior">
+			<method id="onTap" params="label">
+				<![CDATA[
+					label.bubble("onEULACanceled");
+				]]>
+			</method>
+		</behavior>
+	</label>
+
+	<container id="EULAHeader" left="-16" right="-16" top="0" height="32" skin="new Skin('#c2c2c2')">
+		<label like="CancelLabel"/>
+ 		<label top="0" left="0" bottom="0" right="0" style="CREATIONS.blackDynamicHeaderTitleStyle" string="'License'"/>
+		<label like="OKLabel"/>
+	</container>
+
+	<container id="EULAContainer" left="0" right="0" top="0" bottom="0" active="true" skin="whiteSkin">
+		<behavior>
+			<method id="onEULACanceled" params="container"><![CDATA[
+				shell.invoke(new Message("/quitLauncher"));
+				K4.shutdown();
+			]]></method>
+		</behavior>                
+		<container anchor="BODY" left="0" right="0" top="32" bottom="0">
+			<scroller anchor="DYNAMIC_SCROLLER" left="0" right="0" top="0" bottom="0" like="SCROLLER.VerticalScroller">
+				<text left="5" right="5" top="5" style="eulaStyle">
+					<behavior>
+						<method id="onCreate" params="text, data"><![CDATA[
+							try {
+								text.string = Files.readText(data.url);
+							}
+							catch(e) {
+							}
+						]]></method>
+					</behavior>                
+				</text>
+				<content like="SCROLLER.VerticalScrollbar"/>
+			</scroller>
+		</container>
+		<container anchor="HEADER" like="EULAHeader"/>
+	</container>
+
+	<transition id="EULAZoomOutTransition" duration="500">
+		<method id="onBegin" params="container, former"><![CDATA[
+			this.toScale = 0.1;
+			var layer = this.formerLayer = new Layer({alpha: false});
+			layer.origin = { x : 160, y : 120 }
+			layer.attach(former);
+		]]></method>
+		<method id="onEnd" params="container, former"><![CDATA[
+			this.formerLayer.detach();
+			container.remove(former);
+		]]></method>
+		<method id="onStep" params="fraction"><![CDATA[
+			fraction = Math.quadEaseOut(fraction);
+			var layer = this.formerLayer;
+			layer.opacity = 1 - fraction;
+			var scale = 1 - (fraction * (1 - this.toScale));
+			layer.scale = { x: scale, y: scale };
+		]]></method>
+	</transition>
+
+</program>

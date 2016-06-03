@@ -1,0 +1,464 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+
+    <!-- 
+            Wave Generators
+            
+            Generate various parametric waveforms
+    -->
+    			    
+	<class id="WaveGenerator">  
+ 		
+		<method id="construct" params="pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz"><![CDATA[
+			this.pinNumber = pinNumber;
+			this.outputName = outputName;
+			this.setRange(rangeMin, rangeMax);
+			this.setMinHertz(minHertz);
+			this.setMaxHertz(maxHertz);
+			this.setHertz(hertz);
+		]]></method>
+		
+		<method id="setRange" params="rangeMin, rangeMax"><![CDATA[
+			this.rangeMin = rangeMin;
+			this.rangeMax = rangeMax;
+			//           this.value = undefined;
+		]]></method>
+         
+       <method id="setMinHertz" params="minHertz"><![CDATA[
+            this.minHertz = minHertz;
+         ]]></method>
+
+       <method id="setMaxHertz" params="maxHertz"><![CDATA[
+            this.maxHertz = maxHertz;
+         ]]></method>
+
+       <method id="setHertz" params="hertz"><![CDATA[
+       		var fraction = hertz / (this.maxHertz - this.minHertz);
+        	this.setHertzFraction(fraction);
+         ]]></method>
+
+       <method id="setHertzFraction" params="hertzFraction"><![CDATA[
+       		if (hertzFraction > 1)	hertzFraction = 1;
+       		if (hertzFraction < 0)	hertzFraction = 0;
+            this.hertzFactor = 1000 / lerp(this.minHertz, this.maxHertz, hertzFraction);
+         ]]></method>
+         
+        <method id="start" params="time"><![CDATA[
+            this.startTime = time;
+        ]]></method>
+        
+        <method id="onTimeChanged" params="time"><![CDATA[
+            var fraction = this.timeToFraction(time);
+			var value = this.normalizedValueForFraction(fraction);
+  			application.distribute("onLevelChanged", this.pinNumber, value);
+			this.setPinsValue(value);
+      ]]></method>
+  
+		<method id="setPinsValue" params="value"><![CDATA[
+       ]]></method>
+      
+        <method id="timeToFraction" params="time"><![CDATA[
+            var dt = time - this.startTime;
+            var dt = dt % this.hertzFactor;
+            var fraction = dt / this.hertzFactor;
+            return fraction;
+        ]]></method>
+
+        <method id="applyRange" params="value"><![CDATA[
+        	var scale = this.rangeMax - this.rangeMin;
+        	var rangedValue = (scale * value) + this.rangeMin;
+        	return rangedValue;
+        ]]></method>
+               
+       <method id="normalizedValueForFraction" params="fraction"/>      <!-- subclasses override this -->
+	</class>
+
+	<class id="PWMWaveGenerator" like="WaveGenerator">  
+		<method id="setPinsValue" params="value"><![CDATA[
+			gPinManager.getPinHandler(this.pinNumber).write(value);
+        ]]></method>
+	</class>
+	    
+    <class id="SineWaveGenerator" like="PWMWaveGenerator">
+        <field id="twoPI" value="2 * Math.PI"/>
+
+		<constructor params="pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz"><![CDATA[
+			this.construct(pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz);
+		]]></constructor>
+
+        <method id="normalizedValueForFraction" params="fraction"><![CDATA[
+            var value = this.valueForFraction(fraction)
+            value = (1 + value) / 2;
+ 			value = this.applyRange(value);
+			return value;
+         ]]></method>
+         
+       <method id="valueForFraction" params="fraction"><![CDATA[
+            return Math.sin(fraction * this.twoPI);
+         ]]></method>
+    </class>
+    
+    <class id="TriangleWaveGenerator" like="PWMWaveGenerator">
+        <field id="twoPI" value="2 * Math.PI"/>
+
+		<constructor params="pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz"><![CDATA[
+			this.construct(pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz);
+		]]></constructor>
+
+        <method id="normalizedValueForFraction" params="fraction"><![CDATA[
+            var amplitude = 1;
+            var normalizedValue = ((2 * amplitude) / Math.PI) * Math.asin( Math.sin( this.twoPI * fraction ) );
+            normalizedValue = (1 + normalizedValue) / 2;
+            normalizedValue = this.applyRange(normalizedValue);
+            return normalizedValue;
+        ]]></method>
+    </class>
+    
+    <class id="SquareWaveGenerator" like="PWMWaveGenerator">
+        
+		<constructor params="pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz"><![CDATA[
+			this.construct(pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz);
+		]]></constructor>
+
+        <method id="normalizedValueForFraction" params="fraction"><![CDATA[
+            var normalizedValue = 2 * (2 * Math.floor(fraction) - Math.floor(2 * fraction) + 0.5);
+            normalizedValue = (1 + normalizedValue) / 2;
+            normalizedValue = this.applyRange(normalizedValue);
+            return normalizedValue;
+         ]]></method>
+    </class>
+    	
+    <class id="DigitalSquareWaveGenerator" like="SquareWaveGenerator">
+
+		<constructor params="pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz"><![CDATA[
+			this.construct(pinNumber, outputName, rangeMin, rangeMax, minHertz, maxHertz, hertz);
+		]]></constructor>
+
+ 		<method id="setPinsValue" params="value"><![CDATA[
+			gPinManager.getPinHandler(this.pinNumber).write(value);
+        ]]></method>
+    </class>
+	
+	<content id="GearButton" active="true" width="10" height="40">
+		<behavior>
+			<method id="onTouchBegan" params="content, id, x, y, ticks"><![CDATA[
+				content.state = 1;
+			]]></method>
+			<method id="onTouchEnded" params="content, id, x, y, ticks"><![CDATA[
+				content.state = 0;
+				content.delegate("onTap");
+			]]></method>
+		</behavior>
+	</content>
+	
+	<content id="PWMGearButton" active="true" skin="gearSkin">
+		<behavior>
+			<method id="onCreate" params="content, data"><![CDATA[
+				this.data = data;
+			]]></method>
+			<method id="onTouchBegan" params="content, id, x, y, ticks"><![CDATA[
+				content.state = 1;
+			]]></method>
+			<method id="onTouchEnded" params="content, id, x, y, ticks"><![CDATA[
+				content.state = 0;
+				content.delegate("onTap");
+				content.invoke( new Message( "/pwm-control-screen?pinNumber=" + this.data.pinNumber ) );
+			]]></method>
+		</behavior>
+	</content>
+	
+	<content id="DigitalOutGearButton" active="true" skin="gearSkin">
+		<behavior>
+			<method id="onCreate" params="content, data"><![CDATA[
+				this.data = data;
+			]]></method>
+			<method id="onTouchBegan" params="content, id, x, y, ticks"><![CDATA[
+				content.state = 1;
+			]]></method>
+			<method id="onTouchEnded" params="content, id, x, y, ticks"><![CDATA[
+				content.state = 0;
+				content.delegate("onTap");
+				content.invoke( new Message( "/digital-output-control-screen?pinNumber=" + this.data.pinNumber ) );
+			]]></method>
+		</behavior>
+	</content>
+
+	<behavior id="CanvasRangedSliderBehavior">
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			this.data = data;
+			if (! ("min" in data))			data.min = 0;
+			if (! ("max" in data))			data.max = 0;
+			if (! ("lowerValue" in data))	data.lowerValue = 0;
+			if (! ("upperValue" in data))	data.upperValue = 1;
+		]]></method>
+		<method id="getMax" params="canvas"><![CDATA[
+			return this.data.max;
+		]]></method>
+		<method id="getMin" params="canvas"><![CDATA[
+			return this.data.min;
+		]]></method>
+		<method id="onLayoutChanged" params="canvas"><![CDATA[
+		]]></method>
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			this.lowerThumbTouchBeganXOffset = 0;
+			this.upperThumbTouchBeganXOffset = 0;
+            this.knobHeight = canvas.height;
+     //       this.knobWidth = this.knobHeight * (22 / 38);
+            this.knobWidth = this.knobHeight;
+			this.sliderBarHeight = this.knobHeight * (16 / 38);
+            this.halfKnobWidth = this.knobWidth / 2;
+            this.insetWidth = this.knobWidth + 8;
+            this.halfInsetWidth = this.insetWidth / 2;
+           	this.trackingWidth = canvas.width - this.insetWidth;
+           	this.tracking = "none";
+			SLIDERS.SliderBehavior.prototype.onDisplaying.call(this, canvas);
+		]]></method>
+		<method id="onTouchBegan" params="canvas, id, x, y, ticks"><![CDATA[
+            canvas.captureTouch(id, x, y, ticks);
+           	var hitLowerThumb = this.hitTestLowerThumb(canvas, x, y);
+			if (hitLowerThumb) {
+				this.lowerThumbTouchBeganXOffset = this.getLowerThumbTouchBeganXOffset(canvas, x);
+				this.tracking = "lower";
+				this.onTouchMoved(canvas, id, x, y, ticks);
+				return;
+			}
+			var hitUpperThumb = this.hitTestUpperThumb(canvas, x, y);
+			if (hitUpperThumb) {
+				this.upperThumbTouchBeganXOffset = this.getUpperThumbTouchBeganXOffset(canvas, x);
+				this.tracking = "upper";
+				this.onTouchMoved(canvas, id, x, y, ticks);
+				return;
+			}
+			this.tracking = "none";
+		]]></method>
+		<method id="onTouchEnded" params="canvas, id, x, y, ticks"><![CDATA[
+		]]></method>
+		<method id="onTouchMoved" params="canvas, id, x, y, ticks"><![CDATA[
+			if (this.tracking == "lower") {
+				x -= this.lowerThumbTouchBeganXOffset;
+				var size = this.trackingWidth;
+				var offset = (x - canvas.x - this.halfInsetWidth);
+				var upperOffset = this.getUpperOffset(canvas, this.trackingWidth);
+				var lowerOffset = this.getLowerOffset(canvas, this.trackingWidth);
+				if (offset > upperOffset)
+					offset = upperOffset;
+				if (offset != lowerOffset) {
+					this.setLowerOffset(canvas, size, offset);
+					this.onValueChanged(canvas);
+				}
+			}
+			else if (this.tracking == "upper") {
+				x -= this.upperThumbTouchBeganXOffset;
+				var size = this.trackingWidth;
+				var offset = (x - canvas.x - this.halfInsetWidth);
+				var upperOffset = this.getUpperOffset(canvas, this.trackingWidth);
+				var lowerOffset = this.getLowerOffset(canvas, this.trackingWidth);
+				if (offset < lowerOffset)
+					offset = lowerOffset;
+				if (offset != upperOffset) {
+					this.setUpperOffset(canvas, size, offset);
+					this.onValueChanged(canvas);
+				}
+			}
+		]]></method>
+		<method id="setLowerOffset" params="canvas, size, offset"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = min + ((offset * (max - min)) / size);
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setLowerValue(canvas, value);		
+		]]></method>
+		<method id="setUpperOffset" params="canvas, size, offset"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = min + ((offset * (max - min)) / size);
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setUpperValue(canvas, value);		
+		]]></method>
+		<method id="setLowerValue" params="canvas, value"><![CDATA[
+			this.data.lowerValue = value;	
+		]]></method>
+		<method id="setUpperValue" params="canvas, value"><![CDATA[
+			this.data.upperValue = value;	
+		]]></method>
+		<method id="getLowerValue" params="canvas, value"><![CDATA[
+			return this.data.lowerValue;	
+		]]></method>
+		<method id="getUpperValue" params="canvas, value"><![CDATA[
+			return this.data.upperValue;	
+		]]></method>
+		<method id="getLowerOffset" params="canvas, size"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = this.getLowerValue(canvas);
+			return Math.round(((value - min) * size) / (max - min));
+		]]></method>
+		<method id="getUpperOffset" params="canvas, size"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = this.getUpperValue(canvas);
+			return Math.round(((value - min) * size) / (max - min));
+		]]></method>
+		<method id="hitTestLowerThumb" params="canvas, x, y"><![CDATA[
+			x -= canvas.container.x;
+			y -= canvas.container.y;
+			var b = this.getLowerThumbBounds(canvas);
+			return (x >= b.x - b.width/2 && x <= (b.x + b.width/2) && y >= b.y && y <= (b.y + b.height));
+		]]></method>
+		<method id="hitTestUpperThumb" params="canvas, x, y"><![CDATA[
+			x -= canvas.container.x;
+			y -= canvas.container.y;
+			var b = this.getUpperThumbBounds(canvas);
+			return (x >= (b.x + b.width/2 + 1) && x <= (b.x + 1.5 * b.width) && y >= b.y && y <= (b.y + b.height));	
+		]]></method>
+		<method id="getLowerThumbBounds" params="canvas"><![CDATA[
+            var offset = this.getLowerOffset(canvas, this.trackingWidth);
+			return {
+				x : offset + 4, 
+				y : 3, 
+				width : this.knobWidth, 
+				height : this.knobHeight - 6 
+			}
+		]]></method>
+		<method id="getUpperThumbBounds" params="canvas"><![CDATA[
+            var offset = this.getUpperOffset(canvas, this.trackingWidth);
+			return {
+				x : offset + 4, 
+				y : 3, 
+				width : this.knobWidth, 
+				height : this.knobHeight - 6 
+			}
+		]]></method>
+		<method id="getLowerThumbTouchBeganXOffset" params="canvas, x"><![CDATA[
+			x -= canvas.container.x;
+			var b = this.getLowerThumbBounds(canvas);
+			var centerX = b.x + (b.width / 2);
+			var deltaX = x - centerX;
+			return deltaX;
+		]]></method>
+		<method id="getUpperThumbTouchBeganXOffset" params="canvas, x"><![CDATA[
+			x -= canvas.container.x;
+			var b = this.getUpperThumbBounds(canvas);
+			var centerX = b.x + (b.width / 2);
+			var deltaX = x - centerX;
+			return deltaX;
+		]]></method>
+		<method id="onValueChanged" params="canvas"><![CDATA[
+            var active = canvas.active;
+            var trackingWidth = this.trackingWidth;
+            var lowerOffset = this.getLowerOffset(canvas, trackingWidth);
+            var upperOffset = this.getUpperOffset(canvas, trackingWidth);
+           
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "black";
+            var sliderBarHeight = this.sliderBarHeight;
+            var sliderBarTop = (canvas.height / 2) - (sliderBarHeight / 2);
+            ctx.fillStyle =  "#e6e6e6";
+            ctx.fillRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+            ctx.fillStyle =  "#8acc50";
+                        
+            ctx.fillRect(this.halfInsetWidth + lowerOffset, sliderBarTop, (upperOffset - lowerOffset), sliderBarHeight);
+			ctx.lineWidth = 1;
+            ctx.strokeRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+       
+			ctx.fillStyle = "white";										// lower thumb  
+			ctx.lineWidth = 2;	
+			var b = this.getLowerThumbBounds(canvas);
+			roundRect(ctx, b.x, b.y, b.width/2 - 1, b.height, 4, true, true);
+
+			ctx.fillStyle = "white";										// upper thumb  
+			ctx.lineWidth = 2;	
+			var b = this.getUpperThumbBounds(canvas);
+			roundRect(ctx, b.x + b.width/2 + 1, b.y, b.width/2 - 1, b.height, 4, true, true);
+		]]></method>
+    </behavior>
+	
+	<behavior id="RangeSliderBehavior" like="CanvasRangedSliderBehavior">
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			this.data = data;
+			data.min = 0;
+			data.max = 1;
+			data.value = 0;
+			CanvasRangedSliderBehavior.prototype.onCreate.call(this, canvas, data);
+		]]></method>
+
+		<method id="setLowerValue" params="canvas, value"><![CDATA[
+			rememberMinRange(this.data.pinNumber, value);
+		]]></method>
+		<method id="setUpperValue" params="canvas, value"><![CDATA[
+			rememberMaxRange(this.data.pinNumber, value);
+		]]></method>
+		<method id="getLowerValue" params="canvas, value"><![CDATA[
+			return recallMinRange(this.data.pinNumber);
+		]]></method>
+		<method id="getUpperValue" params="canvas, value"><![CDATA[
+			return recallMaxRange(this.data.pinNumber);
+		]]></method>
+		
+		<method id="onValueChanged" params="canvas"><![CDATA[
+			CanvasRangedSliderBehavior.prototype.onValueChanged.call(this, canvas);
+			
+			var lowerValue = this.getLowerValue();
+			var upperValue = this.getUpperValue();
+			
+			canvas.container.container.delegate("onRangeChanged", lowerValue, upperValue);	
+		]]></method>
+	</behavior>
+	
+	<container id="RangeSlider" left="0" bottom="0" width="135" height="40">
+        <canvas name="canvas" left="0" top="0" right="0" bottom="0" active="true" behavior="RangeSliderBehavior"/>
+    </container>
+    
+	<behavior id="HertzSliderBehavior" like="CanvasSliderBehavior">
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			this.data = data;
+			data.min = 0;
+			data.max = 1;
+			data.value = recallHertzValue(this.data.pinNumber);
+			CanvasSliderBehavior.prototype.onCreate.call(this, canvas, data);
+		]]></method>
+		<method id="onValueChanged" params="canvas"><![CDATA[
+			CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
+			var value = this.data.value;
+			rememberHertzValue(this.data.pinNumber, value);
+			canvas.container.container.delegate("onHertzFractionChanged", value);	
+		]]></method>
+	</behavior>
+	
+	<label id="HertzSliderLabel" right="0" bottom="38" width="135" style="dialogSliderLabelStyle" string="'Hertz'"/>
+
+	<container id="HertzSlider" right="0" bottom="0" width="135" height="40">
+        <canvas name="canvas" left="0" top="0" right="0" bottom="0" active="true" behavior="HertzSliderBehavior"/>
+    </container>
+    
+	<effect id="enabledEffect">
+		<colorize color="#5ab021"/>
+	</effect>
+	<effect id="selectedEffect">
+		<colorize color="#333333"/>
+	</effect>
+	<variable id="greenButtonSkin" value="new THEME.DynamicSkin( THEME.buttonTexture, THEME.disabledEffect, enabledEffect, selectedEffect, undefined,
+														{ left : 10, top : 10, right : 10, bottom : 10 })"/>
+														
+	<style id="greenButtonStyle" font="bold 24px" color="white" align="middle,left" lines="1"/>
+
+</program>

@@ -1,0 +1,157 @@
+{
+    "1800": {
+        "name": "Generic Access",
+        "type": "org.bluetooth.service.generic_access",
+        "characteristics": {}
+    },
+    "1801": {
+        "name": "Generic Attribute",
+        "type": "org.bluetooth.service.generic_attribute",
+        "characteristics": {}
+    },
+    "1802": {
+        "name": "Immediate Alert",
+        "type": "org.bluetooth.service.immediate_alert",
+        "characteristics": {}
+    },
+    "1803": {
+        "name": "Link Loss",
+        "type": "org.bluetooth.service.link_loss",
+        "characteristics": {}
+    },
+    "1804": {
+        "name": "Tx Power",
+        "type": "org.bluetooth.service.tx_power",
+        "characteristics": {}
+    },
+    "1805": {
+        "name": "Current Time Service",
+        "type": "org.bluetooth.service.current_time",
+        "characteristics": {}
+    },
+    "1806": {
+        "name": "Reference Time Update Service",
+        "type": "org.bluetooth.service.reference_time_update",
+        "characteristics": {}
+    },
+    "1807": {
+        "name": "Next DST Change Service",
+        "type": "org.bluetooth.service.next_dst_change",
+        "characteristics": {}
+    },
+    "1808": {
+        "name": "Glucose",
+        "type": "org.bluetooth.service.glucose",
+        "characteristics": {}
+    },
+    "1809": {
+        "name": "Health Thermometer",
+        "type": "org.bluetooth.service.health_thermometer",
+        "characteristics": {}
+    },
+    "180A": {
+        "name": "Device Information",
+        "type": "org.bluetooth.service.device_information",
+        "characteristics": {
+            "2A29": {
+                "name": "Manufacturer Name String",
+                "type": "org.bluetooth.characteristic.manufacturer_name_string"
+            },
+            "2A24": {
+                "name": "Model Number String",
+                "type": "org.bluetooth.characteristic.model_number_string"
+            },
+            "2A25": {
+                "name": "Serial Number String",
+                "type": "org.bluetooth.characteristic.serial_number_string"
+            },
+            "2A26": {
+                "name": "Firmware Revision String",
+                "type": "org.bluetooth.characteristic.firmware_revision_string"
+            },
+            "2A27": {
+                "name": "Hardware Revision String",
+                "type": "org.bluetooth.characteristic.hardware_revision_string"
+            },
+            "2A28": {
+                "name": "Software Revision String",
+                "type": "org.bluetooth.characteristic.software_revision_string"
+            },
+            "2A23": {
+                "name": "System ID",
+                "type": "org.bluetooth.characteristic.system_id"
+            },
+            "2A2A": {
+                "name": "IEEE 11073-20601 Regulatory Certification Data List",
+                "type": "org.bluetooth.characteristic.ieee_11073-20601_regulatory_certification_data_list"
+            },
+            "2A50": {
+                "name": "PnP ID",
+                "type": "org.bluetooth.characteristic.pnp_id"
+            }
+        }
+    },
+    "180D": {
+        "name": "Heart Rate",
+        "type": "org.bluetooth.service.heart_rate",
+        "characteristics": {
+            "2A37": {
+                "name": "Heart Rate Measurement",
+                "type": "org.bluetooth.characteristic.heart_rate_measurement"
+            },
+            "2A38": {
+                "name": "Body Sensor Location",
+                "type": "org.bluetooth.characteristic.body_sensor_location"
+            },
+            "2A39": {
+                "name": "Heart Rate Control Point",
+                "type": "org.bluetooth.characteristic.heart_rate_control_point"
+            }
+        }
+    },
+    "180E": {
+        "name": "Phone Alert Status Service",
+        "type": "org.bluetooth.service.phone_alert_service",
+        "characteristics": {}
+    },
+    "180F": {
+        "name": "Battery Service",
+        "type": "org.bluetooth.service.battery_service",
+        "characteristics": {
+            "2A19": {
+                "name": "Battery Level",
+                "type": "org.bluetooth.characteristic.battery_level"
+            }
+        }
+    },
+    "1810": {
+        "name": "Blood Pressure",
+        "type": "org.bluetooth.service.blood_pressuer",
+        "characteristics": {}
+    },
+    "1811": {
+        "name": "Alert Notification Service",
+        "type": "org.bluetooth.service.alert_notification",
+        "characteristics": {}
+    },
+    "1812": {
+        "name": "Human Interface Device",
+        "type": "org.bluetooth.service.human_interface_device",
+        "characteristics": {}
+    },
+    "1813": {
+        "name": "Scan Parameters",
+        "type": "org.bluetooth.service.scan_parameters",
+        "characteristics": {}
+    },
+    "1814": {
+        "name": "Running Speed and Cadence",
+        "type": "org.bluetooth.service.running_speed_and_cadence",
+        "characteristics": {}
+    },
+    "1815": {
+        "name": "Cycling Speed and Cadence",
+        "type": "org.bluetooth.service.cycling_speed_and_cadence",
+        "characteristics": {}
+    }
+}

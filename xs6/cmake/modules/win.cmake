@@ -20,18 +20,18 @@ set(CMAKE_USER_MAKE_RULES_OVERRIDE_CXX
 	${F_HOME}/xs6/cmake/overrides/cxx_flag_overrides.cmake)
 
 macro(BUILD)
-	LIST(APPEND SOURCES ${RESOURCE})
+	add_custom_target(copy_resources DEPENDS ${WIN_COPY_FILES})
+	list(APPEND SOURCES ${RESOURCE})
 	add_executable(${APP_NAME} WIN32 ${SOURCES} ${FskPlatform_SOURCES})
 	target_link_libraries(${APP_NAME} ${LIBRARIES} ${OBJECTS})
+	add_dependencies(${APP_NAME} copy_resources)
 
-	add_custom_target(
-		Assemble
-		ALL
+	add_custom_command(
+		TARGET ${APP_NAME}
+		POST_BUILD
 		COMMAND ${CMAKE_COMMAND} -E make_directory ${APP_DIR}
 		COMMAND ${CMAKE_COMMAND} -E copy_directory ${RES_DIR}/ ${APP_DIR}
-		COMMAND ${CMAKE_COMMAND} -E copy_directory ${TMP_DIR}/app $<TARGET_FILE_DIR:${APP_NAME}>
-		COMMAND ${CMAKE_COMMAND} -E make_directory ${APP_DIR}
 		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${APP_NAME}> ${APP_DIR}
-		# DEPENDS ${APP_NAME} FskManifest.xs6a
+		COMMAND ${CMAKE_COMMAND} -E copy_directory ${APP_DIR}/ $<TARGET_FILE_DIR:${APP_NAME}>
 		)
 endmacro()

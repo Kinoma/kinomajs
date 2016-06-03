@@ -1,0 +1,485 @@
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<require path="mobile/model" id="MODEL"/>
+	
+	<behavior id="SettingHandlerBehavior">
+		<method id="onGet" params="handler, message"><![CDATA[
+			message.status = 404;
+			return null;
+		]]></method>
+		<method id="onSet" params="handler, message, it"><![CDATA[
+			message.status = 403;
+		]]></method>
+		<method id="onInvoke" params="handler, message"><![CDATA[
+			message.status = 200;
+			if (message.method == "PUT") {
+				try {
+					this.onSet(handler, message, JSON.parse(message.requestText));
+				}
+				catch(e) {
+					message.status = 400;
+				}
+			}
+			else {
+				var responseText = JSON.stringify(this.onGet(handler, message));
+				message.setResponseHeader("Content-Length", responseText.length);
+				message.setResponseHeader("Content-Type", "application/json");
+				message.responseText = responseText;
+			}
+		]]></method>
+	</behavior>
+	
+	<handler path="/settings/allow-debugging">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var preferences = getPreferences();
+				return preferences.getPreference("allowDebugging", "on");
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+				var preferences = getPreferences();
+				preferences.setPreference("allowDebugging", it);
+				preferences.write();
+                shell.distribute("onDeviceDebugSettingsChanged");
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/settings/require-password">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+                var behavior = getBehavior();
+                var credentials = behavior.getCredentials();
+                var required = ("required" in credentials && credentials.required == true) ? "on" : "off";
+				return required;
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+                var behavior = getBehavior();
+                var credentials = behavior.getCredentials();
+                var required = it == "on";
+                if (credentials)
+                    credentials.required = required;
+                else
+                    credentials = { required: required };
+                behavior.setCredentials(credentials);
+                shell.distribute("onDeviceDebugSettingsChanged");
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/settings/backGesture">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var preferences = getPreferences();
+				return preferences.getPreference("backGesture", "circle");
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+				var preferences = getPreferences();
+				preferences.setPreference("backGesture", it);
+				preferences.write();
+				system.backGesture = backGestures[it];
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/settings/name">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var preferences = getPreferences();
+				var deviceInfo = preferences.getPreference("deviceInfo", { name: "Kinoma Create" });
+				return deviceInfo.name;
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+				var preferences = getPreferences();
+				preferences.setPreference("deviceInfo", { name: it });
+				preferences.write();
+				shell.distribute("onDeviceNameChanged");
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/settings/password">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var behavior = getBehavior();
+				var credentials = behavior.getCredentials();
+				return credentials ? credentials.password : "";
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+				var behavior = getBehavior();
+				var credentials = behavior.getCredentials();
+				if (credentials)
+					credentials.password = it;
+				else
+					credentials = { password: it };
+				behavior.setCredentials(credentials);
+                shell.distribute("onDeviceDebugSettingsChanged");
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/settings/startup-app">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var preferences = getPreferences();
+				return preferences.getPreference("startupApp", { name : "Home", id : "launcher.create.kinoma.marvell.com" } );
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+				var preferences = getPreferences();
+				preferences.setPreference("startupApp", it);
+				preferences.write();
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/settings/startup-app-list">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var applicationManager = getBehavior().getApplicationManager();
+				var c = applicationManager.getExtensionCount();
+				var items = new Array();
+				
+				var currentVersion = getEnvironmentVariable('VERSION');
+				var defaultIcon = mergeURI(shell.url, "./src/default-icon.png");
+				
+				var item = {
+					id : "launcher.create.kinoma.marvell.com",
+					title : "Home",
+					date : currentVersion,
+					icon : mergeURI(shell.url, "./src/launcher-icon.png"),
+					backgroundColor : "white"
+				}
+				items.push(item);
+				
+				for (var i in defaultItems) {
+					var info = applicationManager.getExtensionById(i);
+					if (info) {
+						var item = defaultItems[i];
+						item.icon = mergeURI(info.url, "icon.png");
+						item.id = info.id;
+						item.title = info.title;
+						item.date = this.getDateString(info.url);
+				
+						items.push(item);
+					}
+				}
+				
+				for (var i = 0; i < c; i++) {
+					var info = applicationManager.getExtensionByIndex(i);
+					var date = this.getDateString(info.url);
+					if (!info.temporary && !(info.id in defaultItems)) {
+						var icon = mergeURI(info.url, "icon.png");
+						var item = {
+							id : info.id,
+							title : info.title,
+							backgroundColor : "white",
+							date : date
+						};
+						if (Files.exists(icon))
+							item.icon = icon;
+						else
+							item.icon = defaultIcon;
+						items.push(item);
+					}
+				}
+				return items;	
+			]]></method>
+			<method id="getDateString" params="url">
+				if (Files.exists(url)) {
+					var now = Date.now();
+					var today = LOCALE.today();
+					var info = Files.getInfo(url);
+					var date = new Date(info.date);
+					return LOCALE.formatDateTime(date, today, 0, now);
+				}
+				else
+					return "";
+			</method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/settings/deletable-app-list">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var applicationManager = getBehavior().getApplicationManager();
+                var persistentPath = getBehavior().getUploadPath( false );
+				var c = applicationManager.getExtensionCount();
+				var items = new Array();
+				
+				var defaultIcon = mergeURI(shell.url, "./src/default-icon.png");
+				
+				for (var i = 0; i < c; i++) {
+					var info = applicationManager.getExtensionByIndex(i);
+                    if( info.url.indexOf( persistentPath ) == 0 ) {
+						var icon = mergeURI(info.url, "icon.png");
+						var path = info.url.replace("application.xml", "");						
+						var item = {
+							id : info.id,
+							title : info.title,
+							path : path,
+							backgroundColor : "white"
+						};
+						if (Files.exists(icon))
+							item.icon = icon;
+						else
+							item.icon = defaultIcon;
+						items.push(item);
+					}
+				}
+				return items;	
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+			]]></method>
+		</behavior>
+	</handler>
+
+	<handler path="/settings/timezone">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var preferences = getPreferences();
+				return preferences.getPreference("timeZone", { zone: -8, "daylight-savings": false });
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+				var preferences = getPreferences();
+				preferences.setPreference("timeZone", it);
+				preferences.write();
+				shell.distribute("onTimeZoneChanged");
+			]]></method>
+		</behavior>
+	</handler>
+
+    <handler path="/settings/version">
+        <behavior like="SettingHandlerBehavior">
+            <method id="onGet" params="handler, message"><![CDATA[
+                var currentVersion = getEnvironmentVariable('VERSION');
+                return {
+                    "current-version" : "0",         // string with installed version
+                    "latest-version" : K4.checkLauncherUpdate.toString() // string with latest available version
+                };
+            ]]></method>
+        </behavior>
+    </handler>
+    
+    <handler path="/settings/clear-apps">
+        <behavior like="SettingHandlerBehavior">
+            <method id="onGet" params="handler, message"><![CDATA[
+                var applicationManager = getBehavior().getApplicationManager();
+                var temporaryPath = getBehavior().getUploadPath( true );
+                var c = applicationManager.getExtensionCount();
+                var extensionsToRemove = new Array();
+                for (var i = 0; i < c; i++) 
+                {
+                    var info = applicationManager.getExtensionByIndex(i);
+                    if( info.url.indexOf( temporaryPath ) == 0 )
+                        extensionsToRemove.push( info );
+                }
+                for( var j = 0; j < extensionsToRemove.length; j++ ) 
+                {
+                    // unregister the application from the extension manager
+                    applicationManager.unregisterExtension( extensionsToRemove[j] );
+                    
+                    // remove all of the directories in the application cache directory
+                    var applicationCacheDirectory = mergeURI( temporaryPath + "/", "applications/" );
+                    var iterator = new Files.Iterator( applicationCacheDirectory, true );
+                    var file = null;
+                    
+                    // iterate through all of the files in the applications cache
+                    // directory and delete each directory
+                    while( file = iterator.getNext() ) 
+                    {
+                        // ensure that the file type is a directory
+                        if( file.type == Files.directoryType ) 
+                        {
+                            var path = mergeURI( applicationCacheDirectory, file.path + "/" );
+                    
+                            try {
+                                Files.deleteDirectory( path, true );
+                            }
+                            catch( e ) {
+                                trace( "!!! There was an error attempting to delete the cache directory: " + path + " -- " + e + "\n" );
+                            }
+                        }
+                    }
+                }
+                if (extensionsToRemove.length)
+ 					getBehavior().refreshShellContainer();
+				return "";
+            ]]></method>
+        </behavior>
+    </handler>
+    
+    <handler path="/settings/clear-apps-prefs">
+        <behavior like="SettingHandlerBehavior">
+            <method id="onGet" params="handler, message"><![CDATA[
+                var applicationManager = getBehavior().getApplicationManager();
+                var temporaryPath = getBehavior().getUploadPath( true );
+                var c = applicationManager.getExtensionCount();
+                for (var i = 0; i < c; i++) 
+                {
+                    var info = applicationManager.getExtensionByIndex(i);
+                    if( info.url.indexOf( temporaryPath ) == 0 ) {
+						MODEL.ApplicationBehavior.prototype.deleteAllPreferences.call(this, info.di);
+                    }
+                }
+                return "";
+            ]]></method>
+        </behavior>
+    </handler>
+    
+    <handler path="/settings/doUpdate">
+        <behavior>
+            <method id="onInvoke"><![CDATA[
+               K4.doLauncherUpdate(); 
+            ]]></method>
+        </behavior>
+    </handler>
+	 
+	<handler path="/settings/backlight">
+		<behavior>
+			<method id="onComplete" params="handler, message, json"><![CDATA[
+				var responseText = JSON.stringify(json);
+				handler.message.setResponseHeader("Content-Length", responseText.length);
+				handler.message.setResponseHeader("Content-Type", "application/json");
+				handler.message.responseText = responseText;
+			]]></method>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				message.status = 200;
+				if (message.method == "PUT") {
+					var it = JSON.parse(message.requestText);
+                    handler.invoke(new MessageWithObject("pins:/backlight/write", it));
+					var preferences = getPreferences();
+					preferences.setPreference("backlight", it);
+					preferences.write();
+                }
+				else
+                    handler.invoke(new MessageWithObject("pins:/backlight/read"), Message.JSON);
+			]]></method>
+		</behavior>
+	</handler>
+	
+	<handler path="/clearAllBreakpoints">
+		<behavior like="AuthenticatedDebugHandlerMessageBehavior">
+			<method id="processMessage" params="handler, message, params"><![CDATA[
+				var host = getBehavior().getApplicationContainer();
+				if (host) {
+					host.clearAllBreakpoints();
+					var message = new Message("pins:clearAllBreakpoints");
+					message.setRequestHeader("referrer", "xkpr://" + host.id);
+					shell.invoke(message);
+				}
+			]]></method>
+		</behavior>
+	 </handler>
+	
+	<handler path="/clearBreakpoint">
+		<behavior like="AuthenticatedDebugHandlerMessageBehavior">
+			<method id="processMessage" params="handler, message, params"><![CDATA[
+				if (params.contains("file") && params.contains("line")) {
+					var host = getBehavior().getApplicationContainer();
+					if (host) {
+						var file = params.getValue("file");
+						var line = params.getValue("line");
+						host.clearBreakpoint(file, line);
+						var message = new Message("pins:clearBreakpoint?" + serializeQuery({ file: file, line: line }));
+						message.setRequestHeader("referrer", "xkpr://" + host.id);
+						shell.invoke(message);
+					}
+				}
+			]]></method>
+		</behavior>
+	 </handler>
+	
+	<handler path="/setBreakpoint">
+		<behavior like="AuthenticatedDebugHandlerMessageBehavior">
+			<method id="processMessage" params="handler, message, params"><![CDATA[
+				if (params.contains("file") && params.contains("line")) {
+					var host = getBehavior().getApplicationContainer();
+					if (host) {
+						var file = params.getValue("file");
+						var line = params.getValue("line");
+						host.setBreakpoint(file, line);
+						var message = new Message("pins:setBreakpoint?" + serializeQuery({ file: file, line: line }));
+						message.setRequestHeader("referrer", "xkpr://" + host.id);
+						shell.invoke(message);
+					}
+				}
+			]]></method>
+		</behavior>
+	 </handler>
+	 
+	 <handler path="/dial">
+		<behavior>
+			<method id="onInvoke" params="handler, message"><![CDATA[
+				var url = mergeURI(shell.url, "upnp/dd.xml");
+				if (Files.exists(url)) {
+					var text = Files.readText(url);
+					var deviceInfo = getPreferences().getPreference("deviceInfo", { name: "Kinoma Create" });
+					if (deviceInfo && deviceInfo.name)
+						text = text.replace("[friendlyName]", deviceInfo.name);
+					else
+						text = text.replace("[friendlyName]", "Kinoma Create");
+					text = text.replace("[udn]", shell.uuid);
+					//@@ version
+					message.setResponseHeader("Application-URL", mergeURI(message.url, "/dial/apps/"));
+					message.setResponseHeader("Content-Type", "text/xml; charset=\"utf-8\"");
+					message.responseText = text;
+					message.status = 200;
+				}
+			]]></method>	
+		</behavior>
+	</handler>
+
+	<class id="DialHandlerBehavior" like="DebugBehavior">
+		<method id="onComplete" params="handler, message, json"><![CDATA[
+			var id = message.authority;
+			var text = '<?xml version="1.0" encoding="UTF-8"?>';
+			text += '<service xmlns="urn:dial-multiscreen-org:schemas:dial" dialVer="1.7">';
+			text += '<name>' + id + '</name>';
+			text += '<options allowStop="true"/>';
+			text += '<state>running</state>';
+			text += '<link rel="run" href="run"/>';
+			if (json) {
+				text += '<additionalData>'
+				for (var key in json) {
+					var value = json[key];
+					text += '<' + key + '>\<![CDATA[' + JSON.stringify(value) + ']]\></' + key + '>'
+				}
+				text += '</additionalData>'
+			}
+			text += '</service>';
+			handler.message.setResponseHeader("Content-Length", text.length);
+			handler.message.setResponseHeader("Content-Type", "text/xml; charset=\"utf-8\"");
+			handler.message.responseText = text;
+			handler.message.status = 200;
+		]]></method>
+		<method id="onError" params="handler, message"><![CDATA[
+			debugger
+		]]></method>
+		<method id="onInvoke" params="handler, message"><![CDATA[
+			var behavior = getBehavior();
+			if (message.method == "GET") {
+				handler.invoke(new Message("xkpr://" + behavior.selectedApplication.id + "/dial/additionalData"), Message.JSON);
+			}
+			else if (message.method == "POST") {
+				message.status = 200;
+			}
+		]]></method>
+	</class>
+
+</program>

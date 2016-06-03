@@ -20,6 +20,10 @@
 #include "FskWindow.h"
 #include "FskGtkWindow.h"
 
+#if SUPPORT_INSTRUMENTATION
+FskInstrumentedTypeRecord gFskGtkWindowTypeInstrumentation = {NULL, sizeof(FskInstrumentedTypeRecord), "FskGtkWindow"};
+#endif
+
 // This value it used to set a threshold to frame interval (in us).
 // Now the value is ALMOST same as 'updateInterval' (20000)
 #define ASYNC_TIMEOUT 25000
@@ -80,30 +84,6 @@ static gboolean app_quit(GtkWidget *widget, gpointer data)
 	return FALSE;
 }
 
-// TODO: performance should be tuned later: frame rate and consistent
-static gboolean idle_func(gpointer data)
-{
-	FskGtkWindow win = (FskGtkWindow)data;
-	gpointer thread_data = g_async_queue_timeout_pop(win->queue, ASYNC_TIMEOUT);
-
-	if(win->menuStatus && thread_data) {
-		if(win == thread_data) {
-			FskMutexAcquire(win->bufMutex);
-			if(GTK_IS_WIDGET(win->window))
-				gtk_widget_queue_draw(win->window);
-			FskMutexRelease(win->bufMutex);
-		}
-		else {
-			//Show the dialog
-			GtkWidget *dialog = thread_data;
-			gtk_dialog_run(GTK_DIALOG(dialog));	// Model window
-			gtk_widget_destroy(dialog);
-		}
-	}
-
-	return TRUE;	//TRUE means will process again (loop)
-}
-
 static gboolean configure_event_win(GtkWidget *widget, GdkEventConfigure *event, gpointer data)
 {
 	FskGtkWindow win = (FskGtkWindow)data;
@@ -116,13 +96,12 @@ static gboolean configure_event_win(GtkWidget *widget, GdkEventConfigure *event,
 // Event handler: da->draw
 static gboolean draw_callback(GtkWidget *widget, cairo_t *cr, gpointer data)
 {
+	FskInstrumentedTypePrintfDebug(&gFskGtkWindowTypeInstrumentation, "Firing draw callback!!!");
 	FskGtkWindow win = (FskGtkWindow)data;
 
-	FskMutexAcquire(win->bufMutex);
-	if(win->pixbufDraw)
-		gdk_cairo_set_source_pixbuf(cr, win->pixbufDraw, 0, 0);
+	if(win->pixbuf)
+		gdk_cairo_set_source_pixbuf(cr, win->pixbuf, 0, 0);
 	cairo_paint(cr);
-	FskMutexRelease(win->bufMutex);
 
 	return TRUE;
 }
@@ -142,6 +121,7 @@ static gboolean on_button_press(GtkWidget *widget, GdkEventButton *event, gpoint
 		pat.ticks = event->time;
 		FskEventParameterAdd(fskEvent, kFskEventParameterMouseLocation, sizeof(pat), &pat);
 		FskWindowEventQueue(win->owner, fskEvent);
+		FskWindowCheckEvents();
 	}
 	return TRUE;
 }
@@ -161,6 +141,7 @@ static gboolean on_button_release(GtkWidget *widget, GdkEventButton *event, gpoi
 		pat.ticks = event->time;
 		FskEventParameterAdd(fskEvent, kFskEventParameterMouseLocation, sizeof(pat), &pat);
 		FskWindowEventQueue(win->owner, fskEvent);
+		FskWindowCheckEvents();
 	}
 	return TRUE;
 }
@@ -205,6 +186,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer dat
 			FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, 2, key);
 		}
 		FskWindowEventQueue(win->owner, fskEvent);
+		FskWindowCheckEvents();
 	}
 
 	return FALSE;
@@ -248,6 +230,7 @@ static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event, gpointer d
 			FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, 2, key);
 		}
 		FskWindowEventQueue(win->owner, fskEvent);
+		FskWindowCheckEvents();
 	}
 	return FALSE;
 }
@@ -269,6 +252,7 @@ static gboolean motion_notify(GtkWidget *widget, GdkEventMotion *event, gpointer
 		FskEventParameterAdd(fskEvent, kFskEventParameterMouseLocation, sizeof(pat), &pat);
 		FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(index), &index);
 		FskWindowEventQueue(win->owner, fskEvent);
+		FskWindowCheckEvents();
 	}
 
 	return TRUE;
@@ -295,6 +279,7 @@ static gboolean scroll_cb(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 		FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaX, sizeof(float), &deltaX);
 		FskEventParameterAdd(fskEvent, kFskEventParameterMouseWheelDeltaY, sizeof(float), &deltaY);
 		FskWindowEventQueue(win->owner, fskEvent);
+		FskWindowCheckEvents();
 	}
 
 	return TRUE;
@@ -318,6 +303,7 @@ static gboolean configure_event_cb(GtkWidget *widget, GdkEventConfigure *event, 
 		FskEvent fskEvent;
 		if(kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowBeforeResize, NULL, kFskEventModifierNotSet)) {
 			FskWindowEventQueue(win->owner, fskEvent);
+			FskWindowCheckEvents();
 		}
 	}
 	gdk_threads_leave();
@@ -349,6 +335,7 @@ static void menu_select_cb(GtkWidget *widget, gpointer data)
 		SInt32 command = selected->id;
 		FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(command), &command);
 		FskWindowEventQueue(selected->win->owner, fskEvent);
+		FskWindowCheckEvents();
 	}
 
 	// FIXME: actually, we should do this operations in event like menubar popup, but I do not find suitable event till now
@@ -369,6 +356,7 @@ static void menu_select_cb(GtkWidget *widget, gpointer data)
 			if(kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuStatus, NULL, kFskEventModifierNotSet)) {
 				FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(id), &id);
 				FskWindowEventSend(win->owner, fskEvent);
+				FskWindowCheckEvents();
 			}
 		}
 	}
@@ -390,6 +378,7 @@ gboolean leave_cb(GtkWidget* widget, GdkEvent* event, gpointer data)
 			if (kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuStatus, NULL, kFskEventModifierNotSet)) {
 				FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(id), &id);
 				FskWindowEventSend(win->owner, fskEvent);
+				FskWindowCheckEvents();
 			}
 		}
 		menu = menu->next;
@@ -407,10 +396,11 @@ gboolean window_state_cb(GtkWidget* widget, GdkEvent* event, gpointer data)
 	if (fskWindow == NULL) return;
 	if (FskEventNew(&fskEvent, (eventWindowState->new_window_state & GDK_WINDOW_STATE_FOCUSED) ? kFskEventWindowActivated : kFskEventWindowDeactivated, NULL, kFskEventModifierNotSet) == kFskErrNone)
 		FskWindowEventSend(fskWindow, fskEvent);
+		FskWindowCheckEvents();
 }
 
 ////////////// Main and Init /////////////////
-static void FskGtkWindowLoop(void *refcon)
+static void FskGtkWindowInit(void *refcon)
 {
 	FskWindow 		fskWindow = (FskWindow)refcon;
 	FskGtkWindow	gtkWin = (FskGtkWindow)fskWindow->gtkWin;
@@ -473,14 +463,6 @@ static void FskGtkWindowLoop(void *refcon)
 
 	gtk_box_pack_start(GTK_BOX(gtkWin->vbox), gtkWin->menubar, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(gtkWin->vbox), gtkWin->da, TRUE, TRUE, 0); // Set all to true!
-
-	gdk_threads_add_idle(idle_func, gtkWin);
-
-	FskThreadInitializationComplete(FskThreadGetCurrent());
-
-	gdk_threads_enter();
-	gtk_main();
-	gdk_threads_leave();
 }
 
 FskErr FskGtkWindowCreate(FskWindow fskWindow, UInt32 style, SInt32 width, SInt32 height)
@@ -497,9 +479,7 @@ FskErr FskGtkWindowCreate(FskWindow fskWindow, UInt32 style, SInt32 width, SInt3
 	gtkWin->width = width;
 	gtkWin->height = height;
 
-	//Create gtk thread: initialization and main loop for GTK
-	FskThreadCreate(&fskWindow->gtkThread, FskGtkWindowLoop, kFskThreadFlagsJoinable | kFskThreadFlagsWaitForInit, fskWindow, "gtk_thread");
-
+	FskGtkWindowInit(fskWindow);
 bail:
 	return err;
 }
@@ -608,14 +588,8 @@ void FskGtkWindowUpdateDa(FskGtkWindow win)
 	if(win->menuStatus == false)
 		return;
 
-	FskMutexAcquire(win->bufMutex);
-	if(win->pixbufDraw)
-		g_object_unref(win->pixbufDraw);
-
-	win->pixbufDraw = gdk_pixbuf_copy(win->pixbuf);
-	g_async_queue_push(win->queue, win);
-	FskMutexRelease(win->bufMutex);
-
+	FskInstrumentedTypePrintfDebug(&gFskGtkWindowTypeInstrumentation, "Tell GTK window to redraw in FskGtkWindowUpdateDa");
+	gtk_widget_queue_draw(GTK_WIDGET(win->da));
 #if 0
 	cairo_t *cr;
 	cr = gdk_cairo_create (gtk_widget_get_window(win->da));
@@ -631,14 +605,8 @@ void FskGtkWindowInvalidDaRect(FskGtkWindow win, FskRectangle area)
 	if(win->menuStatus == false)
 		return;
 
-	FskMutexAcquire(win->bufMutex);
-	if(win->pixbufDraw)
-		g_object_unref(win->pixbufDraw);
-
-	win->pixbufDraw = gdk_pixbuf_copy(win->pixbuf);
-	FskMutexRelease(win->bufMutex);
-
-	g_async_queue_push(win->queue, win);
+	FskInstrumentedTypePrintfDebug(&gFskGtkWindowTypeInstrumentation, "Tell GTK window to redraw in FskGtkWindowInvalidDaRect");
+	gtk_widget_queue_draw(GTK_WIDGET(win->da));
 }
 
 FskErr FskGtkWindowBitmapNew(FskGtkWindow win, UInt32 width, UInt32 height, FskBitmap *outBits)
@@ -688,15 +656,6 @@ void FskGtkWindowMenuBarClear(FskGtkWindow win)
 {
 	menuBars entryBar = win->menu;
 	menuItems submenu = NULL;
-
-	// Remove pending events
-	while(gdk_events_pending()) {
-		GdkEvent *event = gdk_event_get();
-		if(event != NULL) {
-			fprintf(stderr, "There are pending events, removed\n");
-			gdk_event_free(event);
-		}
-	}
 	
 	// Remove IDs
 	entryBar = FskListRemoveFirst(&win->menu);

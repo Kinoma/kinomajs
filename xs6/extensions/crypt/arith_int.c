@@ -14,11 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+#include "xs6Platform.h"
 #include "xs.h"
 #include "kcl_arith.h"
 #include "arith_common.h"
-#include <stdint.h>
-#include <string.h>
 
 #ifndef MAX
 #define MAX(a, b)	((a) >= (b) ? (a) : (b))
@@ -119,7 +118,7 @@ xs_integer_toChunk(xsMachine *the)
 	xsResult = xsArrayBuffer(NULL, chunkSize);
 	p = xsToArrayBuffer(xsResult);
 	/* all clear in case i2os won't fill out "nbytes" -- this would happen in libtom when the number is zero */
-	memset(p, 0, chunkSize);
+	c_memset(p, 0, chunkSize);
 	if (lsbFirst)
 		err = kcl_int_i2os_l(ai, p, nbytes);
 	else {

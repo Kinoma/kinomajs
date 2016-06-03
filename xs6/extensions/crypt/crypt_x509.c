@@ -14,8 +14,8 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+#include "xs6Platform.h"
 #include "xs.h"
-#include <string.h>
 
 static int
 _getBerLen(unsigned char **pp, unsigned char *endp)
@@ -148,7 +148,7 @@ x509_decode(unsigned char **pp, size_t *szp, unsigned int *extid, size_t extidle
 				return 0;
 			if ((l = getBerLen()) < 0)
 				return 0;
-			if (extnIDLen == oidLen && memcmp(extnID, oid, extnIDLen) == 0) {
+			if (extnIDLen == oidLen && c_memcmp(extnID, oid, extnIDLen) == 0) {
 				*pp = p;
 				getTag();
 				l = getBerLen();
@@ -179,7 +179,7 @@ xs_x509_decodeExtension(xsMachine *the)
 		int offset = p - savep;
 		xsResult = xsArrayBuffer(NULL, sz);
 		p = xsToArrayBuffer(xsArg(0));
-		memcpy(xsToArrayBuffer(xsResult), p + offset, sz);
+		c_memcpy(xsToArrayBuffer(xsResult), p + offset, sz);
 	}
 }
 
@@ -195,6 +195,6 @@ xs_x509_decodeSPKI(xsMachine *the)
 		int offset = p - savep;
 		xsResult = xsArrayBuffer(NULL, sz);
 		p = xsToArrayBuffer(xsArg(0));
-		memcpy(xsToArrayBuffer(xsResult), p + offset, sz);
+		c_memcpy(xsToArrayBuffer(xsResult), p + offset, sz);
 	}
 }

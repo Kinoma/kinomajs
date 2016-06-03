@@ -1,0 +1,1016 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+
+	<!-- HEX ENTRY -->
+
+	<style id="hexLabelStyle" font="76px" color="black" align="middle,center" lines="1"/>
+
+	<label id="HexLabel" width="60" height="69" style="dimmingScrolledLabelStyle" behavior="DimmingScrolledLabelBehavior"/>
+		
+	<scroller id="HexDigitScroller" like="SCROLLER.VerticalScroller" clip="true" loop="false" skin="whiteSkin" width="60" height="3 * 69">
+		<behavior like="SCROLLER.VerticalScrollerBehavior">
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				this.yScroll = 0;
+				var column = this.column = new Column( { left : 0, right : 0, top : 0 } );
+				this.addInvisiblePaddingLabel(scroller, column);
+				for (var i=0; i < hexDigits.length; i++) {
+					var aHexLabel = new HexLabel( { scroller : scroller } );
+					aHexLabel.string = hexDigits[i];
+					column.add( aHexLabel );
+				}
+				this.addInvisiblePaddingLabel(scroller, column);
+				scroller.add( column );
+				
+				SCROLLER.VerticalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			]]></method>
+			<method id="snap" params="scroller, position, direction"><![CDATA[
+				var digitHeight = 69;
+				if (direction < 0)
+					position = digitHeight * Math.ceil(position / digitHeight);
+				else if (direction > 0)
+					position = digitHeight * Math.floor(position / digitHeight);
+				else
+					position = digitHeight * Math.round(position / digitHeight);
+				return position;
+			]]></method>
+			<method id="addInvisiblePaddingLabel" params="scroller, column"><![CDATA[
+				var aHexLabel = new HexLabel( { scroller : scroller } );
+				aHexLabel.string = "";
+				column.add( aHexLabel );
+			]]></method>
+			<method id="getDigit" params="scroller"><![CDATA[
+				var yScroll = scroller.scroll.y;
+				var digitHeight = 69;
+				var index = Math.round(yScroll / digitHeight);
+				if (index >= hexDigits.length)
+					index = 0;
+				var value = hexDigits[index];
+				return value;
+			]]></method>
+			<method id="setDigit" params="scroller, hexCharacter"><![CDATA[
+				var index = parseInt("0x" + hexCharacter);
+				var digitHeight = 69;
+				this.yScroll = index * digitHeight;
+			]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+				scroller.scrollTo(0, this.yScroll);
+			]]></method>
+		</behavior>		
+	</scroller>
+	
+	<container id="HexDial" width="64" height="3 * 69" skin="blackSkin">
+		<behavior>
+			<method id="getDigit" params="container">
+				<![CDATA[
+					return container.hexDigitScroller.delegate("getDigit");
+				]]>
+			</method>
+			<method id="setDigit" params="container, hexCharacter">
+				<![CDATA[
+					return container.hexDigitScroller.delegate("setDigit", hexCharacter);
+				]]>
+			</method>
+		</behavior>
+		<scroller name="hexDigitScroller" like="HexDigitScroller" left="2" right="2"/>
+	</container>
+	
+	<style id="dimmingScrolledLabelStyle" font="70px" align="middle,center" lines="1">
+		<states colors="#CCCCCC,#000000"/>
+	</style>
+
+	<style id="noneDetectedStyle" font="30px" color="black" align="middle,center" lines="1"/>
+
+	<label id="AddressLabel" left="0" height="58" string="$.label" style="dimmingScrolledLabelStyle" behavior="DimmingScrolledLabelBehavior"/>
+				
+	<texture id="i2CAddressTypeTexture" small="assets/scan-type-strip.png"/>
+	<skin id="i2CAddressTypeSkin" texture="i2CAddressTypeTexture" x="0" y="0" width="32" height="28">
+        <variants offset="32"/>
+    </skin>
+        
+	<line id="I2CAddressLine" left="70">
+		<label like="AddressLabel" width="140"/>
+		<content skin="i2CAddressTypeSkin" variant="$.iconVariant"/>
+	</line>
+	
+	<scroller id="AddressValueScroller" like="SCROLLER.VerticalScroller" clip="true" width="184+30" height="3 * 58">
+		<behavior like="SCROLLER.VerticalScrollerBehavior">
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				this.data = data;
+				this.yScroll = 0;
+				var column = this.column = new Column( { left : 0, right : 0, top : 0 } );
+				var addresses = this.data.scannedI2CAddresses;
+				if (addresses.length == 0) {
+					this.addInvisiblePaddingLabel(scroller, column);
+					this.addNoneDetectedLabel(scroller, column);
+					this.addInvisiblePaddingLabel(scroller, column);
+				}
+				else {
+					this.addInvisiblePaddingLabel(scroller, column);
+						for (var i=0; i < addresses.length; i++)
+							this.addAddressLabel(scroller, column, i);
+					this.addInvisiblePaddingLabel(scroller, column);				
+				}
+				scroller.add( column );
+				SCROLLER.VerticalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			]]></method>
+			<method id="addAddressLabel" params="scroller, column, index"><![CDATA[
+				var addresses = this.data.scannedI2CAddresses;
+				var label = "0x" + decimalToByteHexString(addresses[index]);
+				var iconVariant = this.isInternalI2CAddress(scroller, label) ? 1 : 0;
+				var aHexLabel = new I2CAddressLine( { scroller : scroller, label : label, iconVariant : iconVariant } );
+				column.add( aHexLabel );
+			]]></method>
+			<method id="isInternalI2CAddress" params="scroller, address"><![CDATA[
+				switch (address) {
+					case "0x20":
+					case "0x21":
+					case "0x36":
+					case "0x70":
+						return true;
+					default:
+						return false;
+				}
+			]]></method>			
+			<method id="addInvisiblePaddingLabel" params="scroller, column"><![CDATA[
+				var aHexLabel = new AddressLabel( { scroller : scroller, label : "" } );
+				aHexLabel.string = "";
+				column.add( aHexLabel );
+			]]></method>
+			<method id="addNoneDetectedLabel" params="scroller, column"><![CDATA[
+				var aHexLabel = new AddressLabel( { scroller : scroller, label : "None Found" }, { style : noneDetectedStyle, right : 0 } );
+				aHexLabel.style = noneDetectedStyle;
+				column.add( aHexLabel );
+			]]></method>
+			<method id="getSelectedAddress" params="scroller"><![CDATA[
+				var addresses = this.data.scannedI2CAddresses;
+				if (addresses.length == 0)
+					return 0;
+				else {
+					var yScroll = scroller.scroll.y;
+					var digitHeight = 58;
+					var index = Math.round(yScroll / digitHeight);
+					var address = addresses[index];
+				}
+				return address;
+			]]></method>
+			<method id="snap" params="scroller, position, direction"><![CDATA[
+				var digitHeight = 58;
+				if (direction < 0)
+					position = digitHeight * Math.ceil(position / digitHeight);
+				else if (direction > 0)
+					position = digitHeight * Math.floor(position / digitHeight);
+				else
+					position = digitHeight * Math.round(position / digitHeight);
+				return position;
+			]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+				scroller.scrollTo(0, this.yScroll);
+			]]></method>
+		</behavior>		
+	</scroller>
+	
+	<behavior id="DimmingScrolledLabelBehavior">
+		<method id="onCreate" params="label,data"><![CDATA[
+			this.data = data;
+		]]></method>
+		<method id="onDisplaying" params="label"><![CDATA[
+			this.onTimeChanged(label);
+			label.start();
+		]]></method>
+		<method id="onTimeChanged" params="label"><![CDATA[
+			var scroller = this.data.scroller;
+			var yOffset = label.y - scroller.y;
+			var fraction = 1 - (Math.abs(yOffset - label.height) / label.height);
+			if (fraction > 1) fraction = 1;
+			if (fraction < 0) fraction = 0;
+			label.state = fraction;
+		]]></method>
+	</behavior>
+		
+	<label id="AddressHexLabel" width="60" height="58" style="dimmingScrolledLabelStyle" behavior="DimmingScrolledLabelBehavior"/>
+			
+	<scroller id="AddressHexDigitScroller" like="SCROLLER.VerticalScroller" clip="true" loop="false" skin="whiteSkin" width="60" height="3 * 58">
+		<behavior like="SCROLLER.VerticalScrollerBehavior">
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				this.yScroll = 0;
+				var column = this.column = new Column( { left : 0, right : 0, top : 0 } );
+				this.addInvisiblePaddingLabel(scroller, column);
+				for (var i=0; i < hexDigits.length; i++) {
+					var aHexLabel = new AddressHexLabel( { scroller : scroller } );
+					aHexLabel.string = hexDigits[i];
+					column.add( aHexLabel );
+				}
+				this.addInvisiblePaddingLabel(scroller, column);
+				scroller.add( column );
+				
+				SCROLLER.VerticalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			]]></method>
+			<method id="snap" params="scroller, position, direction"><![CDATA[
+				var digitHeight = 58;
+				if (direction < 0)
+					position = digitHeight * Math.ceil(position / digitHeight);
+				else if (direction > 0)
+					position = digitHeight * Math.floor(position / digitHeight);
+				else
+					position = digitHeight * Math.round(position / digitHeight);
+				return position;
+			]]></method>
+			<method id="addInvisiblePaddingLabel" params="scroller, column"><![CDATA[
+				var aHexLabel = new AddressHexLabel( { scroller : scroller } );
+				aHexLabel.string = "";
+				column.add( aHexLabel );
+			]]></method>
+			<method id="getDigit" params="scroller"><![CDATA[
+				var yScroll = scroller.scroll.y;
+				var digitHeight = 58;
+				var index = Math.round(yScroll / digitHeight);
+				if (index >= hexDigits.length)
+					index = 0;
+				var value = hexDigits[index];
+				return value;
+			]]></method>
+			<method id="setDigit" params="scroller, hexCharacter"><![CDATA[
+				var index = parseInt("0x" + hexCharacter);
+				var digitHeight = 58;
+				this.yScroll = index * digitHeight;						
+			]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+				scroller.scrollTo(0, this.yScroll);
+			]]></method>
+		</behavior>		
+	</scroller>
+
+	<function id="decimalToByteHexString" params="number"><![CDATA[
+		if (number < 0)
+			number = 0xFFFFFFFF + number + 1;
+		number = number.toString(16).toUpperCase();
+		if (number.length == 1)
+			number = "0" + number;
+		return number;
+	]]></function>
+	
+	<container id="HexByteEntryScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<container like="EntryScreenHeader">
+			<behavior>
+				<method id="onCreate" params="container, data">
+					<![CDATA[
+						this.data = data;
+						this.propertyName = data.propertyName;
+					]]>
+				</method>
+				<method id="onDisplaying" params="container">
+					<![CDATA[
+						var value = gHexEditerData[this.propertyName];
+						var hexValue = decimalToByteHexString(value);
+						this.data.first.delegate("setDigit", hexValue.charAt(0));
+						this.data.second.delegate("setDigit", hexValue.charAt(1));
+					]]>
+				</method>
+				<method id="onOK" params="container">
+					<![CDATA[
+						var firstDigitValue = this.data.first.delegate("getDigit");
+						var secondDigitValue = this.data.second.delegate("getDigit");
+						var value = parseInt("0x" + firstDigitValue + secondDigitValue);
+						gHexEditerData[this.propertyName] = value;
+						container.invoke( new Message( "/back" ) );
+					]]>
+				</method>
+			</behavior>
+		</container>
+		<container top="32">
+			<line>
+				<container anchor="first" like="HexDial"/>
+				<container anchor="second" like="HexDial" left="-2"/>
+			</line>
+			<content left="0" skin="verticalScrollerPointerSkin"/>
+		</container>
+		<content top="32" width="64 + 64 - 2" skin="rollerShadowTopSkin"/>
+		<content bottom="0" width="64 + 64 - 2" skin="rollerShadowBottomSkin"/>
+		<label top="32" bottom="0" left="0" width="(320 - (64 + 64 - 2))/2" style="hexLabelStyle" string="'0x'"/>
+		<content left="99" width="60" top="105" height="1" skin="dialDividerSkin"/>
+		<content left="99" width="60" bottom="105 - 32" height="1" skin="dialDividerSkin"/>
+		<content left="161" width="60" top="105" height="1" skin="dialDividerSkin"/>
+		<content left="161" width="60" bottom="105 - 32" height="1" skin="dialDividerSkin"/>
+	</container>
+
+	<style id="scanningStyle" font="bold 24px" color="#666666" align="center,middle" lines="1"/>
+
+    <container id="ScanningEntry" left="0" right="0" top="32" bottom="0">
+    	<picture anchor="BUSY" like="CREATIONS.BusyPicture" top="30"/>
+    	<label left="0" right="0" bottom="30" style="scanningStyle">
+    		<behavior>
+				<method id="onCreate" params="label, data"><![CDATA[
+					var sda = gHexEditerData.sda;
+					if (isLeftSlotPin(sda))
+						label.string = "Scanning Front Left Pins...";
+					else if (isRightSlotPin(sda))
+						label.string = "Scanning Front Right Pins...";
+					else
+						label.string = "Scanning Back Pins...";
+				]]></method>
+    		</behavior>
+    	</label>
+	</container>
+	
+    <container id="AddressScannedEntry" left="0" right="0" top="32" bottom="0">
+		<container like="AddressValueScroller" left="0" top="0" bottom="32" right="0"/>
+
+		<content left="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		<content right="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		
+		<content top="0" width="184+30" skin="rollerShadowTopSkin"/>
+		<content bottom="32" width="184+30" skin="rollerShadowBottomSkin"/>
+
+		<content left="(320-184-30)/2 + 2" width="180+30" top="90-32" height="1" skin="dialDividerSkin"/>
+		<content left="(320-184-30)/2 + 2" width="180+30" bottom="90" height="1" skin="dialDividerSkin"/>
+		
+		<container left="0" right="0" top="0" bottom="32">
+			<content left="(320-184-30)/2" skin="verticalScrollerPointerSkin"/>
+		</container>
+    </container>
+    
+    <container id="AddressManualEntry" left="0" right="0" top="32" bottom="0">
+		<behavior>
+			<method id="onCreate" params="container, data"><![CDATA[
+				this.data = data;
+			]]></method>
+			<method id="onDisplaying" params="container"><![CDATA[
+				var value = gHexEditerData[this.data.propertyName];
+				var hexValue = decimalToByteHexString(value);
+				this.data.first.delegate("setDigit", hexValue.charAt(0));
+				this.data.second.delegate("setDigit", hexValue.charAt(1));
+			]]></method>
+			<method id="getSelectedAddress" params="container"><![CDATA[
+				var firstDigitValue = this.data.first.delegate("getDigit");
+				var secondDigitValue = this.data.second.delegate("getDigit");
+				var value = parseInt("0x" + firstDigitValue + secondDigitValue);
+				return value;
+			]]></method>
+		</behavior>
+		
+		<line top="0" bottom="32">
+			<container anchor="first" like="AddressHexDigitScroller" top="0"/>
+			<content left="0" width="2"/>
+			<container anchor="second" like="AddressHexDigitScroller" top="0"/>
+		</line>
+		<content top="0" width="64 + 64 - 6" skin="rollerShadowTopSkin"/>
+		<content bottom="32" width="64 + 64 - 6" skin="rollerShadowBottomSkin"/>
+		<content width="64 + 64 - 6" top="57" height="1" skin="dialDividerSkin"/>
+		<content width="64 + 64 - 6" bottom="57 + 32" height="1" skin="dialDividerSkin"/>
+		
+		<content left="98" top="0" bottom="32" width="2" skin="blackSkin"/>
+		<content right="98" top="0" bottom="32" width="2" skin="blackSkin"/>
+		<content left="159" top="0" bottom="32" width="2" skin="blackSkin"/>
+		
+		<container left="0" right="0" top="0" bottom="32">
+			<content left="98" skin="verticalScrollerPointerSkin"/>
+		</container>
+    </container>
+    
+	<container id="AddressEntryScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<container like="EntryScreenHeader">
+			<behavior>
+				<method id="onCreate" params="container, data">
+					<![CDATA[
+						this.data = data;
+						if (! ("value" in data))
+							data.value = 0;
+						this.data.scannedI2CAddresses = null;
+						this.propertyName = data.propertyName;
+						var sda = gHexEditerData.sda;
+												
+						var callback = bindBehaviorCallback(container, "scannedI2CBusCallback");
+						if (isLeftSlotPin(sda) || isMirroredLeftSlotBackPin(sda))
+							gPinManager.scanI2CBus( 101, callback );
+						else if (isRightSlotPin(sda))
+							gPinManager.scanI2CBus( 102, callback );
+						else
+							gPinManager.scanI2CBus( 0, callback );
+					]]>
+				</method>
+				<method id="scannedI2CBusCallback" params="container, scannedAddresses"><![CDATA[
+					this.data.scannedI2CAddresses = scannedAddresses;
+					this.onRebuildAddressEditor(container);
+					this.data.divider.visible = true;
+					this.data.toggle.visible = true;
+				]]></method>
+				<method id="onRebuildAddressEditor" params="container"><![CDATA[
+					switch (this.data.value) {
+						case 0:
+							container.container.replace(container.next, new AddressScannedEntry(this.data));
+						break
+						case 1:
+							container.container.replace(container.next, new AddressManualEntry(this.data));
+						break
+					}
+				]]></method>				
+				<method id="onOK" params="container"><![CDATA[					
+					var address = container.container.distribute("getSelectedAddress");
+					gHexEditerData[this.propertyName] = address;
+					
+					var sda = gHexEditerData.sda;
+					gPinManager.getPinHandler(sda).setAddress(address);
+
+					container.invoke( new Message( "/back" ) );
+				]]></method>
+			</behavior>
+		</container>
+		
+		<container like="ScanningEntry"/>											<!-- will be dynamically rebuilt as scan dial or address dial -->
+
+		<content anchor="divider" left="0" right="0" bottom="32" height="1" skin="blackSkin" visible="false"/>
+		<container anchor="toggle" like="ScanManualSwitch" bottom="-4" visible="false"/>
+	</container>
+		
+	<function id="decimalToWordHexString" params="number"><![CDATA[
+		if (number < 0)
+			number = 0xFFFFFFFF + number + 1;
+		number = number.toString(16).toUpperCase();
+		while (number.length < 4)
+			number = "0" + number;
+		return number;
+	]]></function>
+
+	<container id="HexWordEntryScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<container like="EntryScreenHeader">
+			<behavior>
+				<method id="onCreate" params="container, data">
+					<![CDATA[
+						this.data = data;
+						this.propertyName = data.propertyName;
+					]]>
+				</method>
+				<method id="onDisplaying" params="container">
+					<![CDATA[
+						var value = gHexEditerData[this.propertyName];
+						var hexValue = decimalToWordHexString(value);
+						this.data.first.delegate("setDigit", hexValue.charAt(0));
+						this.data.second.delegate("setDigit", hexValue.charAt(1));
+						this.data.third.delegate("setDigit", hexValue.charAt(2));
+						this.data.fourth.delegate("setDigit", hexValue.charAt(3));
+					]]>
+				</method>
+				<method id="onOK" params="container">
+					<![CDATA[
+						var firstDigitValue = this.data.first.delegate("getDigit");
+						var secondDigitValue = this.data.second.delegate("getDigit");
+						var thirdDigitValue = this.data.third.delegate("getDigit");
+						var fourthDigitValue = this.data.fourth.delegate("getDigit");
+						var value = parseInt("0x" + firstDigitValue + secondDigitValue + thirdDigitValue + fourthDigitValue);
+						gHexEditerData[this.propertyName] = value;
+						container.invoke( new Message( "/back" ) );
+					]]>
+				</method>
+			</behavior>
+		</container>
+
+		<container top="32" right="0">
+			<line>
+				<container anchor="first" like="HexDial"/>
+				<container anchor="second" like="HexDial" left="-2"/>
+				<container anchor="third" like="HexDial" left="-2"/>
+				<container anchor="fourth" like="HexDial" left="-2"/>
+			</line>
+			<content left="0" skin="verticalScrollerPointerSkin"/>
+		</container>
+		<content top="32" right="0" width="64 * 4 - 6" skin="rollerShadowTopSkin"/>
+		<content bottom="0" right="0" width="64 * 4 - 6" skin="rollerShadowBottomSkin"/>
+		<label top="32" bottom="0" left="6" style="hexLabelStyle" string="'0x'"/>
+		<content left="72" width="60" top="105" height="1" skin="dialDividerSkin"/>
+		<content left="72" width="60" bottom="105 - 32" height="1" skin="dialDividerSkin"/>
+		<content left="134" width="60" top="105" height="1" skin="dialDividerSkin"/>
+		<content left="134" width="60" bottom="105 - 32" height="1" skin="dialDividerSkin"/>
+		<content left="196" width="60" top="105" height="1" skin="dialDividerSkin"/>
+		<content left="196" width="60" bottom="105 - 32" height="1" skin="dialDividerSkin"/>
+		<content left="258" width="60" top="105" height="1" skin="dialDividerSkin"/>
+		<content left="258" width="60" bottom="105 - 32" height="1" skin="dialDividerSkin"/>
+	</container>
+
+	<!-- PWM Control Screen -->
+
+	<texture id="horizontalLeftShadowTexture" small="assets/settings/horz-scroller-shadow-left.png"/>
+	<skin id="horizontalLeftShadowSkin" texture="horizontalLeftShadowTexture" x="0" y="0" width="96" height="68"/>
+
+	<texture id="horizontalRightShadowTexture" small="assets/settings/horz-scroller-shadow-right.png"/>
+	<skin id="horizontalRightShadowSkin" texture="horizontalRightShadowTexture" x="0" y="0" width="96" height="68"/>
+
+	<skin id="scrollerSeparatorSkin" color="#cdcdcd"/>
+
+	<style id="controlLabelStyle" font="24px" color="black" align="center,middle" lines="1"/>
+	
+	<scroller id="PWMControlScroller" anchor="pwmControlScroller" like="SCROLLER.VerticalScroller" clip="true" width="184+30" height="3 * 58">
+		<behavior like="SCROLLER.VerticalScrollerBehavior">
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				this.pinNumber = Number(data.pinNumber);
+				var itemHeight = 58;
+				this.yScroll = itemHeight * recallSelectedSettingsControl(this.pinNumber);
+				this.labels = ["Slider", "Sine Wave", "Square Wave", "Triangle Wave"];
+				SCROLLER.VerticalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			]]></method>
+			<method id="getSelection" params="scroller"><![CDATA[
+				var yScroll = scroller.scroll.y;
+				var itemHeight = 58;
+				var selection = Math.round(yScroll / itemHeight);
+				rememberSelectedSettingsControl(this.pinNumber, selection);
+				return selection;
+			]]></method>
+			<method id="snap" params="scroller, position, direction"><![CDATA[
+				var itemHeight = 58;
+				if (direction < 0)
+					position = itemHeight * Math.ceil(position / itemHeight);
+				else if (direction > 0)
+					position = itemHeight * Math.floor(position / itemHeight);
+				else
+					position = itemHeight * Math.round(position / itemHeight);
+				return position;
+			]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+				scroller.scrollTo(0, this.yScroll);
+			]]></method>
+		</behavior>		
+
+		<column left="0" right="0" top="0">
+			<container width="100" height="58"/>
+			<container width="100" height="58">
+				<content skin="sliderIconSkin"/>
+			</container>
+			<container width="100" height="58">
+				<content skin="sineWaveIconSkin"/>
+			</container>
+			<container width="100" height="58">
+				<content skin="squareWaveIconSkin"/>
+			</container>
+			<container width="100" height="58">
+				<content skin="triangleWaveIconSkin"/>
+			</container>
+			<container width="100" height="58"/>
+		</column>
+	</scroller>
+	
+    <container id="PWMLinedControlScroller" left="0" right="0" top="32" bottom="0">
+		<container like="PWMControlScroller" left="0" top="0" bottom="32" right="0"/>
+
+		<content left="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		<content right="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		
+		<content top="0" width="184+30" skin="rollerShadowTopSkin"/>
+		<content bottom="32" width="184+30" skin="rollerShadowBottomSkin"/>
+
+		<content left="(320-184-30)/2 + 2" width="180+30" top="90-32" height="1" skin="dialDividerSkin"/>
+		<content left="(320-184-30)/2 + 2" width="180+30" bottom="90" height="1" skin="dialDividerSkin"/>
+		
+		<container left="0" right="0" top="0" bottom="32">
+			<content left="(320-184-30)/2" skin="verticalScrollerPointerSkin"/>
+		</container>
+    </container>
+    
+    <container id="PWMControlScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<container like="EntryScreenHeader">
+			<behavior>		
+				<method id="onCreate" params="container, data"><![CDATA[
+					this.data = data;
+				]]></method>
+				<method id="onOK" params="container"><![CDATA[
+					var selection = this.data.pwmControlScroller.delegate("getSelection");
+					application.distribute("onPWMControlSelected", selection);
+					container.invoke( new Message( "/back" ) );
+				]]></method>
+			</behavior>
+		</container>
+		<container like="PWMLinedControlScroller"/>
+		<content anchor="divider" left="0" right="0" bottom="32" height="1" skin="blackSkin" visible="true"/>
+	</container>
+	
+	<handler path="/pwm-control-screen">
+		<behavior like="MODEL.ScreenBehavior">
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+                	var pinNumber = query.pinNumber;                	
+					return {
+						Screen: PWMControlScreen,
+						OpenTransition: TRANSITIONS.Reveal,
+						CloseTransition: TRANSITIONS.Hide,
+						title : "Select Control",	
+						pinNumber : pinNumber,	
+						okLabel : "OK",
+						cancelLabel : "Cancel",
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+					};                
+				]]>
+            </method>
+		</behavior>
+	</handler>
+	
+	<!-- Digital Output Control Screen -->
+
+	<scroller id="DigitalOutputControlScroller" anchor="digitalOutputControlScroller" like="SCROLLER.VerticalScroller" clip="true" width="184+30" height="3 * 58">
+		<behavior like="SCROLLER.VerticalScrollerBehavior">
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				this.pinNumber = Number(data.pinNumber);
+				var itemHeight = 58;
+				this.yScroll = itemHeight * recallSelectedSettingsControl(this.pinNumber);
+				this.labels = ["Toggle Switch", "Momentary Button", "Square Wave"];
+				SCROLLER.VerticalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			]]></method>
+			<method id="getSelection" params="scroller"><![CDATA[
+				var yScroll = scroller.scroll.y;
+				var itemHeight = 58;
+				var selection = Math.round(yScroll / itemHeight);
+				rememberSelectedSettingsControl(this.pinNumber, selection);
+				return selection;
+			]]></method>
+			<method id="snap" params="scroller, position, direction"><![CDATA[
+				var itemHeight = 58;
+				if (direction < 0)
+					position = itemHeight * Math.ceil(position / itemHeight);
+				else if (direction > 0)
+					position = itemHeight * Math.floor(position / itemHeight);
+				else
+					position = itemHeight * Math.round(position / itemHeight);
+				return position;
+			]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+				scroller.scrollTo(0, this.yScroll);
+			]]></method>
+		</behavior>		
+
+		<column left="0" right="0" top="0">
+			<container width="100" height="58"/>
+			<container width="100" height="58">
+				<content skin="digitalSwitchIconSkin"/>
+			</container>
+			<container width="100" height="58">
+				<content skin="digitalMomentaryIconSkin"/>
+			</container>
+			<container width="100" height="58">
+				<content skin="squareWaveIconSkin"/>
+			</container>
+			<container width="100" height="58"/>
+		</column>
+	</scroller>
+	
+    <container id="DigitalOutputLinedControlScroller" left="0" right="0" top="32" bottom="0">
+		<container like="DigitalOutputControlScroller" left="0" top="0" bottom="32" right="0"/>
+
+		<content left="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		<content right="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		
+		<content top="0" width="184+30" skin="rollerShadowTopSkin"/>
+		<content bottom="32" width="184+30" skin="rollerShadowBottomSkin"/>
+
+		<content left="(320-184-30)/2 + 2" width="180+30" top="90-32" height="1" skin="dialDividerSkin"/>
+		<content left="(320-184-30)/2 + 2" width="180+30" bottom="90" height="1" skin="dialDividerSkin"/>
+		
+		<container left="0" right="0" top="0" bottom="32">
+			<content left="(320-184-30)/2" skin="verticalScrollerPointerSkin"/>
+		</container>
+    </container>
+    
+    <container id="DigitalOutputControlScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<container like="EntryScreenHeader">
+			<behavior>		
+				<method id="onCreate" params="container, data"><![CDATA[
+					this.data = data;
+				]]></method>
+				<method id="onOK" params="container"><![CDATA[
+					var selection = this.data.digitalOutputControlScroller.delegate("getSelection");
+					application.distribute("onDigitalOutControlSelected", selection);
+					container.invoke( new Message( "/back" ) );
+				]]></method>
+			</behavior>
+		</container>
+		<container like="DigitalOutputLinedControlScroller"/>
+		<content anchor="divider" left="0" right="0" bottom="32" height="1" skin="blackSkin" visible="true"/>
+	</container>
+	
+	<handler path="/digital-output-control-screen">
+		<behavior like="MODEL.ScreenBehavior">
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+                	var pinNumber = query.pinNumber;                	
+					return {
+						Screen: DigitalOutputControlScreen,
+						OpenTransition: TRANSITIONS.Reveal,
+						CloseTransition: TRANSITIONS.Hide,
+						title : "Select Control",	
+						pinNumber : pinNumber,	
+						okLabel : "OK",
+						cancelLabel : "Cancel",
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+					};                
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<!-- Serial -->
+
+	<script><![CDATA[  
+		gBaudRates = [ 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600 ];
+		
+		var gSelectedBaudRateIndex = 0;
+		
+		var recallSelectedBaudRateIndex = function() {
+			return gSelectedBaudRateIndex;
+		}
+		var recallSelectedBaudRateValue = function() {
+			return gBaudRates[gSelectedBaudRateIndex];
+		}
+		var rememberSelectedBaudRate = function(selection) {
+			gSelectedBaudRateIndex = selection;
+		}
+	]]></script>
+	
+	<container id="BaudRateEmptyItem" width="100" height="58"/>
+	<label id="BaudRateItem" height="58" style="dimmingScrolledLabelStyle" behavior="DimmingScrolledLabelBehavior"/>
+
+	<scroller id="BaudRateScroller" anchor="scroller" like="SCROLLER.VerticalScroller" clip="true" height="3 * 58">
+		<behavior like="SCROLLER.VerticalScrollerBehavior">
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				var itemHeight = 58;
+				this.yScroll = itemHeight * recallSelectedBaudRateIndex();
+				SCROLLER.VerticalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			]]></method>
+			<method id="getSelection" params="scroller"><![CDATA[
+				var yScroll = scroller.scroll.y;
+				var itemHeight = 58;
+				var selection = Math.round(yScroll / itemHeight);
+				rememberSelectedBaudRate(selection);
+				return selection;
+			]]></method>
+			<method id="snap" params="scroller, position, direction"><![CDATA[
+				var itemHeight = 58;
+				if (direction < 0)
+					position = itemHeight * Math.ceil(position / itemHeight);
+				else if (direction > 0)
+					position = itemHeight * Math.floor(position / itemHeight);
+				else
+					position = itemHeight * Math.round(position / itemHeight);
+				return position;
+			]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+				scroller.scrollTo(0, this.yScroll);
+			]]></method>
+		</behavior>		
+
+		<column left="0" right="0" top="0">
+			<behavior>
+				<method id="onCreate" params="column, data"><![CDATA[
+					column.add( new BaudRateEmptyItem() );
+					for (var i=0; i < gBaudRates.length; i++) {
+						var item = new BaudRateItem( data, { string : gBaudRates[i] } );
+						column.add( item );
+					}
+					column.add( new BaudRateEmptyItem() );
+				]]></method>
+			</behavior>
+		</column>
+	</scroller>
+	
+    <container id="BaudRateDial" left="0" right="0" top="32" bottom="0">
+		<container like="BaudRateScroller" left="0" top="0" bottom="32" right="0"/>
+
+		<content left="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		<content right="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		
+		<content top="0" width="184+30" skin="rollerShadowTopSkin"/>
+		<content bottom="32" width="184+30" skin="rollerShadowBottomSkin"/>
+
+		<content left="(320-184-30)/2 + 2" width="180+30" top="90-32" height="1" skin="dialDividerSkin"/>
+		<content left="(320-184-30)/2 + 2" width="180+30" bottom="90" height="1" skin="dialDividerSkin"/>
+		
+		<container left="0" right="0" top="0" bottom="32">
+			<content left="(320-184-30)/2" skin="verticalScrollerPointerSkin"/>
+		</container>
+    </container>
+
+	<container id="BaudRateScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<container like="EntryScreenHeader">
+			<behavior>
+				<method id="onCreate" params="container, data"><![CDATA[
+					this.data = data;
+				]]></method>
+				<method id="onOK" params="container"><![CDATA[
+					var selection = this.data.scroller.delegate("getSelection");		// remembers new baud rate
+					var tx = 31;
+					var baud = recallSelectedBaudRateValue();
+					gPinManager.getPinHandler(tx).setBaud(baud);
+					container.invoke( new Message( "/back" ) );
+				]]></method>
+			</behavior>
+		</container>
+		
+		<container like="BaudRateDial"/>											
+
+		<content anchor="divider" left="0" right="0" bottom="32" height="1" skin="blackSkin" visible="true"/>
+	</container>
+	
+	<handler path="/baud-input-screen">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);  
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: BaudRateScreen,
+						OpenTransition: TRANSITIONS.Reveal,
+						CloseTransition: TRANSITIONS.Hide,
+						title : "Select Baud Rate",	
+						okLabel : "OK",
+						cancelLabel : "Cancel",
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+					};                
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<!-- Line Endings Picker -->
+
+	<script><![CDATA[  
+		gLineEndingLabels = [ "none", "LF", "CR", "CR/LF", "LF/CR" ];
+		gLineEndingChars = [ "", "\n", "\r", "\r\n", "\n\r" ];
+		
+		var gSelectedLineEndingIndex = 0;
+		
+		var recallSelectedLineEndingIndex = function() {
+			return gSelectedLineEndingIndex;
+		}
+		var recallSelectedLineEndingLabel = function() {
+			return gLineEndingLabels[gSelectedLineEndingIndex];
+		}
+		var recallSelectedLineEndingChars = function() {
+			return gLineEndingChars[gSelectedLineEndingIndex];
+		}
+		var rememberSelectedLineEndingIndex = function(selection) {
+			gSelectedLineEndingIndex = selection;
+		}
+	]]></script>
+	
+	<container id="LineEndingEmptyItem" width="100" height="58"/>
+	<label id="LineEndingItem" height="58" style="dimmingScrolledLabelStyle" behavior="DimmingScrolledLabelBehavior"/>
+
+	<scroller id="LineEndingScroller" anchor="scroller" like="SCROLLER.VerticalScroller" clip="true" height="3 * 58">
+		<behavior like="SCROLLER.VerticalScrollerBehavior">
+			<method id="onCreate" params="scroller, data"><![CDATA[
+				var itemHeight = 58;
+				this.yScroll = itemHeight * recallSelectedLineEndingIndex();
+				SCROLLER.VerticalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			]]></method>
+			<method id="getSelection" params="scroller"><![CDATA[
+				var yScroll = scroller.scroll.y;
+				var itemHeight = 58;
+				var selection = Math.round(yScroll / itemHeight);
+				rememberSelectedLineEndingIndex(selection);
+				return selection;
+			]]></method>
+			<method id="snap" params="scroller, position, direction"><![CDATA[
+				var itemHeight = 58;
+				if (direction < 0)
+					position = itemHeight * Math.ceil(position / itemHeight);
+				else if (direction > 0)
+					position = itemHeight * Math.floor(position / itemHeight);
+				else
+					position = itemHeight * Math.round(position / itemHeight);
+				return position;
+			]]></method>
+			<method id="onDisplaying" params="scroller"><![CDATA[
+				SCROLLER.VerticalScrollerBehavior.prototype.onDisplaying.call(this, scroller);
+				scroller.scrollTo(0, this.yScroll);
+			]]></method>
+		</behavior>		
+
+		<column left="0" right="0" top="0">
+			<behavior>
+				<method id="onCreate" params="column, data"><![CDATA[
+					column.add( new LineEndingEmptyItem() );
+					for (var i=0; i < gLineEndingLabels.length; i++) {
+						var item = new LineEndingItem( data, { string : gLineEndingLabels[i] } );
+						column.add( item );
+					}
+					column.add( new LineEndingEmptyItem() );
+				]]></method>
+			</behavior>
+		</column>
+	</scroller>
+	
+    <container id="LineEndingDial" left="0" right="0" top="32" bottom="0">
+		<container like="LineEndingScroller" left="0" top="0" bottom="32" right="0"/>
+
+		<content left="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		<content right="(320-184-30)/2" top="0" bottom="32" width="2" skin="blackSkin"/>
+		
+		<content top="0" width="184+30" skin="rollerShadowTopSkin"/>
+		<content bottom="32" width="184+30" skin="rollerShadowBottomSkin"/>
+
+		<content left="(320-184-30)/2 + 2" width="180+30" top="90-32" height="1" skin="dialDividerSkin"/>
+		<content left="(320-184-30)/2 + 2" width="180+30" bottom="90" height="1" skin="dialDividerSkin"/>
+		
+		<container left="0" right="0" top="0" bottom="32">
+			<content left="(320-184-30)/2" skin="verticalScrollerPointerSkin"/>
+		</container>
+    </container>
+
+	<container id="LineEndingScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<container like="EntryScreenHeader">
+			<behavior>
+				<method id="onCreate" params="container, data"><![CDATA[
+					this.data = data;
+				]]></method>
+				<method id="onOK" params="container"><![CDATA[
+					var selection = this.data.scroller.delegate("getSelection");		// remembers new line ending
+					var detective = application.first.first;
+					container.invoke( new Message( "/back" ) );
+				]]></method>
+			</behavior>
+		</container>
+		
+		<container like="LineEndingDial"/>											
+
+		<content anchor="divider" left="0" right="0" bottom="32" height="1" skin="blackSkin" visible="true"/>
+	</container>
+	
+	<handler path="/line-ending-input-screen">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);  
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: LineEndingScreen,
+						OpenTransition: TRANSITIONS.Reveal,
+						CloseTransition: TRANSITIONS.Hide,
+						title : "Select Line Ending",	
+						okLabel : "OK",
+						cancelLabel : "Cancel",
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+					};                
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+
+</program>

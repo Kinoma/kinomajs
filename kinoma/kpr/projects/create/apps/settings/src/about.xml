@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+
+	<style id="aboutNameStyle" font="bold 22px" color="black" align="left,middle" leading="-19"/>
+	<style id="aboutDescriptionStyle" font="22px" color="black" align="left,middle" leading="-19">
+		<margins top="2"/>
+	</style>
+
+	<container id="AboutLine" like="SettingsLine" behavior="SettingsArrowListItemBehavior" skin="THEME.lineSkin">
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<content name="listArrow" like="ListArrow"/>
+	</container>
+
+	<text id="AboutAttributionLine" left="10" right="10">
+		<block style="aboutNameStyle" string="$.name"/>
+		<block style="aboutDescriptionStyle" string="$.description"/>
+	</text>
+	<column id="AboutBusyLine" left="0" right="0" top="40">
+		<picture like="CREATIONS.BusyPicture" width="100" height="100"/>
+	</column>
+	<column id="AboutDividerLine" left="0" right="0" height="25">
+		<content left="0" right="0" top="11" height="1" skin="dividerSkin"/>
+	</column>
+
+	<handler path="/about">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);  
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: AboutScreen,
+						title : "About Kinoma Create",
+						more: false,
+						items: null,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+						pop: false,
+						url: "http://kinoma.com/feeds/attribution.json"
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+	
+	<behavior id="SecretTouchVerticalScrollerBehavior" like="CREATIONS.DynamicHeaderScrollerBehavior">
+		<method id="onCreate" params="scroller, data"><![CDATA[
+			CREATIONS.DynamicHeaderScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+			this.secretTouchActive = false;
+			var boxHeight = 75;
+			this.secretTouchRects = [
+				{x: 0, y: application.height - boxHeight, width: boxHeight, height: boxHeight},
+				{x: application.width - boxHeight, y: application.height - boxHeight, width: boxHeight, height: boxHeight},
+			];
+			scroller.multipleTouch = true;
+		]]></method>
+		<method id="onTouchBegan" params="scroller, id, x, y, ticks"><![CDATA[
+			CREATIONS.DynamicHeaderScrollerBehavior.prototype.onTouchBegan.call(this, scroller, id, x, y, ticks);
+			if (!("firstID" in this)) {
+//trace("ADD FIRST....\n");
+				this.firstID = id
+				this.firstPoint = { x : x - scroller.x, y : y - scroller.y};
+			}
+			else if (!("secondID" in this) && id != this.firstID) {
+//trace("ADD SECOND....\n");
+				this.secondID = id
+				this.secondPoint = { x : x - scroller.x, y : y - scroller.y };
+			}
+			if ((!this.secretTouchActive) && ("firstID" in this) && ("secondID" in this)) {
+				this.secretTouchActive = true;
+				scroller.time = 0;
+				scroller.duration = 2000;
+				scroller.start();
+			}
+		]]></method>
+		<method id="onTouchMoved" params="scroller, id, x, y, ticks"><![CDATA[
+			if (this.secretTouchActive) {
+				switch(id) {
+					case this.firstID:
+						this.firstPoint = { x : x - scroller.x, y : y - scroller.y};
+						break;
+					case this.secondID:
+						this.secondPoint = { x : x - scroller.x, y : y - scroller.y };
+						break;
+				}
+				return;
+			}
+			CREATIONS.DynamicHeaderScrollerBehavior.prototype.onTouchMoved.call(this, scroller, id, x, y, ticks);
+		]]></method>
+		<method id="onTouchEnded" params="scroller, id, x, y, ticks"><![CDATA[
+			if ("firstID" in this && id == this.firstID)
+				delete this.firstID;
+			if ("secondID" in this && id == this.secondID)
+				delete this.secondID;
+			if (this.secretTouchActive) {
+//trace("CANCELING....\n");
+				this.secretTouchActive = false;
+				scroller.stop();
+				return;
+			}
+			CREATIONS.DynamicHeaderScrollerBehavior.prototype.onTouchEnded.call(this, scroller, id, x, y, ticks);
+		]]></method>
+		<method id="onFinished" params="scroller"><![CDATA[
+			if (this.secretTouchActive) {
+				this.secretTouchActive = false;
+				scroller.stop();
+				var success;
+//trace("TESTING....\n");
+				if (this.rectContainsPoint(this.secretTouchRects[0], this.firstPoint) && this.rectContainsPoint(this.secretTouchRects[1], this.secondPoint))
+					success = true;
+				else if (this.rectContainsPoint(this.secretTouchRects[0], this.secondPoint) && this.rectContainsPoint(this.secretTouchRects[1], this.firstPoint))
+					success = true;
+				else
+					success = false;
+				if (success) {
+//trace("SUCCESS....\n");
+					this.data.pop = true;
+					scroller.invoke(new Message("/train?" + serializeQuery({action: "/back"})));
+				}
+				return;
+			}
+			CREATIONS.DynamicHeaderScrollerBehavior.prototype.onFinished.call(this, scroller);
+		]]></method>
+		<method id="rectContainsPoint" params="r, p"><![CDATA[
+			if ((r.x <= p.x) && (p.x < (r.x + r.width))) {
+				if ((r.y <= p.y) && (p.y < (r.y + r.height)))
+					return true;
+			}
+			return false;
+		]]></method>
+	</behavior>
+
+    <container id="AboutScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" behavior="SecretTouchVerticalScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior"><![CDATA[
+					function onCreate(list, data) {
+						this.data = data;
+						if (this.data.items)
+							this.load(list, this.data.items)
+						else
+							this.addBusyLine(list);
+					}
+					function onComplete(list, message, result) {
+						list.remove(list.last);
+						var items = this.getItems(list, message, result);
+						this.data.items = items;
+						this.load(list, items);
+					}
+					function load(list, items) {
+						this.addLines(list, items, false);
+					}
+					function onDisplayed(list) {
+						if (!this.data.items)
+							list.invoke(new Message(this.data.url), Message.JSON);
+					}
+					function addBusyLine(list, item) {
+						list.add(new AboutBusyLine);
+					}
+					function getItems(list, message, results) {
+						if (!results) return [];
+						var header = results.splice(0, 2);
+						results.sort(this.compareNames);
+						results = header.concat(results);
+						return results;
+					}
+					function addItemLine(list, item, index) {
+						if (0 == index) {
+							list.add(new Content({height: 7}));
+							list.add(new AboutAttributionLine(item));
+							list.add(new AboutDividerLine(item));
+						}
+						else {
+							list.add(new AboutAttributionLine(item));
+							list.add(new Content({height: 10}));
+						}
+					}
+					function compareNames(a, b) {
+						return a.name.toLowerCase().compare(b.name.toLowerCase());
+					}
+					function onScreenEnding(list, backwards) {
+						if (!backwards && this.data.pop) {
+							this.data.pop = false;
+							model.history.pop();
+						}
+					}
+				]]></behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+		</scroller>
+  		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+    
+</program>

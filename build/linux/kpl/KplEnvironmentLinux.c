@@ -17,6 +17,9 @@
 #include "KplEnvironment.h"
 #include <unistd.h>
 #include <sys/utsname.h>
+#if SUPPORT_LINUX_GTK
+    #include <glib.h>
+#endif
 
 FskErr KplEnvironmentInitialize(FskAssociativeArray environment)
 {
@@ -30,6 +33,18 @@ FskErr KplEnvironmentInitialize(FskAssociativeArray environment)
     FskEnvironmentSet("platform", "linux");
 #else
     #error "What is your platform?"
+#endif
+#if SUPPORT_LINUX_GTK
+	char* directory;
+	
+	if ((directory = g_get_user_special_dir(G_USER_DIRECTORY_DOCUMENTS)))
+		FskEnvironmentSet("DocumentsDir", FskStrDoCat(directory, "/"));
+	if ((directory = g_get_user_special_dir(G_USER_DIRECTORY_PICTURES)))
+		FskEnvironmentSet("PhotosDir", FskStrDoCat(directory, "/"));
+	if ((directory = g_get_user_special_dir(G_USER_DIRECTORY_MUSIC)))
+		FskEnvironmentSet("MusicDir", FskStrDoCat(directory, "/"));
+	if ((directory = g_get_user_special_dir(G_USER_DIRECTORY_VIDEOS)))
+		FskEnvironmentSet("VideoDir", FskStrDoCat(directory, "/"));
 #endif
 
 	return kFskErrNone;

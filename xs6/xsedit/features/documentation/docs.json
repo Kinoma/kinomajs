@@ -5,7 +5,7 @@
 		"./docs/develop/documentation/element/element.md",
 		"./docs/develop/documentation/overview/overview.md",
 		"./docs/develop/documentation/javascript/javascript.md",
-		"./docs/develop/documentation/technotes/introducing-kinomajs-dictionary-based-constructors-and-templates/introducing-kinomajs-dictionary-based-constructors-and-templates.md",
+		"./docs/develop/documentation/technotes/introducing-kinomajs-dictionary-based-constructors-and-templates/index.md",
 		"./docs/develop/documentation/using-javascript-6th-edition-features-in-kinomajs/using-javascript-6th-edition-features-in-kinomajs.md",
 		"./docs/develop/documentation/pins/pins.md",
 		"./docs/develop/documentation/coap-client-and-server-in-kinomajs/coap-client-and-server-in-kinomajs.md",
@@ -18,5 +18,6 @@
 		"./docs/create/user-guide/user-guide.md",
 		"./docs/element/quick-start/quick-start.md",
 		"./docs/develop/documentation/element-bll/element-bll.md",
-	]
+	],
+	"force":false
 }

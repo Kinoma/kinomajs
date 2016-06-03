@@ -1,0 +1,621 @@
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+
+	<!-- network interface -->
+
+	<handler path="/network/interface/add">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				if (query.name == "uap0") return;
+				var model = getBehavior();
+				model.data.netInterfaces[query.name] = query;
+				//K4.log("wifi-debug", "Added network interface " + query.name + " with ip " + query.ip);
+				if (Object.keys(model.data.netInterfaces).length == 1) {
+					model.data.network.active = true;
+					model.data.network.ip_address = query.ip;
+					shell.invoke(new Message("/network/date/wait?delay=1000"));
+				}
+				shell.distribute("onNetworkInterfaceAdded");
+				handler.invoke(new Message("/network/interface/added"));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/interface/added">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+				if ("ip_address" in json && "ssid" in json) {
+					K4.log("wifi", "Connected to '" + json.ssid + "' with IP address " + json.ip_address);
+					//K4.log("wifi-debug", "Connected to '" + json.ssid + "' with IP address " + json.ip_address);
+					var model = getBehavior();
+					var network = model.data.network;
+					if (network.ip_address != json.ip_address)
+						debugger;
+					network.ip_address = json.ip_address;
+					network.ssid = json.ssid;
+					if ("timeoutMessage" in network) {
+						network.timeoutMessage.cancel();
+						delete network.timeoutMessage;
+					}
+					if ("joining" in network) {
+						if (network.joining.ssid == json.ssid) {
+							var message = new Message("/network/known");
+							message.method = "PUT";
+							message.requestText = JSON.stringify(network.joining);
+							handler.invoke(message);
+						}
+						delete network.joining;
+					}
+					handler.invoke(new Message("/network/wifi/level/get"));
+					Message.notify(new Message("/network/connected?" + serializeQuery({ssid: json.ssid, ip_address: json.ip_address})));
+				}
+			}
+			function onInvoke(handler, message) {
+				handler.invoke(new Message("xkpr://wifi/status"), Message.JSON);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/interface/remove">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				if (query.name == "uap0") return;
+				var model = getBehavior();
+				delete model.data.netInterfaces[query.name];
+				K4.log("wifi", "Removed network interface " + query.name);
+				var network = model.data.network;
+				var ssid = network.ssid;
+				if (Object.keys(model.data.netInterfaces).length == 0) {
+					network.active = false;
+					network.ip_address = "";
+					network.ssid = "";
+					network.signal_level = 0;
+				}
+				if (!network.connecting) {
+					if (!network.hibernating) {
+						// Move removed ssid to the end of the list to avoid trying to re-connect to a network that was just removed.
+						// The WPA supplicant scanned results sometimes include the removed network on the first scan.
+						for (var i = 0, knownNetworks = model.knownNetworks, c = knownNetworks.length; i < c; ++i) {
+							if (ssid == knownNetworks[i].ssid) {
+								var entry = knownNetworks.splice(i, 1);
+								model.knownNetworks = knownNetworks.concat(entry);
+								model.saveKnownNetworks();
+								break;
+							}
+						}
+					}
+					shell.invoke(new Message("/network/autoconnect/monitor/start?delay=0"));
+				}
+				network.hibernating = false;
+				
+				shell.distribute("onNetworkInterfaceRemoved", ssid);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/date/get">
+		<behavior><![CDATA[
+			function onComplete(handler, message) {
+				var model = getBehavior();
+				var proxy = model.data.network.proxy;
+				if (model.data.network.active && (message.error == -106)) {
+					model.data.network.proxy = true;
+					model.data.network.internet = false;
+				}
+				else if (message.status == 200) {
+					var date = message.getResponseHeader("Date");
+					var now = Date.parse(date);
+					//trace("/network/date/get " + date + "\n");
+					var query = {secsSinceEpoch: now / 1000};
+					var timezone = getTimezonePosix();
+					if (timezone)
+						query.tz = timezone;
+					if (!model.data.network.dateSet || (Math.abs(Date.now() - now) > 10000)) {
+						handler.redirect("/network/date/set?" + serializeQuery(query));
+					}
+					else {
+						model.data.network.dateSet = true;
+						shell.distribute("onDateSet");
+					}
+					model.data.network.proxy = false;
+					model.data.network.internet = true;
+				}
+				else
+					model.data.network.internet = false;
+				if (proxy != model.data.network.proxy)
+					shell.distribute("onNetworkProxyChange", proxy);
+				if (model.data.network.active)
+					handler.invoke(new Message("/network/date/wait?delay=60000"));
+			}
+			function onInvoke(handler, message) {
+				var uri = "http://service.cloud.kinoma.com/includes/time-stamp.inc";
+				var message = new Message(uri);
+				message.method = "HEAD";
+				message.setRequestHeader("User-Agent", "k4.kinoma.com/1.0");
+				handler.invoke(message, Message.TEXT);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/date/set">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var model = getBehavior();
+				var query = parseQuery(message.query);
+				K4.date = query.secsSinceEpoch;
+				if ("tz" in query)
+					K4.timezone = query.tz;
+				model.data.network.dateSet = true;
+				shell.distribute("onDateSet");
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/network/date/wait">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+				handler.redirect("/network/date/get");
+			}
+			function onInvoke(handler, message) {
+				var query = parseQuery(handler.message.query);
+				handler.wait(parseInt(query.delay));
+			}
+		]]></behavior>
+	</handler>
+
+	<!-- network status -->
+
+	<handler path="/network/status">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var model = getBehavior();
+				handler.message.responseText = JSON.stringify(model.data.network);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/known">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                var model = getBehavior();
+				var method = message.method;
+				var networks = model.knownNetworks;
+				var remove = false, add = false, save = false;
+				var query = parseQuery(message.query);
+				var network;
+				if (method == "PUT") {
+					network = JSON.parse(message.requestText);
+					add = remove = save = true;
+                }
+				else if (method == "DELETE") {
+					if ("ssid" in query) {
+						var ssid = query.ssid;
+						for (var i = 0, c = networks.length; i < c; ++i) {
+							if (networks[i].ssid == ssid) {
+								network = networks[i];
+								remove = save = true;
+								break;
+							}
+						}
+					}
+					else {
+						model.knownNetworks = [];
+						save = true;
+					}
+				}
+				else {
+					if (!("ssid" in query)) {
+						var result = new Array(networks.length);
+						for (var i = 0, c = networks.length; i < c; ++i) {
+							var network = this.cloneNetwork(networks[i]);
+							if ("password" in network)
+								network.password = decryptNetworkPassword(network.password);
+							result[i] = network;
+						}
+						handler.message.responseText = JSON.stringify(result);
+					}
+					else {
+						var ssid = query.ssid;
+						for (var i = 0, c = networks.length; i < c; ++i) {
+							if (networks[i].ssid == ssid) {
+								var network = this.cloneNetwork(networks[i]);
+								if ("password" in network)
+									network.password = decryptNetworkPassword(network.password);
+								handler.message.responseText = JSON.stringify(network);
+								break;
+							}
+						}
+					}
+				}
+				if (remove) {
+					for (var i = 0, c = networks.length; i < c; ++i) {
+						if (networks[i].ssid == network.ssid) {
+							networks.splice(i, 1);
+							c--;
+							i--;
+						}
+					}
+				}
+				if (add) {
+					if ("password" in network)
+						network.password = encryptNetworkPassword(network.password);
+					networks.unshift(network);
+				}
+				if (save) {
+					model.saveKnownNetworks();
+				}
+			}
+			function cloneNetwork(network) {
+				var result = {};
+				for (var param in network)
+					result[param] = network[param];
+				return result;
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/connect/status">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				handler.invoke(new Message("xkpr://wifi/status"), Message.JSON);
+			}
+			function onComplete(handler, message, json) {
+				handler.message.responseText = JSON.stringify(json);
+			}
+		]]></behavior>
+	</handler>
+
+	<!-- network configuration -->
+
+	<handler path="/network/configure">
+		<behavior><![CDATA[
+			function isHexPassword(password) {
+				if (0 != (password.length % 2))
+					return false;
+				var s = password.toUpperCase();
+				for (var i = 0, c = s.length; i < c; ++i) {
+					var b = s.charCodeAt(i);
+					if (!((b >= 48 && b <= 57) || (b >= 65 && b<= 70)))
+						return false;
+				}
+				return true;
+			}
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+                var model = getBehavior();
+				var network = model.data.network;
+				if ("timeoutMessage" in network)
+					network.timeoutMessage.cancel();
+				var configuration = {reset: true, ssid: query.ssid, encryption: query.authentication};
+				if ("true" == query.adhoc)
+					configuration.adhoc = "true";
+				if (("NONE" != query.authentication) && query.password)
+					configuration.password = query.password;
+				if ("hiddenNetwork" in query && "true" == query.hiddenNetwork)
+					configuration.hidden = "true";
+				network.joining = configuration;
+				var params = {};
+				for (var param in configuration)
+					params[param] = configuration[param];
+				if ("WEP" == configuration.encryption) {
+					if (this.isHexPassword(query.password))
+						params.password = query.password.toUpperCase();
+					else {
+						var hexEncodedPassword = "";
+						var password = query.password;
+						for (var i = 0, c = password.length; i < c; ++i) {
+							var byte = password.charCodeAt(i);
+							var hex = byte.toString(16);
+							if (byte < 16)
+								hex = '0' + hex;
+							hexEncodedPassword += hex;
+						}
+						params.password = hexEncodedPassword;
+					}
+				}
+				else if (("NONE" != configuration.encryption) && query.password) {
+					params.password = query.password;
+				}
+//trace("/wifi/configure params = " + serializeQuery(params) + "\n");
+				network.connecting = true;
+				//K4.log("wifi-debug", "connecting to " + JSON.stringify(params));
+				shell.distribute("onNetworkConnecting", params.ssid);
+				handler.invoke(new Message("xkpr://wifi/configure?" + serializeQuery(params)));
+				
+				var message = network.timeoutMessage = new Message("/network/configure/wait?ssid=" + params.ssid);
+				handler.invoke(message);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/configure/wait">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+				//K4.log("wifi-debug", "configure wait timeout");
+				var model = getBehavior();
+				var network = model.data.network;
+				network.connecting = false;
+				handler.invoke(new Message("/network/autoconnect/monitor/start?delay=0"));
+				Message.notify(new Message("/network/configure/timeout?ssid=" + this.query.ssid));
+			}
+			function onInvoke(handler, message) {
+				//K4.log("wifi-debug", "configure wait");
+				this.query = parseQuery(message.query);
+				handler.wait(25 * 1000);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/connected">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var model = getBehavior();
+				var network = model.data.network;
+				var query = parseQuery(message.query);
+				network.connecting = false;
+				shell.distribute("onNetworkConnected", query.ssid, query.ip_address);
+			}
+		]]></behavior>
+	</handler>
+
+	<!-- network wifi level -->
+
+	<handler path="/network/wifi/level/monitor/start">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				handler.invoke(new Message("/network/wifi/level/idle?" + serializeQuery(query)));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/wifi/level/idle">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+				if (json && ("signal_level" in json)) {
+					var model = getBehavior();
+					var signal_level = parseInt(json.signal_level);
+					if (signal_level != model.data.network.signal_level) {
+						model.data.network.signal_level = signal_level;
+						shell.distribute("onNetworkSignalLevelChange", model.data.network.signal_level);
+					}
+				}
+				handler.redirect("/network/wifi/level/wait?delay=4000");
+			}
+			function onInvoke(handler, message) {
+				var model = getBehavior();
+                var network = model.data.network;
+				if (network.ssid && network.ip_address)
+					handler.invoke(new Message("xkpr://wifi/level"), Message.JSON);
+				else {
+					var query = parseQuery(handler.message.query);
+					var delay = ("delay" in query ? query.delay : 4000);
+					handler.redirect("/network/wifi/level/wait?delay=" + delay);
+				}
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/wifi/level/wait">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+				handler.redirect("/network/wifi/level/idle");
+			}
+			function onInvoke(handler, message) {
+				var query = parseQuery(handler.message.query);
+				handler.wait(parseInt(query.delay));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/wifi/level/get">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+				if (json && ("signal_level" in json)) {
+					var model = getBehavior();
+					var signal_level = parseInt(json.signal_level);
+					if (signal_level != model.data.network.signal_level) {
+						model.data.network.signal_level = signal_level;
+						shell.distribute("onNetworkSignalLevelChange", model.data.network.signal_level);
+					}
+				}
+			}
+			function onInvoke(handler, message) {
+				handler.invoke(new Message("xkpr://wifi/level"), Message.JSON);
+			}
+		]]></behavior>
+	</handler>
+
+	<!-- network wifi scan -->
+
+	<handler path="/network/wifi/scan/start">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                var model = getBehavior();
+				model.data.network.scanning = true;
+				model.data.network.scanned = [];
+				handler.invoke(new Message("/network/wifi/scan"));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/wifi/scan">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+                var model = getBehavior();
+				if (!model.data.network.scanning) return;
+				if (!json)
+					json = [];
+				model.data.network.scanned = json;
+				var message = new Message("/network/scanned");
+				message.responseText = JSON.stringify(json);
+				Message.notify(message);
+				handler.redirect("/network/wifi/scan/wait?delay=4000");
+			}
+			function onInvoke(handler, message) {
+				handler.invoke(new Message("xkpr://wifi/scan"));
+				handler.invoke(new Message("xkpr://wifi/scanned"), Message.JSON);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/wifi/scan/wait">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+				handler.redirect("/network/wifi/scan");
+			}
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				handler.wait(parseInt(query.delay));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/wifi/scan/stop">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+                var model = getBehavior();
+				model.data.network.scanning = false;
+				model.data.network.scanned = [];
+			}
+		]]></behavior>
+	</handler>
+
+	<!-- auto connect -->
+
+	<handler path="/network/autoconnect/monitor/start">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				var model = getBehavior();
+                var network = model.data.network;
+				network.autoconnect.index = -1;
+				if ("idleMessage" in network)
+					network.idleMessage.cancel();
+				var message = network.idleMessage = new Message("/network/autoconnect/idle?" + serializeQuery(query));
+				handler.invoke(message);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/autoconnect/idle">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				var model = getBehavior();
+                var network = model.data.network;
+				var delay = ("delay" in query ? query.delay : 2000);
+				handler.redirect("/network/autoconnect/idle/wait?delay=" + delay);
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/autoconnect/idle/wait">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+				handler.redirect("/network/autoconnect/check");
+			}
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+				handler.wait(parseInt(query.delay));
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/autoconnect/check">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var model = getBehavior();
+                var network = model.data.network;
+				//K4.log("wifi-debug", network.ssid + " / " + network.ip_address);
+				if (network.ssid && network.ip_address) {
+					// done
+				}
+				else if (model.knownNetworks.length)
+					handler.invoke(new Message("/network/autoconnect/scan"));
+				else
+					handler.redirect("/network/autoconnect/idle");
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/autoconnect/scan">
+		<behavior><![CDATA[
+			function onComplete(handler, message, json) {
+                var model = getBehavior();
+                var network = model.data.network;
+				//K4.log("wifi-debug", "autoconnect scanning");
+				if (!json)
+					json = [];
+				this.sortAndRemoveDuplicates(json);
+				network.scanned = json;
+				while (++network.autoconnect.index < model.knownNetworks.length) {
+					var entry = model.knownNetworks[network.autoconnect.index];
+					for (var i = 0, c = network.scanned.length; i < c; ++i) {
+						if (entry.ssid == network.scanned[i].ssid) {
+							handler.invoke(new Message("/network/autoconnect/connect?" + serializeQuery(entry)));
+							return;
+						}
+					}
+				}
+				network.autoconnect.index = -1;
+				handler.invoke(new Message("/network/autoconnect/monitor/start?delay=3000"));
+			}
+			function onInvoke(handler, message) {
+				handler.invoke(new Message("xkpr://wifi/scan"));
+				handler.invoke(new Message("xkpr://wifi/scanned"), Message.JSON);
+			}
+			function sortAndRemoveDuplicates(items) {
+				items.sort(this.compareNames);
+				this.removeDuplicates(items);
+			}
+			function compareNames(a, b) {
+				return a.ssid.toLowerCase().compare(b.ssid.toLowerCase());
+			}
+			function removeDuplicates(items) {
+				for (var i=0, c=items.length - 1; i < c; i++) {
+					if (items[i].ssid == '' || items[i].ssid == items[i+1].ssid) {
+						items.splice(i, 1);
+						c--;
+						i--;
+					}
+				}
+			}
+		]]></behavior>
+	</handler>
+
+	<handler path="/network/autoconnect/connect">
+		<behavior><![CDATA[
+			function onInvoke(handler, message) {
+				var query = parseQuery(message.query);
+                var model = getBehavior();
+				var network = model.data.network;
+				query.authentication = query.encryption;
+				if ("password" in query)
+					query.password = decryptNetworkPassword(query.password);
+				if (!("adhoc" in query))
+					query.adhoc = "false";
+				//K4.log("wifi-debug", "autoconnect connect");
+				handler.redirect("/network/configure?" + serializeQuery(query));
+			}
+		]]></behavior>
+	</handler>
+
+</program>

@@ -40,6 +40,10 @@
 #include <fcntl.h>
 #include <sys/eventfd.h>
 
+#if SUPPORT_LINUX_GTK
+#include <gtk/gtk.h>
+#endif
+
 #include "FskWindow.h"
 #include "FskMain.h"	// To access gQuitting global
 
@@ -184,6 +188,11 @@ void KplThreadYield(void)
 
 void KplThreadWake(KplThread kplThread)
 {
+#if SUPPORT_LINUX_GTK
+    if ((kplThread->flags & kFskThreadFlagsIsMain) && (gtk_main_level() > 0))
+        gtk_main_quit();
+#endif
+
     if (kplThread->eventfd >= 0) {
         uint64_t one = 1;
         write(kplThread->eventfd, &one, sizeof(one));
@@ -217,6 +226,7 @@ FskErr KplThreadCreateMain(KplThread *kplThread)
 	if (err) goto bail;
 
 	mainThread = thread;
+	thread->flags = kFskThreadFlagsIsMain;
 
 	sigemptyset(&set);
 	sigaddset(&set, SIGUSR1);
@@ -340,6 +350,14 @@ void KplThreadNotifyPendingSocketData(void *socket, Boolean pendingReadable, Boo
 	// No implementation required for Linux build
 }
 
+#if SUPPORT_LINUX_GTK
+gboolean quitGtkMain(gpointer user_data)
+{
+    gtk_main_quit();
+    return FALSE;
+}
+#endif
+
 FskErr KplThreadRunloopCycle(SInt32 msec)
 {
 	KplThread		thread;
@@ -393,6 +411,13 @@ FskErr KplThreadRunloopCycle(SInt32 msec)
     if ((msec >= 0) && (waitTimeMS > msec))
         waitTimeMS = msec;
 	
+#if SUPPORT_LINUX_GTK
+    if (thread->flags & kFskThreadFlagsIsMain) {
+        FskInstrumentedTypePrintfDebug(&gKplThreadTypeInstrumentation, "gtk_main should quit in %ds", waitTimeMS);
+        g_timeout_add(waitTimeMS, quitGtkMain, NULL);
+        gtk_main();
+	}
+#endif
 	LinuxThreadWaitForData(thread, waitTimeMS);
 
 	FskInstrumentedTypePrintfDebug(&gKplThreadTypeInstrumentation, "KplThreadRunloopCycle DONE");

@@ -164,11 +164,18 @@ export var markdownOptions = {
 					if (!parts.path.endsWith("/"))
 						parts.path += "/";
 					let name, names = parts.path.split("/");
+					let path = parts.path;
 					while (!name && names.length)
 						name = names.pop();
-					parts.path += name + ".md";
+					parts.path = path + name + ".md";
+					url = serializeURI(parts);
+					if ((parts.scheme == "file") && !Files.exists(url)) {
+						// The rule for document links: "Where the path is a directory (i.e. trailing backslash) the rule is to read a file of the same name with .md extension in the directory."
+						// Normally that would be fine but with directory names like "introducing-kinomajs-dictionary-based-constructors-and-templates” and the Windows path limitation, it creates a problem.
+						parts.path = path + "index.md";
+						url = serializeURI(parts);
+					}
 				}
-				url = serializeURI(parts);
 				//if (at) {
 					shell.delegate("doOpenURL", url, at);
 				//}

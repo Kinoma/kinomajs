@@ -105,7 +105,7 @@ CRYPT_OBJS += $(addprefix $(TMP_DIR)/crypt/, $(addsuffix .xs.o, $(basename $(CRY
 ARITH_OBJS += $(addprefix $(TMP_DIR)/crypt/, $(addsuffix .xs.o, $(basename $(ARITH_C_SRCS))))
 endif
 
-LOCAL_OBJS = $(CRYPT_OBJS) $(ARITH_OBJS) $(TMP_DIR)/crypt/kcl.o
+LOCAL_OBJS = $(CRYPT_OBJS) $(ARITH_OBJS) $(TMP_DIR)/crypt/crypt_kcl.o
 LOCAL_BINARIES = $(CRYPT_BINARIES) $(ARITH_BINARIES)
 LOCAL_LIBS = $(TMP_DIR)/libkcl.a
 
@@ -119,7 +119,7 @@ C_OPTIONS += $(MOD_C_OPTIONS)
 
 all: archive $(CRYPT_DLS) $(ARITH_DLS)
 
-archive: $(TMP_DIR)/crypt $(DEST_DIR)/arith $(DEST_DIR)/crypt $(LOCAL_LIBS) $(DEST_DIR)/crypt.xsb $(DEST_DIR)/arith.xsb $(TMP_DIR)/$(LIBMODULE)
+archive: $(TMP_DIR)/crypt $(DEST_DIR)/arith $(DEST_DIR)/crypt $(LOCAL_LIBS) $(LOCAL_BINARIES) $(DEST_DIR)/crypt.xsb $(DEST_DIR)/arith.xsb $(TMP_DIR)/$(LIBMODULE)
 
 $(TMP_DIR)/crypt:
 	mkdir -p $(TMP_DIR)/crypt
@@ -138,11 +138,11 @@ $(KCL_OBJS): $(TMP_DIR)/crypt/%.o: $(KCL_DIR)/%.c
 	$(CC) $< $(C_OPTIONS) -c -o $@
 
 # rules
-$(DEST_DIR)/%.xsb: $(TMP_DIR)/%.xsb
-	cp -p $< $@
 $(DEST_DIR)/crypt/%.xsb: $(TMP_DIR)/crypt/crypt_%.xsb
 	cp -p $< $@
 $(DEST_DIR)/arith/%.xsb: $(TMP_DIR)/crypt/arith_%.xsb
+	cp -p $< $@
+$(DEST_DIR)/%.xsb: $(TMP_DIR)/%.xsb
 	cp -p $< $@
 $(TMP_DIR)/%.xsb: $(CRYPT_DIR)/%.js
 	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(TMP_DIR) $<

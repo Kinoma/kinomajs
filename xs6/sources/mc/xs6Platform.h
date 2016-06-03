@@ -163,6 +163,7 @@ typedef struct mc_tm c_tm;
 #define c_memcpy memcpy
 #define c_memmove memmove
 #define c_memset memset
+#define c_memcmp memcmp
 #define c_strcat strcat
 #define c_strchr strchr
 #define c_strcmp strcmp

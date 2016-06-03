@@ -14,10 +14,9 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
+
 #include "crypt.h"
 #include "crypt_mode.h"
-#include <string.h>
 
 static void
 cbc_xor(uint8_t *t, const uint8_t *x, size_t n)
@@ -44,7 +43,7 @@ cbc_encrypt(crypt_mode_t *mode, const void *indata, void *outdata, size_t n, int
 	while (n >= blksz) {
 		cbc_xor(prev, src, blksz);
 		(*cipher->process)(cipher->ctx, prev, dst);
-		memcpy(prev, dst, blksz);
+		c_memcpy(prev, dst, blksz);
 		n -= blksz;
 		src += blksz;
 		dst += blksz;
@@ -106,10 +105,10 @@ cbc_setIV(crypt_mode_t *mode, const void *iv, size_t ivsize)
 {
 	size_t blksz = mode->cipher->blockSize;
 
-	memset(mode->em_buf, 0, sizeof(mode->em_buf));
+	c_memset(mode->em_buf, 0, sizeof(mode->em_buf));
 	if (ivsize > blksz)
 		ivsize = blksz;
-	memcpy(mode->em_buf, iv, ivsize);
+	c_memcpy(mode->em_buf, iv, ivsize);
 }
 
 void
@@ -123,7 +122,7 @@ xs_cbc_init(xsMachine *the)
 	mode->setIV = cbc_setIV;
 	mode->direction = -1;
 	mode->maxSlop = mode->cipher->blockSize;
-	memset(mode->em_buf, 0, sizeof(mode->em_buf));
+	c_memset(mode->em_buf, 0, sizeof(mode->em_buf));
 	if (ac > 0 && xsTest(xsArg(0))) {
 		/* iv */
 		size_t ivsize = xsGetArrayBufferLength(xsArg(0));

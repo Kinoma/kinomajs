@@ -40,6 +40,7 @@ class Manifest extends CMAKE.Manifest {
 	}
 	getGenerator(tool) {
 		let vs = null;
+		let vsVersion = null;
 		let VisualStudioVariants = {
 			10: "Visual Studio 10 2010",
 			11: "Visual Studio 11 2012",
@@ -51,12 +52,13 @@ class Manifest extends CMAKE.Manifest {
 			let comntools = process.getenv(`VS${version}COMNTOOLS`);
 			if (comntools) {
 				vs = VisualStudioVariants[key];
-				if (key < 12)
-					throw new Error(vs + " is not supported. Please upgrade Visual Studio");
+				vsVersion = key;
 			}
 		}
 
 		if (vs) {
+			if (vsVersion < 12)
+				throw new Error(vs + " is not supported. Please upgrade Visual Studio");
 			if (tool.m64)
 				return `${vs} Win64`;
 			else

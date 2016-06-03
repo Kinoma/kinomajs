@@ -1,0 +1,1903 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+ 	<require id="CONTROL_THEME" path="themes/flat/theme"/>
+ 	<require id="THEME" path="themes/sample/theme"/>
+	<script>
+        <![CDATA[
+			for (var i in CONTROL_THEME)
+				THEME[i] = CONTROL_THEME[i];
+        ]]>
+    </script>
+
+	<require id="TIMEZONE" path="timezone"/>
+	<require id="CREATIONS" path="creations/creations"/>
+	<require id="CDIALOG" path="creations/dialog"/>
+	<require id="SKEYBOARD" path="creations/keyboard"/>
+   	<require id="BUTTONS" path="controls/buttons"/>
+   	<require id="SLIDERS" path="controls/sliders"/>
+	<require id="MODEL" path="mobile/model"/>
+	<require id="SCREEN" path="mobile/screen"/>
+	<require id="SCROLLER" path="mobile/scroller"/>
+	<require id="TOOL" path="mobile/tool"/>
+	<require id="DIALOG" path="mobile/dialog"/>
+	<require id="CONTROL" path="mobile/control"/>
+	<require id="KEYBOARD" path="mobile/keyboard"/>
+
+	<!-- should move greenButton to creations module -->
+	<effect id="enabledEffect">
+		<colorize color="#5ab021"/>
+	</effect>
+	<effect id="selectedEffect">
+		<colorize color="#333333"/>
+	</effect>
+	<variable id="greenButtonSkin" value="new THEME.DynamicSkin( THEME.buttonTexture, THEME.disabledEffect, enabledEffect, selectedEffect, undefined,
+														{ left : 10, top : 10, right : 10, bottom : 10 })"/>
+
+	<style id="greenButtonStyle" font="bold 24px" color="white" align="middle,left" lines="1"/>
+
+    <texture id="sdCardTexture" small="assets/settings/sd-card.png"/>
+    <skin id="sdCardSkin" texture="sdCardTexture" x="0" y="0" width="55" height="71"/>
+
+	<texture id="listArrowTexture" small="assets/list-arrow.png"/>
+	<skin id="listArrowSkin" texture="listArrowTexture" x="0" y="0" width="32" height="32">
+        <states offset="32"/>
+    </skin>
+
+    <texture id="createIconTexture" small="assets/settings/create-icon.png"/>
+    <skin id="createIconSkin" texture="createIconTexture" x="0" y="0" width="60" height="60"/>
+
+    <texture id="alertWarningIconTexture" small="assets/settings/alert-warning.png"/>
+    <skin id="alertWarningIconSkin" texture="alertWarningIconTexture" x="0" y="0" width="60" height="60"/>
+
+    <texture id="alertIconTexture" small="assets/settings/alert.png"/>
+    <skin id="alertIconSkin" texture="alertIconTexture" x="0" y="0" width="60" height="60"/>
+
+	<texture id="sdFirmwareTexture" small="assets/settings/sd-firmware-strip.png"/>
+	<skin id="sdFirmwareSkin" texture="sdFirmwareTexture" x="0" y="0" width="60" height="60" aspect="fit">
+		<states offset="60"/>
+    </skin>
+
+	<texture id="deviceFirmwareTexture" small="assets/settings/device-firmware-strip.png"/>
+	<skin id="deviceFirmwareSkin" texture="deviceFirmwareTexture" x="0" y="0" width="60" height="60" aspect="fit">
+		<states offset="60"/>
+    </skin>
+
+	<handler path="/main">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+                	return {
+						Screen: SettingsScreen,
+						title : "Settings",
+						items : [
+							{ Line : NameLine, label : "Name", action : "/name" },
+							{ Line : TimezoneLine, label : "Time Zone", timezone : { timezone : -11, "daylight-savings" : false }, action : "/timezone" },
+							{ Line : StartupAppLine, label : "Startup App", action : "/startupApp" },
+							{ Line : DebuggingLine, label : "Debugging", action : "/debugging" },
+							{ Line : CategoryLine, label : "Applications" },
+							{ Line : BacklightLine, label : "Backlight", action : "/backlight" },
+							{ Line : DeleteAppsLine, label : "Delete Apps", action : "/deleteApps" },
+							{ Line : QuitGestureLine, label : "Home Gesture" },
+							{ Line : CategoryLine, label : "System Software" },
+							{ Line : ShellVersionLine, label : "Kinoma Software" },
+							{ Line : FirmwareVersionLine, label : "Booted OS" },
+							{ Line : SystemVersionLine, label: "Firmware OS"},
+							{ Line : BootFromLine, label : "Boot From", action : "/sdBootFrom" },
+							{ Line : SDCardLine, label : "Set Up SD Card", action : "/setupSDCard" },
+							{ Line : CategoryDivider },
+							{ Line : ClearCachesLine, label : "Clear Caches", action : "/clearCaches" },
+							{ Line : MACAddressLine, label : "MAC Address" },
+							{ Line : ModelLine, label : "Model" },
+							{ Line : AboutLine, label : "About Kinoma Create", action : "/about" },
+						],
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<behavior id="SettingsListItemBehavior" like="SCREEN.ListItemBehavior">
+ 		<method id="onComplete" params="container, message, json">
+			this.gotSettingValue(container, message.name, json);
+		</method>
+
+		<method id="getSettingValue" params="container, name">
+			container.invoke(new Message("xkpr://shell/settings/" + name), Message.JSON);
+		</method>
+
+		<method id="gotSettingValue" params="container, name, value">
+		</method>
+
+		<method id="putSettingValue" params="container, name, value">
+			var message = new Message("xkpr://shell/settings/" + name);
+			var requestText = JSON.stringify(value);
+			message.setRequestHeader("Content-Length", requestText.length);
+			message.setRequestHeader("Content-Type", "application/json");
+			message.requestText = requestText;
+			message.method = "PUT";
+			container.invoke(message);
+		</method>
+    </behavior>
+
+	<behavior id="SettingsArrowListItemBehavior" like="SettingsListItemBehavior">
+		<method id="onTouchBegan" params="content, id, x, y, ticks">
+            <![CDATA[
+            	SettingsListItemBehavior.prototype.onTouchBegan.call(this, content, id, x, y, ticks);
+                content.listArrow.state = 1;
+            ]]>
+        </method>
+		<method id="onTouchEnded" params="content, id, x, y, ticks">
+            <![CDATA[
+            	SettingsListItemBehavior.prototype.onTouchEnded.call(this, content, id, x, y, ticks);
+                content.listArrow.state = 0;
+            ]]>
+        </method>
+		<method id="onTouchCancelled" params="content, id, x, y, ticks">
+            <![CDATA[
+             	SettingsListItemBehavior.prototype.onTouchCancelled.call(this, content, id, x, y, ticks);
+               content.listArrow.state = 0;
+            ]]>
+        </method>
+    </behavior>
+
+	<style id="applicationStyle" font="18px Fira Sans"/>
+
+	<style id="lineValueStyle" font="22px" color="blue" align="right,middle" lines="all" leading="-15"/>
+	<style id="unsetLineValueStyle" font="22px" color="#999999" align="left,center" lines="1"/>
+	<style id="orangeLineValueStyle" font="22px" color="#FF6600" align="left,center" lines="1"/>
+
+   	<skin id="lineSkin">
+   		<states colors="white,gray,white"/>
+   	</skin>
+
+   	<skin id="categorySkin" color="#b0b0b0"/>
+	<style id="categoryStyle" font="22px" color="white" align="left,middle" lines="1"/>
+
+	<container id="CategoryLine" left="0" right="0" top="0" height="24" skin="categorySkin">
+		<label left="8" right="0" style="categoryStyle" string="$.label"/>
+	</container>
+	<container id="CategoryDivider" left="0" right="0" top="0" height="2" skin="categorySkin"/>
+
+	<!-- Name -->
+
+	<variable id="settingslineHeight" value="40"/>
+
+	<container id="SettingsLine" left="0" right="0" top="0" height="settingslineHeight" active="true" skin="THEME.lineSkin"/>
+<!--	<container id="SettingsLine" left="0" right="0" top="0" height="32" active="true" skin="THEME.lineSkin"/> -->
+
+	<container id="NameLine" like="SettingsLine">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "name");
+					//this.gotSettingValue(container, "name", "My Device");
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+              		if (name == "name" && value != undefined && value != "") {
+                    	this.data.name = container.nameLabel.string = value;
+                    	if (value == "None")
+                    		this.data.name = "";
+                    	else
+                    		container.nameLabel.style = lineValueStyle;
+                    }
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label name="nameLabel" top="0" right="8" bottom="0" style="unsetLineValueStyle" string="'None'"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<handler path="/name">
+		<behavior like="MODEL.ScreenBehavior">
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: NameScreen,
+						title : "Device Name",
+						okLabel : "Set",
+						cancelLabel : "Cancel",
+						previousText : selection.name,
+            			keyboard : SKEYBOARD.standardKeyboard,
+            			hintText : "Enter Device Name",
+            			item : selection
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<behavior id="SettingsKeyboardScreenBehavior" like="SKEYBOARD.KeyboardScreenBehavior">
+		<method id="putSettingValue" params="container, name, value">
+			var message = new Message("xkpr://shell/settings/" + name);
+			var requestText = JSON.stringify(value);
+			message.setRequestHeader("Content-Length", requestText.length);
+			message.setRequestHeader("Content-Type", "application/json");
+			message.requestText = requestText;
+			message.method = "PUT";
+			container.invoke(message);
+		</method>
+    </behavior>
+
+    <container id="NameScreen" left="0" top="0" right="0" bottom="0">
+		<container left="0" top="0" right="0" bottom="0" like="SKEYBOARD.KeyboardScreen">
+			<behavior like="SettingsKeyboardScreenBehavior">
+				<method id="onCreate" params="container, data">
+                    <![CDATA[
+                        this.data = data;
+                    ]]>
+                </method>
+				<method id="onKeyboardCancel" params="container, input">
+	                <![CDATA[
+						container.invoke(new Message("/back"));
+	                ]]>
+	            </method>
+				<method id="onKeyboardOK" params="container, input">
+	                <![CDATA[
+	                	this.data.item.name = input;
+	                	this.putSettingValue(container, "name", input);
+	                	K4.log("settings", "Set Device Name to " + input);
+						container.invoke(new Message("/back"));
+	                ]]>
+	            </method>
+				<method id="onKeyboardEnter" params="container, input">
+	                <![CDATA[
+	                	this.onKeyboardOK(container, input);
+	                ]]>
+	            </method>
+            </behavior>
+       </container>
+	</container>
+
+	<!-- Timezone -->
+
+	<container id="TimezoneLine" like="SettingsLine">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "timezone");
+					//this.gotSettingValue(container, "timezone", { "daylight-savings" : true, timezone : 0 } );
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+                	if (name == "timezone") {
+                		if (! this.isValidTimezone(value)) {
+                			trace("\n got invalid timezone setting!");
+                			value = { zone : -8, "daylight-savings" : false };
+                		}
+                  		this.data.timezone = value;
+                    	this.data.value = (value["daylight-savings"] == true) ? "on" : "off";
+                    	var timezoneName = TIMEZONE.zoneNumberToName(value.zone);
+                    	container.timezoneLabel.string = timezoneName;
+                    	container.timezoneLabel.style = lineValueStyle;
+                	}
+                ]]>
+            </method>
+            <method id="isValidTimezone" params="value">
+                <![CDATA[
+                    return value != undefined && "daylight-savings" in value && "zone" in value;
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label name="timezoneLabel" top="0" right="8" bottom="0" style="unsetLineValueStyle" string="'None'"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<handler path="/timezone">
+		<behavior like="MODEL.ScreenBehavior">
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+                	var isDaylightSavings = (selection.timezone["daylight-savings"] == true) ? "on" : "off";
+					return {
+						Screen: TIMEZONE.MapScreen,
+
+			           	label : "",
+		            	value : isDaylightSavings,
+
+            			item : selection
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<!-- Startup App -->
+
+	<container id="StartupAppLine" like="SettingsLine">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "startup-app");
+					//this.gotSettingValue(container, "name", "My Device");
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+                	this.data.startupApp = value;
+              		if (name == "startup-app" && value != undefined && value != "") {
+                    	container.startupAppLabel.string = value.name;
+                    	if (value.name != "None")
+                    		container.startupAppLabel.style = lineValueStyle;
+                    }
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label name="startupAppLabel" top="0" right="8" bottom="0" style="unsetLineValueStyle" string="'None'"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<handler path="/startupApp">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: StartupAppScreen,
+						title : "Startup App",
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+
+						parentData : selection
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<skin id="whiteSkin" color="white"/>
+ 	<style id="titleLineStyle" font="bold 22px" color="black" align="middle,center" lines="1"/>
+ 	<style id="idLineStyle" font="20px" color="#666666" align="middle,center" lines="1"/>
+
+    <texture id="startupCheckbadgeTexture" small="assets/settings/check-badge.png"/>
+    <skin id="startupCheckbadgeSkin" texture="startupCheckbadgeTexture" x="0" y="0" width="26" height="26">
+    	<states offset="26"/>
+    </skin>
+
+    <content id="StartupCheckbadge" active="false" visible="true" state="1" skin="startupCheckbadgeSkin">
+    	<behavior>
+			<method id="onCreate" params="content, data">
+                <![CDATA[
+					this.data = data;
+					content.visible = data.id == data.startupApp.id;
+                ]]>
+            </method>
+            <method id="onTouchBegan" params="content, id, x, y, ticks">
+                <![CDATA[
+                	content.container.container.distribute("showCheckbox", this.data.id);
+                    content.state = 2;
+                ]]>
+            </method>
+           	<method id="onTap" params="content">
+			   <![CDATA[
+					this.putSettingValue(content, "startup-app", { name : this.data.title, id : this.data.id } );
+	                K4.log("settings", "Set Startup Application to " + this.data.title);
+			   ]]>
+		   </method>
+			<method id="putSettingValue" params="content, name, value">
+				var message = new Message("xkpr://shell/settings/" + name);
+				var requestText = JSON.stringify(value);
+				message.setRequestHeader("Content-Length", requestText.length);
+				message.setRequestHeader("Content-Type", "application/json");
+				message.requestText = requestText;
+				message.method = "PUT";
+				content.invoke(message);
+			</method>
+		    <method id="showCheckbox" params="content, appID">
+            	var showIt = this.data.id == appID;
+            	if (showIt)
+            		content.visible = true;
+            	else
+            		content.visible = false;
+            </method>
+        </behavior>
+    </content>
+
+    <skin id="defaultTileSkin">
+		<states colors="white,#e5e5e5"/>
+	</skin>
+	<skin id="customTileSkin">
+		<states colors="#76b42e,#669b28"/>
+	</skin>
+	<skin id="settingsTileSkin">
+		<states colors="#ff9900,#e58a00"/>
+	</skin>
+	<skin id="dividerSkin" color="#e2e2e2"/>
+
+	<column id="StartupAppTextColumn" left="8">
+		<label top="0" left="8" style="titleLineStyle" string="$.title"/>
+		<label top="1" left="8" style="idLineStyle" string="$.id"/>
+		<label top="1" left="8" style="idLineStyle" string="$.date"/>
+	</column>
+
+	<column id="LauncherStartupAppTextColumn" left="8">
+		<label left="8" style="titleLineStyle" string="$.title"/>
+	</column>
+
+	<container id="StartupAppItem" like="SettingsLine" height="68" skin="THEME.lineSkin">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.data = data;
+                ]]>
+            </method>
+			<method id="onTap" params="container">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onTap.call(this, container);
+                	container.checkbox.delegate("onTouchBegan");
+                	container.checkbox.delegate("onTap");
+                	container.invoke(new Message("/back"));
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" bottom="0">
+			<container left="8" width="50" height="50"> -->
+				<content left="0" top="0" right="0" bottom="0">
+					<behavior>
+						<method id="onCreate" params="content, data">
+							<![CDATA[
+								switch (data.backgroundColor) {
+									case "orange":
+										content.skin = settingsTileSkin;
+									break
+									case "green":
+										content.skin = customTileSkin;
+									break
+									default:
+										content.skin = undefined;
+									break
+								}
+							]]>
+						</method>
+					</behavior>
+				</content>
+				<picture width="40" height="40" url="$.icon">
+					<behavior>
+						<method id="onCreate" params="picture, data">
+							<![CDATA[
+								if (data.backgroundColor == "white")
+									picture.coordinates = { width : 50, height : 50 };
+							]]>
+						</method>
+					</behavior>
+				</picture>
+			</container>
+			<container left="0" width="320-50" top="0" bottom="0">
+				<behavior like="SettingsListItemBehavior">
+					<method id="onCreate" params="container, data">
+						<![CDATA[
+							if (data.title == "Home")
+								container.add( new LauncherStartupAppTextColumn(data) );
+							else
+								container.add( new StartupAppTextColumn(data) );
+						]]>
+					</method>
+				</behavior>
+			</container>
+	    </line>
+
+		<content name="checkbox" left="3" bottom="10" width="26" height="26" like="StartupCheckbadge"/>
+		<content bottom="0" left="0" right="0" height="1" skin="dividerSkin"/>
+	</container>
+
+    <container id="StartupAppScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior">
+					<method id="addLines" params="list, items, more"><![CDATA[
+						var launcher = [items.shift()];
+						/*
+						var settings = items.filter(this.isOrangeItem);
+						var greenApps = items.filter(this.isGreenItem);
+						var whiteApps = items.filter(this.isWhiteItem);
+						list.delegate("sort", greenApps);
+						list.delegate("sort", whiteApps);
+						items = launcher.concat(settings, greenApps, whiteApps);
+						*/
+						list.delegate("sort", items);
+						items = launcher.concat(items);
+						var startupApp = this.data.parentData.startupApp;
+						var c = items.length;
+						for (var i = 0; i < c; i++) {
+							var item = items[i];
+							if ("id" in item && item.id == "bleexplorer.create.kinoma.marvell.com" && !K4.is8887(true)) continue;
+							item.startupApp = startupApp;
+							list.add(new StartupAppItem(item));
+						}
+						list.adjust();
+					]]></method>
+					<method id="isOrangeItem" params="item"><![CDATA[
+						return item.backgroundColor == "orange";
+					]]></method>
+					<method id="isGreenItem" params="item"><![CDATA[
+						return item.backgroundColor == "green";
+					]]></method>
+					<method id="isWhiteItem" params="item"><![CDATA[
+						return item.backgroundColor == "white";
+					]]></method>
+					<method id="sort" params="list, items"><![CDATA[
+						items.sort(this.compareNames);
+					]]></method>
+					<method id="compareNames" params="a, b"><![CDATA[
+						return a.title.toLowerCase().compare(b.title.toLowerCase());
+					]]></method>
+			 		<method id="onComplete" params="list, message, json">
+						this.gotSettingValue(list, message.name, json);
+					</method>
+					<method id="getSettingValue" params="list, name">
+						list.invoke(new Message("xkpr://shell/settings/" + name), Message.JSON);
+					</method>
+					<method id="gotSettingValue" params="list, name, value">
+						this.data.items = value;
+						this.addLines(list, value, false);
+					</method>
+
+					<method id="onCreate" params="list, data"><![CDATA[
+						this.getSettingValue(list, "startup-app-list");
+						this.data = data;
+					]]></method>
+				</behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+			<!--
+			<content like="SCROLLER.TopScrollerShadow"/>
+			<content like="SCROLLER.BottomScrollerShadow"/>
+			-->
+		</scroller>
+  		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<function id="getBehavior">
+		return shell.behavior;
+	</function>
+
+	<!-- Quit Gesture -->
+
+    <texture id="squareQuitGestureTexture" small="assets/settings/quit-gesture-square-settings.png"/>
+    <skin id="squareQuitGestureSkin" texture="squareQuitGestureTexture" x="0" y="0" width="120" height="92"/>
+
+    <texture id="circleQuitGestureTexture" small="assets/settings/quit-gesture-circle-settings.png"/>
+    <skin id="circleQuitGestureSkin" texture="circleQuitGestureTexture" x="0" y="0" width="120" height="92"/>
+
+	<container id="QuitGestureLine" like="SettingsLine">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "backGesture");
+					this.data.backGesture = null;
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+              		if (name == "backGesture" && value != undefined && value != "") {
+                    	this.data.backGesture = container.quitGestureLabel.string = value;
+                    	container.quitGestureLabel.style = lineValueStyle;
+                    }
+                ]]>
+            </method>
+			<method id="onTap" params="container">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onTap.call(this, container);
+
+                	if (null == this.data.backGesture)
+                		return;
+
+ 					var uri = "/quitGesture?" + serializeQuery({
+						backGesture: this.data.backGesture
+					});
+              		container.invoke(new Message(uri));
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="18" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label name="quitGestureLabel" top="0" right="8" bottom="0" style="lineValueStyle"/>
+	</container>
+
+	<handler path="/quitGesture">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					var squareURI = "/setQuitGesture?" + serializeQuery({gesture: "square"});
+					var circleURI = "/setQuitGesture?" + serializeQuery({gesture: "circle"});
+					return {
+						Screen: QuitGestureScreen,
+						title : "Home Gesture",
+						items : [
+							{ Line : QuitGestureItem, gestureName : "Square Gesture", gestureMatch : "square", skin : squareQuitGestureSkin, action : squareURI, backGesture : query.backGesture },
+							{ Line : QuitGestureItem, gestureName : "Circle Gesture", gestureMatch : "circle", skin : circleQuitGestureSkin, action : circleURI, backGesture : query.backGesture }
+						],
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+
+						parentData : selection
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+     <container id="QuitGestureScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior">
+					<method id="addItemLine" params="list, item, index">
+                        <![CDATA[
+							list.add(new item.Line(item));
+                        ]]>
+                    </method>
+				</behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+		</scroller>
+  		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<container id="QuitGestureItem" like="SettingsLine" height="92" behavior="SCREEN.ListItemBehavior" skin="THEME.lineSkin">
+		<content skin="$.skin" left="0" top="0" width="177" height="92"/>
+		<label left="177" top="0" right="0" height="92 - 15" style="titleLineStyle" string="$.gestureName"/>
+		<content left="160" top="25" skin="startupCheckbadgeSkin" visible="false">
+			<behavior>
+				<method id="onCreate" params="content, data">
+					<![CDATA[
+						if (data.backGesture == data.gestureMatch) {
+							content.visible = true;
+							content.state = 1;
+						}
+					]]>
+				</method>
+			</behavior>
+		</content>
+	</container>
+
+	<handler path="/setQuitGesture">
+		<behavior like="MODEL.CommandBehavior"><![CDATA[
+			function onQuery(handler, query) {
+				this.putSettingValue(handler, "backGesture", query.gesture );
+				handler.invoke(new Message("/back"));
+			}
+			function putSettingValue(content, name, value) {
+				var message = new Message("xkpr://shell/settings/" + name);
+				var requestText = JSON.stringify(value);
+				message.setRequestHeader("Content-Length", requestText.length);
+				message.setRequestHeader("Content-Type", "application/json");
+				message.requestText = requestText;
+				message.method = "PUT";
+				content.invoke(message);
+			}
+		]]></behavior>
+	</handler>
+
+	<!-- Backlight -->
+
+	<texture id="backlightGlyphsTexture" small="assets/settings/brightness-glyphs.png"/>
+	<skin id="backlightGlyphsSkin" texture="backlightGlyphsTexture" x="0" y="0" width="320" height="58"/>
+
+	<container id="BacklightLine" active="false" like="SettingsLine">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "backlight");
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+              		if (name == "backlight") {
+                    	initialBacklightLevel = value;
+                    	var percentage = Math.round(value * 100) + "%";
+                    	container.active = true;
+                    	container.backlightPercentageLabel.string = percentage;
+                    	container.backlightPercentageLabel.style = lineValueStyle;
+                    }
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="18" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label name="backlightPercentageLabel" top="0" right="8" bottom="0" style="unsetLineValueStyle" string="'None'"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<variable id="initialBacklightLevel"/>
+
+	<handler path="/backlight">
+		<behavior like="MODEL.ScreenBehavior">
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+                    var percentage = Math.round(initialBacklightLevel * 100) + "%";
+					return {
+						Screen: BacklightScreen,
+						title : "Backlight",
+            			item : selection,
+            			min : 0.1,
+            			max : 1.0,
+            			value : initialBacklightLevel,
+            			percentage : percentage
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+ 	<style id="backlightPercentageStyle" font="50px" color="black" align="middle,center" lines="1"/>
+ 	<style id="backlightWarningStyle" font="20px" color="black" align="middle,center" lines="1"/>
+
+	<container id="BacklightScreen" name="backlightScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<label name="percentageLabel" top="32 + 18" style="backlightPercentageStyle" string="$.percentage"/>
+		<container left="0" right="0" top="28" bottom="0">
+			<content skin="backlightGlyphsSkin"/>
+			<container like="BacklightSlider"/>
+		</container>
+		<label bottom="30" style="backlightWarningStyle" string="'Reduce brightness to extend battery life'"/>
+ 		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+    <behavior id="BacklightSliderBehavior" like="SLIDERS.SliderBehavior">
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			this.thumbTouchBeganXOffset = 0;
+            this.knobWidth = 22;
+            this.halfKnobWidth = this.knobWidth / 2;
+            this.knobHeight = 38;
+            this.insetWidth = this.knobWidth + 8;
+            this.halfInsetWidth = this.insetWidth / 2;
+           	this.trackingWidth = canvas.width - this.insetWidth;
+			SLIDERS.SliderBehavior.prototype.onDisplaying.call(this, canvas);
+		]]></method>
+		<method id="onTouchBegan" params="canvas, id, x, y, ticks"><![CDATA[
+            canvas.captureTouch(id, x, y, ticks);
+           	var hitThumb = this.hitTestThumb(canvas, x, y);
+			if (hitThumb)
+				this.thumbTouchBeganXOffset = this.getThumbTouchBeganXOffset(canvas, x);
+			else {
+				this.thumbTouchBeganXOffset = 0;
+            	this.onTouchMoved(canvas, id, x, y, ticks);
+            }
+		]]></method>
+		<method id="onTouchEnded" params="canvas, id, x, y, ticks"><![CDATA[
+		]]></method>
+		<method id="onTouchMoved" params="canvas, id, x, y, ticks"><![CDATA[
+			x -= this.thumbTouchBeganXOffset;
+			var size = this.trackingWidth;
+			var offset = (x - canvas.x - this.halfInsetWidth);
+			this.setOffset(canvas, size, offset);
+			this.onValueChanged(canvas);
+		]]></method>
+		<method id="getOffset" params="canvas, size"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = this.getValue(canvas);
+			return Math.round(((value - min) * size) / (max - min));
+		]]></method>
+		<method id="hitTestThumb" params="canvas, x, y"><![CDATA[
+			x -= canvas.container.x;
+			y -= canvas.container.y;
+			var b = this.getThumbBounds(canvas);
+			return (x >= b.x && x <= (b.x + b.width) && y >= b.y && y <= (b.y + b.height));
+		]]></method>
+		<method id="getThumbBounds" params="canvas"><![CDATA[
+            var offset = this.getOffset(canvas, this.trackingWidth);
+			return {
+				x : offset + 4,
+				y : 3,
+				width : this.knobWidth,
+				height : this.knobHeight - 6
+			}
+		]]></method>
+		<method id="getThumbTouchBeganXOffset" params="canvas, x"><![CDATA[
+			x -= canvas.container.x;
+			var b = this.getThumbBounds(canvas);
+			var centerX = b.x + (b.width / 2);
+			var deltaX = x - centerX;
+			return deltaX;
+		]]></method>
+		<method id="onValueChanged" params="canvas"><![CDATA[
+            var active = canvas.active;
+            var trackingWidth = this.trackingWidth;
+            var offset = this.getOffset(canvas, trackingWidth);
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "black";
+            var sliderBarHeight = 16;
+            var sliderBarTop = (canvas.height / 2) - (sliderBarHeight / 2);
+            ctx.fillStyle =  "#e6e6e6";
+            ctx.fillRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+            ctx.fillStyle =  "#8acc50";
+            ctx.fillRect(this.halfInsetWidth, sliderBarTop, offset, sliderBarHeight);
+			ctx.lineWidth = 2;
+            ctx.strokeRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+
+			ctx.fillStyle = "white";										// thumb
+			ctx.lineWidth = 4;
+			var b = this.getThumbBounds(canvas);
+			roundRect(ctx, b.x, b.y, b.width, b.height, 4, true, true);
+		]]></method>
+    </behavior>
+
+    <container id="BacklightSlider" width="172" height="38">
+        <canvas left="0" right="0" top="0" bottom="0" active="true">
+            <behavior like="BacklightSliderBehavior">
+				<method id="onCreate" params="canvas, data"><![CDATA[
+                    BacklightSliderBehavior.prototype.onCreate.call(this, canvas, data);
+                    this.data = data;
+				]]></method>
+				<method id="onValueChanged" params="canvas"><![CDATA[
+                    BacklightSliderBehavior.prototype.onValueChanged.call(this, canvas);
+                    var percentage = Math.round(this.data.value * 100) + "%";
+                    var label = canvas.container.container.container.percentageLabel;
+            		label.string = percentage;
+                    canvas.invoke( new Message( "xkpr://shell/setBacklight?" + serializeQuery( { value : this.data.value } ), Message.JSON ) );
+ 				]]></method>
+				<method id="putSettingValue" params="canvas, name, value"><![CDATA[
+					var message = new Message("xkpr://shell/settings/" + name);
+					var requestText = JSON.stringify(value);
+					message.setRequestHeader("Content-Length", requestText.length);
+					message.setRequestHeader("Content-Type", "application/json");
+					message.requestText = requestText;
+					message.method = "PUT";
+					canvas.invoke(message);
+  				]]></method>
+				<method id="onTouchEnded" params="canvas, id, x, y, ticks"><![CDATA[
+                    this.putSettingValue(canvas, "backlight", this.data.value);
+				]]></method>
+          </behavior>
+        </canvas>
+    </container>
+
+    <function id="roundRect" params="ctx, x, y, width, height, radius, fill, stroke">
+		if (typeof stroke == undefined)
+			stroke = true;
+		if (typeof radius == undefined)
+			radius = 5;
+		ctx.beginPath();
+		ctx.moveTo(x + radius, y);
+		ctx.lineTo(x + width - radius, y);
+		ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+		ctx.lineTo(x + width, y + height - radius);
+		ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+		ctx.lineTo(x + radius, y + height);
+		ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+		ctx.lineTo(x, y + radius);
+		ctx.quadraticCurveTo(x, y, x + radius, y);
+		ctx.closePath();
+		if (stroke)
+			ctx.stroke();
+		if (fill)
+			ctx.fill();
+    </function>
+
+
+	<!-- Delete App -->
+
+	<texture id="deleteButtonTexture" small="assets/settings/delete-glyph.png"/>
+	<skin id="deleteButtonSkin" texture="deleteButtonTexture" x="0" y="0" width="44" height="44">
+        <states offset="44"/>
+    </skin>
+
+	<container id="DeleteAppsLine" like="SettingsLine" behavior="SCREEN.ListItemBehavior">
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="18" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+		<content name="listArrow" like="ListArrow"/>
+	</container>
+
+	<handler path="/deleteApps">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: DeleteAppsScreen,
+						title : "Delete Apps",
+						items : [
+							{ Line : DeleteAppItem, label : "Name" },
+						],
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+
+						parentData : selection
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+	<style id="noAppsToDeleteStyle" font="24px" color="#666666" align="middle,center" lines="1"/>
+	<container id="NoAppsToDeleteItem" width="320" height="240-32-32">
+		<column>
+			<label style="noAppsToDeleteStyle" string="'Delete Installed Apps'"/>
+			<label style="noAppsToDeleteStyle" string="'on this screen'"/>
+		</column>
+	</container>
+
+	<container id="DeleteAppItem" like="SettingsLine" height="68" behavior="SCREEN.ListItemBehavior" active="false">
+		<line top="0" left="0" right="0" bottom="0">
+			<container left="8" width="50" height="50"> -->
+				<content left="0" top="0" right="0" bottom="0">
+					<behavior>
+						<method id="onCreate" params="content, data">
+							<![CDATA[
+								switch (data.backgroundColor) {
+									case "orange":
+										content.skin = settingsTileSkin;
+									break
+									case "green":
+										content.skin = customTileSkin;
+									break
+									default:
+										content.skin = undefined;
+									break
+								}
+							]]>
+						</method>
+					</behavior>
+				</content>
+				<picture width="40" height="40" url="$.icon">
+					<behavior>
+						<method id="onCreate" params="picture, data">
+							<![CDATA[
+								if (data.backgroundColor == "white")
+									picture.coordinates = { width : 50, height : 50 };
+							]]>
+						</method>
+					</behavior>
+				</picture>
+			</container>
+			<container left="0" width="320-50-44-16" top="0" bottom="0" clip="true">
+				<column left="8">
+					<label top="0" left="8" style="titleLineStyle" string="$.title"/>
+					<label top="1" left="8" style="idLineStyle" string="$.path.slice(7)"/>
+				</column>
+			</container>
+	    </line>
+
+		<container name="deleteButton" right="8" like="BUTTONS.Button" skin="deleteButtonSkin">
+			<behavior like="BUTTONS.ButtonBehavior">
+				<method id="onCreate" params="container, data"><![CDATA[
+					BUTTONS.ButtonBehavior.prototype.onCreate.call(this, container, data);
+                	this.path = data.path;
+                	this.id = data.id;
+                	this.title = data.title;
+				]]></method>
+				<method id="onTap" params="container"><![CDATA[
+
+					var prompt = "Delete '" + this.title + "'?";
+					var url = "/confirm?" + serializeQuery( { message: prompt, path: this.path, id: this.id } );
+					container.invoke(new Message(url));
+
+    //            	container.bubble("onDeleteApp", this.path, this.id);
+				]]></method>
+			</behavior>
+		</container>
+
+		<content bottom="0" left="0" right="0" height="1" skin="dividerSkin"/>
+	</container>
+
+	<handler path="/confirm">
+        <behavior like="MODEL.DialogBehavior">
+            <method id="onDescribe" params="query">
+                return {
+                    Dialog: CDIALOG.Box,
+                    action: "/delete",
+                    items: [
+						{
+                            Item: DIALOG.Caption,
+                            string: query.message
+						},
+                    ],
+                    ok: "OK",
+                    cancel: "Cancel",
+                };
+            </method>
+        </behavior>
+    </handler>
+
+	<handler path="/delete">
+		<behavior like="MODEL.CommandBehavior"><![CDATA[
+			function onQuery(handler, query) {
+				application.distribute("onDeleteApp", query.path, query.id);
+			}
+		]]></behavior>
+	</handler>
+
+     <container id="DeleteAppsScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior">
+					<method id="addLines" params="list, items, more"><![CDATA[
+						this.items = items;
+						list.delegate("sort", items);
+						var c = items.length;
+						if (c == 0)
+							list.add(new NoAppsToDeleteItem());
+						else {
+							for (var i = 0; i < c; i++)
+								list.add(new DeleteAppItem(items[i]));
+						}
+						list.adjust();
+					]]></method>
+					<method id="isOrangeItem" params="item"><![CDATA[
+						return item.backgroundColor == "orange";
+					]]></method>
+					<method id="isGreenItem" params="item"><![CDATA[
+						return item.backgroundColor == "green";
+					]]></method>
+					<method id="isWhiteItem" params="item"><![CDATA[
+						return item.backgroundColor == "white";
+					]]></method>
+					<method id="sort" params="list, items"><![CDATA[
+						items.sort(this.compareNames);
+					]]></method>
+					<method id="compareNames" params="a, b"><![CDATA[
+						return a.title.toLowerCase().compare(b.title.toLowerCase());
+					]]></method>
+			 		<method id="onComplete" params="list, message, json">
+						this.gotSettingValue(list, message.name, json);
+					</method>
+					<method id="getSettingValue" params="list, name">
+						list.invoke(new Message("xkpr://shell/settings/" + name), Message.JSON);
+					</method>
+					<method id="gotSettingValue" params="list, name, value">
+						this.data.items = value;
+						this.addLines(list, value, false);
+					</method>
+
+					<method id="onCreate" params="list, data"><![CDATA[
+					//	SCREEN.ListBehavior.prototype.onCreate.call(this, list, data);
+						this.getSettingValue(list, "deletable-app-list");
+						this.data = data;
+					]]></method>
+					<method id="onDeleteApp" params="list, path, id"><![CDATA[
+						list.invoke(new Message("xkpr://shell/uninstall?" + serializeQuery( { id : id } )))
+
+						var deleteAppsData = {
+							title : "Delete Apps",
+							items : [
+								{ Line : DeleteAppItem, label : "Name" },
+							],
+							more: false,
+							scroll: {
+								x: 0,
+								y: 0
+							},
+							selection: -1,
+						}
+						var newScreen = new DeleteAppsScreen(deleteAppsData);
+						var screen = list.container.container;
+						var parent = screen.container;
+						parent.remove(screen);
+						parent.add(newScreen);
+					]]></method>
+				</behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+			<!--
+			<content like="SCROLLER.TopScrollerShadow"/>
+			<content like="SCROLLER.BottomScrollerShadow"/>
+			-->
+		</scroller>
+  		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+
+	<!-- Password -->
+
+	<variable id="gPasswordLine"/>
+
+	<style id="passwordDescriptionStyle" font="20px" color="gray" align="left,top"/>
+
+	<container id="PasswordLine" like="SettingsLine" height="32 + 60">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	gPasswordLine = container;
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "password");
+					//this.gotSettingValue(container, "password", "mypassword" );
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+              		if (name == "password" && value != undefined) {
+						this.data.password = value;
+                    }
+                ]]>
+            </method>
+			<method id="onTouchBegan" params="content, id, x, y, ticks">
+				<![CDATA[
+					SettingsListItemBehavior.prototype.onTouchBegan.call(this, content, id, x, y, ticks);
+					content.listArrow.state = 1;
+				]]>
+			</method>
+			<method id="onTouchEnded" params="content, id, x, y, ticks">
+				<![CDATA[
+					SettingsListItemBehavior.prototype.onTouchEnded.call(this, content, id, x, y, ticks);
+					content.listArrow.state = 0;
+				]]>
+			</method>
+			<method id="onTouchCancelled" params="content, id, x, y, ticks">
+				<![CDATA[
+					content.listArrow.state = 0;
+				]]>
+			</method>
+        </behavior>
+		<line top="0" left="0" right="0" height="32">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+		</line>
+		<text top="28" left="8" right="0" height="60" style="passwordDescriptionStyle" string="$.description"/>
+		<content top="31 + 60" left="0" height="1" right="0" skin="dividerSkin"/>
+		<content name="listArrow" like="ListArrow" top="0"/>
+	</container>
+
+	<handler path="/password">
+		<behavior like="MODEL.ScreenBehavior">
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: PasswordScreen,
+						title : "Debugging Password",
+						okLabel : "Set",
+						cancelLabel : "Cancel",
+						previousText : selection.password,
+            			keyboard : SKEYBOARD.standardKeyboard,
+            			hidden : true,
+            			item : selection
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+    <container id="PasswordScreen" left="0" top="0" right="0" bottom="0">
+		<container left="0" top="0" right="0" bottom="0" like="SKEYBOARD.KeyboardScreen">
+			<behavior like="SettingsKeyboardScreenBehavior">
+				<method id="onCreate" params="container, data">
+                    <![CDATA[
+                        this.data = data;
+                    ]]>
+                </method>
+				<method id="onKeyboardCancel" params="container, input">
+	                <![CDATA[
+						container.invoke(new Message("/back"));
+	                ]]>
+	            </method>
+	             <method id="onKeyboardOK" params="container, input">
+	                <![CDATA[
+	                	this.putSettingValue(container, "password", input);
+	                	K4.log("settings", "Set Debugging Password");
+						container.invoke(new Message("/back"));
+	                ]]>
+	            </method>
+				<method id="onKeyboardEnter" params="container, input">
+	                <![CDATA[
+	                	this.onKeyboardOK(container, input);
+	                ]]>
+	            </method>
+            </behavior>
+       </container>
+	</container>
+
+
+	<!-- Debugging -->
+
+	<container id="DebuggingLine" left="0" right="0" top="0" height="settingslineHeight" active="true" behavior="SettingsArrowListItemBehavior" skin="THEME.lineSkin">
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<content name="listArrow" like="ListArrow"/>
+	</container>
+
+	<handler path="/debugging">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: DebuggingScreen,
+						title : "Debugging",
+						items : [
+							{ Line : AllowDebuggingLine, label : "Allow Debugging", value : "on" },
+							{ Line : AllowCrossDomainLine, label : "Allow Cross-domain access", action : "/password", description : "For example this allows a web page to upload data to your Kinoma Create." },
+							{ Line : RequirePasswordLine, label : "Require Password", value : "on" },
+							{ Line : PasswordLine, label : "Password", action : "/password", description : "The password restricts which computers are allowed to connect to Kinoma Create from Kinoma Studio." },
+						],
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+
+						parentData : selection
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+    <container id="DebuggingScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior">
+					<method id="addItemLine" params="list, item, index">
+                        <![CDATA[
+							list.add(new item.Line(item));
+                        ]]>
+                    </method>
+				</behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+			<!--
+			<content like="SCROLLER.TopScrollerShadow"/>
+			<content like="SCROLLER.BottomScrollerShadow"/>
+			-->
+		</scroller>
+  		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<!-- Allow Debugging -->
+
+    <texture id="smallCheckboxTexture" small="assets/timezone/lighter-checkbox.png"/>
+    <skin id="smallCheckboxSkin" texture="smallCheckboxTexture" x="0" y="0" width="40" height="40">
+    	<states offset="40"/>
+    </skin>
+
+	<behavior id="CheckboxRightBehavior" like="CONTROL.CheckboxBehavior">
+		<method id="onDisplaying" params="container">
+			// need to override otherwise will set state to 1 if active
+		</method>
+		<method id="onTouchBegan" params="container, id, x, y, ticks">
+			<![CDATA[
+				CONTROL.CheckboxBehavior.prototype.onTouchBegan.call(this, container, id, x, y, ticks);
+			]]>
+		</method>
+		<method id="putSettingValue" params="content, name, value">
+			<![CDATA[
+				var message = new Message("xkpr://shell/settings/" + name);
+				var requestText = JSON.stringify(value);
+				message.setRequestHeader("Content-Length", requestText.length);
+				message.setRequestHeader("Content-Type", "application/json");
+				message.requestText = requestText;
+				message.method = "PUT";
+				content.invoke(message);
+			]]>
+		</method>
+		<method id="onCheckboxValueChanged" params="container, value"/>
+	</behavior>
+
+	<container id="CheckboxRight" width="40" right="0" height="24" active="true" behavior="CheckboxRightBehavior">
+		<content skin="smallCheckboxSkin" right="10">
+			<behavior>
+				<method id="onCreate" params="content, data">
+                    <![CDATA[
+                    	CONTROL.CheckboxBehavior.prototype.onCreate.call(this, content, data);
+          	            content.state = (data.value === 'on' ? 2 : 1);
+                    ]]>
+                </method>
+                <method id="setInitialValue" params="content, value">
+                    <![CDATA[
+                    	content.state = (value === 'on' ? 2 : 1);
+                    ]]>
+                </method>
+				<method id="onValueChanged" params="content">
+                    <![CDATA[
+                    	var data = this.data;
+                    	content.state = (data.value === 'on' ? 2 : 1);
+						content.container.delegate("onCheckboxValueChanged", data.value);
+                    ]]>
+                </method>
+			</behavior>
+		</content>
+		<content like="CREATIONS.HiddenButtonAdpator" left="-30" top="-2" right="0" bottom="-2"/>
+	</container>
+
+	<container id="AllowDebuggingLine" like="SettingsLine" active="false">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "allow-debugging");
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+              		if (name == "allow-debugging" && value != "") {
+              			if (value != undefined ) {
+	                    	this.data.value = value;
+	                    	container.checkbox.distribute("setInitialValue", value);
+	                    }
+                    }
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label name="nameLabel" top="0" right="8" bottom="0" style="unsetLineValueStyle" string=""/>
+		<container name="checkbox" like="CheckboxRight" width="40" right="0">
+			<behavior like="CheckboxRightBehavior">
+				<method id="onCheckboxValueChanged" params="container, value">
+					<![CDATA[
+                    	this.putSettingValue(container, "allow-debugging", value);
+	                	K4.log("settings", "Set Allow Debugging to " + value);
+					]]>
+				</method>
+			</behavior>
+		</container>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<container id="AllowCrossDomainLine" like="SettingsLine" active="false" height="32 + 48">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "allow-cross-domain");
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+              		if (name == "allow-cross-domain" && value != "") {
+              			if (value != undefined ) {
+	                    	this.data.value = value;
+	                    	container.checkbox.distribute("setInitialValue", value);
+	                    }
+                    }
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label name="nameLabel" top="0" right="8" bottom="0" style="unsetLineValueStyle" string=""/>
+		<container name="checkbox" like="CheckboxRight" width="40" right="0" top="6">
+			<behavior like="CheckboxRightBehavior">
+				<method id="onCheckboxValueChanged" params="container, value">
+					<![CDATA[
+	                   	this.putSettingValue(container, "allow-cross-domain", value);
+	                	K4.log("settings", "Set Allow Cross-domain Access to " + value);
+					]]>
+				</method>
+			</behavior>
+		</container>
+		<text top="32" left="8" right="0" height="60" style="passwordDescriptionStyle" string="$.description"/>
+		<content top="31 + 48" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<container id="RequirePasswordLine" like="SettingsLine" active="false">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.getSettingValue(container, "require-password");
+                ]]>
+            </method>
+			<method id="gotSettingValue" params="container, name, value">
+                <![CDATA[
+              		if (name == "require-password" && value != "") {
+              			if (value != undefined ) {
+	                    	this.data.value = value;
+	                    	container.checkbox.distribute("setInitialValue", value);
+	                    	this.updatePasswordVisible(container);
+	                    }
+                    }
+                ]]>
+            </method>
+			<method id="updatePasswordVisible" params="container">
+                <![CDATA[
+                	if (gPasswordLine)
+	                	gPasswordLine.visible = (this.data.value == "on") ? true : false;
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label name="nameLabel" top="0" right="8" bottom="0" style="unsetLineValueStyle" string=""/>
+		<container name="checkbox" like="CheckboxRight" width="40" right="0">
+			<behavior like="CheckboxRightBehavior">
+				<method id="onCheckboxValueChanged" params="container, value">
+					<![CDATA[
+	                   	this.putSettingValue(container, "require-password", value);
+	                	K4.log("settings", "Set Require Password to " + value);
+						container.container.delegate("updatePasswordVisible");
+					]]>
+				</method>
+			</behavior>
+		</container>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<content id="ListArrow" right="0" skin="listArrowSkin"/>
+
+	<!-- Clear Cache -->
+
+	<texture id="clearButtonTexture" small="assets/settings/clear-buttons.png"/>
+	<skin id="clearButtonSkin" texture="clearButtonTexture" x="0" y="0" width="80" height="40">
+        <states offset="40"/>
+    </skin>
+
+	<container id="ClearCachesLine" left="0" right="0" top="0" height="settingslineHeight" active="true" behavior="SettingsArrowListItemBehavior"  skin="THEME.lineSkin">
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+		<content name="listArrow" like="ListArrow"/>
+	</container>
+
+	<handler path="/clearCaches">
+		<behavior like="MODEL.ScreenBehavior">
+ 			<method id="hasSelection" params="data, delta">
+                <![CDATA[
+					var selection = data.selection + delta;
+					return (0 <= selection) && (selection < data.items.length);
+                ]]>
+            </method>
+            <method id="getSelection" params="data, delta">
+                <![CDATA[
+					data.selection += delta;
+					return data.items[data.selection];
+                ]]>
+            </method>
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: ClearCachesScreen,
+						title : "Caches",
+						items : [
+							{ Line : CacheLine, label : "Kinoma Studio App Cache", action : "/clearApps" },
+							{ Line : CacheLine, label : "Apps Prefs", action : "/clearAppsPrefs" },
+							{ Line : CacheLine, label : "Cookies", action : "/clearCookies" },
+							{ Line : CacheLine, label : "HTTP", action : "/clearHTTP" },
+							{ Line : CacheLine, label : "Known Wi-Fi Networks", action : "/clearNetworks" },
+						],
+						more: false,
+						scroll: {
+							x: 0,
+							y: 0
+						},
+						selection: -1,
+
+						parentData : selection
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+    <container id="ClearCachesScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior">
+					<method id="addItemLine" params="list, item, index">
+                        <![CDATA[
+							list.add(new item.Line(item));
+                        ]]>
+                    </method>
+				</behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+			<!--
+			<content like="SCROLLER.TopScrollerShadow"/>
+			<content like="SCROLLER.BottomScrollerShadow"/>
+			-->
+		</scroller>
+  		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<container id="CacheLine" like="SettingsLine" height="40">
+		<behavior>
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="40">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<container name="clearButton" right="8" like="BUTTONS.Button" skin="clearButtonSkin">
+			<behavior like="BUTTONS.ButtonBehavior">
+				<method id="onTap" params="container"><![CDATA[
+                    container.invoke(new Message(this.data.action));
+                    container.active = false;
+				]]></method>
+			</behavior>
+		</container>
+		<content top="39" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<handler path="/clearApps">
+		<behavior>
+            <method id="onInvoke" params="content, message">
+                <![CDATA[
+                    content.invoke(new Message("xkpr://shell/settings/clear-apps"), Message.JSON);
+                	K4.log("settings", "Clearing Application Cache");
+                ]]>
+            </method>
+        </behavior>
+	</handler>
+
+	<handler path="/clearAppsPrefs">
+		<behavior>
+            <method id="onInvoke" params="content, message">
+                <![CDATA[
+                    content.invoke(new Message("xkpr://shell/settings/clear-apps-prefs"), Message.JSON);
+                	K4.log("settings", "Clearing Application Preferences");
+                ]]>
+            </method>
+        </behavior>
+	</handler>
+
+	<handler path="/clearCookies">
+		<behavior>
+            <method id="onInvoke" params="content, message">
+                <![CDATA[
+                    HTTP.Cookies.clear();
+                	K4.log("settings", "Clearing HTTP Cookies");
+                ]]>
+            </method>
+        </behavior>
+	</handler>
+
+	<handler path="/clearHTTP">
+		<behavior>
+            <method id="onInvoke" params="content, message">
+                <![CDATA[
+					HTTP.Cache.clear();
+                	K4.log("settings", "Clearing HTTP Cache");
+                ]]>
+            </method>
+        </behavior>
+	</handler>
+
+	<handler path="/clearNetworks">
+		<behavior>
+            <method id="onInvoke" params="content, message">
+                <![CDATA[
+					var message = new Message("xkpr://shell/network/known");
+					message.method = "DELETE";
+                    content.invoke(message, Message.JSON);
+                	K4.log("settings", "Clearing Known Networks");
+                ]]>
+            </method>
+        </behavior>
+	</handler>
+
+	<!-- Kinoma Software -->
+
+	<container id="ShellVersionLine" like="SettingsLine">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onDisplayed" params="container">
+                <![CDATA[
+              		this.currentVersion = getEnvironmentVariable('CORE_VERSION');
+					container.active = false;
+					container.currentVersionLabel.string = this.currentVersion;
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="18" bottom="0" style="settingsCellStyle" string="$.label"/>
+			<label anchor="UPDATE_AVAILABLE" visible="false" top="1" left="8" bottom="0" style="orangeLineValueStyle" string="'UPDATE'"/>
+	    </line>
+		<text name="currentVersionLabel" left="240" right="8" style="lineValueStyle"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<container id="FirmwareVersionLine" like="SettingsLine">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onDisplaying" params="container">
+                <![CDATA[
+					container.active = false;
+					this.bootedFromDevice = (false == K4.onSD(true));
+					if (this.bootedFromDevice){
+						this.data.IMAGE.skin = deviceFirmwareSkin;
+						updatePrefix = model.firmwarePrefix;
+					}else{
+						this.data.IMAGE.skin = sdFirmwareSkin;
+						updatePrefix = model.sdPrefix;
+					}
+					this.currentVersion = this.readFirmwareVersion();
+					container.currentFirmwareLabel.string = this.currentVersion ? this.currentVersion : "Unknown version";
+                ]]>
+            </method>
+			<method id="readFirmwareVersion"><![CDATA[
+				// read the current firmware version from the first line of a version.txt file
+				var version = "";
+				var versionURL = "file:///version.txt";
+				var exists = Files.exists(versionURL);
+				if (exists) {
+					var text = Files.readText(versionURL);
+					var lines = text.split("\n");
+					version = lines[0];
+					if ( version.length > 10 || version.length < 1 ) version = "";
+				}
+				return version;
+			 ]]></method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<content anchor="IMAGE" top="3" left="18" bottom="3" width="settingslineHeight - 6" skin="sdFirmwareSkin" state="1"/>
+			<label top="0" left="3" bottom="0" style="settingsCellStyle" string="$.label"/>
+			<label anchor="UPDATE_AVAILABLE" visible="false" top="1" left="8" bottom="0" style="orangeLineValueStyle" string="'UPDATE'"/>
+	    </line>
+		<text name="currentFirmwareLabel" left="240" right="8" style="lineValueStyle"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<container id="SystemVersionLine" like="SettingsLine">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onDisplaying" params="container">
+				<![CDATA[
+					this.bootedFromDevice = (false == K4.onSD(true));
+					if (this.bootedFromDevice) container.container.remove(container); //don't show this line when booted from flash
+
+					container.active = false;
+
+					this.currentVersion = this.readSystemVersion();
+					container.currentFirmwareLabel.string = this.currentVersion ? this.currentVersion : "Unknown version";
+				]]>
+			</method>
+			<method id="readSystemVersion"><![CDATA[
+				// read the current firmware version from the first line of a version.txt file
+				var versionURL, version = "";
+				versionURL = "file:///mnt/ubifs/version.txt"
+				var exists = Files.exists(versionURL);
+
+				if (exists) {
+					var text = Files.readText(versionURL);
+					var lines = text.split("\n");
+					version = lines[0];
+					if ( version.length > 10 || version.length < 1 ) version = "";
+				}
+				return version;
+			 ]]></method>
+		</behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<content anchor="IMAGE" top="3" left="18" bottom="3" width="settingslineHeight - 6" skin="deviceFirmwareSkin" state="0"/>
+			<label top="0" left="3" bottom="0" style="settingsCellStyle" string="$.label"/>
+			<label anchor="UPDATE_AVAILABLE" visible="false" top="1" left="8" bottom="0" style="orangeLineValueStyle" string="'UPDATE'"/>
+		</line>
+		<text name="currentFirmwareLabel" left="240" right="8" style="lineValueStyle"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<!-- MAC Address -->
+
+	<container id="MACAddressLine" like="SettingsLine" active="false">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label top="0" right="8" bottom="0" style="lineValueStyle" string="K4.MAC"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<!-- Model Number -->
+
+	<container id="ModelLine" like="SettingsLine" active="false">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                	SCREEN.ListItemBehavior.prototype.onCreate.call(this, container, data);
+					this.data = data;
+                ]]>
+            </method>
+			<method id="onDisplaying" params="container">
+                <![CDATA[
+					if (K4.is8887(true)){
+						this.data.VERSION.string = "Version 2";
+					}else{
+						this.data.VERSION.string = "Version 1";
+					}
+                ]]>
+            </method>
+        </behavior>
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<label anchor="VERSION" top="0" right="8" bottom="0" style="lineValueStyle" string="`Version 1`"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+
+	<!-- Custom Dialog Items -->
+
+	<container id="Confirm" left="0" right="0">
+		<content top="0" left="20" skin="$.skin"/>
+		<text anchor="TEXT" left="80" right="0" style="THEME.dialogCommentStyle" string="$.string"/>
+	</container>
+
+	<layout id="EmptySpace" top="0" left="0" right="0">
+        <behavior>
+            <method id="onCreate" params="layout, data">
+                <![CDATA[
+                    this.data = data;
+                ]]>
+            </method>
+            <method id="onMeasureVertically" params="layout">
+                <![CDATA[
+                    return this.data.height;
+                ]]>
+            </method>
+        </behavior>
+    </layout>
+
+
+	<!-- Settings Screen -->
+
+    <skin id="whiteSkin" color="white"/>
+
+    <container id="SettingsScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" top="32" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+			<column left="0" right="0" top="0">
+				<behavior like="SCREEN.ListBehavior">
+					<method id="addItemLine" params="list, item, index">
+                        <![CDATA[
+							if ("Line" in item)
+								list.add(new item.Line(item));
+							else
+                        		list.add(new SettingsCell(item));
+                        ]]>
+                    </method>
+                    <method id="onDisplaying" params="list">
+		                <![CDATA[
+		                	SCREEN.ListBehavior.prototype.onDisplaying.call(this, list);
+		                    list.delegate("getSettingValue", "name");
+		                ]]>
+		            </method>
+				</behavior>
+			</column>
+			<content like="SCROLLER.VerticalScrollbar"/>
+			<!--
+			<content like="SCROLLER.TopScrollerShadow"/>
+			<content like="SCROLLER.BottomScrollerShadow"/>
+			-->
+		</scroller>
+  		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<style id="settingsCellStyle" font="24px" color="black" align="left,center" lines="1"/>
+
+	<container id="SettingsCell" left="0" right="0" top="0" height="32" active="true">
+		<line top="0" left="0" right="0" height="32">
+			<label top="0" left="8" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<content top="31" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<function id="makeHidden" params="text">
+        <![CDATA[
+        	var hiddenText = "";
+            for (var i=0, c=text.length; i < c; i++)
+            	hiddenText += "•";
+            return hiddenText;
+        ]]>
+    </function>
+
+	<script>
+        <![CDATA[
+			application.style = applicationStyle;
+ 			var model = application.behavior = new MODEL.ApplicationBehavior(application);
+         ]]>
+    </script>
+
+	<include path="./about"/>	
+	<include path="./sdcard"/>
+
+</program>
+

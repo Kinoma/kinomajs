@@ -14,11 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
+
+#include "crypt.h"
 #include "crypt_mode.h"
 #include "kcl_symmetric.h"
-#include <stdint.h>
-#include <string.h>
 
 static size_t
 ctr_process(crypt_mode_t *mode, const void *indata, void *outdata, size_t n, int eof)
@@ -56,10 +55,10 @@ ctr_setIV(crypt_mode_t *mode, const void *iv, size_t ivsize)
 	crypt_cipher_t *cipher = mode->cipher;
 	size_t blksz = cipher->blockSize;
 
-	memset(mode->em_buf, 0, sizeof(mode->em_buf));
+	c_memset(mode->em_buf, 0, sizeof(mode->em_buf));
 	if (ivsize > blksz)
 		ivsize = blksz;
-	memcpy(&mode->em_buf[blksz - ivsize], iv, ivsize);
+	c_memcpy(&mode->em_buf[blksz - ivsize], iv, ivsize);
 }
 
 void
@@ -72,7 +71,7 @@ xs_ctr_init(xsMachine *the)
 	mode->decrypt = ctr_process;
 	mode->setIV = ctr_setIV;
 	mode->maxSlop = 0;
-	memset(mode->em_buf, 0, sizeof(mode->em_buf));
+	c_memset(mode->em_buf, 0, sizeof(mode->em_buf));
 	if (ac > 0 && xsTest(xsArg(0))) {
 		/* iv */
 		void *iv = xsToArrayBuffer(xsArg(0));

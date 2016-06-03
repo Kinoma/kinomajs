@@ -297,6 +297,7 @@ typedef struct tm c_tm;
 #define c_memcpy FskMemCopy
 #define c_memmove FskMemMove
 #define c_memset FskMemSet
+#define c_memcmp FskMemCompare
 #define c_strcat FskStrCat
 #define c_strchr FskStrChr
 #define c_strcmp FskStrCompare

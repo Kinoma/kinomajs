@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+
+	<!-- Boot From -->
+
+    <script><![CDATA[
+		var bootedFrom = function() {
+			return (K4.SDInserted(false) && K4.onSD(false) ? "sdcard" : "internal");
+		}
+		var willBootFrom = function() {
+			return (K4.SDInserted(false) && K4.isSDCardBootable(false)) ? "sdcard" : "internal";
+		}
+    ]]></script>
+
+	<style id="bootFromLabelStyle" font="24px" color="black" align="center,top"/>
+	<style id="iconLabelStyle" font="bold 25px" color="#444444" align="center,middle"/>
+
+	<texture id="bootFromTexture" small="./assets/update/boot-from-strip.png"/>
+	<skin id="bootFromSkin" texture="bootFromTexture" x="0" y="0" width="68" height="68">
+        <variants offset="68"/>
+    </skin>
+
+	<container id="BootFromLine" like="SettingsLine" behavior="SettingsListItemBehavior">
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="18" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<text left="240" right="8" style="lineValueStyle" string="willBootFrom() == 'sdcard' ? 'SD Card' : 'Device Storage'"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<handler path="/sdBootFrom">
+		<behavior like="MODEL.ScreenBehavior">
+            <method id="onDescribe" params="query, selection">
+                <![CDATA[
+					return {
+						Screen: BootFromScreen,
+						title : "Boot From",
+            			item : selection,
+						items: [
+							{title: "SD Card", location: "sdcard", variant: 0, active: K4.SDInserted(true)},
+							{title: "Device Storage", location: "internal", variant: 1, active: true}
+						],
+						more: false
+					};
+				]]>
+            </method>
+		</behavior>
+	</handler>
+
+    <column id="BootFromCell" left="0" right="0" top="10" width="100" skin="THEME.lineSkin" active="true">
+		<behavior like="SettingsListItemBehavior">
+			<method id="onCreate" params="container, data"><![CDATA[
+				SettingsListItemBehavior.prototype.onCreate.call(this, container, data);
+				this.bootedFrom = willBootFrom();
+            ]]></method>
+			<method id="onDisplaying" params="container"><![CDATA[
+				this.data.CHECK.visible = (this.data.location == this.bootedFrom);
+            ]]></method>
+			<method id="onSelectionChanged" params="container, location"><![CDATA[
+				this.bootedFrom = location;
+				this.data.CHECK.visible = (this.data.location == location);
+            ]]></method>
+			<method id="onTouchEnded" params="container, id, x, y, ticks"><![CDATA[
+				this.onTouchCancelled(container, id, x, y, ticks);
+				this.onTap(container);
+            ]]></method>
+		</behavior>
+		<label left="0" right="0" style="bootFromLabelStyle" string="$.title"/>
+		<content height="4"/>
+		<container anchor="ICON" width="bootFromSkin.width" height="bootFromSkin.height">
+			<behavior>
+				<method id="onCreate" params="container, data"><![CDATA[
+					this.data = data;
+				]]></method>
+				<method id="onDisplaying" params="container"><![CDATA[
+					if (!this.data.active && (this.data.location == "sdcard")) {
+						container.add(new Label({left: 0, right: 0, top: 0, bottom: 0, style: iconLabelStyle, string: "No Card"}));
+						var effect = new Effect;
+						effect.colorize("white", 0.80);
+						this.layer = new Layer;
+						this.layer.attach(container.first);
+						this.layer.effect = effect;
+					}
+				]]></method>
+			</behavior>
+			<content skin="bootFromSkin" variant="$.variant"/>
+		</container>
+		<content height="6"/>
+		<content anchor="CHECK" skin="startupCheckbadgeSkin" state="1"/>
+		<content height="3"/>
+	</column>
+
+    <container id="BootFromScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<line left="20" right="20" top="32" height="100">
+			<behavior like="SCREEN.ListBehavior">
+				<method id="addItemLine" params="list, item, index"><![CDATA[
+					list.add(new BootFromCell(item));
+				]]></method>
+				<method id="onItemTap" params="list, line"><![CDATA[
+					var item = this.data.items[line.index];
+					if ("sdcard" == item.location) {
+						if (!K4.isCreateSD(true)) {
+							list.invoke(new Message("/sdNotBootable"));
+							return;
+						}
+						else {
+							list.invoke(new Message("xkpr://k4/setSDBootable?bootable=true"));
+						}
+					}
+					else {
+						if (K4.isSDCardBootable(true))
+							list.invoke(new Message("xkpr://k4/setSDBootable?bootable=false"));
+					}
+					list.distribute("onSelectionChanged", item.location);
+				]]></method>
+			</behavior>
+		</line>
+		<text left="10" right="10" bottom="10" style="bootFromLabelStyle" string="'Will boot from selected option on next startup'"/>
+ 		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+	<handler path="/sdNotBootable">
+        <behavior like="MODEL.DialogBehavior">
+            <method id="onDescribe" params="query">
+                return {
+                    Dialog: CDIALOG.Box,
+                    items: [
+						{
+                            Item: DIALOG.Caption,
+                            string: "This SD card is not setup as a bootable volume. Use the 'Set Up SD Card' setting to prepare a bootable SD card."
+						},
+                    ],
+					action: "/nothing",
+                    ok: "OK"
+                };
+            </method>
+        </behavior>
+    </handler>
+
+	<handler path="/nothing"/>
+
+	<!-- Setup SD Card -->
+
+	<container id="SDCardLine" like="SettingsLine" behavior="SCREEN.ListItemBehavior">
+		<line top="0" left="0" right="0" height="settingslineHeight">
+			<label top="0" left="18" bottom="0" style="settingsCellStyle" string="$.label"/>
+	    </line>
+		<content name="listArrow" like="ListArrow"/>
+		<content bottom="0" left="0" height="1" right="0" skin="dividerSkin"/>
+	</container>
+
+	<handler path="/setupSDCard">
+		<behavior like="MODEL.ScreenBehavior">
+            <method id="onDescribe" params="query, selection"><![CDATA[
+				var params = {
+					title : "Set Up SD Card",
+					item : selection
+				};
+				if ("sdcard" == bootedFrom())
+					params.Screen = BootDeviceToSetupSDCardScreen;
+				else if (!K4.SDInserted(true))
+					params.Screen = InsertSDCardAndRebootToSetupSD;
+				else
+					params.Screen = SetupSDCardScreen;
+				return params;
+			]]></method>
+		</behavior>
+	</handler>
+
+	<style id="setupSDCardStyle" font="24px" color="black" align="center,middle" lines="all"/>
+	<style id="setupSDCardSmallStyle" font="22px" color="black" align="center,middle" lines="all"/>
+
+    <container id="SetupSDCardScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<content top="40" skin="sdCardSkin"/>
+		<text left="5" right="5" top="120" style="setupSDCardSmallStyle"
+				string="'SD card creation is disabled in the open source release.'"/>
+		<container left="60" bottom="10" right="60" height="30" like="BUTTONS.Button" skin="greenButtonSkin">
+			<behavior like="BUTTONS.ButtonBehavior">
+				<method id="onCreate" params="container, data"><![CDATA[
+					BUTTONS.ButtonBehavior.prototype.onCreate.call(this, container, data);
+					this.data = data;
+				]]></method>
+			</behavior>
+			<label top="0" bottom="0" string="'Update SD Card'" style="greenButtonStyle"/>
+		</container>
+ 		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+    <container id="InsertSDCardAndRebootToSetupSD" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<content top="60" skin="sdCardSkin"/>
+		<text left="10" right="10" bottom="25" style="setupSDCardStyle"
+				string="'Please insert an SD card and reboot to setup an SD card.'"/>
+ 		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+    <container id="BootDeviceToSetupSDCardScreen" left="0" top="0" right="0" bottom="0" skin="whiteSkin">
+		<content top="60" skin="createIconSkin"/>
+		<text left="10" right="10" bottom="25" style="setupSDCardStyle"
+				string="'Please boot from device storage to setup an SD card.'"/>
+ 		<container like="CREATIONS.DynamicHeader" anchor="HEADER"/>
+	</container>
+
+</program>
+

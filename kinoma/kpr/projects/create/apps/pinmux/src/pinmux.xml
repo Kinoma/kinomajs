@@ -1,0 +1,1075 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+   	<require id="CREATIONS" path="creations/creations"/>
+   	<require id="KEYBOARD" path="creations/keyboard"/>
+   	<require id="BUTTONS" path="controls/buttons"/>
+   	<require id="SWITCH" path="controls/switch"/>
+    <require id="SCROLLER" path="mobile/scroller"/>
+    <require id="CONTROL" path="mobile/control"/>
+	<require id="TRANSITIONS" path="transitions"/>
+
+
+	<texture id="slotBayTexture" small="assets/slot-bay.png"/>
+	<skin id="slotBaySkin" texture="slotBayTexture" x="0" y="0" width="304" height="66"/>
+		
+	<style id="footerTextStyle" font="16px" color="black" align="middle,center" lines="1"/>
+
+	<style id="greenButtonStyle" font="bold 24px" color="white" align="middle,left" lines="1"/>
+
+	<effect id="enabledEffect">
+		<colorize color="#5ab021"/>
+	</effect>
+	<effect id="disabledEffect">
+		<colorize color="#dcdcdc"/>
+	</effect>
+	<effect id="selectedEffect">
+		<colorize color="#dcdcdc"/>
+	</effect>
+	<variable id="greenButtonSkin" value="new THEME.DynamicSkin( THEME.buttonTexture, disabledEffect, enabledEffect, selectedEffect, undefined,
+														{ left : 10, top : 10, right : 10, bottom : 10 })"/>
+			
+	<texture id="smallSlotBackgroundTexture" small="assets/mux-slot-bkg.png"/>
+	<skin id="smallSlotBackgroundSkin" texture="smallSlotBackgroundTexture" x="0" y="0" width="30" height="22">
+		<tiles left="5" right="5" top="5" bottom="5"/>
+		<states offset="22"/>
+	</skin>
+	
+	<texture id="largeSlotBackgroundTexture" small="assets/mux-slot-bkg.png"/>
+	<skin id="largeSlotBackgroundSkin" texture="largeSlotBackgroundTexture" x="0" y="0" width="30" height="22">
+		<tiles left="5" right="5" top="5" bottom="5"/>
+	</skin>
+	
+	<skin id="muxSlotBackgroundSkin" color="white"/>
+	
+   	<container id="ApplyButton" like="BUTTONS.Button" skin="greenButtonSkin"/>
+	
+	<behavior id="ScreenBehavior">
+		<method id="onCreate" params="container, data">
+            <![CDATA[
+                this.data = data;
+            ]]>
+        </method>
+        <method id="getScreen" params="container">
+            <![CDATA[
+                return container;
+            ]]>
+        </method>
+    </behavior>
+    
+	<container id="Screen" left="0" right="0" top="0" bottom="0" behavior="ScreenBehavior" skin="whiteSkin">
+		<container name="header" left="-16" right="-16" top="0" height="32" skin="CREATIONS.dynamicHeaderSkin">
+			<container left="16" like="KEYBOARD.BackButton">
+				<behavior like="BUTTONS.ButtonBehavior">        
+					<method id="onTap" params="container"><![CDATA[
+						container.container.container.delegate("onBackButton");
+					]]></method>
+		        </behavior>			
+			</container>
+		</container>
+	</container>
+	
+	<!-- PIN DESCRIPTIONS -->
+	
+	<class id="PinDescription">
+		<field id="shortName"/>
+		<field id="longName"/>
+		<field id="buttonSkin"/>
+		<field id="pinHashIndex"/>
+		<field id="labelColorStyle"/>
+		<constructor params="shortName, longName, buttonSkin, pinHashIndex, labelColorStyle">
+            <![CDATA[
+                this.shortName = shortName;
+                this.longName = longName;
+                this.buttonSkin = buttonSkin;						// pin color skin
+                this.pinHashIndex = pinHashIndex;		// vertical pin glyph variant
+                this.labelColorStyle = labelColorStyle
+            ]]>
+        </constructor>
+    </class>
+    
+    <!-- pin button skins -->
+ <!--   <skin id="nulSkin" color="#cdcdcd"/> -->
+    <skin id="nulSkin" color="white"/>
+    <skin id="gndSkin" color="black"/>
+    <skin id="vPlusSkin" color="#ff0000"/>
+    <skin id="anlSkin" color="#fe8f18"/>
+    <skin id="dlnSkin" color="#039d27"/>
+    <skin id="doutSkin" color="#0074d7"/>
+    <skin id="clkSkin" color="#ae41f3"/>
+    <skin id="sdaSkin" color="#fc1cf7"/>
+    <skin id="txSkin" color="#00fffd"/>
+    <skin id="rxSkin" color="#ffff41"/>
+    <skin id="pwmSkin" color="#999999"/>
+    
+    <!-- pin label color styles -->
+    <style id="nulStyle" color="#9d9d9d" font="20px" align="left,center" lines="1"/>
+    <style id="gndStyle" color="black" font="20px" align="left,center" lines="1"/>
+    <style id="vPlusStyle" color="#ff0000" font="20px" align="left,center" lines="1"/>
+    <style id="anlStyle" color="#fe8f18" font="20px" align="left,center" lines="1"/>
+    <style id="dlnStyle" color="#039d27" font="20px" align="left,center" lines="1"/>
+    <style id="doutStyle" color="#0074d7" font="20px" align="left,center" lines="1"/>
+    <style id="clkStyle" color="#ae41f3" font="20px" align="left,center" lines="1"/>
+    <style id="sdaStyle" color="#fc1cf7" font="20px" align="left,center" lines="1"/>
+    <style id="txStyle" color="#00fffd" font="20px" align="left,center" lines="1"/>
+    <style id="rxStyle" color="#ffff41" font="20px" align="left,center" lines="1"/>
+    <style id="pwmStyle" color="#999999" font="20px" align="left,center" lines="1"/>
+    
+	<script>
+        <![CDATA[
+        	var NUM_PIN_DESCRIPTIONS = 11;
+            var pinDescriptionsHash = {};
+            var pdh = pinDescriptionsHash;
+            pdh["Nul"] = pdh[0] = new PinDescription("Nul", "Disconnected", nulSkin, 0, nulStyle);
+            pdh["V+"] = pdh[1] = new PinDescription("V+", "Power", vPlusSkin, 1, vPlusStyle);
+            pdh["GND"] = pdh[2] = new PinDescription("GND", "Ground", gndSkin, 2, gndStyle);
+            pdh["Anl"] = pdh[3] = new PinDescription("Anl", "Analog", anlSkin, 3, anlStyle);
+            pdh["Dln"] = pdh[4] = new PinDescription("Dln", "Digital Input", dlnSkin, 4, dlnStyle);
+            pdh["DOut"] = pdh[5] = new PinDescription("DOut", "Digital Output", doutSkin, 5, doutStyle);
+            pdh["SCL"] = pdh[6] = new PinDescription("SCL", "I2C Clock", clkSkin, 6, clkStyle);
+            pdh["SDA"] = pdh[7] = new PinDescription("SDA", "I2C Data", sdaSkin, 7, sdaStyle);
+            pdh["PWM"] = pdh[10] = new PinDescription("PWM", "PWM", pwmSkin, 10, pwmStyle);
+ //           pdh["TX"] = pdh[8] = new PinDescription("TX", "Serial TX", txSkin, 8, txStyle);
+ 
+ /*
+          PIN_STATES = new Array();
+         PIN_STATES.push( {skin:DISCONNECTED,label:'nul'} );
+         PIN_STATES.push( {skin:POWER,label:'V+'} );
+         PIN_STATES.push( {skin:GROUND,label:'GND'} );
+         PIN_STATES.push( {skin:ANALOG,label:'AnI'} );
+         PIN_STATES.push( {skin:DIGITALIN,label:'GPIn'} );
+         PIN_STATES.push( {skin:DIGITALOUT,label:'GPOut'} );
+         PIN_STATES.push( {skin:SCL,label:"SCL"} );
+         PIN_STATES.push( {skin:SDA,label:"SDA"} );
+*/ 
+		 /*
+		 	In Kinoma Studio 1.3.7 the following error (swapping two commented lines for non) crashes with no warnings or errors
+		 	
+		 	But with an XS debug version of KPR, it does not crash, it breaks in pinmux.xml, line 329 
+				label.style = data.labelColorStyle;  
+			with # style is no KPR.style
+		*/	
+ 		 // in an xsBug build the following error produces a 
+		//	pdh["RX"] = pdh[9] = new PinDescription("RX", "Serial RX", rxSkin, 9, rxSkin);
+		//	pdh["PWM"] = pdh[10] = new PinDescription("PWM", "PWM", pwmSkin, 10, pwmSkin);   
+//	 		pdh["RX"] = pdh[9] = new PinDescription("RX", "Serial RX", rxSkin, 9, rxStyle);
+//	 		pdh["PWM"] = pdh[10] = new PinDescription("PWM", "PWM", pwmSkin, 10, pwmStyle);     
+        ]]>
+    </script>
+    
+    <texture id="verticalPinLabelsTexture" small="assets/vertical-labels.png"/>
+    <skin id="verticalPinLabelsSkin" texture="verticalPinLabelsTexture" x="0" y="0" width="12" height="26">
+    	<variants offset="12"/>
+    </skin>
+    
+    
+    <!-- SLOTS -->
+    
+	<skin id="blueSkin" color="blue"/>
+
+	<style id="smallShortPinNameLabelStyle" font="9px" color="black" align="middle,center" lines="1"/>
+	<style id="largeShortPinNameLabelStyle" font="18px" color="black" align="middle,center" lines="1"/>
+	<style id="pinNumberStyle" font="22px" color="white" align="middle,center" lines="1"/>
+	<style id="grayPinNumberStyle" font="22px" color="#666666" align="middle,center" lines="1"/>
+	
+ 	<container id="SmallPin" width="12" height="12">
+ 		<behavior>
+             <method id="onCreate" params="container, data">
+                 <![CDATA[
+					container.skin = pinDescriptionsHash[data].buttonSkin;
+                 ]]>
+             </method>
+         </behavior>
+ 	</container>
+ 	
+ 	<container id="LargePin" active="true" width="24" height="24">
+ 		<behavior>
+             <method id="onCreate" params="container, data">
+                 <![CDATA[
+                 	this.onDataChanged(container, data);
+                 ]]>
+             </method>
+             <method id="onDataChanged" params="container, data">
+                 <![CDATA[
+                 	this.data = data;
+					container.skin = pinDescriptionsHash[data].buttonSkin;
+					if (container.skin === nulSkin)
+						container.pinNumberLabel.style = grayPinNumberStyle;
+					else
+						container.pinNumberLabel.style = pinNumberStyle;
+				]]>
+             </method>
+             <method id="onTouchBegan" params="container, id, x, y, ticks">
+                 <![CDATA[
+                 	var shortName = this.data;
+					container.bubble("unhighlightPins");
+					container.bubble("pinSelected", this.pinIndex, shortName, true);
+					container.container.largePinHighlight.visible = true;
+                 ]]>
+             </method>
+             <method id="onMuxingSelected" params="container, pinIndex, shortName">
+                 <![CDATA[
+                     if (pinIndex == this.pinIndex)
+                     	this.onDataChanged(container, shortName);
+                     container.bubble("onPinMuxingChanged", pinIndex, shortName);
+                 ]]>
+             </method>
+         </behavior>
+         <label name="pinNumberLabel" style="pinNumberStyle"/>
+ 	</container>
+ 	
+	<content id="SmallSlotVerticalPinLabel" skin="verticalPinLabelsSkin" width="12" height="26">
+		<behavior>
+            <method id="onCreate" params="content, data">
+                <![CDATA[
+                    content.variant = pinDescriptionsHash[data].pinHashIndex;
+                ]]>
+            </method>
+        </behavior>
+    </content>
+ 	
+	<line id="LeftSmallSlot" active="true" skin="smallSlotBackgroundSkin">
+		<behavior like="CONTROL.ButtonBehavior"> 
+            <method id="onCreate" params="content, data">
+                <![CDATA[
+                    this.data = data;
+                ]]>
+            </method>
+   			<method id="onTap" params="container"><![CDATA[
+   				var screen = container.bubble("getScreen");
+				application.run( new TRANSITIONS.TimeTravel(), screen, new LeftSlotMuxingScreen( this.data ), 
+									{ direction : "forward", easeType : "sineEaseOut", duration : 500, xOrigin : 0, yOrigin : 0 } );
+			]]></method>			
+		</behavior>
+		<content width="4"/>
+		<iterate on="$.pins">
+			<container width="16" height="16">
+				<container like="SmallPin"/>
+				<content like="SmallSlotVerticalPinLabel" top="-32"/>
+			</container>
+        </iterate>
+		<content width="4"/>
+	</line>           
+	
+	<line id="RightSmallSlot" active="true" skin="smallSlotBackgroundSkin">
+		<behavior like="CONTROL.ButtonBehavior"> 
+            <method id="onCreate" params="content, data">
+                <![CDATA[
+                    this.data = data;
+                ]]>
+            </method>
+   			<method id="onTap" params="container"><![CDATA[
+   				var screen = container.bubble("getScreen");
+				application.run( new TRANSITIONS.TimeTravel(), screen, new RightSlotMuxingScreen( this.data ), 
+									{ direction : "forward", easeType : "sineEaseOut", duration : 500, xOrigin : application.width, yOrigin : 0 } );
+			]]></method>			
+		</behavior>
+		<content width="4"/>
+		<iterate on="$.pins">
+			<container width="16" height="16">
+				<container like="SmallPin"/>
+				<content like="SmallSlotVerticalPinLabel" top="-32"/>
+			</container>
+        </iterate>
+		<content width="4"/>
+	</line>           
+	
+	<label id="LargeSlotTextPinLabel" top="-25" left="-10" right="-10" height="24" string="'GND'" style="largeShortPinNameLabelStyle">
+		<behavior>
+            <method id="onCreate" params="label, data">
+                <![CDATA[
+          			this.onDataChanged(label, data);
+                ]]>
+            </method>
+			<method id="onDataChanged" params="label, data">
+            	<![CDATA[
+          			label.string = data;
+				]]>
+			</method>
+			<method id="onMuxingSelected" params="label, pinIndex, shortName">
+                 <![CDATA[
+                     if (pinIndex == this.pinIndex)
+                     	this.onDataChanged(label, shortName);
+                 ]]>
+             </method>
+		</behavior>
+	</label>
+ 	
+	<line id="LargeSlot" skin="largeSlotBackgroundSkin">
+		<content name="pad1" width="7"/>
+		<iterate on="$.pins">
+			<container width="35" height="35">
+				<behavior>
+		            <method id="onCreate" params="line, data">
+		                <![CDATA[
+		                    this.data = data;
+		                ]]>
+		            </method>
+					<method id="onContentAreaDisplaying" params="container">
+                        <![CDATA[
+                            var pinIndex = getContentIndex(container) - 1;
+                            container.largePin.behavior.pinIndex = pinIndex;
+                            container.largePinLabel.behavior.pinIndex = pinIndex;
+                            container.bubble("getBasePinNumber", this);
+                            var pinNumber = this.basePinNumber + pinIndex;
+                            container.largePin.pinNumberLabel.string = pinNumber;
+                        ]]>
+                    </method>
+	            </behavior>
+				<content name="largePinHighlight" skin="whiteSkin" visible="false" width="26" height="26"/>
+				<container name="largePin" like="LargePin"/>
+				<content name="largePinLabel" like="LargeSlotTextPinLabel"/>
+			</container>
+        </iterate>
+		<content width="7"/>
+	</line>      
+	
+	<!-- VOLTAGE SWITCHES -->
+
+	<variable id="ThreePointThreeVolts" value="0"/>	<!-- constants for VoltageSwitchButton value property -->
+	<variable id="FiveVolts" value="1"/>
+	
+	<texture id="switchButtonTexture" small="assets/voltage-toggle-switch.png"/>
+
+    <skin id="switchBarSkin" texture="switchButtonTexture" x="100" y="0" width="60" height="40">
+        <tiles left="20" right="20"/>
+        <states offset="40"/>
+    </skin>
+    <skin id="switchButtonSkin" texture="switchButtonTexture" x="160" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    <skin id="switchTextSkin" texture="switchButtonTexture" x="200" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    
+     <container id="VoltageSwitchButton" width="100" height="40" active="true" behavior="SWITCH.SwitchButtonBehavior">
+        <content left="0" right="0" top="0" bottom="0" skin="switchBarSkin" state="0"/>
+        <content left="0" width="40" top="0" bottom="0" skin="switchBarSkin" state="1"/>
+        <container left="9" right="9" top="0" bottom="0" clip="true">
+            <line left="0">
+                <content skin="switchTextSkin" state="1"/>
+                <content width="40" top="0" bottom="0" skin="switchButtonSkin" state="0"/>
+                <content skin="switchTextSkin" state="0"/>
+            </line>
+        </container>
+    </container>
+    
+    
+	<!-- SLOT SELECTION SCREEN -->    
+ 
+ 				
+	<container id="SlotsContainer" left="0" top="0" right="0" bottom="0">
+		<scope with="$.leftSlot">
+			<line top="34" left="16" height="22" like="LeftSmallSlot"/>
+			<container top="70" left="36" right="160 + 36" like="VoltageSwitchButton">
+		        <behavior like="SWITCH.SwitchButtonBehavior">
+		            <method id="onValueChanged" params="container, value"><![CDATA[
+		                SWITCH.SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
+		                application.distribute("onVoltageValueChanged");
+		            ]]></method>
+		        </behavior>
+		    </container>
+        </scope>
+		<scope with="$.rightSlot">
+			<line top="34" right="16" height="22" like="RightSmallSlot"/>
+			<container top="70" left="160 + 36" right="36" like="VoltageSwitchButton">
+		        <behavior like="SWITCH.SwitchButtonBehavior">
+		            <method id="onValueChanged" params="container, value"><![CDATA[
+		                SWITCH.SwitchButtonBehavior.prototype.onValueChanged.call(this, container, value);
+		                application.distribute("onVoltageValueChanged");
+		            ]]></method>
+		        </behavior>
+		    </container>
+        </scope>
+	</container>
+		  
+	<column id="UpdateBusyLine" left="0" right="0" top="40" bottom="0">
+		<picture like="CREATIONS.BusyPicture" width="100" height="100"/>
+	</column>
+	
+	<container id="UpdateButton" like="BUTTONS.Button" skin="greenButtonSkin"/>
+	
+	<style id="UpdateNeededStyle" font="24px" color="black" align="center,top"/>
+	
+	<container id="PICUpdateScreen" like="Screen">
+	    <behavior like="ScreenBehavior">
+	        <method id="onBackButton" params="container">
+                <![CDATA[
+					container.invoke(new Message("xkpr://shell/close?id=" + application.id));
+                ]]>
+            </method>
+            <method id="onComplete" params="container, message, JSON"><![CDATA[
+                if (JSON.status === true){
+                	setEnvironmentVariable("PICsNeedUpdate", "false");
+                }
+            	container.invoke(new Message("xkpr://shell/close?id=" + application.id));                
+            ]]></method>
+	    </behavior>
+	    
+	    <label top="0" height="32" style="CREATIONS.blackDynamicHeaderTitleStyle" string="'Front Pins Need an Update'"/>
+	    
+	    <text left="10" right="10" top="40" bottom="60" style="UpdateNeededStyle" string="'The front pins on your device need an update. Remove all sensors attached to this Kinoma Create (front and back) before you proceed.\nThe update will take about 3 minutes.'" name="label"/>
+	    	    
+	    <container name="BUTTON" like="ApplyButton" bottom="30" width="120" height="40">
+				<behavior like="BUTTONS.ButtonBehavior"> 
+					<method id="onTap" params="con"><![CDATA[												
+						var parent = con.container;
+						parent.remove(con);
+						parent.remove(parent.label);
+						parent.add(new UpdateBusyLine());									
+						parent.invoke(new Message("xkpr://k4/flashFrontPins"), Message.JSON);
+					]]></method>								
+				</behavior>
+			    <label name="buttonLabel" string="'Update'" style="greenButtonStyle"/>		
+			</container>
+	</container>
+	
+	<container id="SlotSelectionScreen" like="Screen">
+		<behavior like="ScreenBehavior">
+            <method id="onBackButton" params="container">
+                <![CDATA[
+					container.invoke(new Message("xkpr://shell/close?id=" + application.id));
+                ]]>
+            </method>
+			<method id="onDisplaying" params="container">
+               <![CDATA[
+               		if (gData.reload) {
+						Pins.invoke("getPinMux", function(mux) {
+							container.delegate( "handleLoadSettings", mux );
+						});
+					}
+               ]]>
+            </method>
+            <!--
+            	race condition, really screen should block input until we receive pin info 
+            -->
+            <method id="handleLoadSettings" params="container, settings">
+               <![CDATA[
+              		gData.originalSettings = settings;
+               
+					if( "leftPins" in settings ) {
+						var leftSlotPins = this.data.leftSlot.pins
+	                  	for (var i=0; i < settings.leftPins.length; i++) {
+	                  		var pinIndex = settings.leftPins[i];
+	                  		var shortName = pinDescriptionsHash[pinIndex].shortName;
+	                  		leftSlotPins[i] = shortName;
+	                  	}
+					}    
+					if( "rightPins" in settings ) {
+						var rightSlotPins = this.data.rightSlot.pins
+	                  	for (var i=0; i < settings.rightPins.length; i++) {
+	                  		var pinIndex = settings.rightPins[i];
+	                  		var shortName = pinDescriptionsHash[pinIndex].shortName;
+	                  		rightSlotPins[i] = shortName;
+	                  	}
+					}
+
+					if( "leftVoltage" in settings ) {
+						this.data.leftSlot.value = (5 == settings.leftVoltage) ? 1 : 0;
+					}
+					if( "rightVoltage" in settings ) {
+						this.data.rightSlot.value = (5 == settings.rightVoltage) ? 1 : 0;
+					}
+					var contentArea = container.contentArea;
+					contentArea.remove(contentArea.slotsContainer);
+					contentArea.add(new SlotsContainer(gData));
+					gData.reload = false;
+               ]]>
+            </method>
+		</behavior>
+	
+	 	<label top="0" height="32" style="CREATIONS.blackDynamicHeaderTitleStyle" string="'Tap slot to configure pins'"/>
+		
+		<container name="contentArea" left="0" top="32" right="0" bottom="0">
+			<content top="0" skin="slotBaySkin"/>
+			
+			<container name="slotsContainer" like="SlotsContainer"/>
+          
+			<container like="ApplyButton" bottom="40" width="120" height="40">
+				<behavior like="BUTTONS.ButtonBehavior"> 
+					<method id="onTap" params="container"><![CDATA[
+						BUTTONS.ButtonBehavior.prototype.onTap.call(this, container);
+
+						var mux = {
+							leftPins: gData.leftSlot.pins.map(function(pin) { return pinDescriptionsHash[pin].pinHashIndex; }),
+							rightPins: gData.rightSlot.pins.map(function(pin) { return pinDescriptionsHash[pin].pinHashIndex; }),
+							leftVoltage: gData.leftSlot.value ? 5 : 3.3,
+							rightVoltage: gData.rightSlot.value ? 5 : 3.3
+						};
+
+						Pins.configure(undefined, mux, function(success) {
+							if (success)
+								container.invoke(new Message("xkpr://shell/close?id=" + application.id));
+						});
+					]]></method>
+					<method id="onDisplaying" params="container">
+						<![CDATA[
+							var pinsDirty = settingsHaveChanged();
+							container.state = pinsDirty ? 1 : 2;
+							container.active = pinsDirty;
+							container.container.pinsLabel.visible = pinsDirty;
+						]]>
+					</method>			
+					<method id="onVoltageValueChanged" params="container">
+						<![CDATA[
+							var pinsDirty = settingsHaveChanged();
+							container.state = pinsDirty ? 1 : 2;
+							container.active = pinsDirty;
+							container.container.pinsLabel.visible = pinsDirty;
+						]]>
+					</method>			
+				</behavior>                
+			    <label name="buttonLabel" string="'Apply'" style="greenButtonStyle"/>		
+			</container>
+			<label name="pinsLabel" left="0" right="0" bottom="10" height="22" style="footerTextStyle" skin="KEYBOARD.whiteSkin" 
+				   string="'Modified settings not set yet. Use Apply to set pins.'"/>
+		</container>
+	</container>
+
+	<!-- PIN MUXING SCREENS -->    
+
+	<texture id="upArrowsTexture" small="assets/up-arrow.png"/>
+    <skin id="upArrowsSkin" texture="upArrowsTexture" x="0" y="0" width="22" height="20">
+        <variants offset="22" names="LEFT_UP_ARROW,RIGHT_UP_ARROW"/>
+    </skin>
+    	
+	<texture id="pointerLineTexture" small="assets/pointer-line.png"/>
+	<skin id="pointerLineSkin" texture="pointerLineTexture" x="0" y="0" width="320" height="2"/>
+	
+	<texture id="pointerTexture" small="assets/grayPointer.png"/>
+	<skin id="pointerSkin" texture="pointerTexture" x="0" y="0" width="48" height="26"/>
+	
+    <texture id="sideCornersTexture" small="assets/muxing-side-corners.png"/>
+    <skin id="sideCornersSkin" texture="sideCornersTexture" x="0" y="0" width="12" height="74">
+    	<variants offset="12"/>
+    </skin>
+    
+    <texture id="radioButtonTexture" large="assets/radioButtons-white-bkg.png"/>
+    <skin id="radioButtonSkin" texture="radioButtonTexture" x="0" y="0" width="30" height="30">
+    	<variants offset="30"/>
+    </skin>
+    
+	<content id="RadioButton" active="true" skin="radioButtonSkin" variant="THEME.RADIO_UNSELECTED">
+		<behavior>
+			<method id="onCreate" params="content, data">
+                <![CDATA[
+                    this.data = data;
+                ]]>
+            </method>
+			<method id="onContentAreaDisplaying" params="content">
+                <![CDATA[
+                    content.bubble("onRadioDisplaying", content);
+                ]]>
+            </method>
+        	<method id="onTouchBegan" params="content, id, x, y, ticks">
+                <![CDATA[
+                    content.bubble("onRadioSelected", content, this.data);
+                ]]>
+            </method>
+        </behavior>
+	</content>
+	
+	<line id="LabeledRadio" left="0">
+		<content name="radioButton" like="RadioButton"/>
+		<label active="true">
+			<behavior>
+	             <method id="onCreate" params="label, data">
+	                <![CDATA[
+	                	label.style = data.labelColorStyle;
+	                	label.string = data.longName;
+	                ]]>
+            	</method>
+                <method id="onTouchBegan" params="label, id, x, y, ticks">
+                    <![CDATA[
+                    	var radioButton = label.container.radioButton;
+                        radioButton.delegate("onTouchBegan", id, x, y, ticks);
+                    ]]>
+                </method>
+            </behavior>
+		</label>
+    </line>
+
+	<line id="PinRadioGroup">
+        <behavior>
+        	<method id="id" params="params">
+                <![CDATA[
+                    
+                ]]>
+            </method>
+            <method id="onCreate" params="line, data">
+                <![CDATA[
+                    var pins = data.pins;
+                    var columnOne = new Column( { top : 0 } );
+                    var columnTwo = new Column( { top : 0 } );
+                    var columnThree = new Column( { top : 0 } );
+                    var i=0;
+                  
+                    while (i < 3) {
+                    	columnOne.add(new LabeledRadio(pinDescriptionsHash[i]));
+                    	i++;
+                    }
+                    line.add(columnOne);
+                    
+                    while (i < 6) {
+                    	columnTwo.add(new LabeledRadio(pinDescriptionsHash[i]));
+                    	i++;
+                    }
+                    line.add(columnTwo);
+    
+                    while (i < 11) {
+                   		columnThree.add(new LabeledRadio(pinDescriptionsHash[i]));
+                    	i++;
+                        if (i == 8) i = 10;
+                    }
+                    line.add(columnThree);
+
+                    this.radioButtons = [];
+                ]]>
+            </method>
+            <method id="onRadioDisplaying" params="line, radioButton">
+                <![CDATA[
+                    this.radioButtons.push(radioButton);
+                ]]>
+            </method>
+            <method id="onRadioSelected" params="line, radioButton, pinDescription">
+                <![CDATA[
+                	line.delegate("updateSelectedRadioButton", radioButton);
+					line.bubble("currentMuxingSelected", pinDescription.shortName);
+                ]]>
+            </method>
+            <method id="updateSelectedRadioButton" params="line, radioButton">
+                <![CDATA[
+                    var buttons = this.radioButtons;
+                    var c = buttons.length;
+                    for (var i=0; i < c; i++) {
+                    	var aButton = buttons[i];
+                    	aButton.variant = (aButton === radioButton) ? THEME.RADIO_SELECTED : THEME.RADIO_UNSELECTED;
+                    }
+                ]]>
+            </method>
+            <method id="getRadioButtonWithShortName" params="shortName">
+                <![CDATA[
+                    for (var i=0; i < NUM_PIN_DESCRIPTIONS; i++) {
+
+                        if (pinDescriptionsHash[i] && pinDescriptionsHash[i].shortName == shortName){
+                            if (i != 10){
+                                return this.radioButtons[i];
+                            }else{
+                                return this.radioButtons[8]; //special case for PWM because of the holes in the pin descriptions array.
+                            }
+                        }
+                    }
+                ]]>
+            </method>
+            <method id="onPinSelected" params="line, pinIndex, shortName, doTransition">
+                <![CDATA[
+                	var radioButton = this.getRadioButtonWithShortName(shortName);                	
+                	line.delegate("updateSelectedRadioButton", radioButton);
+                ]]>
+            </method>
+		</behavior>
+    </line>
+
+	<scroller id="RadioScroller" like="SCROLLER.HorizontalScroller" clip="true">
+ 		<behavior like="SCROLLER.HorizontalScrollerBehavior">
+            <method id="onCreate" params="scroller, data">
+                <![CDATA[
+                	SCROLLER.HorizontalScrollerBehavior.prototype.onCreate.call(this, scroller, data);
+                ]]>
+            </method>            
+            <method id="onDisplaying" params="scroller">
+                <![CDATA[
+                	scroller.scrollTo(-100, 0);					// * odd workaround
+                ]]>
+            </method>           
+        </behavior>
+      	<line like="PinRadioGroup"/>
+		<content like="SCROLLER.HorizontalScrollbar"/>
+		<content like="SCROLLER.LeftScrollerShadow"/>
+		<content like="SCROLLER.RightScrollerShadow"/>
+	</scroller>
+	
+	<skin id="radioScrollerSkin" color="#eeeeee"/>
+	
+	<container id="MuxingContentArea" name="contentArea" left="0" top="32" right="0" bottom="0">
+		<behavior>
+			<method id="onCreate" params="container, data">
+	            <![CDATA[
+	            	this.data = data;
+	                this.currentPinIndex = 3;
+	            ]]>
+	        </method>
+			<method id="onDisplaying" params="container">
+	            <![CDATA[
+	            	container.distribute("onContentAreaDisplaying");			// onDisplaying is top down, but we need children to initialize pinIndex properties here
+	            	var shortName = this.data.pins[this.currentPinIndex];
+	                this.pinSelected(container, this.currentPinIndex, shortName, false);
+	            ]]>
+	        </method>
+	        <method id="pinSelected" params="container, pinIndex, shortName, doTransition">
+	            <![CDATA[
+	            	this.currentPinIndex = pinIndex;
+	                container.distribute("onPinSelected", pinIndex, shortName, doTransition);
+	            ]]>
+	        </method>
+	        <method id="currentMuxingSelected" params="container, shortName">
+	            <![CDATA[
+	                container.largeSlot.distribute("onMuxingSelected", this.currentPinIndex, shortName);
+	            ]]>
+	        </method>
+	    </behavior>
+
+		<content left="0" right="0" top="0" height="72" skin="muxSlotBackgroundSkin"/>
+
+		<line name="largeSlot" top="20" left="12" right="12" height="45" like="LargeSlot">
+			<behavior>
+                <method id="onCreate" params="line, data">
+                    <![CDATA[
+                        this.data = data;
+                    ]]>
+                </method>
+                <method id="onPinMuxingChanged" params="line, pinIndex, shortName">
+                    <![CDATA[
+                        this.data.pins[pinIndex] = shortName;
+                    ]]>
+                </method>
+	        	<method id="unhighlightPins" params="line">
+	                <![CDATA[
+	                    var aPin = line.pad1.next;
+	                    for (var i=0; i < 8; i++) {
+	                    	aPin.largePinHighlight.visible = false;
+	                    	aPin = aPin.next;
+	                    }
+	                ]]>
+	            </method>
+   			</behavior>
+		</line>
+				
+		<content left="0" right="0" top="72" height="2" skin="pointerLineSkin"/>
+		
+		<container top="49" left="13" skin="pointerSkin">
+			<behavior>
+	            <method id="onPinSelected" params="container, pinIndex, shortName, doTransition">
+	                <![CDATA[
+						var x = 13 + (pinIndex * 35);
+						if (doTransition)
+							container.run(new PinSelectionTransition(), container.container.x + x);
+						else
+							container.x = container.container.x + x;
+	                ]]>
+	            </method>
+	        </behavior>
+		</container>
+		
+		<scroller like="RadioScroller" top="74" left="0" bottom="0" right="0" skin="radioScrollerSkin"/>		
+	</container>
+	
+	<container id="LeftSlotMuxingScreen" like="Screen">
+		<behavior>
+			 <method id="getBasePinNumber" params="container, behavior">
+                <![CDATA[
+                	behavior.basePinNumber = 51;
+          			return 51;							// ? seems to return the container instead of 50
+                ]]>
+            </method>
+            <method id="onBackButton" params="container">
+                <![CDATA[
+					application.run( new TRANSITIONS.TimeTravel(), container, new SlotSelectionScreen( gData ), 
+									{ direction : "back", easeType : "sineEaseOut", duration : 500, xOrigin : 0, yOrigin : 0 } );
+                ]]>
+            </method>
+        </behavior>
+<!--		<content skin="upArrowsSkin" variant="LEFT_UP_ARROW" left="50" top="4"/> -->
+ 		<label top="0" height="32" style="CREATIONS.blackDynamicHeaderTitleStyle" string="'Set Pins - Left Side'"/>
+		<container like="MuxingContentArea"/>
+		<content left="0" top="32" skin="sideCornersSkin" variant="0"/>
+	</container>
+
+	<container id="RightSlotMuxingScreen" like="Screen">
+		<behavior>
+			 <method id="getBasePinNumber" params="container, behavior">
+                <![CDATA[
+                	behavior.basePinNumber = 59;
+          			return 59;
+                ]]>
+            </method>
+            <method id="onBackButton" params="container">
+                <![CDATA[
+					application.run( new TRANSITIONS.TimeTravel(), container, new SlotSelectionScreen( gData ), 
+									{ direction : "back", easeType : "sineEaseOut", duration : 500, xOrigin : 320, yOrigin : 0 } );
+                ]]>
+            </method>
+        </behavior>
+<!--		<content skin="upArrowsSkin" variant="RIGHT_UP_ARROW" right="50" top="4"/> -->
+ 		<label top="0" height="32" style="CREATIONS.blackDynamicHeaderTitleStyle" string="'Set Pins - Right Side'"/>
+		<container like="MuxingContentArea"/>
+		<content right="0" top="32" skin="sideCornersSkin" variant="1"/>
+	</container>
+
+	
+	<transition id="PinSelectionTransition" duration="250">
+		<method id="onBegin" params="container, toX">
+            <![CDATA[
+				this.container = container;
+				this.fromX = container.x;
+				this.toX = toX;
+            ]]>
+        </method>
+        <method id="onStep" params="fraction">
+            <![CDATA[
+				fraction = Math.quadEaseOut(fraction);
+				this.container.x = this.fromX + fraction * (this.toX - this.fromX);
+            ]]>
+        </method>
+        <method id="onEnd" params="container,">
+            <![CDATA[
+				container.x = this.toX;
+            ]]>
+        </method>
+	</transition>
+	
+	<!-- WARNING DIALOG -->    
+
+	<transition id="AlertOpenTransition" duration="250">
+		<method id="onBegin" params="container, content, button">
+            <![CDATA[
+				container.add(content);
+				this.canceller = content;
+				var layer = this.layer = new Layer;
+				layer.attach(content);
+				layer.opacity = 0;
+				if (!button)
+					button = container;
+				this.translation = { 
+					x: button.x + (button.width / 2) - layer.x, 
+					y: button.y + (button.height / 2) - layer.y, 
+				};            
+			]]>
+        </method>
+        <method id="onEnd" params="paracontainer, contentms">
+            <![CDATA[
+				this.layer.detach();
+            ]]>
+        </method>
+        <method id="onStep" params="fraction">
+            <![CDATA[
+				this.layer.opacity = fraction;
+				this.layer.scale = { x: fraction, y: fraction };
+				this.layer.translation = { x: this.translation.x * (1 - fraction), y: this.translation.y * (1 - Math.quadEaseOut(fraction)) };
+				this.canceller.state = fraction;            
+			]]>
+        </method>
+	</transition>
+	
+	<transition id="AlertCloseTransition" duration="250">
+		<method id="onBegin" params="container, content, button, wasOKButton">
+            <![CDATA[
+            	this.wasOKButton = wasOKButton;
+				this.canceller = content;
+				var layer = this.layer = new Layer;
+				layer.attach(content);
+				layer.opacity = 1;
+				if (!button)
+					button = container;
+				this.translation = { 
+					x: button.x + (button.width / 2) - layer.x, 
+					y: button.y + (button.height / 2) - layer.y, 
+				}; 
+            ]]>
+        </method>
+        <method id="onEnd" params="container, content">
+            <![CDATA[
+				this.layer.detach();
+				container.remove(content);
+				if (this.wasOKButton)
+					container.invoke(new Message("xkpr://shell/close?id=" + application.id));
+            ]]>
+        </method>
+        <method id="onStep" params="fraction">
+            <![CDATA[
+				this.layer.opacity = (1 - fraction);
+				fraction = Math.quadEaseOut(fraction);
+				this.layer.scale = { x: 1 - fraction, y: 1 - fraction };
+				this.layer.translation = { x: this.translation.x * fraction, y: this.translation.y * Math.quadEaseIn(fraction) };
+				this.canceller.state = 1 - fraction;                
+            ]]>
+        </method>
+	</transition>
+	
+	<texture id="alertGlyphTexture" small="assets/alert/alert-glyph.png"/>
+	<skin id="alertGlyphSkin" texture="alertGlyphTexture" x="0" y="0" width="50" height="50"/>
+
+	<style id="cancelTextStyle" font="26px" color="black" align="center,middle" lines="1"/>
+
+	<texture id="cancelButtonTexture" small="assets/alert/big-button.png"/>
+	<skin id="cancelButtonSkin" texture="cancelButtonTexture" x="0" y="0" width="30" height="44">
+		<states offset="44"/>
+		<tiles left="10" right="10"/>
+	</skin>
+
+	<style id="okTextStyle" font="26px" color="white" align="center,middle" lines="1"/>
+
+	<texture id="okButtonTexture" small="assets/alert/green-big-button.png"/>
+	<skin id="okButtonSkin" texture="okButtonTexture" x="0" y="0" width="30" height="44">
+		<states offset="44"/>
+		<tiles left="10" right="10"/>
+	</skin>
+
+	<style id="ensureTextStyle" font="16px" color="#ff8a00" align="left,top" lines="5"/>
+
+	<style id="incorrectTextStyle" font="13px" color="#666666" align="left,top" lines="3"/>
+	
+	<skin id="whiteSkin" color="white"/>	
+	<skin id="blackSkin" color="black"/>	
+	<skin id="alertGraySkin" color="#3b3b3b"/>
+	
+	<container id="PinmuxingAlert" top="0" left="0" bottom="0" right="0" skin="blackSkin">
+		<behavior>
+            <method id="onCreate" params="contaienr, data">
+                <![CDATA[
+                    this.data = data;
+                ]]>
+            </method>
+        </behavior>
+		<content top="30" left="10" bottom="10" right="10" skin="alertGraySkin"/>
+            
+    	<container left="20" top="10" right="20" bottom="20" skin="whiteSkin">
+			<content top="16" left="16" skin="alertGlyphSkin"/>
+			
+			<text left="80" right="8" top="12" style="ensureTextStyle"
+				   string="'Ensure that you have correctly assigned the pins to your components. Tapping OK will immediately set the pins to the defined settings.'"/>
+			
+			<text left="80" right="8" top="102" style="incorrectTextStyle"
+				  string="'Incorrect settings can permanently harm your componets and this Kinoma Create device.'"/>			
+                
+            <container left="16" bottom="16" width="110" height="44" skin="cancelButtonSkin" active="true">
+            	<behavior like="BUTTONS.ButtonBehavior">
+                    <method id="onTap" params="container">
+                        <![CDATA[
+							application.run(new AlertCloseTransition, application.last, this.data.button, false);
+                        ]]>
+                    </method>
+                </behavior>
+            	<label top="0" left="0" bottom="0" right="0" style="cancelTextStyle" string="'Cancel'"/>
+            </container>
+            <container right="16" bottom="16"  width="80" height="44" style="okTextStyle" skin="okButtonSkin" active="true">
+             	<behavior like="BUTTONS.ButtonBehavior">
+                    <method id="onTap" params="container">
+                        <![CDATA[
+							application.run(new AlertCloseTransition, application.last, this.data.button, true);
+							
+							// save the settings
+                            var params = new Object();
+							
+							var leftPins = gData.leftSlot.pins;
+							var leftPinStates = new Array(leftPins.length);
+							for (var i=0; i < leftPins.length; i++)
+								leftPinStates[i] = pinDescriptionsHash[leftPins[i]].pinHashIndex;
+							
+							var rightPins = gData.rightSlot.pins;
+							var rightPinStates = new Array(rightPins.length);
+							for (var i=0; i < rightPins.length; i++)
+								rightPinStates[i] = pinDescriptionsHash[rightPins[i]].pinHashIndex;
+
+							params.leftPort = leftPinStates;
+							params.rightPort = rightPinStates;
+							params.leftVoltage = gData.leftSlot.value ? 5 : 3.3;
+							params.rightVoltage = gData.rightSlot.value ? 5 : 3.3;
+
+                            //@@ unused!
+debugger;
+                            container.invoke(new MessageWithObject("pins:/pinmux/set", params));
+                        ]]>
+                    </method>
+                </behavior>
+				<label top="0" left="0" bottom="0" right="0" string="'OK'"/>
+            </container>
+    	</container>
+    </container>
+
+	<!-- Application Behavior -->
+	
+	<behavior id="PinMuxApplicationBehavior">
+		<method id="onLaunch" params="application"><![CDATA[
+		]]></method>
+	 </behavior>
+    
+	<script>
+        <![CDATA[
+			application.behavior = new PinMuxApplicationBehavior();   
+        ]]>
+    </script>
+            
+         
+	<!-- utility -->
+	<function id="getContentIndex" params="content">
+        <![CDATA[
+            var parent = content.container;
+            var index = 0;
+            var aContent = parent.first;
+            while (aContent != null) {
+            	if (aContent === content)
+            		return index;
+            	index++;
+            	aContent = aContent.next;
+            }
+            return -1;
+        ]]>
+    </function>
+    
+	<function id="buildCurrentSettings"><![CDATA[
+		var currentSettings = {
+				leftPins: gData.leftSlot.pins.map(function(pin) { return pinDescriptionsHash[pin].pinHashIndex; }),
+				rightPins: gData.rightSlot.pins.map(function(pin) { return pinDescriptionsHash[pin].pinHashIndex; }),
+				leftVoltage: gData.leftSlot.value ? 5 : 3.3,
+				rightVoltage: gData.rightSlot.value ? 5 : 3.3
+			};
+		return currentSettings
+    ]]></function>
+ 
+	<function id="settingsHaveChanged"><![CDATA[
+		var newSettings = buildCurrentSettings();
+		var oldSettings = gData.originalSettings;
+		
+		if (oldSettings == null)
+			return false;
+			
+		var newLeft = newSettings.leftPins;
+		var oldLeft = oldSettings.leftPins;
+		for (var i=0; i < 8; i++) {
+			if (newLeft[i] != oldLeft[i])
+				return true;
+		}
+
+		if (newSettings.leftVoltage != oldSettings.leftVoltage)
+			return true;
+
+		var newRight = newSettings.rightPins;
+		var oldRight = oldSettings.rightPins;
+		for (var i=0; i < 8; i++) {
+			if (newRight[i] != oldRight[i])
+				return true;
+		}
+
+		if (newSettings.rightVoltage != oldSettings.rightVoltage)
+			return true;
+			
+		return false;
+    ]]></function>
+ 
+</program>

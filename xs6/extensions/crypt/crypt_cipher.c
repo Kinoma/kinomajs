@@ -14,11 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
+
 #include "crypt.h"
 #include "crypt_common.h"
 #include "crypt_cipher.h"
-#include <string.h>
 
 void
 xs_cipher_constructor(xsMachine *the)
@@ -27,7 +26,7 @@ xs_cipher_constructor(xsMachine *the)
 
 	if ((cipher = crypt_malloc(sizeof(crypt_cipher_t))) == NULL)
 		crypt_throw_error(the, "cipher: nomem");
-	memset(cipher, 0, sizeof(crypt_cipher_t));
+	c_memset(cipher, 0, sizeof(crypt_cipher_t));
 	cipher->direction = -1;
 	xsSetHostData(xsThis, cipher);
 }
@@ -65,7 +64,7 @@ cipher_process(xsMachine *the, kcl_symmetric_direction_t direction)
 		xsResult = xsArrayBuffer(NULL, cipher->blockSize);
 	if (xsTypeOf(xsArg(0)) == xsStringType) {
 		indata = xsToString(xsArg(0));
-		len = strlen(indata);
+		len = c_strlen(indata);
 	}
 	else {
 		indata = xsToArrayBuffer(xsArg(0));

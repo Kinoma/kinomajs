@@ -1,0 +1,102 @@
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<require path="kdt/simulator/SimulatorDebugBehavior" id="SimulatorDebugBehavior"/>
+	<require path="kdt/core/Logger" id="Logger"/>
+	
+	<script><![CDATA[
+        var DebugBehavior = SimulatorDebugBehavior.SimulatorDebugBehavior;
+	]]></script>
+	
+	<include path="./src/ShellContainer"/>
+	
+    <class id="MockupShellBehavior" like="ShellBehavior">
+        <method id="addSimulatorPart" params="shell, data"><![CDATA[
+			var scroller = this.deviceContainer.simulatorPartsContainer.scroller;
+			return scroller.delegate( "addPart", data );
+        ]]></method>
+		<method id="createMenuBar"><![CDATA[
+			var menuBar = ShellBehavior.prototype.createMenuBar.call(this);
+			var helpMenu = menuBar.menus.pop();
+			this.applicationMenu = menuBar.addMenu( "Application" );
+			menuBar.menus.push(helpMenu);
+			this.rebuildApplicationMenu();
+			return menuBar;
+         ]]></method>
+		<method id="getApplicationSearchPaths"><![CDATA[
+			var result = ShellBehavior.prototype.getApplicationSearchPaths.call(this);
+			result.push(mergeURI(Files.documentsDirectory, "Kinoma Simulator/applications/"));
+			return result;
+		]]></method>
+        <method id="getHardwarePinsModulePath"><![CDATA[
+            return "simulator";
+        ]]></method>
+		<method id="initialize" params="shell"><![CDATA[
+        	ShellBehavior.prototype.initialize.call(this, shell);
+			var preferences = this.preferences.preferences;
+			//preferences.credentials = null;
+			/*
+			var id = preferences.device;
+			if (id) {
+				var info = this.getDeviceManager().getExtensionById(id);
+				if (info)
+					this.setSelectedDevice(info, preferences.variation, preferences.orientation);
+			}
+			*/
+			if (!this.getSelectedDevice()) {
+				var info = this.getDeviceManager().getExtensionByIndex(0);
+				if (info)
+					this.setSelectedDevice(info);
+			}
+			//var path = decodeURI(mergeURI(Files.documentsDirectory, "Kinoma Simulator/pins/")).substring(7);
+			//this.systemModulePath = path + ";" + this.systemModulePath;
+            //setEnvironmentVariable("modulePath", this.systemModulePath);
+		]]></method>
+        <method id="onKeyDown" params="shell, key, modifiers, repeat, ticks"><![CDATA[
+			var result = ShellBehavior.prototype.onKeyDown.call(this, shell, key, modifiers, repeat, ticks);
+			if (!result) {
+				var code = key.charCodeAt(0);
+				if ((code == 8) && this.selectedApplication) {
+					this.handleApplicationClose();
+					result = true;
+				}
+			}
+			return result;
+        ]]></method>
+		<method id="onLaunch" params="shell"><![CDATA[
+			ShellBehavior.prototype.onLaunch.call(this, shell);
+ 			this.deviceContainer.simulatorPartsContainer.x = 0;
+        ]]></method>
+        <method id="rebuildApplicationMenu" params="update"><![CDATA[
+			for (var j = 0; j < this.applicationManager.getExtensionCount(); j++) {
+				var info = this.applicationManager.getExtensionByIndex(j);
+            	this.applicationMenu.addMenuItem( info.title, "SelectApplication", null, { id: info.id });
+			}
+        ]]></method>
+        <method id="removeSimulatorPart" params="shell, container"><![CDATA[
+			var scroller = this.deviceContainer.simulatorPartsContainer.scroller;
+			scroller.partsContainer.remove(container);
+        ]]></method>
+	</class>
+
+	
+	<script><![CDATA[
+		shell.behavior = new MockupShellBehavior();
+        shell.behavior.onLaunch(shell);
+	]]></script>
+
+</program>

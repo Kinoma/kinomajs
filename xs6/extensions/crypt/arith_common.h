@@ -14,7 +14,7 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
+
 #include "crypt.h"	/* for crypt_malloc/free */
 #include "crypt_common.h"
 #include "kcl_arith.h"

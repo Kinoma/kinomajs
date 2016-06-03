@@ -1,0 +1,630 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+	<require id="CONTROL_THEME" path="themes/flat/theme"/>
+	<require id="THEME" path="themes/sample/theme"/>
+	<script><![CDATA[
+		for (var i in CONTROL_THEME)
+			THEME[i] = CONTROL_THEME[i];
+	]]></script>
+	<require id="CREATIONS" path="creations/creations"/>
+	<require id="CONTROL" path="mobile/control"/>
+	<require id="DIALOG" path="mobile/dialog"/>
+	<require id="MODEL" path="mobile/model"/>
+	<require id="SCREEN" path="mobile/screen"/>
+	<require id="SCROLLER" path="mobile/scroller"/>
+	
+	<!-- SKIN/TEXTURE -->
+	
+	<skin id="blackSkin" color="black"/>
+	<skin id="whiteSkin" color="white"/>
+	
+	<skin id="dividerSkin">
+		<borders bottom="1" color="#999999"/>
+	</skin>
+	<skin id="groupSkin" color="#ffb400"/>
+	
+	<texture id="listArrowTexture" small="assets/list-arrow.png"/>
+	<skin id="listArrowSkin" texture="listArrowTexture" x="0" y="0" width="32" height="32">
+		<states offset="32"/>
+	</skin>
+	
+	<texture id="sortIconTexture" small="assets/sort-icon.png"/>
+	<skin id="sortIconSkin" texture="sortIconTexture" x="0" y="0" width="38" height="32">
+		<states offset="32"/>
+	</skin>
+	
+	<!-- STYLE -->
+	
+	<style id="applicationStyle" font="16px Fira Sans" color="black" align="left"/>
+	<style id="browserDescriptionStyle" font="20px" color="black" align="left"/>
+	<style id="browserTitleStyle" font="bold 22px" color="black" align="left"/>
+	<style id="detailsDescriptionStyle" font="20px" color="black" align="left"/>
+	<style id="detailsTitleStyle" font="bold 20px" color="black" align="left"/>
+	<style id="groupStyle" font="bold 20px" color="black" align="left"/>
+	
+	<!-- VARIABLE -->
+	
+	<variable id="applicationTitle" value="'Net Scanner'"/>
+	<variable id="detailsLineHeight" value="detailsTitleStyle.measure(' ').height * 1.2"/>
+	<variable id="detailsSubLineHeight" value="detailsTitleStyle.measure(' ').height * 1.0"/>
+	
+	<!-- BEHAVIOR -->
+	
+	<behavior id="ApplicationBehavior" like="MODEL.ApplicationBehavior"><![CDATA[
+		function getKind(schema, schemas, unknown) {
+			if (schema in schemas) {
+				return schemas[schema] || schema;
+			}
+			var schemaLowerCase = schema.toLowerCase();
+			for (var key in schemas) {
+				if (key.toLowerCase() == schemaLowerCase) {
+					return schemas[key] || schema;
+				}
+			}
+			trace("schema not mapped: " + schema + "\n");
+			return unknown || "Unknown Device";
+		}
+		function getSSDPKind(schema) {
+			return this.getKind(schema, this.data.ssdp.schemas, "Unknown SSDP Device");
+		}
+		function getZeroconfKind(schema) {
+			return this.getKind(schema, this.data.zeroconf.schemas, "Unknown Zeroconf Device");
+		}
+		function onBrowserCompare(a, b) {
+			return a.url.toLowerCase().compare(b.url.toLowerCase());
+		}
+		function onBrowserCompareDeviceType(a, b) {
+			var value = a.$temp.kindSort ? a.$temp.kindSort.compare(b.$temp.kindSort) : 0;
+			return (value == 0) ? a.$temp.ipAddressSort.compare(b.$temp.ipAddressSort) : value;
+		}
+		function onBrowserCompareIPAddress(a, b) {
+			var value = a.$temp.ipAddressSort.compare(b.$temp.ipAddressSort);
+			return (value == 0) ? a.$temp.kindSort ? a.$temp.kindSort.compare(b.$temp.kindSort) : value : value;
+		}
+		function onBrowserCompareRecently(a, b) {
+			return (a.$temp.discovered > b.$temp.discovered) ? -1 : (a.$temp.discovered < b.$temp.discovered) ? 1 : 0;
+		}
+		function onCreate(application, data) {
+			MODEL.ApplicationBehavior.prototype.onCreate.call(this, application, data);
+		}
+		function onDisplayed(application) {
+			var ssdp = model.data.ssdp;
+			if (ssdp) {
+				this.client = new SSDP.Client();
+				this.client.behavior = this;
+				this.client.start();
+			}
+			var zeroconf = model.data.zeroconf;
+			if (zeroconf) {
+				this.browser = new Zeroconf.Browser(zeroconf.browserServiceType);
+				this.browser.behavior = this;
+				this.browser.start();
+			}
+		}
+		function onLaunch(application) {
+			model.menu.data.selection = this.readPreferences(application, "selection", model.menu.data.selection);
+			MODEL.ApplicationBehavior.prototype.onLaunch.call(this, application);
+		}
+		function onQuit(application) {
+			var ssdp = model.data.ssdp;
+			if (ssdp) {
+				this.client.stop();
+				this.client = undefined;
+			}
+			var zeroconf = model.data.zeroconf;
+			if (zeroconf) {
+				this.browser.stop();
+				this.browser = undefined;
+			}
+			this.writePreferences(application, "selection", model.menu.data.selection);
+			MODEL.ApplicationBehavior.prototype.onQuit.call(this, application);
+		}
+		function onSortBrowserChanged(application, value) {
+			var data = model.menu.data;
+			if (value) {
+				var selection = data.selection;
+				data.items.forEach(function (item, index) {
+					if (item.value == value) {
+						selection = index;
+					}
+				});
+				data.selection = selection;
+			}
+			var browsers = this.data.browsers;
+			switch (data.selection) {
+				case 0:
+					browsers.sort(this.onBrowserCompareDeviceType);
+					break;
+				case 1:
+					browsers.sort(this.onBrowserCompareIPAddress);
+					break;
+				case 2:
+					browsers.sort(this.onBrowserCompareRecently);
+					break;
+				default:
+					browsers.sort(this.onBrowserCompare);
+					break;
+			}
+			browsers.forEach(function (browser) {
+				browser.$temp.line = new BrowserLine(browser);
+			});
+			application.distribute("onBrowserChanged");
+		}
+		function onSSDPServerDown(server) {
+//			trace("onSSDPServerDown: " + JSON.stringify(server) + "\n");
+			var browser = Object.create(server);
+			browser.$id = browser.uuid + "/" + browser.interface;
+			var browsers = this.data.browsers;
+			for (var i = browsers.length; i--;) {
+				if (browsers[i].$id == browser.$id) {
+					browsers.splice(i, 1);
+					application.distribute("onBrowserChanged");
+					application.purge();
+					break;
+				}
+			}
+		}
+		function onSSDPServerUp(server) {
+//			trace("onSSDPServerUp: " + JSON.stringify(server) + "\n");
+			var browser = Object.create(server);
+		//	if (browser.type.indexOf("urn:schemas-kinoma-com:device:netscanner.create.kinoma.marvell.com:") == 0) {
+		//		return;
+		//	}
+		//	if (browser.interface && browser.interface.indexOf("169.254.") == 0) {
+		//		return;
+		//	}
+			browser.$id = browser.uuid + "/" + browser.interface;
+			var browsers = this.data.browsers;
+			for (var i = browsers.length; i--;) {
+				if (browsers[i].$id == browser.$id) {
+					browser.$temp = browsers[i].$temp;
+					browsers[i] = browser;
+					return;
+				}
+			}
+			var ipAddress = parseURI(browser.url).authority.split(":")[0];
+			var ipAddressSort = ipAddress.split(".").map(function (value) {
+				return ("00" + parseInt(value, 10)).slice(-3);
+			}).join(".");
+			var kind = this.getSSDPKind(browser.type);
+			var kindSort = kind ? kind.toLowerCase() : undefined;
+			browser.$temp = {
+				discovered: Date.now(),
+				friendlyName: "",
+				ipAddress: ipAddress,
+				ipAddressSort: ipAddressSort,
+				kind: kind,
+				kindSort: kindSort,
+				ssdp: true,
+				thumbnailURL: null,
+				when: null
+			};
+			browsers.push(browser);
+			application.delegate("onSortBrowserChanged");
+		}
+		function onZeroconfServiceDown(service) {
+//			trace("onZeroconfServiceDown: " + JSON.stringify(service) + "\n");
+			var browser = Object.create(service);
+			browser.$id = browser.type + "/" + browser.name;
+			var browsers = this.data.browsers;
+			for (var i = browsers.length; i--;) {
+				if (browsers[i].$id == browser.$id) {
+					browsers.splice(i, 1);
+					application.distribute("onBrowserChanged");
+					application.purge();
+					break;
+				}
+			}
+		}
+		function onZeroconfServiceUp(service) {
+//			trace("onZeroconfServiceUp: " + JSON.stringify(service) + "\n");
+			var browser = Object.create(service);
+			browser.$id = browser.type + "/" + browser.name;
+			var browsers = this.data.browsers;
+			for (var i = browsers.length; i--;) {
+				if (browsers[i].$id == browser.$id) {
+					browser.$temp = browsers[i].$temp;
+					browsers[i] = browser;
+					return;
+				}
+			}
+			var ipAddress = browser.ip;
+			var ipAddressSort = ipAddress.split(".").map(function (value) {
+				return ("00" + parseInt(value, 10)).slice(-3);
+			}).join(".");
+			var kind = this.getZeroconfKind(browser.type);
+			var kindSort = kind ? kind.toLowerCase() : undefined;
+			browser.$temp = {
+				discovered: Date.now(),
+				friendlyName: browser.name,
+				ipAddress: ipAddress,
+				ipAddressSort: ipAddressSort,
+				kind: kind,
+				kindSort: kindSort,
+				thumbnailURL: null,
+				when: null,
+				zeroconf: true
+			};
+			browsers.push(browser);
+			application.delegate("onSortBrowserChanged");
+		}
+	]]></behavior>
+	
+	<behavior id="CommandBehavior" like="MODEL.CommandBehavior"/>
+	
+	<behavior id="ScreenBehavior" like="MODEL.ScreenBehavior"/>
+	
+	<!-- CONTAINER/CONTENT/LINE -->
+	
+	<container id="Screen" left="0" right="0" top="0" bottom="0" behavior="ScreenBehavior"/>
+	
+	<container id="BrowserScreen" like="Screen">
+		<content left="0" top="0" right="0" height="32" skin="whiteSkin"/>
+		<container anchor="BODY" left="0" right="0" top="32" bottom="0" skin="whiteSkin">
+			<behavior><![CDATA[
+				function onBrowserChanged(container) {
+					//@@ does not work - we need to catch only the away transition
+					//@@ if (!container.container.container.transitioning)
+					if (container.next) {
+						if (model.data.browsers.length == 0) {
+							container.first.visible = false;
+							container.next.visible = true;
+						}
+						else {
+							container.first.visible = true;
+							container.next.visible = false;
+						}
+					}
+					//else debugger;
+				}
+				function onDisplaying(container) {
+					this.onBrowserChanged(container);
+				}
+			]]></behavior>
+			<scroller anchor="DYNAMIC_SCROLLER" like="SCROLLER.VerticalScroller" behavior="CREATIONS.DynamicHeaderScrollerBehavior" visible="false">
+				<column left="0" right="0" top="0">
+					<behavior like="SCREEN.ListBehavior"><![CDATA[
+						function onBrowserChanged(column) {
+							column.empty();
+							column.stop();
+							var focus = undefined;
+							var group = undefined;
+							switch (model.menu.data.selection) {
+								case 0:
+									focus = "kind"; // i.e. "deviceType"
+									break;
+								case 1:
+									focus = "ipAddress";
+									break;
+								case 2:
+									column.interval = 60000; // flip everything at the same time
+									column.start();
+									var items = [
+										{ "step": 1,     "test": 60,       "text": "less than a minute ago" },
+										{ "step": 60,    "test": 120,      "text": "about a minute ago"     },
+										{ "step": 60,    "test": 3600,     "text": "# minutes ago"          },
+										{ "step": 3600,  "test": 7200,     "text": "about an hour ago"      },
+										{ "step": 3600,  "test": 86400,    "text": "# hours ago"            },
+										{ "step": 86400, "test": 172800,   "text": "yesterday"              },
+										{ "step": 86400, "test": Infinity, "text": "# days ago"             }
+									];
+									var now = Date.now();
+									var when = undefined;
+									model.data.browsers.forEach(function (browser) {
+										var test = ((now - browser.$temp.discovered) / 1000);
+										for (var i = 0, c = items.length; i < c; i++) {
+											var item = items[i];
+											if (test < item.test) {
+												when = item.text.replace("#", Math.floor(test / item.step));
+												break;
+											}
+										}
+										browser.$temp.when = when;
+									});
+									focus = "when"; // "discovered"
+									break;
+							}
+							var items = this.data.items = [];
+							model.data.browsers.forEach(function (browser) {
+								if (!("line" in browser.$temp)) {
+									browser.$temp.line = new BrowserLine(browser);
+								}
+								if (focus && (group != browser.$temp[focus])) {
+									group = browser.$temp[focus];
+									column.add(new BrowserGroupLine(group));
+									column.add(browser.$temp.line);
+								}
+								else {
+									if (column.first) {
+										column.add(new BrowserDividerLine());
+									}
+									column.add(browser.$temp.line);
+								}
+								items.push({ Line: browser.$temp.line });
+							});
+						}
+						function onCreate(column, data) {
+							this.data = data;
+							this.onBrowserChanged(column);
+						}
+						function onTimeChanged(column) {
+							this.onBrowserChanged(column);
+						}
+						function onUndisplayed(column) {
+							column.empty();
+						}
+					]]></behavior>
+				</column>
+				<content like="SCROLLER.VerticalScrollbar"/>
+			</scroller>
+		</container>
+		<picture like="CREATIONS.BusyPicture" left="(application.width - 100) / 2" top="((application.height - 100 - 32) / 2) + 32" width="100" height="100"/>
+		<container anchor="HEADER" like="CREATIONS.DynamicHeader"/>
+	</container>
+	
+	<container id="DetailsScreen" like="Screen">
+		<content left="0" top="0" right="0" height="32" skin="whiteSkin"/>
+		<container anchor="BODY" left="0" right="0" top="32" bottom="0" skin="whiteSkin">
+			<scroller anchor="DYNAMIC_SCROLLER" left="0" right="0" top="0" bottom="0" like="SCROLLER.VerticalScroller" behavior="CREATIONS.DynamicHeaderScrollerBehavior">
+				<scroller left="0" right="0" top="0" bottom="undefined" like="SCROLLER.HorizontalScroller">
+					<column left="0" top="0">
+						<iterate on="$.items">
+							<select on="$.items"><!-- //@@ main.xml:372: # Warning: get items: no property! -->
+								<select on="$.items.length">
+									<line left="5" right="5" height="5" skin="dividerSkin"/>
+								</select>
+							</select>
+							<line left="5" right="undefined" height="detailsLineHeight">
+								<label style="detailsTitleStyle" string="$.title + ': '"/>
+								<select on="$.description">
+									<label style="detailsDescriptionStyle" string="$.description"/>
+								</select>
+							</line>
+							<select on="$.items"><!-- //@@ main.xml:383: # Warning: get items: no property! -->
+								<select on="$.items.length">
+									<iterate on="$.items">
+										<label left="5" right="undefined" height="detailsSubLineHeight" style="detailsDescriptionStyle" string="'  ' + $"/>
+									</iterate>
+								</select>
+								<select on="!$.items.length">
+									<picture like="CREATIONS.BusyPicture" left="(application.width - 100) / 2" top="20" width="100" height="100"/>
+									<content height="20"/>
+								</select>
+							</select>
+						</iterate>
+					</column>
+					<content like="SCROLLER.HorizontalScrollbar">
+						<behavior like="SCROLLER.HorizontalScrollbarBehavior"><![CDATA[
+							function onScrolled(scrollbar) {
+								SCROLLER.HorizontalScrollbarBehavior.prototype.onScrolled.call(this, scrollbar);
+								var container = scrollbar.container.container;
+								scrollbar.y = container.y + container.height - scrollbar.height;
+							}
+						]]></behavior>
+					</content>
+				</scroller>
+				<content like="SCROLLER.VerticalScrollbar"/>
+			</scroller>
+		</container>
+		<container anchor="HEADER" like="CREATIONS.DynamicHeader"/>
+	</container>
+	
+	<container id="SortToolButton" left="0" right="0" top="0" bottom="0" active="true">
+		<container like="CREATIONS.ToolButton" skin="sortIconSkin">
+			<behavior like="CREATIONS.ToolButtonBehavior"><![CDATA[
+				function onTap(container) {
+					application.run(new THEME.MenuOpenTransition, new DIALOG.Menu(model.menu.data), container);
+				}
+			]]></behavior>
+		</container>
+	</container>
+	
+	<content id="ListArrow" right="0" skin="listArrowSkin"/>
+	
+	<line id="BrowserDividerLine" left="0" right="0" top="0" height="1" active="true" skin="dividerSkin"/>
+	
+	<line id="BrowserGroupLine" left="0" right="0" top="0" height="24" active="true" skin="groupSkin">
+		<label left="10" right="10" top="0" height="24" style="groupStyle" string="$"/>
+	</line>
+	
+	<line id="BrowserLine" left="0" right="0" top="0" bottom="0" active="true" skin="THEME.lineSkin">
+		<behavior like="SCREEN.ListItemBehavior"><![CDATA[
+			function onComplete(line, message, document) {
+				var data = this.data, $temp = data.$temp;
+				var friendlyName = $temp.friendlyName || "";
+				var thumbnailURL = $temp.thumbnailURL || "";
+				if (document) {
+					var device = document.getElementsByTagName("device").item(0);
+					if (device) {
+						friendlyName = device.getElementsByTagName("friendlyName").item(0).firstChild.nodeValue;
+						var iconList = device.getElementsByTagName("iconList").item(0);
+						if (iconList) {
+							var icons = iconList.getElementsByTagName("icon");
+							for (var i = 0; i < icons.length; i++) {
+								var icon = icons.item(i);
+								var mime = icon.getElementsByTagName("mimetype").item(0).firstChild.nodeValue;
+								if (("image/jpeg" == mime) || ("image/png" == mime)) {
+									var thumbnailURL = mergeURI(message.url, icon.getElementsByTagName("url").item(0).firstChild.nodeValue);
+									break;
+								}
+							}
+						}
+					}
+				}
+				$temp.text = document ? DOM.serialize(document) : undefined; // not available
+				line.first.last.last.string = $temp.friendlyName = friendlyName;
+				line.first.next.url = $temp.thumbnailURL = thumbnailURL;
+			}
+			function onCreate(line, data) {
+				SCREEN.ListItemBehavior.prototype.onCreate.call(this, line, data);
+				if (("url" in data) && data.url) {
+//@@					if (data.url.indexOf("rootDesc.xml") < 0)
+						line.invoke(new Message(data.url), Message.DOM);
+				}
+			}
+			function onTap(line) {
+				var data = this.data, $temp = data.$temp;
+				var query = { id: data.$id, name: $temp.friendlyName, url: data.url };
+				line.invoke(new Message("/details?" + serializeQuery(query)));
+				SCREEN.ListItemBehavior.prototype.onTap.call(this, line);
+			}
+		]]></behavior>
+		<column left="15" right="5" top="5" bottom="5">
+			<select on="model.menu.data.selection">
+				<label left="0" right="0" style="browserTitleStyle" string="$.$temp.kind"/>
+			</select>
+			<select on="!model.menu.data.selection">
+				<label left="0" right="0" style="browserTitleStyle" string="$.$temp.ipAddress"/>
+			</select>
+			<line left="0" right="0" top="5">
+				<select on="model.menu.data.selection > 1">
+					<label left="0" right="undefined" style="browserDescriptionStyle" string="$.$temp.ipAddress + ' '"/>
+				</select>
+				<label left="0" right="0" style="browserDescriptionStyle" string="$.$temp.friendlyName"/>
+			</line>
+		</column>
+		<thumbnail right="0" width="42" height="42" url="$.$temp.thumbnailURL" aspect="fit"/>
+		<content like="ListArrow"/>
+	</line>
+	
+	<!-- HANDLER -->
+	
+	<handler path="/command">
+		<behavior like="CommandBehavior"><![CDATA[
+			function onInvoke(handler, message) {
+				var data = parseQuery(message.query);
+				if ("sort" in data) {
+					application.delegate("onSortBrowserChanged", data.sort);
+				}
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/details">
+		<behavior like="ScreenBehavior"><![CDATA[
+			function onDescribe(query, selection) {
+				var browsers = model.data.browsers;
+				for (var i = browsers.length; i--;) {
+					if (browsers[i].$id == query.id) {
+						var browser = browsers[i];
+						break;
+					}
+				}
+				if (browser) {
+					var ssdp = ("ssdp" in browser.$temp);
+					var zeroconf = ("zeroconf" in browser.$temp);
+					var items = [
+						{
+							title: "Type",
+							description: browser.type
+						},
+						{
+							title: ("host" in browser) ? "Host" : "UUID",
+							description: ("host" in browser) ? browser.host : browser.uuid
+						},
+						{
+							title: "URL",
+							description: ("url" in browser) ? browser.url : "//" + browser.ip + ":" + browser.port //@@ no scheme here
+						}
+					];
+					if (("name" in query) && query.name) {
+						items.unshift({
+							title: "Name",
+							description: query.name
+						});
+					}
+					if ("services" in browser) {
+						items.push({
+							title: "Services",
+							items: browser.services.length ? browser.services : [ "none" ]
+						});
+					}
+					if ("text" in browser.$temp) {
+						items.push({
+							title: "Device Description",
+							items: browser.$temp.text ? browser.$temp.text.split("\n") : [ "not available" ]
+						});
+					}
+				}
+				return {
+					items: items,
+					Screen: DetailsScreen,
+					title: ssdp ? "SSDP Details" : zeroconf ? "Zeroconf Details" : "Device Details"
+				};
+			}
+		]]></behavior>
+	</handler>
+	
+	<handler path="/main">
+		<behavior like="ScreenBehavior"><![CDATA[
+			function getSelection(data, delta) {
+				data.selection += delta;
+				return data.items[data.selection];
+			}
+			function hasSelection(data, delta) {
+				var selection = data.selection + delta;
+				return (0 <= selection) && (selection < data.items.length);
+			}
+			function onDescribe(query, selection) {
+				return {
+					items: [],
+					more: false,
+					Screen: BrowserScreen,
+					scroll: {
+						x: 0,
+						y: 0
+					},
+					selection: -1,
+					title: applicationTitle,
+					ToolButton: SortToolButton
+				};
+			}
+		]]></behavior>
+	</handler>
+	
+	<!-- SCRIPT/MODEL -->
+	
+	<script><![CDATA[
+		application.style = applicationStyle;
+		var map = Files.readJSON(mergeURI(application.url, "schemas.json"));
+		var model = application.behavior = new ApplicationBehavior(application);
+		var data = model.data = {
+			browsers: [],
+			ssdp: {
+				schemas: map.ssdp
+			},
+			zeroconf: {
+				browserServiceType: undefined,
+				schemas: map.zeroconf
+			}
+		}
+		var menu = model.menu = {
+			data: {
+				action: "/command?sort=",
+				items: [
+					{ title: "Device Type",         value: "onBrowserCompareDeviceType" },
+					{ title: "IP Address",          value: "onBrowserCompareIPAddress"  },
+				//	{ title: "Recently Discovered", value: "onBrowserCompareRecently"   } //@@ turn off for now
+				],
+				selection: 1 // IP Address default selection
+			}
+		}
+	]]></script>
+	
+</program>

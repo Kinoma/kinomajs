@@ -14,8 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include <stddef.h>	/* for size_t */
 
-extern void *crypt_malloc(size_t sz);
-extern void crypt_free(void *p);
+#include "xs6Platform.h"
+#include "xs.h"
+
+#define crypt_malloc	c_malloc
+#define crypt_free	c_free
 extern void crypt_rng(void *buf, size_t sz);

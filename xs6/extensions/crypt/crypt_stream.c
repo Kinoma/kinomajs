@@ -14,11 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
+
 #include "crypt.h"
 #include "crypt_common.h"
 #include "crypt_stream.h"
-#include <string.h>
 
 void
 xs_stream_constructor(xsMachine *the)
@@ -27,7 +26,7 @@ xs_stream_constructor(xsMachine *the)
 
 	if ((stream = crypt_malloc(sizeof(crypt_stream_t))) == NULL)
 		crypt_throw_error(the, "stream: nomem");
-	memset(stream, 0, sizeof(crypt_stream_t));
+	c_memset(stream, 0, sizeof(crypt_stream_t));
 	xsSetHostData(xsThis, stream);
 }
 
@@ -51,7 +50,7 @@ xs_stream_encrypt(xsMachine *the)
 	void *indata, *outdata;
 
 	if (xsTypeOf(xsArg(0)) == xsStringType)
-		len = strlen(xsToString(xsArg(0)));
+		len = c_strlen(xsToString(xsArg(0)));
 	else
 		len = xsGetArrayBufferLength(xsArg(0));
 	if (ac > 2 && xsTypeOf(xsArg(2)) != xsUndefinedType) {

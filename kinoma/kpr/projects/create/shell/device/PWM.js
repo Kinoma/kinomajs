@@ -1,3 +1,4 @@
+//@module
 /*
  *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
@@ -14,17 +15,28 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "crypt.h"
-#include "kcl.h"
 
-void *
-kcl_malloc(size_t sz)
-{
-	return crypt_malloc(sz);
+exports.pins = {
+	pwm: {type: "PWM"}
 }
 
-void
-kcl_free(void *p)
+exports.configure = function()
 {
-	crypt_free(p);
+	this.pwm.init();
+}
+
+exports.close = function()
+{
+	this.pwm.close();
+}
+
+exports.write = function(value)
+{
+	if ( Array.isArray(value) ) return this.pwm.write(value[0],value[1]); 
+	else return this.pwm.write(value);
+}
+
+// metadata friendly alternative
+exports.writeDutyCyclePeriod = function(params) {
+	this.pwm.write(params.dutyCycle, params.period);
 }

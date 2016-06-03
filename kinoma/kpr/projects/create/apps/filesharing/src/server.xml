@@ -1,0 +1,1201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	
+	<class id="WebDAVServer">
+		<!--
+			// http://tools.ietf.org/html/rfc4918
+			// http://tools.ietf.org/html/rfc4918#section-10.2
+			// http://tools.ietf.org/html/rfc4918#section-10.6
+			// http://tools.ietf.org/html/rfc4918#section-18.2
+			// http://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml
+			// http://www.webdav.org/neon/litmus/
+			// http://www.webdav.org/neon/litmus/litmus-0.13.tar.gz
+			// make OPTS="-k" URL=http://localhost:10001/Macintosh%20HD/Users/$USER/Documents/dav/ check
+		-->
+		<constructor params="precision, streaming, title"><![CDATA[
+			var iterator = new Files.VolumeIterator();
+			var volumes = new Array(), volume = undefined;
+			while (volume = iterator.getNext()) {
+				var name = volume.name ? volume.name.replace(/\/+/g, " ") : "Internal"; // protect against no volume name and forward slashed volume name
+				var table = { mmcblk0p1: "SD1", mmcblk0p2: "SD2", rootfs: "Internal", root: undefined, dev: undefined, localhost: undefined };
+				if (name in table) {
+					name = table[name];
+				}
+				if (name) {
+					var useable = true;
+					for (var i = 0, c = volumes.length; i < c; i++) {
+						if (volumes[i].name == name) {
+							useable = false;
+							break;
+						}
+					}
+					if (useable) {
+						volume.name = name;
+						volumes.push(volume);
+					}
+				}
+			}
+			this.volumes = volumes;
+			this.volumes.title = title || "Kinoma Create";
+			this.precision = (precision !== false);
+			this.streaming = (streaming !== false);
+			this.actions = new Array(
+				// HTTP
+				"DELETE", "GET", "HEAD", "OPTIONS", "PUT",
+				// WebDAV
+				"COPY", "LOCK", "MKCOL", "MOVE", "PROPFIND", "PROPPATCH", "UNLOCK"
+			);
+			var allow = "";
+			this.actions.forEach(function (action) {
+				allow += (allow ? ", " : "") + action;
+			});
+			this.allow = new String(allow);
+			this.actions.volume = new Array(
+				// HTTP
+				"GET", "HEAD", "OPTIONS",
+				// WebDAV
+				"LOCK", "PROPFIND", "PROPPATCH", "UNLOCK"
+			);
+			var allow = "";
+			this.actions.volume.forEach(function (action) {
+				allow += (allow ? ", " : "") + action;
+			});
+			this.allow.volume = new String(allow);
+			this.davNamespace = "DAV:";
+			this.preparePathExpression = /\/+/g;
+			this.testPathExpression = /^(\/+[^\/]+)?\/+dev\//i;
+			this.xmlDeclaration = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
+			this.xmlnsNamespace = "http://www.w3.org/2000/xmlns/";
+			/*if (1) {
+				var $ = "<D:prop xmlns:D='DAV:'><author" +
+						"        xml:lang='en'" +
+						"        xmlns:x='http://example.com/ns'" +
+						"        xmlns='http://example.com/ns'" +
+						"        xmlns:h='http://www.w3.org/1999/xhtml'>" +
+						"    <x:name>Jane Doe</x:name>" +
+						"    <x:uri   added='2005-11-26' type='email'" +
+						"      >mailto:jane.doe@example.com</x:uri>" +
+						"    <x:uri   added='2005-11-27' type='web'" +
+						"      >http://www.example.com</x:uri>" +
+						"    <x:notes>" +
+						"      Jane has been working way <h:em>too</h:em> long on the" +
+						"      long-awaited revision of &lt;RFC2518&gt;." +
+						"    </x:notes>" +
+						"  </author>" +
+						"</D:prop>";
+				var document = DOM.parse($);
+				if (document) {
+					//document.normalizeNS();
+					var element = document.documentElement;
+					trace(this.searchXML(element, "/prop/author/name/#text", "http://example.com/ns") + "\n");
+					trace(this.searchXML(element, "/prop/author/uri/#text", "http://example.com/ns") + "\n");
+					trace(this.searchXML(element, "/prop/author/uri/@added", "http://example.com/ns") + "\n");
+					trace(this.searchXML(element, "/prop/author/uri/@type", "http://example.com/ns") + "\n");
+					trace(this.searchXML(element, "/prop/author/x:name/#text") + "\n");
+					trace(this.searchXML(element, "/prop/author/x:uri/#text") + "\n");
+					trace(this.searchXML(element, "/prop/author/x:uri/@added") + "\n");
+					trace(this.searchXML(element, "/prop/author/x:uri/@type") + "\n");
+				}
+			}*/
+			/*if (2) {
+				// PUT /dav/untitled%20folder/cat%20&%20%3Cmouse%3A%3E.jpg HTTP/1.1
+				var path = "/dav/untitled%20folder/cat%20&%20%3Cmouse%3A%3E.jpg";
+				trace("### decodeURI: " + decodeURI(path) + "\n");
+				trace("### component: " + path.split("/").map(function (name) { return decodeURIComponent(name) }).join("/") + "\n");
+				// ### decodeURI: /dav/untitled folder/cat & <mouse%3A>.jpg
+				// ### component: /dav/untitled folder/cat & <mouse:>.jpg
+				var path = this.path;
+				var root = this.root;
+				var test = function (a) {
+					var b = a.slice(path.length);
+					var c = new String(mergeURI(root, b));
+					var d = new String(mergeURI(root, "./" + b)); // cannot merge path with colon ':' before slash '/'
+					trace("### a " + a + "\n");
+					trace("### b " + b + "\n");
+					trace("### c " + c + ((c.indexOf(root) == 0) ? " SUCCESS" : " FAILURE FAILURE FAILURE") + "\n");
+					trace("### d " + d + ((d.indexOf(root) == 0) ? " SUCCESS" : " FAILURE FAILURE FAILURE") + "\n");
+				};
+				test("/dav/test/cat & <mouse:>.jpg"); // SUCCESS
+				// ### a /dav/test/cat & <mouse:>.jpg
+				// ### b test/cat & <mouse:>.jpg
+				// ### c file:///Users/mwharton/Documents/dav/test/cat & <mouse:>.jpg SUCCESS
+				// ### d file:///Users/mwharton/Documents/dav/test/cat & <mouse:>.jpg SUCCESS
+				test("/dav/cat & <mouse:>.jpg"); // FAILURE
+				// ### a /dav/cat & <mouse:>.jpg
+				// ### b cat & <mouse:>.jpg
+				// ### c cat & <mouse:>.jpg FAILURE FAILURE FAILURE
+				// ### d file:///Users/mwharton/Documents/dav/cat & <mouse:>.jpg SUCCESS
+			}*/
+			/*if (3) {
+				trace("# Infinity - 1 = " + (Infinity - 1) + "\n");
+				trace("# Infinity - Infinity = " + (Infinity - Infinity) + "\n");
+				trace("# Infinity = " + Infinity + "\n");
+				trace("# Infinity-- = " + Infinity-- + "\n");
+				trace("# " + this.parentDirectoryURL(this.root + "accounts.zip") + "\n");
+				trace("# " + this.parentDirectoryURL(this.root + "litmus/") + "\n");
+				this.copyFile(this.root + "accounts.zip", this.root + "accounts-copy.zip", true);
+				this.copyDirectory(this.root + "litmus/", this.root + "deep/deeper/deepest/", Infinity, true);
+				this.copyDirectory(this.root + "litmus/", this.root + "deep/", Infinity, true);
+			}*/
+			/*if (4) {
+				// 3. propfind_invalid2..... FAIL (PROPFIND with invalid namespace declaration in body (see FAQ) got 207 response not 400)
+				var $ = "<D:propfind xmlns:D='DAV:'><D:prop><bar:foo xmlns:bar=''/></D:prop></D:propfind>";
+				var document = DOM.parse($);
+				if (document) {
+					debugger;
+				}
+			}*/
+			/*if (5) {
+				var paths = [
+					"",
+					"/",
+					"//dev//",
+					"//dev//blah",
+					"//Internal//dev",
+					"//Internal//dev//",
+					"/DEV",
+					"/dev",
+					"/dev/",
+					"/dev//",
+					"/dev//blah",
+					"/dev/blah",
+					"/dev/dev",
+					"/dev/devblah",
+					"/devblah",
+					"/DEVICE",
+					"/device",
+					"/Internal//dev",
+					"/Internal/dav/dev",
+					"/Internal/dav/dev/",
+					"/Internal/dev",
+					"/Internal/dev/",
+					"/nodev",
+					"/nodev/",
+					"DEV",
+					"dev",
+					"dev/",
+					"dev//",
+					"dev//blah",
+					"dev/blah",
+					"devblah",
+					"DEVICE",
+					"device",
+					"nodev"
+				];
+				for (var i = 0, c = paths.length; i < c; i++) {
+					var path = paths[i];
+					if (this.allowPath(path)) {
+						trace("--- SUCCESS " + path + "\n");
+					}
+					else {
+						trace(">>> FAILURE " + path + "\n");
+					}
+				}
+			}*/
+		]]></constructor>
+		<method id="onAccept" params="application, message"><![CDATA[
+			var transaction = { accept: true, accepted: false, invoke: false, log: false };
+			this.process(application, message, transaction);
+			return transaction.accepted;
+		]]></method>
+		<method id="onInvoke" params="application, message"><![CDATA[
+			//trace(message.method + " " + message.path + " " + message.getRequestHeader("User-Agent") + "\n");
+			var transaction = { accept: false, invoke: true, log: true };
+			this.process(application, message, transaction);
+		]]></method>
+		<!-- HELPER FUNCTIONS -->
+		<method id="allowPath" params="path"><![CDATA[
+			return path && this.allowPreparedPath(this.preparePath(path));
+		]]></method>
+		<method id="allowPreparedPath" params="path"><![CDATA[
+			return path && !this.testPathExpression.test(this.ensureTrailingSlash(path));
+		]]></method>
+		<method id="checkDirectoryConsistency" params="url, destination, depth"><![CDATA[
+			var success = false;
+			if (Files.exists(url) && Files.exists(destination)) {
+				success = true;
+				if ((depth === undefined) || depth--) {
+					var info = undefined;
+					var iterator = new Files.Iterator(url, true);
+					while (info = this.moreInfo(iterator.getNext())) {
+						if (success) {
+							if (info.$directory) {
+								success = this.checkDirectoryConsistency(url + info.path + "/", destination + info.path + "/", depth);
+							}
+							else if (info.$file) {
+								success = this.checkFileConsistency(url + info.path, destination + info.path);
+							}
+							else {
+								// skip unknown type
+							}
+						}
+					}
+				}
+			}
+			//trace("checkDirectoryConsistency " + url + " " + success + "\n");
+			return success;
+		]]></method>
+		<method id="checkFileConsistency" params="url, destination"><![CDATA[
+			var success = false;
+			if (Files.exists(url) && Files.exists(destination)) {
+				if (Files.getInfo(url).size == Files.getInfo(destination).size) {
+					success = true;
+				}
+			}
+			//trace("checkFileConsistency " + url + " " + success + "\n");
+			return success;
+		]]></method>
+		<method id="copyDirectory" params="url, destination, depth, force"><![CDATA[
+			if (force && Files.exists(destination)) {
+				Files.deleteDirectory(destination, true);
+			}
+			Files.ensureDirectory(destination);
+			if ((depth === undefined) || depth--) {
+				var info = undefined;
+				var iterator = new Files.Iterator(url, true);
+				while (info = this.moreInfo(iterator.getNext())) {
+					if (info.$directory) {
+						this.copyDirectory(url + info.path + "/", destination + info.path + "/", depth);
+					}
+					else if (info.$file) {
+						this.copyFile(url + info.path, destination + info.path);
+					}
+					else {
+						// skip unknown type
+					}
+				}
+			}
+		]]></method>
+		<method id="copyFile" params="url, destination, force"><![CDATA[
+			if (force && Files.exists(destination)) {
+				Files.deleteFile(destination);
+			}
+			Files.ensureDirectory(destination);
+			Files.writeBuffer(destination, Files.readBuffer(url));
+		]]></method>
+		<method id="dateFromRequestHeader" params="message, name"><![CDATA[
+			var date = undefined;
+			var value = message.getRequestHeader(name);
+			if (value) {
+				value = Date.parse(value);
+				if (value) {
+					date = new Date(value);
+				}
+			}
+			return date;
+		]]></method>
+		<method id="directoryName" params="path"><![CDATA[
+			var end = ((path.charAt(path.length - 1) == "/") ? path.length - 2 : path.length - 1) + 1;
+			var start = path.lastIndexOf("/", end - 1) + 1;
+			return path.slice(start, end);
+		]]></method>
+		<method id="encodeURIComponentPath" params="path"><![CDATA[
+			return path.split("/").map(function (name) { return encodeURIComponent(name) }).join("/");
+		]]></method>
+		<method id="ensureTrailingSlash" params="path"><![CDATA[
+			return (path.charAt(path.length - 1) != "/") ? path + "/" : path;
+		]]></method>
+		<method id="makeUniqueID" params=""><![CDATA[
+			var date = new Date();
+			var id = date.getUTCFullYear().toString() + (date.getUTCMonth() + 1) + date.getUTCDate() + date.getUTCHours() + date.getUTCMinutes();
+			return id + date.valueOf();
+		]]></method>
+		<method id="mergeRelativePath" params="base, path"><![CDATA[
+			return mergeURI(this.ensureTrailingSlash(base), "./" + path); // cannot merge path with colon ':' before slash '/'
+		]]></method>
+		<method id="moreInfo" params="info"><![CDATA[
+			if (info) {
+				info = Object.create(info); // clone
+				info.$directory = (info.type == Files.directoryType);
+				info.$file = (info.type == Files.fileType) || (info.type == Files.linkType);
+				info.$volume = false;
+			}
+			return info;
+		]]></method>
+		<method id="moveDirectory" params="url, destination, depth, force"><![CDATA[
+			var success = true;
+			if (force && Files.exists(destination)) {
+				Files.deleteDirectory(destination, true);
+			}
+			var a = this.parentDirectoryURL(url);
+			var b = this.parentDirectoryURL(destination);
+			if ((a == b) && ((depth === undefined) || depth)) {
+				var name = this.directoryName(destination);
+				Files.renameDirectory(url, name);
+			}
+			else {
+				this.copyDirectory(url, destination, depth, force);
+				success = this.checkDirectoryConsistency(url, destination, depth);
+				if (success) {
+					Files.deleteDirectory(url, true);
+				}
+				else {
+					if (Files.exists(destination)) {
+						Files.deleteDirectory(destination, true);
+					}
+				}
+			}
+			return success;
+		]]></method>
+		<method id="moveFile" params="url, destination, force"><![CDATA[
+			var success = true;
+			if (force && Files.exists(destination)) {
+				Files.deleteFile(destination);
+			}
+			var a = this.parentDirectoryURL(url);
+			var b = this.parentDirectoryURL(destination);
+			if (a == b) {
+				var parts = parseURI(destination);
+				Files.renameFile(url, parts.name);
+			}
+			else {
+				this.copyFile(url, destination, force);
+				success = this.checkFileConsistency(url, destination);
+				if (success) {
+					Files.deleteFile(url);
+				}
+				else {
+					if (Files.exists(destination)) {
+						Files.deleteFile(destination);
+					}
+				}
+			}
+			return success;
+		]]></method>
+		<method id="parentDirectoryURL" params="url"><![CDATA[
+			return url.slice(0, url.lastIndexOf("/", (url.charAt(url.length - 1) == "/") ? url.length - 2 : url.length - 1) + 1);
+		]]></method>
+		<method id="preparePath" params="path"><![CDATA[
+			return path ? this.removeDotSegments(path).replace(this.preparePathExpression, "/") : "";
+		]]></method>
+		<method id="prepareURLObject" params="url, message"><![CDATA[
+			if (message && (message.path == "/")) {
+				var result = new String("/");
+				result.info = { $directory: false, $file: false, $volume: true };
+				result.name = undefined;
+				result.path = "/";
+				return result;
+			}
+			else {
+				var parts = parseURI(url);
+				var path = this.preparePath(parts.path);
+				if (this.allowPreparedPath(path)) {
+					var name = path.split("/")[1];
+					var volumes = this.volumes;
+					this.path = undefined;
+					for (var i = 0, c = volumes.length; i < c; i++) {
+						var volume = volumes[i];
+						if (volume.name == name) {
+							this.path = "/" + volume.name + "/";
+							this.root = "file://" + this.ensureTrailingSlash(volume.path);
+							break;
+						}
+					}
+					if (this.path) {
+						var index = path.indexOf(this.path);
+						if (index == -1) {
+							if (path.indexOf("/", 1) == -1) {
+								// Microsoft-WebDAV-MiniRedir/6.1.7601
+								index = this.ensureTrailingSlash(path).indexOf(this.path);
+							}
+						}
+						if (index == 0) {
+							var result = new String(this.mergeRelativePath(this.root, path.slice(this.path.length)));
+							var info = this.moreInfo(Files.getInfo(result));
+							if (info && info.$directory) {
+								if (result.charAt(result.length - 1) != "/") {
+									result = new String(result + "/");
+									result.fixed = true;
+								}
+							}
+							result.info = info;
+							result.name = parts.name;
+							result.path = parts.path;
+							return result;
+						}
+						//else debugger;
+					}
+					//else debugger;
+				}
+				//else debugger;
+			}
+		]]></method>
+		<method id="removeDotSegments" params="path"><![CDATA[
+			// http://www.ietf.org/rfc/rfc3986.txt § 5.2.4
+			var index = undefined;
+			var input = "" + path;
+			var output = [];
+			while (input) {
+				// A
+				index = input.indexOf("../");
+				if (index == 0) {
+					input = input.slice(3);
+					continue;
+				}
+				index = input.indexOf("./");
+				if (index == 0) {
+					input = input.slice(2);
+					continue;
+				}
+				// B
+				index = input.indexOf("/./");
+				if (index == 0) {
+					input = "/" + input.slice(3);
+					continue;
+				}
+				index = input.indexOf("/.");
+				if ((index == 0) && (input.length == 2)) {
+					input = "/" + input.slice(2);
+					continue;
+				}
+				// C
+				index = input.indexOf("/../");
+				if (index == 0) {
+					input = "/" + input.slice(4);
+					if (output.length) {
+						output.pop();
+					}
+					continue;
+				}
+				index = input.indexOf("/..");
+				if ((index == 0) && (input.length == 3)) {
+					input = "/" + input.slice(3);
+					if (output.length) {
+						output.pop();
+					}
+					continue;
+				}
+				// D
+				index = input.indexOf("..");
+				if (index == 0) {
+					input = input.slice(2);
+					continue;
+				}
+				index = input.indexOf(".");
+				if (index == 0) {
+					input = input.slice(1);
+					continue;
+				}
+				// E
+				index = input.indexOf("/", input.charAt(0) == "/" ? 1 : 0);
+				if (index == -1) {
+					output.push(input);
+					input = "";
+				}
+				else {
+					output.push(input.slice(0, index));
+					input = input.slice(index);
+				}
+			}
+			return output.join("");
+		]]></method>
+		<method id="searchXML" params="node, path, ns"><![CDATA[
+			var search = path.split("/");
+			var value = undefined;
+			if (search.length && !search[0]) {
+				search.shift();
+				var root = search.shift();
+				if (root != node.localName) {
+					node = undefined;
+				}
+				else if (!search.length) {
+					value = node;
+				}
+			}
+			search.forEach(function (item, index) {
+				if (item && node) {
+					if (item == "#text") {
+						node = node.firstChild;
+						if (node && (node.nodeType == node.TEXT_NODE)) {
+							value = node.nodeValue;
+						}
+						node = undefined;
+					}
+					else if (item.charAt(0) == "@") {
+						value = node.getAttribute(item.slice(1));
+						node = undefined;
+					}
+					else {
+						if (ns) {
+							node = node.getElementNodeNS(ns, item);
+						}
+						else {
+							node = node.getElementNode(item);
+						}
+						if (index == (search.length - 1)) {
+							value = node;
+							node = undefined;
+						}
+					}
+				}
+			});
+			return value;
+		]]></method>
+		<method id="searchXMLDAV" params="node, path"><![CDATA[
+			return this.searchXML(node, path, this.davNamespace);
+		]]></method>
+		<!-- SERVER FUNCTIONS -->
+		<method id="log" params="application, message, transaction"><![CDATA[
+			var date = new Date();
+			var h = date.getHours(), m = date.getMinutes(), s = date.getSeconds(), ms = date.getMilliseconds();
+			var info = transaction.url.path + (("destination" in transaction) ? " -> " + transaction.destination.url.path : "");
+			var time = ((h < 10) ? "0" + h : h) + ":" + ((m < 10) ? "0" + m : m) + ":" + ((s < 10) ? "0" + s : s) + (this.precision ? "." + ((ms < 10) ? "00" + ms : (ms < 100) ? "0" + ms : ms) : "");
+			if (transaction.log) {
+				var text = time + " " + (message.remoteIP || "-") + " " + message.method + " " + info + " " + message.status;
+				application.distribute("onLog", text); // no delegate
+//				trace(text + "\n");
+			}
+		]]></method>
+		<method id="process" params="application, message, transaction"><![CDATA[
+			var actions = (message.path == "/") ? this.actions.volume : this.actions;
+			var index = actions.indexOf(message.method.toUpperCase());
+			if (index >= 0) {
+				var action = actions[index];
+				var url = this.prepareURLObject(message.url, message);
+				if (url) { // file does not always exist (e.g. MKCOL & PUT)
+					try {
+						transaction.url = url;
+						this[action].call(this, application, message, transaction);
+						this.log(application, message, transaction);
+					}
+					catch (exception) {
+						if (transaction.invoke) {
+							message.setResponseHeader("Content-Length", "0");
+							message.status = 500; // Internal Server Error
+						}
+					}
+				}
+				else {
+					if (transaction.invoke) {
+						// "hide" the current existence of a forbidden target resource
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 404; // Not Found
+					}
+				}
+			}
+			else {
+				if (transaction.invoke) {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 405; // Method Not Allowed
+				}
+			}
+		]]></method>
+		<!-- SERVER COPYMOVE SUPPORT -->
+		<method id="COPYMOVE" params="application, message, transaction"><![CDATA[
+			var info = transaction.url.info;
+			if (transaction.invoke) {
+				if (info && (info.$directory || info.$file)) {
+					var depth = parseFloat(message.getRequestHeader("Depth") || "Infinity"); // section-10.2
+					var destination = decodeURIComponent(message.getRequestHeader("Destination"));
+					var url = this.prepareURLObject(destination);
+					if (url) {
+						var overwrite = message.getRequestHeader("Overwrite") || "T"; // section-10.6
+						transaction.destination = new String(destination);
+						transaction.destination.url = url;
+						var exists = Files.exists(url);
+						if (exists && (overwrite == "F")) { // False
+							message.setResponseHeader("Content-Length", "0");
+							message.status = 412; // Precondition Failed
+						}
+						else {
+							var force = (overwrite == "T"); // True
+							if (Files.exists(this.parentDirectoryURL(url))) {
+								var copy = (("copy" in transaction) && transaction.copy);
+								var move = (("move" in transaction) && transaction.move);
+								if (info.$directory) {
+									if (!(url.info && url.info.$file)) {
+										var result = url; // object
+										if (result.charAt(result.length - 1) != "/") {
+											result = new String(result + "/");
+											result.fixed = true;
+											result.info = url.info;
+											result.name = url.name;
+											result.path = url.path;
+											url = result;
+										}
+										if (copy) this.copyDirectory(transaction.url, url, depth, force);
+										if (move) this.moveDirectory(transaction.url, url, depth, force);
+										message.setResponseHeader("Content-Length", "0");
+										message.status = exists ? 200 : 201;
+									}
+									else {
+										message.setResponseHeader("Content-Length", "0");
+										message.status = 204; // No Content
+									}
+								}
+								else if (info.$file) {
+									if (url.charAt(url.length - 1) != "/") {
+										if (copy) this.copyFile(transaction.url, url, force);
+										if (move) this.moveFile(transaction.url, url, force);
+										message.setResponseHeader("Content-Length", "0");
+										message.status = exists ? 200 : 201;
+									}
+									else {
+										message.setResponseHeader("Content-Length", "0");
+										message.status = 204; // No Content
+									}
+								}
+								else {
+									// unknown type
+									message.setResponseHeader("Content-Length", "0");
+									message.status = 501; // Not Implemented
+								}
+							}
+							else {
+								message.setResponseHeader("Content-Length", "0");
+								message.status = 409; // Conflict
+							}
+						}
+					}
+					else {
+						// "hide" the current existence of a forbidden target resource
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 404; // Not Found
+					}
+				}
+				else {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 404; // Not Found
+				}
+			}
+		]]></method>
+		<!-- SERVER HTTP ACTIONS -->
+		<method id="DELETE" params="application, message, transaction"><![CDATA[
+			var info = transaction.url.info;
+			if (transaction.invoke) {
+				if (info) {
+					if (info.$directory) {
+						Files.deleteDirectory(transaction.url, true);
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 204; // No Content
+					}
+					else if (info.$file) {
+						Files.deleteFile(transaction.url);
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 204; // No Content
+					}
+					else {
+						// unknown type
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 501; // Not Implemented
+					}
+				}
+				else {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 404; // Not Found
+				}
+			}
+		]]></method>
+		<method id="GET" params="application, message, transaction"><![CDATA[
+			var info = transaction.url.info;
+			if (transaction.invoke) {
+				if (info) {
+					if (info.$directory || info.$volume) {
+						var docType = "<!DOCTYPE html>\n";
+						var document = DOM.implementation.createDocument("", "html");
+						var html = document.documentElement;
+						html.setAttribute("lang", "en");
+							var head = document.createElement("head");
+							html.appendChild(head);
+								var meta = document.createElement("meta");
+								head.appendChild(meta);
+								var title = document.createElement("title");
+								head.appendChild(title);
+							var body = document.createElement("body");
+							html.appendChild(body);
+								var ul = document.createElement("ul");
+								body.appendChild(ul);
+						meta.setAttribute("charset", "utf-8");
+						if (info.$volume) {
+							var volumes = this.volumes;
+							for (var i = 0, c = volumes.length; i < c; i++) {
+								var volume = volumes[i];
+								var li = document.createElement("li");
+								ul.appendChild(li);
+									var a = document.createElement("a");
+									li.appendChild(a);
+										a.setAttribute("href", "/" + encodeURIComponent(volume.name) + "/");
+										a.appendChild(document.createTextNode(volume.name));
+							}
+							title.appendChild(document.createTextNode(volumes.title));
+						}
+						else {
+							var iterator = new Files.Iterator(transaction.url, false);
+							while (info = this.moreInfo(iterator.getNext())) {
+								var path = this.mergeRelativePath(message.path, info.path + (info.$directory ? "/" : ""));
+								if (this.allowPath(path)) {
+									var li = document.createElement("li");
+									ul.appendChild(li);
+										var a = document.createElement("a");
+										li.appendChild(a);
+											a.setAttribute("href", this.encodeURIComponentPath(path));
+											a.appendChild(document.createTextNode(info.path));
+								}
+							}
+							title.appendChild(document.createTextNode(this.directoryName(message.path)));
+						}
+						var text = docType + DOM.serialize(document);
+						if (!(("head" in transaction) && transaction.head)) {
+							message.responseText = text;
+						}
+						message.setResponseHeader("Content-Length", text.length);
+						message.setResponseHeader("Content-Type", "text/html");
+						message.status = 200; // OK
+					}
+					else if (info.$file) {
+						var date = this.dateFromRequestHeader(message, "If-Modified-Since");
+						if (date && (date.valueOf() == info.date.valueOf())) {
+							message.setResponseHeader("Content-Length", "0");
+							message.status = 304; // Not Modified
+						}
+						else {
+							if (!(("head" in transaction) && transaction.head)) {
+								if (this.streaming) {
+									message.responsePath = transaction.url;
+								}
+								else {
+									message.responseBuffer = Files.readBuffer(transaction.url);
+								}
+							}
+							message.setResponseHeader("Content-Length", info.size);
+							message.status = 200; // OK
+						}
+					}
+					else {
+						// unknown type
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 501; // Not Implemented
+					}
+				}
+				else {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 404; // Not Found
+				}
+			}
+		]]></method>
+		<method id="HEAD" params="application, message, transaction"><![CDATA[
+			transaction.head = true;
+			this.GET(application, message, transaction);
+		]]></method>
+		<method id="OPTIONS" params="application, message, transaction"><![CDATA[
+			var info = transaction.url.info;
+			if (transaction.invoke) {
+				if (info) {
+					var allow = info.$volume ? this.allow.volume : this.allow;
+					if (allow) {
+						message.setResponseHeader("Allow", allow);
+						message.setResponseHeader("Content-Length", "0");
+						message.setResponseHeader("DAV", "1, 2"); // section-18.2
+						message.setResponseHeader("MS-Author-Via", "DAV");
+						message.status = 200; // OK
+					}
+					else {
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 500; // Internal Server Error
+					}
+				}
+				else {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 404; // Not Found
+				}
+			}
+		]]></method>
+		<method id="PUT" params="application, message, transaction"><![CDATA[
+			var info = transaction.url.info;
+			if (transaction.accept && this.streaming) {
+				message.requestPath = transaction.url;
+				message.status = info ? 200 : 201;
+				transaction.accepted = true;
+			}
+			if (transaction.invoke) {
+				if (this.streaming) {
+					message.setResponseHeader("Content-Length", "0");
+					// message.status set in the accept phase
+				}
+				else {
+					var contentLength = parseInt(message.getRequestHeader("Content-Length"), 10) || 0;
+					var transferEncoding = message.getRequestHeader("Transfer-Encoding") || "";
+					if (contentLength || (transferEncoding.toLowerCase() == "chunked")) {
+						var buffer = message.requestBuffer;
+					}
+					else {
+						var buffer = new ArrayBuffer(0);
+					}
+					if (info) {
+						if (info.$file) {
+							Files.writeBuffer(transaction.url, buffer);
+							message.setResponseHeader("Content-Length", "0");
+							message.status = 200; // OK
+						}
+						else {
+							message.setResponseHeader("Content-Length", "0");
+							message.status = 403; // Forbidden
+						}
+					}
+					else {
+						Files.writeBuffer(transaction.url, buffer); // touch file
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 201; // Created
+					}
+				}
+			}
+		]]></method>
+		<!-- SERVER WEBDAV ACTIONS -->
+		<method id="COPY" params="application, message, transaction"><![CDATA[
+			transaction.copy = true;
+			this.COPYMOVE(application, message, transaction);
+		]]></method>
+		<method id="LOCK" params="application, message, transaction"><![CDATA[
+			if (transaction.invoke) {
+				// THE LOCKING MECHANISM IS FAKE, DO NOT TRUST WITH MULTIPLE USERS!
+				var document = DOM.parse(message.requestText || "<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+				if (document && document.documentElement) {
+					var element = document.documentElement;
+					var lockinfo = this.searchXMLDAV(element, "/lockinfo");
+					if (lockinfo) {
+						var lockscope = this.searchXMLDAV(lockinfo, "lockscope");
+						if (lockscope) {
+							var exclusive = this.searchXMLDAV(lockscope, "exclusive");
+							var shared = this.searchXMLDAV(lockscope, "shared");
+						}
+						var locktype = this.searchXMLDAV(lockinfo, "locktype");
+						if (locktype) {
+							var write = this.searchXMLDAV(locktype, "write");
+						}
+						var owner = this.searchXMLDAV(lockinfo, "owner");
+						if (owner) {
+							var ownerHREFText = this.searchXMLDAV(owner, "href/#text");
+							var ownerText = this.searchXMLDAV(owner, "#text");
+						}
+					}
+					var document = DOM.implementation.createDocument(this.davNamespace, "D:prop");
+					document.documentElement.setAttributeNS(this.xmlnsNamespace, "xmlns:D", this.davNamespace);
+					var lockdiscovery = document.createElementNS(this.davNamespace, "D:lockdiscovery");
+					document.documentElement.appendChild(lockdiscovery);
+					var activelock = document.createElementNS(this.davNamespace, "D:activelock");
+					lockdiscovery.appendChild(activelock);
+					var depth = document.createElementNS(this.davNamespace, "D:depth");
+					activelock.appendChild(depth);
+					depth.appendChild(document.createTextNode(message.getRequestHeader("Depth") || "Infinity"));
+					if (lockscope) {
+						var lockscope = document.createElementNS(this.davNamespace, "D:lockscope");
+						activelock.appendChild(lockscope);
+						if (exclusive) {
+							lockscope.appendChild(document.createElementNS(this.davNamespace, "D:exclusive"));
+						}
+						else if (shared) {
+							lockscope.appendChild(document.createElementNS(this.davNamespace, "D:shared"));
+						}
+					}
+					var lockTokenText = "opaquelocktoken:" + this.makeUniqueID();
+					var lockroot = document.createElementNS(this.davNamespace, "D:lockroot");
+					activelock.appendChild(lockroot);
+					var href = document.createElementNS(this.davNamespace, "D:href");
+					lockroot.appendChild(href);
+					href.appendChild(document.createTextNode(this.encodeURIComponentPath(message.path)));
+					var locktoken = document.createElementNS(this.davNamespace, "D:locktoken");
+					activelock.appendChild(locktoken);
+					var href = document.createElementNS(this.davNamespace, "D:href");
+					locktoken.appendChild(href);
+					href.appendChild(document.createTextNode(lockTokenText));
+					if (locktype) {
+						var locktype = document.createElementNS(this.davNamespace, "D:locktype");
+						activelock.appendChild(locktype);
+						if (write) {
+							locktype.appendChild(document.createElementNS(this.davNamespace, "D:write"));
+						}
+					}
+					if (owner) {
+						var owner = document.createElementNS(this.davNamespace, "D:owner");
+						activelock.appendChild(owner);
+						if (ownerHREFText) {
+							var href = document.createElementNS(this.davNamespace, "D:href");
+							owner.appendChild(href);
+							href.appendChild(document.createTextNode(ownerHREFText));
+						}
+						else if (ownerText) {
+							owner.appendChild(document.createTextNode(ownerText));
+						}
+					}
+					var timeout = document.createElementNS(this.davNamespace, "D:timeout");
+					activelock.appendChild(timeout);
+					timeout.appendChild(document.createTextNode(message.getRequestHeader("Timeout") || "Infinite"));
+					var text = this.xmlDeclaration + DOM.serialize(document);
+					message.responseText = text;
+					message.setResponseHeader("Content-Length", text.length);
+					message.setResponseHeader("Content-Type", "application/xml");
+					message.setResponseHeader("Lock-Token", "<" + lockTokenText + ">");
+					message.status = 200; // OK
+				}
+				else {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 400; // Bad Request
+				}
+			}
+		]]></method>
+		<method id="MKCOL" params="application, message, transaction"><![CDATA[
+			if (transaction.invoke) {
+				var contentLength = parseInt(message.getRequestHeader("Content-Length"), 10) || 0;
+				if (contentLength == 0) {
+					var index = transaction.url.length - 1;
+					while (index && (transaction.url.charAt(index) == "/")) index--;
+					var url = transaction.url.slice(0, transaction.url.lastIndexOf("/", index) + 1);
+					var info = this.moreInfo(Files.getInfo(url));
+					if (info && info.$directory) {
+						if (Files.exists(transaction.url.slice(0, index + 1))) {
+							message.setResponseHeader("Content-Length", "0");
+							message.status = 405; // Method Not Allowed
+						}
+						else {
+							Files.ensureDirectory(transaction.url.slice(0, index + 1) + "/");
+							message.setResponseHeader("Content-Length", "0");
+							message.status = 201; // Created
+						}
+					}
+					else {
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 409; // Conflict
+					}
+				}
+				else {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 415; // Unsupported Media Type
+				}
+			}
+		]]></method>
+		<method id="MOVE" params="application, message, transaction"><![CDATA[
+			transaction.move = true;
+			this.COPYMOVE(application, message, transaction);
+		]]></method>
+		<method id="PROPFIND" params="application, message, transaction"><![CDATA[
+			var info = transaction.url.info;
+			if (transaction.invoke) {
+				if (info && (info.$directory || info.$file || info.$volume)) {
+					var depth = parseFloat(message.getRequestHeader("Depth") || "Infinity"); // section-10.2
+					var document = DOM.parse(message.requestText || "<?xml version=\"1.0\" encoding=\"utf-8\"?><propfind xmlns=\"DAV:\"><prop><resourcetype xmlns=\"DAV:\"/></prop></propfind>");
+					if (document && document.documentElement) {
+						var element = document.documentElement;
+						var propfind = this.searchXMLDAV(element, "/propfind"); // section-14.20
+						if (propfind) {
+							var creationdate, getcontentlength, getlastmodified, resourcetype, supportedlock;
+							var allprop = this.searchXMLDAV(propfind, "allprop"); // section-14.2
+							if (allprop) {
+								creationdate = allprop;
+								getcontentlength = allprop;
+								getlastmodified = allprop;
+								resourcetype = allprop;
+								supportedlock = allprop;
+							}
+							var prop = this.searchXMLDAV(propfind, "prop"); // section-14.18
+							if (prop) {
+								creationdate = this.searchXMLDAV(prop, "creationdate");
+								getcontentlength = this.searchXMLDAV(prop, "getcontentlength");
+								getlastmodified = this.searchXMLDAV(prop, "getlastmodified");
+								resourcetype = this.searchXMLDAV(prop, "resourcetype");
+								supportedlock = this.searchXMLDAV(prop, "supportedlock");
+							}
+							var propname = this.searchXMLDAV(propfind, "propname"); // section-14.21
+							var document = DOM.implementation.createDocument(this.davNamespace, "D:multistatus");
+							document.documentElement.setAttributeNS(this.xmlnsNamespace, "xmlns:D", this.davNamespace);
+							var path = this.encodeURIComponentPath(message.path);
+							var items = [];
+							if (info.$directory || info.$volume) {
+								items.push({
+									href: path,
+									info: undefined
+								});
+								if (depth) {
+									if (info.$volume) {
+										var volumes = this.volumes;
+										for (var i = 0, c = volumes.length; i < c; i++) {
+											var volume = volumes[i];
+											items.push({
+												href: "/" + volume.name + "/",
+												info: undefined
+											});
+										}
+									}
+									else {
+										var iterator = new Files.Iterator(transaction.url, false);
+										while (info = this.moreInfo(iterator.getNext())) {
+											var href = this.mergeRelativePath(path, encodeURIComponent(info.path) + (info.$directory ? "/" : ""));
+											var more = this.moreInfo(Files.getInfo(this.mergeRelativePath(transaction.url, info.path))); // more info
+											if (this.allowPath(href)) {
+												items.push({
+													href: href,
+													info: more
+												});
+											}
+										}
+									}
+								}
+							}
+							else {
+								items.push({
+									href: path,
+									info: info
+								});
+							}
+							for (var i = 0, c = items.length; i < c; i++) {
+								var item = items[i];
+								var response = document.createElementNS(this.davNamespace, "D:response");
+								document.documentElement.appendChild(response);
+								var href = document.createElementNS(this.davNamespace, "D:href");
+								response.appendChild(href);
+								href.appendChild(document.createTextNode(item.href));
+								var propstat = document.createElementNS(this.davNamespace, "D:propstat");
+								response.appendChild(propstat);
+								var prop = document.createElementNS(this.davNamespace, "D:prop");
+								propstat.appendChild(prop);
+								if (propname) {
+									prop.appendChild(document.createElementNS(this.davNamespace, "D:creationdate"));
+									prop.appendChild(document.createElementNS(this.davNamespace, "D:getcontentlength"));
+									prop.appendChild(document.createElementNS(this.davNamespace, "D:getlastmodified"));
+									prop.appendChild(document.createElementNS(this.davNamespace, "D:resourcetype"));
+									prop.appendChild(document.createElementNS(this.davNamespace, "D:supportedlock"));
+								}
+								else {
+									if (resourcetype) {
+										var resourcetype = document.createElementNS(this.davNamespace, "D:resourcetype");
+										prop.appendChild(resourcetype);
+									}
+									var info = item.info;
+									if (info) {
+										if (info.$directory || info.$volume) {
+											if (resourcetype) {
+												var collection = document.createElementNS(this.davNamespace, "D:collection");
+												resourcetype.appendChild(collection);
+											}
+										}
+										else if (info.$file) {
+											if (creationdate) {
+												var date = new Date(info.created);
+												var creationdate = document.createElementNS(this.davNamespace, "D:creationdate");
+												prop.appendChild(creationdate);
+												creationdate.appendChild(document.createTextNode(date.toUTCString()));
+											}
+											if (getcontentlength) {
+												var getcontentlength = document.createElementNS(this.davNamespace, "D:getcontentlength");
+												prop.appendChild(getcontentlength);
+												getcontentlength.appendChild(document.createTextNode(info.size));
+											}
+											if (getlastmodified) {
+												var date = new Date(info.date);
+												var getlastmodified = document.createElementNS(this.davNamespace, "D:getlastmodified");
+												prop.appendChild(getlastmodified);
+												getlastmodified.appendChild(document.createTextNode(date.toUTCString()));
+											}
+										}
+										else {
+											// skip unknown type
+										}
+									}
+									else {
+										if (resourcetype) {
+											var collection = document.createElementNS(this.davNamespace, "D:collection");
+											resourcetype.appendChild(collection);
+										}
+									}
+									if (supportedlock) {
+										var supportedlock = document.createElementNS(this.davNamespace, "D:supportedlock");
+										prop.appendChild(supportedlock);
+										// exclusive write
+										var lockentry = document.createElementNS(this.davNamespace, "D:lockentry");
+										supportedlock.appendChild(lockentry);
+										var lockscope = document.createElementNS(this.davNamespace, "D:lockscope");
+										lockentry.appendChild(lockscope);
+										var locktype = document.createElementNS(this.davNamespace, "D:locktype");
+										lockentry.appendChild(locktype);
+										lockscope.appendChild(document.createElementNS(this.davNamespace, "D:exclusive"));
+										locktype.appendChild(document.createElementNS(this.davNamespace, "D:write"));
+										// shared write
+										var lockentry = document.createElementNS(this.davNamespace, "D:lockentry");
+										supportedlock.appendChild(lockentry);
+										var lockscope = document.createElementNS(this.davNamespace, "D:lockscope");
+										lockentry.appendChild(lockscope);
+										var locktype = document.createElementNS(this.davNamespace, "D:locktype");
+										lockentry.appendChild(locktype);
+										lockscope.appendChild(document.createElementNS(this.davNamespace, "D:shared"));
+										locktype.appendChild(document.createElementNS(this.davNamespace, "D:write"));
+									}
+								}
+								var status = document.createElementNS(this.davNamespace, "D:status");
+								propstat.appendChild(status);
+								status.appendChild(document.createTextNode("HTTP/1.1 200 OK"));
+							}
+							var text = this.xmlDeclaration + DOM.serialize(document);
+							message.responseText = text;
+							message.setResponseHeader("Content-Length", text.length);
+							message.setResponseHeader("Content-Type", "application/xml");
+							message.status = 207; // Multi-Status
+						}
+						else {
+							message.setResponseHeader("Content-Length", "0");
+							message.status = 400; // Bad Request
+						}
+					}
+					else {
+						message.setResponseHeader("Content-Length", "0");
+						message.status = 400; // Bad Request
+					}
+				}
+				else {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 404; // Not Found
+				}
+			}
+		]]></method>
+		<method id="PROPPATCH" params="application, message, transaction"><![CDATA[
+			var info = transaction.url.info;
+			if (transaction.invoke) {
+				if (info && (info.$directory || info.$file || info.$volume)) {
+					var document = DOM.implementation.createDocument(this.davNamespace, "D:multistatus");
+					document.documentElement.setAttributeNS(this.xmlnsNamespace, "xmlns:D", this.davNamespace);
+					var response = document.createElementNS(this.davNamespace, "D:response");
+					document.documentElement.appendChild(response);
+					var href = document.createElementNS(this.davNamespace, "D:href");
+					response.appendChild(href);
+					href.appendChild(document.createTextNode(this.encodeURIComponentPath(message.path)));
+					var propstat = document.createElementNS(this.davNamespace, "D:propstat");
+					response.appendChild(propstat);
+					var status = document.createElementNS(this.davNamespace, "D:status");
+					propstat.appendChild(status);
+					status.appendChild(document.createTextNode("HTTP/1.1 200 OK"));
+					var text = this.xmlDeclaration + DOM.serialize(document);
+					message.responseText = text;
+					message.setResponseHeader("Content-Length", text.length);
+					message.setResponseHeader("Content-Type", "application/xml");
+					message.status = 207; // Multi-Status
+				}
+				else {
+					message.setResponseHeader("Content-Length", "0");
+					message.status = 404; // Not Found
+				}
+			}
+		]]></method>
+		<method id="UNLOCK" params="application, message, transaction"><![CDATA[
+			if (transaction.invoke) {
+				// THE LOCKING MECHANISM IS FAKE, DO NOT TRUST WITH MULTIPLE USERS!
+				message.setResponseHeader("Content-Length", "0");
+				message.status = 204; // No Content
+			}
+		]]></method>
+	</class>
+	
+</module>

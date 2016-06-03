@@ -1,0 +1,644 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<program xmlns="http://www.kinoma.com/kpr/1">
+
+	<script>
+        <![CDATA[
+			var gWaveGenerators = {};
+        ]]>
+    </script> 
+    
+    
+ 	<skin id="blackSkin" color="black"/>
+ 	<skin id="whiteSkin" color="white"/>
+   	<skin id="dialDividerSkin" color="#d9d9d9"/>
+
+	<texture id="gearTexture" small="assets/settings-gear.png"/>
+	<skin id="gearSkin" texture="gearTexture" x="0" y="0" width="40" height="40">
+        <states offset="40"/>
+    </skin>
+    
+	<skin id="lightGraySkin" color="#C2C2C2"/>
+
+	<skin id="inspectorSkin" color="white"/>
+
+	<skin id="tabButtonSkin">
+		<states colors="#C2C2C2,white"/>
+	</skin>
+
+	<texture id="pinTilesTexture" small="assets/pin-tiles-strip2.png"/>
+	<skin id="pinTilesSkin" texture="pinTilesTexture" x="0" y="0" width="80" height="55">
+		<tiles left="10" right="10"/>
+        <states offset="55"/>
+        <variants offset="80"/>
+    </skin>
+    
+    	
+	<texture id="onOffButtonTexture" small="assets/on-off-toggle-switch.png"/>   
+
+    <skin id="onOffSwitchBarSkin" texture="onOffButtonTexture" x="200" y="0" width="120" height="80">
+        <tiles left="40" right="40"/>
+        <states offset="80"/>
+    </skin>
+    <skin id="onOffSwitchButtonSkin" texture="onOffButtonTexture" x="340" y="20" width="40" height="40">
+        <states offset="80"/>
+    </skin>
+    <skin id="onOffSwitchTextSkin" texture="onOffButtonTexture" x="400" y="0" width="120" height="80">
+        <states offset="80"/>
+    </skin>
+       
+  
+  	<texture id="sliderIconTexture" small="assets/settings/slider-proxy.png"/>
+	<skin id="sliderIconSkin" texture="sliderIconTexture" x="0" y="0" width="64" height="34"/>
+
+	<texture id="sineWaveIconTexture" small="assets/settings/wave-proxy.png"/>
+	<skin id="sineWaveIconSkin" texture="sineWaveIconTexture" x="0" y="0" width="64" height="34"/>
+
+	<texture id="triangleWaveIconTexture" small="assets/settings/spike-proxy.png"/>
+	<skin id="triangleWaveIconSkin" texture="triangleWaveIconTexture" x="0" y="0" width="64" height="34"/>
+
+	<texture id="squareWaveIconTexture" small="assets/settings/flattop-proxy.png"/>
+	<skin id="squareWaveIconSkin" texture="squareWaveIconTexture" x="0" y="0" width="64" height="34"/>
+
+
+	<style id="dialogSliderLabelStyle" font="20px" color="black" align="center,middle" lines="1"/>
+
+	<style id="headerButtonsStyle" font="bold 24px" align="right,middle" lines="1">
+		<states colors="white,#5ab021"/>
+	</style>
+	
+	<skin id="headerSkin" color="#333333"/>
+		
+	<skin id="footerSkin" color="#E0E0E0"/>
+
+  	<skin id="dividerSkin" color="#e2e2e2"/>
+
+	<texture id="rollerShadowTopTexture" small="assets/roller-shadow-top.png"/>
+	<skin id="rollerShadowTopSkin" texture="rollerShadowTopTexture" x="0" y="0" width="30" height="40">
+		<tiles left="10" right="10"/>
+    </skin>
+    
+	<texture id="rollerShadowBottomTexture" small="assets/roller-shadow-bottom.png"/>
+	<skin id="rollerShadowBottomSkin" texture="rollerShadowBottomTexture" x="0" y="0" width="30" height="40">
+		<tiles left="10" right="10"/>
+    </skin>
+    
+	<texture id="verticalScrollerPointerTexture" small="assets/settings/vertical-scroller-pointer.png"/>
+	<skin id="verticalScrollerPointerSkin" texture="verticalScrollerPointerTexture" x="0" y="0" width="11" height="22"/>    
+	
+	<texture id="momentaryButtonTexture" small="assets/settings/toggle-button-large.png"/>   
+    <skin id="momentaryButtonSkin" texture="momentaryButtonTexture" aspect="stretch" x="0" y="0" width="80" height="80">
+        <states offset="80"/>
+    </skin>
+	
+	<behavior id="LabelButtonBehavior">
+		<method id="onCreate" params="label, data">
+			<![CDATA[
+				this.data = data;
+			]]>
+		</method>
+		<method id="onTouchBegan" params="label, id, x, y, ticks">
+			<![CDATA[
+				label.state = 1;
+			]]>
+		</method>
+		<method id="onTouchEnded" params="label, id, x, y, ticks">
+			<![CDATA[
+				label.state = 0;
+				label.delegate("onTap");
+			]]>
+		</method>
+		<method id="onTouchCancelled" params="label, id">
+			<![CDATA[
+				label.state = 0;
+			]]>
+		</method>
+	</behavior>
+		
+	<container id="OKLabel" right="0" width="80" height="40" active="true">
+		<behavior like="LabelButtonBehavior">
+			<method id="onTap" params="label">
+				<![CDATA[
+					label.bubble("onOK");
+				]]>
+			</method>
+		</behavior>
+		<label right="16 + 10" style="headerButtonsStyle" string="$.okLabel">
+		</label>
+	</container>
+
+	<label id="CancelLabel" left="16 + 10" active="true" style="headerButtonsStyle" string="$.cancelLabel">
+		<behavior like="LabelButtonBehavior">
+			<method id="onTap" params="label">
+				<![CDATA[
+					label.invoke( new Message( "/back" ) );
+				]]>
+			</method>
+		</behavior>
+	</label>
+
+
+	<container id="EntryScreenHeader" left="-16" right="-16" top="0" height="32" skin="CREATIONS.dynamicHeaderSkin">
+		<label like="CancelLabel"/>
+ 		<label top="0" left="0" bottom="0" right="0" style="CREATIONS.blackDynamicHeaderTitleStyle" string="$.title"/>
+		<label like="OKLabel"/>
+	</container>
+	
+
+	<texture id="digitalSwitchIconTexture" small="assets/settings/proxy-toggle.png"/>
+	<skin id="digitalSwitchIconSkin" texture="digitalSwitchIconTexture" x="0" y="0" width="64" height="34"/>
+
+	<texture id="digitalMomentaryIconTexture" small="assets/settings/proxy-button.png"/>
+	<skin id="digitalMomentaryIconSkin" texture="digitalMomentaryIconTexture" x="0" y="0" width="64" height="34"/>
+
+	<label id="RangeSliderLabel" left="0" bottom="38" width="135" style="dialogSliderLabelStyle" string="'Range'"/>
+
+
+	<function id="roundRect" params="ctx, x, y, width, height, radius, fill, stroke">
+		if (typeof stroke == undefined)
+			stroke = true;
+		if (typeof radius == undefined)
+			radius = 5;
+		ctx.beginPath();
+		ctx.moveTo(x + radius, y);
+		ctx.lineTo(x + width - radius, y);
+		ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+		ctx.lineTo(x + width, y + height - radius);
+		ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+		ctx.lineTo(x + radius, y + height);
+		ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+		ctx.lineTo(x, y + radius);
+		ctx.quadraticCurveTo(x, y, x + radius, y);
+		ctx.closePath();
+		if (stroke)
+			ctx.stroke();
+		if (fill)
+			ctx.fill();
+    </function>
+    
+    <behavior id="CanvasRangedSliderBehavior">
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			this.data = data;
+			if (! ("min" in data))			data.min = 0;
+			if (! ("max" in data))			data.max = 0;
+			if (! ("lowerValue" in data))	data.lowerValue = 0;
+			if (! ("upperValue" in data))	data.upperValue = 1;
+		]]></method>
+		<method id="getMax" params="canvas"><![CDATA[
+			return this.data.max;
+		]]></method>
+		<method id="getMin" params="canvas"><![CDATA[
+			return this.data.min;
+		]]></method>
+		<method id="onLayoutChanged" params="canvas"><![CDATA[
+		]]></method>
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			this.lowerThumbTouchBeganXOffset = 0;
+			this.upperThumbTouchBeganXOffset = 0;
+            this.knobHeight = canvas.height;
+            this.knobWidth = this.knobHeight;
+			this.sliderBarHeight = this.knobHeight * (16 / 38);
+            this.halfKnobWidth = this.knobWidth / 2;
+            this.insetWidth = this.knobWidth + 8;
+            this.halfInsetWidth = this.insetWidth / 2;
+           	this.trackingWidth = canvas.width - this.insetWidth;
+           	this.tracking = "none";
+			SLIDERS.SliderBehavior.prototype.onDisplaying.call(this, canvas);
+		]]></method>
+		<method id="onTouchBegan" params="canvas, id, x, y, ticks"><![CDATA[
+            canvas.captureTouch(id, x, y, ticks);
+           	var hitLowerThumb = this.hitTestLowerThumb(canvas, x, y);
+			if (hitLowerThumb) {
+				this.lowerThumbTouchBeganXOffset = this.getLowerThumbTouchBeganXOffset(canvas, x);
+				this.tracking = "lower";
+				this.onTouchMoved(canvas, id, x, y, ticks);
+				return;
+			}
+			var hitUpperThumb = this.hitTestUpperThumb(canvas, x, y);
+			if (hitUpperThumb) {
+				this.upperThumbTouchBeganXOffset = this.getUpperThumbTouchBeganXOffset(canvas, x);
+				this.tracking = "upper";
+				this.onTouchMoved(canvas, id, x, y, ticks);
+				return;
+			}
+			this.tracking = "none";
+		]]></method>
+		<method id="onTouchEnded" params="canvas, id, x, y, ticks"><![CDATA[
+		]]></method>
+		<method id="onTouchMoved" params="canvas, id, x, y, ticks"><![CDATA[
+			if (this.tracking == "lower") {
+				x -= this.lowerThumbTouchBeganXOffset;
+				var size = this.trackingWidth;
+				var offset = (x - canvas.x - this.halfInsetWidth);
+				var upperOffset = this.getUpperOffset(canvas, this.trackingWidth);
+				var lowerOffset = this.getLowerOffset(canvas, this.trackingWidth);
+				if (offset > upperOffset)
+					offset = upperOffset;
+				if (offset != lowerOffset) {
+					this.setLowerOffset(canvas, size, offset);
+					this.onValueChanged(canvas);
+				}
+			}
+			else if (this.tracking == "upper") {
+				x -= this.upperThumbTouchBeganXOffset;
+				var size = this.trackingWidth;
+				var offset = (x - canvas.x - this.halfInsetWidth);
+				var upperOffset = this.getUpperOffset(canvas, this.trackingWidth);
+				var lowerOffset = this.getLowerOffset(canvas, this.trackingWidth);
+				if (offset < lowerOffset)
+					offset = lowerOffset;
+				if (offset != upperOffset) {
+					this.setUpperOffset(canvas, size, offset);
+					this.onValueChanged(canvas);
+				}
+			}
+		]]></method>
+		<method id="setLowerOffset" params="canvas, size, offset"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = min + ((offset * (max - min)) / size);
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setLowerValue(canvas, value);		
+		]]></method>
+		<method id="setUpperOffset" params="canvas, size, offset"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = min + ((offset * (max - min)) / size);
+			if (value < min) value = min;
+			else if (value > max) value = max;
+			this.setUpperValue(canvas, value);		
+		]]></method>
+		<method id="setLowerValue" params="canvas, value"><![CDATA[
+			this.data.lowerValue = value;	
+		]]></method>
+		<method id="setUpperValue" params="canvas, value"><![CDATA[
+			this.data.upperValue = value;	
+		]]></method>
+		<method id="getLowerValue" params="canvas, value"><![CDATA[
+			return this.data.lowerValue;	
+		]]></method>
+		<method id="getUpperValue" params="canvas, value"><![CDATA[
+			return this.data.upperValue;	
+		]]></method>
+		<method id="getLowerOffset" params="canvas, size"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = this.getLowerValue(canvas);
+			return Math.round(((value - min) * size) / (max - min));
+		]]></method>
+		<method id="getUpperOffset" params="canvas, size"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = this.getUpperValue(canvas);
+			return Math.round(((value - min) * size) / (max - min));
+		]]></method>
+		<method id="hitTestLowerThumb" params="canvas, x, y"><![CDATA[
+			x -= canvas.container.x;
+			y -= canvas.container.y;
+			var b = this.getLowerThumbBounds(canvas);
+			return (x >= b.x - b.width/2 && x <= (b.x + b.width/2) && y >= b.y && y <= (b.y + b.height));
+		]]></method>
+		<method id="hitTestUpperThumb" params="canvas, x, y"><![CDATA[
+			x -= canvas.container.x;
+			y -= canvas.container.y;
+			var b = this.getUpperThumbBounds(canvas);
+			return (x >= (b.x + b.width/2 + 1) && x <= (b.x + 1.5 * b.width) && y >= b.y && y <= (b.y + b.height));	
+		]]></method>
+		<method id="getLowerThumbBounds" params="canvas"><![CDATA[
+            var offset = this.getLowerOffset(canvas, this.trackingWidth);
+			return {
+				x : offset + 4, 
+				y : 3, 
+				width : this.knobWidth, 
+				height : this.knobHeight - 6 
+			}
+		]]></method>
+		<method id="getUpperThumbBounds" params="canvas"><![CDATA[
+            var offset = this.getUpperOffset(canvas, this.trackingWidth);
+			return {
+				x : offset + 4, 
+				y : 3, 
+				width : this.knobWidth, 
+				height : this.knobHeight - 6 
+			}
+		]]></method>
+		<method id="getLowerThumbTouchBeganXOffset" params="canvas, x"><![CDATA[
+			x -= canvas.container.x;
+			var b = this.getLowerThumbBounds(canvas);
+			var centerX = b.x + (b.width / 2);
+			var deltaX = x - centerX;
+			return deltaX;
+		]]></method>
+		<method id="getUpperThumbTouchBeganXOffset" params="canvas, x"><![CDATA[
+			x -= canvas.container.x;
+			var b = this.getUpperThumbBounds(canvas);
+			var centerX = b.x + (b.width / 2);
+			var deltaX = x - centerX;
+			return deltaX;
+		]]></method>
+		<method id="onValueChanged" params="canvas"><![CDATA[
+            var active = canvas.active;
+            var trackingWidth = this.trackingWidth;
+            var lowerOffset = this.getLowerOffset(canvas, trackingWidth);
+            var upperOffset = this.getUpperOffset(canvas, trackingWidth);
+           
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "black";
+            var sliderBarHeight = this.sliderBarHeight;
+            var sliderBarTop = (canvas.height / 2) - (sliderBarHeight / 2);
+            ctx.fillStyle =  "#e6e6e6";
+            ctx.fillRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+            ctx.fillStyle =  "#8acc50";
+                        
+            ctx.fillRect(this.halfInsetWidth + lowerOffset, sliderBarTop, (upperOffset - lowerOffset), sliderBarHeight);
+			ctx.lineWidth = 1;
+            ctx.strokeRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+       
+			ctx.fillStyle = "white";										// lower thumb  
+			ctx.lineWidth = 2;	
+			var b = this.getLowerThumbBounds(canvas);
+			roundRect(ctx, b.x, b.y, b.width/2 - 1, b.height, 4, true, true);
+
+			ctx.fillStyle = "white";										// upper thumb  
+			ctx.lineWidth = 2;	
+			var b = this.getUpperThumbBounds(canvas);
+			roundRect(ctx, b.x + b.width/2 + 1, b.y, b.width/2 - 1, b.height, 4, true, true);
+		]]></method>
+    </behavior>
+
+    <behavior id="SwitchButtonBehavior"><![CDATA[
+        function changeOffset(container, offset) {
+            var label = container.last;
+            var line = label.first;
+            var button = line.first.next;
+            var bar = label.previous;
+            var background = bar.previous;
+            if (offset < 0)
+                offset = 0;
+            else if (offset > this.size)
+                offset = this.size;
+            this.offset = offset;
+            bar.width = button.width + Math.round(this.size - offset);
+            line.x = label.x - Math.round(offset);
+        }
+        function onCreate(container, data) {
+            this.data = data;
+        }
+        function onDisplaying(container) {
+            var label = container.last;
+            var line = label.first;
+            var button = line.first.next;
+            var bar = label.previous;
+            var background = bar.previous;
+            this.half = background.width >> 1;
+            this.size = background.width - button.width;
+            line.first.coordinates = line.last.coordinates = { width: this.size - this.data.sizeInset };     //* sizeInset is hard coded in library version 
+            this.changeOffset(container, (this.data.value > 0) ? 0 : this.size);
+        }
+        function onFinished(container) {
+        }
+
+        function onTimeChanged(container) {
+            this.changeOffset(container, this.anchor + Math.round(this.delta * container.fraction));
+        }
+        function onTouchBegan(container, id, x, y, ticks) {
+            if (container.running) {
+                container.stop();
+                container.time = container.duration;
+            }
+            this.anchor = x;
+            this.capturing = false;
+            this.delta = this.offset + x;
+            container.last.first.first.next.state = 1;
+        }
+        function onTouchCancelled(container, id, x, y, ticks) {
+            container.last.first.first.next.state = 0;
+        }
+        function onTouchEnded(container, id, x, y, ticks) {
+            var offset = this.offset;
+            var size =  this.size;
+            var delta = size >> 1;
+            if (this.capturing) {
+                if (offset < delta)
+                    delta = 0 - offset;
+                else 
+                    delta = size - offset;
+            }
+            else {
+                if (offset == 0)
+                    delta = size;
+                else if (offset == size)
+                    delta = 0 - size;
+                else if (x < this.half)
+                    delta = 0 - offset;
+                else
+                    delta = size - offset;
+            }
+            if (delta) {
+                this.anchor = offset;
+                this.delta = delta;
+                container.duration = 250 * Math.abs(delta) / size;
+                container.time = 0;
+                container.start();
+            }
+            var newValue = ((this.offset + delta) == 0) ? 1 : 0;
+            if (this.data.value != newValue) {
+                this.data.value = newValue;
+                this.onValueChanged(container, this.data.value);
+            }
+                    
+            container.last.first.first.next.state = 0;
+        }
+        function onTouchMoved(container, id, x, y, ticks) {
+            if (this.capturing) {
+                this.changeOffset(container, this.delta - x);
+            }
+            else if (Math.abs(x - this.anchor) >= 8) {
+                this.capturing = true;
+                container.captureTouch(id, x, y, ticks);
+                this.changeOffset(container, this.delta - x);
+            }
+        }
+        function onValueChanged(container, value) {
+            this.changeOffset(container, value ? 0 : this.size);
+        }
+    ]]></behavior>
+
+
+	<behavior id="CanvasSliderBehavior" like="SLIDERS.SliderBehavior">
+		<method id="onDisplaying" params="canvas"><![CDATA[
+			this.thumbTouchBeganXOffset = 0;
+            this.knobHeight = canvas.height;
+            this.knobWidth = this.knobHeight * (22 / 38);
+			this.sliderBarHeight = this.knobHeight * (16 / 38);
+            this.halfKnobWidth = this.knobWidth / 2;
+            this.insetWidth = this.knobWidth + 8;
+            this.halfInsetWidth = this.insetWidth / 2;
+           	this.trackingWidth = canvas.width - this.insetWidth;    
+			SLIDERS.SliderBehavior.prototype.onDisplaying.call(this, canvas);
+		]]></method>
+		<method id="onTouchBegan" params="canvas, id, x, y, ticks"><![CDATA[
+            canvas.captureTouch(id, x, y, ticks);
+           	var hitThumb = this.hitTestThumb(canvas, x, y);
+			if (hitThumb)
+				this.thumbTouchBeganXOffset = this.getThumbTouchBeganXOffset(canvas, x);
+			else {
+				this.thumbTouchBeganXOffset = 0;
+            	this.onTouchMoved(canvas, id, x, y, ticks);
+            }
+		]]></method>
+		<method id="onTouchEnded" params="canvas, id, x, y, ticks"><![CDATA[
+		]]></method>
+		<method id="onTouchMoved" params="canvas, id, x, y, ticks"><![CDATA[
+			x -= this.thumbTouchBeganXOffset;
+			var size = this.trackingWidth;
+			var offset = (x - canvas.x - this.halfInsetWidth);
+			this.setOffset(canvas, size, offset);
+			this.onValueChanged(canvas);
+		]]></method>
+		<method id="getOffset" params="canvas, size"><![CDATA[
+			var min = this.getMin(canvas);
+			var max = this.getMax(canvas);
+			var value = this.getValue(canvas);
+			return Math.round(((value - min) * size) / (max - min));
+		]]></method>
+		<method id="hitTestThumb" params="canvas, x, y"><![CDATA[
+			x -= canvas.container.x;
+			y -= canvas.container.y;
+			var b = this.getThumbBounds(canvas);
+			return (x >= b.x && x <= (b.x + b.width) && y >= b.y && y <= (b.y + b.height));	
+		]]></method>
+		<method id="getThumbBounds" params="canvas"><![CDATA[
+            var offset = this.getOffset(canvas, this.trackingWidth);
+			return {
+				x : offset + 4, 
+				y : 3, 
+				width : this.knobWidth, 
+				height : this.knobHeight - 6 
+			}
+		]]></method>
+		<method id="getThumbTouchBeganXOffset" params="canvas, x"><![CDATA[
+			x -= canvas.container.x;
+			var b = this.getThumbBounds(canvas);
+			var centerX = b.x + (b.width / 2);
+			var deltaX = x - centerX;
+			return deltaX;
+		]]></method>
+		<method id="onValueChanged" params="canvas"><![CDATA[
+            var active = canvas.active;
+            var trackingWidth = this.trackingWidth;
+            var offset = this.getOffset(canvas, trackingWidth);
+            var ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "black";
+            var sliderBarHeight = this.sliderBarHeight;
+            var sliderBarTop = (canvas.height / 2) - (sliderBarHeight / 2);
+            ctx.fillStyle =  "#e6e6e6";
+            ctx.fillRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+            ctx.fillStyle =  "#8acc50";
+            ctx.fillRect(this.halfInsetWidth, sliderBarTop, offset, sliderBarHeight);
+			ctx.lineWidth = 1;
+            ctx.strokeRect(this.halfInsetWidth, sliderBarTop, canvas.width - this.insetWidth, sliderBarHeight);
+       
+			ctx.fillStyle = "white";										// thumb  
+			ctx.lineWidth = 2;	
+			var b = this.getThumbBounds(canvas);
+			roundRect(ctx, b.x, b.y, b.width, b.height, 4, true, true);
+		]]></method>
+    </behavior>
+
+    <container id="CanvasSlider" width="172" height="38">
+        <canvas name="canvas" left="0" right="0" top="0" bottom="0" active="true">
+            <behavior like="CanvasSliderBehavior">
+				<method id="onCreate" params="canvas, data"><![CDATA[
+                    CanvasSliderBehavior.prototype.onCreate.call(this, canvas, data);                   
+                    this.data = data;                   
+				]]></method>
+				<method id="onValueChanged" params="canvas"><![CDATA[
+                    CanvasSliderBehavior.prototype.onValueChanged.call(this, canvas);
+ 				]]></method>
+          </behavior>
+        </canvas>
+    </container>
+
+	<behavior id="AnalogOutputSliderBehavior" like="CanvasSliderBehavior">
+		<method id="onCreate" params="canvas, data"><![CDATA[
+			if (false == "min" in data)	data.min = 0;
+			if (false == "max" in data) data.max = 1;
+			if (false == "value" in data) data.value = 0;
+			CanvasSliderBehavior.prototype.onCreate.call(this, canvas, data);
+			this.pinNumber = data.pinNumber;
+		]]></method>
+		<method id="assertValue" params="canvas"><![CDATA[
+			var value = this.data.value;
+			gPinManager.getPinHandler(this.pinNumber).write(value);
+		]]></method>
+	</behavior>
+	
+	
+	<behavior id="SimpleButtonContentBehavior">
+		<method id="onTouchBegan" params="content, id, x, y, ticks"><![CDATA[
+			content.visible = true;
+		]]></method>
+		<method id="onTouchEnded" params="content, id, x, y, ticks"><![CDATA[
+			content.visible = false;
+			this.onTap(content);
+		]]></method>
+		<method id="onTouchCancelled" params="content, id"><![CDATA[
+			content.visible = false;
+		]]></method>
+		<method id="onTap" params="content"><![CDATA[
+		]]></method>
+	</behavior>   			
+	<container id="SimpleButton" left="20" width="30" top="4" bottom="4" skin="blackSkin"/>
+
+	<function id="rememberWaveGenerator" params="pinNumber, generator"><![CDATA[
+    	gWaveGenerators[pinNumber] = generator;
+    ]]></function>
+    
+     <function id="forgetWaveGenerator" params="pinNumber"><![CDATA[
+    	if (pinNumber in gWaveGenerators)
+    		delete gWaveGenerators[pinNumber];
+    ]]></function>
+    
+     <function id="recallWaveGenerator" params="pinNumber, prototype"><![CDATA[
+    	if (pinNumber in gWaveGenerators) {
+    		if (prototype.isPrototypeOf(gWaveGenerators[pinNumber]))
+    			return gWaveGenerators[pinNumber];
+    		else {
+    			gWaveGenerators[pinNumber] = null;
+    			return null;
+    		}
+    	}
+    	else
+    		return null;
+    ]]></function>
+   
+     <function id="tickWaveGenerators" params="time"><![CDATA[
+    	for (var id in gWaveGenerators)
+    		gWaveGenerators[id].onTimeChanged(time);
+    ]]></function>
+    
+    
+	<function id="lerp" params="from, to, fraction"><![CDATA[
+		return from + fraction * (to - from);
+	]]></function>
+	
+</program>

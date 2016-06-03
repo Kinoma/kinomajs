@@ -100,7 +100,14 @@ FskErr KplBrowserOpenURI(const char *uri)
 
 FskErr KplLauncherOpenURI(const char *uri)
 {
+#if defined(TARGET_OS_KPL) && SUPPORT_LINUX_GTK
+	char command[PATH_MAX + 11];
+	snprintf(command, sizeof(command), "xdg-open \"%s\"", uri);
+	system(command);
+	return kFskErrNone;
+#else
 	return kFskErrUnimplemented;
+#endif
 }
 
 void KplUtilitiesDelay(UInt32 ms)

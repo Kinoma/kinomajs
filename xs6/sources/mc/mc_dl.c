@@ -198,6 +198,7 @@ mc_dlerror()
 #include "mc_time.h"
 #include "mc_env.h"
 #include "mc_xs.h"
+#include "mc_memory.h"
 #include "crypt.h"
 
 #include <board.h>

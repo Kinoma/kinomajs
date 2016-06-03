@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+|     Copyright (C) 2010-2016 Marvell International Ltd.
+|     Copyright (C) 2002-2010 Kinoma, Inc.
+|
+|     Licensed under the Apache License, Version 2.0 (the "License");
+|     you may not use this file except in compliance with the License.
+|     You may obtain a copy of the License at
+|
+|      http://www.apache.org/licenses/LICENSE-2.0
+|
+|     Unless required by applicable law or agreed to in writing, software
+|     distributed under the License is distributed on an "AS IS" BASIS,
+|     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+|     See the License for the specific language governing permissions and
+|     limitations under the License.
+-->
+<module xmlns="http://www.kinoma.com/kpr/1">
+	<require path="mobile/scroller" id="SCROLLER"/>
+	<require path="mobile/dialog" id="DIALOG"/>
+	<require path="mobile/control" id="CONTROL"/>
+	<require path="controls/buttons" id="BUTTONS"/>
+   	<require id="LOCALE" path="locale"/>
+	<require id="CREATIONS" path="creations/creations"/>
+
+	<texture id="mapTexture" small="assets/timezone/background-320w.png"/>
+	<skin id="mapSkin" texture="mapTexture" x="0" y="0" width="320" height="170"/>
+
+	<texture id="timeZonesTexture1" small="assets/timezone/sprites/1-5-9-sprite.png"/>
+	<texture id="timeZonesTexture2" small="assets/timezone/sprites/2-6-10-sprite.png"/>
+	<texture id="timeZonesTexture3" small="assets/timezone/sprites/3-7-11-sprite.png"/>
+	<texture id="timeZonesTexture4" small="assets/timezone/sprites/4-8-12-sprite.png"/>
+
+ 	<skin id="minusElevenSkin" texture="timeZonesTexture1" x="0" y="0" width="18" height="170"/>
+ 	<skin id="minusTenSkin" texture="timeZonesTexture2" x="0" y="0" width="38" height="170"/>
+ 	<skin id="minusNineSkin" texture="timeZonesTexture3" x="0" y="0" width="44" height="170"/>
+ 	<skin id="minusEightSkin" texture="timeZonesTexture4" x="20" y="0" width="38" height="170"/>
+ 	<skin id="minusSevenSkin" texture="timeZonesTexture1" x="24" y="0" width="42" height="170"/>
+ 	<skin id="minusSixSkin" texture="timeZonesTexture2" x="40" y="0" width="44" height="170"/>
+ 	<skin id="minusFiveSkin" texture="timeZonesTexture3" x="60" y="0" width="34" height="170"/>
+ 	<skin id="minusFourSkin" texture="timeZonesTexture4" x="76" y="0" width="40" height="170"/>
+ 	<skin id="minusThreeSkin" texture="timeZonesTexture1" x="80" y="0" width="58" height="170"/>
+ 	<skin id="minusTwoSkin" texture="timeZonesTexture2" x="106" y="0" width="28" height="170"/>
+ 	<skin id="minusOneSkin" texture="timeZonesTexture3" x="114" y="0" width="34" height="170"/>
+ 	<skin id="zeroSkin" texture="timeZonesTexture4" x="120" y="0" width="40" height="170"/>
+ 	<skin id="oneSkin" texture="timeZonesTexture1" x="136" y="0" width="46" height="170"/>
+ 	<skin id="twoSkin" texture="timeZonesTexture2" x="152" y="0" width="38" height="170"/>
+ 	<skin id="threeSkin" texture="timeZonesTexture3" x="166" y="0" width="46" height="170"/>
+ 	<skin id="fourSkin" texture="timeZonesTexture4" x="176" y="0" width="36" height="170"/>
+ 	<skin id="fiveSkin" texture="timeZonesTexture1" x="186" y="0" width="54" height="170"/>
+ 	<skin id="sixSkin" texture="timeZonesTexture2" x="196" y="0" width="44" height="170"/>
+ 	<skin id="sevenSkin" texture="timeZonesTexture3" x="212" y="0" width="48" height="170"/>
+ 	<skin id="eightSkin" texture="timeZonesTexture4" x="212" y="0" width="58" height="170"/>
+ 	<skin id="nineSkin" texture="timeZonesTexture1" x="240" y="0" width="46" height="170"/>
+ 	<skin id="tenSkin" texture="timeZonesTexture2" x="252" y="0" width="42" height="170"/>
+ 	<skin id="elevenSkin" texture="timeZonesTexture3" x="264" y="0" width="48" height="170"/>
+ 	<skin id="twelveSkin" texture="timeZonesTexture4" x="274" y="0" width="44" height="170"/>
+
+	<skin id="whiteSkin" color="white"/>
+	<skin id="graySkin" color="gray"/>
+	
+	<style id="checkboxLabelStyle" font="16px" color="black" align="left,top" lines="1"/>
+	<style id="timezoneLabelStyle" font="30px" color="black" align="left,middle" lines="1"/>
+	<style id="footerLabelStyle" font="22px" color="black" align="left,middle" lines="1"/>
+        
+    <texture id="smallCheckboxTexture" small="assets/timezone/lighter-checkbox.png"/>
+    <skin id="smallCheckboxSkin" texture="smallCheckboxTexture" x="0" y="0" width="40" height="40">
+    	<states offset="40"/>
+    </skin>
+    
+    <texture id="blackBackButtonTexture" small="assets/black-back-arrow.png"/>
+    <skin id="blackBackButtonSkin" texture="blackBackButtonTexture" x="0" y="0" width="32" height="32">
+        <states offset="32"/>
+    </skin>
+         
+   <skin id="mapColorSkin" color="white"/>
+        
+	<container id="CheckboxRight" right="53" height="24" active="true">
+		<behavior like="CONTROL.CheckboxBehavior">
+            <method id="onDisplaying" params="container">
+            	// need to override otherwise will set state to 1 if active
+            </method>
+        </behavior>
+		<container skin="smallCheckboxSkin" right="-10">
+			<behavior>
+				<method id="onCreate" params="content, data">
+                    <![CDATA[
+                    	CONTROL.CheckboxBehavior.prototype.onCreate.call(this, content, data);
+                    	this.onValueChanged(content, true);
+                    ]]>
+                </method>
+				<method id="putSettingValue" params="content, name, value">
+                    <![CDATA[
+						var message = new Message("xkpr://shell/settings/" + name);
+						var requestText = JSON.stringify(value);
+						message.setRequestHeader("Content-Length", requestText.length);
+						message.setRequestHeader("Content-Type", "application/json");
+						message.requestText = requestText;
+						message.method = "PUT";
+						content.invoke(message);
+                    ]]>
+                </method>
+				<method id="onValueChanged" params="content, initializing">
+                    <![CDATA[
+						var data = this.data;
+						content.state = (data.value === 'on' ? 2 : 1);
+						var isDaylightSavings = (data.value === 'on' ? true : false);
+						var zoneNumber = this.data.item.timezone.zone;
+						var timezone = this.data.item.timezone = { zone : zoneNumber, "daylight-savings" : isDaylightSavings };
+						if (true != initializing) {
+							this.putSettingValue(content, "timezone", timezone);
+							K4.log("settings", "Set Daylight Savings to " + isDaylightSavings);
+						}
+						if (null != content.container) {
+							var parent = content.container.container.container;
+							parent.timeDisplay.delegate("onTimezoneSelected");
+							parent.dateDisplay.delegate("onTimezoneSelected");
+						}
+                    ]]>
+                </method>
+			</behavior>
+		</container>
+		<content like="CREATIONS.HiddenButtonAdpator" left="-10" top="-10" right="-44" bottom="-12"/>
+	</container>
+	
+	<content id="TimeZoneSprite" height="170" visible="false"/>
+	
+	<behavior id="TimeDisplayBehavior">    
+		<method id="onCreate" params="label, data">
+			<![CDATA[
+				this.data = data;
+				label.visible = false;
+				label.invoke(new Message("xkpr://shell/network/status"), Message.JSON);
+			]]>
+		</method>
+		<method id="onComplete" params="label, message, result">
+			<![CDATA[
+				if (result.dateSet)
+					this.onDateSet(label);
+			]]>
+		</method>
+		<method id="onDateSet" params="label">
+			<![CDATA[
+				label.visible = true;
+				this.displayDate(label);
+			]]>
+		</method>
+		<method id="onTimezoneSelected" params="label">
+			<![CDATA[
+				this.displayDate(label);
+			]]>
+		</method>
+		<method id="displayDate" params="label">
+			<![CDATA[
+				var zoneNumber = this.data.item.timezone.zone;
+				var date = getDateForTimezone(zoneNumber);
+				var timezone = this.data.item.timezone;
+				var isDaylightSavings = timezone["daylight-savings"];
+				if (isDaylightSavings) {
+					var ms = date.getMilliseconds();
+					var oneHour = 60 * 60 * 1000;
+					date.setMilliseconds(ms + oneHour);
+				}
+				var dateStr = this.formatString(date);
+				label.string = dateStr;
+			]]>
+		</method>
+		<method id="formatString" params="date">
+			<![CDATA[
+				return LOCALE.formatTime(date, undefined, undefined, date);
+			]]>
+		</method>
+	</behavior>
+	<label id="TimeDisplay" behavior="TimeDisplayBehavior" style="footerLabelStyle" right="20" bottom="0" height="24"/>
+
+	<behavior id="DateDisplayBehavior" like="TimeDisplayBehavior">    
+		<method id="formatString" params="date">
+			<![CDATA[
+				return LOCALE.formatDate(date, undefined, undefined, date);
+			]]>
+		</method>
+	</behavior>
+	<label id="DateDisplay" behavior="DateDisplayBehavior" style="footerLabelStyle" left="20" bottom="0" height="24"/>
+	
+	<container id="MapScreen" top="0" left="0" bottom="0" right="0" skin="mapColorSkin">
+        <container top="0" left="0" right="0" height="40" skin="whiteSkin">
+			<container like="CheckboxRight"/>
+        	<label top="6" right="0" width="50" string="'Daylight '" style="checkboxLabelStyle"/>
+        	<label bottom="6" right="0" width="50" string="'Savings'" style="checkboxLabelStyle"/>
+        	<label anchor="timezoneLabel" active="true" top="0" left="32" bottom="0" right="100" style="timezoneLabelStyle"/>
+            
+			<container name="backButton" active="true" left="0" top="4" width="32" height="32" skin="blackBackButtonSkin">
+        	    <behavior like="BUTTONS.ButtonBehavior">        
+					<method id="onTap" params="container">
+						<![CDATA[
+							var timezone = this.data.item.timezone;
+							var dst = timezone["daylight-savings"];
+							var zone = zoneNumberToSpriteIndex(timezone.zone);
+							var tz = (dst ? daylightTimeZonePosixMap[zone] : standardTimeZonePosixMap[zone]);
+							K4.timezone = tz;
+							container.invoke(new Message("/back"));
+						]]>
+					</method>
+		        </behavior>
+			</container>
+  		</container>
+            
+ 		<container name="map" skin="mapSkin" active="true" bottom="26" left="0" width="320" height="170">
+			<behavior>
+			<method id="onCreate" params="container, data">
+                <![CDATA[
+                    this.data = data;
+                ]]>
+            </method>
+				<method id="onDisplaying" params="container">
+                    <![CDATA[
+                    	var timezoneData = this.data.item.timezone;
+                    	if (timezoneData != undefined && timezoneData != "") {
+	                    	var zoneNumber = timezoneData.zone;
+	                    	var spriteIndex = zoneNumberToSpriteIndex(zoneNumber);
+	                        this.selectedSpriteIndex = spriteIndex;	
+						}
+						else
+							this.selectedSpriteIndex = 0;
+						container.delegate("highlightSprite", this.selectedSpriteIndex);
+                    ]]>
+                </method>
+	            <method id="onTouchBegan" params="container, id, x, y, ticks">
+	                <![CDATA[
+						this.handleTouch(container, id, x, y, ticks, false);
+	                ]]>
+	            </method>
+	            <method id="onTouchMoved" params="container, id, x, y, ticks">
+	                <![CDATA[
+						this.handleTouch(container, id, x, y, ticks, false);
+	                ]]>
+	            </method>
+	            <method id="onTouchEnded" params="container, id, x, y, ticks">
+	                <![CDATA[
+						this.handleTouch(container, id, x, y, ticks, true);
+	                ]]>
+	            </method>
+	            <method id="handleTouch" params="container, id, x, y, ticks, selectIt">
+                    <![CDATA[
+	                	var localX = x - container.x;
+	                	if (localX < 0)		localX = 0;
+	                	if (localX > 319)	localX = 319;
+	                	var spriteIndex;
+	                	if (localX < 15)		// give first timezone a couple of extra pixels because of recessed sceen on device
+	                		spriteIndex = 0;
+	                    else
+	                    	spriteIndex = Math.floor(24 * localX / 320);
+	                    if (selectIt)
+							container.delegate("selectSprite", spriteIndex);
+						else
+							container.delegate("highlightSprite", spriteIndex);
+						container.container.timeDisplay.delegate("onTimezoneSelected");
+						container.container.dateDisplay.delegate("onTimezoneSelected");
+                    ]]>
+                </method>
+                <method id="putSettingValue" params="container, name, value">
+					var message = new Message("xkpr://shell/settings/" + name);
+					var requestText = JSON.stringify(value);
+					message.setRequestHeader("Content-Length", requestText.length);
+					message.setRequestHeader("Content-Type", "application/json");
+					message.requestText = requestText;
+					message.method = "PUT";
+					container.invoke(message);
+				</method>
+	            <method id="highlightSprite" params="container, spriteIndex">
+                    <![CDATA[
+                        container.content(this.selectedSpriteIndex).visible = false;
+                        container.content(spriteIndex).visible = true;
+                        this.selectedSpriteIndex = spriteIndex;
+                        var zoneName = timeZoneMap[spriteIndex];
+                        this.data.timezoneLabel.string = zoneName;
+                        this.zoneNumber = zoneNameToNumber(zoneName);
+                        var isDaylightSavings = (this.data.value == "on");
+                        this.timezone = this.data.item.timezone = { zone : this.zoneNumber, "daylight-savings" : isDaylightSavings };
+                    ]]>
+                </method>
+	            <method id="selectSprite" params="container, spriteIndex">
+                    <![CDATA[
+                        container.delegate("highlightSprite", spriteIndex);
+						this.putSettingValue(container, "timezone", this.timezone);
+						K4.log("settings", "Set Timezone to " + zoneNumberToName(this.zoneNumber));
+                    ]]>
+                </method>
+	        </behavior>
+ 			<content like="TimeZoneSprite" skin="minusElevenSkin" left="0"/>
+	 		<content like="TimeZoneSprite" skin="minusTenSkin" left="0"/>
+			<content like="TimeZoneSprite" skin="minusNineSkin" left="0"/>
+	        <content like="TimeZoneSprite" skin="minusEightSkin" left="20"/>
+	        <content like="TimeZoneSprite" skin="minusSevenSkin" left="24"/>
+	        <content like="TimeZoneSprite" skin="minusSixSkin" left="40"/>
+	        <content like="TimeZoneSprite" skin="minusFiveSkin" left="60"/>
+	        <content like="TimeZoneSprite" skin="minusFourSkin" left="76"/>
+	        <content like="TimeZoneSprite" skin="minusThreeSkin" left="80"/>
+	        <content like="TimeZoneSprite" skin="minusTwoSkin" left="106"/>
+	        <content like="TimeZoneSprite" skin="minusOneSkin" left="114"/>
+	        <content like="TimeZoneSprite" skin="zeroSkin" left="120"/>
+	        <content like="TimeZoneSprite" skin="oneSkin" left="136"/>
+	        <content like="TimeZoneSprite" skin="twoSkin" left="152"/>
+	        <content like="TimeZoneSprite" skin="threeSkin" left="166"/>
+	        <content like="TimeZoneSprite" skin="fourSkin" left="176"/>
+	        <content like="TimeZoneSprite" skin="fiveSkin" left="186"/>
+	        <content like="TimeZoneSprite" skin="sixSkin" left="196"/>
+	        <content like="TimeZoneSprite" skin="sevenSkin" left="212"/>
+	        <content like="TimeZoneSprite" skin="eightSkin" left="212"/>
+	        <content like="TimeZoneSprite" skin="nineSkin" left="240"/>
+	        <content like="TimeZoneSprite" skin="tenSkin" left="252"/>
+	        <content like="TimeZoneSprite" skin="elevenSkin" left="264"/>
+	        <content like="TimeZoneSprite" skin="twelveSkin" left="274"/>
+		</container>
+		
+ 		<content top="44" left="0" right="0" height="1" skin="graySkin"/>
+ 		<content bottom="25" left="0" right="0" height="1" skin="graySkin"/>
+ 		<content name="dateDisplay" like="DateDisplay"/>
+ 		<content name="timeDisplay" like="TimeDisplay"/>
+    </container>
+   
+    <script>
+        <![CDATA[
+            exports.timezoneData = {
+            	label : "",
+            	value : 0,
+             }
+             
+        	var timeZoneMap = [ "Samoa", "Hawaii", "Alaska", "Pacific", "Mountain", 
+        					"Central", "Eastern", "Atlantic", "Uruguay", "SGSSI",
+        					"Azores", "Greenwich Mean", "Central European", "Eastern European", "Indian Ocean",
+        					"Arabian", "Pakistan", "Bangladesh", "Thailand",
+        					"China", "Japan", "Australian Eastern", "Vanuatu", "New Zealand"
+        				];
+        				
+        	var zoneNumberMap = [ -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ];
+			
+			var standardTimeZonePosixMap = [ "SST+11:00", "HST+10:00", "AKST+09:00", "PST+08:00", "MST+07:00",
+								"CST+06:00", "EST+05:00", "AST+04:00", "UYT+03:00", "PMST+02:00",
+								"AZOST+01:00", "GMT+00:00", "CET-01:00", "EET-02:00", "IOT-03:00",
+								"AST-04:00", "PKT-05:00", "BST-06:00", "THA-07:00",
+								"CST-08:00", "JST-09:00", "AEST-10:00", "VUT-11:00", "NZST-12:00" ];
+
+			var daylightTimeZonePosixMap = [ "SST+11:00", "HADT+09:00", "AKDT+08:00", "PDT+07:00", "MDT+06:00",
+								"CDT+05:00", "EDT+04:00", "ADT+03:00", "UYST+02:00", "PMDT+02:00",
+								"AZOST+01:00", "GMT+00:00", "CEDT-02:00", "EEDT-03:00", "IOT-03:00",
+								"AST-04:00", "PKT-05:00", "BST-06:00", "THA-07:00",
+								"CST-08:00", "JST-09:00", "AEDT-11:00", "VUT-11:00", "NZDT-13:00" ];
+		]]>
+    </script>
+    
+    <function id="zoneNumberToName" params="zoneNumber">
+        <![CDATA[
+            for (var i=0; i < zoneNumberMap.length; i++) {
+            	if (zoneNumberMap[i] == zoneNumber)
+            		return timeZoneMap[i];
+            }
+        ]]>
+    </function>
+    <function id="zoneNameToNumber" params="zoneName">
+        <![CDATA[
+            for (var i=0; i < timeZoneMap.length; i++) {
+            	if (timeZoneMap[i] == zoneName)
+            		return zoneNumberMap[i];
+            }
+        ]]>
+    </function>
+    <function id="zoneNumberToSpriteIndex" params="zoneNumber">
+        <![CDATA[
+            for (var i=0; i < zoneNumberMap.length; i++) {
+            	if (zoneNumberMap[i] == zoneNumber)
+            		return i;
+            }
+        ]]>
+    </function>
+    
+    <function id="getDateForTimezone" params="offset">
+        <![CDATA[
+			var d = new Date();
+			var utc = d.getTime();
+			var newDate = new Date(utc + (3600000 * offset));
+			return newDate;
+        ]]>
+    </function>
+
+</module>

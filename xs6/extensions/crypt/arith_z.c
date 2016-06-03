@@ -14,9 +14,9 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
-#include "kcl_arith.h"
+
 #include "arith_common.h"
+#include "kcl_arith.h"
 
 #define arith_get_integer(z, slot)	__arith_get_integer(the, &slot, &z->proto_int)
 #define arith_set_integer(z, slot, x)	__arith_set_integer(the, &slot, x, &z->proto_int)

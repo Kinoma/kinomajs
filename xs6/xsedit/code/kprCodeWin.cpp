@@ -699,10 +699,8 @@ void KPR_system_networkInterfaceIndexToName(xsMachine* the)
 		BAIL_IF_ERR(FskMemPtrNewClear(outBufLen, &pAddresses));
 	}
 	if (GetAdaptersAddresses(family, flags, NULL, pAddresses, &outBufLen) == NO_ERROR) {
-		for (pAddress = pAddresses; pAddress; pAddress = pAddress->Next) {
-			FskDebugStr("Interface %d %s", pAddress->IfIndex, pAddress->AdapterName);
+		for (pAddress = pAddresses; pAddress; pAddress = pAddress->Next)
 			if (pAddress->IfIndex == index) break;
-		}
 	}
 	if (pAddress)
 		xsResult = xsString(pAddress->AdapterName);

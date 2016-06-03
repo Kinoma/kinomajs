@@ -14,11 +14,10 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-#include "xs.h"
+
 #include "crypt.h"
 #include "crypt_common.h"
 #include "crypt_digest.h"
-#include <string.h>
 
 void
 xs_digest_constructor(xsMachine *the)
@@ -53,7 +52,7 @@ xs_digest_update(xsMachine *the)
 	for (i = 0; i < ac; i++) {
 		if (xsTypeOf(xsArg(i)) == xsStringType) {
 			data = xsToString(xsArg(i));
-			len = strlen(data);
+			len = c_strlen(data);
 		}
 		else {
 			len = xsGetArrayBufferLength(xsArg(i));
