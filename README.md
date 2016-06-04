@@ -517,7 +517,8 @@ The `Kinoma Code` application is located at `${F_HOME}/bin/mac/Release/Kinoma Co
   $ open ${F_HOME}/bin/mac/Release/Kinoma\ Code.app
   ```
 
-## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi)
+## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi, Pine64, Linkit7688)![icon](http://kinoma.com/img/github/linux.png)
+
 Building KinomaJS for embedded Linux uses a Linux build host.
 The build system uses `linux/beaglebone`, `linux/edison`, or `linux\pi_gl` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
 
@@ -533,8 +534,13 @@ The build system uses `linux/beaglebone`, `linux/edison`, or `linux\pi_gl` as th
   ```
   $ sudo apt-get install zlib1g:i386 lib32stdc++6
   ```
-3. Install the toolchain and `sysroot`.
-	See the document [Setup for Building for Embedded Devices](https://github.com/Kinoma/kinomajs/blob/master/doc/EmbeddedSetup.md) to set up the cross-compilation environment and libraries for your build target. 
+3. Install the toolchain and `sysroot`.	To set up the cross-compilation environment and libraries for your build target:
+	
+	- For BeagleBlone, Raspberry Pi or Edison, see the document [Setup for Building for Embedded Devices](https://github.com/Kinoma/kinomajs/blob/master/doc/EmbeddedSetup.md)  
+	
+	- For Pine64, see the document [Setup for Building for Pine64](https://github.com/Kinoma/kinomajs/blob/master/doc/Pine64Setup.md)
+	
+	- For Linkit7688, see the document [Setup for Building for Linkit7688](https://github.com/Kinoma/kinomajs/blob/master/doc/Pine64Setup.md)
 4. Get a copy of the KinomaJS source code. It can be downloaded using your web browser from the [KinomaJS repository on GitHub](http://github.org/kinoma/kinomajs) or using the `git` command-line tool, as follows:
   ```
   $ git clone https://github.com/kinoma/kinomajs.git
@@ -557,10 +563,49 @@ The build system uses `linux/beaglebone`, `linux/edison`, or `linux\pi_gl` as th
   ```
 	The `xsbug` application is located at `${F_HOME}/bin/linux/gtk/Release/xsbug/xsbug`.
 
-### Build Your KinomaJS Application
+### Build Your KinomaJS Application
+
+The target platform specifiers are as follows:
+
+  - `linux/pi` - Raspberry Pi
+  - `linux/pi_gl` - Raspberry Pi, using OpenGL
+  - `linux/beaglebone` - BeagleBone
+  - `linux/edison` - Intel Edison
+  - `linux/pine64` - Pine64
+  - `linux/linkit7688` - Linkit7688
+  
 1. Build the `balls` sample application that is included in the KinomaJS repository.
   ```
   $ cd ${F_HOME}  $ kprconfig6 -x -m -p linux/beaglebone ${F_HOME}/kinoma/kpr/applications/balls/manifest.json
   ```
 	The `balls` application is located at `${F_HOME}/bin/linux/beaglebone/Release/Balls.tgz`.
 2. Transfer the `.tgz` file to your device and decompress.
+
+#### To allow connection to your device from Kinoma Code, build the EmbedShell application
+
+1. Build the `EmbedShell` application
+
+  ```
+  $ cd $(F_HOME)
+  $ kprconfig6 -x -m -p linux/pine64 $(F_HOME)/kinoma/kpr/projects/embed/manifest.json
+  ```
+
+	The `EmbedShell` application is located at `${F_HOME}/bin/linux/pine64/Release/EmbedShell `.2. Transfer the `EmbedShell.tgz` file to your device and decompress.
+
+3. Run the `mdnsd` if Avahi or other mdns is not running on your target. This will allow EmbedShell to advertise itself to your local network.
+
+   ```
+	./EmbedShell/lib/mdnsd
+   ```
+
+4. Run the EmbedShell
+
+   ```
+   ./EmbedShell/EmbedShell
+   ```
+>**Note**: Depending on your user permissions, you may have to run mdnsd and EmbedShell as root using the sudo command.
+>
+> ```
+> sudo ./EmbedShell/EmbedShell
+> ```
+
