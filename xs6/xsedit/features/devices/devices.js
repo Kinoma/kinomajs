@@ -34,9 +34,9 @@ const ssdpDeviceType = "urn:schemas-kinoma-com:device:shell:1";
 const mdnsServiceType = "_kinoma_setup._tcp.";
 
 export const updateCredentials = {
-	certificates: Files.readText(mergeURI(shell.url, "../../certs/xsedit.cert.pem")),
+//	certificates: Files.readText(mergeURI(shell.url, "../../certs/xsedit.cert.pem")),
 	policies: "allowOrphan",
-	key: Files.readText(mergeURI(shell.url, "../../certs/xsedit.priv.pem"))
+//	key: Files.readText(mergeURI(shell.url, "../../certs/xsedit.priv.pem"))
 }
 
 let wsIndex = 0;
