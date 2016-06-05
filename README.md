@@ -536,7 +536,7 @@ The build system uses `linux/beaglebone`, `linux/edison`, `linux\pi_gl`, `linux\
   ```
 3. Install the toolchain and `sysroot`.	To set up the cross-compilation environment and libraries for your build target:
 	
-	- For BeagleBlone, Raspberry Pi or Edison, see the document [Setup for Building for Embedded Devices](https://github.com/Kinoma/kinomajs/blob/master/doc/EmbeddedSetup.md)  
+	- For BeagleBone, Raspberry Pi or Edison, see the document [Setup for Building for Embedded Devices](https://github.com/Kinoma/kinomajs/blob/master/doc/EmbeddedSetup.md)  
 	
 	- For Pine64, see the document [Setup for Building for Pine64](https://github.com/Kinoma/kinomajs/blob/master/doc/Pine64Setup.md)
 	
