@@ -520,7 +520,7 @@ The `Kinoma Code` application is located at `${F_HOME}/bin/mac/Release/Kinoma Co
 ## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi, Pine64, Linkit7688)![icon](http://kinoma.com/img/github/linux.png)
 
 Building KinomaJS for embedded Linux uses a Linux build host.
-The build system uses `linux/beaglebone`, `linux/edison`, or `linux\pi_gl` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
+The build system uses `linux/beaglebone`, `linux/edison`, `linux\pi_gl`, `linux\pi`, `linux\linkit7688`, or `linux/pine64` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
 
 
 
