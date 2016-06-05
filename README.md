@@ -540,7 +540,7 @@ The build system uses `linux/beaglebone`, `linux/edison`, `linux\pi_gl`, `linux\
 	
 	- For Pine64, see the document [Setup for Building for Pine64](https://github.com/Kinoma/kinomajs/blob/master/doc/Pine64Setup.md)
 	
-	- For Linkit7688, see the document [Setup for Building for Linkit7688](https://github.com/Kinoma/kinomajs/blob/master/doc/Pine64Setup.md)
+	- For Linkit7688, see the document [Setup for Building for Linkit7688](https://github.com/Kinoma/kinomajs/blob/master/doc/Linkit7688Setup.md)
 4. Get a copy of the KinomaJS source code. It can be downloaded using your web browser from the [KinomaJS repository on GitHub](http://github.org/kinoma/kinomajs) or using the `git` command-line tool, as follows:
   ```
   $ git clone https://github.com/kinoma/kinomajs.git
