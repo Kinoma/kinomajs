@@ -28,9 +28,15 @@
 //---------- FskFixedMath.c configuration ---------- 
 
 #if TARGET_CPU_ARM && !defined(ANDROID_PLATFORM)
-#define USE_ASSEMBLER_MULTIPLICATION    1
-#define USE_ASSEMBLER_DIVISION          1
-#define USE_ASSEMBLER_RATIO             1
+	#if TARGET_CPU_ARM64
+		#define USE_ASSEMBLER_MULTIPLICATION    0
+		#define USE_ASSEMBLER_DIVISION          0
+		#define USE_ASSEMBLER_RATIO             0
+	#else
+		#define USE_ASSEMBLER_MULTIPLICATION    1
+		#define USE_ASSEMBLER_DIVISION          1
+		#define USE_ASSEMBLER_RATIO             1
+	#endif
 #else
 #define USE_ASSEMBLER_MULTIPLICATION    0
 #define USE_ASSEMBLER_DIVISION          0
@@ -45,7 +51,7 @@
 //---------- FskRectBlit.c configuration ---------- 
 
 // Set to 1 to enable ARM versions of YUV to RGB blitters.
-#if TARGET_CPU_ARM
+#if TARGET_CPU_ARM && !TARGET_CPU_ARM64
 #define USE_ARM_YUV_TO_RGB				1
 #else
 #define USE_ARM_YUV_TO_RGB				0
@@ -55,7 +61,7 @@
 
 // Set only one of the YUV420i_RGB macros to use either "C" or ARM implementations of the YUV 420->RGB integer blitters
 #if SRC_YUV420i
-	#if TARGET_CPU_ARM
+	#if TARGET_CPU_ARM && !TARGET_CPU_ARM64
 		#define YUV420i_RGB_ARM_IMPLEMENTATION
 	#else
 		#define YUV420i_RGB_C_IMPLEMENTATION
