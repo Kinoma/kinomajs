@@ -32,9 +32,6 @@
 	<input name="$(F_HOME)/core/kpl"/>
 	<input name="$(F_HOME)/libraries/libjpeg"/>
 	<input name="$(F_HOME)/libraries/zlib/arm"/>
-    <input name="$(F_HOME)/libraries/libtess2"/>
-    <input name="$(F_HOME)/libraries/libtess2/Include"/>
-    <input name="$(F_HOME)/libraries/libtess2/Source"/>
 
 	<input name="$(PXA1908_SYSROOT)/usr/include"/>
 
