@@ -32,9 +32,6 @@
 	<input name="$(F_HOME)/core/kpl"/>
 	<input name="$(F_HOME)/libraries/libjpeg"/>
 	<input name="$(F_HOME)/libraries/zlib/arm"/>
-    <input name="$(F_HOME)/libraries/libtess2"/>
-    <input name="$(F_HOME)/libraries/libtess2/Include"/>
-    <input name="$(F_HOME)/libraries/libtess2/Source"/>
 
 	<input name="$(IAP140_SYSROOT)/usr/include"/>
 
@@ -67,17 +64,7 @@
 	<source name="FskGLBlit.c"/>
 	<source name="FskGLEffects.c"/>
 	<source name="FskGLContext.c"/>
-    <source name="FskGLCanvas.c"/>
-    <source name="FskTessellation.c"/>
     <source name="KplGL.c"/>
-
-    <source name="dict.c"/>
-    <source name="bucketalloc.c"/>
-    <source name="geom.c"/>
-    <source name="mesh.c"/>
-    <source name="priorityq.c"/>
-    <source name="sweep.c"/>
-    <source name="tess.c"/>
 
 	<asm option="-ftree-vectorize"/>
 	<asm option="-x assembler-with-cpp"/>
