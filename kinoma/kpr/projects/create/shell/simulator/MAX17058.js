@@ -17,7 +17,9 @@
  */
 
 exports.pins = {
-    microUSBCharger: {type: "Digital", direction: "input", pin: 1027}
+    microUSBCharger: {type: "Digital", direction: "input", pin: 1027},
+	miniPower: {type: "Digital", direction:"input", pin: 1018},
+	miniCharger: {type: "Digital", direction:"input", pin: 1024}
 }
 
 exports.read = function() {
@@ -26,10 +28,15 @@ exports.read = function() {
         soc: 24150,
         batteryLevel: 0.42,
         chargeState: 3,
-        microUSBCharger: true
+        microUSBCharger: true,
+		miniUSBCharger: false,
     }
 }
 
 exports.chargerDetect = function() {
     return 0;
+}
+
+exports.chargerDetectMini = function() {
+	return 0;
 }

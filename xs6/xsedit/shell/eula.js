@@ -39,7 +39,7 @@ class AboutDialogBehavior extends Behavior {
 	}
 	onDisplayed(about) {
 		let markdown = this.data.MARKDOWN;
-		let url = markdownOptions.url = mergeURI(shell.url, "./assets/about.md");
+		let url = markdownOptions.url = mergeURI(shell.url, "./assets/" + system.platform + "/about.md");
 		let text = Files.readText(url);
 		text = text.replace("$VERSION", getEnvironmentVariable("VERSION"));
 		text = text.replace("$CORE_VERSION", getEnvironmentVariable("CORE_VERSION"));

@@ -7,14 +7,14 @@ import {
 	updateCredentials 
 } from "features/devices/devices";
 
-export default class pxa1908 extends DeviceConfig {
+export default class iap140 extends DeviceConfig {
 	constructor(devices, discovery) {
 		super(devices, discovery);
 		if (!("firmware" in this.description))
 			this.description.firmware = getEnvironmentVariable("OS") + " " + getEnvironmentVariable("OSVersion");
 	}
 	get helperID() {
-		return "xsedit.pxa1908.kinoma.marvell.com";
+		return "xsedit.iap140.kinoma.marvell.com";
 	}
 	get helperProject() {
 		return {
@@ -163,12 +163,12 @@ Handler.Bind("/network/configure", class extends Behavior {
 	}
 });
 
-pxa1908.iconSkin = new Skin({ texture:new Texture("./icon.png", 1), x:0, y:0, width:60, height:60 });
-pxa1908.id = "com.marvell.kinoma.launcher.pxa1908";
-pxa1908.product = "pxa1908";
-pxa1908.tag = "pxa1908";
-pxa1908.templateTag = "createSample";
-pxa1908.url = this.uri;
+iap140.iconSkin = new Skin({ texture:new Texture("./icon.png", 1), x:0, y:0, width:60, height:60 });
+iap140.id = "com.marvell.kinoma.launcher.iap140";
+iap140.product = "Marvell IAP140";
+iap140.tag = "iap140";
+iap140.templateTag = "createSample";
+iap140.url = this.uri;
 
 import {
 	BLLExplorerTile,
@@ -196,7 +196,7 @@ import {
 	WifiView 
 } from "features/devices/apps/wifi/wifi";
 
-pxa1908.apps = {
+iap140.apps = {
 	wifi: {
 		Test: WifiTest,
 		Tile: WifiTile,
@@ -216,7 +216,7 @@ pxa1908.apps = {
 //	},
 }
 
-pxa1908.preferences = {
+iap140.preferences = {
 	discoveryFlag: true,
 	serialFlag: false,
 }

@@ -27,7 +27,9 @@
 #include <arpa/nameser.h>
 #include <resolv.h>
 
-#ifdef ANDROID_PLATFORM
+#if ANDRO
+//
+#elif ANDROID_PLATFORM
 #include "arpa_nameser.h"
 #include "resolv_private.h"
 #endif

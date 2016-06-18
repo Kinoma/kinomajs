@@ -221,7 +221,7 @@ xs_ssp_write(xsMachine *the)
 {
 	mc_ssp_t *ssp = xsGetHostData(xsThis);
 	int ac = xsToInteger(xsArgc), reg = -1, datasize, dma = 0;
-	uint8_t *data, num, *allocated = NULL;
+	uint8_t *data, num, *allocated = NULL, *din = NULL;
 
 	if(ac < 3) return;
 
@@ -283,6 +283,12 @@ xs_ssp_write(xsMachine *the)
 		if(ac > 4)
 			data += xsToInteger(xsArg(4));
 	}
+	if (ac > 5 && xsToInteger(xsArg(5))) {
+		// full duplex
+		xsResult = xsArrayBuffer(NULL, datasize);
+		din = xsToArrayBuffer(xsResult);
+		memset(din, 0xff, datasize);
+	}
 
 	if(reg != -1)
 		ssp_drv_write(ssp->mdev, (uint8_t*)&reg, NULL, 1, 1);
@@ -302,10 +308,11 @@ xs_ssp_write(xsMachine *the)
 // 	mc_log_debug("xs_ssp_write: dma = %d, datasize: %d\n", ssp->dma, datasize);
 // #endif	
 	// reg = os_ticks_to_msec(os_ticks_get());
-	ssp_drv_write(ssp->mdev, (uint8_t *)data, NULL, datasize, 1);
+	ssp_drv_write(ssp->mdev, (uint8_t *)data, din, datasize, 1);
 	// mc_log_debug("time: %d\n", os_ticks_to_msec(os_ticks_get()) - reg );
 	if(allocated) mc_free(allocated);
-	xsSetTrue(xsResult);
+	if (din == NULL)
+		xsSetTrue(xsResult);
 }
 
 

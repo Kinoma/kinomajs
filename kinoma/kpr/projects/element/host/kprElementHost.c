@@ -108,7 +108,7 @@ void KPR_ElementHost(xsMachine* the)
 		2048,		/* incremental chunk size */
 		50*1024/16,	/* initial heap count	-- will be calculated later */
 		128,		/* incremental heap count	-- wasting 16 bytes / allocation */
-		600,		/* stack count */
+		650,		/* stack count */
 		2048+1024,	/* key count */
 		97,		/* name modulo */
 		127,		/* symbol modulo */

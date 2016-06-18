@@ -335,9 +335,16 @@ void KPR_text_markdownOptions(xsMachine* the, xsSlot* slot, KprMarkdownOptions o
 		options->columnWidth = xsToInteger(xsGet(*slot, xsID("columnWidth")));
 }
 
+#if TARGET_OS_WIN32
+static char BULLET[] = "*";
+static char EM_DASH[] = "--";
+static char EN_DASH[] = "-";
+#else
 static char BULLET[] = "\u2022";
-static char EN_DASH[] = "\u2013"; // EN DASH (\u2013) VS EM DASH (\u2014)
+static char EM_DASH[] = "\u2014";
+static char EN_DASH[] = "\u2013";
 static char ZERO_WIDTH_SPACE[] = "\u200B";
+#endif
 
 void KPR_text_formatMarkdownP(xsMachine* the, KprText self, KprMarkdownOptions options, KprMarkdownRun lineRun, KprMarkdownElement element, KprColumn column, KprStyle style)
 {
@@ -956,7 +963,9 @@ void KPR_text_formatMarkdown(xsMachine* the)
 		KprTextBegin(self);
 		{
 			SInt32 BULLET_LEN = FskStrLen(BULLET);
+			#if !TARGET_OS_WIN32
 			SInt32 ZERO_WIDTH_SPACE_LEN = FskStrLen(ZERO_WIDTH_SPACE);
+			#endif
 			#if KPRMARKDOWNALLHARDLINEBREAKS
 				char *s = NULL;
 			#endif
@@ -1068,9 +1077,13 @@ void KPR_text_formatMarkdown(xsMachine* the)
 						KprTextEndBlock(self);
 					}
 					KprTextBeginBlock(self, optionsRecord.styles[styleHeaderBase + lineRun->shaper - 1], NULL);
+					#if !TARGET_OS_WIN32
 					KprTextConcatText(self, ZERO_WIDTH_SPACE, ZERO_WIDTH_SPACE_LEN);
+					#endif
 					KPR_text_formatMarkdownInline(the, self, &optionsRecord, parser, lineRun);
+					#if !TARGET_OS_WIN32
 					KprTextConcatText(self, ZERO_WIDTH_SPACE, ZERO_WIDTH_SPACE_LEN);
+					#endif
 					KprTextEndBlock(self);
 					formerLine = kprMarkdownParagraphLine;
 					break;

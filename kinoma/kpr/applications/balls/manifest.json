@@ -115,6 +115,14 @@
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 					},
 				},
+				"andro":{
+					"build":{
+						"DEVICE":true,
+					},
+					"extensions":{
+						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+					},
+				},
 				"aspen":{
 					"build":{
 						"DEVICE":true,
@@ -147,7 +155,7 @@
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 					},
 				},
-				"pxa1908":{
+				"iap140":{
 					"build":{
 						"DEVICE":true,
 					},

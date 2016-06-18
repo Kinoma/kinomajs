@@ -58,7 +58,20 @@
 			]]></method>
 		</behavior>
 	</handler>
-	
+
+	<handler path="/settings/allow-cross-domain">
+		<behavior like="SettingHandlerBehavior">
+			<method id="onGet" params="handler, message"><![CDATA[
+				var preferences = getPreferences();
+				return preferences.getPreference("allowCrossDomain", "on");
+			]]></method>
+			<method id="onSet" params="handler, message, it"><![CDATA[
+				var preferences = getPreferences();
+				preferences.setPreference("allowCrossDomain", it);
+				preferences.write();
+			]]></method>
+		</behavior>
+	</handler>	
 	<handler path="/settings/require-password">
 		<behavior like="SettingHandlerBehavior">
 			<method id="onGet" params="handler, message"><![CDATA[

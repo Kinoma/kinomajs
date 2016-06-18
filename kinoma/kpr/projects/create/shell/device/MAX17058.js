@@ -17,14 +17,16 @@
  */
 
 exports.pins = {
-    microUSBCharger: {type: "Digital", direction: "input", pin: 1027}
+    microUSBCharger: {type: "Digital", direction: "input", pin: 1027},
+	miniPower: {type: "Digital", direction:"input", pin: 1018},
+	miniCharger: {type: "Digital", direction:"input", pin: 1024}
 }
 
-exports.configure = function() {
+exports.configure = function( config ) {
     try {
         this.chargingBit0 = PINS.create({type: "Digital", pin: 1000, direction: "input"});
         this.chargingBit1 = PINS.create({type: "Digital", pin: 1001, direction: "input"});
-        this.chargingBit0.init();
+		this.chargingBit0.init();
         this.chargingBit1.init();
         this.hasChargingBits = true;
     }
@@ -34,6 +36,14 @@ exports.configure = function() {
     }
 
     this.microUSBCharger.init();
+
+	if (config.hasMini){
+		this.miniPower.init();
+		this.miniCharger.init();
+		this.hasMini = true;
+	}else{
+		this.hasMini = false;
+	}
 
     // note: init fails if the battery is not charged or not present
     this.gasGauge = undefined;
@@ -50,7 +60,8 @@ exports.read = function() {
         soc: undefined,
         hasChargingBits: this.hasChargingBits,
         chargeState: this.hasChargingBits ? ((this.chargingBit0.read() << 1) | this.chargingBit1.read()) : 0,
-        microUSBCharger: !this.microUSBCharger.read()
+        microUSBCharger: !this.microUSBCharger.read(),
+		miniUSBCharger: this.hasMini ? (!this.miniPower.read() && this.miniCharger.read()) : 0,
     }
 
     if (!this.gasGauge)
@@ -72,7 +83,17 @@ exports.read = function() {
 }
 
 exports.chargerDetect = function() {
-    return !this.microUSBCharger.read();
+	//return !this.microUSBCharger.read();
+	var micro = !this.microUSBCharger.read();
+	if (micro) return micro;
+    return this.hasMini ? (!this.miniPower.read() && this.miniCharger.read()) : 0;
+}
+
+exports.chargerDetectMini = function() {
+	var micro = !this.microUSBCharger.read();
+	if (micro) return micro;
+	sensorUtils.mdelay(100); //miniCharger GPIO takes a moment to stabilize after the miniPower GPIO transition
+    return this.hasMini ? (!this.miniPower.read() && this.miniCharger.read()) : 0;
 }
 
 exports.chargerStatus = function() {
@@ -118,7 +139,7 @@ function gasGauge() {
         trace("Unrecognized gasGauge version " + id + "\n");
         return;
     }
-    
+
     do {
         // Step 1: unlock model access
         ktrace("unlock model access \n");
@@ -165,15 +186,15 @@ function gasGauge() {
         gasGauge.writeWordDataSMB(0x0E, swapWord(ini.OCVTest));
 
         // Step 7.1: Disable Hibernate (N/A on 17058)
-        
+
         // Step 7.2: Lock Model Access
         ktrace("Lock Model Access\n");
         gasGauge.writeWordDataSMB(0x3E, 0);
-        
+
         // Step 8: delay between 150 and 600ms
         ktrace("delay\n");
         sensorUtils.mdelay(150);
-        
+
         // Step 9: read SOC registers to check for expected result
         ktrace("read SOC registers\n");
         var soc = swapWord(gasGauge.readWordDataSMB(0x04));
@@ -198,7 +219,7 @@ function gasGauge() {
     ktrace("restore CONFIG and OCV\n");
     gasGauge.writeWordDataSMB(0x0C, swapWord((ini.RCOMP0 << 8) | 0x1F));
     gasGauge.writeWordDataSMB(0x0E, swapWord(original_OCV));
-    
+
     // Step 11: lock model access
     ktrace("Lock Model Access again\n");
     gasGauge.writeWordDataSMB(0x3E, 0);
@@ -218,7 +239,7 @@ function ktrace(message)
 /*
 
     States:
-    
+
         - no battery detected. or no charge. (power connected)
         - fully charged (power connected)
         - charging (power connected)

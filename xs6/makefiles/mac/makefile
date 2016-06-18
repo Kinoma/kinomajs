@@ -28,6 +28,9 @@ all: debug release
 run:
 	make debug -f xsr6.make
 
+tools:
+	make debug -f tools.make
+
 debug:
 	make debug -f xsc6.make
 	make debug -f xsl6.make

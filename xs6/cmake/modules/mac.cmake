@@ -52,7 +52,20 @@ macro(BUILD)
 		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${APPLICATION}> ${APP_DIR}
 		COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE_DIR:${APPLICATION}>/../Info.plist ${APP_DIR}/../
 		COMMAND ${CMAKE_COMMAND} -E echo "APPLTINY" > ${APP_DIR}/../PkgInfo
+		COMMAND ${CMAKE_COMMAND} -E echo "APPLTINY" > ${BUILD_APP_DIR}/../PkgInfo
 		)
+
+	option(SIGN OFF)
+	if (SIGN)
+		add_custom_target(
+			sign
+			ALL
+			COMMAND codesign -v -f -s "Developer ID" --deep ${APP_DIR}/../..
+			COMMAND codesign -v -f -s "Developer ID" --deep ${BUILD_APP_DIR}/../..
+			DEPENDS ${APPLICATION}
+			VERBATIM
+			)
+	endif ()
 
 	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT[variant=Debug] "dwarf")
 	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT[variant=Release] "dwarf-with-dsym")
@@ -60,4 +73,10 @@ macro(BUILD)
 	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES")
 	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_GCC_SYMBOLS_PRIVATE_EXTERN "YES")
 	set_target_properties(${APPLICATION} PROPERTIES XCODE_ATTRIBUTE_COPY_PHASE_STRIP  "NO")
+
+	if (${CMAKE_INSTALL_PREFIX} STREQUAL "/usr/local")
+		set(CMAKE_INSTALL_PREFIX $ENV{HOME}/Applications)
+	endif ()
+
+	install(TARGETS ${APPLICATION} DESTINATION ${CMAKE_INSTALL_PREFIX})
 endmacro()

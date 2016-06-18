@@ -21,7 +21,7 @@ class File {
 	}
 }
 
-export class MakeFile extends File {
+class MakeFile extends File {
 	constructor(path) {
 		super(path)
 	}
@@ -34,14 +34,18 @@ export class MakeFile extends File {
 		this.line("MC_DIR = ", tool.mcPath);
 		
 		this.line("BIN_DIR = ", tool.binPath);
-		this.line("MOD_DIR = ", tool.modPath);
 		this.line("TMP_DIR = ", tool.tmpPath);
+		this.line("DATA_DIR = ", tool.dataPath);
+		this.line("MOD_DIR = ", tool.modPath);
+		this.line("RESOURCES_DIR = ", tool.resourcesPath);
 		
 		this.write("C_INCLUDES =");
 		this.write("\\\n\t-I$(XS_DIR)/includes");
 		this.write("\\\n\t-I$(XS_DIR)/sources");
 		if (tool.platform == "mac")
 			this.write("\\\n\t-I$(XS_DIR)/sources/tool");
+		else
+			this.write("\\\n\t-I$(XS_DIR)/sources/pcre");
 		this.write("\\\n\t-I$(MC_DIR)");
 		for (var folder of tool.cFolders) {
 			this.write("\\\n\t-I");
@@ -59,6 +63,18 @@ export class MakeFile extends File {
 		this.write("OBJECTS =");
 		for (var result of tool.cFiles) {
 			this.write("\\\n\t$(TMP_DIR)/");
+			this.write(result.target);
+		}	
+		this.line("");
+		this.write("DATA =");
+		for (var result of tool.dataFiles) {
+			this.write("\\\n\t$(DATA_DIR)/");
+			this.write(result.target);
+		}	
+		this.line("");
+		this.write("RESOURCES =");
+		for (var result of tool.resourcesFiles) {
+			this.write("\\\n\t$(RESOURCES_DIR)/");
 			this.write(result.target);
 		}	
 		this.line("");
@@ -82,7 +98,7 @@ export class MakeFile extends File {
 			}
 			else {
 				this.line("$(MOD_DIR)/", target, ": $(TMP_DIR)/", sourceParts.name, ".xsb");
-				this.line("\tcp -p $< $@");
+				this.line("\tcp $< $@");
 				this.line("$(TMP_DIR)/", sourceParts.name, ".xsb: ", source);
 				if (tool.debug)
 					this.line("\t$(XSC) -e -d -c -o $(@D) $<");
@@ -93,14 +109,165 @@ export class MakeFile extends File {
 
 		for (var result of tool.cFiles) {
 			var source = result.source;
-			var sourceParts = tool.splitPath(source);
 			var target = result.target;
-			var targetParts = tool.splitPath(target);
 			this.line("$(TMP_DIR)/", target, ": ", source);
-			this.line("\t$(CC) $< $(C_OPTIONS) $(C_INCLUDES) -o $@");
+			this.line("\t$(CC) $< -c $(C_OPTIONS) $(C_INCLUDES) -o $@");
+		}
+
+		for (var result of tool.dataFiles) {
+			var source = result.source;
+			var target = result.target;
+			this.line("$(DATA_DIR)/", target, ": ", source);
+			this.line("\tcp $< $@");
+		}
+
+		for (var result of tool.resourcesFiles) {
+			var source = result.source;
+			var target = result.target;
+			this.line("$(RESOURCES_DIR)/", target, ": ", source);
+			this.line("\tcp $< $@");
 		}
 	}
 }
+
+class Rule {
+	constructor(tool) {
+		this.tool = tool;
+	}
+	appendFile(files, target, source, include) {
+		if (!files.already[source]) {
+			files.already[source] = true;
+			if (include) {
+				if (!files.find(file => file.target == target))
+					files.push({ target, source });
+			}
+		}
+	}
+	appendFolder(folders, folder) {
+		if (!folders.already[folder]) {
+			folders.already[folder] = true;
+			folders.push(folder);
+		}
+	}
+	appendPath(target, path, include, prefix) {
+	}
+	appendSource(target, source, include, straight) {
+	}
+	appendTarget(target) {
+	}
+	process(property) {
+		var tool = this.tool;
+		for (var target in property) {
+			var sources = property[target];
+			if (target == "~") {
+				if (sources instanceof Array) {
+					for (var source of sources) 
+						this.iterate(target, tool.resolveVariable(source), false);
+				}
+				else
+					this.iterate(target, tool.resolveVariable(sources), false);
+			}
+			else {
+				var slash = target.lastIndexOf("/");
+				if (slash >= 0)
+					this.appendTarget(target.slice(0, slash));
+				var star = target.lastIndexOf("*");
+				if (star >= 0) {
+					target = target.slice(0, star);
+					if (sources instanceof Array) {
+						for (var source of sources) 
+							this.iterate(target, tool.resolveVariable(source), true);
+					}
+					else
+						this.iterate(target, tool.resolveVariable(sources), true);
+				}
+				else {
+					this.appendSource(target, tool.resolveVariable(sources), true, true);
+				}
+			}
+		}
+	}
+	iterate(target, source, include) {
+		var star = source.lastIndexOf("*");
+		if (star >= 0) {
+			var slash = source.lastIndexOf("/");
+			var directory = source.slice(0, slash);
+			var prefix = source.slice(slash + 1, star);
+			var names = FS.readDirSync(directory);
+			var c = names.length;
+			for (var i = 0; i < c; i++) {
+				var name = names[i];
+				if (!prefix || name.startsWith(prefix))
+					this.appendPath(target, directory + "/" + name, include, prefix);
+			}
+		}
+		else {
+			this.appendSource(target, source, include, false);
+		}
+	}
+};
+
+class DataRule extends Rule {
+	appendPath(target, path, include, prefix) {
+		var tool = this.tool;
+		var parts = tool.splitPath(path);
+		this.appendFile(tool.dataFiles, target + parts.name.slice(prefix.length) + parts.extension, path, include);
+	}
+	appendSource(target, source, include, straight) {
+		if (FS.existsSync(source) > 0) {
+			var parts = tool.splitPath(source);
+			this.appendFile(tool.dataFiles, straight ? target : target + parts.name + parts.extension, source, include);
+		}
+	}
+};
+
+class ModulesRule extends Rule {
+	appendPath(target, path, include, prefix) {
+		var tool = this.tool;
+		var parts = tool.splitPath(path);
+		if (parts.extension == ".js")
+			this.appendFile(tool.jsFiles, target + parts.name.slice(prefix.length) + ".xsb", path, include);
+		else if (parts.extension == ".c")
+			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
+		else if (parts.extension == ".h")
+			this.appendFolder(tool.cFolders, parts.directory, include);
+	}
+	appendSource(target, source, include, straight) {
+		var tool = this.tool;
+		var path = source + ".js";
+		if (FS.existsSync(path) > 0) {
+			var parts = tool.splitPath(path);
+			this.appendFile(tool.jsFiles, straight ? target + ".xsb" : target + parts.name + ".xsb", path, include);
+		}
+		var path = source + ".c";
+		if (FS.existsSync(path) > 0) {
+			var parts = tool.splitPath(path);
+			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
+		}
+		var path = source + ".h";
+		if (FS.existsSync(path) > 0) {
+			var parts = tool.splitPath(path);
+			this.appendFolder(tool.cFolders, parts.directory, include);
+		}
+	}
+	appendTarget(target) {
+		this.appendFolder(this.tool.jsFolders, target);
+	}
+};
+
+class ResourcesRule extends Rule {
+	appendPath(target, path, include, prefix) {
+		var tool = this.tool;
+		var parts = tool.splitPath(path);
+		this.appendFile(tool.resourcesFiles, target + parts.name.slice(prefix.length) + parts.extension, path, include);
+	}
+	appendSource(target, source, include, straight) {
+		if (FS.existsSync(source) > 0) {
+			var parts = tool.splitPath(resourcesFiles);
+			this.appendFile(tool.dataFiles, straight ? target : target + parts.name + parts.extension, source, include);
+		}
+	}
+};
 
 var platformNames = {
 	k5: "k5",
@@ -222,8 +389,12 @@ class Tool extends TOOL {
 	filterManifest(manifest) {
 		if (!("build" in manifest))
 			manifest.build = {};
+		if (!("data" in manifest))
+			manifest.data = {};
 		if (!("modules" in manifest))
 			manifest.modules = {};
+		if (!("resources" in manifest))
+			manifest.resources = {};
 		if ("platforms" in manifest) {
 			let platforms = manifest.platforms;
 			for (let name in platforms) {
@@ -264,7 +435,9 @@ class Tool extends TOOL {
 	}
 	filterPlatform(manifest, platform) {
 		this.filterProperties(manifest, platform, "build");
+		this.filterProperties(manifest, platform, "data");
 		this.filterProperties(manifest, platform, "modules");
+		this.filterProperties(manifest, platform, "resources");
 	}
 	filterProperties(manifest, platform, name) {
 		if (name in platform) {
@@ -288,157 +461,6 @@ class Tool extends TOOL {
 			}
 		}
 	}
-	processModules(modules) {
-		for (var target in modules) {
-			var sources = modules[target];
-			if (target == "~") {
-				if (sources instanceof Array) {
-					for (var source of sources) 
-						this.processSource(target, source);
-				}
-				else
-					this.processSource(target, sources);
-			}
-			else {
-				var slash = target.lastIndexOf("/");
-				if (slash >= 0) {
-					var path = target.slice(0, slash);
-					if (!this.jsFolders.already[path]) {
-						this.jsFolders.already[path] = true;
-						this.jsFolders.push(path);
-					}
-				}
-				var star = target.lastIndexOf("*");
-				if (star >= 0) {
-					target = target.slice(0, star);
-					if (sources instanceof Array) {
-						for (var source of sources) 
-							this.processSource(target, source);
-					}
-					else
-						this.processSource(target, sources);
-				}
-				else {
-					var source = this.resolveVariable(sources);
-					var path = source + ".js";
-					if (FS.existsSync(path) > 0) {
-						var parts = this.splitPath(path);
-						if (!this.jsFiles.already[path]) {
-							this.jsFiles.already[path] = true;
-							this.jsFiles.push({
-								target: target + ".xsb",
-								source: path
-							});
-						}
-					}
-					var path = source + ".c";
-					if (FS.existsSync(path) > 0) {
-						var parts = this.splitPath(path);
-						if (!this.cFiles.already[path]) {
-							this.cFiles.already[path] = true;
-							this.cFiles.push({
-								target: parts.name + ".o",
-								source: path
-							});
-						}
-					}
-					var path = source + ".h";
-					if (FS.existsSync(path) > 0) {
-						var parts = this.splitPath(path);
-						var directory = parts.directory;
-						if (!this.cFolders.already[directory]) {
-							this.cFolders.already[directory] = true;
-							this.cFolders.push(directory);
-						}
-					}
-				}
-			}
-		}
-		this.jsFiles.sort((a, b) => a.target.compare(b.target));
-		this.cFiles.sort((a, b) => a.target.compare(b.target));
-	}
-	processSource(target, source) {
-		var include = target != "~";
-		source = this.resolveVariable(source);
-		var star = source.lastIndexOf("*");
-		if (star >= 0) {
-			var slash = source.lastIndexOf("/");
-			var directory = source.slice(0, slash);
-			var prefix = source.slice(slash + 1, star);
-			var names = FS.readDirSync(directory);
-			var c = names.length;
-			for (var i = 0; i < c; i++) {
-				var name = names[i];
-				if (!prefix || name.startsWith(prefix)) {
-					var path = directory + "/" + name;
-					var parts = this.splitPath(path);
-					if (parts.extension == ".js") {
-						if (!this.jsFiles.already[path]) {
-							this.jsFiles.already[path] = true;
-							if (include)
-								this.jsFiles.push({
-									target: target + parts.name.slice(prefix.length) + ".xsb",
-									source: path
-								});
-						}
-					}
-					else if (parts.extension == ".c") {
-						if (!this.cFiles.already[path]) {
-							this.cFiles.already[path] = true;
-							if (include)
-								this.cFiles.push({
-									target: parts.name + ".o",
-									source: path
-								});
-						}
-					}
-					else if (parts.extension == ".h") {
-						if (!this.cFolders.already[directory]) {
-							this.cFolders.already[directory] = true;
-							if (include)
-								this.cFolders.push(directory);
-						}
-					}
-				}
-			}
-		}
-		else {
-			var path = source + ".js";
-			if (FS.existsSync(path) > 0) {
-				var parts = this.splitPath(path);
-				if (!this.jsFiles.already[path]) {
-					this.jsFiles.already[path] = true;
-					if (include)
-						this.jsFiles.push({
-							target: target + parts.name + ".xsb",
-							source: path
-						});
-				}
-			}
-			var path = source + ".c";
-			if (FS.existsSync(path) > 0) {
-				var parts = this.splitPath(path);
-				if (!this.cFiles.already[path]) {
-					this.cFiles.already[path] = true;
-					if (include)
-						this.cFiles.push({
-							target: parts.name + ".o",
-							source: path
-						});
-				}
-			}
-			var path = source + ".h";
-			if (FS.existsSync(path) > 0) {
-				var parts = this.splitPath(path);
-				var directory = parts.directory;
-				if (!this.cFolders.already[directory]) {
-					this.cFolders.already[directory] = true;
-					if (include)
-						this.cFolders.push(directory);
-				}
-			}
-		}
-	}
 	resolveVariable(value) {
 		return value.replace(/\$\(([^\)]+)\)/g, (offset, value) => {
 			if (value in this.environment)
@@ -451,6 +473,8 @@ class Tool extends TOOL {
 		var buffer = FS.readFileSync(path);
 		var manifest = JSON.parse(buffer);
 		this.filterManifest(manifest);
+		this.dataFiles = [];
+		this.dataFiles.already = {};
 		this.jsFiles = [];
 		this.jsFiles.already = {};
 		this.jsFolders = [];
@@ -459,10 +483,14 @@ class Tool extends TOOL {
 		this.cFiles.already = {};
 		this.cFolders = [];
 		this.cFolders.already = {};
-		this.cOptions = [];
-		this.libraries = [];
-		this.linkOptions = [];
-		this.processModules(manifest.modules);
+		this.resourcesFiles = [];
+		this.resourcesFiles.already = {};
+		var rule = new DataRule(this);
+		rule.process(manifest.data);
+		var rule = new ModulesRule(this);
+		rule.process(manifest.modules);
+		var rule = new ResourcesRule(this);
+		rule.process(manifest.resources);
 		if (!this.binPath)
 			this.binPath = this.createDirectories(this.outputPath, "bin", (this.platform == "mac") ? "modules" : "mc");
 		if (!this.tmpPath)
@@ -471,6 +499,16 @@ class Tool extends TOOL {
 		FS.mkdirSync(this.modPath);
 		for (var folder of tool.jsFolders)
 			FS.mkdirSync(this.modPath + "/" + folder);
+		if (this.platform == "mac") {
+			var path = this.resolveVariable("$(HOME)/tmp")
+			FS.mkdirSync(path);
+			this.dataPath = path + "/mc";
+		}
+		else
+			this.dataPath = this.tmpPath + "/fs";
+		FS.mkdirSync(this.dataPath);
+		this.resourcesPath = this.tmpPath + "/resources";
+		FS.mkdirSync(this.resourcesPath);
 		var path = this.tmpPath + "/makefile";
 		var file = new MakeFile(path);
 		file.generate(this);

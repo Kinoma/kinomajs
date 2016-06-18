@@ -922,7 +922,7 @@ static FskErr KprXMPPProcessStreamTLSProceed(KprXMPP self UNUSED, KprXMLElement 
 	FskThreadRemoveDataHandler(&self->socketHandler);
 	bailIfError(FskSSLAttach(&ssl, self->socket));
 	bailIfError(FskSSLLoadCerts(ssl, &cert));
-	bailIfError(FskSSLHandshake(ssl, KprXMPPProcessStreamTLSProceedCallback, self, true));
+	bailIfError(FskSSLHandshake(ssl, KprXMPPProcessStreamTLSProceedCallback, self, true, 0));
 bail:
 	return err;
 }

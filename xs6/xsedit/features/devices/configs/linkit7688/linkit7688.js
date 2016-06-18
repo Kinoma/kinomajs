@@ -165,7 +165,7 @@ Handler.Bind("/network/configure", class extends Behavior {
 
 linkit7688.iconSkin = new Skin({ texture:new Texture("./icon.png", 1), x:0, y:0, width:60, height:60 });
 linkit7688.id = "com.marvell.kinoma.launcher.linkit7688";
-linkit7688.product = "linkit7688";
+linkit7688.product = "MediaTek LinkIt Smart 7688";
 linkit7688.tag = "linkit7688";
 linkit7688.templateTag = "createSample";
 linkit7688.url = this.uri;

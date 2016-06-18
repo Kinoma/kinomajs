@@ -1786,7 +1786,8 @@ var model = shell.behavior = Behavior({
 				var uri = "file://" + this.getLocalPath(path);
 				if (Files.exists(uri)) {
 					try {
-						text = Files.readText(uri);
+					    text = Files.readText(uri);
+					    text = KPR.formatText(text);
 					}
 					catch(e) {
 					}

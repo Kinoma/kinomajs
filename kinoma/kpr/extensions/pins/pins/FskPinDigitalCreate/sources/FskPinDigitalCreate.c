@@ -188,7 +188,7 @@ FskErr createFrontDigitalWrite(FskPinDigital pin, Boolean value)
 	err = FskPinI2CSetAddress(cfd->i2c, cfd->address);
 	if (err) return err;
 
-	err = FskPinI2CReadDataByte(cfd->i2c, FFDIGITALIN, &b);
+	err = FskPinI2CReadDataByte(cfd->i2c, FFDIGITALOUT, &b);
 	if (err) return err;
 
 	if (value)

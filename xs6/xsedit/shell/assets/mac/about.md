@@ -15,7 +15,7 @@
 |     limitations under the License.
 -->
 # About Kinoma Code
-**Version $VERSION - Build $CORE_VERSION**
+**MacOS Version $VERSION - Build $CORE_VERSION**
 
 ### What's New
 

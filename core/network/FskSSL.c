@@ -482,9 +482,13 @@ time_callback(FskTimeCallBack callback, const FskTime time, void *param)
 	fssl->timer = NULL;
 	skt = fssl->skt;
 	refCon = fssl->callbackData;
-	if (fssl->skt == NULL)		/* check if some error has occurred and dispose everything here in that case as there's no chance to do after this point */
+	if (fssl->skt == NULL) {	/* check if some error has occurred and dispose everything here in that case as there's no chance to do after this point */
+		FskNetSocketCreatedCallback socketCallback = fssl->socketCallback;
 		FskSSLDispose(fssl);
-	(*fssl->socketCallback)(skt, refCon);
+		(*socketCallback)(NULL, refCon);
+	}
+	else
+		(*fssl->socketCallback)(skt, refCon);
 	/* nothing should be here! */
 }
 
@@ -679,7 +683,7 @@ FskSSLLoadCerts(void *a, FskSocketCertificateRecord *cert)
 }
 
 FskErr
-FskSSLHandshake(void *a, FskNetSocketCreatedCallback callback, void *refCon, Boolean initiate)
+FskSSLHandshake(void *a, FskNetSocketCreatedCallback callback, void *refCon, Boolean initiate, int timeout)
 {
 	FskSSL *fssl = a;
 	FskErr err = kFskErrNone;
@@ -698,7 +702,7 @@ FskSSLHandshake(void *a, FskNetSocketCreatedCallback callback, void *refCon, Boo
 		xsSet(fssl->ssl, xsID("_hostData"), xsVar(0));
 		xsVar(0) = xsNewHostFunction(xs_handshake_finished_callback, 2);
 		xsSet(fssl->ssl, xsID("_hostCallback"), xsVar(0));
-		xsCall3_noResult(fssl->ssl, xsID("handshake"), fssl->socket, xsVar(0), initiate ? xsTrue : xsFalse);
+		xsCall4_noResult(fssl->ssl, xsID("handshake"), fssl->socket, xsVar(0), initiate ? xsTrue : xsFalse, xsInteger(timeout));
 	} xsCatch {
 		if (xsHas(xsException, xsID("code")))
 			err = xsToInteger(xsGet(xsException, xsID("code")));
@@ -878,3 +882,128 @@ void FskSSLTerminate() {
 	disposeSSLRootVM();
 #endif
 }
+
+#if CLOSED_SSL
+#include "FskMain.h"
+
+/*
+	Timer
+*/
+static void xs_Timer_callback(struct FskTimeCallBackRecord *callback, const FskTime time, void *param);
+
+typedef struct {
+	FskTimeCallBack	timer;
+	xsSlot			obj;
+	FskECMAScript	vm;
+	Boolean			repeating;
+	UInt32			interval;
+	FskTimeRecord	scheduleTime;
+} xsNativeTimerRecord, *xsNativeTimer;
+
+void xs_Timer(xsMachine *the)
+{
+	FskErr err;
+	xsNativeTimer nt;
+
+	err = FskMemPtrNew(sizeof(xsNativeTimerRecord), &nt);
+	if (err) {
+		FskMainDoQuit(err);
+		xsResult = xsNew1(xsGet(xsGet(xsGlobal, xsID("Fsk")), xsID("Error")), xsID("Native"), xsInteger(err));
+		xsThrow(xsResult);
+	}
+	xsSetHostData(xsThis, nt);
+	nt->obj = xsThis;
+	nt->vm = (FskECMAScript)xsGetContext(the);
+
+	if ((0 == xsToInteger(xsArgc)) || !xsTest(xsArg(0)))
+		FskTimeCallbackNew(&nt->timer);
+	else
+		FskTimeCallbackUINew(&nt->timer);
+}
+
+void xs_Timer_destuctor(void *hostData)
+{
+	if (hostData) {
+		xsNativeTimer nt = (xsNativeTimer)hostData;
+		FskTimeCallbackDispose(nt->timer);
+		FskMemPtrDispose(nt);
+	}
+}
+
+void xs_Timer_close(xsMachine *the)
+{
+	xsNativeTimer nt = (xsNativeTimer)xsGetHostData(xsThis);
+	FskTimeCallbackDispose(nt->timer);
+	nt->timer = NULL;
+}
+
+void xs_Timer_schedule(xsMachine *the)
+{
+	xsNativeTimer nt = (xsNativeTimer)xsGetHostData(xsThis);
+	FskTimeRecord when;
+
+	if (NULL == nt->timer) return;
+
+	nt->repeating = false;
+	FskTimeGetNow(&when);
+	nt->scheduleTime = when;
+	FskTimeAddMS(&when, xsToInteger(xsArg(0)));
+
+	FskTimeCallbackSet(nt->timer, &when, xs_Timer_callback, nt);
+}
+
+void xs_Timer_scheduleRepeating(xsMachine *the)
+{
+	xsNativeTimer nt = (xsNativeTimer)xsGetHostData(xsThis);
+	FskTimeRecord when;
+
+	if (NULL == nt->timer) return;
+
+	nt->repeating = true;
+	nt->interval = xsToInteger(xsArg(0));
+	FskTimeGetNow(&when);
+	nt->scheduleTime = when;
+	if (nt->interval) {
+		FskTimeAddMS(&when, nt->interval);
+		FskTimeCallbackSet(nt->timer, &when, xs_Timer_callback, nt);
+	}
+	else
+		FskTimeCallbackScheduleNextRun(nt->timer, xs_Timer_callback, nt);
+}
+
+void xs_Timer_cancel(xsMachine *the)
+{
+	xsNativeTimer nt = (xsNativeTimer)xsGetHostData(xsThis);
+	if (NULL == nt->timer) return;
+	FskTimeCallbackRemove(nt->timer);
+	nt->repeating = false;
+}
+
+void xs_Timer_callback(struct FskTimeCallBackRecord *callback, const FskTime time, void *param)
+{
+	xsNativeTimer nt = (xsNativeTimer)param;
+	xsMachine *the = nt->vm->the;
+	FskTimeRecord delta;
+
+	xsBeginHost(the); {
+		xsTry {
+			FskTimeGetNow(&delta);
+			FskTimeSub(&nt->scheduleTime, &delta);
+			xsCall1_noResult(nt->obj, xsID("onCallback"), xsInteger(FskTimeInMS(&delta)));
+		}
+		xsCatch {		// try/catch so that if callback throws an error we will still do the repeat
+		}
+
+		if (nt->timer && nt->repeating) {
+			if (nt->interval) {
+				FskTimeRecord when = *time;		// this will give us a non-drifting clock
+				FskTimeAddMS(&when, nt->interval);
+				FskTimeCallbackSet(nt->timer, &when, xs_Timer_callback, nt);
+			}
+			else
+				FskTimeCallbackScheduleNextRun(nt->timer, xs_Timer_callback, nt);
+		}
+	}
+	xsEndHost(the);
+}
+#endif

@@ -973,8 +973,11 @@
                     battery: {
                         require: "MAX17058",
                         pins: {
-                            microUSBCharger: {}
-                        }
+                            microUSBCharger: {},
+							miniPower: {},
+							miniCharger: {},
+                        },
+						hasMini: K4.is8887(),
                     },
                     backlight: {
                         require: "backlight",
@@ -994,6 +997,8 @@
 //          this.data.battery.history = getPreferences().getPreference("batteryHistory", []);
             shell.invoke(new Message("/battery/read"));
             shell.invoke(new MessageWithObject("pins:/battery/chargerDetect?repeat=on&callback=/battery/charger&timer=microUSBCharger"));
+			if (K4.is8887()) shell.invoke(new MessageWithObject("pins:/battery/chargerDetectMini?repeat=on&callback=/battery/charger&timer=miniPower"));
+
 
 //            chargerStatus = 0;
 //            chargerStatusTime = Date.now();

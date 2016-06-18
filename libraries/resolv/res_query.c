@@ -454,8 +454,10 @@ res_hostalias(const res_state statp, const char *name, char *dst, size_t siz) {
 
 	if (statp->options & RES_NOALIASES)
 		return (NULL);
+#if !ANDRO
 	if (issetugid())
 		return (NULL);
+#endif
 	file = getenv("HOSTALIASES");
 	if (file == NULL || (fp = fopen(file, "r")) == NULL)
 		return (NULL);

@@ -17,6 +17,7 @@
 #define __FSKWINDOW_PRIV__
 #define __FSKBITMAP_PRIV__
 
+#include "FskFiles.h"
 #include "FskWindow.h"
 #include "FskGtkWindow.h"
 
@@ -61,12 +62,35 @@ struct menuItemsRecord {
 
 struct menuBarsRecord {
 	menuBars		next;
+	FskGtkWindow	win;
 	GtkWidget		*item;
 	FskList			menulist;
 	int 			id;
 };
 
-///   gtk_threads functions start ///
+void update_menu(FskGtkWindow win, menuBars menu)
+{
+	FskEvent fskEvent;
+	menuItems items = NULL;
+	for (items = (menuItems)menu->menulist; items != NULL; items = items->next) {
+		int id = items->id;
+		if (kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuStatus, NULL, kFskEventModifierNotSet)) {
+			FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(id), &id);
+			FskWindowEventSend(win->owner, fskEvent);
+			FskWindowCheckEvents();
+		}
+	}
+}
+
+void update_menubar(FskGtkWindow win)
+{
+	menuBars menu = win->menu;
+	while (menu) {
+		update_menu(win, menu);
+		menu = menu->next;
+	}
+}
+
 ////////////// Event Handlers /////////////////
 /*
  * Note: event handler for GTK return:
@@ -146,8 +170,27 @@ static gboolean on_button_release(GtkWidget *widget, GdkEventButton *event, gpoi
 	return TRUE;
 }
 
-// TODO: here are one issue, for example, input: SHIFT+A in KPR app
-//  So the event handler should be modified
+static gboolean on_configure_event_cb(GtkWidget *widget, GdkEventConfigure *event, gpointer data)
+{
+	FskGtkWindow win = (FskGtkWindow)data;
+
+	// TODO: win->menuStatus && 
+	gdk_threads_enter();
+	if(((event->width != win->width) || (event->height != win->height))) {
+		win->width = event->width;
+		win->height = event->height;
+
+		FskEvent fskEvent;
+		if(kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowBeforeResize, NULL, kFskEventModifierNotSet)) {
+			FskWindowEventQueue(win->owner, fskEvent);
+			FskWindowCheckEvents();
+		}
+	}
+	gdk_threads_leave();
+
+	return TRUE;
+}
+
 static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
 	FskEvent fskEvent;
@@ -159,6 +202,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer dat
 		if(event->is_modifier) {
 			UInt32 funcKey = event->keyval & 0xFFFF;
 			FskEventParameterAdd(fskEvent, kFskEventParameterFunctionKey, sizeof(funcKey), &funcKey);
+			update_menubar(win);
 		} else {
 			if(event->keyval < 0xFF) {
 				key[0] = (char)event->keyval;
@@ -235,7 +279,43 @@ static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event, gpointer d
 	return FALSE;
 }
 
-static gboolean motion_notify(GtkWidget *widget, GdkEventMotion *event, gpointer data)
+static gboolean on_menu_press_cb(GtkWidget* widget, GdkEvent* event, gpointer data)
+{
+	menuBars menu = data;
+	gdk_threads_enter();
+	update_menu(menu->win, menu);
+	gdk_threads_leave();
+	return FALSE;
+}
+
+static void on_menu_select_cb(GtkWidget *widget, gpointer data)
+{
+	FskEvent fskEvent;
+	menuItems selected = (menuItems)data;
+	FskGtkWindow win;
+
+	//Have to check firstly since radio item will emit two signals
+	if (selected == NULL)
+		return;
+	win = selected->win;
+	if (win->menuStatus == false)
+		return;
+
+	gdk_threads_enter();
+
+	if (GTK_IS_CHECK_MENU_ITEM(selected->item) && !gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(selected->item)))
+		return;
+	if (kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuCommand, NULL, kFskEventModifierNotSet)) {
+		SInt32 command = selected->id;
+		FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(command), &command);
+		FskWindowEventQueue(selected->win->owner, fskEvent);
+		FskWindowCheckEvents();
+	}
+
+	gdk_threads_leave();
+}
+
+static gboolean on_motion_notify(GtkWidget *widget, GdkEventMotion *event, gpointer data)
 {
 	FskEvent fskEvent;
 	FskGtkWindow win = (FskGtkWindow)data;
@@ -258,14 +338,14 @@ static gboolean motion_notify(GtkWidget *widget, GdkEventMotion *event, gpointer
 	return TRUE;
 }
 
-static gboolean scroll_cb(GtkWidget *widget, GdkEventScroll *event, gpointer data)
+static gboolean on_scroll_cb(GtkWidget *widget, GdkEventScroll *event, gpointer data)
 {
 	FskEvent fskEvent;
 	FskGtkWindow win = (FskGtkWindow)data;
 	double dx, dy;
 	float deltaX, deltaY;
 	
-	if (gdk_event_get_scroll_deltas(event, &dx, &dy)) {
+	if (gdk_event_get_scroll_deltas((GdkEvent*)event, &dx, &dy)) {
 		deltaX = (float)dx;
 		deltaY = (float)dy;
 	}
@@ -284,119 +364,17 @@ static gboolean scroll_cb(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 
 	return TRUE;
 }
-///   gtk_threads functions End ///
-
-// The following two callbacks can be called in both threads!!!
-// Event handler for window size/position changed
-// main thread: called from 'FskGtkWindowShow' and then trig event in GTK internally.
-// gtk_thread: called from gtk_main (event)
-static gboolean configure_event_cb(GtkWidget *widget, GdkEventConfigure *event, gpointer data)
-{
-	FskGtkWindow win = (FskGtkWindow)data;
-
-	// TODO: win->menuStatus && 
-	gdk_threads_enter();
-	if(((event->width != win->width) || (event->height != win->height))) {
-		win->width = event->width;
-		win->height = event->height;
-
-		FskEvent fskEvent;
-		if(kFskErrNone == FskEventNew(&fskEvent, kFskEventWindowBeforeResize, NULL, kFskEventModifierNotSet)) {
-			FskWindowEventQueue(win->owner, fskEvent);
-			FskWindowCheckEvents();
-		}
-	}
-	gdk_threads_leave();
-
-	return TRUE;
-}
-
-// main thread: call from FskGtkWindowSetMenuItemStatus
-// gtk_thread: gtk_main
-static void menu_select_cb(GtkWidget *widget, gpointer data)
-{
-	FskEvent fskEvent;
-	menuItems selected = (menuItems)data;
-	FskGtkWindow win;
-	menuBars entryBar;
-	menuItems items = NULL;
-	int groupID;
-
-	//Have to check firstly since radio item will emit two signals
-	if(selected == NULL)
-		return;
-	win = selected->win;
-	if(win->menuStatus == false)
-		return;
-	gdk_threads_enter();
-	if(GTK_IS_CHECK_MENU_ITEM(selected->item) && !gtk_check_menu_item_get_active(GTK_CHECK_MENU_ITEM(selected->item)))
-		return;
-	if(kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuCommand, NULL, kFskEventModifierNotSet)) {
-		SInt32 command = selected->id;
-		FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(command), &command);
-		FskWindowEventQueue(selected->win->owner, fskEvent);
-		FskWindowCheckEvents();
-	}
-
-	// FIXME: actually, we should do this operations in event like menubar popup, but I do not find suitable event till now
-	// So just put them here!!!
-	groupID = selected->id & 0xFF00;
-	entryBar = win->menu;
-
-	while(entryBar) {
-		if(entryBar->id == groupID) {
-			break;
-		}
-
-		entryBar = entryBar->next;
-	}
-	if(entryBar) {
-		for(items = (menuItems)entryBar->menulist; items != NULL; items = items->next) {
-			int id = items->id;
-			if(kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuStatus, NULL, kFskEventModifierNotSet)) {
-				FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(id), &id);
-				FskWindowEventSend(win->owner, fskEvent);
-				FskWindowCheckEvents();
-			}
-		}
-	}
-	gdk_threads_leave();
-}
-
-gboolean leave_cb(GtkWidget* widget, GdkEvent* event, gpointer data)
-{
-	FskEvent fskEvent;
-	FskGtkWindow win = data;
-	menuBars menu = win->menu;
-	menuItems items = NULL;
-	
-	gdk_threads_enter();
-	
-	while (menu) {
-		for (items = (menuItems)menu->menulist; items != NULL; items = items->next) {
-			int id = items->id;
-			if (kFskErrNone == FskEventNew(&fskEvent, kFskEventMenuStatus, NULL, kFskEventModifierNotSet)) {
-				FskEventParameterAdd(fskEvent, kFskEventParameterCommand, sizeof(id), &id);
-				FskWindowEventSend(win->owner, fskEvent);
-				FskWindowCheckEvents();
-			}
-		}
-		menu = menu->next;
-	}
-	gdk_threads_leave();
-	return TRUE;
-}
-
-gboolean window_state_cb(GtkWidget* widget, GdkEvent* event, gpointer data)
+static gboolean window_state_cb(GtkWidget* widget, GdkEvent* event, gpointer data)
 {
 	FskWindow fskWindow = (FskWindow)data;
-	GdkEventWindowState* eventWindowState = event;
+	GdkEventWindowState* eventWindowState = (GdkEventWindowState*)event;
 	FskEvent fskEvent;
 
-	if (fskWindow == NULL) return;
+	if (fskWindow == NULL) return FALSE;
 	if (FskEventNew(&fskEvent, (eventWindowState->new_window_state & GDK_WINDOW_STATE_FOCUSED) ? kFskEventWindowActivated : kFskEventWindowDeactivated, NULL, kFskEventModifierNotSet) == kFskErrNone)
 		FskWindowEventSend(fskWindow, fskEvent);
 		FskWindowCheckEvents();
+	return TRUE;
 }
 
 ////////////// Main and Init /////////////////
@@ -407,6 +385,9 @@ static void FskGtkWindowInit(void *refcon)
 	GtkWidget		*win;
 	GdkPixbuf		*iconBuf;
 
+	// Ubuntu Unity prevent signals to reach menu inside menubars. Disable it!
+	setenv("UBUNTU_MENUPROXY", "0", true);
+	
 	// Start GTK special initialization
 	XInitThreads(); //fix a xcb issue happened when using multithread gtk, see http://stackoverflow.com/a/18690540/472927
 	gtk_init(NULL, NULL);
@@ -453,16 +434,17 @@ static void FskGtkWindowInit(void *refcon)
 	g_signal_connect(win, "window-state-event", G_CALLBACK(window_state_cb), fskWindow);
 
 	// If want to resize draw-area, it will be the event receiver.
-	g_signal_connect(gtkWin->da, "configure-event", 	G_CALLBACK(configure_event_cb), gtkWin);
+	g_signal_connect(gtkWin->da, "configure-event", 	G_CALLBACK(on_configure_event_cb), gtkWin);
 	g_signal_connect(gtkWin->da, "draw", 				G_CALLBACK(draw_callback), gtkWin);
 	g_signal_connect(gtkWin->da, "button-press-event", 	G_CALLBACK(on_button_press), gtkWin);
 	g_signal_connect(gtkWin->da, "button-release-event",G_CALLBACK(on_button_release), gtkWin);
-	g_signal_connect(gtkWin->da, "motion-notify-event", G_CALLBACK(motion_notify), gtkWin);
-	g_signal_connect(gtkWin->da, "leave-notify-event", G_CALLBACK(leave_cb), gtkWin);
-	g_signal_connect(gtkWin->da, "scroll-event", G_CALLBACK(scroll_cb), gtkWin);
+	g_signal_connect(gtkWin->da, "motion-notify-event", G_CALLBACK(on_motion_notify), gtkWin);
+	g_signal_connect(gtkWin->da, "scroll-event", G_CALLBACK(on_scroll_cb), gtkWin);
 
-	gtk_box_pack_start(GTK_BOX(gtkWin->vbox), gtkWin->menubar, FALSE, FALSE, 0);
+	gtk_box_pack_start(GTK_BOX(gtkWin->vbox), gtkWin->menubar, FALSE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(gtkWin->vbox), gtkWin->da, TRUE, TRUE, 0); // Set all to true!
+	
+	gtk_widget_show_all(win);
 }
 
 FskErr FskGtkWindowCreate(FskWindow fskWindow, UInt32 style, SInt32 width, SInt32 height)
@@ -637,18 +619,20 @@ FskErr FskGtkWindowBitmapDispose(FskGtkWindow win)
 }
 
 ////////////// Menu processing /////////////////
-void FskGtkWindowSetMenuBar(FskGtkWindow win, GtkWidget* menuBar, int id)
+void FskGtkWindowSetMenuBar(FskGtkWindow win, GtkWidget* menu, int id)
 {
 	menuBars entryBar = NULL;
 
-	gtk_menu_shell_append(GTK_MENU_SHELL(win->menubar), menuBar);
+	gtk_menu_shell_append(GTK_MENU_SHELL(win->menubar), menu);
 
 	if(kFskErrNone == FskMemPtrNewClear(sizeof(menuBarsRecord), (FskMemPtr*)&entryBar)) {
-		entryBar->item 	= menuBar;
-		entryBar->id   	= id & 0xFF00;		// id for the whole group
+		entryBar->win  = win;
+		entryBar->item = menu;
+		entryBar->id   = id & 0xFF00;		// id for the whole group
 		entryBar->menulist = NULL;
 
 		FskListAppend(&win->menu, entryBar);
+		g_signal_connect(menu, "button-press-event", G_CALLBACK(on_menu_press_cb), entryBar);
 	}
 }
 
@@ -708,7 +692,7 @@ void FskGtkWindowSetMenuItemCallback(FskGtkWindow win, GtkWidget* menuItem, int 
 		}
 		if(entryBar) {
 			FskListAppend(&entryBar->menulist, entry);
-			g_signal_connect(menuItem, "activate", G_CALLBACK(menu_select_cb), (gpointer)entry);
+			g_signal_connect(menuItem, "activate", G_CALLBACK(on_menu_select_cb), (gpointer)entry);
 		}
 		FskMutexRelease(win->menuMutex);
 	}
@@ -756,4 +740,77 @@ void FskGtkWindowSetDialog(FskGtkWindow win, GtkMessageType type, const char* ti
   Design consideration:
    1. GTK+, however, is not thread safe. You should only use GTK+ and GDK from the thread gtk_init() and gtk_main() were called on. This is usually referred to as the “main thread” -- our *gtk_thread*
 */
+extern FskErr KprURLToPath(char* url, char** path);
 
+FskDragDropTargetProc gDropTargetProc = NULL;
+
+void on_drag_data_received(GtkWidget* widget, GdkDragContext* context, gint x, gint y, GtkSelectionData *data, guint info, guint time, gpointer user_data)
+{
+	FskGtkWindow gtkWin = user_data;
+	gboolean dnd_success = FALSE;
+	FskDragDropFile dropFileList = NULL;
+	FskDragDropFile droppedFile = NULL;
+	char* path = NULL;
+	if (gdk_drag_context_get_suggested_action(context) == GDK_ACTION_COPY) {
+		char* string = (char*)gtk_selection_data_get_data(data);
+		char* end;
+		FskFileInfo itemInfo;
+		for (end = FskStrStr(string, "\r\n"); end; end = FskStrStr(string, "\r\n")) {
+			BAIL_IF_ERR(FskMemPtrNewClear(sizeof(FskDragDropFileRecord), (FskMemPtr*)&droppedFile));
+			FskListAppend((FskList *)&dropFileList, droppedFile);
+			*end = 0;
+			BAIL_IF_ERR(KprURLToPath(string, &path));
+			BAIL_IF_ERR(FskFileGetFileInfo(path, &itemInfo));
+			if (itemInfo.filetype == kFskDirectoryItemIsDirectory) {
+				int length = FskStrLen(path);
+				BAIL_IF_ERR(FskMemPtrNew(length + 2, &droppedFile->fullPathName));
+				FskMemCopy(droppedFile->fullPathName, path, length);
+				droppedFile->fullPathName[length] = '/';
+				droppedFile->fullPathName[length + 1] = 0;
+				FskMemPtrDispose(path);
+			}
+			else {
+				droppedFile->fullPathName = path;
+			}
+			path = NULL;
+			string = end + 2;
+			*end = '\r';
+		}
+		(*gDropTargetProc)(kFskDragDropTargetEnterWindow, x, y, dropFileList, gtkWin->owner);
+		(*gDropTargetProc)(kFskDragDropTargetDropInWindow, x, y, dropFileList, gtkWin->owner);
+		dnd_success = TRUE;
+	}
+bail:
+	gtk_drag_finish(context, dnd_success, TRUE, time);
+	FskMemPtrDispose(path);
+	while (NULL != dropFileList) {
+		droppedFile = dropFileList;
+		FskListRemove((FskList *)&dropFileList, droppedFile);
+		FskMemPtrDispose(droppedFile->fullPathName);
+		FskMemPtrDispose(droppedFile);
+	}
+}
+
+void FskGtkDragDropWindowRegister(FskWindow fskWindow, FskDragDropTargetProc dropTargetProc)
+{
+	FskGtkWindow gtkWin = (FskGtkWindow)fskWindow->gtkWin;
+	gtkWin->dropTargetProc = dropTargetProc;
+	gDropTargetProc = dropTargetProc;
+	gdk_threads_enter();
+	gtk_drag_dest_set(GTK_WIDGET(gtkWin->vbox), GTK_DEST_DEFAULT_ALL, NULL, 0, GDK_ACTION_COPY);
+	gtk_drag_dest_add_text_targets(GTK_WIDGET(gtkWin->vbox));
+	gtk_drag_dest_add_uri_targets(GTK_WIDGET(gtkWin->vbox));
+	g_signal_connect(G_OBJECT(gtkWin->vbox), "drag-data-received", G_CALLBACK(on_drag_data_received), gtkWin);
+	gdk_threads_leave();
+	return;
+}
+
+void FskGtkDragDropWindowUnregister(FskWindow fskWindow)
+{
+	FskGtkWindow gtkWin = (FskGtkWindow)fskWindow->gtkWin;
+	gDropTargetProc = NULL;
+	gdk_threads_enter();
+	gtk_drag_dest_unset(GTK_WIDGET(gtkWin->vbox));
+	gdk_threads_leave();
+	return;
+}

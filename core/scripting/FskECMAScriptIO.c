@@ -1707,7 +1707,7 @@ static void xscSocketStreamStartTLS(xsMachine *the, FskSocketCertificateRecord *
 	if (err == kFskErrNone) {
 		if (cert != NULL)
 			FskSSLLoadCerts(aStreamPtr->ssl, cert);
-		err = FskSSLHandshake(aStreamPtr->ssl, xscSocketStreamSSLCallback, aStreamPtr, true);
+		err = FskSSLHandshake(aStreamPtr->ssl, xscSocketStreamSSLCallback, aStreamPtr, true, 0);
 	}
 	else
 		/* reattach anyway */

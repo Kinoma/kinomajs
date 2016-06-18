@@ -1306,7 +1306,7 @@
 						title : "Debugging",
 						items : [
 							{ Line : AllowDebuggingLine, label : "Allow Debugging", value : "on" },
-							{ Line : AllowCrossDomainLine, label : "Allow Cross-domain access", action : "/password", description : "For example this allows a web page to upload data to your Kinoma Create." },
+							{ Line : AllowCrossDomainLine, label : "Allow Cross-domain access", action : "/allow-cross-domain", description : "For example this allows a web page to upload data to your Kinoma Create." },
 							{ Line : RequirePasswordLine, label : "Require Password", value : "on" },
 							{ Line : PasswordLine, label : "Password", action : "/password", description : "The password restricts which computers are allowed to connect to Kinoma Create from Kinoma Studio." },
 						],

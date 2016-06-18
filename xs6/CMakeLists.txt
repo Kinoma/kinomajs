@@ -63,7 +63,9 @@ set(XSC ${XS6_TOOLS_BIN}/xsc6)
 set(XSL ${XS6_TOOLS_BIN}/xsl6)
 
 option(MC "Build MC" OFF)
-if(NOT MC)
+if(MC)
+	unset(MC_FLAG)
+else()
 	set(MC_FLAG EXCLUDE_FROM_ALL)
 endif()
 

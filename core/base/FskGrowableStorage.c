@@ -1041,6 +1041,28 @@ FskGrowableArrayGetPointerToLastItem(FskGrowableArray array, void **pPtr)
 }
 
 
+/********************************************************************************
+ * FskGrowableArrayGetArray
+ ********************************************************************************/
+
+void*
+FskGrowableArrayGetArray(FskGrowableArray array, UInt32 *size) {
+	if (array)	{ if (size)	*size = array->numItems;	return array->storage.storage;	}
+	else		{ if (size)	*size = 0;					return NULL;					}
+}
+
+
+/********************************************************************************
+ * FskGrowableArrayGetConstArray
+ ********************************************************************************/
+
+const void*
+FskGrowableArrayGetConstArray(FskConstGrowableArray array, UInt32 *size) {
+	if (array)	{ if (size)	*size = array->numItems;	return array->storage.storage;	}
+	else		{ if (size)	*size = 0;					return NULL;					}
+}
+
+
 #if 0
 #pragma mark -
 #endif /* 0 */

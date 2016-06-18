@@ -46,6 +46,7 @@ const extension_type = {
 	tls_trusted_ca_keys: 3,
 	tls_trusted_hmac: 4,
 	tls_status_request: 5,
+	tls_application_layer_protocol_negotiation: 16,
 };
 
 function handshakeDigestUpdate(session, msg)
@@ -290,6 +291,18 @@ var handshakeProtocol = {
 						if (j > 4)
 							j = 4;
 						es.writeChar(j);
+						break;
+					case extension_type.tls_application_layer_protocol_negotiation:
+						var len = 0;
+						for (var j = 0; j < ext.length; j++)
+							len += ext[j].length + 1;
+						es.writeChars(2 + len);
+						es.writeChars(len, 2);
+						for (var j = 0; j < ext.length; j++) {
+							var name = ext[j];
+							es.writeChars(name.length, 1);
+							es.writeString(name);
+						}
 						break;
 					default:
 						// not supported yet

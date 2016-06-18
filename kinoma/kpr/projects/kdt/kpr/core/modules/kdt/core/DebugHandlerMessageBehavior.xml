@@ -36,10 +36,13 @@
                     this.processMessage( handler, message, new MessageParams( message ) );
                     
                     // add cross-domain policy headers
-                    message.setResponseHeader( "Access-Control-Allow-Origin", "*" );                    
-                    message.setResponseHeader( "Access-Control-Allow-Methods", "GET,POST,PUT,DELETE" ); 
-                    message.setResponseHeader( "Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization" ); 
-                    message.setResponseHeader( "Access-Control-Allow-Credentials", "true" );
+                    if( getBehavior().getPreferences().getPreference( "allowCrossDomain", "on" ) == "on" )
+                    { 
+                        message.setResponseHeader( "Access-Control-Allow-Origin", "*" );                    
+                        message.setResponseHeader( "Access-Control-Allow-Methods", "GET,POST,PUT,DELETE" ); 
+                        message.setResponseHeader( "Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization" ); 
+                        message.setResponseHeader( "Access-Control-Allow-Credentials", "true" );
+                    }
 
                     if( message.status == 0 && message.responseText == null )
                         this.handleDefaultMessageResponse( handler, message );

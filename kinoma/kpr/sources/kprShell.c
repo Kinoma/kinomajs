@@ -25,6 +25,7 @@
 #include "FskHardware.h"
 #include "FskMain.h"
 #include "FskTextConvert.h"
+#include "FskUUID.h"
 #ifdef KPR_CONFIG
 #include "FskSSL.h"
 #endif
@@ -1954,15 +1955,27 @@ void KPR_shell_get_url(xsMachine* the)
 void KPR_shell_get_windowState(xsMachine *the)
 {
 	KprShell self = xsGetHostData(xsThis);
+#if TARGET_OS_WIN32
+	WINDOWPLACEMENT placement;
+	placement.length = sizeof(WINDOWPLACEMENT);
+	GetWindowPlacement(self->window->hwnd, &placement);
+	xsResult = xsNewInstanceOf(xsObjectPrototype);
+	xsNewHostProperty(xsResult, xsID("show"), xsInteger(placement.showCmd), xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID("xMin"), xsInteger(placement.ptMinPosition.x), xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID("yMin"), xsInteger(placement.ptMinPosition.y), xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID("xMax"), xsInteger(placement.ptMaxPosition.x), xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID("yMax"), xsInteger(placement.ptMaxPosition.y), xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID("left"), xsInteger(placement.rcNormalPosition.left), xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID("right"), xsInteger(placement.rcNormalPosition.right), xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID("top"), xsInteger(placement.rcNormalPosition.top), xsDefault, xsDontScript);
+	xsNewHostProperty(xsResult, xsID("bottom"), xsInteger(placement.rcNormalPosition.bottom), xsDefault, xsDontScript);
+#else
 	Boolean zoomed = true;
 	SInt32 x, y;
 	UInt32 width, height;
 #if TARGET_OS_MAC && !TARGET_OS_IPHONE
 	FskCocoaWindowIsZoomed(self->window, &zoomed);
 	if (zoomed) FskCocoaWindowZoom(self->window);
-#elif TARGET_OS_WIN32
-	zoomed = IsZoomed(self->window->hwnd);
-	if (zoomed) ShowWindow(self->window->hwnd, SW_RESTORE);
 #endif
 	FskWindowGetLocation(self->window, &x, &y);
 	FskWindowGetSize(self->window, &width, &height);
@@ -1972,6 +1985,7 @@ void KPR_shell_get_windowState(xsMachine *the)
 	xsNewHostProperty(xsResult, xsID_y, xsInteger(y), xsDefault, xsDontScript);
 	xsNewHostProperty(xsResult, xsID_width, xsInteger(width), xsDefault, xsDontScript);
 	xsNewHostProperty(xsResult, xsID_height, xsInteger(height), xsDefault, xsDontScript);
+#endif
 }
 
 void KPR_shell_get_windowTitle(xsMachine *the)
@@ -1987,7 +2001,7 @@ void KPR_shell_get_windowTitle(xsMachine *the)
 
 void KPR_shell_set_acceptFiles(xsMachine* the)
 {
-#if (TARGET_OS_MAC && !TARGET_OS_IPHONE) || TARGET_OS_WIN32
+#if (TARGET_OS_MAC && !TARGET_OS_IPHONE) || TARGET_OS_WIN32 || (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
 	KprShell self = xsGetHostData(xsThis);
 	if (xsTest(xsArg(0))) {
 		FskWindowRequestDragDrop(self->window);
@@ -2056,26 +2070,39 @@ void KPR_shell_set_touchMode(xsMachine* the)
 void KPR_shell_set_windowState(xsMachine *the)
 {
 	KprShell self = xsGetHostData(xsThis);
-#if (TARGET_OS_MAC && !TARGET_OS_IPHONE) || TARGET_OS_WIN32
-	Boolean zoomed;
-#endif
+#if TARGET_OS_WIN32
+	WINDOWPLACEMENT placement;
+	xsIntegerValue value;
+	placement.length = sizeof(WINDOWPLACEMENT);
+	if (xsFindInteger(xsArg(0), xsID("show"), &value)) {
+		placement.flags = 0;
+		placement.showCmd = value;
+		placement.ptMinPosition.x = xsToInteger(xsGet(xsArg(0), xsID("xMin")));
+		placement.ptMinPosition.y = xsToInteger(xsGet(xsArg(0), xsID("yMin")));
+		placement.ptMaxPosition.x = xsToInteger(xsGet(xsArg(0), xsID("xMax")));
+		placement.ptMaxPosition.y = xsToInteger(xsGet(xsArg(0), xsID("yMax")));
+		placement.rcNormalPosition.left = xsToInteger(xsGet(xsArg(0), xsID("left")));
+		placement.rcNormalPosition.right = xsToInteger(xsGet(xsArg(0), xsID("right")));
+		placement.rcNormalPosition.top = xsToInteger(xsGet(xsArg(0), xsID("top")));
+		placement.rcNormalPosition.bottom = xsToInteger(xsGet(xsArg(0), xsID("bottom")));
+		SetWindowPlacement(self->window->hwnd, &placement);
+	}
+#else
 	SInt32 x, y;
 	UInt32 width, height;
+	Boolean zoomed;
 	xsEnterSandbox();
-#if (TARGET_OS_MAC && !TARGET_OS_IPHONE) || TARGET_OS_WIN32
-	zoomed = xsToBoolean(xsGet(xsArg(0), xsID("zoomed")));
-#endif
 	x = xsToInteger(xsGet(xsArg(0), xsID_x));
 	y = xsToInteger(xsGet(xsArg(0), xsID_y));
 	width = xsToInteger(xsGet(xsArg(0), xsID_width));
 	height = xsToInteger(xsGet(xsArg(0), xsID_height));
+	zoomed = xsToBoolean(xsGet(xsArg(0), xsID("zoomed")));
 	xsLeaveSandbox();
 	FskWindowSetLocation(self->window, x, y);
 	FskWindowSetSize(self->window, width, height);
 #if TARGET_OS_MAC && !TARGET_OS_IPHONE
 	if (zoomed) FskCocoaWindowZoom(self->window);
-#elif TARGET_OS_WIN32
-	if (zoomed) ShowWindow(self->window->hwnd, SW_MAXIMIZE);
+#endif
 #endif
 }
 
@@ -2714,6 +2741,57 @@ void KPR_system_set_date(xsMachine *the)
 	FskTimeClear(&time);
 	time.seconds = secsSinceEpoch;
 	FskTimeStime(&time);
+}
+
+void KPR_system_get_deviceID(xsMachine *the)
+{
+	FskErr err = kFskErrNone;
+	const char *fileName = "kpr.deviceid";
+	char *directory = NULL;
+	char *path = NULL;
+	char *uuidStr = NULL;
+	FskFileMapping map = NULL;
+	char *deviceID = NULL;
+	char *buffer;
+	FskInt64 size;
+	FskUUIDRecord uuid;
+	FskFileInfo fileInfo;
+
+	// First try to use the saved UUID
+	bailIfError(FskDirectoryGetSpecialPath(kFskDirectorySpecialTypeApplicationPreference, true, NULL, &directory));
+	bailIfError(FskMemPtrNew(FskStrLen(directory) + FskStrLen(fileName) + 1, &path));
+	FskStrCopy(path, directory);
+	FskStrCat(path, fileName);
+	if (kFskErrNone == FskFileGetFileInfo(path, &fileInfo)) {
+		if (kFskErrNone == FskFileMap(path, (unsigned char**)&buffer, &size, 0, &map)) {
+			deviceID = FskStrDoCopy(buffer);
+			goto bail;
+		}
+	}
+
+	// If no saved UUID then generate a new one
+	bailIfError(FskUUIDCreate(&uuid));
+	uuidStr = FskUUIDtoString_844412(&uuid);
+	deviceID = FskStrDoCopy(uuidStr);
+	if (NULL == deviceID)
+		goto bail;
+
+	// Save the new UUID for next time
+	if (kFskErrNone == FskFileCreate(path)) {
+		FskFile fref = NULL;
+		if (kFskErrNone == FskFileOpen(path, kFskFilePermissionReadWrite, &fref)) {
+			FskFileWrite(fref, FskStrLen(uuidStr) + 1, (const void *)uuidStr, NULL);
+			FskFileClose(fref);
+		}
+	}
+
+bail:
+	FskFileDisposeMap(map);
+	FskMemPtrDispose(path);
+	FskMemPtrDispose(directory);
+	FskMemPtrDispose(uuidStr);
+	xsResult = xsString(deviceID);
+	FskMemPtrDispose(deviceID);
 }
 
 //void KprShellHTTPAuthenticate(KprShell self, void* it, char* host, char* realm)

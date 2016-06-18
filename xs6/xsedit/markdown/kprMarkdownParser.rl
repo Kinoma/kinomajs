@@ -810,11 +810,11 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 		
 		any_count_line = ( any | newline );
 		
-		end_count_line = ( end | newline );
+		end_count_line = ( end | ( '\r'? newline ) );
 		
-		maybe_text = ( [^\n\0]* );
+		maybe_text = ( [^\r\n\0]* );
 		
-		some_text = ( [^\n\0]+ );
+		some_text = ( [^\r\n\0]+ );
 		
 		base_line = ( ( maybe_text end_count_line ) >start_text %stop_text_back );
 		
@@ -918,7 +918,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 		
 		header_line = ( [#]{1,6} >M1 %M2 [\t ]* maybe_text >T1 %T2 end_count_line ); # atx-style
 		
-		header_line_2 = ( some_text >H1 %H2 newline ( [=]+ | [\-]+ ) >H end_count_line ); # setext-style *
+		header_line_2 = ( some_text >H1 %H2 ( '\r'? newline ) ( [=]+ | [\-]+ ) >H end_count_line ); # setext-style *
 		
 		horizontal_rule_line = ( ( ( [*] [ ]? ){3,} | ( [\-] [ ]? ){3,} ) >M1 %M2 end_count_line );
 		

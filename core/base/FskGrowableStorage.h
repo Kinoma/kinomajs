@@ -589,6 +589,25 @@ FskAPI(FskErr)	FskGrowableArrayGetPointerToLastItem(FskGrowableArray array, void
 FskAPI(FskErr)	FskGrowableArrayGetConstPointerToLastItem(FskConstGrowableArray array, const void **ptr);
 
 
+/**	Get the size and a pointer to the beginning of the array.
+ *	This is such a common set of operations, we roll it into one.
+ *	It can also be used in expressions.
+ *	\param[in]		array		the growable array to accessed.
+ *	\param[out]		size		a place to store the number of items in the array. Can be NULL.
+ *	\return			a pointer to the beginning of the array.
+ **/
+FskAPI(void*)	FskGrowableArrayGetArray(FskGrowableArray array, UInt32 *size);
+
+
+/**	Get the size and a pointer to the beginning of the array.
+ *	This is such a common set of operations, we roll it into one.
+ *	It can also be used in expressions.
+ *	\param[in]		array		the growable array to accessed.
+ *	\param[out]		size		a place to store the number of items in the array. Can be NULL.
+ *	\return			a pointer to the beginning of the array.
+ */
+FskAPI(const void*)	FskGrowableArrayGetConstArray(FskConstGrowableArray array, UInt32 *size);
+
 
 
 /********************************************************************************

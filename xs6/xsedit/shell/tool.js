@@ -115,7 +115,7 @@ class ChecksumTask extends Task {
 		var url = PATH.toURI(path);
 		var buffer = Files.readChunk(url);
 		var current = KPR.MD5(buffer);
-		var checksumPath = path.slice(context.output.length + 1);
+		var checksumPath = url.slice(PATH.toURI(context.output).length + 1);
 		var uploadPath = "applications/" + context.di + "/" + checksumPath;
 		var former = (checksumPath in context.manifest.checksums) ? context.manifest.checksums[checksumPath] : "";
 		if (former != current) {
@@ -306,7 +306,7 @@ class File extends Task {
 	remove(queue) {
 		var context = this.context;
 		queue.push(new CommandTask(context, CommandTask.rm, [ this.path ]));
-		var checksumPath = this.path.slice(context.output.length + 1);
+		var checksumPath = PATH.toURI(this.path).slice(PATH.toURI(context.output).length + 1);
 		var uploadPath = "applications/" + context.di + "/" + checksumPath;
 		if (checksumPath in context.manifest.checksums) {
 			delete context.manifest.checksums[checksumPath];

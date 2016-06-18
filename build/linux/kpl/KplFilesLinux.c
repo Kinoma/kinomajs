@@ -83,7 +83,9 @@ typedef struct volInfoRec {
 	Boolean		mounted;
 	KplInt64	capacity;
 	KplInt64	remaining;
-#if ANDROID_PLATFORM
+#if ANDRO
+	fsid_t		fsid;
+#elif ANDROID_PLATFORM
 	__kernel_fsid_t		fsid;
 #endif
 } volInfoRec, *volInfo;

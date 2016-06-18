@@ -191,18 +191,12 @@ int KplMain(UInt32 flags, int argc, char **argv, KplMainProc kplMainProc, void *
     BAIL_IF_ERR(err);
 
 	mainExtensionInitialize();
-#ifdef ANDROID_PLATFORM
-	initializeT7input();
-#endif // ANDROID_PLATFORM
 #if LINUX_PLATFORM
 	initializeLinuxinput();
 #endif
 
 	err = kplMainProc(kplMainProcRefcon);
 
-#ifdef ANDROID_PLATFORM
-	terminateT7input();
-#endif // ANDROID_PLATFORM
 #if LINUX_PLATFORM
 	terminateLinuxinput();
 #endif

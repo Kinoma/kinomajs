@@ -176,6 +176,9 @@ export var markdownOptions = {
 						url = serializeURI(parts);
 					}
 				}
+				else {
+					url = serializeURI(parts);
+				}
 				//if (at) {
 					shell.delegate("doOpenURL", url, at);
 				//}
@@ -406,7 +409,8 @@ class MarkdownTextBehavior extends Behavior {
 		let url = markdownOptions.url = data.url;
 		let metaData = markdown.formatMarkdown(Files.readText(url), markdownOptions);
 		let applicationPath = getEnvironmentVariable("applicationPath");
-		if (Files.toPath(url).indexOf(applicationPath) == 0)
+		let path = Files.toPath(url).replace(/\\/g, "/");
+		if (path.indexOf(applicationPath) == 0)
 			markdown.bubble("onMarkdownTitleChanged", metaData.title);
 		let button = data.MARKERS;
 		let markers = [];

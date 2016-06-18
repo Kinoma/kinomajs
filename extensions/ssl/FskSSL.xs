@@ -26,9 +26,10 @@
 			<number name="major" value="3"/>
 			<number name="minor" value="1"/>
 
-			<function name="serialize" params="s">
-				s.writeChar(this.major);
-				s.writeChar(this.minor);
+			<function name="serialize" params="s, o">
+				if (!o) o = this;
+				s.writeChar(o.major);
+				s.writeChar(o.minor);
 			</function>
 
 			<function name="parse" params="s">
@@ -49,6 +50,7 @@
 			<number name="RC4" value="3"/>
 			<number name="SHA1" value="0"/>
 			<number name="MD5" value="1"/>
+			<number name="SHA256" value="2"/>
 			<number name="NULL" value="255"/>
 
 			<array name="value" contents="Number.prototype"/>
@@ -88,7 +90,7 @@
 			this.code = code;
 		</function>
 
-		<function name="PRF" params="secret, label, seed, n">
+		<function name="PRF" params="session, secret, label, seed, n">
 			function p_hash(hash, secret, seed) {
 				var hmac = new Crypt.HMAC(hash, secret);
 				var niter = Math.ceil(n / hash.outputSize);
@@ -124,10 +126,15 @@
 
 			var s = new Crypt.bin.chunk.String(label);
 			s.append(seed);
-			var r = xor(
-				p_hash(new Crypt.MD5(), secret.slice(0, Math.ceil(secret.length / 2)), s),
-				p_hash(new Crypt.SHA1(), secret.slice(Math.floor(secret.length / 2)), s)
-			);
+			if (session.protocolVersion.major == 3 && session.protocolVersion.minor <= 2)
+				var r = xor(
+					p_hash(new Crypt.MD5(), secret.slice(0, Math.ceil(secret.length / 2)), s),
+					p_hash(new Crypt.SHA1(), secret.slice(Math.floor(secret.length / 2)), s)
+				);
+			else {
+				var h = p_hash(new Crypt.SHA256(), secret, s);
+				var r = h.getChunk();
+			}
 			return(r.slice(0, n));
 		</function>
 
@@ -274,6 +281,24 @@
 			 cipherBlockSize: 0,
 			 hashAlgorithm: FskSSL.cipherSuite.SHA1,
 			 hashSize: 20},
+			// TLS_RSA_WITH_AES_128_CBC_SHA256
+			{value: [0x00, 0x3c],
+			 isExportable: false,
+			 keyExchangeAlgorithm: FskSSL.cipherSuite.RSA,
+			 cipherAlgorithm: FskSSL.cipherSuite.AES,
+			 cipherKeySize: 16,
+			 cipherBlockSize: 16,
+			 hashAlgorithm: FskSSL.cipherSuite.SHA256,
+			 hashSize: 32},
+			// TLS_RSA_WITH_AES_256_CBC_SHA256
+			{value: [0x00, 0x3d],
+			 isExportable: false,
+			 keyExchangeAlgorithm: FskSSL.cipherSuite.RSA,
+			 cipherAlgorithm: FskSSL.cipherSuite.AES,
+			 cipherKeySize: 32,
+			 cipherBlockSize: 16,
+			 hashAlgorithm: FskSSL.cipherSuite.SHA256,
+			 hashSize: 32},
 			// TLS_NULL_WITH_NULL_NULL
 			{value: [0x00, 0x00],
 			 isExportable: true,	// ?

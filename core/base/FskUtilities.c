@@ -202,6 +202,108 @@ void *FskBSearch(const void *key, const void *base, UInt32 num, UInt32 width, Fs
 }
 
 
+/* Deferrer */
+
+typedef struct FskDeferrerCallbackRecord FskDeferrerCallbackRecord, *FskDeferrerCallback;
+
+static void FskDeferrerTaskDispose(FskDeferrer deferrer, FskDeferrerCallback taskP);
+static void FskFeferrerCallback(void *a, void *b, void *c, void *d);
+
+struct FskDeferrerRecord {
+	FskDeferrerCallback tasks;
+	Boolean disposeRequested;
+};
+
+struct FskDeferrerCallbackRecord {
+	FskDeferrerCallback next;
+
+	FskDeferredTask task;
+	void *arg1;
+	void *arg2;
+	void *arg3;
+	void *arg4;
+};
+
+FskErr FskDeferrerNew(FskDeferrer *it)
+{
+	FskErr err = kFskErrNone;
+
+	err = FskMemPtrNewClear(sizeof(FskDeferrerRecord), it);
+	BAIL_IF_ERR(err);
+
+bail:
+	return err;
+}
+
+FskErr FskDeferrerDispose(FskDeferrer deferrer)
+{
+	FskErr err = kFskErrNone;
+	if (deferrer) {
+		Boolean hasTasks = (deferrer->tasks != NULL);
+
+		while (deferrer->tasks) {
+			FskDeferrerTaskDispose(deferrer, deferrer->tasks);
+		}
+
+		if (hasTasks) {
+			deferrer->disposeRequested = true;
+		} else {
+			FskMemPtrDispose(deferrer);
+		}
+	}
+	return err;
+}
+
+void *FskDeferrerAddTask(FskDeferrer deferrer, FskDeferredTask task, void *arg1, void *arg2, void *arg3, void *arg4)
+{
+	FskErr err = kFskErrNone;
+	FskDeferrerCallback taskP = NULL;
+
+	err = FskMemPtrNewClear(sizeof(FskDeferrerCallbackRecord), &taskP);
+	BAIL_IF_ERR(err);
+
+	taskP->task = task;
+	taskP->arg1 = arg1;
+	taskP->arg2 = arg2;
+	taskP->arg3 = arg3;
+	taskP->arg4 = arg4;
+
+	if (deferrer->tasks == NULL) {
+		FskThreadPostCallback(FskThreadGetCurrent(), FskFeferrerCallback, deferrer, NULL, NULL, NULL);
+	}
+	FskListAppend(&deferrer->tasks, taskP);
+
+bail:
+	return (void *) taskP;
+}
+
+void FskDeferrerRemoveTask(FskDeferrer deferrer, void *taskP)
+{
+	if (FskListContains(deferrer->tasks, taskP)) {
+		FskDeferrerTaskDispose(deferrer, taskP);
+	}
+}
+
+static void FskDeferrerTaskDispose(FskDeferrer deferrer, FskDeferrerCallback taskP)
+{
+	FskListRemove(&deferrer->tasks, taskP);
+	FskMemPtrDispose(taskP);
+}
+
+static void FskFeferrerCallback(void *a, void *b, void *c, void *d)
+{
+	FskDeferrer deferrer = (FskDeferrer) a;
+	while (deferrer->tasks) {
+		FskDeferrerCallback taskP = deferrer->tasks;
+
+		taskP->task(taskP->arg1, taskP->arg2, taskP->arg3, taskP->arg4);
+		FskDeferrerTaskDispose(deferrer, taskP);
+	}
+
+	if (deferrer->disposeRequested) {
+		FskMemPtrDispose(deferrer);
+	}
+}
 
 void FskDelay(UInt32 ms)
 {

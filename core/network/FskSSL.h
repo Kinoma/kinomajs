@@ -41,7 +41,7 @@ FskAPI (FskErr) FskSSLNew(void **fsslp, const char *host, int port, Boolean bloc
 FskAPI (FskErr) FskSSLAttach(void **fsslp, FskSocket skt);
 FskAPI (void) FskSSLDispose(void *fssl);
 FskAPI (FskErr) FskSSLLoadCerts(void *fssl, FskSocketCertificateRecord *cert);
-FskAPI (FskErr) FskSSLHandshake(void *fssl, FskNetSocketCreatedCallback callback, void *refCon, Boolean initiate);
+FskAPI (FskErr) FskSSLHandshake(void *fssl, FskNetSocketCreatedCallback callback, void *refCon, Boolean initiate, int timeout);
 FskAPI (FskErr) FskSSLRead(void *fssl, void *buf, int *bufLen);
 FskAPI (FskErr) FskSSLWrite(void *fssl, const void *buf, int *bufLen);
 FskAPI (int) FskSSLGetBytesAvailable(void *fssl);

@@ -19,7 +19,7 @@ MC_OBJECTS = \
 	$(TMP_DIR)/mc_stdio.o \
 	$(TMP_DIR)/mc_xs.o
 		
-all: $(BIN_DIR)/mc.so host_fs
+all: $(BIN_DIR)/mc.so $(DATA)
 	
 $(BIN_DIR)/mc.so: $(TMP_DIR)/mc.xs.o $(MC_OBJECTS) $(OBJECTS)
 	$(CC) $(LINK_OPTIONS) $(LINK_LIBRARIES) $^ -o $@
@@ -31,13 +31,8 @@ $(MOD_DIR)/mc.xs.c: $(MODULES)
 	$(XSL) -a mc -b $(MOD_DIR) -o $(BIN_DIR) -r 97 $^
 
 $(TMP_DIR)/mc_file.o: $(TMP_DIR)/mc_mapped_files.h
-$(TMP_DIR)/mc_mapped_files.h: $(MC_DIR)/rodata
-	sh $(MC_DIR)/tools/mkmap.sh $@
+$(TMP_DIR)/mc_mapped_files.h: $(RESOURCES)
+	sh $(MC_DIR)/tools/manifest.map.sh $@ $(RESOURCES_DIR)
 	
 $(MC_OBJECTS): $(TMP_DIR)/%.o: $(MC_DIR)/%.c
 	$(CC) $< $(C_OPTIONS) $(C_INCLUDES) -c -o $@
-
-host_fs:
-	mkdir -p ~/tmp/mc
-	cp -fp $(MC_DIR)/data/* ~/tmp/mc
-	if [ -d $(MC_DIR)/proprietary/data ]; then cp -fp $(MC_DIR)/proprietary/data/* ~/tmp/mc; fi

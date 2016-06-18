@@ -31,6 +31,10 @@
 #include <android/log.h>
 #endif
 
+#if ANDRO
+	#define __android_log_print(...)
+#endif
+
 #ifdef NOT_HAVE_SOCKLEN_T
 typedef unsigned int socklen_t;
 #endif

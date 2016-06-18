@@ -30,6 +30,7 @@
 
 #include <gtk/gtk.h>
 
+#include "FskGtkWindow.h"
 #include "FskNetInterface.h"
 
 // cannot include both net/if.h and linux/if.h so defined here
@@ -68,7 +69,7 @@ void KPR_system_alert(xsMachine* the)
 			prompt = string;
 
 		dialog = gtk_message_dialog_new(
-			NULL,
+			(GtkWindow*)(((FskGtkWindow)self->window->gtkWin)->window),
 			flags,
 			type,
 			GTK_BUTTONS_NONE,
@@ -170,7 +171,7 @@ static void KPR_system_open(xsMachine* the, xsBooleanValue flag)
 			uriString = FskStrDoCopy(string);
 	}
 
-	dialog = gtk_file_chooser_dialog_new (msgString, NULL, action, 
+	dialog = gtk_file_chooser_dialog_new (msgString, (GtkWindow*)(((FskGtkWindow)self->window->gtkWin)->window), action,
 		"Cancel", GTK_RESPONSE_CANCEL,
 		promptString, GTK_RESPONSE_ACCEPT,
 		NULL);
@@ -204,8 +205,11 @@ static void KPR_system_open(xsMachine* the, xsBooleanValue flag)
 					xsForget(callback);
 					callback = xsNull;
 					if (xsTest(xsResult)) {
-						if (uri)
+						if (uri) {
 							xsVar(0) = xsString((xsStringValue)uri);
+							if (flag)
+								xsVar(0) = xsCall1(xsVar(0), xsID_concat, xsString("/"));
+						}
 						(void)xsCallFunction1(xsResult, xsNull, xsVar(0));
 					}
 				}
@@ -264,7 +268,7 @@ void KPR_system_save(xsMachine* the, xsBooleanValue flag)
 		callback = xsNull;
 	xsRemember(callback);
 
-	dialog = gtk_file_chooser_dialog_new (msgString, NULL, action, 
+	dialog = gtk_file_chooser_dialog_new (msgString, (GtkWindow*)(((FskGtkWindow)self->window->gtkWin)->window), action,
 			"Cancel", GTK_RESPONSE_CANCEL,
 			promptString, GTK_RESPONSE_ACCEPT,
 			NULL);

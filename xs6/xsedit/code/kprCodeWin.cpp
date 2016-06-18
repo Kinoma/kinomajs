@@ -47,9 +47,12 @@ void KPR_system_getClipboardText(xsMachine* the)
 					src = buffer;
 					dst = buffer;
 					while ((c = *src++)) {
-						*dst++ = c;
-						if ((c == 13) && (*src == 10))
+						if ((c == 13) && (*src == 10)) {
+							*dst++ = 10;
 							src++;
+						}
+						else
+							*dst++ = c;
 					}
 					*dst = 0;
 					xsResult = xsString(buffer);
@@ -79,7 +82,7 @@ void KPR_system_setClipboardText(xsMachine* the)
 			length = 0;
 			while ((c = *src++)) {
 				length++;
-				if (c == 13)
+				if (c == 10)
 					length++;
 			}
 			length++;
@@ -87,9 +90,9 @@ void KPR_system_setClipboardText(xsMachine* the)
 				src = string;
 				dst = buffer;
 				while ((c = *src++)) {
+					if (c == 10)
+						*dst++ = 13;
 					*dst++ = c;
-					if (c == 13)
-						*dst++ = 10;
 				}
 				*dst = 0;
 				length = MultiByteToWideChar(CP_UTF8, 0, buffer, -1, NULL, 0);

@@ -332,6 +332,11 @@ class Tool extends TOOL {
 				"BG3CDP_SYSROOT_LIB",
 			]
 		}
+		else if (this.platform == "linux/iap140") {
+			variables = [
+				"IAP140_SYSROOT",
+			]
+		}
 		else {
 			variables = [];
 		}

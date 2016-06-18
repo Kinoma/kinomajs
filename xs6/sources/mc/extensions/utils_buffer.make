@@ -16,7 +16,7 @@
 #
 MODULE = buffer
 SUB_DIR = utils/
-JS_SRC = $(F_HOME)/kinoma/kpr/libraries/Utilities/src/utils/buffer.js
+JS_SRC = $(F_HOME)/kinoma/kpr/libraries/Compat/src/utils/buffer.js
 TMP_XSB = $(TMP_DIR)/$(MODULE).xsb
 MODULE_XSB = $(DEST_DIR)/$(SUB_DIR)$(MODULE).xsb
 

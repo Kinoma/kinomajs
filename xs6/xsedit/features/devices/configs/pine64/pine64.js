@@ -165,7 +165,7 @@ Handler.Bind("/network/configure", class extends Behavior {
 
 pine64.iconSkin = new Skin({ texture:new Texture("./icon.png", 1), x:0, y:0, width:60, height:60 });
 pine64.id = "com.marvell.kinoma.launcher.pine64";
-pine64.product = "pine64";
+pine64.product = "Pine A64";
 pine64.tag = "pine64";
 pine64.templateTag = "createSample";
 pine64.url = this.uri;

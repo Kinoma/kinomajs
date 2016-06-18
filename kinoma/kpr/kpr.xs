@@ -772,6 +772,7 @@
 		<function name="get settings" c="KPR_system_get_settings"/>
         <function name="set timezone" params="timezone" c="KPR_system_set_timezone"/>
         <function name="set date" params="secsSinceEpoch" c="KPR_system_set_date"/>
+        <function name="get deviceID" c="KPR_system_get_deviceID"/>
 	</object>
 
 	<import href="kprHTTP.xs"/>

@@ -25,9 +25,9 @@
         <friendlyName>[friendlyName]</friendlyName>
         <manufacturer>Marvell</manufacturer>
         <manufacturerURL>http://www.marvell.com</manufacturerURL>
-        <modelDescription>pxa1908</modelDescription>
+        <modelDescription>iap140</modelDescription>
         <modelNumber>1</modelNumber>
-        <modelName>pxa1908</modelName>
+        <modelName>iap140</modelName>
         <modelURL></modelURL>
         <serialNumber></serialNumber>
         <UDN>uuid:[udn]</UDN>

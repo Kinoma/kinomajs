@@ -24,11 +24,13 @@
 	#include "FskDragDropWin.h"
 #elif TARGET_OS_MAC && !TARGET_OS_IPHONE
     #include "FskCocoaSupport.h"
+#elif (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
+    #include "FskGtkWindow.h"
 #endif
 
 /* --------------------------------------------------------------------------------------------- */
 
-#if (TARGET_OS_WIN32) || (TARGET_OS_MAC && !TARGET_OS_IPHONE)
+#if (TARGET_OS_WIN32) || (TARGET_OS_MAC && !TARGET_OS_IPHONE) || (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
 
 static FskErr DragDropTargetProc(UInt32 message, UInt32 mouseX, UInt32 mouseY, void *dropData, void *refCon)
 {
@@ -122,6 +124,8 @@ FskErr FskDragDropTargetRegisterWindow(FskWindow window)
 	err = FskDragDropTargetWinRegisterNativeWindow(window, DragDropTargetProc, (void*)window);
 #elif TARGET_OS_MAC && !TARGET_OS_IPHONE
     FskCocoaDragDropWindowRegister(window, DragDropTargetProc);
+#elif (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
+    FskGtkDragDropWindowRegister(window, DragDropTargetProc);
 #else
 	err = kFskErrUnimplemented;
 #endif
@@ -139,6 +143,8 @@ FskErr FskDragDropTargetUnregisterWindow(FskWindow window)
 	FskDragDropTargetWinUnregisterNativeWindow(window);
 #elif TARGET_OS_MAC && !TARGET_OS_IPHONE
     FskCocoaDragDropWindowUnregister(window);
+#elif (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
+    FskGtkDragDropWindowUnregister(window);
 #else
 	err = kFskErrUnimplemented;
 #endif

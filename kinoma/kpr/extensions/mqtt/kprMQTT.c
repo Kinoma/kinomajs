@@ -48,6 +48,7 @@ struct KPR_MQTTClientRecord {
 	xsSlot slot;
 	KprMQTTClient client;
 	Boolean pending;
+	FskDeferrer deferrer;
 };
 
 typedef struct KPR_MQTTClientRecord KPR_MQTTClientRecord;
@@ -67,6 +68,7 @@ void KPR_MQTTClient(xsMachine* the)
 	FskErr err;
 	KPR_MQTTClientRecord *self = NULL;
 	KprMQTTClient client = NULL;
+	FskDeferrer deferrer = NULL;
 	char *clientIdentifier;
 	Boolean cleanSession;
 
@@ -76,6 +78,7 @@ void KPR_MQTTClient(xsMachine* the)
 	cleanSession = xsToBoolean(xsArg(1));
 
 	bailIfError(FskMemPtrNewClear(sizeof(KPR_MQTTClientRecord), &self));
+	bailIfError(FskDeferrerNew(&deferrer));
 	bailIfError(KprMQTTClientNew(&client, clientIdentifier, cleanSession, kKprMQTTProtocol311, self));
 
 	client->connectCallback = KPR_mqttclient_onConnect;
@@ -87,6 +90,7 @@ void KPR_MQTTClient(xsMachine* the)
 	client->errorCallback = KPR_mqttclient_onError;
 
 	self->client = client;
+	self->deferrer = deferrer;
 	self->the = the;
 	self->slot = xsThis;
 	xsSetHostData(self->slot, self);
@@ -95,6 +99,7 @@ bail:
 
 	if (err) {
 		KprMQTTClientDispose(client);
+		FskDeferrerDispose(deferrer);
 		FskMemPtrDispose(self);
 		xsThrowIfFskErr(err);
 	}
@@ -113,8 +118,8 @@ void KPR_mqttclient_destructor(void *it)
 		self->client->disconnectCallback = NULL;
 		self->client->errorCallback = NULL;
 
-		INVOKE_AFTER1(KprMQTTClientDispose, self->client);
-
+		KprMQTTClientDispose(self->client);
+		FskDeferrerDispose(self->deferrer);
 		FskMemPtrDispose(self);
 	}
 }
@@ -273,11 +278,6 @@ void KPR_mqttclient_get_protocolVersion(xsMachine *the)
 	xsResult = xsString((char *) KprMQTTClientGetProtocolVersion(self->client));
 }
 
-#define DEFER3(xxx, a, b, c) FskThreadPostCallback(KprShellGetThread(gShell), (FskThreadCallback)xxx, self, (void *)(a), (void *)(b), (void *)(c))
-#define DEFER2(xxx, a, b) DEFER3(xxx, a, b, NULL)
-#define DEFER1(xxx, a) DEFER3(xxx, a, NULL, NULL)
-#define DEFER0(xxx) DEFER3(xxx, NULL, NULL, NULL)
-
 static void KPR_mqttclient_deferredReleaseCallbacks(void *a, void *b UNUSED, void *c UNUSED, void *d UNUSED)
 {
 	KPR_MQTTClientRecord *self = a;
@@ -302,10 +302,11 @@ static void KPR_mqttclient_releaseCallbacksIfPending(xsMachine *the)
 	if (!self->pending && xsToBoolean(xsCall0(xsThis, xsID("_callbackPending")))) {
 		self->pending = true;
 
-		DEFER0(KPR_mqttclient_deferredReleaseCallbacks);
-		xsBeginHost(self->the);
-		xsRemember(self->slot);
-		xsEndHost();
+		if (FskDeferrerAddTask1(self->deferrer, KPR_mqttclient_deferredReleaseCallbacks, self)) {
+			xsBeginHost(self->the);
+			xsRemember(self->slot);
+			xsEndHost();
+		}
 	}
 }
 
@@ -427,11 +428,11 @@ static void KPR_mqttclient_onDisconnect(KprMQTTClient client UNUSED, Boolean cle
 {
 	KPR_MQTTClientRecord *self = refcon;
 
-	DEFER1(KPR_mqttclient_onDisconnectDeferred, (int) cleanClose);
-
-	xsBeginHost(self->the);
-	xsRemember(self->slot);
-	xsEndHost();
+	if (FskDeferrerAddTask2(self->deferrer, KPR_mqttclient_onDisconnectDeferred, self, (int) cleanClose)) {
+		xsBeginHost(self->the);
+		xsRemember(self->slot);
+		xsEndHost();
+	}
 }
 
 static void KPR_mqttclient_onError(KprMQTTClient client UNUSED, FskErr err, char *reason, void *refcon)
@@ -536,7 +537,7 @@ void KPR_mqttbroker_destructor(void *it)
 	KPR_MQTTBrokerRecord *self = it;
 
 	if (self) {
-		INVOKE_AFTER1(KprMQTTBrokerDispose, self->broker);
+		KprMQTTBrokerDispose(self->broker);
 
 		FskMemPtrDispose(self);
 	}

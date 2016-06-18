@@ -17,6 +17,11 @@
 #include "kpr.h"
 #import <AppKit/NSApplication.h>
 
+void KPR_formatText(xsMachine *the)
+{
+	xsResult = xsArg(0);
+}
+
 void KPR_gotoFront(xsMachine *the)
 {
 	[[NSRunningApplication currentApplication] activateWithOptions:NSApplicationActivateIgnoringOtherApps];

@@ -451,6 +451,21 @@
 
 	</platform>
 
+	<platform name="linux/andro">
+		<input name="$(F_HOME)/libraries/resolv"/>
+
+		<c option="-D__BIND_NOSTATIC"/>
+		<source name="h_errno.c"/>
+		<source name="ns_name.c"/>
+		<source name="ns_netint.c"/>
+		<source name="ns_samedomain.c"/>
+		<source name="res_comp.c"/>
+		<source name="res_data.c"/>
+		<source name="res_mkquery.c"/>
+		<source name="res_query.c"/>
+		<source name="res_state.c"/>
+	</platform>
+
 	<platform name="threadx">
  		<source name="main.c"/>
 		<input name="$(F_HOME)/core/kpl"/>

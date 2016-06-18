@@ -51,7 +51,7 @@
 //---------- FskRectBlit.c configuration ---------- 
 
 // Set to 1 to enable ARM versions of YUV to RGB blitters.
-#if TARGET_CPU_ARM && !TARGET_CPU_ARM64
+#if TARGET_CPU_ARM && !ANDRO && !TARGET_CPU_ARM64
 #define USE_ARM_YUV_TO_RGB				1
 #else
 #define USE_ARM_YUV_TO_RGB				0

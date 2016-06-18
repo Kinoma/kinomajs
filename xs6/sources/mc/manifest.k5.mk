@@ -1,4 +1,5 @@
 TARGET_SYSTEM = mc
+SDK_PLATFORM = Darwin
 
 CROSS_COMPILE ?= arm-none-eabi
 AS    := $(CROSS_COMPILE)-as
@@ -27,7 +28,7 @@ else
 endif
 # ??? C_OPTIONS += -fPIC
 
-include common.mk
+include $(MC_DIR)/common.mk
 
 LDSCRIPT = $(PROGRAM)-xip.ld
 LINK_OPTIONS = -T $(LDSCRIPT) -nostartfiles -Xlinker -M -Xlinker -Map=$(TMP_DIR)/$(PROGRAM).map -Xlinker --gc-section
@@ -38,7 +39,7 @@ ifeq ($(CONFIG_CPU_MW300), y)
 		LINK_OPTIONS += -Xlinker --defsym=_rom_data=0
 	endif
 endif
-LIBRARIES = -L$(BIN_DIR) -lstubs -lext
+LIBRARIES = $(wildcard $(SDK_PATH)/libs/*.a)
 
 XS_OBJECTS = \
 	$(TMP_DIR)/xs_dtoa.o \
@@ -100,39 +101,28 @@ MC_OBJECTS = \
 	$(TMP_DIR)/heap_4.o \
 	$(TMP_DIR)/mw300_rd.o
 
-all: $(BIN_DIR)/libext.a $(BIN_DIR)/libstubs.a $(BIN_DIR)/layout.txt $(BIN_DIR)/flash_k5.config ftfs
+all: $(BIN_DIR)/layout.txt $(BIN_DIR)/flash_k5.config $(BIN_DIR)/$(PROGRAM).ftfs
 
-$(BIN_DIR)/libext.a: $(MC_DIR)/ext_stubs.s
-	rm -f $@
-	$(AS) $(AS_OPTIONS) -c -o $(TMP_DIR)/`basename $< .s`.o $<
-	$(AR) cr $@ $(TMP_DIR)/`basename $< .s`.o
-
-$(BIN_DIR)/libstubs.a: $(MC_DIR)/ext_stubs.sym
-	rm -fr $(TMP_DIR)/stubs $@
-	mkdir -p $(TMP_DIR)/stubs
-	awk '{fname="$(TMP_DIR)/stubs/" $$0 ".s"; printf(".include \"defstub.i\"\n\tdefstub\t%s,\t%d\n", $$0, NR) > fname; close(fname)}' $<
-	(cd $(TMP_DIR)/stubs; for i in *.s; do $(AS) $(AS_OPTIONS) -c -o `basename $$i .s`.o $$i; done; $(AR) cr $@ *.o)
-
-$(BIN_DIR)/layout.txt: flash/layout.txt
+$(BIN_DIR)/layout.txt: $(MC_DIR)/flash/layout.txt
 	cp -p $< $@
 
-$(BIN_DIR)/flash_k5.config: flash/config.temp $(BIN_DIR)/boot2.bin $(BIN_DIR)/mw30x_uapsta.bin $(BIN_DIR)/$(PROGRAM)_k5.bin
-	sed -e 's:$$(SDK_PATH):$(SDK_PATH):' -e 's:$$(BIN_DIR):$(BIN_DIR):' -e 's:$k5:k5:' $< > $@
+$(BIN_DIR)/flash_k5.config: $(MC_DIR)/flash/config.temp $(BIN_DIR)/boot2.bin $(BIN_DIR)/mw30x_uapsta.bin $(BIN_DIR)/$(PROGRAM)_k5.bin
+	sed -e 's:$$(SDK_PATH):$(SDK_PATH):' -e 's:$$(BIN_DIR):$(BIN_DIR):' -e 's:$$(BOARD):k5:' $< > $@
 
-$(BIN_DIR)/boot2.bin: flash/boot2.bin
+$(BIN_DIR)/boot2.bin: $(MC_DIR)/flash/boot2.bin
 	cp -p $< $@
 	
-$(BIN_DIR)/mw30x_uapsta.bin: flash/mw30x_uapsta.bin
+$(BIN_DIR)/mw30x_uapsta.bin: $(MC_DIR)/flash/mw30x_uapsta.bin
 	cp -p $< $@
 
-$(BIN_DIR)/$(PROGRAM)_k5.bin: $(BIN_DIR)/$(PROGRAM)_k5.axf
+$(BIN_DIR)/$(PROGRAM)_k5.bin: $(TMP_DIR)/$(PROGRAM)_k5.axf
 	$(SDK_PATH)/tools/bin/$(SDK_PLATFORM)/axf2firmware $< $@
 
-$(BIN_DIR)/$(PROGRAM)_k5.axf: $(TMP_DIR)/mc.xs.o $(XS_OBJECTS) $(MC_OBJECTS) $(OBJECTS) $(LDSCRIPT)
-	$(CC) $(LINK_OPTIONS) -Xlinker --start-group $(TMP_DIR)/mc.xs.o $(XS_OBJECTS) $(MC_OBJECTS) $(OBJECTS) $(LIBRARIES) -Xlinker --end-group -o $@ -lm
+$(TMP_DIR)/$(PROGRAM)_k5.axf: $(TMP_DIR)/mc.xs.o $(XS_OBJECTS) $(MC_OBJECTS) $(OBJECTS) $(LDSCRIPT)
+	$(CC) $(C_OPTIONS) $(LINK_OPTIONS) -Xlinker --start-group $(TMP_DIR)/mc.xs.o $(XS_OBJECTS) $(MC_OBJECTS) $(OBJECTS) $(LIBRARIES) -Xlinker --end-group -o $@ -lm
 
 $(TMP_DIR)/mc.xs.o: $(MOD_DIR)/mc.xs.c
-	$(CC) $< $(C_OPTIONS) $(C_INCLUDES) -o $@
+	$(CC) $< -c $(C_OPTIONS) $(C_INCLUDES) -o $@
 $(MOD_DIR)/mc.xs.c: $(MODULES)
 	$(XSL) -a mc -b $(MOD_DIR) -o $(TMP_DIR) -r 97 $^
 
@@ -144,8 +134,8 @@ BEGIN	{printf("void *const ext_stubs[] = {\n(void *)&_mc_global,\n")} \
 END	{printf("};\n")}' $< > $@
 
 $(TMP_DIR)/mc_file.o: $(TMP_DIR)/mc_mapped_files.h
-$(TMP_DIR)/mc_mapped_files.h: rodata
-	sh tools/mkmap.sh $@
+$(TMP_DIR)/mc_mapped_files.h: $(RESOURCES)
+	sh $(MC_DIR)/tools/manifest.map.sh $@ $(RESOURCES_DIR)
 
 $(TMP_DIR)/xs6Host.o: $(TMP_DIR)/mc.xsa.h
 $(TMP_DIR)/mc.xsa.h: $(MOD_DIR)/mc.xs.c
@@ -156,10 +146,7 @@ $(XS_OBJECTS): $(TMP_DIR)/%.o: $(XS_DIR)/sources/%.c
 $(MC_OBJECTS): $(TMP_DIR)/%.o: $(MC_DIR)/%.c
 	$(CC) $< $(C_OPTIONS) $(C_INCLUDES) -c -o $@
 
-ftfs:
-	mkdir -p $(TMP_DIR)/fs
-	cp -fp $(MC_DIR)/data/* $(TMP_DIR)/fs
-	if [ -d $(MC_DIR)/proprietary/data ]; then cp -fp $(MC_DIR)/proprietary/data/* $(TMP_DIR)/fs; fi
+$(BIN_DIR)/$(PROGRAM).ftfs: $(DATA)
 	(cd $(TMP_DIR); $(SDK_PATH)/tools/bin/flash_pack.py 1 $(PROGRAM).ftfs fs)
 	cp -pf $(TMP_DIR)/$(PROGRAM).ftfs $(BIN_DIR)/$(PROGRAM).ftfs
 

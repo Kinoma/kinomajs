@@ -18,6 +18,7 @@
 #define __FSKGTKWINDOW__
 
 #include "Fsk.h"
+#include "FskDragDrop.h"
 #include <gtk/gtk.h>
 #include <X11/Xlib.h>
 
@@ -48,7 +49,8 @@ struct FskGtkWindowRecord {
 	FskList			menu;			// List for all menuItems, used when need clear menu
 	FskMutex		menuMutex;		// Operations on menu items
 	Boolean			menuStatus;		// False means menu are not complete, can not do any operation on it.
-
+	FskDragDropTargetProc dropTargetProc;
+	
 	// Window position and size (Draw area only)
 	int				width;
 	int				height;
@@ -78,6 +80,10 @@ void	FskGtkWindowSetMenuItemCallback(FskGtkWindow win, GtkWidget* menuitem, int 
 void	FskGtkWindowSetMenuItemStatus(FskGtkWindow win, int id, char* title, Boolean enabled, Boolean checked);
 
 void	FskGtkWindowSetDialog(FskGtkWindow win,  GtkMessageType type, const char* title, const char* message);
+
+// drag and drop
+void FskGtkDragDropWindowRegister(FskWindow fskWindow, FskDragDropTargetProc dropTargetProc);
+void FskGtkDragDropWindowUnregister(FskWindow fskWindow);
 
 #ifdef __cplusplus
 }

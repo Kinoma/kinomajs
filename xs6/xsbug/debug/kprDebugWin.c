@@ -16,6 +16,20 @@
  */
 #include "kpr.h"
 
+void KPR_formatText(xsMachine *the)
+{
+	char* string = xsToString(xsArg(0));
+	char* end = string + FskStrLen(string);
+	while (string = FskStrStr(string, "\r\n")) {
+		FskMemMove(string, string + 1, end - string);
+	}
+	string = xsToString(xsArg(0));
+	while (string = FskStrChr(string, '\t')) {
+		*string = ' ';
+	}
+	xsResult = xsArg(0);
+}
+
 void KPR_gotoFront(xsMachine *the)
 {
 }

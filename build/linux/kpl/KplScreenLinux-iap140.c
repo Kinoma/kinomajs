@@ -78,7 +78,7 @@
 #include <sys/ioctl.h>
 
 #if SUPPORT_INSTRUMENTATION
-FskInstrumentedTypeRecord gKplScreen1908TypeInstrumentation = {NULL, sizeof(FskInstrumentedTypeRecord), "kplscreenpxa1908"};
+FskInstrumentedTypeRecord gKplScreen140TypeInstrumentation = {NULL, sizeof(FskInstrumentedTypeRecord), "kplscreeniap140"};
 #endif
 FskInstrumentedSimpleType(KplInput, kplinput);
 
@@ -250,7 +250,7 @@ MLOG("VSyncInterval %d ms\n", screen->vSyncInterval);
 			screen->vSyncInterval = MAX_FRAMERATE_MS;
 MLOG("VSyncInterval %d ms (after adjust)\n", screen->vSyncInterval);
 
-		FskInstrumentedTypePrintfDebug(&gKplScreen1908TypeInstrumentation, "VsyncInterval = %d", screen->vSyncInterval);
+		FskInstrumentedTypePrintfDebug(&gKplScreen140TypeInstrumentation, "VsyncInterval = %d", screen->vSyncInterval);
 
 		FskSemaphoreNew(&gKplScreen->flipSemaphore, 0);
 		FskThreadCreate(&gKplScreen->flipThread, flipThread, kFskThreadFlagsJoinable | kFskThreadFlagsWaitForInit, gKplScreen, "flip");
@@ -306,14 +306,14 @@ FskErr KplScreenSetContinuousDrawing(void *state, void *obj, UInt32 propertyID, 
 	if (on) {
 		if (!gKplScreen->drawingPumpEnabled) {
 			gKplScreen->drawingPumpEnabled = true;
-			FskInstrumentedTypePrintfNormal(&gKplScreen1908TypeInstrumentation, "START drawing pump **\n");
+			FskInstrumentedTypePrintfNormal(&gKplScreen140TypeInstrumentation, "START drawing pump **\n");
 			FskThreadPostCallback(FskThreadGetMain(), drawingPumpCallback, (void*)gKplScreen->callbackPostedCount, NULL, NULL, NULL);
 		}
 	}
 	else {
 		if (gKplScreen->drawingPumpEnabled) {
 			gKplScreen->drawingPumpEnabled = false;
-			FskInstrumentedTypePrintfNormal(&gKplScreen1908TypeInstrumentation, "STOP drawing pump **\n");
+			FskInstrumentedTypePrintfNormal(&gKplScreen140TypeInstrumentation, "STOP drawing pump **\n");
 		}
 	}
 
@@ -337,13 +337,13 @@ FskErr KplScreenSetUpdateInterval(void *state, void *obj, UInt32 propertyID, Fsk
 	if (!updateRate) updateRate = 1;
 	gKplScreen->updateInterval = updateRate * gKplScreen->vSyncInterval;
 	
-	FskInstrumentedTypePrintfDebug(&gKplScreen1908TypeInstrumentation, "Setting update interval to %ld ms", gKplScreen->updateInterval);
+	FskInstrumentedTypePrintfDebug(&gKplScreen140TypeInstrumentation, "Setting update interval to %ld ms", gKplScreen->updateInterval);
 	
 	FskTimeClear(&gKplScreen->updateIntervalTime);
 	for (i = 0; i < updateRate; ++i)
 		FskTimeAdd(&gKplScreen->vSyncIntervalTime, &gKplScreen->updateIntervalTime);
 		
-	FskInstrumentedTypePrintfDebug(&gKplScreen1908TypeInstrumentation, "Setting update interval time to %ld.%06lds", gKplScreen->updateIntervalTime.seconds, gKplScreen->updateIntervalTime.useconds);
+	FskInstrumentedTypePrintfDebug(&gKplScreen140TypeInstrumentation, "Setting update interval time to %ld.%06lds", gKplScreen->updateIntervalTime.seconds, gKplScreen->updateIntervalTime.useconds);
 
 	return kFskErrNone;
 }
@@ -375,7 +375,7 @@ static void drawingPumpUpdate(FskWindow win)
 
 	FskTimeCopy(&gKplScreen->lastUpdateTime, &now);
 
-	FskInstrumentedTypePrintfNormal(&gKplScreen1908TypeInstrumentation, "[%s] called %d ms after last update\n", threadName, FskTimeInMS(&delta));
+	FskInstrumentedTypePrintfNormal(&gKplScreen140TypeInstrumentation, "[%s] called %d ms after last update\n", threadName, FskTimeInMS(&delta));
 
 	// estimate next flip time by adding vSync interval to previous flip time
 	FskTimeCopy(&gKplScreen->nextFlipTime, &gKplScreen->lastFlipTime);
@@ -383,7 +383,7 @@ static void drawingPumpUpdate(FskWindow win)
 	while (FskTimeCompare(&gKplScreen->nextFlipTime, &now) > 0)
 		FskTimeAdd(&gKplScreen->vSyncIntervalTime, &gKplScreen->nextFlipTime);
 
-	FskInstrumentedTypePrintfNormal(&gKplScreen1908TypeInstrumentation, "Next flip time %ld.%06ld \n", gKplScreen->nextFlipTime.seconds, gKplScreen->nextFlipTime.useconds);
+	FskInstrumentedTypePrintfNormal(&gKplScreen140TypeInstrumentation, "Next flip time %ld.%06ld \n", gKplScreen->nextFlipTime.seconds, gKplScreen->nextFlipTime.useconds);
 
     if (gNumPts) {
         if (1 == gNumPts)
@@ -403,7 +403,7 @@ static void drawingPumpUpdate(FskWindow win)
 	if (!gKplScreen->unlocked)
 		FskSemaphoreRelease(gKplScreen->flipSemaphore);
 
-	FskInstrumentedTypePrintfNormal(&gKplScreen1908TypeInstrumentation, "[%s] Finished callback %ld, nextFlipTime %1d.%03d\n", threadName, gKplScreen->callbackFiredCount, gKplScreen->nextFlipTime.seconds, gKplScreen->nextFlipTime.useconds / 1000);
+	FskInstrumentedTypePrintfNormal(&gKplScreen140TypeInstrumentation, "[%s] Finished callback %ld, nextFlipTime %1d.%03d\n", threadName, gKplScreen->callbackFiredCount, gKplScreen->nextFlipTime.seconds, gKplScreen->nextFlipTime.useconds / 1000);
 }
 
 static void drawingPumpCallback(void *arg0, void *arg1, void *arg2, void *arg3)
@@ -414,11 +414,11 @@ static void drawingPumpCallback(void *arg0, void *arg1, void *arg2, void *arg3)
 
 	gKplScreen->callbackFiredCount = callback;
 
-	//FskInstrumentedTypePrintfDebug(&gKplScreen1908TypeInstrumentation, "In drawing pump callback %ld", callbackFiredCount);
+	//FskInstrumentedTypePrintfDebug(&gKplScreen140TypeInstrumentation, "In drawing pump callback %ld", callbackFiredCount);
 	
 	pending = gKplScreen->callbackPostedCount - gKplScreen->callbackFiredCount;
 	if (pending > 0) {
-		FskInstrumentedTypePrintfDebug(&gKplScreen1908TypeInstrumentation, "[%s] There are %d callbacks pending, skip callback %ld\n", threadName, pending, callback);
+		FskInstrumentedTypePrintfDebug(&gKplScreen140TypeInstrumentation, "[%s] There are %d callbacks pending, skip callback %ld\n", threadName, pending, callback);
 		return;
 	}
 
@@ -445,7 +445,7 @@ void flipThread(void *refcon)
 
 		if (ms > 0) {
 			FskDelay(ms);
-			FskInstrumentedTypePrintfDebug(&gKplScreen1908TypeInstrumentation, "[%s] delay %d ms\n", threadName, ms);
+			FskInstrumentedTypePrintfDebug(&gKplScreen140TypeInstrumentation, "[%s] delay %d ms\n", threadName, ms);
 		}
 
 		// Kick off the next cycle
@@ -937,7 +937,7 @@ char *inputTypeString(int code) {
 //#define TOUCH_SCALE_X(x)	(x)
 //#define TOUCH_SCALE_Y(y)	(y)
 
-/* on pxa1908 the touch sequence appears to be:
+/* on iap140/pxa1908 the touch sequence appears to be:
 	EV_ABS:ABS_MT_TRACKING_ID
 	EV_KEY:BTN_TOUCH
 	EV_ABS:ABS_X

@@ -794,7 +794,7 @@ FskErr FskHTTPClientBegin(FskHTTPClient client)
 			if( kFskErrNone == err )
 			{
 				FskSSLLoadCerts( ssl, &cert );
-				err = FskSSLHandshake( ssl, sHTTPClientGotSocket, client, true );
+				err = FskSSLHandshake( ssl, sHTTPClientGotSocket, client, true, 0 );
 				if( kFskErrNone == err )
 					client->skt->isSSL = true;
 			}
@@ -2165,7 +2165,7 @@ transition:
 					err = FskSSLAttach( &ssl, client->skt );
 					if( kFskErrNone == err ) {
 						FskSSLLoadCerts( ssl, &cert );
-						err = FskSSLHandshake( ssl, sHTTPClientGotSocket, client, true );
+						err = FskSSLHandshake( ssl, sHTTPClientGotSocket, client, true, 0 );
 						if( kFskErrNone == err )
 							client->skt->isSSL = true;
 					}

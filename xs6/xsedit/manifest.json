@@ -109,6 +109,12 @@
 					"$(F_HOME)/data/fonts/FiraSans-Bold.ttf",
 					"$(F_HOME)/data/fonts/FiraSans-Regular.ttf",
 				],
+				"tools": [
+					"$(F_HOME)/xs6/bin/linux/x86_64/Release/xsc6",
+					"$(F_HOME)/xs6/bin/linux/x86_64/Release/xsr6",
+					"$(F_HOME)/xs6/bin/linux/x86_64/Release/modules/tools.so",
+					"$(F_HOME)/xs6/bin/linux/x86_64/Release/modules/tools.xsa",
+				],
 			},
 		},
 		"mac":{
@@ -150,6 +156,10 @@
 					"$(F_HOME)/xs6/bin/win/release/modules/tools.xsa",
 				],
 			},
+			"sources": [
+				"^[\\w]:(\\\\[\\w]+)+\\\\features\\\\devices\\\\configs\\\\[\\w]+\\\\helper\\\\[\\w]+.js$",
+				"^[\\w]:(\\\\[\\w]+)+\\\\templates\\\\.+$",
+			],
 		},
 	},
 	"instrument":{

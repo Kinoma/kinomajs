@@ -41,6 +41,7 @@
 }
 
 #define kFskHTTPKeepAliveTimeout	30
+#define kFskHTTPSSLHandshakeTimeout	(30*1000)
 
 static void httpServerEngineCycle(void *param);
 static void httpServerTimeCycle(FskTimeCallBack cb, const FskTime when, void *param);
@@ -167,9 +168,11 @@ bail:
 static FskErr sHTTPServerGotSocket(struct FskSocketRecord *skt, void *refCon) {
 	FskHTTPServerListener listener = (FskHTTPServerListener)refCon;
 	listener->handshaking = false;
-	if (listener->http && FskNetSocketGetLastError(skt) == kFskErrNone)
+	if (listener->http && skt != NULL && FskNetSocketGetLastError(skt) == kFskErrNone)
 		return httpServerListenerStart(listener, skt);
 	else {
+		if (skt != NULL)
+			FskNetSocketClose(skt);
 		FskHTTPServerListenerDispose(listener);
 		return kFskErrOperationFailed;
 	}
@@ -194,10 +197,9 @@ static FskErr httpServerListenerAcceptNewConnection(FskThreadDataHandler handler
 		if (listener->http->certs != NULL)
 			FskSSLLoadCerts(ssl, listener->http->certs);
 		listener->handshaking = true;
-		err = FskSSLHandshake(ssl, sHTTPServerGotSocket, listener, false);
+		err = FskSSLHandshake(ssl, sHTTPServerGotSocket, listener, false, kFskHTTPSSLHandshakeTimeout);
 		if (err != kFskErrNone) {
-			FskSSLDispose(ssl);
-			FskNetSocketClose(skt);
+			FskSSLDispose(ssl);	/* skt has been attached to ssl so it should be closed all together */
 			return err;
 		}
 		return err;

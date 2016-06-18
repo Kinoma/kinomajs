@@ -195,7 +195,7 @@
 				// block cipher only at the moment
 				if (cipher.enc) {
 					var iv;
-					if (!(session.protocolVersion.major == 3 && session.protocolVersion.minor == 1) && session.chosenCipher.cipherBlockSize) { // 3.2 or higher && block cipher
+					if (session.protocolVersion.major == 3 && session.protocolVersion.minor >= 2 && session.chosenCipher.cipherBlockSize) { // 3.2 or higher && block cipher
 						iv = FskSSL.RNG(session.chosenCipher.cipherBlockSize);
 						cipher.enc.setIV(iv);
 					}
@@ -388,6 +388,34 @@
 				s.close();
 				return(upper);
 			</function>
+
+			<number name="MD5" value="1"/>
+			<number name="SHA1" value="2"/>
+			<number name="SHA256" value="4"/>
+			<function name="handshakeDigestResult" params="session, which">
+				var msg = session.handshakeMessages.getChunk(), H;
+				if (which & this.MD5) {
+					var md5 = new Crypt.MD5();
+					H = md5.process(msg);
+				}
+				if (which & this.SHA1) {
+					var sha1 = new Crypt.SHA1();
+					var res = sha1.process(msg);
+					if (H)
+						H.append(res);
+					else
+						H = res;
+				}
+				if (which & this.SHA256) {
+					var sha256 = new Crypt.SHA256();
+					var res = sha256.process(msg);
+					if (H)
+						H.append(res);
+					else
+						H = res;
+				}
+				return H;
+			</function>
 		</object>
 
 		<object name="helloRequest">
@@ -412,6 +440,7 @@
 				<number name="trusted_ca_keys" value="3"/>
 				<number name="trusted_hmac" value="4"/>
 				<number name="status_request" value="5"/>
+				<number name="application_layer_protocol_negotiation" value="16"/>
 			</object>
 			<string name="name" value="helloProtocol"/>
 			<object name="random">
@@ -492,8 +521,7 @@
 			<function name="packetize" params="session, cipherSuites, compressionMethods, msgType">
 				session.traceProtocol(this);
 				var s = new FskSSL.ChunkStream();
-				FskSSL.protocolVersion.serialize(s);
-				session.protocolVersion = FskSSL.protocolVersion;
+				session.protocolVersion.serialize(s);
 				var random = this.random.serialize();
 				s.writeChunk(random);
 				if (msgType == FskSSL.handshakeProtocol.client_hello) {
@@ -547,6 +575,18 @@
 								if (j > 4)
 									j = 4;
 								es.writeChar(j);
+								break;
+							case this.extension_type.application_layer_protocol_negotiation:
+								var len = 0;
+								for (var j = 0; j < ext.length; j++)
+									len += ext[j].length + 1;
+								es.writeChars(2 + len, 2);
+								for (var j = 0; j < ext.length; j++) {
+									var name = ext[j];
+									es.writeChars(name.length + 1, 2);
+									es.writeChars(name.length, 1);
+									es.writeString(name);
+								}
 								break;
 							default:
 								// not supported yet
@@ -809,7 +849,7 @@
 				var random = new Chunk();
 				random.append(session.clientRandom);
 				random.append(session.serverRandom);
-				session.masterSecret = FskSSL.PRF(preMasterSecret, "master secret", random, 48);
+				session.masterSecret = FskSSL.PRF(session, preMasterSecret, "master secret", random, 48);
 				random.free();
 			</function>
 
@@ -846,7 +886,7 @@
 				session.traceProtocol(this);
 				if (session.chosenCipher.keyExchangeAlgorithm == FskSSL.cipherSuite.RSA) {
 					var plain = new FskSSL.ChunkStream();
-					FskSSL.protocolVersion.serialize(plain);
+					session.protocolVersion.serialize(plain);
 					plain.writeChunk(FskSSL.RNG(46));
 					var preMasterSecret = plain.getChunk();
 					var key = session.peerCert.getKey();
@@ -869,20 +909,12 @@
 		<object name="certificateVerify" prototype="FskSSL.handshakeProtocol">
 			<string name="name" value="certificateVerify"/>
 			<function name="calculateDigest" params="session">
-				var m;
-				if (session.chosenCipher.keyExchangeAlgorithm == FskSSL.cipherSuite.RSA) {
-					var md5 = new Crypt.MD5();
-					md5.update(session.handshakeMessages.getChunk());
-					m = md5.close();
-				}
-				var sha1 = new Crypt.SHA1();
-				sha1.update(session.handshakeMessages.getChunk());
-				var h = sha1.close();
-				if (m) {
-					m.append(h);
-					h = m;
-				}
-				return(h);
+				var h;
+				if (session.protocolVersion.major == 3 && session.protocolVersion.minor >= 3)
+					h = this.SHA256;
+				else
+					h = session.chosenCipher.keyExchangeAlgorithm == FskSSL.cipherSuite.RSA ? this.MD5 | this.SHA1 : this.SHA1;
+				return this.handshakeDigestResult(session, h);
 			</function>
 
 			<target name="!wm || server">
@@ -928,18 +960,8 @@
 
 			<function name="calculateVerifyData" params="session, flag">
 				var finishLabel = (session.connectionEnd ^ flag) ? this.client_finished_label: this.server_finished_label;
-				var wholeMessage = session.handshakeMessages.getChunk();
-				var digest = new Chunk();
-				var hash = function(f) {
-					var h = new f();
-					h.update(wholeMessage);
-					digest.append(h.close());
-				};
-				hash(Crypt.MD5);
-				hash(Crypt.SHA1);
-				var v = FskSSL.PRF(session.masterSecret, finishLabel, digest, 12);
-				digest.free();
-				return(v);
+				var digest = this.handshakeDigestResult(session, session.protocolVersion.major == 3 && session.protocolVersion.minor >= 3 ? this.SHA256 : this.MD5 | this.SHA1);
+				return FskSSL.PRF(session, session.masterSecret, finishLabel, digest, 12);
 			</function>
 
 			<function name="unpacketize" params="session, s">

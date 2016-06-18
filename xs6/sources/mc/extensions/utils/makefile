@@ -15,21 +15,31 @@
 #     limitations under the License.
 #
 SUB_DIR = utils
-SOURCES = net.js xorshift.js
-OBJECTS = $(addprefix $(DEST_DIR)/$(SUB_DIR)/, $(addsuffix .xsb, $(basename $(SOURCES))))
+
 JS_DIR = $(F_HOME)/xs6/sources/mc/extensions/$(SUB_DIR)
+SOURCES = \
+	xorshift.js
+OBJECTS = $(addprefix $(DEST_DIR)/$(SUB_DIR)/, $(addsuffix .xsb, $(basename $(SOURCES))))
+
+EX_JS_DIR = $(F_HOME)/kinoma/kpr/libraries/Compat/src/utils
+EX_SOURCES = \
+	net.js
+EX_OBJECTS = $(addprefix $(DEST_DIR)/$(SUB_DIR)/, $(addsuffix .xsb, $(basename $(EX_SOURCES))))
 
 .PHONY: archive
 
-all archive: $(DEST_DIR)/$(SUB_DIR) $(OBJECTS)
+all archive: $(DEST_DIR)/$(SUB_DIR) $(OBJECTS) $(EX_OBJECTS)
 
 clean:
-	rm -f $(OBJECTS)
+	rm -f $(OBJECTS) $(EX_OBJECTS)
 
 $(DEST_DIR)/$(SUB_DIR):
 	mkdir -p $(DEST_DIR)/$(SUB_DIR)
 
 # rules
 $(DEST_DIR)/$(SUB_DIR)/%.xsb: $(JS_DIR)/%.js
+	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(DEST_DIR)/$(SUB_DIR) $<
+
+$(DEST_DIR)/$(SUB_DIR)/%.xsb: $(EX_JS_DIR)/%.js
 	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(DEST_DIR)/$(SUB_DIR) $<
 

@@ -23,6 +23,12 @@
 			<function name="reset" params="" c="xs_digest_reset"/>
 			<function name="get blockSize" c="xs_digest_getBlockSize"/>
 			<function name="get outputSize" c="xs_digest_getOutputSize"/>
+			<function name="process">
+				this.reset();
+				for (var i = 0; i < arguments.length; i++)
+					this.update(arguments[i]);
+				return this.close();
+			</function>
 		</object>
 		<function name="SHA1" params="" prototype="Crypt.digest" c="xs_sha1_constructor"/>
 		<function name="SHA256" params="" prototype="Crypt.digest" c="xs_sha256_constructor"/>

@@ -185,7 +185,7 @@
 			var time = parseFloat(T);
 			var check = this.build(time);
 			var delta = Date.now() - time;
-			return ((check == nonce) && (!lifetime || (delta >= 0.0) && (delta <= lifetime)));
+			return ((check == nonce) && (!lifetime || (delta >= 0.0) && (delta <= (lifetime * 1000))));
 		]]></method>
 		<getter id="nonce"><![CDATA[
 			return this.build(Date.now());

@@ -15,16 +15,16 @@
 #     limitations under the License.
 #
 set(LINUX true)
-set(PXA1908 true)
+set(IAP140 true)
 include (CMakeForceCompiler)
 
 set(CMAKE_SYSTEM_NAME Linux)
-set(CMAKE_SYSTEM_PROCESSOR "pxa1908")
+set(CMAKE_SYSTEM_PROCESSOR "iap140")
 
-set(TOOL_PREFIX arm-buildroot-linux-gnueabihf-)
-set(PXA1908_SYSROOT $ENV{PXA1908_SYSROOT})
+set(TOOL_PREFIX arm-linux-androideabi-)
+set(ANDRO_SYSROOT $ENV{ANDRO_SYSROOT})
 
-find_path(TOOLCHAIN_BIN ${TOOL_PREFIX}gcc $ENV{PATH} $ENV{PXA1908_GNUEABI}/bin)
+find_path(TOOLCHAIN_BIN ${TOOL_PREFIX}gcc $ENV{PATH} $ENV{ANDRO_GNUEABI}/bin)
 
 set(CMAKE_ASM_COMPILER ${TOOLCHAIN_BIN}/${TOOL_PREFIX}gcc CACHE PATH "assembler")
 cmake_force_c_compiler(${TOOLCHAIN_BIN}/${TOOL_PREFIX}gcc GNU)

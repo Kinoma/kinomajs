@@ -33,18 +33,19 @@
 	<input name="$(F_HOME)/libraries/libjpeg"/>
 	<input name="$(F_HOME)/libraries/zlib/arm"/>
 
-	<input name="$(PXA1908_SYSROOT)/usr/include"/>
+	<input name="$(ANDRO_SYSROOT)/usr/include"/>
 
 	<input name="$(F_HOME)/libraries/freetype/include"/>
 
 	<header name="FskPlatform.h"/>
 	
-	<source name="KplAudioLinuxALSA.c"/>
-	<source name="KplScreenLinux-pxa1908.c"/>
+	<source name="KplAudioLinux.c"/>
+	<source name="KplScreenLinuxNULL.c"/>
 
+<!--
+	<source name="yuv420torgb565le-arm.gas"/>
 	<source name="yuv420torgb-arm-v4-v5.gas"/>
 	<source name="yuv420torgb-arm-v6.gas"/>
-	<source name="yuv420torgb565le-arm.gas"/>
 	<header name="yuv420torgb-arm-s.h"/>
 	
 	<source name="FskYUV420Copy-arm.gas"/>
@@ -58,17 +59,33 @@
 	<source name="AAScaleBitmap-arm.gas7"/>
 	<source name="FskTransferAlphaBlit-arm.gas7"/>
 	<source name="HVfilter-arm.gas7"/>
+-->
 
 	<source name="FskFixedMath-arm.gas"/>
 
-	<source name="FskGLBlit.c"/>
-	<source name="FskGLEffects.c"/>
-	<source name="FskGLContext.c"/>
-    <source name="KplGL.c"/>
-
-	<asm option="-ftree-vectorize"/>
 	<asm option="-x assembler-with-cpp"/>
 
+    <c option="-march=armv5te"/>
+    <c option="-mtune=xscale"/>
+    <c option="-msoft-float"/>
+    <c option="-mthumb-interwork"/>
+    <c option="-fPIE"/>
+    <c option="-fno-exceptions"/>
+    <c option="-ffunction-sections"/>
+    <c option="-funwind-tables"/>
+    <c option="-fstack-protector"/>
+    <c option="-fmessage-length=0"/>
+    <c option="-finline-functions"/>
+    <c option="-finline-limit=300"/>
+    <c option="-fno-inline-functions-called-once"/>
+    <c option="-fgcse-after-reload"/>
+    <c option="-frerun-cse-after-loop"/>
+    <c option="-frename-registers"/>
+    <c option="-fomit-frame-pointer"/>
+    <c option="-fstrict-aliasing"/>
+    <c option="-funswitch-loops"/>
+
+	<c option="--sysroot=${ANDRO_SYSROOT}"/>
 	<c option="-DBAD_FTRUNCATE=1"/>
 	<c option="-DCLOSED_SSL=1"/>
 	<c option="-DFSK_APPLICATION_$(FSK_APPLICATION)=1"/>
@@ -84,20 +101,21 @@
 	<c option="-DUSE_POSIX_CLOCK=1"/>
 	<c option="-DUSE_INOTIFY=1"/>
 	<c option="-D_FILE_OFFSET_BITS=64"/>
-	<c option="-D_LARGEFILE64_SOURCE"/>
+	<!--c option="-D_LARGEFILE64_SOURCE"/-->
 	<c option="-D_LARGEFILE_SOURCE"/>
 	<c option="-D_REENTRANT"/>
 	<c option="-D__FSK_LAYER__=1"/>
 	<c option="-D__XSCALE__=1"/>
-	<c option="-DFSK_OPENGLES_KPL=1"/>
 	<c option="-DUSE_WPACONFIG=1"/>
 	<c option="-DLINUX=1"/>
-	<c option="-DEGL_API_FB=1"/>
-	<c option="-DKINOMA_IDICT_IFAST_SUPPORTED"/>
-	<c option="-DKINOMA_YUV2RGB565_IFAST_ARM_SUPPORTED"/>
-	<c option="-DYUV420i_RGB_ARM_IMPLEMENTATION=1"/>
-	<c option="-DTARGET_RT_ALSA=1"/>
 	<c option="-fsigned-char"/>
+	<c option="-DANDROID_PLATFORM=1"/>
+	<c option="-DANDRO=1"/>
+    <c option="-D__ARM_ARCH_5__"/>
+    <c option="-D__ARM_ARCH_5T__"/>
+    <c option="-D__ARM_ARCH_5E__"/>
+    <c option="-D__ARM_ARCH_5TE__"/>
+    <c option="-march=armv5te"/>
 
 	<c option="-Wall"/>
 	<c option="-Werror-implicit-function-declaration"/>
@@ -106,17 +124,16 @@
 	<c option="-Wunused-variable"/>
 	<c option="-Wno-multichar"/>
 	
-	<library name="-Wl,-rpath,$(PXA1908_SYSROOT)/usr/lib,-z,muldefs"/>
-    <library name="-Wl,-rpath,.,-rpath,'$ORIGIN/lib'"/>
-	<library name="-L$(PXA1908_SYSROOT)/usr/lib"/>
+	<library name="-Wl,-z,muldefs"/>
+	<library name="-L$(ANDRO_SYSROOT)/usr/lib"/>
 	<library name="-lm"/>
 	<library name="-ldl"/>
+	<library name="-fPIE -pie"/>
+<!--
 	<library name="-lrt"/>
 	<library name="-lpthread"/>
 	<library name="-lresolv"/>
-	<library name="-lasound"/>
-	<library name="-lEGL"/>
-	<library name="-lGLESv2"/>
+-->
 
 	<c option="-I$(F_HOME)/libraries/freetype/include"/>
 	<version name="debug">

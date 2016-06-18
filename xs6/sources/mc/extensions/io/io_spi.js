@@ -22,7 +22,7 @@ export default class SPI @ "xs_ssp_destructor" {
 	read(reg, n) @ "xs_ssp_read";
 	readChar(reg)@"xs_ssp_readChar";
 	readWord(reg, lsbFirst) @ "xs_ssp_readWord";
-	write(reg, data, dma, n) @ "xs_ssp_write";
+	write(reg, data, dma, n, offset, duplex) @ "xs_ssp_write";
 	activate()@"xs_ssp_cs_activate";
 	deactivate()@"xs_ssp_cs_deactivate";
 

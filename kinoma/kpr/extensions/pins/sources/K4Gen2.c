@@ -150,9 +150,13 @@ int FskHardwarePinsMux(int physicalPinNum, FskHardwarePinFunction function){
                     return 26;       // left header voltage select
                 case 1027:
                     return 27;       // microUSB charger detect
+				case 1018:
+					return 18; 		 // miniUSB power detect
+				case 1024:
+					return 24;		 // miniUSB charger detect
                 default:
                     break;
-                
+
             }
 		}
 		return -1;

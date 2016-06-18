@@ -19,6 +19,7 @@
 
 <input name="../crypt"/>
 <input name="../crypt/sources"/>
+<input name="../../core/grammars"/>
 
 <include name="/makefiles/xsFskDefaults.mk"/>
 

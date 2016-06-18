@@ -41,8 +41,9 @@
 			<null name="onMachineViewPrint"/> <!-- params="address, view, line" -->
 		</object>
 		<function name="Debug" params="dictionary" prototype="KPR.debug" c="KPR_Debug"/>
-		<function name="gotoFront" c="KPR_gotoFront"/>
-	</patch>
+    <function name="gotoFront" c="KPR_gotoFront"/>
+    <function name="formatText" c="KPR_formatText"/>
+  </patch>
 	<patch prototype="system">
 		<function name="getenv" params="name" c="KPR_system_getenv"/>
 	</patch>

@@ -51,6 +51,20 @@ FskAPI(void) *FskBSearch(const void *key, const void *base, UInt32 num, UInt32 w
 // Launcher
 FskAPI(FskErr) FskLauncherOpenDocument(const char *fullpath, UInt32 kind);		// 0 == file path, 1 == URL
 
+// Deferrer
+typedef struct FskDeferrerRecord FskDeferrerRecord, *FskDeferrer;
+typedef void (*FskDeferredTask)(void *a, void *b, void *c, void *d);
+
+FskAPI(FskErr) FskDeferrerNew(FskDeferrer *it);
+FskAPI(FskErr) FskDeferrerDispose(FskDeferrer deferrer);
+FskAPI(void *) FskDeferrerAddTask(FskDeferrer deferrer, FskDeferredTask task, void *arg1, void *arg2, void *arg3, void *arg4);
+FskAPI(void) FskDeferrerRemoveTask(FskDeferrer deferrer, void *taskP);
+
+#define FskDeferrerAddTask0(d, t) FskDeferrerAddTask(d, t, NULL, NULL, NULL, NULL)
+#define FskDeferrerAddTask1(d, t, a) FskDeferrerAddTask(d, t, a, NULL, NULL, NULL)
+#define FskDeferrerAddTask2(d, t, a, b) FskDeferrerAddTask(d, t, a, b, NULL, NULL)
+#define FskDeferrerAddTask3(d, t, a, b, c) FskDeferrerAddTask(d, t, a, b, c, NULL)
+
 FskAPI(void) FskDelay(UInt32 ms);
 
 // Global utils

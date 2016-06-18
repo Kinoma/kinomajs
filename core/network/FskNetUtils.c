@@ -1811,7 +1811,7 @@ FskErr FskNetConnectToHostPrioritized(char *host, int port, Boolean blocking,
 			if (err == kFskErrNone) {
 				if (cert != NULL)
 					FskSSLLoadCerts(ssl, cert);
-				err = FskSSLHandshake(ssl, callback, refCon, true);
+				err = FskSSLHandshake(ssl, callback, refCon, true, 0);
 			}
 			return err;
 		}

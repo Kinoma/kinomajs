@@ -17,6 +17,10 @@
 
 #include "kpr.h"
 
+void KPR_formatText(xsMachine *the)
+{
+}
+
 void KPR_gotoFront(xsMachine *the)
 {
 }

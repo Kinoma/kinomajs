@@ -16,6 +16,9 @@
 |     limitations under the License.
 -->
 <package>
+	<object name="Priv" script="false"/>
+	<import href="FskTimer.xs"/>
+
 	<patch prototype="FskSSL">
 		<object name="session" prototype="FskSSL">
 			<chunk name="clientSessionID"/>
@@ -126,7 +129,15 @@
 
 			<function name="setupCipher" params="connectionEnd">
 				function setupSub(o, cipher) {
-					o.hmac = new Crypt.HMAC(cipher.hashAlgorithm == FskSSL.cipherSuite.MD5 ? new Crypt.MD5(): new Crypt.SHA1(), o.macSecret);
+					var h;
+					switch (cipher.hashAlgorithm) {
+					case FskSSL.cipherSuite.MD5: h = new Crypt.MD5(); break;
+					case FskSSL.cipherSuite.SHA1: h = new Crypt.SHA1(); break;
+					case FskSSL.cipherSuite.SHA256: h = new Crypt.SHA256(); break;
+					default:
+						throw new Error("SSL: SetupCipher: unknown hash algorithm");
+					}
+					o.hmac = new Crypt.HMAC(h, o.macSecret);
 					switch (cipher.cipherAlgorithm) {
 					case FskSSL.cipherSuite.DES:
 						var enc = new Crypt.DES(o.key);
@@ -156,7 +167,7 @@
 					var nbytes = this.chosenCipher.cipherKeySize * 2 + this.chosenCipher.cipherBlockSize * 2 + this.chosenCipher.hashSize * 2;
 				else	// version 3.2 or higher
 					var nbytes = this.chosenCipher.cipherKeySize * 2 + this.chosenCipher.hashSize * 2;
-				var keyBlock = FskSSL.PRF(this.masterSecret, "key expansion", random, nbytes);
+				var keyBlock = FskSSL.PRF(this, this.masterSecret, "key expansion", random, nbytes);
 				random.free();
 				var s = new FskSSL.ChunkStream(keyBlock);
 				var o = xs.newInstanceOf(FskSSL.session.cipherObject);
@@ -324,7 +335,7 @@
 				return this.clientSessionID.length > 0 && this.clientSessionID.comp(this.serverSessionID) == 0;
 			</function>
 
-			<function name="handshake" params="s, onFinishedCallback, initiate">
+			<function name="handshake" params="s, onFinishedCallback, initiate, timeout">
 				this.connectionEnd = initiate;
 				// event driven version
 				var processing = false;
@@ -333,6 +344,8 @@
 				this.handshakeMessages = new FskSSL.ChunkStream();	// holds the entire handshake messages to check integrity
 				this.handshakeProcess = -1;	// wait until the connection is established
 				this.onFinished = onFinishedCallback;
+				this.timeout = timeout;
+				this.timer = undefined;
 				this.saveOnConnected = ("onConnected" in s) ? s.onConnected: undefined;
 				this.saveOnReadable = ("onReadable" in s) ? s.onReadable: undefined;
 				this.saveOnWritable = ("onWritable" in s) ? s.onWritable: undefined;
@@ -351,6 +364,10 @@
 
 				s.allDone = function(err) {
 					var session = this.sslSession;
+					if (session.timer) {
+						session.timer.close();
+						session.timer = undefined;
+					}
 					var fskSocket = this.detachData();
 					this.onConnected = session.saveOnConnected;
 					this.onReadable = session.saveOnReadable;
@@ -373,6 +390,14 @@
 					}
 					if (this.sslSession.connectionEnd)	// client starts a handshake with hello_request
 						this.sslSession.handshakeProcess = FskSSL.handshakeProtocol.hello_request;
+					if (this.sslSession.timeout) {
+						var session = this.sslSession;
+						session.timer = new Timer();
+						session.timer.onCallback = function() {
+							session.socket.allDone(-120);	// handshake failed
+						};
+						session.timer.schedule(session.timeout);
+					}
 				};
 
 				s.onReadable = exceptionGuard(function() {
@@ -455,6 +480,14 @@
 				});
 
 				if (s.connected) {
+					if (this.timeout) {
+						var that = this;
+						this.timer = new Timer();
+						this.timer.onCallback = function() {
+							that.socket.allDone(-120);	// handshake failed
+						};
+						this.timer.schedule(this.timeout);
+					}
 					if (this.connectionEnd) {
 						s.attachData(s.detachData());	// just to de-register callbacks so SSL can take it over
 						this.handshakeProcess = FskSSL.handshakeProtocol.hello_request;
@@ -613,12 +646,17 @@
 				alert.close();
 			</function>
 		</object>
-		<function name="Session" params="extensions" prototype="FskSSL.session">
+		<function name="Session" params="options" prototype="FskSSL.session">
 			this.certificates = new Crypt.Certificate(FskSSL.certificatesInstance);
 			this.keyring = new Crypt.Keyring(FskSSL.keyringInstance);
 			this.cacheManager = new FskSSL.SessionCacheManager();
 			this.alert = undefined;
-			this.extensions = extensions;
+			this.extensions = options;
+			this.protocolVersion = FskSSL.protocolVersion;
+			if (options && options.protocolVersion) {
+				this.protocolVersion.major = options.protocolVersion.major;
+				this.protocolVersion.minor = options.protocolVersion.minor;
+			}
 		</function>
 	</patch>
 </package>

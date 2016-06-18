@@ -83,10 +83,12 @@ void KprMQTTBrokerDispose(KprMQTTBroker self)
 {
 	if (self) {
 		KprMQTTSubscription subscription = self->subscriptions;
+		self->subscriptions = NULL;
 		while (subscription) {
 			KprMQTTSubscription next = subscription->next;
 
 			KprMQTTSubscriber subscriber = subscription->subscribers;
+			subscription->subscribers = NULL;
 			while (subscriber) {
 				KprMQTTSubscriber next = subscriber->next;
 

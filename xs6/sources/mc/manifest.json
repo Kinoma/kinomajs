@@ -3,6 +3,12 @@
 		"XS": "$(F_HOME)/xs6",
 		"MC": "$(XS)/sources/mc",
 	},
+	"data": {
+		"*": [
+			"$(MC)/data/*",
+			"$(MC)/proprietary/data/*",
+		],
+	},
 	"modules": {
 		"~": [
 			"$(MC)/extensions/mqtt/server",
@@ -19,9 +25,14 @@
 		"board_led": "$(MC)/modules/xm_led",
 		"coap/*": "$(MC)/extensions/coap/*",
 		"crypt/*": [
+			"$(XS)/extensions/crypt/crypt_*",
 			"$(MC)/external/crypt_*",
 			"$(MC)/external/c25519/src/*",
 			"$(MC)/external/poly1305-donna/poly1305-*",
+			"$(F_HOME)/libraries/kcl/*",
+		],
+		"arith/*": [
+			"$(XS)/extensions/crypt/arith_*",
 		],
 		"hap/*": "$(MC)/proprietary/hap/hap_*",
 		"io/A2D": "$(MC)/extensions/io/io_a2d",
@@ -60,6 +71,11 @@
 			"$(XS)/extensions/ssl/ssl",
 		],
 	},
+	"resources": {
+		"*": [
+			"$(MC)/rodata/*",
+		],
+	},
 	"platforms":{
 		"mac":{
 			"modules": {
@@ -71,10 +87,11 @@
 				"mdns/*": "$(MC)/extensions/mdns/mdns_*",
 			},
 		},
-		"wm":{
+		"k5":{
 			"modules": {
 				"~": [
-					"$(MC)/extensions/mdns/mdns_host"
+					"$(MC)/extensions/mdns/mdns_host",
+					"$(MC)/extensions/mdns/mdns_mac",
 				],
 				"mdns": "$(MC)/extensions/mdns/mdns",
 				"mdns/*": "$(MC)/extensions/mdns/mdns_*",

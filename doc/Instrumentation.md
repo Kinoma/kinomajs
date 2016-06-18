@@ -214,7 +214,7 @@ KprTexture
 KprThumbnail
 KprTransition
 KprUPnP
-KprUPnPSDevice
+KprUPnPDevice
 KprUPnPService
 KprUPnPSubscription
 KprVerticalTable

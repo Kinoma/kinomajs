@@ -16,17 +16,10 @@
 #
 project(MC)
 
-# include(${CMAKE_CURRENT_SOURCE_DIR}/macros.cmake)
-# 
 set(MC_DIR ${XS6}/sources/mc)
-set(DEST_DIR ${CMAKE_CURRENT_BINARY_DIR}/modules)
-# 
-# include(${CMAKE_CURRENT_SOURCE_DIR}/xs.cmake)
-# include(${CMAKE_CURRENT_SOURCE_DIR}/c.cmake)
-
-# XS6_TOOL_DIR
 
 add_custom_target(mc
+	ALL
 	COMMAND env XS6_TOOL_DIR="${XS6_TOOLS_BIN}" make -j1 host
 	WORKING_DIRECTORY ${MC_DIR}
 	DEPENDS tools

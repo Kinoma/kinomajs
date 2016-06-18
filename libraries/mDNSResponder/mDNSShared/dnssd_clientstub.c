@@ -81,7 +81,11 @@ static void syslog( int priority, const char * message, ...)
 }
 #else
 
+#if ANDRO
+    #include <fcntl.h>      // For O_RDWR etc.
+#else
     #include <sys/fcntl.h>      // For O_RDWR etc.
+#endif
     #include <sys/time.h>
     #include <sys/socket.h>
     #include <syslog.h>
