@@ -78,6 +78,7 @@ class IOS {
 		info.BuildMachineOSBuild = tool.execute("sw_vers -buildVersion").trim();
 		info.DTCompiler = "com.apple.compilers.llvm.clang.1_0";
 		info.DTPlatformBuild = sdkVersion.match(/SDKVersion: (.*)/)[1];
+		info.DTPlatformName = "iphoneos";
 		info.DTSDKBuild = sdkVersion.match(/ProductBuildVersion: (.*)/)[1];
 		info.DTSDKName = "iphoneos" + info.DTPlatformBuild;
 		info.DTXcode = "0" + xcodeVersion.match(/Xcode (.*)/)[1].replace(/\./g, '');
