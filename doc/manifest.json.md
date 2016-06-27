@@ -239,4 +239,4 @@ Individual instrumentation types are enabled in the `instrument` entry of an app
 }
 ```
 
-See the [Instrumentation](https://github.com/Kinoma/kinomajs/blob/master/doc/instrumentation.md) document for details.
+See the [Instrumentation](https://github.com/Kinoma/kinomajs/blob/master/doc/Instrumentation.md) document for details.
