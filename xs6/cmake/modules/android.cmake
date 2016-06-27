@@ -81,6 +81,7 @@ set(TOOLCHAIN_BIN ${TOOLCHAIN_ROOT}/bin)
 
 string(REGEX MATCH "[0-9]+[.][0-9]+([.][0-9x]+)?$" COMPILER_VERSION ${TOOLCHAIN})
 string(REGEX REPLACE "-${COMPILER_VERSION}$" "" TOOLCHAIN_NAME "${TOOLCHAIN}")
+file(GLOB COMPILER_LIB_VERSION RELATIVE "${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}" "${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/*")
 
 set(NDK_PLATFORM_VER			"14")
 set(SYSROOT				"${ANDROID_NDK}/platforms/android-${NDK_PLATFORM_VER}/arch-arm")
@@ -106,19 +107,19 @@ set(AS_WMMX_OPTIONS			"-mwmmxt")
 set(NDK_PROJECT_PATH			"${TMP_DIR}/ndk/project")
 set(NDK_PROJECT_LIBRARIES		"${NDK_PROJECT_PATH}/app/src/main/jniLibs/armeabi")
 
-set(SEPARATE_LIBRARIES			"${TOOLCHAIN_ROOT}lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}/libgcc.a -L${ANDROID_NDK})/${NDK_PLATFORM} -lc -lstdc++ -lm ${NDK_PROJECT_PATH}/modules/Fsk/build/outputs/native/debug/arm/lib/armeabi/libFsk.so -ldl -llog")
+set(SEPARATE_LIBRARIES			"${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_LIB_VERSION}/libgcc.a -L${ANDROID_NDK})/${NDK_PLATFORM} -lc -lstdc++ -lm ${NDK_PROJECT_PATH}/modules/Fsk/build/outputs/native/debug/arm/lib/armeabi/libFsk.so -ldl -llog")
 set(SEPARATE_DIR			"${NDK_PROJECT_LIBRARIES}")
 
 set(FREETYPE_VERSION			"2.6")
 set(FREETYPE_DIR			"${TMP_DIR}/freetype-${FREETYPE_VERSION}")
 set(FREETYPE_PLATFORM_C_OPTIONS		"--sysroot=${SYSROOT}")
 
-set(TOOLCHAIN_LIB_PATH			"${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}")
+set(TOOLCHAIN_LIB_PATH			"${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_LIB_VERSION}")
 set(SEPARATE_LINK_OPTIONS		"-nostdlib -Wl,-shared,-Bsymbolic -Wl,--whole-archive -Wl,--fix-cortex-a8 -Wl,-rpath-link=${NDK_PLATFORM}")
 if(NOT RELEASE)
 	set(SEPARATE_LINK_OPTIONS "${SEPARATE_LINK_OPTIONS} -g")
 endif()
-set(SEPARATE_LIBRARIES			"${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_VERSION}/libgcc.a -L${SYSROOT}/usr/lib -L${TMP_DIR} -lc -lstdc++ -lm -ldl -llog -landroid")
+set(SEPARATE_LIBRARIES			"${TOOLCHAIN_ROOT}/lib/gcc/${TOOLCHAIN_NAME}/${COMPILER_LIB_VERSION}/libgcc.a -L${SYSROOT}/usr/lib -L${TMP_DIR} -lc -lstdc++ -lm -ldl -llog -landroid")
 
 
 set(CMAKE_C_CREATE_SHARED_LIBRARY	"<CMAKE_C_COMPILER> -Wl,-soname,<TARGET_SONAME> <OBJECTS> ${SEPARATE_LINK_OPTIONS} <LINK_LIBRARIES> ${SEPARATE_LIBRARIES} -o <TARGET>")

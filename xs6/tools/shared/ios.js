@@ -96,6 +96,7 @@ class IOS {
 		var text = tool.execute("security find-identity -v -p codesigning");
 		var regexp = /[0-9]\) ([^ ]+) "([^"]+)"/gm;
 		var identities = [];
+		var isDistribution = false;
 		for (;;) {
 			var results = regexp.exec(text);
 			if (!results)
@@ -106,8 +107,10 @@ class IOS {
 				certificates: [],
 			}
 			if (tool.identityName) {
-				if (identity.name.indexOf(tool.identityName) > 0 || identity.hash == tool.identityName) {
+				if (identity.name.indexOf(tool.identityName) >= 0 || identity.hash == tool.identityName) {
 					identities.push(identity);
+					if (identity.name.indexOf("Distribution") > 0)
+						isDistribution = true;
 				}
 			}
 			else
@@ -136,10 +139,11 @@ class IOS {
 				provision.path = path;
 				if (now <= provision.ExpirationDate.valueOf()) {
 					if (tool.provisionName) {
-						if (provision.Name == tool.provisionName || provision.path == tool.provisionName)
+						if (provision.Name == tool.provisionName || provision.path == tool.provisionName) {
 							foundProvisions.push(provision);
+						}
 					}
-					else if (provision.Entitlements["get-task-allow"])
+					else if (provision.Entitlements["get-task-allow"] || isDistribution)
 						foundProvisions.push(provision);
 				}
 			}
@@ -147,14 +151,19 @@ class IOS {
 		if (foundProvisions.length == 0) {
 			if (tool.provisionName)
 				throw new Error("no \"" + tool.provisionName + "\" provisioning profiles found!");
-			throw new Error("no development provisioning profiles found!");
+			throw new Error("no provisioning profiles found!");
 		}
 		var entitledProvisions = [];
 		for (var provision of foundProvisions) {
 			var entitlements = provision.Entitlements;
 			var applicationIdentifier = entitlements["application-identifier"].replace("*", namespace);
-			if (applicationIdentifier == entitlements["com.apple.developer.team-identifier"] + "." + namespace) {
-				entitlements["application-identifier"] = applicationIdentifier;
+			var applicationIdentifierRelease = entitlements["application-identifier"].replace("*", tool.application.toLowerCase());
+			var entitlementsIdentifier =  entitlements["com.apple.developer.team-identifier"] + "." + namespace;
+			if (applicationIdentifier == entitlementsIdentifier || applicationIdentifierRelease == entitlementsIdentifier) {
+				if (isDistribution)
+					entitlements["application-identifier"] = applicationIdentifierRelease;
+				else
+					entitlements["application-identifier"] = applicationIdentifier;
 				if ("keychain-access-groups" in entitlements)
 					entitlements["keychain-access-groups"] = entitlements["keychain-access-groups"].map(s => s.replace("*", namespace));
 				entitledProvisions.push(provision);
@@ -163,7 +172,7 @@ class IOS {
 		if (entitledProvisions.length == 0) {
 			if (tool.provisionName)
 				throw new Error("no \"" + tool.provisionName + "\" provisioning profiles entitled for \"" + namespace + "\"!");
-			throw new Error("no development provisioning profiles entitled for \"" + namespace + "\"!");
+			throw new Error("no provisioning profiles entitled for \"" + namespace + "\"!");
 		}
 		for (var provision of entitledProvisions) {
 			for (var developerCertificate of provision.DeveloperCertificates) {
@@ -183,11 +192,11 @@ class IOS {
 		if (tool.identityName) {
 			if (tool.provisionName)
 				throw new Error("no \"" + tool.identityName + "\" code signing identities certified for \"" + tool.provisionName + "\" provisioning profiles!");
-			throw new Error("no \"" + tool.identityName + "\" code signing identities certified for development provisioning profiles!");
+			throw new Error("no \"" + tool.identityName + "\" code signing identities certified for provisioning profiles!");
 		}
 		if (tool.provisionName)
 			throw new Error("no code signing identities certified for \"" + tool.provisionName + "\" provisioning profiles!");
-		throw new Error("no code signing identities certified for development provisioning profiles!");
+		throw new Error("no code signing identities certified for provisioning profiles!");
 	}
 };
 
