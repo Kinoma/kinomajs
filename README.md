@@ -517,10 +517,10 @@ The `Kinoma Code` application is located at `${F_HOME}/bin/mac/Release/Kinoma Co
   $ open ${F_HOME}/bin/mac/Release/Kinoma\ Code.app
   ```
 
-## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi, Pine64, Linkit7688)![icon](http://kinoma.com/img/github/linux.png)
+## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi, Pine64, Linkit7688, LeMaker Guitar)![icon](http://kinoma.com/img/github/linux.png)
 
 Building KinomaJS for embedded Linux uses a Linux build host.
-The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/pi`, `linux/linkit7688`, or `linux/pine64` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
+The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/pi`, `linux/pine64`, `linux/linkit7688`, or `linux/guitar` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
 
 
 
@@ -541,6 +541,8 @@ The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/
 	- For Pine64, see the document [Setup for Building for Pine64](https://github.com/Kinoma/kinomajs/blob/master/doc/Pine64Setup.md)
 	
 	- For Linkit7688, see the document [Setup for Building for Linkit7688](https://github.com/Kinoma/kinomajs/blob/master/doc/Linkit7688Setup.md)
+	
+	- For LeMaker Guitar, see the document [Setup for Building for LeMaker Guitar](https://github.com/Kinoma/kinomajs/blob/master/doc/LeMakerGuitarSetup.md)
 4. Get a copy of the KinomaJS source code. It can be downloaded using your web browser from the [KinomaJS repository on GitHub](http://github.org/kinoma/kinomajs) or using the `git` command-line tool, as follows:
   ```
   $ git clone https://github.com/kinoma/kinomajs.git
@@ -573,6 +575,7 @@ The target platform specifiers are as follows:
   - `linux/edison` - Intel Edison
   - `linux/pine64` - Pine64
   - `linux/linkit7688` - Linkit7688
+  - `linux/guitar` - LeMaker Guitar
   
 1. Build the `balls` sample application that is included in the KinomaJS repository.
   ```

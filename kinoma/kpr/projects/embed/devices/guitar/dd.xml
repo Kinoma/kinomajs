@@ -23,12 +23,12 @@
     <device>
         <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
         <friendlyName>[friendlyName]</friendlyName>
-        <manufacturer>Pine64</manufacturer>
-        <manufacturerURL>http://pine64.com</manufacturerURL>
-        <modelDescription>Pine64</modelDescription>
-        <modelNumber>1</modelNumber>
-        <modelName>Pine64</modelName>
-        <modelURL>https://pine64.com</modelURL>
+        <manufacturer>LeMaker</manufacturer>
+        <manufacturerURL>http://lemaker.org</manufacturerURL>
+        <modelDescription>LeMaker Guitar</modelDescription>
+        <modelNumber>B</modelNumber>
+        <modelName>LeMaker Guitar</modelName>
+        <modelURL>http://www.lemaker.org/product-guitar-index.html</modelURL>
         <serialNumber></serialNumber>
         <UDN>uuid:[udn]</UDN>
         <iconList>
