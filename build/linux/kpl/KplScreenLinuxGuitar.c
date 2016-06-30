@@ -82,6 +82,7 @@ struct KplScreenStruct {
 
 	FskTimeRecord lastUpdateTime;
 	FskTimeRecord lastFlipTime;
+	FskTimeRecord nextFlipTime;
 	FskTimeRecord vSyncIntervalTime;
 	FskTimeRecord updateIntervalTime;
 	
@@ -531,7 +532,7 @@ FskErr KplScreenUnlockBitmap(KplBitmap bitmap)
 
 static void drawingPumpUpdate(FskWindow win)
 {
-	FskTimeRecord delta, now, nextFlipTime;
+	FskTimeRecord delta, now;
 	
 	FskTimeGetNow(&now);
 
@@ -557,12 +558,12 @@ MLOG("drawingPumpUpdate\n");
 
     // Estimate the next flip time by adding the vSync interval to the previous flip time.
     // If the previous drawing operation took longer than expected, i.e. longer than our update interval, we skipped one or more flips and need to adjust the next flip time accordingly.
-    FskTimeCopy(&nextFlipTime, &gKplScreen->lastFlipTime);
-    FskTimeAdd(&gKplScreen->vSyncIntervalTime, &nextFlipTime);
-    while (FskTimeCompare(&nextFlipTime, &now) > 0)
-        FskTimeAdd(&gKplScreen->vSyncIntervalTime, &nextFlipTime);
+    FskTimeCopy(&gKplScreen->nextFlipTime, &gKplScreen->lastFlipTime);
+    FskTimeAdd(&gKplScreen->vSyncIntervalTime, &gKplScreen->nextFlipTime);
+    while (FskTimeCompare(&gKplScreen->nextFlipTime, &now) > 0)
+        FskTimeAdd(&gKplScreen->vSyncIntervalTime, &gKplScreen->nextFlipTime);
     
-    FskInstrumentedTypePrintfNormal(&gKplScreenTypeInstrumentation, "Next flip time %ld.%06ld", nextFlipTime.seconds, nextFlipTime.useconds);
+    FskInstrumentedTypePrintfNormal(&gKplScreenTypeInstrumentation, "Next flip time %ld.%06ld", gKplScreen->nextFlipTime.seconds, gKplScreen->nextFlipTime.useconds);
 
 #if 0
     if (gNumPts) {
@@ -579,7 +580,7 @@ MLOG("drawingPumpUpdate\n");
 
     FskWindowCheckEventQueue(win);      // flush pending mouse events
 #endif
-    FskWindowUpdate(win, &nextFlipTime);
+    FskWindowUpdate(win, &gKplScreen->nextFlipTime);
 	
 	// We know that the client didn't draw if the screen bitmap didn't unlock during the FskWindowUpdate() call.
 	// When this happens, force another Flip() to keep the drawing pump alive.
@@ -607,22 +608,27 @@ void flipThread(void *refcon)
 {
 	KplScreen screen = refcon;
 	FskThread mainThread = FskThreadGetMain();
+	FskTimeRecord later;
+	SInt32 ms;
 
 	FskThreadInitializationComplete(FskThreadGetCurrent());
 	while (!gQuitting) {
         FskSemaphoreAcquire(screen->flipSemaphore);
-
-		devFBFlip(screen);
-
-		FskInstrumentedTypePrintfNormal(&gKplScreenTypeInstrumentation, "** after Flip **");
-
 		//Save the last Flip time
-		FskTimeGetNow(&(gKplScreen->lastFlipTime));
+		FskTimeGetNow(&gKplScreen->lastFlipTime);
+		FskTimeCopy(&later, &gKplScreen->nextFlipTime);
+		FskTimeSub(&gKplScreen->lastFlipTime, &later);
+		ms = FskTimeInMS(&later);
+
+		if (ms > 0) {
+			FskDelay(ms);
+		}
 
 		gKplScreen->bitmap->baseAddress = BITS_NULL;
 		
 		// Kick off the next cycle
 		if (gKplScreen->drawingPumpEnabled) {
+			devFBFlip(screen);
 			if  (gKplScreen->callbackPostedCount > gKplScreen->callbackFiredCount) {
 				FskInstrumentedTypePrintfDebug(&gKplScreenTypeInstrumentation, "We still have %lu events pending, Skip it", gKplScreen->callbackPostedCount - gKplScreen->callbackFiredCount);
 				continue;

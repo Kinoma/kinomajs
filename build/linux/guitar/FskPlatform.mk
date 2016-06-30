@@ -47,6 +47,7 @@
 	<source name="yuv420torgb-arm-v4-v5.gas"/>
 	<source name="yuv420torgb-arm-v6.gas"/>
 	<source name="yuv420torgb565le-arm.gas"/>
+	<source name="yuv420torgb565le-arm.gas7"/>
 	<header name="yuv420torgb-arm-s.h"/>
 	
 	<source name="FskYUV420Copy-arm.gas"/>
@@ -61,6 +62,9 @@
 	<source name="FskTransferAlphaBlit-arm.gas7"/>
 	<source name="HVfilter-arm.gas7"/>
 
+    <source name="inflate_fast_copy_neon.gas"/>
+    <source name="adler32_neon.gas"/>
+
 	<source name="FskFixedMath-arm.gas"/>
 
 <!--
@@ -72,6 +76,7 @@
 
 	<asm option="-ftree-vectorize"/>
 	<asm option="-x assembler-with-cpp"/>
+	<asm option="-mfpu=neon"/>
 
 	<c option="-DBAD_FTRUNCATE=1"/>
 	<c option="-DCLOSED_SSL=1"/>
@@ -102,6 +107,7 @@
 	<c option="-DKINOMA_IDICT_IFAST_SUPPORTED"/>
 	<c option="-DKINOMA_YUV2RGB565_IFAST_ARM_SUPPORTED"/>
 	<c option="-DYUV420i_RGB_ARM_IMPLEMENTATION=1"/>
+	<c option="-DSUPPORT_NEON=1"/>
 <!--
 -->
 <!--
@@ -119,7 +125,10 @@
 	<c option="-Wno-multichar"/>
 	<c option="-mthumb"/>
 	<c option="-march=armv7-a"/>
+<!--
 	<c option="-mfpu=vfpv3-fp16"/>
+-->
+	<c option="-mfpu=neon"/>
 	<c option="-mtune=cortex-a9"/>
 	<c option="-mfloat-abi=hard"/>
 
