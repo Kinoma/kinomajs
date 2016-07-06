@@ -6,10 +6,8 @@ local.properties
 *.swp
 
 # xs
-/xs/bin
-/xs/lib
-/xs/tmp
-/xs/sources/xslib/xsPlatform.h.gch
+/xs6/bin
+/xs6/lib
 
 # Freetype
 /libraries/freetype/src
