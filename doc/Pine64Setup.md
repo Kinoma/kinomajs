@@ -1,4 +1,4 @@
-# Setup for Building for Pine64
+# Setup for Building for Pine64, LeMaker HiKey, Odroid C2, or other 64-bit arm devices
 
 ## Overview
 
@@ -53,11 +53,18 @@ scp -r ubuntu@192.168.1.2:/usr/include/alsa .
 
 Create the following file to load the variables needed to build or set the variables in your local environment.
 
+For Pine64:
+
 `/etc/profile.d/pine64.sh`:
 
 ```
 export PINE64_SYSROOT=/opt/tools/pine64/sysroot-linaro-eglibc-gcc4.9-2014.11-aarch64-linux-gnu
 export PINE64_GNUEABI=/opt/tools/pine64/gcc-linaro-4.9-2014.11-x86_64_aarch64-linux-gnu
 ```
+
+For LeMaker HiKey, use the environment variables: `HIKEY_SYSROOT` and `HIKEY_GNUEABI`.
+
+For Odroid C2, use the environment variables: `ODROIDC2_SYSROOT` and `ODROIDC2_GNUEABI`.
+
 
 The build environment is now set up. You can proceed with the KinomaJS build instructions to build an application.

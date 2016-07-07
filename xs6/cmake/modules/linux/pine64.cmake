@@ -30,7 +30,7 @@ set(CMAKE_ASM_COMPILER ${TOOLCHAIN_BIN}/${TOOL_PREFIX}gcc CACHE PATH "assembler"
 cmake_force_c_compiler(${TOOLCHAIN_BIN}/${TOOL_PREFIX}gcc GNU)
 cmake_force_cxx_compiler(${TOOLCHAIN_BIN}/${TOOL_PREFIX}gcc GNU)
 set(CMAKE_ASM_SOURCE_FILE_EXTENSIONS gas7;gas;s)
-set(CMAKE_ASM_COMPILE_OBJECT "<CMAKE_ASM_COMPILER> -c -x assembler-with-cpp -o <OBJECT> <SOURCE>")
+set(CMAKE_ASM_COMPILE_OBJECT "<CMAKE_ASM_COMPILER> -c -x assembler-with-cpp <FLAGS> -o <OBJECT> <SOURCE>")
 
 set(AS_NEON ${TOOL_PREFIX}as)
 set(AS_NEON_OPTIONS -mfpu=neon)

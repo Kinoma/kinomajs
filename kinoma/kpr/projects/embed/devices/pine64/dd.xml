@@ -22,7 +22,7 @@
     </specVersion>
     <device>
         <deviceType>urn:schemas-upnp-org:device:Basic:1</deviceType>
-        <friendlyName>Pine64</friendlyName>
+        <friendlyName>[friendlyName]</friendlyName>
         <manufacturer>Pine64</manufacturer>
         <manufacturerURL>http://pine64.com</manufacturerURL>
         <modelDescription>Pine64</modelDescription>
