@@ -1,0 +1,2 @@
+wpa_supplicant -O /var/run/wpa_supplicant -i wlan0 -c /data/wpa.conf &
+udhcpc -i wlan0 -p /var/run/udhcpc.pid -b
