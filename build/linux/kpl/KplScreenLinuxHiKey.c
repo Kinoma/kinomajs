@@ -160,7 +160,7 @@ void devFBFlip(KplScreen screen) {
 //    Boolean skipCopy = 1;
 
     if (skipCopy) {
-        ioctl(screen->fbfd, FBIO_WAITFORVSYNC, &dummy);
+//        ioctl(screen->fbfd, FBIO_WAITFORVSYNC, &dummy);
         return;
     }
 
@@ -171,9 +171,9 @@ void devFBFlip(KplScreen screen) {
         screen->bitmapsReady -= 1;
     FskMutexRelease(screen->withCare);
 
-	if (ioctl(screen->fbfd, FBIO_WAITFORVSYNC, &dummy) < 0) {
-		fprintf(stderr, "	devFBFlip - problems with WAITFORVSYNC - %d\n", errno);
-	}
+//	if (ioctl(screen->fbfd, FBIO_WAITFORVSYNC, &dummy) < 0) {
+//		fprintf(stderr, "	devFBFlip - problems with WAITFORVSYNC - %d\n", errno);
+//	}
 
 	screen->displayPage = OFFSCREEN_PAGE(screen);
 	
@@ -274,13 +274,14 @@ FskErr KplScreenGetBitmap(KplBitmap *bitmap)
 			gScreenWidth = screen->vinfo.xres;
 			gScreenHeight = screen->vinfo.yres;
 			bpp = screen->vinfo.bits_per_pixel;
+fprintf(stderr, "width: %d, height: %d, bpp: %d\n", gScreenWidth, gScreenHeight, bpp);
 			screen->rowBytes = screen->vinfo.xres_virtual * bpp / 8;
 			screen->screensize = gScreenHeight * screen->rowBytes;
 
-			screen->framebuffer = (char*)mmap64((void*)screen->finfo.smem_start, screen->finfo.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, screen->fbfd, 0);
+			screen->framebuffer = (char*)mmap((void*)screen->finfo.smem_start, screen->finfo.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, screen->fbfd, 0);
 
 fprintf(stderr, "framebuffer mem_start: %d, length %d\n", screen->finfo.smem_start, screen->finfo.smem_len);
-fprintf(stderr, "mmio_start: %d, mmio_len: %d\n", screen->finfo.mmio_start, screen->finfo.mmio_len);
+fprintf(stderr, "  framebuffer at %x\n", screen->framebuffer);
 			if (screen->framebuffer == (char*)-1) {
 				fprintf(stderr,"Error: can't map framebuffer %d\n", errno);
 				exit(4);
