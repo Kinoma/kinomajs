@@ -517,10 +517,10 @@ The `Kinoma Code` application is located at `${F_HOME}/bin/mac/Release/Kinoma Co
   $ open ${F_HOME}/bin/mac/Release/Kinoma\ Code.app
   ```
 
-## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi, Pine64, Linkit7688, LeMaker Guitar)![icon](http://kinoma.com/img/github/linux.png)
+## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi, Pine64, Linkit7688, LeMaker Guitar, LeMaker HiKey, Odroid C2))![icon](http://kinoma.com/img/github/linux.png)
 
 Building KinomaJS for embedded Linux uses a Linux build host.
-The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/pi`, `linux/pine64`, `linux/linkit7688`, or `linux/guitar` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
+The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/pi`, `linux/pine64`, `linux/linkit7688`, `linux/guitar`, `linux/hikey`, or `linux/odroidc2` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
 
 
 
@@ -538,7 +538,7 @@ The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/
 	
 	- For BeagleBone, Raspberry Pi or Edison, see the document [Setup for Building for Embedded Devices](https://github.com/Kinoma/kinomajs/blob/master/doc/EmbeddedSetup.md)  
 	
-	- For Pine64, see the document [Setup for Building for Pine64](https://github.com/Kinoma/kinomajs/blob/master/doc/Pine64Setup.md)
+	- For Pine64, LeMaker HiKey, Odroid C2, or other 64-bit arm devices, see the document [Setup for Building for Pine64](https://github.com/Kinoma/kinomajs/blob/master/doc/Pine64Setup.md)
 	
 	- For Linkit7688, see the document [Setup for Building for Linkit7688](https://github.com/Kinoma/kinomajs/blob/master/doc/Linkit7688Setup.md)
 	
@@ -576,6 +576,8 @@ The target platform specifiers are as follows:
   - `linux/pine64` - Pine64
   - `linux/linkit7688` - Linkit7688
   - `linux/guitar` - LeMaker Guitar
+  - `linux/hikey` - LeMaker HiKey
+  - `linux/odroidc2` - Odroid C2
   
 1. Build the `balls` sample application that is included in the KinomaJS repository.
   ```
