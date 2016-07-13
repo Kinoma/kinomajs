@@ -517,10 +517,10 @@ The `Kinoma Code` application is located at `${F_HOME}/bin/mac/Release/Kinoma Co
   $ open ${F_HOME}/bin/mac/Release/Kinoma\ Code.app
   ```
 
-## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi, Pine64, Linkit7688, LeMaker Guitar, LeMaker HiKey, Odroid C2))![icon](http://kinoma.com/img/github/linux.png)
+## Embedded Linux Targets (BeagleBone, Edison, Raspberry Pi, Pine64, Linkit7688, LeMaker Guitar, LeMaker HiKey, Odroid C2, NanoPi M1))![icon](http://kinoma.com/img/github/linux.png)
 
 Building KinomaJS for embedded Linux uses a Linux build host.
-The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/pi`, `linux/pine64`, `linux/linkit7688`, `linux/guitar`, `linux/hikey`, or `linux/odroidc2` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
+The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/pi`, `linux/pine64`, `linux/linkit7688`, `linux/guitar`, `linux/hikey`, `linux/odroidc2`, or `linux/nanopim1` as the target platform to build for the respective platform. The examples in this section use `linux/beaglebone`.
 
 
 
@@ -578,6 +578,7 @@ The target platform specifiers are as follows:
   - `linux/guitar` - LeMaker Guitar
   - `linux/hikey` - LeMaker HiKey
   - `linux/odroidc2` - Odroid C2
+  - `linux/nanopim1` - NanoPi M1
   
 1. Build the `balls` sample application that is included in the KinomaJS repository.
   ```
