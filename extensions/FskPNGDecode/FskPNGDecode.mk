@@ -32,7 +32,7 @@ $(TMP_DIR)/png_arm_v7.gas7.o:  $(F_HOME)/extensions/FskPNGDecode/sources/png_arm
 </common>
 </platform>
 
-<platform name="linux/bg3cdp,linux/guitar">
+<platform name="linux/bg3cdp,linux/guitar,linux/nanopim1">
 <common>
 OBJECTS += $(TMP_DIR)/png_arm_v7.gas7.o
 $(TMP_DIR)/png_arm_v7.gas7.o:  $(F_HOME)/extensions/FskPNGDecode/sources/png_arm_v7.gas7
