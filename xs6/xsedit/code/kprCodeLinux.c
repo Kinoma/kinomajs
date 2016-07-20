@@ -14,6 +14,9 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+
+#define __FSKWINDOW_PRIV__
+
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <linux/if.h>
