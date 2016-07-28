@@ -290,6 +290,37 @@
                         "kprTouchd":null,
                     },
                 },
+                "chip":{
+                    "build":{
+                        "DEVICE":true,
+                        "DEVICE_HOME":"$(SHELL_HOME)/devices/chip",
+                    },
+                    "environment":{
+                        "KPR_BINARY_NAME":"EmbedShell",
+                        "xdebugger":"10.0.1.200:5002",
+                        "useGL":"1",
+                    },
+                    "extensions":{
+                        "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+						"FskPinDigitalLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalLinux/FskPinDigitalLinux.mk",
+						"FskPinI2CLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinI2CLinux/FskPinI2CLinux.mk",
+						"FskPinSerialLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinSerialLinux/FskPinSerialLinux.mk",
+						"kinomaaacipp":"$(F_KINOMA)/kinoma-aac-ipp/kinomaaacipp.mk",
+						"kinomaavc":"$(F_KINOMA)/kinoma-avc/kinomaavc.mk",
+						"kinomamp3ipp":"$(F_KINOMA)/kinoma-mp3-ipp/kinomamp3ipp.mk",
+						"kinomamp4ipp":"$(F_KINOMA)/kinoma-mp4-ipp/kinomamp4ipp.mk",
+                        "kinomaaacdecipp":null,
+                        "kinomaavcdecipp":null,
+                        "kinomamp2decipp":null,
+                        "kinomamp3decipp":null,
+                        "kinomamp4decipp":null,
+                        "kinomapngdecipp":null,
+                        "kinomawmadecipp":null,
+                        "kinomawmvdecipp":null,
+                        "k4validation":null,
+                        "kprTouchd":null,
+                    },
+                },
                 "nanopim1":{
                     "build":{
                         "DEVICE":true,
