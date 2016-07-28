@@ -16,6 +16,7 @@
 #
 set(CMAKE_OSX_ARCHITECTURES "i386" CACHE STRING "Default Architecture")
 set(SDKVER "10.9")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mmacosx-version-min=10.9 -arch i386")
 
 macro(BUILD)
 	set(oneValueArgs APPLICATION NAMESPACE YEAR)

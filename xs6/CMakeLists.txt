@@ -49,6 +49,8 @@ include(XS6)
 
 get_platform(BUILD_PLATFORM)
 
+include(${BUILD_PLATFORM} OPTIONAL)
+
 set(XS6 ${F_HOME}/xs6)
 if(NOT XS6_TOOLS_BIN)
 	set(XS6_TOOLS_BIN ${XS6}/bin/${BUILD_PLATFORM}/$<CONFIGURATION>)

@@ -94,6 +94,7 @@ txSlot* fxToInstance(txMachine* the, txSlot* theSlot)
 	case XS_STRING_X_KIND:
 		mxPush(mxStringPrototype);
 		anInstance = fxNewStringInstance(the);
+		anInstance->next->kind = theSlot->kind;
 		anInstance->next->value.string = theSlot->value.string;
 		anInstance->next->next->next->value.integer = fxUnicodeLength(theSlot->value.string);
 		if (the->frame->flag & XS_STRICT_FLAG)
