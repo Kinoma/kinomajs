@@ -1,8 +1,8 @@
-# Setup for Building for LeMaker Guitar, NanoPi M1
+# Setup for Building for LeMaker Guitar, NanoPi M1, C.H.I.P.
 
 ## Overview
 
-Building for the LeMaker Guitar or NanoPi M1 devices requires some one-time setup of your Linux host build enviornment. Once the host environment is configured, building a KinomaJS application is very similar as on the other platforms.
+Building for the LeMaker Guitar, NanoPi M1, C.H.I.P., or other 32-bit arm devices requires some one-time setup of your Linux host build enviornment. Once the host environment is configured, building a KinomaJS application is very similar as on the other platforms.
 
 This document and build instructions assume `Lemuntu for Guitar` for the LeMaker Guitar or `NanoPi M1 Debian` for the NanoPi M1 but should be similar for other OS versions.
 
