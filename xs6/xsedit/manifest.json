@@ -97,7 +97,7 @@
 			},
 			"environment":{
 				"NAME":"Kinoma_Code",
-				"debugger":"192.168.56.1:5002",
+				"xdebugger":"192.168.56.1:5002",
 			},
 			"fonts":{
 				"default": "Fira Sans",
@@ -108,6 +108,9 @@
 					"$(F_HOME)/data/fonts/FiraMono-Regular.ttf",
 					"$(F_HOME)/data/fonts/FiraSans-Bold.ttf",
 					"$(F_HOME)/data/fonts/FiraSans-Regular.ttf",
+				],
+				"simulators": [
+					"$(F_HOME)/bin/linux/gtk/Release/CreateShell",
 				],
 				"tools": [
 					"$(F_HOME)/xs6/bin/linux/x86_64/Release/xsc6",
@@ -129,6 +132,8 @@
 					"$(F_HOME)/xs6/bin/mac/Release/modules/tools.xsa",
 				],
 				"simulators": [
+                    "$(F_HOME)/bin/mac/Release/CreateShell.app",
+                    "$(F_HOME)/bin/mac/Release/ElementShell.app",
 				],
 			},
 		},
@@ -147,7 +152,7 @@
 					"$(F_HOME)/data/fonts/FiraSans-Regular.ttf",
 				],
 				"simulators": [
-					"$(F_HOME)/bin/win/release/EmbedShell",
+					"$(F_HOME)/bin/win/release/CreateShell",
 				],
 				"tools": [
 					"$(F_HOME)/xs6/bin/win/release/xsc6.exe",

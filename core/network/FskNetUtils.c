@@ -1796,6 +1796,33 @@ static void sConnectResolved(FskResolver rr) {
 	return;
 }
 
+#if CLOSED_SSL
+
+void FskNetSSLOptionInitialize(const char *host, int port, long flags, int priority, FskSSLOption *option)
+{
+	FskMemSet(option, 0, sizeof(FskSSLOption));
+	option->host = host;
+	option->port = port;
+	option->blocking = false;
+	option->synchronous = flags & kConnectFlagsSynchronous;
+	option->priority = priority;
+}
+
+FskErr FskNetConnectToSecureHost(FskSSLOption *option, FskSocketCertificate cert, FskNetSocketCreatedCallback callback, void *refCon)
+{
+	FskErr err = kFskErrNone;
+	void *ssl;
+
+	err = FskSSLNewWithOption(&ssl, option);
+	if (err == kFskErrNone) {
+		if (cert != NULL)
+			FskSSLLoadCerts(ssl, cert);
+		err = FskSSLHandshake(ssl, callback, refCon, true, 0);
+	}
+	return err;
+}
+#endif
+
 FskErr FskNetConnectToHostPrioritized(char *host, int port, Boolean blocking,
 			FskNetSocketCreatedCallback callback, void *refCon, long flags,
 			int priority, FskSocketCertificate cert, char *debugName)

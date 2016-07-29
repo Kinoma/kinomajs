@@ -326,19 +326,5 @@ FskErr exceptionToFskErr(xsMachine *the)
     return err ? err : kFskErrUnknown;
 }
 
-void KPR_message_get_responseObject(xsMachine *the)
-{
-	KprMessage self = xsGetHostData(xsThis);
-	if (self->response.body && (self->response.size == 0xFFFFFFFF))
-		xsResult = xsDemarshall(self->response.body);
-}
-
-void KPR_message_set_responseObject(xsMachine *the)
-{
-	KprMessage self = xsGetHostData(xsThis);
-	self->response.body = xsMarshall(xsArg(0));
-	self->response.size = 0xFFFFFFFF;
-}
-
 
 

@@ -47,6 +47,148 @@ var platformNames = {
 	Windows: "win",
 };
 
+class Rule {
+	constructor(tool) {
+		this.tool = tool;
+	}
+	appendFile(files, target, source, include) {
+		if (!files.already[source]) {
+			files.already[source] = true;
+			if (include) {
+				if (!files.find(file => file.target == target))
+					files.push({ target, source });
+			}
+		}
+	}
+	appendFolder(folders, folder) {
+		if (!folders.already[folder]) {
+			folders.already[folder] = true;
+			folders.push(folder);
+		}
+	}
+	appendPath(target, path, include, prefix) {
+	}
+	appendSource(target, source, include, straight) {
+	}
+	appendTarget(target) {
+	}
+	process(property) {
+		var tool = this.tool;
+		var target = "~";
+		if (target in property) {
+			var sources = property[target];
+			if (sources instanceof Array) {
+				for (var source of sources) 
+					this.iterate(target, source, false);
+			}
+			else
+				this.iterate(target, sources, false);
+		}
+		for (var target in property) {
+			var sources = property[target];
+			if (target == "~") {
+			}
+			else {
+				var slash = target.lastIndexOf("/");
+				if (slash >= 0)
+					this.appendTarget(target.slice(0, slash));
+				var star = target.lastIndexOf("*");
+				if (star >= 0) {
+					target = target.slice(0, star);
+					if (sources instanceof Array) {
+						for (var source of sources) 
+							this.iterate(target, source, true);
+					}
+					else
+						this.iterate(target, sources, true);
+				}
+				else {
+					this.appendSource(target, sources, true, true);
+				}
+			}
+		}
+	}
+	iterate(target, source, include) {
+		var star = source.lastIndexOf("*");
+		if (star >= 0) {
+			var slash = source.lastIndexOf("/");
+			var directory = source.slice(0, slash);
+			var prefix = source.slice(slash + 1, star);
+			var names = FS.readDirSync(directory);
+			var c = names.length;
+			for (var i = 0; i < c; i++) {
+				var name = names[i];
+				if (!prefix || name.startsWith(prefix))
+					this.appendPath(target, directory + "/" + name, include, prefix);
+			}
+		}
+		else {
+			this.appendSource(target, source, include, false);
+		}
+	}
+};
+
+class ModulesRule extends Rule {
+	appendPath(target, path, include, prefix) {
+		var tool = this.tool;
+		var parts = tool.splitPath(path);
+		if (parts.extension == ".js")
+			this.appendFile(tool.jsFiles, target + parts.name.slice(prefix.length), path, include);
+		else if ((parts.extension == ".c") || (parts.extension == ".cpp") || (parts.extension == ".m"))
+			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
+		else if (parts.extension == ".h")
+			this.appendFolder(tool.cFolders, parts.directory, include);
+	}
+	appendSource(target, source, include, straight) {
+		var tool = this.tool;
+		var path = source + ".js";
+		if (FS.existsSync(path) > 0) {
+			var parts = tool.splitPath(path);
+			this.appendFile(tool.jsFiles, straight ? target : target + parts.name, path, include);
+		}
+		var path = source + ".c";
+		if (FS.existsSync(path) > 0) {
+			var parts = tool.splitPath(path);
+			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
+		}
+		var path = source + ".cpp";
+		if (FS.existsSync(path) > 0) {
+			var parts = tool.splitPath(path);
+			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
+		}
+		var path = source + ".m";
+		if (FS.existsSync(path) > 0) {
+			var parts = tool.splitPath(path);
+			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
+		}
+		var path = source + ".h";
+		if (FS.existsSync(path) > 0) {
+			var parts = tool.splitPath(path);
+			this.appendFolder(tool.cFolders, parts.directory, include);
+		}
+	}
+	appendTarget(target) {
+		this.appendFolder(this.tool.jsFolders, target);
+	}
+};
+
+class AssetsRule extends Rule {
+	appendPath(target, path, include, prefix) {
+		var tool = this.tool;
+		var parts = tool.splitPath(path);
+		this.appendFile(tool.resourcesFiles, target + parts.name.slice(prefix.length) + parts.extension, path, include);
+	}
+	appendSource(target, source, include, straight) {
+		if (FS.existsSync(source) > 0) {
+			var parts = tool.splitPath(source);
+			this.appendFile(tool.resourcesFiles, straight ? target : target + parts.name + parts.extension, source, include);
+		}
+	}
+	appendTarget(target) {
+		this.appendFolder(this.tool.jsFolders, target);
+	}
+};
+
 class Tool extends TOOL {
 	constructor(argv) {
 		super(argv);
@@ -410,6 +552,10 @@ class Tool extends TOOL {
 			manifest.fonts = {};
 		if (!("info" in manifest))
 			manifest.info = {};
+		if (!("modules" in manifest))
+			manifest.modules = {};
+		if (!("assets" in manifest))
+			manifest.assets = {};
 		if (!("resources" in manifest))
 			manifest.resources = {};
 		if (!("separate" in manifest))
@@ -470,6 +616,8 @@ class Tool extends TOOL {
 		}
 		this.resolveProperties(manifest.environment);
 		this.resolveProperties(manifest.extensions);
+		this.resolveProperties(manifest.modules);
+		this.resolveProperties(manifest.assets);
 		this.resolveProperties(manifest.resources);
 		this.resolveProperties(manifest.separate);
 		this.resolveProperties(manifest.sources);
@@ -480,6 +628,8 @@ class Tool extends TOOL {
 		this.filterProperties(manifest, platform, "extensions");
 		this.filterProperties(manifest, platform, "fonts");
 		this.filterProperties(manifest, platform, "info");
+		this.filterProperties(manifest, platform, "modules");
+		this.filterProperties(manifest, platform, "assets");
 		this.filterProperties(manifest, platform, "resources");
 		this.filterProperties(manifest, platform, "separate");
 		this.filterArray(manifest, platform, "sources");
@@ -904,6 +1054,44 @@ class Tool extends TOOL {
 					tool.reportError(null, null, separate[name] + ": directory or file not found");
 			}
 		}
+		
+		this.jsFiles = [];
+		this.jsFiles.already = {};
+		this.jsFolders = [];
+		this.jsFolders.already = {};
+		this.cFiles = [];
+		this.cFiles.already = {};
+		this.cFolders = [];
+		this.cFolders.already = {};
+		this.resourcesFiles = [];
+		this.resourcesFiles.already = {};
+		var rule = new ModulesRule(this);
+		rule.process(manifestTree.modules);
+		var rule = new AssetsRule(this);
+		rule.process(manifestTree.assets);
+		var makefileTree = manifestTree.makefiles[1];
+		for (var result of this.jsFiles) {
+			manifestTree.jsPaths.push({
+				sourcePath: result.source,
+				destinationPath: result.target,
+			});
+		}
+		for (var result of this.jsFolders) {
+			this.insertUniqueDirectory(manifestTree.directoryPaths, result);
+		}
+		for (var result of this.cFiles) {
+			this.insertUnique(makefileTree.sources, result.source);
+		}
+		for (var result of this.cFolders) {
+			this.insertUnique(makefileTree.cIncludes, result);
+		}
+		for (var result of this.resourcesFiles) {
+			manifestTree.otherPaths.push({
+				sourcePath: result.source,
+				destinationPath: result.target,
+			});
+		}
+		
 		this.excludes = {
 			[this.manifestPath]: true
 		};
@@ -940,6 +1128,7 @@ class Tool extends TOOL {
 		for (let path in includes) {
 			this.processAction(path, includes[path], flags[path], manifestTree);
 		}
+		
 		if (this.errorCount)
 			throw new Error("" + this.errorCount + " error(s)!");
 		
@@ -997,3 +1186,4 @@ class Tool extends TOOL {
 
 var tool = new Tool(process.execArgv());
 tool.run();
+

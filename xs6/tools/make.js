@@ -504,9 +504,9 @@ export class Manifest {
 			let parts = tool.splitPath(item.destinationPath);
 			file.line("$(TMP_DIR)", tool.slash, item.destinationPath, ".xsb : ", item.sourcePath);
 			if (tool.debug)
-				file.line("\t$(XSC) -d ", item.sourcePath, " -o $(TMP_DIR)", tool.slash, parts.directory);
+				file.line("\t$(XSC) -c -d -e ", item.sourcePath, " -o $(TMP_DIR)", tool.slash, parts.directory, " -r ", parts.name);
 			else
-				file.line("\t$(XSC) ", item.sourcePath, " -o $(TMP_DIR)", tool.slash, parts.directory);
+				file.line("\t$(XSC) -c -e ", item.sourcePath, " -o $(TMP_DIR)", tool.slash, parts.directory, " -r ", parts.name);
 		}
 		for (let makefile of this.makefiles) {
 			if (makefile.jsSourcePath && makefile.jsDestinationPath) {

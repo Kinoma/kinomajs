@@ -26,12 +26,16 @@ const GATT = require("./bluetooth/core/gatt");
 const ATT = GATT.ATT;
 const GATTServer = require("./bluetooth/gatt/server");
 const GATTClient = require("./bluetooth/gatt/client");
-const UUID = require("./bluetooth/core/btutils").UUID;
+const BTUtils = require("./bluetooth/core/btutils");
+const BluetoothAddress = BTUtils.BluetoothAddress;
+const UUID = BTUtils.UUID;
 
 const Buffers = require("./common/buffers");
 const ByteBuffer = Buffers.ByteBuffer;
 
 const Pins = require("pins");
+
+const DEFAULT_BONDING_FILE_NAME = "ble_bondigs.json";
 
 class ProxyATTConnection {
 	constructor(bll, id) {
@@ -70,66 +74,240 @@ class ProxyATTConnection {
 	}
 }
 
-class API {
-	constructor(bll) {
-		this._bll = bll;
+function getAddressFromResponse(response) {
+	if (response.hasOwnProperty("address")) {
+		return BluetoothAddress.getByString(
+			response.address, true, response.addressType != "public");
+	}
+	return null;
+}
+
+class BLE {
+	constructor() {
+		this._bll = "";
 		this._server = new GATTServer.Profile();
-		this._contexts = {};
+		this._connections = new Map();
+		this._ready = false;
+		this._bondingFileURI = mergeURI(Files.documentsDirectory, DEFAULT_BONDING_FILE_NAME);
+		if (Files.exists(this._bondingFileURI)) {
+			this._bondingDB = Files.readJSON(this._bondingFileURI);
+		} else {
+			this._bondingDB = new Array();
+		}
+		/* Event Handlers */
+		this._onReady = null;
+		this._onConnected = null;
+		this._onDiscovered = null;
+		this._onPrivacyEnabled = null;
+	}
+	get configuration() {
+		return {
+			require: "/lowpan/ble",
+			mode: "advanced",
+			bondings: this._bondingDB,
+		//	logging: true,
+			loggers: [
+		//		{ name: "BLE", level: "TRACE" },
+		//		{ name: "GAP", level: "DEBUG" },
+		//		{ name: "L2CAP", level: "DEBUG" },
+		//		{ name: "HCI", level: "TRACE" },
+		//		{ name: "HCIComm", level: "TRACE" },
+			]
+		};
+	}
+	set onReady(cb) {
+		this._onReady = cb;
+	}
+	set onConnected(cb) {
+		this._onConnected = cb;
+	}
+	set onDiscovered(cb) {
+		this._onDiscovered = cb;
+	}
+	set onPrivacyEnabled(cb) {
+		this._onPrivacyEnabled = cb;
+	}
+	isReady() {
+		return this._ready;
+	}
+	init(bll) {
+		this._bll = bll;
+		Pins.when("ble", "notification", response => this.onNotification(response));
+	}
+	get bll() {
+		return this._bll;
 	}
 	get server() {
 		return this._server;
 	}
-	getContext(id) {
-		if (this._contexts.hasOwnProperty(id)) {
-			return this._contexts[id];
-		}
-		return null;
+	startScanning() {
+		Pins.invoke("/ble/gapStartScanning");
 	}
-	getClient(id) {
-		let context = this.getContext(id);
-		if (context != null) {
-			return context.client;
-		}
-		return null;
+	stopScanning() {
+		Pins.invoke("/ble/gapStopScanning");
 	}
-	getBearer(id) {
-		let context = this.getContext(id);
-		if (context != null) {
-			return context.bearer;
+	connect(address) {
+		Pins.invoke("/ble/gapConnect", {
+			address: address.toString(),
+			addressType: address.typeString
+		});
+	}
+	setScanResponseData(data) {
+		Pins.invoke("/ble/gapSetScanResponseData", data);
+	}
+	startAdvertising(parameter) {
+		Pins.invoke("/ble/gapStartAdvertising", parameter);
+	}
+	stopAdvertising() {
+		Pins.invoke("/ble/gapStopAdvertising");
+	}
+	enablePrivacy() {
+		Pins.invoke("/ble/gapEnablePrivacy");
+	}
+	deleteBonding(bond) {
+		Pins.invoke("/ble/gapDeleteBond", {
+			index: bond
+		});
+	}
+	onNotification(response) {
+		if (response.hasOwnProperty("connection")) {
+			let connection = this._connections.get(response.connection);
+			if (connection !== undefined) {
+				connection.onNotification(response);
+			}
 		}
-		return null;
+		let notification = response.notification;
+		switch (notification) {
+		case "system/reset":
+			this._ready = true;
+			if (this._onReady != null) {
+				this._onReady();
+			}
+			break;
+		case "gap/connect":
+			{
+				let connection = new BLEConnection(this, response);
+				this._connections.set(response.connection, connection);
+				if (this._onConnected != null) {
+					this._onConnected(connection);
+				}
+			}
+			break;
+		case "gap/discover":
+			if (this._onDiscovered != null) {
+				let device = {
+					address: getAddressFromResponse(response),
+					data: response.data,
+					type: response.type,
+					rssi: response.rssi
+				};
+				this._onDiscovered(device);
+			}
+			break;
+		case "gap/privacy/complete":
+			if (this._onPrivacyEnabled != null) {
+				this._onPrivacyEnabled(BluetoothAddress.getByString(response.rpa, true, true));
+			}
+			break;
+		case "gap/disconnect":
+			this._connections.delete(response.connection);
+			break;
+		case "gap/bond/add":
+		case "gap/bond/remove":
+			this._bondingDB[response.index] = response.hasOwnProperty("info") ? response.info : null;
+			Files.writeJSON(this._bondingFileURI, this._bondingDB);
+		}
+	}
+}
+
+class BLEConnection {
+	constructor(ble, info) {
+		this._ble = ble;
+		this._info = info;
+		this._proxy = new ProxyATTConnection(ble.bll, info.connection);
+		/* ATT & GATT */
+		this._bearer = new ATT.ATTBearer(this._proxy, ble.server.database);
+		this._client = new GATTClient.Profile(this._bearer);
+		/* SM */
+		this._bond = info.bond;
+		/* Event Handlers */
+		this._onPasskeyRequested = null;
+		this._onEncryptionCompleted = null;
+		this._onEncryptionFailed = null;
+		this._onDisconnected = null;
+	}
+	set onPasskeyRequested(cb) {
+		this._onPasskeyRequested = cb;
+	}
+	set onEncryptionCompleted(cb) {
+		this._onEncryptionCompleted = cb;
+	}
+	set onEncryptionFailed(cb) {
+		this._onEncryptionCompleted = cb;
+	}
+	set onDisconnected(cb) {
+		this._onDisconnected = cb;
+	}
+	get bond() {
+		return this._bond;
+	}
+	get client() {
+		return this._client;
+	}
+	get address() {
+		return getAddressFromResponse(this._info);
+	}
+	isPeripheral() {
+		return this._info.peripheral;
+	}
+	updateConnection(parameter) {
+		parameter.connection = this._info.connection;
+		Pins.invoke("/ble/gapUpdateConnection", parameter);
+	}
+	disconnect() {
+		Pins.invoke("/ble/gapDisconnect", {
+			connection: this._info.connection
+		});
+	}
+	startEncryption() {
+		Pins.invoke("/ble/smStartEncryption", {
+			connection: this._info.connection
+		});
+	}
+	setSecurityParameter(parameter) {
+		parameter.connection = this._info.connection;
+		Pins.invoke("/ble/smSetSecurityParameter", parameter);
+	}
+	passkeyEntry(passkey) {
+		Pins.invoke("/ble/smPasskeyEntry", {
+			connection: this._info.connection,
+			passkey
+		});
 	}
 	onNotification(response) {
 		let notification = response.notification;
-		if ("gap/connect" == notification) {
-			let id = response.connection;
-			let connection = new ProxyATTConnection(this._bll, id);
-			let bearer = new ATT.ATTBearer(connection, this._server.database);
-			this._contexts[id] = {
-				connection,
-				bearer,
-				client: new GATTClient.Profile(bearer)
-			};
-		} else if ("gap/disconnect" == notification) {
-			let context = this.getContext(response.connection);
-			if (context != null) {
-				context.connection.disconnected();
+		switch (notification) {
+		case "att/received":
+		//	this._proxy.received(new Uint8Array(response.buffer));
+			this._proxy.received(response.array);
+			break;
+		case "sm/passkey":
+			if (this._onPasskeyRequested != null) {
+				this._onPasskeyRequested(response.input);
 			}
-		} else if ("att/received" == notification) {
-			let context = this.getContext(response.connection);
-			if (context != null) {
-				context.connection.received(new Uint8Array(response.buffer));
+			break;
+		case "sm/encryption/complete":
+			this._bond = response.bond;
+			if (this._onEncryptionCompleted != null) {
+				this._onEncryptionCompleted();
 			}
-		} else if ("sm/encryption/complete" == notification) {
-			let context = this.getContext(response.connection);
-			if (context != null) {
-				context.connection._encrypted = true;
-				context.connection.pairingInfo = response.pairingInfo;
+			break;
+		// TODO: onEncryptionFailed
+		case "gap/disconnect":
+			if (this._onDisconnected != null) {
+				this._onDisconnected(response.reason);
 			}
-		} else if ("hci/encrypted" == notification) {
-			// TODO
-		} else if ("hci/rand" == notification) {
-			// TODO
+			break;
 		}
 	}
 }
@@ -138,4 +316,4 @@ module.exports = GATT;
 module.exports.Server = GATTServer;
 module.exports.Client = GATTClient;
 module.exports.UUID = UUID;
-module.exports.API = API;
+module.exports.BLE = BLE;

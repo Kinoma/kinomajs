@@ -54,6 +54,7 @@ export default class extends Feature {
 			expanded:true,
 			items:[],
 		};
+		this.files = [];
 		this.projects = {
 			expanded:true,
 			items:[],
@@ -72,6 +73,11 @@ export default class extends Feature {
 		this.documents.items.push(document);
 		this.documents.items.sort((a, b) => a.name.compare(b.name));
 		shell.distribute("onDocumentsChanged");
+	}
+	addFile(file) {
+		this.files.push(file);
+		if (this.files.length > 128)
+			this.files.shift();
 	}
 	deleteProject(url) {
 	}
@@ -117,6 +123,13 @@ export default class extends Feature {
 		this.documents.items.splice(index, 1);
 		shell.distribute("onDocumentsChanged");
 	}
+	removeFile(file) {
+		this.removeFileAt(this.files.indexOf(file));
+	}
+	removeFileAt(index) {
+		if (index >= 0)
+			this.files.splice(index, 1);
+	}
 	selectProject(project) {
 		this.currentProject = project;
 	}
@@ -142,7 +155,7 @@ export default class extends Feature {
 		return url ? true : false;
 	}
 	canCloseAll() {
-		return this.documents.items.length > 0;
+		return (model.url && model.url.startsWith("file://"));
 	}
 	canSaveAll() {
 		return this.documents.items.length > 0;

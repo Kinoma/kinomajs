@@ -46,6 +46,7 @@ const extension_type = {
 	tls_trusted_ca_keys: 3,
 	tls_trusted_hmac: 4,
 	tls_status_request: 5,
+	tls_signature_algorithms: 13,
 	tls_application_layer_protocol_negotiation: 16,
 };
 
@@ -230,6 +231,23 @@ var handshakeProtocol = {
 			}
 			session.chosenCipher = this.selectCipherSuite(suites);
 			session.compressionMethod = this.selectCompressionMethod(compressionMethods);
+			if (msgType == server_hello && s.byteAvailable) {
+				let type = s.readChars(2);
+				switch (type) {
+				case extension_type.tls_signature_algorithms:
+					let len = s.readChars(2);
+					let n = s.readChars(2);
+					session.signature_algorithms = [];
+					for (let i = 0; i < n; i++) {
+						let hash = s.readChar();
+						let sig = s.readChar();
+						session.signature_algorithms.push({hash, sig});
+					}
+					break;
+				default:
+					break;
+				}
+			}
 		},
 		packetize(session, cipherSuites, compressionMethods, msgType) {
 			var s = new SSLStream();
@@ -269,9 +287,9 @@ var handshakeProtocol = {
 						continue;
 					var type = extension_type[i];
 					var ext = session.options[i];
-					es.writeChars(type, 2);
 					switch (type) {
 					case extension_type.tls_server_name:
+						es.writeChars(type, 2);
 						var len = 1 + 2 + ext.length;
 						es.writeChars(2 + len, 2);
 						es.writeChars(len, 2);
@@ -280,6 +298,7 @@ var handshakeProtocol = {
 						es.writeString(ext);
 						break;
 					case extension_type.tls_max_fragment_length:
+						es.writeChars(type, 2);
 						es.writeChars(2 + 1, 2);
 						es.writeChars(1, 2);
 						var j;
@@ -292,11 +311,22 @@ var handshakeProtocol = {
 							j = 4;
 						es.writeChar(j);
 						break;
+					case extension_type.tls_signature_algorithms:
+						es.writeChars(type, 2);
+						es.writeChars(2 + ext.length * 2, 2);
+						es.writeChars(ext.length, 2);
+						for (let j = 0; j < ext.length; j++) {
+							es.writeChar(ext[j].hash);
+							es.writeChar(ext[j].sig);
+						}
+						break;
 					case extension_type.tls_application_layer_protocol_negotiation:
+						es.writeChars(type, 2);
 						var len = 0;
+						if (typeof ext == 'string') ext = ext.split(':');
 						for (var j = 0; j < ext.length; j++)
 							len += ext[j].length + 1;
-						es.writeChars(2 + len);
+						es.writeChars(len + 2, 2);
 						es.writeChars(len, 2);
 						for (var j = 0; j < ext.length; j++) {
 							var name = ext[j];
@@ -411,13 +441,162 @@ var handshakeProtocol = {
 	serverKeyExchange: {
 		name: "serverKeyExchange",
 		msgType: server_key_exchange,
+		// hash algorithms
+		none: 0,
+		md5: 1,
+		sha1: 2,
+		sha224: 3,
+		sha256: 4,
+		sha384: 5,
+		sha512: 6,
+		// signature algorithms
+		anonymous: 0,
+		rsa: 1,
+		dsa: 2,
+		ecdsa: 3,
+		
 		unpacketize(session, s) {
 			session.traceProtocol(this);
-			// unsupported
+			switch (session.chosenCipher.keyExchangeAlgorithm) {
+			case SSL.cipherSuite.DHE_DSS:
+			case SSL.cipherSuite.DHE_RSA:
+				let tbs = new SSLStream();
+				let dhparams = {};
+				let n = s.readChars(2);
+				tbs.writeChars(n, 2);
+				dhparams.dh_p = s.readChunk(n);
+				tbs.writeChunk(dhparams.dh_p);
+				n = s.readChars(2);
+				tbs.writeChars(n, 2);
+				dhparams.dh_g = s.readChunk(n);
+				tbs.writeChunk(dhparams.dh_g);
+				n = s.readChars(2);
+				tbs.writeChars(n, 2);
+				dhparams.dh_Ys = s.readChunk(n);
+				tbs.writeChunk(dhparams.dh_Ys);
+				session.dhparams = dhparams;
+				let hash_algo = s.readChar();
+				let sig_algo = s.readChar();
+				n = s.readChars(2);
+				let sig = s.readChunk(n);
+				let hash, pk;
+				switch (hash_algo) {
+				default:
+				case this.none: break;
+				case this.md5: hash = Crypt.MD5; break;
+				case this.sha1: hash = Crypt.SHA1; break;
+				case this.sha224: hash = Crypt.SHA224; break;
+				case this.sha256: hash = Crypt.SHA256; break;
+				case this.sha384: hash = Crypt.SHA384; break;
+				case this.sha512: hash = Crypt.SHA512; break;
+				}
+				switch (sig_algo) {
+				default:
+				case this.anonymous: break;
+				case this.rsa: pk = Crypt.PKCS1_5; break;
+				case this.dsa: pk = Crypt.DSA; break;
+				case this.ecdsa: pk = Crypt.ECDSA; break;
+				}
+				if (hash && pk && sig) {
+					let H = (new hash()).process(session.clientRandom, session.serverRandom, tbs.getChunk());
+					let key = session.certificateManager.getKey(session.peerCert);
+					let v = new pk(key, false, [] /* any oid for PKCS1_5 */);
+					if (!v.verify(H, sig)) {
+						// should send an alert, probably...
+						throw new Error("SSL: serverKeyExchange: failed to verify signature");
+					}
+				}
+				hash = pk = sig = tbs = null;
+				break;
+			case SSL.cipherSuite.RSA:
+				// no server key exchange info
+				break;
+			case SSL.cipherSuite.DH_ANON:
+			case SSL.cipherSuite.DH_DSS:
+			case SSL.cipherSuite.DH_RSA:
+			default:
+				// not supported
+				throw new Error("SSL: serverKeyExchange: unsupported algorithm: " + algo);
+				break;
+			}
 		},
 		packetize(session) {
+			let pkt;
 			session.traceProtocol(this);
-			// unsupported
+			switch (session.chosenCipher.keyExchangeAlgorithm) {
+			case SSL.cipherSuite.DHE_DSS:
+			case SSL.cipherSuite.DHE_RSA:
+			case SSL.cipherSuite.DH_ANON:
+				let s = new SSLStream();
+				let Arith = require.weak("arith");
+				let dh = session.certificateManager.getDH();
+				let mod = new Arith.Mont({z: new Arith.Z(), m: dh.p});
+				dh.x = new Arith.Integer(Crypt.rng(dh.p.sizeof()));
+				let y = mod.exp(dh.g, dh.x);
+				let tbs = new SSLStream(), c;
+				// server DH params
+				c = dh.p.toChunk();
+				tbs.writeChars(c.byteLength, 2);
+				tbs.writeChunk(c);
+				c = dh.g.toChunk();
+				tbs.writeChars(c.byteLength, 2);
+				tbs.writeChunk(c);
+				c = y.toChunk();
+				tbs.writeChars(c.byteLength, 2);
+				tbs.writeChunk(c);
+				s.writeChunk(tbs.getChunk());
+				if (session.chosenCipher.keyExchangeAlgorithm != SSL.cipherSuite.DH_ANON) {
+					// digitally-signed
+					let hash_algo = -1, sig_algo = -1, hash, pk, oid;
+					if (session.signature_algorithms && session.signature_algorithms.length > 0) {
+						// take the first one
+						hash_algo = session.signature_algorithms[0].hash;
+						sig_algo = session.signature_algorithms[0].sig;
+					}
+					else {
+						hash_algo = this.sha1;
+						sig_algo = session.chosenCipher.keyExchangeAlgorithm == SSL.cipherSuite.DHE_RSA ? this.rsa : this.dsa;
+					}
+					switch (hash_algo) {
+					default:
+					case this.none: throw new Error("SSL: serverKeyExchange: no hash algorithm"); break;
+					case this.sha1: hash = Crypt.SHA1; oid = [1, 3, 14, 3, 2, 26]; break;
+					case this.md5: hash = Crypt.MD5; oid = [1, 2, 840, 113549, 2, 5]; break;
+					case this.sha224: hash = Crypt.SHA224; oid = [2, 16, 840, 1, 101, 3, 4, 2, 4]; break;
+					case this.sha256: hash = Crypt.SHA256; oid = [2, 16, 840, 1, 101, 3, 4, 2, 1]; break;
+					case this.sha384: hash = Crypt.SHA384; oid = [2, 16, 840, 1, 101, 3, 4, 2, 2]; break;
+					case this.sha512: hash = Crypt.SHA512; oid = [2, 16, 840, 1, 101, 3, 4, 2, 3]; break;
+					}
+					switch (sig_algo) {
+					default:
+					case this.anonymous: throw new Error("SSL: serverKeyExchange: no signature algorithm"); break;
+					case this.rsa: pk = Crypt.PKCS1_5; break;
+					case this.dsa: pk = Crypt.DSA; break;
+					case this.ecdsa: pk = Crypt.ECDSA; break;
+					}
+					let key = session.certificateManager.getKey(/* self */);
+					let sig = new pk(key, true, oid);
+					let H = (new hash()).process(session.clientRandom, session.serverRandom, tbs.getChunk());
+					let signature = sig.sign(H);
+					s.writeChar(hash_algo);
+					s.writeChar(sig_algo);
+					s.writeChars(signature.byteLength, 2);
+					s.writeChunk(signature);
+				}
+				session.dh = dh;
+				pkt = handshakeProtocol.packetize(session, server_key_exchange, s);
+				break;
+			case SSL.cipherSuite.RSA:
+				// no server key exchange info
+				break;
+			case SSL.cipherSuite.DH_DSS:
+			case SSL.cipherSuite.DH_RSA:
+				pkt = handshakeProtocol.packetize(session, server_key_exchange, new SSLStream());	// empty body
+				break;
+			default:
+				break;
+			}
+			return pkt;
 		},
 	},
 
@@ -437,10 +616,10 @@ var handshakeProtocol = {
 				var type = s.readChar();
 				switch (type) {
 				case this.rsa_sign:
-					types.push(SSL.cipherSuite.RSA);
+					types.push(SSL.cipherSuite.CERT_RSA);
 					break;
 				case this.dss_sign:
-					types.push(SSL.cipherSuite.DSA);
+					types.push(SSL.cipherSuite.CERT_DSA);
 					break;
 				default:
 					// trace("SSL: certificateRequest: unsupported cert type: " + type + "\n");
@@ -464,10 +643,10 @@ var handshakeProtocol = {
 			s.writeChar(types.length);
 			for (var i = 0; i < types.length; i++) {
 				switch (types[i]) {
-				case SSL.cipherSuite.RSA:
+				case SSL.cipherSuite.CERT_RSA:
 					s.writeChar(this.rsa_sign);
 					break;
-				case SSL.cipherSuite.DSA:
+				case SSL.cipherSuite.CERT_DSA:
 					s.writeChar(this.dss_sign);
 					break;
 				}
@@ -511,7 +690,9 @@ var handshakeProtocol = {
 			session.traceProtocol(this);
 			var n = s.readChars(2);
 			var cipher = s.readChunk(n);
-			if (session.chosenCipher.keyExchangeAlgorithm == SSL.cipherSuite.RSA) {
+			let preMasterSecret;
+			switch (session.chosenCipher.keyExchangeAlgorithm) {
+			case SSL.cipherSuite.RSA:
 				// PKCS1.5
 				if (!session.myCert)
 					throw new Error("SSL: clientKeyExchange: no cert");	// out of sequence
@@ -524,31 +705,69 @@ var handshakeProtocol = {
 					session.alert = {level: 2, description: 70};
 					return;
 				}
-				var preMasterSecret = plain;
-			}
-			else {
-				// RSA only for now
+				preMasterSecret = plain;
+				break;
+			case SSL.cipherSuite.DHE_DSS:
+			case SSL.cipherSuite.DHE_RSA:
+			case SSL.cipherSuite.DH_ANON:
+			case SSL.cipherSuite.DH_DSS:
+			case SSL.cipherSuite.DH_RSA:
+				// implicit DH is not supported
+				let Arith = require.weak("arith");
+				let dh = session.dh;
+				let y = new Arith.Integer(cipher);
+				let mod = new Arith.Mont({z: new Arith.Z(), m: dh.p});
+				y = mod.exp(y, dh.x);
+				preMasterSecret = y.toChunk();
+				break;
+			default:
 				throw new Error("SSL: clientKeyExchange: unsupported algorithm");
+				break;
 			}
 			this.generateMasterSecret(session, preMasterSecret);
 		},
 		packetize(session) {
 			session.traceProtocol(this);
-			if (session.chosenCipher.keyExchangeAlgorithm == SSL.cipherSuite.RSA) {
+			let s = new SSLStream();
+			let preMasterSecret;
+			switch (session.chosenCipher.keyExchangeAlgorithm) {
+			case SSL.cipherSuite.RSA:
 				var plain = new SSLStream();
 				plain.writeChars(session.protocolVersion, 2);
 				plain.writeChunk(Crypt.rng(46));
-				var preMasterSecret = plain.getChunk();
+				preMasterSecret = plain.getChunk();
 				var key = session.certificateManager.getKey(session.peerCert);
 				var rsa = new Crypt.PKCS1_5(key);
 				var cipher = rsa.encrypt(preMasterSecret);
-				var s = new SSLStream();
 				s.writeChars(cipher.byteLength, 2);
 				s.writeChunk(cipher);
-			}
-			else {
-				// RSA only for now
-				throw new Error("SSL: clientkeyExchange: unsupported algorithm");
+				break;
+			case SSL.cipherSuite.DHE_DSS:
+			case SSL.cipherSuite.DHE_RSA:
+			case SSL.cipherSuite.DH_ANON:
+			case SSL.cipherSuite.DH_DSS:
+			case SSL.cipherSuite.DH_RSA:
+				let Arith = require.weak("arith");
+				// we don't support fixed key DH in cert so should send DH anyway
+				if (!session.dhparams)
+					throw new Error("SSL: clientKeyExchange: no DH params");
+				let dh = session.dhparams;
+				let r = Crypt.rng(dh.dh_p.byteLength);
+				let x = new Arith.Integer(r);
+				let g = new Arith.Integer(dh.dh_g);
+				let p = new Arith.Integer(dh.dh_p);
+				let mod = new Arith.Mont({z: new Arith.Z(), m: p});
+				let y = mod.exp(g, x);
+				let Yc = y.toChunk();
+				s.writeChars(Yc.byteLength, 2);
+				s.writeChunk(Yc);
+				y = new Arith.Integer(dh.dh_Ys);
+				y = mod.exp(y, x);
+				preMasterSecret = y.toChunk();
+				break;
+			default:
+				throw new Error("SSL: clientKeyExchange: unsupported algorithm");
+				break;
 			}
 			this.generateMasterSecret(session, preMasterSecret);
 			return handshakeProtocol.packetize(session, client_key_exchange, s);

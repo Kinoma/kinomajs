@@ -333,6 +333,7 @@ class SecurityManagement {
 					logger.error("Bond is deleted");
 					link.replyLongTermKey(null);
 				}
+				this._div = div;
 				return this._keyMgmt.generateLTK(div);
 			}).then(ltk => {
 				link.replyLongTermKey(ltk);

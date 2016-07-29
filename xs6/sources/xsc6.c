@@ -260,6 +260,7 @@ int main(int argc, char* argv[])
 	txUnsigned flags = 0;
 	txString input = NULL;
 	txString output = NULL;
+	txString rename = NULL;
 	txString temporary = NULL;
 	txString name = NULL;
 	txString map = NULL;
@@ -296,6 +297,15 @@ int main(int argc, char* argv[])
 				flags |= mxCommonModuleFlag;
 			else if (!strcmp(argv[argi], "-p"))
 				flags |= mxProgramFlag;
+			else if (!strcmp(argv[argi], "-r")) {
+				argi++;
+				if (argi >= argc)
+					fxReportParserError(parser, "no name");
+				else if (rename)
+					fxReportParserError(parser, "too many names");
+				else
+					rename = fxNewParserString(parser, argv[argi], strlen(argv[argi]));
+			}
 			else if (!strcmp(argv[argi], "-t")) {
 				argi++;
 				if (argi >= argc)
@@ -343,11 +353,15 @@ int main(int argc, char* argv[])
 		fxParserBind(parser);
 		script = fxParserCode(parser);
 		
- 		name = strrchr(input, mxSeparator);
- 		name++;
- 		dot = strrchr(input, '.');
- 		*dot = 0;
- 		
+		if (rename) {
+			name = rename;
+		}
+		else {
+			name = strrchr(input, mxSeparator);
+			name++;
+			dot = strrchr(name, '.');
+			*dot = 0;
+ 		}
  	 	strcpy(path, output);
  	 	strcat(path, name);
  	 	if (binary)

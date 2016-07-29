@@ -95,7 +95,7 @@ void xs_serial_init(xsMachine* the)
         FskMemPtrDispose(sio);
         xsThrowDiagnosticIfFskErr(err, "Serial initialization failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
     }
-    
+
     xsSetHostData(xsThis, sio);
 }
 
@@ -133,7 +133,7 @@ void xs_serial_read(xsMachine* the)
 				if (argc >= 2) {
 					maxCount = xsToInteger(xsArg(1));
 
-					if (argc) {
+					if (argc >= 3) {
 						SInt32 duration = xsToInteger(xsArg(2));
 						FskTimeRecord now;
 						FskTimeGetNow(&now);
@@ -169,7 +169,7 @@ void xs_serial_read(xsMachine* the)
 					FskTimeGetNow(&now);
 					if (FskTimeInMS(&now) >= endTime)
 						break;
-					
+
 					FskDelay(2);
 				}
 
@@ -235,7 +235,7 @@ void writeOne(xsMachine *the, FskSerialIO sio, xsSlot *slot)
             xsThrowDiagnosticIfFskErr(err, "Serial write failed with error %s (rx pin %d, tx pin %d).", FskInstrumentationGetErrorString(err), (int)sio->rxNum, (int)sio->txNum);
             }
             break;
-        
+
         case xsStringType: {
             char *text = xsToString(*slot);
             err = FskPinSerialWrite(sio->pin, FskStrLen(text), (UInt8 *)text);
@@ -266,7 +266,7 @@ void writeOne(xsMachine *the, FskSerialIO sio, xsSlot *slot)
             else
                 xsThrowDiagnosticIfFskErr(kFskErrUnimplemented, "Serial IO Error: unsupported argument type passed to write (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
             break;
-        
+
         default:
             xsThrowDiagnosticIfFskErr(kFskErrUnimplemented, "Serial IO Error: unsupported argument type passed to write (rx pin %d, tx pin %d).", (int)sio->rxNum, (int)sio->txNum);
             break;

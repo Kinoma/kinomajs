@@ -59,6 +59,7 @@ ctr_setIV(crypt_mode_t *mode, const void *iv, size_t ivsize)
 	if (ivsize > blksz)
 		ivsize = blksz;
 	c_memcpy(&mode->em_buf[blksz - ivsize], iv, ivsize);
+	mode->offset = 0;
 }
 
 void

@@ -42,16 +42,31 @@
 
 		<object name="cipherSuite">
 			<!-- constants -->
+			<!-- key exchange algorithms --> 
 			<number name="RSA" value="0"/>
-			<number name="DSA" value="1"/>
+			<number name="DHE_DSS" value="1"/>
+			<number name="DHE_RSA" value="2"/>
+			<number name="DH_ANON" value="3"/>
+			<number name="DH_DSS" value="4"/>
+			<number name="DH_RSA" value="5"/>
+			<!-- encryption algorithms -->
 			<number name="AES" value="0"/>
 			<number name="DES" value="1"/>
 			<number name="TDES" value="2"/>
 			<number name="RC4" value="3"/>
+			<!-- hash algorithms -->
 			<number name="SHA1" value="0"/>
 			<number name="MD5" value="1"/>
 			<number name="SHA256" value="2"/>
+			<number name="SHA384" value="3"/>
 			<number name="NULL" value="255"/>
+			<!-- certificate type -->
+			<number name="CERT_RSA" value="0"/>
+			<number name="CERT_DSA" value="1"/>
+			<!-- encryption mode -->
+			<number name="NONE" value="0"/>
+			<number name="CBC" value="1"/>
+			<number name="GCM" value="2"/>
 
 			<array name="value" contents="Number.prototype"/>
 			<boolean name="isExportable"/>
@@ -70,8 +85,8 @@
 			<function name="inc">
 				this.num = this.z.inc(this.num, 1);
 			</function>
-			<function name="toChunk">
-				return this.num.toChunk();
+			<function name="toChunk" params="sz">
+				return this.num.toChunk(sz);
 			</function>
 		</object>
 		<function name="Integer" params="n" prototype="FskSSL.integer">
@@ -132,7 +147,7 @@
 					p_hash(new Crypt.SHA1(), secret.slice(Math.floor(secret.length / 2)), s)
 				);
 			else {
-				var h = p_hash(new Crypt.SHA256(), secret, s);
+				var h = p_hash(session.chosenCipher.hashAlgorithm == FskSSL.cipherSuite.SHA384 ? new Crypt.SHA384() : new Crypt.SHA256(), secret, s);
 				var r = h.getChunk();
 			}
 			return(r.slice(0, n));
@@ -235,7 +250,8 @@
 			 cipherKeySize: 16,
 			 cipherBlockSize: 16,
 			 hashAlgorithm: FskSSL.cipherSuite.SHA1,
-			 hashSize: 20},
+			 hashSize: 20,
+			 encryptionMode: FskSSL.cipherSuite.CBC},
 			// TLS_RSA_WITH_AES_256_CBC_SHA
 			{value: [0x00, 0x35],
 			 isExportable: false,
@@ -244,7 +260,8 @@
 			 cipherKeySize: 32,
 			 cipherBlockSize: 16,
 			 hashAlgorithm: FskSSL.cipherSuite.SHA1,
-			 hashSize: 20},
+			 hashSize: 20,
+			 encryptionMode: FskSSL.cipherSuite.CBC},
 			// TLS_RSA_WITH_DES_CBC_SHA
 			{value: [0x00, 0x09],
 			 isExportable: false,
@@ -253,7 +270,8 @@
 			 cipherKeySize: 8,
 			 cipherBlockSize: 8,
 			 hashAlgorithm: FskSSL.cipherSuite.SHA1,
-			 hashSize: 20},
+			 hashSize: 20,
+			 encryptionMode: FskSSL.cipherSuite.CBC},
 			// TLS_RSA_WITH_3DES_EDE_CBC_SHA
 			{value: [0x00, 0x0A],
 			 isExportable: false,
@@ -262,7 +280,8 @@
 			 cipherKeySize: 24,
 			 cipherBlockSize: 8,
 			 hashAlgorithm: FskSSL.cipherSuite.SHA1,
-			 hashSize: 20},
+			 hashSize: 20,
+			 encryptionMode: FskSSL.cipherSuite.CBC},
 			// TLS_RSA_WITH_RC4_128_MD5
 			{value: [0x00, 0x04],
 			 isExportable: false,
@@ -271,7 +290,8 @@
 			 cipherKeySize: 16,
 			 cipherBlockSize: 0,
 			 hashAlgorithm: FskSSL.cipherSuite.MD5,
-			 hashSize: 16},
+			 hashSize: 16,
+			 encryptionMode: FskSSL.cipherSuite.NONE},
 			// TLS_RSA_WITH_RC4_128_SHA
 			{value: [0x00, 0x05],
 			 isExportable: false,
@@ -280,7 +300,8 @@
 			 cipherKeySize: 16,
 			 cipherBlockSize: 0,
 			 hashAlgorithm: FskSSL.cipherSuite.SHA1,
-			 hashSize: 20},
+			 hashSize: 20,
+			 encryptionMode: FskSSL.cipherSuite.NONE},
 			// TLS_RSA_WITH_AES_128_CBC_SHA256
 			{value: [0x00, 0x3c],
 			 isExportable: false,
@@ -289,7 +310,8 @@
 			 cipherKeySize: 16,
 			 cipherBlockSize: 16,
 			 hashAlgorithm: FskSSL.cipherSuite.SHA256,
-			 hashSize: 32},
+			 hashSize: 32,
+			 encryptionMode: FskSSL.cipherSuite.CBC},
 			// TLS_RSA_WITH_AES_256_CBC_SHA256
 			{value: [0x00, 0x3d],
 			 isExportable: false,
@@ -298,7 +320,42 @@
 			 cipherKeySize: 32,
 			 cipherBlockSize: 16,
 			 hashAlgorithm: FskSSL.cipherSuite.SHA256,
-			 hashSize: 32},
+			 hashSize: 32,
+			 encryptionMode: FskSSL.cipherSuite.CBC},
+			// TLS_DHE_RSA_WITH_AES_256_CBC_SHA256
+			{value: [0x00, 0x6b],
+			 isExportable: false,
+			 keyExchangeAlgorithm: FskSSL.cipherSuite.DHE_RSA,
+			 cipherAlgorithm: FskSSL.cipherSuite.AES,
+			 cipherKeySize: 32,
+			 cipherBlockSize: 16,
+			 hashAlgorithm: FskSSL.cipherSuite.SHA256,
+			 hashSize: 32,
+			 encryptionMode: FskSSL.cipherSuite.CBC},
+			// TLS_DHE_RSA_WITH_AES_128_GCM_SHA256 (RFC 5288)
+			{value: [0x00, 0x9e],
+			 isExportable: false,
+			 keyExchangeAlgorithm: FskSSL.cipherSuite.DHE_RSA,
+			 cipherAlgorithm: FskSSL.cipherSuite.AES,
+			 cipherKeySize: 16,
+			 cipherBlockSize: 16,
+			 hashAlgorithm: FskSSL.cipherSuite.SHA256,
+			 hashSize: 32,
+			 encryptionMode: FskSSL.cipherSuite.GCM,
+			 ivSize: 8,	// explicit nonce size
+			 saltSize: 4},	// implicit part
+			// TLS_DHE_RSA_WITH_AES_256_GCM_SHA384 (RFC 5288)
+			{value: [0x00, 0x9f],
+			 isExportable: false,
+			 keyExchangeAlgorithm: FskSSL.cipherSuite.DHE_RSA,
+			 cipherAlgorithm: FskSSL.cipherSuite.AES,
+			 cipherKeySize: 32,
+			 cipherBlockSize: 16,
+			 hashAlgorithm: FskSSL.cipherSuite.SHA384,
+			hashSize: 48,
+			encryptionMode: FskSSL.cipherSuite.GCM,
+			ivSize: 8,	// explicit nonce size
+			saltSize: 4},	// implicit part
 			// TLS_NULL_WITH_NULL_NULL
 			{value: [0x00, 0x00],
 			 isExportable: true,	// ?
@@ -307,7 +364,8 @@
 			 cipherKeySize: 0,
 			 cipherBlockSize: 0,
 			 hashAlgorithm: FskSSL.cipherSuite.NULL,
-			 hashSize: 0},
+			 hashSize: 0,
+			 encryptionMode: FskSSL.cipherSuite.NONE},
 		];
 
 		FskSSL.supportedCompressionMethods = [0];	// NULL

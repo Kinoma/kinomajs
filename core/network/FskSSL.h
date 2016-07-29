@@ -38,6 +38,7 @@ FskAPI(Boolean) FskSSLCheckServerCert(SSL *ssl, char *hostname);
 #include "FskNetUtils.h"
 
 FskAPI (FskErr) FskSSLNew(void **fsslp, const char *host, int port, Boolean blocking, long flags, int priority);
+FskAPI (FskErr) FskSSLNewWithOption(void **fsslp, FskSSLOption *option);
 FskAPI (FskErr) FskSSLAttach(void **fsslp, FskSocket skt);
 FskAPI (void) FskSSLDispose(void *fssl);
 FskAPI (FskErr) FskSSLLoadCerts(void *fssl, FskSocketCertificateRecord *cert);

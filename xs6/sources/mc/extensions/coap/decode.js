@@ -17,7 +17,8 @@
 
 import {
 	OptionFormat,
-	optionFormat
+	optionFormat,
+	Message
 } from 'common';
 
 export function decode(blob) {
@@ -93,6 +94,7 @@ export function decode(blob) {
 	}
 
 	return {
+		__proto__: Message,
 		version: version,
 		type: type,
 		code: code,

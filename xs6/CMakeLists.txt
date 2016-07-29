@@ -49,7 +49,7 @@ include(XS6)
 
 get_platform(BUILD_PLATFORM)
 
-include(${BUILD_PLATFORM} OPTIONAL)
+# include(${BUILD_PLATFORM} optional)
 
 set(XS6 ${F_HOME}/xs6)
 if(NOT XS6_TOOLS_BIN)

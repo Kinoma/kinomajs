@@ -73,6 +73,7 @@
 	<c option="-mfloat-abi=hard"/>
 	<c option="-mfpu=neon"/>
 	<c option="-ffast-math"/>
+	<c option="-DDEVICE_NAME=BeagleBone"/>
 
 	<library name="--sysroot=$(BB_SYSROOT)" />
 

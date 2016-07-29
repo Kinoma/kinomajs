@@ -17,6 +17,7 @@
 import Crypt from "crypt";
 import Bin from "bin";
 import SSLStream from "ssl/stream";
+import SSL from "ssl";
 
 function idiv(a, b)
 {
@@ -53,7 +54,8 @@ function PRF(session, secret, label, seed, n, hash)
 			p_hash(new Crypt.SHA1(), secret.slice(idiv(secret.byteLength, 2)), s, n)
 		);
 	else {
-		if (!hash) hash = Crypt.SHA256;
+		if (!hash)
+			hash = session.chosenCipher.hashAlgorithm == SSL.cipherSuite.SHA384 ? Crypt.SHA384 : Crypt.SHA256;
 		var r = p_hash(new hash(), secret, s, n);
 	}
 	return r.slice(0, n);

@@ -19,7 +19,8 @@ import {
 	Option,
 	Method,
 	Type,
-	Port
+	Port,
+	Message
 } from 'common';
 
 export function createRequest(data) {
@@ -35,32 +36,8 @@ export function createRequest(data) {
 
 	var options = data.options || [];
 
-	if (!isDottedAddress(host)) {
-		options.push([Option.UriHost, host]);
-	}
-
-	if (port != Port) {
-		options.push([Option.UriPort, port]);
-	}
-
-	var path = parts.path;
-	if (path) {
-		path.split('/').slice(1).forEach(function(part) {
-			options.push([Option.UriPath, decodeURIComponent(part)]);
-		});
-	}
-
-	var query = parts.query;
-	if (query) {
-		query.split('&').forEach(function(part) {
-			options.push([Option.UriQuery, decodeURIComponent(part)]);
-		});
-	}
-
-	let observe = data.observe;
-	if (observe) options.push([Option.Observe, 0]);
-
-	return {
+	const request = {
+		__proto__: Message,
 		url: url,
 		host: host,
 		port: port,
@@ -69,7 +46,6 @@ export function createRequest(data) {
 		code: [0, data.method ? data.method : Method.GET],
 		options: options,
 		payload: data.payload,
-		observe: observe,
 
 		messageId: data.messageId,
 		token: data.token,
@@ -80,6 +56,34 @@ export function createRequest(data) {
 		onAck: data.onAck,
 		onError: data.onError
 	};
+
+	request.observe = data.observe;
+
+	if (!isDottedAddress(host)) {
+		request.setOption(Option.UriHost, host);
+	}
+
+	if (port != Port) {
+		request.setOption(Option.UriPort, port);
+	}
+
+	var path = parts.path;
+	if (path) {
+		request.clearOptions(Option.UriPath);
+		path.split('/').slice(1).forEach(function(part) {
+			request.addOption(Option.UriPath, decodeURIComponent(part));
+		});
+	}
+
+	var query = parts.query;
+	if (query) {
+		request.clearOptions(Option.UriQuery);
+		query.split('&').forEach(function(part) {
+			request.addOption(Option.UriQuery, decodeURIComponent(part));
+		});
+	}
+
+	return request;
 }
 
 export default createRequest;

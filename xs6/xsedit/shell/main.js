@@ -299,7 +299,7 @@ class ShellBehavior extends Behavior {
 		return true;
 	}
 	doSupport() {
-		launchURI("http://developer.kinoma.com"); 
+		launchURI("http://kinoma.com/develop/"); 
 	}
 
 

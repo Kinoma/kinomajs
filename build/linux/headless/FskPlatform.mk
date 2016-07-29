@@ -80,6 +80,7 @@
 	<c option="-Wall"/>
 	<c option="-Werror-implicit-function-declaration"/>
 	<c option="-Wno-multichar"/>
+	<c option="-DDEVICE_NAME=headless"/>
 	
 	<version name="debug">
 		<c option="-DmxDebug"/>

@@ -25,8 +25,6 @@ const Utils = require("../../common/utils");
 const Buffers = require("../../common/buffers");
 const ByteBuffer = Buffers.ByteBuffer;
 
-const L2CAPSignalingContext = require("../l2cap/signaling").L2CAPSignalingContext;
-
 var logger = new Utils.Logger("L2CAP");
 logger.loggingLevel = Utils.Logger.Level.INFO;
 
@@ -74,9 +72,9 @@ class Context {
 		let mgr = new ConnectionManager(link);
 
 		let signalingCID = LEChannel.LE_L2CAP_SIGNALING;
-		let sc = new L2CAPSignalingContext(mgr.openConnection(signalingCID, signalingCID));
+		let sc = new SignalingContext(mgr.openConnection(signalingCID, signalingCID));
 
-		this._delegate.l2capConnected(mgr);
+		this._delegate.l2capConnected(mgr, sc);
 	}
 }
 
@@ -139,7 +137,7 @@ class ConnectionManager {
 		}
 	}
 	/* HCI Callback (ACLLink) */
-	disconnected() {
+	disconnected(reason) {
 		this._link = null;
 		for (let key in this.connections) {
 			if (this.connections.hasOwnProperty(key)) {
@@ -147,7 +145,7 @@ class ConnectionManager {
 			}
 		}
 		if (this._delegate != null) {
-			this._delegate.disconnected();
+			this._delegate.disconnected(reason);
 		}
 	}
 }
@@ -211,5 +209,120 @@ class Connection {
 			logger.info("Connection has been disconnected: cid="
 				+ Utils.toHexString(this._sourceChannel, 2));
 		}
+	}
+}
+
+/******************************************************************************
+ * Signaling
+ ******************************************************************************/
+const Code = {
+	COMMAND_REJECT: 0x01,
+	CONNECTION_REQUEST: 0x02,
+	ECHO_REQUEST: 0x08,
+	ECHO_RESPONSE: 0x09,
+	CONNECTION_PARAMETER_UPDATE_REQUEST: 0x12,
+	CONNECTION_PARAMETER_UPDATE_RESPONES: 0x13
+};
+
+class SignalingContext {
+	constructor(connection) {
+		this._connection = connection;
+		this._sequence = new Utils.Sequence(8);
+		this._callbacks = new Map();
+		connection.delegate = this;
+	}
+	allocateBuffer() {
+		return ByteBuffer.allocateUint8Array(23, true);
+	}
+	sendSignalingPacket(code, identifier, packet, callback) {
+		while (identifier == 0) {
+			identifier = this._sequence.nextSequence();
+		}
+		let buffer = this.allocateBuffer();
+		buffer.putInt8(code);
+		buffer.putInt8(identifier);
+		buffer.putInt16((packet != null) ? packet.length : 0);
+		if (packet != null && packet.length > 0) {
+			buffer.putByteArray(packet);
+		}
+		buffer.flip();
+		this._connection.sendBasicFrame(buffer.getByteArray());
+		if (callback !== undefined) {
+			logger.debug("Callback set for identifier=" + identifier);
+			this._callbacks.set(identifier, callback);
+		}
+	}
+	sendCommandReject(identifier, reason, data) {
+		let length = (data != null) ? data.length : 0;
+		let packet = new Uint8Array(2 + length);
+		packet[0] = reason & 0xFF;
+		packet[1] = (reason >> 8) & 0xFF;
+		for (let i = 0; i < length; i++) {
+			packet[i + 2] = data[i];
+		}
+		this.sendSignalingPacket(Code.COMMAND_REJECT, identifier, packet);
+	}
+	sendConnectionParameterUpdateRequest(connParameters, callback = null) {
+		let request = this.allocateBuffer();
+		request.putInt16(connParameters.intervalMin);
+		request.putInt16(connParameters.intervalMax);
+		request.putInt16(connParameters.latency);
+		request.putInt16(connParameters.supervisionTimeout);
+		request.flip();
+		let packet = request.getByteArray();
+		this.sendSignalingPacket(Code.CONNECTION_PARAMETER_UPDATE_REQUEST, 0, packet, callback);
+	}
+	/** L2CAP Connection delegate method */
+	received(buffer) {
+		let code = buffer.getInt8();
+		let identifier = buffer.getInt8();
+		let length = buffer.getInt16();
+		buffer.setLimit(buffer.getPosition() + length);
+		switch (code) {
+		case Code.ECHO_REQUEST:
+			this.sendSignalingPacket(Code.ECHO_RESPONSE, identifier, null);
+			return;
+		case Code.CONNECTION_PARAMETER_UPDATE_REQUEST:
+			{
+				let link = this._connection.link;
+				if (!link.isLELink() || link.isLESlave()) {
+					/* Non LE or LE slave does not support this request */
+					this.sendCommandReject(identifier, 0x0000, null);
+					return;
+				}
+				let hci = link._linkMgr.context;	// FIXME
+				hci.commands.le.connectionUpdate(
+					link.handle,
+					{
+						intervalMin: buffer.getInt16(),
+						intervalMax: buffer.getInt16(),
+						latency: buffer.getInt16(),
+						supervisionTimeout: buffer.getInt16(),
+						minimumCELength: 0,
+						maximumCELength: 0
+					}
+				);
+				this.sendSignalingPacket(
+					Code.CONNECTION_PARAMETER_UPDATE_RESPONES,
+					identifier, Utils.toByteArray(0x0000, 2, true));
+			}
+			return;
+		default:
+			if (this._callbacks.has(identifier)) {
+				logger.debug("Callback has been found for identifier=" + identifier);
+				let callback = this._callbacks.get(identifier);
+				if (callback != null) {
+					callback(buffer);
+				}
+				this._callbacks.delete(identifier);
+			} else {
+				logger.warn("Unsupported Signaling Command: code=" + Utils.toHexString(code));
+				this.sendCommandReject(identifier, 0x0000, null);
+			}
+		}
+	}
+	/** L2CAP Connection delegate method */
+	disconnected() {
+		logger.info("Signaling context disconnected.");
 	}
 }

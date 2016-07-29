@@ -607,7 +607,7 @@ UInt32 KprComputeScaledSize(FskPort port, UInt32 size)
 		}
 	}
 	else
-		size = FskPortUInt32Scale(port, size << 16);
+		size = size << 16;
 	return size;
 }
 

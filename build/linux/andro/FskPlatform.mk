@@ -116,6 +116,7 @@
     <c option="-D__ARM_ARCH_5E__"/>
     <c option="-D__ARM_ARCH_5TE__"/>
     <c option="-march=armv5te"/>
+    <c option="-DDEVICE_NAME=Andromeda\ Box"/>
 
 	<c option="-Wall"/>
 	<c option="-Werror-implicit-function-declaration"/>

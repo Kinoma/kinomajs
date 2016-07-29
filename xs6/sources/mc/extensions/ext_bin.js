@@ -15,9 +15,9 @@
  *     limitations under the License.
  */
 var Bin = {
-	comp(a1, a2, n = 0) {
+	comp(a1, a2, n = -1) {
 		var i1 = new Uint8Array(a1), i2 = new Uint8Array(a2);
-		if (n > 0) {
+		if (n >= 0) {
 			if (i1.length < n && i2.length < n)
 				;	// fall thru
 			else if (i1.length < n)

@@ -952,11 +952,17 @@ const float kFskCocoaViewCornerRadius = 8;
         }
 
 		cgPoint = [touch locationInView:FskCocoaBitmapUseGL() ? self : nil];
-        statusBarHeight = FskCocoaApplicationGetStatusBarHeight();
-        if (statusBarHeight > 0)
+
+        BOOL fullScreen = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"FSKFullScreen"] boolValue];
+    
+        if (!fullScreen)
         {
-            cgPoint.y -= statusBarHeight;
+            statusBarHeight = FskCocoaApplicationGetStatusBarHeight();
+            if (statusBarHeight > 0) {
+                cgPoint.y -= statusBarHeight;
+            }
         }
+        
 		pat.pt.x = cgPoint.x;
 		pat.pt.y = cgPoint.y;
 

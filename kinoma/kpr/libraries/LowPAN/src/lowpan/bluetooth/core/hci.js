@@ -254,6 +254,10 @@ class Context {
 			logger.trace("ADVERTISING_REPORT");
 			this._discoveryCallback(readLEAdvertisingReport(buffer));
 			break;
+		case LEEvent.CONNECTION_UPDATE_COMPLETE:
+			logger.trace("CONNECTION_UPDATE_COMPLETE");
+			this._linkMgr.eventLEConnectionUpdateComplete(buffer);
+			break;
 		case LEEvent.LTK_REQUEST:
 			logger.trace("LTK_REQUEST");
 			this._linkMgr.eventLELTKRequest(buffer);
@@ -401,8 +405,9 @@ class LinkManager {
 				logger.warn("Unknown disconnection: handle=" + Utils.toHexString(handle, 2));
 				return;
 			}
-			logger.info("Disonnected: handle=" + Utils.toHexString(handle, 2));
-			link.disconnected();
+			logger.info("Disonnected: handle=" + Utils.toHexString(handle, 2)
+				+ ", reason=" + Utils.toHexString(reason));
+			link.disconnected(reason);
 			this._linkMap[handle] = null;
 			// TODO
 		} else {
@@ -462,6 +467,24 @@ class LinkManager {
 			this.addACLLink(link);
 		} else {
 			logger.error("Connection complete with error: status="
+				+ Utils.toHexString(info.status));
+		}
+	}
+	eventLEConnectionUpdateComplete(buffer) {
+		let status = buffer.getInt8();
+		if (status == 0x00) {
+			let handle = buffer.getInt16() & 0x0FFF;
+			let connParameters = {
+				interval: buffer.getInt16(),
+				latency: buffer.getInt16(),
+				supervisionTimeout: buffer.getInt16()
+			};
+			let link = this.getACLLink(handle);
+			if (link != null) {
+				link.connectionUpdated(connParameters);
+			}
+		} else {
+			logger.error("Connection update complete with error: status="
 				+ Utils.toHexString(info.status));
 		}
 	}
@@ -553,8 +576,8 @@ class ACLLink {
 			return;
 		}
 	}
-	disconnected() {
-		this._delegate.disconnected();
+	disconnected(reason) {
+		this._delegate.disconnected(reason);
 	}
 	updateEncryptionStatus(enabled) {
 		this._encryptionStatus = enabled;
@@ -606,6 +629,9 @@ class LELink extends ACLLink {
 		} else {
 			this._security.longTermKeyRequested(this, random, ediv);
 		}
+	}
+	connectionUpdated(connParameters) {
+		logger.info("Connection Updated: " + JSON.stringify(connParameters));	// XXX: Should notify to upper layer
 	}
 }
 
@@ -684,29 +710,31 @@ class CommandExecutor {
 		let queue = this.getCallbackQueue(opcode);
 		logger.trace("Command Event: opcode=" + Utils.toHexString(opcode, 2) + ", complete=" + complete
 			+ ", queue.length=" + queue.length);
+		let callback;
 		if (queue.length > 0) {
-			let callback = queue.shift();
-			if (callback != undefined) {
-				if (!complete) {
-					if (status != 0) {
-						logger.warn("Command Status with error: opcode="
-							+ Utils.toHexString(opcode, 2)
-							+ ", status=" + Utils.toHexString(status));
-					}
-					if ("commandStatus" in callback) {
-						callback.commandStatus(opcode, status);
-					}
-				} else {
-					status = buffer.peek();	// XXX: May not be status
-					if (status != 0) {
-						logger.warn("Command Complete with error: opcode="
-							+ Utils.toHexString(opcode, 2)
-							+ ", status=" + Utils.toHexString(status));
-					}
-					if ("commandComplete" in callback) {
-						callback.commandComplete(opcode, buffer);
-					}
-				}
+			callback = queue.shift();
+			if (callback == undefined) {
+				callback = null;
+			}
+		}
+		if (!complete) {
+			if (status != 0) {
+				logger.warn("Command Status with error: opcode="
+					+ Utils.toHexString(opcode, 2)
+					+ ", status=" + Utils.toHexString(status));
+			}
+			if (callback != null && "commandStatus" in callback) {
+				callback.commandStatus(opcode, status);
+			}
+		} else {
+			status = buffer.peek();	// XXX: May not be status
+			if (status != 0) {
+				logger.warn("Command Complete with error: opcode="
+					+ Utils.toHexString(opcode, 2)
+					+ ", status=" + Utils.toHexString(status));
+			}
+			if (callback != null && "commandComplete" in callback) {
+				callback.commandComplete(opcode, buffer);
 			}
 		}
 	}

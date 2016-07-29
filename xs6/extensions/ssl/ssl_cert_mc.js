@@ -153,4 +153,14 @@ export default class CertificateManager {
 	register(cert) {
 		this.registeredCerts.push(cert);
 	};
+	getDH() {
+		let dh = Files.read("dh.der");
+		let ber = new Crypt.BER(dh);
+		if (ber.getTag() == 0x30) {
+			ber.getLength();
+			let p = ber.getInteger();
+			let g = ber.getInteger();
+			return {p, g};
+		}
+	};
 };

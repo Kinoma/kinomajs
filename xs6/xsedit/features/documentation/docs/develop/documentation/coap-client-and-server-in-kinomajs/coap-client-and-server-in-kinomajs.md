@@ -14,14 +14,17 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-<img alt="" src="http://kinoma.com/develop/documentation/technotes/images/coap-client-and-server-in-kinomaJS.png" class="technoteIllus" >
+<!-- Version: 160415-CR / Last reviewed: October 2015
+
+Use of network connections by Internet of Things devices is increasingly common. HTTP is a popular protocol for these connections, but there are many problems with it, such as efficiency and speed, and these factors have an impact on the device battery life. CoAP is a lightweight, fast, and reliable protocol designed to be used for constrained devices commonly found in the Internet of Things.
+-->
+
+<img alt="" src="img/coap-client-and-server-in-kinomajs_icon.png" class="technoteIllus" >
 
 #CoAP Client and Server in KinomaJS
 
 **Basuke Suzuki**  
 April 13, 2015
-
-<!--From CR: The first paragraph (below) should be used as the intro to this Tech Note on the Kinoma Tech Notes page.-->
 
 Use of network connections by Internet of Things devices is increasingly common. Even a tiny device in the kitchen might connect to the internet. HTTP is a popular protocol for these connections now and works reasonably well, but there are many problems with it, such as efficiency and speed. These factors have an impact on the device battery life, which is an important concern on IoT devices.
 
@@ -61,22 +64,26 @@ A CoAP client and server are included in Kinoma Create and Kinoma Studio startin
 
 The client is simple to use. Here is an example:
 
-	var client = new CoAP.Client();
-	var request = client.createRequest('coap://iot.eclipse.org/query?hello=world');
-	request.onResponse = function(response) {
-    	trace(response.payload + "\n");
-	};
-	client.send(request);
+```
+var client = new CoAP.Client();
+var request = client.createRequest('coap://iot.eclipse.org/query?hello=world');
+request.onResponse = function(response) {
+	trace(response.payload + "\n");
+};
+client.send(request);
+```
   	
 The server is equally simple. Configure the newly created server by binding the actual function to the path (in this case, `/hello`).
 
-	var server = new CoAP.Server();
-	server.bind("/hello", function(session) {
-		var response = session.createResponse();
-		response.payload = "Hello world";
-		session.send(response);
-	});
-	server.start();
+```
+var server = new CoAP.Server();
+server.bind("/hello", function(session) {
+	var response = session.createResponse();
+	response.payload = "Hello world";
+	session.send(response);
+});
+server.start();
+```
 	
 If the IP address of the Kinoma Create device running the code above is 10.85.20.144, the URL of the function above on this CoAP server is `coap://10.85.20.144/hello`.
  
@@ -84,20 +91,28 @@ If the IP address of the Kinoma Create device running the code above is 10.85.20
 
 To make a request confirmable, set the `confirmable` property to `true`.
 
-	request.confirmable = true;
+```
+request.confirmable = true;
+```
 	
 Set the method with the `method` property.
 
-	request.method = 'GET';
+```
+request.method = 'GET';
+```
 	
 A request can have data, called its *payload.* There are two ways to set the request’s payload. Set it to plain text data with the `payload` property.
 
-	request.payload = "Hello world";
+```
+request.payload = "Hello world";
+```
 	
 In this case, the content format is automatically text. Alternatively, call the `setPayload` method to set the content format.
 
-	var data = { result: -1, status: "OK" };
-	request.setPayload(JSON.stringify(data), 'json');
+```
+var data = { result: -1, status: "OK" };
+request.setPayload(JSON.stringify(data), 'json');
+```
 	
 The content format can be set to the following values in CoAP (or to their aliases provided by the KinomaJS CoAP implementation, as shown).
 
@@ -134,64 +149,82 @@ To receive the response from a server, the `request` object can have event handl
 
 The `onResponse` event is called to process the response from the server.
 
-	request.onResponse = function(response) {
-    	var data = response.payload;
-    	// Do some task with the response
-    	...
-	};
+```
+request.onResponse = function(response) {
+	var data = response.payload;
+	// Do some task with the response
+	...
+};
+```
 	
 The `response` object has a `payload` property for the response contents.
 
-	var data = response.payload;
+```
+var data = response.payload;
+```
 	
 There is also a `contentFormat` property, so it is easy to handle the response differently depending on its format.
 
-	var format = response.contentFormat.split(';')[0];
-	if (format == 'application/json') {
-		data = JSON.parse(response.payload);
-	} else if (format == 'text/plain') {
-	    data = response.payload;
-	} else {
-		throw "Unknown format";
-	}
+```
+var format = response.contentFormat.split(';')[0];
+if (format == 'application/json') {
+	data = JSON.parse(response.payload);
+} else if (format == 'text/plain') {
+    data = response.payload;
+} else {
+	throw "Unknown format";
+}
+```
 	
 To be notified when a confirmable request sent by the client has been acknowledged by the receiver, set the `onAck` property.
 
-	request.onAck = function() {
-		// We know the server got my request. Yay!
-	};
+```
+request.onAck = function() {
+	// We know the server got my request. Yay!
+};
+```
  
 ##Server Side: Handling a Request and Sending a Response
 
 On the server side, request information is available from the `session` object. The following properties are available. All are read-only.
 
-	session.method;         // GET / POST / PUT / DELETE
-	session.confirmable;    // true or false
-	session.messageId;      // e.g., 1234
-	session.payload;        // e.g., "Hello world"
-	session.contentFormat;  // text/plain; charset=utf-8
-	session.uri;            // coap://10.85.20.144:5683/hello?foo=bar&a=123
-	session.host;           // 10.85.20.144
-	session.port;           // 5683
-	session.path;           // /hello
-	session.query;          // foo=bar&a=123 
+```
+session.method;         // GET / POST / PUT / DELETE
+session.confirmable;    // true or false
+session.messageId;      // e.g., 1234
+session.payload;        // e.g., "Hello world"
+session.contentFormat;  // text/plain; charset=utf-8
+session.uri;            // coap://10.85.20.144:5683/hello?foo=bar&a=123
+session.host;           // 10.85.20.144
+session.port;           // 5683
+session.path;           // /hello
+session.query;          // foo=bar&a=123
+```
 	
 A session creates a response using the `createResponse` method.
 
-	var response = session.createResponse();
+```
+var response = session.createResponse();
+```
 	
 Build the response by setting its payload, just as in the request.
 
-	response.payload = 'Sayonara';
+```
+response.payload = 'Sayonara';
+```
 	
 In addition to the payload, set the status code of the response using `setCode`. The next section provides details on the response code.
 
-	response.setCode(2, 5);		// Default success response code
-	response.setCode(4, 3);		// Forbidden
+```
+response.setCode(2, 5);		// Default success response code
+response.setCode(4, 3);		// Forbidden
+```
 	
 Finally, when the response is ready to be sent, call the `send` method to send it back.
 
-	session.send(response);
+```
+session.send(response);
+```
 	
 Do not forget to do this; no response is sent automatically.
  
@@ -219,25 +252,30 @@ Some CoAP response codes are familiar from HTTP, while others are CoAP-specific.
 
 The Observe extension is an important standard extension for CoAP that provides publish and subscribe-style communication. With the Observe extension, a CoAP client can send a registration request and, once it is accepted by the server, the client will receive multiple notification responses, based on the semantics of the server endpoint (see Figure 1). The notifications can be once every five minutes, immediately after the value changes, or as fast as possible, like continuous real-time notification. The contents of a notification can be anything. The basic structure of the notification is similar to a regular response.
 
-**Figure 1.** Multiple Responses from the Server  
-![](http://kinoma.com/develop/documentation/technotes/images/coap-client-and-server-in-kinomaJS/observe-multiple-response-from-server.jpg)
+**Figure 1.** Multiple Responses from the Server
+  
+![](img/observe-multiple-response-from-server.jpg)
 
 Instantiating the observe registration request is simple: set the `observe` property to `true`.
 
-	request.observe = true;
+```
+request.observe = true;
+```
 	
 Handling an observe request requires two phases: (1) when the server receives the registration request, and (2) when it wants to send a notification to the observer clients.
 
 An observe request has `true` in its `observe` property, so start by checking that property. Call the `acceptObserve` method to let the client know that the observe request is successfully accepted. If `acceptObserve` is not called by the request handler, the server considers the observe request denied.
 
-	if (session.observe) {
-		// Session registration
-    	session.acceptObserve();
-    	sessions.push(session.id);
-	}
-	var response = session.createResponse();
-	response.setCode(2, 5);
-	session.send(response);
+```
+if (session.observe) {
+	// Session registration
+	session.acceptObserve();
+	sessions.push(session.id);
+}
+var response = session.createResponse();
+response.setCode(2, 5);
+session.send(response);
+```
   	
 In this example, the global variable `sessions` is used to remember the observer’s session ID. The session ID is required to send a notification response back to the client.
 
@@ -245,16 +283,18 @@ More than one client can observe the same resource of the server--which is why t
 
 After the registration phase completes, send back a notification response whenever appropriate, such as when the user taps a button or a sensor detects a value change, or at specific time intervals.
 
-	sessions.forEach(function(id) {
-		var session = server.getSession(id);
-		if (session) {
-			// Send a response as usual with the session
-			...
-		} else {
-			// Remove that ID from sessions
-			...
-		}
-	});
+```
+sessions.forEach(function(id) {
+	var session = server.getSession(id);
+	if (session) {
+		// Send a response as usual with the session
+		...
+	} else {
+		// Remove that ID from sessions
+		...
+	}
+});
+```
 	
 As described earlier, there can be more than one observer, so loop with the session ID in the `sessions` array. From the `server` object, the session can be retrieved with the `getSession` method. Check whether the session is `null` or not before using it, because it is possible that the session has been invalidated because of a communication error or has been cancelled from the client side.
 
@@ -266,7 +306,7 @@ Two KinomaJS sample applications are available on GitHub. These examples, [`coap
 
 **Figure 2.** CoAP Server Example  
 
-![](http://www.kinoma.com/develop/documentation/technotes/images/coap-client-and-server-in-kinomaJS/coap-server-example.jpg)
+![](img/coap-server-example.jpg)
 
 The server example consists of three files:
 
@@ -278,7 +318,7 @@ The server example consists of three files:
 
 **Figure 3.** CoAP Client Example  
 
-![](http://www.kinoma.com/develop/documentation/technotes/images/coap-client-and-server-in-kinomaJS/coap-client-example.jpg)
+![](img/coap-client-example.jpg)
 
 The client has three tabs at the bottom:
 

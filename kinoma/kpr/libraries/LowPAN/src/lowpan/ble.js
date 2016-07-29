@@ -108,6 +108,18 @@ exports.configure = function (data) {
 	_transport = new UART.Transport(_serial);
 	_gapApplication = new GAPApplication();
 	_storage = new BondingStorage();
+	if (data.hasOwnProperty("bondings")) {
+		logger.info("Load Bonding Data...");
+		for (let i = 0; i < data.bondings.length; i++) {
+			let bond = data.bondings[i];
+			if (bond !== undefined && bond != null) {
+				bond.address = getBluetoothAddressByJSON(bond.address);
+				bond.keys.address = getBluetoothAddressByJSON(bond.keys.address);
+				logger.debug("Bond#" + i + ": " + bond.address.toString());
+				_storage.addBond(i, bond, false);
+			}
+		}
+	}
 	_gap = GAP.createLayer(_gapApplication, _storage);
 	if (!ADVANCED_MODE) {
 		GATTAPI = require("./bllgatt");
@@ -142,20 +154,44 @@ exports.close = function () {
 	logger.info("Exit");
 };
 
-function preMarshall(obj) {
-	for (let key in obj) {
-		logger.trace("Key: " + key);
-		if (!obj.hasOwnProperty(key)) {
-			continue;
-		}
-		let val = obj[key];
+function getBluetoothAddressByJSON(obj) {
+	return obj != null ?
+		BluetoothAddress.getByString(obj.address, true, obj.type != "public") :
+		null;
+}
+
+function preMarshall(val) {
+	switch (typeof val) {
+	case "symbol":
+		return val.toString();
+	case "object":
 		if (val instanceof Uint8Array) {
-			obj[key] = Array.from(val);
+			return Array.from(val);
+		} else if (val instanceof BluetoothAddress) {
+			/* Assume the instance is LEBluetoothAddress */
+			return {
+				address: val.toString(),
+				type: val.typeString
+			};
 		} else if (val instanceof Array) {
-			val.forEach(preMarshall);
-		} else if (val instanceof Object) {
-			preMarshall(val);
+			let sa = new Array();
+			val.forEach(e => sa.push(preMarshall(e)));
+			return sa;
+		} else {
+			if (val == null) {
+				return null;
+			}
+			let so = {};
+			for (let key in val) {
+				if (!val.hasOwnProperty(key)) {
+					continue;
+				}
+				so[key] = preMarshall(val[key]);
+			}
+			return so;
 		}
+	default:
+		return val;
 	}
 }
 
@@ -163,15 +199,15 @@ function doNotification(notification) {
 	if (_notification == null) {
 		return;
 	}
-	preMarshall(notification);
+	let sanitised = preMarshall(notification);
 
 	if (notification.notification == "gap/discover") {
 		/* Suppress Logging... */
-		logger.trace("Notification: " + JSON.stringify(notification));
+		logger.trace("Notification: " + JSON.stringify(sanitised));
 	} else {
-		logger.debug("Notification: " + JSON.stringify(notification));
+		logger.debug("Notification: " + JSON.stringify(sanitised));
 	}
-	_notification.invoke(notification);
+	_notification.invoke(sanitised);
 }
 
 // ----------------------------------------------------------------------------------
@@ -184,21 +220,41 @@ class BondingStorage {
 	}
 	/* GAP Callback: Bonding Storage */
 	allocateBond() {
-		let dummy = {};
 		for (let i = 0; i < this._bondings.length; i++) {
 			if (this._bondings[i] == null) {
-				this._bondings[i] = dummy;
 				return i;
 			}
 		}
-		return this._bondings.push(dummy) - 1;
+		return this._bondings.push(null) - 1;
 	}
 	/* GAP Callback: Bonding Storage */
 	storeBond(index, info) {
 		if (index < 0 || this._bondings.length <= index) {
 			return false;
 		}
+		this.addBond(index, info);
+	}
+	addBond(index, info, notify = true) {
 		this._bondings[index] = info;
+		if (notify) {
+			doNotification({
+				notification: "gap/bond/add",
+				index,
+				info
+			});
+		}
+	}
+	removeBond(index, notify = true) {
+		if (index < 0 || this._bondings.length <= index) {
+			return;
+		}
+		this._bondings[index] = null;
+		if (notify) {
+			doNotification({
+				notification: "gap/bond/remove",
+				index
+			});
+		}
 	}
 	/* GAP Callback: Bonding Storage */
 	getBond(index) {
@@ -309,7 +365,8 @@ class GAPApplication {
 				doNotification({
 					notification: "att/received",
 					connection: index,
-					buffer: buffer.getByteArray().buffer
+				//	buffer: buffer.getByteArray().buffer
+					array: Array.from(buffer.getByteArray())
 				});
 			};
 		} else {
@@ -323,12 +380,12 @@ class GAPApplication {
 			connection: index,
 			peripheral: context.peripheral,
 			address: link.remoteAddress.toString(),
-			addressType: link.remoteAddress.isRandom() ? "random" : "public",
+			addressType: link.remoteAddress.typeString,
 			rpa: rpa != null ? rpa.toString() : null,
 			interval: hciInfo.connParameters.interval,
 			timeout: hciInfo.connParameters.supervisionTimeout,
 			latency: hciInfo.connParameters.latency,
-		//	bond: this.findBondIndexByAddress(link.remoteAddress)
+			bond: _storage.findBondIndexByAddress(link.remoteAddress)
 		});
 	}
 	/* GAP Callback */
@@ -367,19 +424,11 @@ class GAPContextDelegate {
 			input
 		});
 	}
-	encryptionCompleted(info) {
+	encryptionCompleted(div, info) {
 		doNotification({
 			notification: "sm/encryption/complete",
 			connection: this._index,
-			pairingInfo: {
-				initiator: info.initiator,
-				keySize: info.keySize,
-				legacy: info.legacy,
-				bonding: info.bonding,
-				initiatorKeys: info.initiatorKeys,
-				responderKeys: info.responderKeys,
-				authenticated: info.authenticated
-			}
+			bond: (info != null) ? div : -1
 		});
 	}
 	encryptionFailed(status) {
@@ -387,12 +436,14 @@ class GAPContextDelegate {
 		logger.error(msg);
 		throw new Error(msg);
 	}
-	disconnected() {
-		logger.debug("Disconnected: index=" + this._index);
+	disconnected(reason) {
+		logger.debug("Disconnected: index=" + this._index
+			+ ", reason=" + Utils.toHexString(reason));
 		this._gapApp.unregisterContext(this._index);
 		doNotification({
 			notification: "gap/disconnect",
-			connection: this._index
+			connection: this._index,
+			reason
 		});
 	}
 }
@@ -429,7 +480,7 @@ exports.gapStopScanning = function () {
 
 exports.gapConnect = function (params) {
 	let address = params.address;
-	let random = (params.addressType == "random");
+	let random = (params.addressType != "public");
 	var intervalMin = ("intervals" in params && "min" in params.intervals) ? params.intervals.min : MIN_INITIAL_CONN_INTERVAL;
 	var intervalMax = ("intervals" in params && "max" in params.intervals) ? params.intervals.max : MAX_INITIAL_CONN_INTERVAL;
 	var supervisionTimeout = ("timeout" in params) ? params.timeout : 3200;
@@ -479,18 +530,19 @@ exports.gapUpdateConnection = function (params) {
 	var intervalMax = ("intervals" in params && "max" in params.intervals) ? params.intervals.max : MAX_INITIAL_CONN_INTERVAL;
 	var supervisionTimeout = ("timeout" in params) ? params.timeout : 3200;
 	var latency = ("latency" in params) ? params.latency : 0;
+	var l2cap = ("l2cap" in params) ? params.l2cap : false;
 
 	logger.debug("gapUpdateConnection");
 
 	var context = _gapApplication.getContext(index);
-	_gap.updateConnectionParameter(context, {
+	context.updateConnectionParameter({
 		intervalMin: intervalMin,
 		intervalMax: intervalMax,
 		latency: latency,
 		supervisionTimeout: supervisionTimeout,
 		minimumCELength: 0,
 		maximumCELength: 0
-	});
+	}, l2cap);
 };
 
 exports.gapDisconnect = function (params) {
@@ -505,6 +557,11 @@ exports.gapDisconnect = function (params) {
 exports.gapEnablePrivacy = function () {
 	logger.debug("gapEnablePrivacy");
 	_gap.enablePrivacyFeature(true);
+};
+
+exports.gapDeleteBond = function (params) {
+	logger.debug("gapDeleteBond");
+	_storage.removeBond(params.index);
 };
 
 // ----------------------------------------------------------------------------------

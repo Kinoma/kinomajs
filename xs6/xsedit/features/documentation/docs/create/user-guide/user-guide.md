@@ -1,4 +1,4 @@
-<!-- Version: 160404-KO / Primary author: Chris Krueger / Last reviewed: October 2015
+<!-- Version: 160415-CR / Primary author: Chris Krueger / Last reviewed: October 2015
 
 Read this document to learn about and get started with your Kinoma Create.
 -->
@@ -36,7 +36,7 @@ The most important thing to know about Kinoma Create (shown in Figures 1 and 2) 
 
 ![](img/create-back.png)
 
-Download [Kinoma Studio](../../develop/studio/). You can try out your own applications in our desktop simulator, build apps for iOS and Android, or run any of our samples (included with Kinoma Studio) on your Kinoma Create.
+Download [Kinoma Studio](../../studio/). You can try out your own applications in our desktop simulator, build apps for iOS and Android, or run any of our samples (included with Kinoma Studio) on your Kinoma Create.
 
 The Kinoma team is ready to support you as you work with your Kinoma Create. The best way to get answers to your questions is to post on the corresponding [Kinoma Forum](http://forum.kinoma.com/).
 
@@ -181,7 +181,7 @@ The Settings app on Kinoma Create lets you set device attributes, update firmwar
 
 You can install an SD card and set it up as a bootable volume. As part of the setup process, the latest Kinoma Create system image will download. Once you have created a bootable SD card, you can boot from the SD card and update the firmware on your Kinoma Create. 
 
-> <span style="color: red">**_Important:_** Formatting an SD card as a bootable volume completely erases the contents of the SD card being prepared.</span>
+**_Important:_** Formatting an SD card as a bootable volume completely erases the contents of the SD card being prepared.
 
 Figure 9 shows the initial screen for **Set Up SD Card** and the screen displayed after you select **Update SD Card**; you will then see a toggle to start from a bootable SD card if present.
 
@@ -206,7 +206,7 @@ If you connect via the Mini-USB port, you can access the serial console. [FTDI d
 <a id="using-hardware-pins"></a>
 ## Using Hardware Pins
 
-The front and back hardware pins are introduced here; for details on coding with these pins, see the document [_Programming with Hardware Pins_](../../develop/documentation/pins/).
+The front and back hardware pins are introduced here; for details on coding with these pins, see the document [_Programming with Hardware Pins_](../pins/).
 
 
 ###Front Pins
@@ -226,6 +226,7 @@ The 50 pins on the back header are accessible behind the rear access panel, as s
 
 **Figure 12.** Back Pins  
 ![](img/rear-pins.png)
+
 
 ## The Kinoma Create Stand
 
@@ -282,7 +283,7 @@ This equipment complies with FCC RF radiation exposure limits set forth for an u
 
 This device complies with Part 15 of the FCC Rules. Operation is subject to the following two conditions: (1) this device may not cause harmful interference, and (2) this device must accept any interference received, including interference that may cause undesired operation.
 
-> <span style="color: red">**Caution!** Any changes or modifications not expressly approved by the party responsible for compliance could void the user's authority to operate the equipment.</span>
+> ***Caution!*** Any changes or modifications not expressly approved by the party responsible for compliance could void the user's authority to operate the equipment.</span>
 
 ### Canada Statement
 

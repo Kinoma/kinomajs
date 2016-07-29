@@ -97,6 +97,10 @@ export default class extends Feature {
 	}
 	
 	close() {
+		this.machines.forEach(machine => {
+			if (machine.broken)
+				this.debug.abort(machine.address);
+		});
 		this.debug.close();
 		delete this.debug;
 		delete this.port;

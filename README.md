@@ -72,7 +72,7 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
 1. Install the current version of Xcode from Apple's App Store. (As of the writing of this document, the current version is 7.3.) After installing, run Xcode to accept the license agreement and install any required additional components.
 2. Install [Homebrew](http://brew.sh/).
   ```
-  $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"  $ brew install caskroom/cask/brew-cask
+  $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"  $ brew tap caskroom/cask
   ```
 
 3. Install CMake.
@@ -216,7 +216,7 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
 1. Install the current version of Xcode from Apple's App Store. (As of the writing of this document, the current version is 7.3.) After installing, run Xcode to accept the license agreement and install any required additional components.
 2. Install [Homebrew](http://brew.sh/).
   ```
-  $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"  $ brew install caskroom/cask/brew-cask
+  $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"  $ brew tap caskroom/cask
   ```
 3. Install CMake.
   ```
@@ -274,7 +274,7 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
 1. Install the current version of Xcode from Apple's App Store. (As of the writing of this document, the current version is 7.3.) After installing, run Xcode to  accept the license agreement and install any required additional components.
 2. Install [Homebrew](http://brew.sh/).
   ```
-  $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"  $ brew install caskroom/cask/brew-cask
+  $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"  $ brew tap caskroom/cask
   ```
 3. Install CMake.
   ```
@@ -403,7 +403,7 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
 1. Install the current version of Xcode from Apple's App Store. (As of the writing of this document, the current version is 7.3.) After installing, run Xcode to accept the license agreement and install any required additional components.
 2. Install [Homebrew](http://brew.sh/).
   ```
-  $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"  $ brew install caskroom/cask/brew-cask
+  $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"  $ brew tap caskroom/cask
   ```
 3. Install CMake.
   ```
@@ -460,7 +460,7 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
 
   ```
   $ ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-  $ brew install caskroom/cask/brew-cask
+  $ brew tap caskroom/cask
   ```
 
 3. Install CMake.

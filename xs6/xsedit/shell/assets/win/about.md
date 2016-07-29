@@ -14,18 +14,20 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-# About Kinoma Code
-**Windows Version $VERSION - Build $CORE_VERSION**
+# About Kinoma Code for Windows
+**Version $VERSION - Build $CORE_VERSION**
 
 ### What's New
 
-EmbedShell is testable.
+Welcome to the initial public beta release of Kinoma Code for Windows!
 
-####Noteworthy Bug Fixes
+More device simulators and the Serial Console feature are coming in a future release, but in all other respects this is equivalent to the Mac OS X version.
 
+This is beta software.  If you find bugs or issues that you would like to see addressed in upcoming updates, please post in the Kinoma Forums (http://forum.kinoma.com/)
 
-### Release Notes - Version 1.0b4
+>**Note:** In order to discover and work with Kinoma Element devices, a Zeroconf/Bonjour responder must be installed on the system. Currently, the easiest way to do this is to install the *Apple Bonjour Print Services for Windows*, which is a free download located at:
 
+>https://support.apple.com/kb/dl999 
 
 Kinoma is a registered trademark of Kinoma, Inc. All other brands, product names, company names, trademarks and service marks are the properties of their respective owners. All rights reserved.
 

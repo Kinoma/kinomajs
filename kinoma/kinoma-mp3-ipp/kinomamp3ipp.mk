@@ -100,6 +100,7 @@
 
 <wrap name="../kinoma-ipp-lib/kinoma_ipp_lib_mp3_dec.cpp"/>
 <wrap name="../kinoma-ipp-lib/kinoma_ipp_math.c"/>
+<wrap name="../kinoma-ipp-lib/kinoma_ipp_memory.c"/>
 <wrap name="../kinoma-ipp-lib/kinoma_mp3_dec_huff.c"/>
 <!--wrap name="../kinoma-ipp-lib/kinoma_utilities.c"/-->
 <!--/buildstyle-->

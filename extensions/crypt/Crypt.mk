@@ -22,6 +22,7 @@
 <wrap name="primitives_ltc.c"/>
 <wrap name="arith_ltc.c"/>
 <wrap name="fips180.c"/>	<!-- for SHA1 in x509.c -->
+<wrap name="ghash.c"/>
 
 <input name="sources/libs/libtomcrypt-1.13/src/headers"/>
 <input name="sources/libs/libtomcrypt-1.13/src/ciphers"/>

@@ -25,6 +25,7 @@ extern "C" {
 
 const char *KplECMAScriptGetExtension(void);
 const char *KplECMAScriptGetPlatform(void);
+const char *KplECMAScriptGetDevice(void);
 
 #ifdef __cplusplus
 }

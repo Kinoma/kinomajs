@@ -426,7 +426,9 @@ exports.readMultipleCharacteristicValues = readMultipleCharacteristicValues;
  * 4.9.2 Signed Write Without Response
  */
 function writeWithoutResponse(bearer, handle, value, signed = false) {
-	logger.debug("writeWithoutResponse: signed=" + signed);
+	logger.debug("writeWithoutResponse: signed=" + signed
+		+ ", handle=" + Utils.toHexString(handle, 2)
+		+ ", value=" + Utils.toFrameString(value));
 	let pdu = ATT.assembleWriteRequestPDU(handle, value);
 	pdu[0] |= ATT.Opcode.COMMAND;
 	if (signed) {
@@ -443,7 +445,8 @@ exports.writeWithoutResponse = writeWithoutResponse;
  */
 function writeValue(bearer, handle, value) {
 	return new Promise((resolve, reject) => {
-		logger.debug("writeCharacteristicValue");
+		logger.debug("writeCharacteristicValue: handle=" + Utils.toHexString(handle, 2)
+			+ ", value=" + Utils.toFrameString(value));
 		bearer.scheduleTransaction(
 			ATT.assembleWriteRequestPDU(handle, value),
 			{
@@ -537,6 +540,8 @@ class Characteristic extends GATT.Characteristic {
 		this.discoverAllCharacteristicDescriptors = () => {
 			return discoverCharacteristicDescriptors(bearer, handle, this._end, results => {
 				for (let result of results) {
+					logger.debug("Descriptor discovered: uuid=" + result.uuid.toString()
+						+ ", handle=" + Utils.toHexString(result.handle, 2));
 					this.addDescriptor(new Descriptor(bearer, result));
 				}
 				return true;
@@ -597,7 +602,8 @@ class Service extends GATT.Service {
 		this.findIncludedServices = findIncludedServices.bind(this, bearer, start, end,
 			results => {
 				for (let result of results) {
-					logger.debug("Included service discovered: uuid=" + result.uuid.toString());
+					logger.debug("Included service discovered: uuid=" + result.uuid.toString()
+						+ ", handle=" + Utils.toHexString(result.handle, 2));
 					this.addIncludedService(new Service(bearer, result));
 				}
 				return true;
@@ -606,7 +612,8 @@ class Service extends GATT.Service {
 		this.discoverCharacteristics = discoverCharacteristics.bind(this, bearer, start, end,
 			results => {
 				for (let result of results) {
-					logger.debug("Characteristic discovered: uuid=" + result.uuid.toString());
+					logger.debug("Characteristic discovered: uuid=" + result.uuid.toString()
+						+ ", handle=" + Utils.toHexString(result.handle, 2));
 					this.addCharacteristic(new Characteristic(bearer, result));
 				}
 				return true;

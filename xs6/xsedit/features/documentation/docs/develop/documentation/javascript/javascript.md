@@ -14,7 +14,7 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-<!-- version: 160202-KO
+<!-- Version: 160211-KO / Primary author: Patrick Soquet / Last reviewed: April 2014 by Peter
 
 This document is a detailed reference for the objects in the KinomaJS JavaScript (ECMAScript) API.
 -->
@@ -428,7 +428,7 @@ The parameters of the `onCreate` event are the parameters of the `Behavior` cons
 
 ### Canvas Object
 
-The `canvas` object is a `content` object that delegates drawing to a script in its behavior that draws using the HTML 2D Canvas API specified by the W3C. It provides a 2D context conforming to the [HTML Canvas 2D Context specification](http://www.w3.org/TR/2dcontext/)(which defines the `2d` context type, whose API</span> is implemented using the `CanvasRenderingContext2D` interface).
+The `canvas` object is a `content` object that delegates drawing to a script in its behavior that draws using the HTML 2D Canvas API specified by the W3C. It provides a 2D context conforming to the [HTML Canvas 2D Context specification](http://www.w3.org/TR/2dcontext/)(which defines the `2d` context type, whose API is implemented using the `CanvasRenderingContext2D` interface).
 
 #### Coordinates
 The measured width and measured height of a `canvas` object are 0.
@@ -2226,7 +2226,7 @@ Unbinds this layer from the content hierarchy by removing the first `content` ob
 | --- | --- | --- |
 | `Layer.prototype.rotation` | `number` | |
 
-> This layer’s rotation in radians
+> This layer’s rotation in degrees
 
 `Layer.prototype.scale` / `skew`
 
@@ -3036,7 +3036,7 @@ Loads the image referenced by the specified URL into this picture. Loading an im
 | --- | --- | --- |
 | `Picture.prototype.rotation` | `number` | |
 
-> This picture’s rotation in radians
+> This picture’s rotation in degrees
 
 `Picture.prototype.scale` / `skew`
 
@@ -3317,7 +3317,7 @@ Saves this port’s current clip rectangle to this port’s clip rectangles stac
 | --- | --- | --- |
 | `Port.prototype.rotation` | `number` | |
 
-> This port’s current rotation, as a number in radians
+> This port’s current rotation, as a number in degrees
 
 `Port.prototype.scale` / `skew`
 

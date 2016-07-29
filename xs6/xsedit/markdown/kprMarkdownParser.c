@@ -45,6 +45,14 @@ Visualizations
   dot xs6/xsedit/markdown/kprMarkdownParser-md-inner.dot -Tpng > xs6/xsedit/markdown/kprMarkdownParser-md-inner.png
   dot xs6/xsedit/markdown/kprMarkdownParser-md-markdown.dot -Tpng > xs6/xsedit/markdown/kprMarkdownParser-md-markdown.png
 
+Caution: environment variables ($F_HOME or $XS6) in ragel paths are expanded in the generated .c file!
+
+         For example:
+         #line 1 "/Users/mwharton/Development/kinoma/fsk/xs6/xsedit/markdown/kprMarkdownParser.rl"
+
+         Compared to:
+         #line 1 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+
 */
 
 #include "kprMarkdownParser.h"
@@ -353,26 +361,30 @@ bail:
 static FskErr doProcessText(KprMarkdownParser parser, char *str, KprMarkdownState state, char *stop, SInt32 line)
 {
 	FskErr err = kFskErrNone;
-	SInt32 length = state->textStop - state->textStart, space = 0;
+	char *start = state->textStart;
+	SInt32 length = state->textStop - start, space = 0;
 	if (state->depth > 0) {
-		char *text = state->textStart;
-		while (text < state->textStop) {
-			if (!_IsSpace(*text))
+		while (start < state->textStop) {
+			if (!_IsSpace(*start))
 				break;
 			space++;
-			text++;
+			start++;
 		}
 	}
 	if ((length > space) || (state->depth == 0)) {
 		if (state->depth > 0) {
 			KprMarkdownElement element = state->stack[state->top];
 			if (element) {
+				if ((space == 1) && (*state->textStart == ' ')) {
+					// The <code>top</code> and <code>bottom</code> coordinates...
+					start = state->textStart;
+				}
 				if (element->elements == NULL) {
 					bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
 				}
 				state->elementRecord.type = 0;
-				state->elementRecord.t.length = state->textStop - state->textStart;
-				state->elementRecord.t.offset = (SInt16)(state->textStart - str - state->offset);
+				state->elementRecord.t.length = state->textStop - start;
+				state->elementRecord.t.offset = (SInt16)(start - str - state->offset);
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)element->elements, (void *)&(state->elementRecord)));
 				state->elementRecord.t.length = -1;
 				state->elementRecord.t.offset = 0;
@@ -380,8 +392,8 @@ static FskErr doProcessText(KprMarkdownParser parser, char *str, KprMarkdownStat
 		}
 		#if KPRMARKDOWNDEBUGTEXT
 			fprintf(stdout, (state->depth ? KYEL "%6d " : KNRM "%6d "), (int)line);
-			if (state->textStart) {
-				fwrite(state->textStart, state->textStop - state->textStart, 1, stdout);
+			if (start) {
+				fwrite(start, state->textStop - start, 1, stdout);
 			}
 			fprintf(stdout, "\n" RESET);
 		#endif
@@ -580,7 +592,7 @@ bail:
 }
 
 
-#line 584 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 596 "xs6/xsedit/markdown/kprMarkdownParser.c"
 static const char _md_actions[] = {
 	0, 1, 3, 1, 5, 1, 6, 1, 
 	9, 1, 10, 1, 11, 1, 13, 1, 
@@ -1271,7 +1283,7 @@ static const int md_en_inner = 143;
 static const int md_en_main = 165;
 
 
-#line 583 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 595 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 
 
 #pragma unused (md_en_error, md_en_fenced_code_scanner, md_en_inner, md_en_main, md_en_markdown)
@@ -1353,7 +1365,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 {
 	char *p = str + offset, *pe = p + length, *eof = pe, *te, *ts;
 	char *b, *h, *h1, *h2, *m1, *m2, *t1, *t2, *v1, *v2;
-	SInt32 act, cs, i, n, stack[STACKSIZE], top;
+	SInt32 act, cs, i, m, n, stack[STACKSIZE], top;
 	
 	FskErr err = kFskErrNone;
 	KprMarkdownRunRecord runRecord;
@@ -1365,7 +1377,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 	state->pc = p; // markup error on the first line
 	
 	
-#line 1369 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 1381 "xs6/xsedit/markdown/kprMarkdownParser.c"
 	{
 	cs = md_start;
 	top = 0;
@@ -1374,7 +1386,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 	act = 0;
 	}
 
-#line 1378 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 1390 "xs6/xsedit/markdown/kprMarkdownParser.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -1396,7 +1408,7 @@ _resume:
 #line 1 "NONE"
 	{ts = p;}
 	break;
-#line 1400 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 1412 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -1421,8 +1433,8 @@ _resume:
 	case 0: {
 		_widec = (short)(128 + ((*p) - -128));
 		if ( 
-#line 869 "xs6/xsedit/markdown/kprMarkdownParser.rl"
- (i == n) && (_spaces(ts, m1, -1, 0) == state->spaces)  ) _widec += 256;
+#line 881 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+ (i == n) && (_spaces(ts, m1, -1, 0) == m)  ) _widec += 256;
 		break;
 	}
 				}
@@ -1493,25 +1505,25 @@ _eof_trans:
 		switch ( *_acts++ )
 		{
 	case 0:
-#line 676 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 688 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttribute(parser, str, state));
 		}
 	break;
 	case 1:
-#line 680 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 692 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttributeName(parser, str, state));
 		}
 	break;
 	case 2:
-#line 684 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 696 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttributeValue(parser, str, state));
 		}
 	break;
 	case 3:
-#line 688 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 700 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
 			if (info && ((info->type == kprMarkdownBR) || (info->type == kprMarkdownSPAN)) && (state->depth == 1)) {
@@ -1531,13 +1543,13 @@ _eof_trans:
 		}
 	break;
 	case 4:
-#line 706 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 718 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doEnterElement(parser, str, state));
 		}
 	break;
 	case 5:
-#line 710 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 722 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
 			if (info && ((info->type == kprMarkdownBR) || (info->type == kprMarkdownSPAN)) && (state->depth == 1)) {
@@ -1554,67 +1566,67 @@ _eof_trans:
 		}
 	break;
 	case 6:
-#line 725 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 737 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doHold(parser, str, state, p, state->line));
 		}
 	break;
 	case 7:
-#line 729 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 741 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doMark(parser, str, state, p));
 		}
 	break;
 	case 8:
-#line 733 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 745 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doProcessText(parser, str, state, p, state->line));
 		}
 	break;
 	case 9:
-#line 737 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 749 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartComment(parser, str, state, p));
 		}
 	break;
 	case 10:
-#line 741 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 753 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartElement(parser, str, state, p));
 		}
 	break;
 	case 11:
-#line 745 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 757 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartText(parser, str, state, p));
 		}
 	break;
 	case 12:
-#line 749 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 761 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopComment(parser, str, state, p));
 		}
 	break;
 	case 13:
-#line 753 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 765 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopElement(parser, str, state, p));
 		}
 	break;
 	case 14:
-#line 757 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 769 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopText(parser, str, state, p));
 		}
 	break;
 	case 15:
-#line 761 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 773 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopText(parser, str, state, p - 1));
 		}
 	break;
 	case 16:
-#line 765 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 777 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			if (state->holdPC && state->markPC) {
 				char c = *(p - 1);
@@ -1650,7 +1662,7 @@ _eof_trans:
 		}
 	break;
 	case 17:
-#line 799 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 811 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			SInt32 shaper = (state->depth == -1) ? 0 : 1;
 			bailIfError(doProcessMarkup(parser, str, state, p + 1, shaper));
@@ -1660,83 +1672,83 @@ _eof_trans:
 		}
 	break;
 	case 18:
-#line 807 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 819 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ /*state->line++; */state->pc = NULL; }
 	break;
 	case 19:
-#line 809 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 821 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ state->line++; state->pc = p + 1; }
 	break;
 	case 20:
-#line 837 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 849 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ b = p; }
 	break;
 	case 21:
-#line 838 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 850 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ h = p; }
 	break;
 	case 22:
-#line 840 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 852 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ h1 = p; }
 	break;
 	case 23:
-#line 841 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 853 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ h2 = p; }
 	break;
 	case 24:
-#line 842 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 854 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ m1 = p; }
 	break;
 	case 25:
-#line 843 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 855 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ m2 = p; }
 	break;
 	case 26:
-#line 844 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 856 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ t1 = p; }
 	break;
 	case 27:
-#line 845 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 857 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ t2 = p; }
 	break;
 	case 28:
-#line 846 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 858 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ v1 = p; }
 	break;
 	case 29:
-#line 847 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 859 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ v2 = p; }
 	break;
 	case 30:
-#line 849 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 861 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ t2 = p - 1; }
 	break;
 	case 31:
-#line 850 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 862 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ v2 = p - 1; }
 	break;
 	case 32:
-#line 852 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 864 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ state->indent++; state->spaces++; }
 	break;
 	case 33:
-#line 853 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 865 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ state->indent++; state->spaces += (4 - (state->spaces % 4)); }
 	break;
 	case 34:
-#line 869 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 881 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ i = 1; }
 	break;
 	case 35:
-#line 869 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 881 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ i++; }
 	break;
 	case 36:
-#line 1270 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1283 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ p--; }
 	break;
 	case 37:
-#line 1274 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1287 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ {cs = stack[--top]; goto _again;} }
 	break;
 	case 40:
@@ -1744,7 +1756,7 @@ _eof_trans:
 	{te = p+1;}
 	break;
 	case 41:
-#line 825 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 837 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				bailIfError(doProcessMarkup(parser, str, state, p + 1, -1)); // error
 				doResetState(parser, str, state, 0x3);
@@ -1754,7 +1766,7 @@ _eof_trans:
 			}}
 	break;
 	case 42:
-#line 869 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 881 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{ // semantic condition
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					doProcessText(parser, str, state, p, state->line - 1);
@@ -1776,9 +1788,9 @@ _eof_trans:
 			}}
 	break;
 	case 43:
-#line 889 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 901 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
-				int indent = _indent(t1, t2, state->spaces, 1);
+				int indent = _indent(t1, t2, m, 1);
 				int length = t2 - t1 - indent;
 				int offset = indent; //@@ t1 - str
 				#if KPRMARKDOWNDEBUGMARKDOWN
@@ -1806,51 +1818,51 @@ _eof_trans:
 			}}
 	break;
 	case 44:
-#line 939 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 951 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 4;}
 	break;
 	case 45:
-#line 977 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 989 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 5;}
 	break;
 	case 46:
-#line 1001 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1013 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 6;}
 	break;
 	case 47:
-#line 1025 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1038 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 7;}
 	break;
 	case 48:
-#line 1093 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1106 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 9;}
 	break;
 	case 49:
-#line 1113 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1126 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 10;}
 	break;
 	case 50:
-#line 1137 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1150 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 11;}
 	break;
 	case 51:
-#line 1158 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1171 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 12;}
 	break;
 	case 52:
-#line 1180 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1193 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 13;}
 	break;
 	case 53:
-#line 1202 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1215 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 14;}
 	break;
 	case 54:
-#line 1227 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1240 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{act = 15;}
 	break;
 	case 55:
-#line 939 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 951 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					state->textStart = NULL;
@@ -1890,7 +1902,7 @@ _eof_trans:
 			}}
 	break;
 	case 56:
-#line 1052 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1065 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				// caution: runs concurrently with other line patterns
 				#if KPRMARKDOWNDEBUGMARKDOWN
@@ -1933,7 +1945,7 @@ _eof_trans:
 			}}
 	break;
 	case 57:
-#line 1137 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1150 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					doProcessText(parser, str, state, p, state->line - 1);
@@ -1956,7 +1968,7 @@ _eof_trans:
 			}}
 	break;
 	case 58:
-#line 939 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 951 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					state->textStart = NULL;
@@ -1996,7 +2008,7 @@ _eof_trans:
 			}}
 	break;
 	case 59:
-#line 1001 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1013 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					doProcessText(parser, str, state, p, state->line - 1);
@@ -2016,13 +2028,14 @@ _eof_trans:
 				}
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				if ((*p)) {
+					m = state->spaces;
 					n = (SInt32)(m2 - m1);
 					{cs = 169; goto _again;} // no fcall here
 				}
 			}}
 	break;
 	case 60:
-#line 939 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 951 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{{p = ((te))-1;}{
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					state->textStart = NULL;
@@ -2148,6 +2161,7 @@ _eof_trans:
 				}
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				if ((*p)) {
+					m = state->spaces;
 					n = (SInt32)(m2 - m1);
 					{cs = 169; goto _again;} // no fcall here
 				}
@@ -2351,7 +2365,7 @@ _eof_trans:
 	}
 	}
 	break;
-#line 2355 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2369 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -2364,7 +2378,7 @@ _again:
 #line 1 "NONE"
 	{ts = 0;}
 	break;
-#line 2368 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2382 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -2384,13 +2398,13 @@ _again:
 	while ( __nacts-- > 0 ) {
 		switch ( *__acts++ ) {
 	case 15:
-#line 761 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 773 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopText(parser, str, state, p - 1));
 		}
 	break;
 	case 16:
-#line 765 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 777 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			if (state->holdPC && state->markPC) {
 				char c = *(p - 1);
@@ -2425,7 +2439,7 @@ _again:
 			}
 		}
 	break;
-#line 2429 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2443 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 	}
@@ -2433,7 +2447,7 @@ _again:
 	_out: {}
 	}
 
-#line 1280 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1293 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 
 	
 	if ((cs == md_error) || (cs < md_first_final)) {
@@ -2523,7 +2537,7 @@ bail:
 }
 
 
-#line 2527 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2541 "xs6/xsedit/markdown/kprMarkdownParser.c"
 static const char _md_inline_actions[] = {
 	0, 1, 10, 1, 11, 1, 13, 1, 
 	15, 1, 16, 1, 17, 1, 18, 1, 
@@ -2789,7 +2803,7 @@ static const int md_inline_error = -1;
 static const int md_inline_en_main = 62;
 
 
-#line 1371 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1384 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 
 
 #define unescapeHexa(X) \
@@ -2818,7 +2832,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 	doSetStateOffset(parser, str, state, offset);
 	
 	
-#line 2822 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2836 "xs6/xsedit/markdown/kprMarkdownParser.c"
 	{
 	cs = md_inline_start;
 	ts = 0;
@@ -2826,7 +2840,7 @@ FskErr KprMarkdownParseInline(KprMarkdownParser parser, char *str, SInt32 offset
 	act = 0;
 	}
 
-#line 2830 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2844 "xs6/xsedit/markdown/kprMarkdownParser.c"
 	{
 	int _klen;
 	unsigned int _trans;
@@ -2845,7 +2859,7 @@ _resume:
 #line 1 "NONE"
 	{ts = p;}
 	break;
-#line 2849 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 2863 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -2912,125 +2926,125 @@ _eof_trans:
 		switch ( *_acts++ )
 		{
 	case 0:
-#line 1399 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1412 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttribute(parser, str, state));
 		}
 	break;
 	case 1:
-#line 1403 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1416 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttributeName(parser, str, state));
 		}
 	break;
 	case 2:
-#line 1407 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1420 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doAttributeValue(parser, str, state));
 		}
 	break;
 	case 3:
-#line 1411 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1424 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			// nop
 		}
 	break;
 	case 4:
-#line 1415 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1428 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doEnterElement(parser, str, state));
 		}
 	break;
 	case 5:
-#line 1419 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1432 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doExitElement(parser, str, state));
 		}
 	break;
 	case 6:
-#line 1423 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1436 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doHold(parser, str, state, p, state->line));
 		}
 	break;
 	case 7:
-#line 1427 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1440 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doMark(parser, str, state, p));
 		}
 	break;
 	case 8:
-#line 1431 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1444 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doProcessTextSpecial(parser, str, state, p, state->line));
 		}
 	break;
 	case 9:
-#line 1435 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1448 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartComment(parser, str, state, p));
 		}
 	break;
 	case 10:
-#line 1439 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1452 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartElement(parser, str, state, p));
 		}
 	break;
 	case 11:
-#line 1443 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1456 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStartText(parser, str, state, p));
 		}
 	break;
 	case 12:
-#line 1447 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1460 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopComment(parser, str, state, p));
 		}
 	break;
 	case 13:
-#line 1451 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1464 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopElement(parser, str, state, p));
 		}
 	break;
 	case 14:
-#line 1455 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1468 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopText(parser, str, state, p));
 		}
 	break;
 	case 15:
-#line 1459 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1472 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			bailIfError(doStopText(parser, str, state, p - 1));
 		}
 	break;
 	case 16:
-#line 1463 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1476 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			// nop
 		}
 	break;
 	case 17:
-#line 1482 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1495 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ t1 = p; }
 	break;
 	case 18:
-#line 1483 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1496 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ t2 = p; }
 	break;
 	case 19:
-#line 1484 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1497 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ v1 = p; }
 	break;
 	case 20:
-#line 1485 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1498 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ v2 = p; }
 	break;
 	case 21:
-#line 1487 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1500 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{
 			if ((*t1 == 'X') || (*t1 == 'x')) {
 				t1++;
@@ -3050,31 +3064,31 @@ _eof_trans:
 		}
 	break;
 	case 22:
-#line 1513 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1526 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = codepoints[1] = 0; }
 	break;
 	case 23:
-#line 1515 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1528 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x00022; }
 	break;
 	case 24:
-#line 1516 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1529 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x00026; }
 	break;
 	case 25:
-#line 1517 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1530 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x00027; }
 	break;
 	case 26:
-#line 1518 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1531 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x0003C; }
 	break;
 	case 27:
-#line 1519 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1532 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x0003E; }
 	break;
 	case 28:
-#line 1520 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1533 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{ codepoints[0] = 0x000A0; }
 	break;
 	case 31:
@@ -3082,7 +3096,7 @@ _eof_trans:
 	{te = p+1;}
 	break;
 	case 32:
-#line 1554 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1567 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.type = kprMarkdownCodeSpan;
@@ -3097,7 +3111,7 @@ _eof_trans:
 			}}
 	break;
 	case 33:
-#line 1663 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1676 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{ // union special case: u.codepoints
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.type = kprMarkdownHTMLEntity;
@@ -3110,7 +3124,7 @@ _eof_trans:
 			}}
 	break;
 	case 34:
-#line 1674 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1687 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.count = kprMarkdownCountDirective;
@@ -3126,7 +3140,7 @@ _eof_trans:
 			}}
 	break;
 	case 35:
-#line 1688 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1701 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.count = kprMarkdownCountDirective;
@@ -3142,7 +3156,7 @@ _eof_trans:
 			}}
 	break;
 	case 36:
-#line 1702 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1715 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.count = kprMarkdownCountDirective;
@@ -3158,7 +3172,7 @@ _eof_trans:
 			}}
 	break;
 	case 37:
-#line 1716 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1729 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.count = kprMarkdownCountDirective;
@@ -3174,7 +3188,7 @@ _eof_trans:
 			}}
 	break;
 	case 38:
-#line 1730 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1743 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p+1;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.count = kprMarkdownCountDirective;
@@ -3189,7 +3203,7 @@ _eof_trans:
 			}}
 	break;
 	case 39:
-#line 1541 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1554 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.type = kprMarkdownTextSpan;
@@ -3204,7 +3218,7 @@ _eof_trans:
 			}}
 	break;
 	case 40:
-#line 1567 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1580 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.type = kprMarkdownDoubleDash;
@@ -3219,7 +3233,7 @@ _eof_trans:
 			}}
 	break;
 	case 41:
-#line 1580 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1593 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				int matched = 0;
 				int size = (int)(v2 - v1);
@@ -3304,7 +3318,7 @@ _eof_trans:
 			}}
 	break;
 	case 42:
-#line 1730 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1743 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.count = kprMarkdownCountDirective;
@@ -3319,7 +3333,7 @@ _eof_trans:
 			}}
 	break;
 	case 43:
-#line 1743 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1756 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.type = kprMarkdownTableColumnDivider;
@@ -3339,7 +3353,7 @@ _eof_trans:
 			}}
 	break;
 	case 44:
-#line 1763 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1776 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{te = p;p--;{
 				// caution: runs concurrently with other line patterns
 				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
@@ -3362,7 +3376,7 @@ _eof_trans:
 			}}
 	break;
 	case 45:
-#line 1580 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1593 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{{p = ((te))-1;}{
 				int matched = 0;
 				int size = (int)(v2 - v1);
@@ -3447,7 +3461,7 @@ _eof_trans:
 			}}
 	break;
 	case 46:
-#line 1730 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1743 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{{p = ((te))-1;}{
 				FskMemSet(run, 0, sizeof(runRecord));
 				runRecord.count = kprMarkdownCountDirective;
@@ -3462,7 +3476,7 @@ _eof_trans:
 			}}
 	break;
 	case 47:
-#line 1763 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1776 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 	{{p = ((te))-1;}{
 				// caution: runs concurrently with other line patterns
 				bailIfError(doProcessMarkup(parser, str, state, NULL, -1));
@@ -3484,7 +3498,7 @@ _eof_trans:
 				}
 			}}
 	break;
-#line 3488 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 3502 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -3497,7 +3511,7 @@ _again:
 #line 1 "NONE"
 	{ts = 0;}
 	break;
-#line 3501 "xs6/xsedit/markdown/kprMarkdownParser.c"
+#line 3515 "xs6/xsedit/markdown/kprMarkdownParser.c"
 		}
 	}
 
@@ -3514,7 +3528,7 @@ _again:
 
 	}
 
-#line 1788 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+#line 1801 "xs6/xsedit/markdown/kprMarkdownParser.rl"
 
 	
 	if ((cs == md_inline_error) || (cs < md_inline_first_final)) {

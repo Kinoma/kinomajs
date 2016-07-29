@@ -68,10 +68,6 @@
 	</patch>
 	<program c="KPR_Shell_patch"/>
 	
-	<patch prototype="KPR.message">
-		<function name="get responseObject" c="KPR_message_get_responseObject"/>
-		<function name="set responseObject" c="KPR_message_set_responseObject"/>
-	</patch>
 	<patch prototype="system">
 		<function name="alert" params="dictionary, callback" c="KPR_system_alert" script="true"/>
 		<function name="getClipboardText" c="KPR_system_getClipboardText" script="true"/>

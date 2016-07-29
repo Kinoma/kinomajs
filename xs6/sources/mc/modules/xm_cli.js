@@ -155,7 +155,7 @@ function nameToFullPath(name, type, exists) {
 	return path;
 }
 
-function services(func) {
+function services(func, ...args) {
 	let result = true;
 	let Environment, env, Launcher, Debug, Files, File, Connection, file, dir, path, name, encryption, f, i, c, line;
 
@@ -258,7 +258,7 @@ function services(func) {
 			return Connection.ip;
 		case "launch":
 			Launcher = require.weak("launcher");
-			Launcher.launch(arguments[1]);
+			Launcher.launch(...args);
 			break;
 		case "load":
 			require.weak(arguments[1]);

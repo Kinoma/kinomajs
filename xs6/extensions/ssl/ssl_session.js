@@ -20,11 +20,63 @@ import SSLProtocol from "ssl/protocol";
 const maxFragmentSize = 16384	// maximum record layer framgment size (not a packet size): 2^14
 
 export default class SSLSession {
-	constructor(options) {
+	constructor(options = {}) {
 		let SSL = require.weak("ssl");
 		let CacheManager = require.weak("ssl/cache");
 		let CertificateManager = require.weak("ssl/cert");
-		this.options = options || {};
+		if ('protocolVersion' in options) {
+			let version = options.protocolVersion;
+			switch (typeof version) {
+				case 'string':
+					switch (version) {
+						case 'tls1':
+						case 'tls1.0':
+							version = 0x0301;
+							break;
+						case 'tls1.1':
+							version = 0x0302;
+							break;
+						case 'tls1.2':
+							version = 0x0303;
+							break;
+						default:
+							throw new Error("SSL: protocolVersion: not supported");
+							break;
+					}
+					break;
+
+				case 'number':
+					if (version < SSL.minProtocolVersion) {
+						switch (version) {
+							case 1.0:
+								version = 0x0301;
+								break;
+							case 1.1:
+								version = 0x0302;
+								break;
+							case 1.2:
+								version = 0x0303;
+								break;
+							case 0:
+								break;
+							default:
+								throw new Error("SSL: protocolVersion: not supported");
+								break;
+						}
+					}
+					break;
+			}
+			options.protocolVersion = version;
+		}
+		if ('serverName' in options) {
+			options.tls_server_name = options.serverName;
+			delete options.serverName;
+		}
+		if ('applicationLayerProtocolNegotiation' in options) {
+			options.tls_application_layer_protocol_negotiation = options.applicationLayerProtocolNegotiation;
+			delete options.applicationLayerProtocolNegotiation;
+		}
+		this.options = options;
 		this.packetBuffer = new ArrayBuffer(0);
 		this.handshakeMessages = undefined;
 		this.clientSessionID = this.serverSessionID = undefined;
@@ -78,6 +130,8 @@ export default class SSLSession {
 				if (!certs || !certs.length)
 					throw new Error("SSL: client_hello: no certificate");
 				this.doProtocol(s, handshakeProtocol.certificate, certs);
+				// S -> C: ServerKeyExchange (may not do anything depending on the chosen cipher)
+				this.doProtocol(s, handshakeProtocol.serverKeyExchange);
 				if (this.options.clientAuth)
 					// S -> C: CertificateRequest
 					this.doProtocol(s, handshakeProtocol.certificateRequest, options.clientAuth.cipherSuites, options.clientAuth.subjectDN);
@@ -173,7 +227,8 @@ export default class SSLSession {
 	doProtocol(s, protocol, param1, param2) {
 		this.startTrace("packetize");
 		var packet = protocol.packetize(this, param1, param2);
-		s.send(packet);
+		if (packet)
+			s.send(packet);
 	};
 	readPacket(s, n) {
 		var buf = this.packetBuffer;

@@ -885,11 +885,15 @@ class RunContext {
 		this.source = "source" in project ? project.source : false;
 		if ("query" in project)
 			this.query = project.query;
-		else
+		else {
 			this.query = {
 				id: project.id,
 				title: project.title,
 			};
+			let item = project[device.constructor.tag];
+			if ("main" in item)
+				this.query.file = item.main;
+		}
 		this.input = PATH.fromURI(project.url).slice(0, -1);	
 		url = mergeURI(model.cacheDirectory, this.di);
 		Files.ensureDirectory(url + "/");

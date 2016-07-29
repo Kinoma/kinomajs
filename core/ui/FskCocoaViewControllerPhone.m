@@ -166,7 +166,14 @@ extern void mainExtensionTerminate(void);
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 60000
 - (UIStatusBarStyle)preferredStatusBarStyle
 {
-    return UIStatusBarStyleLightContent;
+    BOOL lightContent = false;
+    
+    if([[UIDevice currentDevice]userInterfaceIdiom] == UIUserInterfaceIdiomPhone)
+        lightContent = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"FSKStatusBarLightContent"] boolValue];
+    else if([[UIDevice currentDevice]userInterfaceIdiom] == UIUserInterfaceIdiomPad)
+        lightContent = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"FSKStatusBarLightContent~ipad"] boolValue];
+    
+    return lightContent ? UIStatusBarStyleLightContent : UIStatusBarStyleDefault;
 }
 
 - (BOOL)shouldAutorotate

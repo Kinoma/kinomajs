@@ -14,6 +14,7 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+import SSL from "ssl";
 import SSLProtocol from "ssl/protocol";
 import SSLStream from "ssl/stream";
 import Crypt from "crypt";
@@ -96,36 +97,65 @@ var recordProtocol = {
 			hmac.update(content);
 			return hmac.close();
 		},
+		aeadAdditionalData(seqNum, type, version, len) {
+			let tmps = new SSLStream();
+			let c = seqNum.toChunk();
+			for (let i = 0, len = 8 - c.byteLength; i < len; i++)
+				tmps.writeChar(0);
+			tmps.writeChunk(c);
+			tmps.writeChar(type);
+			tmps.writeChars(version, 2);
+			tmps.writeChars(len, 2);
+			return tmps.getChunk();
+		},
 		unpacketize(session, s) {
 			session.traceProtocol(this);
-			var type = s.readChar();
-			var version = s.readChars(2);
-			var fragmentLen = s.readChars(2);
-			var cipher = session.connectionEnd ? session.serverCipher : session.clientCipher;
+			let type = s.readChar();
+			let version = s.readChars(2);
+			let fragmentLen = s.readChars(2);
+			let fragment;
+			let cipher = session.connectionEnd ? session.serverCipher : session.clientCipher;
 			if (cipher) {
-				var blksz = session.chosenCipher.cipherBlockSize;
-				var hashsz = session.chosenCipher.hashSize;
-				if (version >= 0x302 && blksz > 0) { // 3.2 or higher && block cipher
-					var iv = s.readChunk(blksz);
-					cipher.enc.setIV(iv);
-					fragmentLen -= blksz;
-				}
-				var fragment = s.readChunk(fragmentLen);
-				s.close();
-				cipher.enc.decrypt(fragment, fragment);
-				var padLen = blksz ? (new Uint8Array(fragment))[fragment.byteLength - 1] + 1 : 0;
-				fragmentLen -= hashsz + padLen;
-				var mac = fragment.slice(fragmentLen, fragmentLen + hashsz);
-				if (fragment.byteLength > fragmentLen)
-					fragment = fragment.slice(0, fragmentLen);
-				if (cipher.hmac) {
-					if (Bin.comp(mac, this.calculateMac(cipher.hmac, session.readSeqNum, type, version, fragment)) != 0)
-						throw new Error("SSL: recordProtocol: auth failed");
+				switch (session.chosenCipher.encryptionMode) {
+				case SSL.cipherSuite.NONE:
+				case SSL.cipherSuite.CBC:
+					let blksz = session.chosenCipher.cipherBlockSize;
+					let hashsz = session.chosenCipher.hashSize;
+					if (version >= 0x302 && blksz > 0) { // 3.2 or higher && block cipher
+						let iv = s.readChunk(blksz);
+						cipher.enc.setIV(iv);
+						fragmentLen -= blksz;
+					}
+					fragment = s.readChunk(fragmentLen);
+					s.close();
+					cipher.enc.decrypt(fragment, fragment);
+					let padLen = blksz ? (new Uint8Array(fragment))[fragment.byteLength - 1] + 1 : 0;
+					fragmentLen -= hashsz + padLen;
+					let mac = fragment.slice(fragmentLen, fragmentLen + hashsz);
+					if (fragment.byteLength > fragmentLen)
+						fragment = fragment.slice(0, fragmentLen);
+					if (cipher.hmac) {
+						if (Bin.comp(mac, this.calculateMac(cipher.hmac, session.readSeqNum, type, version, fragment)) != 0)
+							throw new Error("SSL: recordProtocol: auth failed");
+					}
+					break;
+				case SSL.cipherSuite.GCM:
+					let nonce = s.readChunk(session.chosenCipher.ivSize);
+					fragmentLen -= session.chosenCipher.ivSize;
+					nonce = cipher.iv.concat(nonce);
+					fragment = s.readChunk(fragmentLen);
+					s.close();
+					let additional_data = this.aeadAdditionalData(session.readSeqNum, type, version, fragmentLen - cipher.enc.tagLength);
+					if (!(fragment = cipher.enc.process(fragment, null, nonce, additional_data, false))) {
+						// @@ should send an alert
+						throw new Error("SSL: recordProtocol auth failed");
+					}
+					break;
 				}
 				session.readSeqNum.inc();
 			}
 			else {
-				var fragment = s.readChunk(fragmentLen);
+				fragment = s.readChunk(fragmentLen);
 				s.close();
 			}
 			recordProtocol.tlsCompressed.unpacketize(session, type, fragment);
@@ -134,10 +164,10 @@ var recordProtocol = {
 			session.traceProtocol(this);
 			var cipher = session.connectionEnd ? session.clientCipher : session.serverCipher;
 			if (cipher) {
-				var mac = this.calculateMac(cipher.hmac, session.writeSeqNum, type, session.protocolVersion, fragment);
-				session.writeSeqNum.inc();
-				// block cipher only, at the moment
-				if (cipher.enc) {
+				switch (session.chosenCipher.encryptionMode) {
+				case SSL.cipherSuite.NONE:
+				case SSL.cipherSuite.CBC:
+					var mac = this.calculateMac(cipher.hmac, session.writeSeqNum, type, session.protocolVersion, fragment);
 					var blksz = session.chosenCipher.cipherBlockSize, iv;
 					var tmps = new SSLStream();
 					tmps.writeChunk(fragment);
@@ -158,7 +188,17 @@ var recordProtocol = {
 					fragment = cipher.enc.encrypt(tmps.getChunk());
 					if (iv)
 						fragment = iv.concat(fragment);
+					break;
+				case SSL.cipherSuite.GCM:
+					let explicit_nonce = cipher.nonce.toChunk(session.chosenCipher.ivSize);
+					cipher.nonce.inc();
+					let nonce = cipher.iv.concat(explicit_nonce);
+					let additional_data = this.aeadAdditionalData(session.writeSeqNum, type, session.protocolVersion, fragment.byteLength);
+					fragment = cipher.enc.process(fragment, null, nonce, additional_data, true);
+					fragment = explicit_nonce.concat(fragment);
+					break;
 				}
+				session.writeSeqNum.inc();
 			}
 			var s = new SSLStream();
 			s.writeChar(type);

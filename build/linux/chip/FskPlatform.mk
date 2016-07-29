@@ -131,6 +131,7 @@
 	<c option="-mfpu=neon"/>
 	<c option="-mtune=cortex-a9"/>
 	<c option="-mfloat-abi=hard"/>
+	<c option="-DDEVICE_NAME=C.H.I.P."/>
 
     <c option="--sysroot=$(CHIP_SYSROOT)"/>
 	

@@ -31,16 +31,31 @@ var SSL = {
 
 	// constants
 	cipherSuite: {
+		// key exchange algorithms
 		RSA: 0,
-		DSA: 1,
+		DHE_DSS: 1,
+		DHE_RSA: 2,
+		DH_ANON: 3,
+		DH_DSS: 4,
+		DH_RSA: 5,
+		// encryption algroithms
 		AES: 0,
 		DES: 1,
 		TDES: 2,
 		RC4: 3,
+		// hash algorithms
 		SHA1: 0,
 		MD5: 1,
 		SHA256: 2,
-		NULL: 255
+		SHA384: 3,
+		NULL: 255,
+		// certificate type
+		CERT_RSA: 0,
+		CERT_DSA: 1,
+		// encryption mode
+		NONE: 0,
+		CBC: 1,
+		GCM: 2,
 	},
 };
 export default SSL;

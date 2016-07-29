@@ -28,6 +28,10 @@
 #if TARGET_OS_WIN32
 typedef unsigned __int64 FskUInt64;
 typedef FskUInt64 UInt64;
+typedef UInt8 uint8_t;
+typedef UInt16 uint16_t;
+typedef UInt32 uint32_t;
+typedef FskUInt64 uint64_t;
 #if !defined(inline) && !defined(__cplusplus)
 	#define inline __inline
 #endif

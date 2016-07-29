@@ -25,6 +25,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 FskErr KplUtilitiesInitialize(void)
 {
@@ -102,7 +103,16 @@ FskErr KplLauncherOpenURI(const char *uri)
 {
 #if defined(TARGET_OS_KPL) && SUPPORT_LINUX_GTK
 	char command[PATH_MAX + 11];
-	snprintf(command, sizeof(command), "xdg-open \"%s\"", uri);
+	Boolean exec;
+	struct stat sb;
+
+	exec = (stat(uri, &sb) == 0 && sb.st_mode & S_IXUSR);
+	if (exec) {
+		snprintf(command, sizeof(command), "%s &", uri);
+	}
+	else {
+		snprintf(command, sizeof(command), "xdg-open \"%s\"", uri);
+	}
 	system(command);
 	return kFskErrNone;
 #else

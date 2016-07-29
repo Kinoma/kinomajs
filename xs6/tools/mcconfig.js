@@ -157,15 +157,19 @@ class Rule {
 	}
 	process(property) {
 		var tool = this.tool;
+		var target = "~";
+		if (target in property) {
+			var sources = property[target];
+			if (sources instanceof Array) {
+				for (var source of sources) 
+					this.iterate(target, source, false);
+			}
+			else
+				this.iterate(target, sources, false);
+		}
 		for (var target in property) {
 			var sources = property[target];
 			if (target == "~") {
-				if (sources instanceof Array) {
-					for (var source of sources) 
-						this.iterate(target, tool.resolveVariable(source), false);
-				}
-				else
-					this.iterate(target, tool.resolveVariable(sources), false);
 			}
 			else {
 				var slash = target.lastIndexOf("/");
@@ -263,8 +267,8 @@ class ResourcesRule extends Rule {
 	}
 	appendSource(target, source, include, straight) {
 		if (FS.existsSync(source) > 0) {
-			var parts = tool.splitPath(resourcesFiles);
-			this.appendFile(tool.dataFiles, straight ? target : target + parts.name + parts.extension, source, include);
+			var parts = tool.splitPath(source);
+			this.appendFile(tool.resourcesFiles, straight ? target : target + parts.name + parts.extension, source, include);
 		}
 	}
 };

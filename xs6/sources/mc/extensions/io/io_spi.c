@@ -65,7 +65,6 @@ xs_ssp_constructor(xsMachine *the)
 	ssp->port = port;
 	ssp->dma = DMA_DISABLE;
 	ssp->freq = freq;
-
 	if(freq != -1){
 		if(WM_FAIL == ssp_drv_set_clk(port, freq)){
 			mc_free(ssp);
@@ -73,12 +72,10 @@ xs_ssp_constructor(xsMachine *the)
 		}	
 	}
 	
-	// ssp_drv_rxbuf_size(port, BUF_LEN);
 	if((ssp->mdev = ssp_drv_open(port, SSP_FRAME_SPI, SSP_MASTER, ssp->dma, -1, 0/*, cpha, cpol*/)) == NULL){
 		mc_free(ssp);
 		mc_xs_throw(the, "ssp: ssp_drv_open failed");
 	}
-
 	xsSetHostData(xsThis, ssp);
 }
 
@@ -95,8 +92,11 @@ void
 xs_ssp_close(xsMachine *the)
 {
 	mc_ssp_t *ssp = xsGetHostData(xsThis);
-	if(ssp && ssp->mdev)
+	if(ssp && ssp->mdev){				
 		ssp_drv_close(ssp->mdev);
+		ssp->mdev = NULL;
+	}
+		
 	if(ssp){
 		ssp_drv_deinit(ssp->port);
 		if(mc_ssp_ids[ssp->port]) --mc_ssp_ids[ssp->port];
@@ -263,11 +263,15 @@ xs_ssp_write(xsMachine *the)
 				}
 				data = allocated;
 			}
-			else {
+			else
+			if (xsIsInstanceOf(xsArg(1), xsArrayBufferPrototype)) {
 				// datasize = xsGetArrayBufferLength(xsArg(1));
 				datasize = xsToInteger(xsArg(3));
 				data = xsToArrayBuffer(xsArg(1));
-				// mc_log_debug("xs_ssp_write: arrayBuffer: datasize: %d\n", datasize);
+			}
+			else {
+				data = xsGetHostData(xsArg(1));
+				datasize = xsToInteger(xsArg(3));
 			}
 			break;
 		default:
@@ -314,7 +318,6 @@ xs_ssp_write(xsMachine *the)
 	if (din == NULL)
 		xsSetTrue(xsResult);
 }
-
 
 #else
 

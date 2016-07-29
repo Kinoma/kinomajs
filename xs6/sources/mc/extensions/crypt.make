@@ -31,6 +31,8 @@ CRYPT_JS_SRCS = \
 	crypt_ecb.js \
 	crypt_ecdsa.js \
 	crypt_ed25519.js \
+	crypt_gcm.js \
+	crypt_ghash.js \
 	crypt_hkdf.js \
 	crypt_hmac.js \
 	crypt_md5.js \
@@ -61,6 +63,7 @@ CRYPT_C_SRCS = \
 	crypt_des.c \
 	crypt_digest.c \
 	crypt_ecb.c \
+	crypt_ghash.c \
 	crypt_md5.c \
 	crypt_mode.c \
 	crypt_rc4.c \

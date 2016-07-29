@@ -292,7 +292,7 @@ export class CodeBehavior extends Behavior {
 				insertions = "";
 				break;
 			default:
-				insertions = key;
+				insertions = capsLockKey ? key.toUpperCase() : key;
 			}
 		}
 		if (insertions != null) {

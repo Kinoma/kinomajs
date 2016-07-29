@@ -65,6 +65,8 @@ mxExport void fxRunModule(txMachine* the, txString path);
 mxExport void fxRunProgram(txMachine* the, txString path);
 mxExport void fxUnmapArchive(void* it);
 
+extern txBoolean fxIsCommonModule(txMachine* the, txString path);
+
 static int fxFileMapGetter(void* it);
 static void fxLoadModuleJS(txMachine* the, txString path, txID moduleID);
 static void fxLoadModuleJSB(txMachine* the, txString path, txID moduleID);
@@ -484,6 +486,11 @@ void fxLoadModuleJS(txMachine* the, txString path, txID moduleID)
 	txParser _parser;
 	txParser* parser = &_parser;
 	txParserJump jump;
+#ifdef mxDebug
+	txUnsigned flags = mxDebugFlag;
+#else
+	txUnsigned flags = 0;
+#endif
 	txScript* script = NULL;
 	bailIfError(FskFileMap(path, (unsigned char**)&(stream.buffer), &(stream.size), 0, &map));
 	stream.offset = 0;
@@ -491,7 +498,9 @@ void fxLoadModuleJS(txMachine* the, txString path, txID moduleID)
 	parser->firstJump = &jump;
 	parser->path = fxNewParserSymbol(parser, path);
 	if (c_setjmp(jump.jmp_buf) == 0) {
-		fxParserTree(parser, &stream, fxFileMapGetter, 2, NULL);
+		if (fxIsCommonModule(the, path))
+			flags |= mxCommonModuleFlag;
+		fxParserTree(parser, &stream, fxFileMapGetter, flags, NULL);
 		fxParserHoist(parser);
 		fxParserBind(parser);
 		script = fxParserCode(parser);

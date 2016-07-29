@@ -313,6 +313,10 @@ class Characteristic {
 		return this._localValue;
 	}
 	parseValue(data) {
+		if (data == null) {
+			this._localValue = [];
+			return;
+		}
 		let buffer = ByteBuffer.wrap(data);
 		if (this._parser != null) {
 			this._localValue = this._parser(buffer);

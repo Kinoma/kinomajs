@@ -23,26 +23,20 @@
 
 #include <wmstdio.h>
 #include <wm_os.h>
-#include <usbsysinit.h>
-#include <usb_device_api.h>
+
+/* K5 Driver Library */
+#include <usb/cdc.h>
 
 /* for LEDs */
 #include "mc_misc.h"
 #include <mdev_pinmux.h>
 #include <mdev_gpio.h>
 
-extern int USBActive(void);
-extern int check_write_TO(uint32_t EPNum);
-
-#define USB_BUF_SIZE	(MAX_MSG_LEN * 4)
-static uint8_t usb_buf[USB_BUF_SIZE];
-static size_t usb_buf_ptr = 0;
-static unsigned long usb_last_tick;
 static int usb_exit = 0;
-#define USB_TIMEOUT	300
-#define USB_TIMEOUT_TICKS	os_msec_to_ticks(USB_TIMEOUT)
-#define USB_READ_TIMEOUT	0x7fffffff
-#define USB_ENDPOINT	2
+#define CDC_POLLING_MS	50
+
+#define CRLF	((uint8_t *) "\r\n")
+#define BS		((uint8_t *) "\b \b")
 
 static void
 usb_log(const char *fmt, ...)
@@ -54,20 +48,6 @@ usb_log(const char *fmt, ...)
 	vsnprintf(buf, sizeof(buf), fmt, args);
 	va_end(args);
 	mc_log_write(buf, strlen(buf));
-}
-
-static int
-usb_drv_write(void *buf, size_t sz)
-{
-	int n;
-
-#if 0
-	if (check_write_TO(USB_ENDPOINT))
-		usb_log("usb: timeout.\r\n");
-#endif
-	if ((n = usb2Write(buf, sz, USB_TIMEOUT, USB_ENDPOINT)) != (int)sz)
-		usb_log("usb: usb2Write failed: %d\r\n", n);
-	return n;
 }
 
 static void
@@ -90,16 +70,12 @@ usb_thread_main(void *args)
 {
 	uint8_t c;
 	uint8_t buf[MAX_MSG_LEN], *bp = buf, *bend = buf + sizeof(buf);
-	uint8_t crnl[2] = {'\r', '\n'};		/* usb can't transfer data in the .ro section?? */
-	uint8_t bs[3] = {'\b', ' ', '\b'};
 #define CTRL(c)	(c - 'A' + 1)
 #define ISPRINT(c)	((c) >= 0x20 && (c) < 0x7f)
 
 	while (!usb_exit) {
-		int ret = usb2Read(&c, 1, USB_READ_TIMEOUT, USB_ENDPOINT);
-		if (ret <= 0) {
-			if (ret != CONIO_TIMEOUT)
-				os_thread_sleep(os_msec_to_ticks(1000));
+		if (mc_usb_read(&c, 1) == 0) {
+			os_thread_sleep(os_msec_to_ticks(CDC_POLLING_MS));
 			continue;
 		}
 		if (c == '\n' || c == '\r') {
@@ -107,26 +83,26 @@ usb_thread_main(void *args)
 				*bp = '\0';
 			else
 				*(bp - 1) = '\0';
-			usb_drv_write(crnl, 2);
+			mc_usb_write(CRLF, 2);
 			mc_event_thread_call(usb_callback, buf, 0);
 			bp = buf;
 		}
 		else if (c == '\b' || c == '\x7f') {
 			if (bp > buf) {
 				--bp;
-				usb_drv_write(bs, 3);
+				mc_usb_write(BS, 3);
 			}
 		}
 		else if (c == CTRL('U')) {
 			while (bp > buf) {
 				--bp;
-				usb_drv_write(bs, 3);
+				mc_usb_write(BS, 3);
 			}
 		}
 		else {
 			if (bp < bend) {
 				*bp = c;
-				usb_drv_write(bp, 1);
+				mc_usb_write(bp, 1);
 				bp++;
 			}
 		}
@@ -134,57 +110,10 @@ usb_thread_main(void *args)
 }
 
 int
-mc_usb_write(void *buf, size_t n)
-{
-	unsigned long t, d;
-	uint8_t *p;
-	int ret = -1;
-
-	if (n > USB_BUF_SIZE)
-		goto bail;
-	if (!USBActive())
-		goto bail;
-	t = os_ticks_get();
-	d = t < usb_last_tick ? ~0UL - usb_last_tick + t : t - usb_last_tick;
-	if (d >= USB_TIMEOUT_TICKS) {
-		usb_buf_ptr = 0;
-		usb_last_tick = os_ticks_get();
-	}
-	if (usb_buf_ptr + n > USB_BUF_SIZE) {
-		usb_buf_ptr = 0;
-		if (d < USB_TIMEOUT_TICKS)
-			os_thread_sleep(USB_TIMEOUT_TICKS);
-		usb_last_tick = os_ticks_get();
-	}
-	p = &usb_buf[usb_buf_ptr];
-	memcpy(p, buf, n);
-	if (usb_drv_write(p, n) != (int)n)
-		goto bail;
-	usb_buf_ptr += n;
-	ret = 0;
-bail:
-	return ret;
-}
-
-int
-mc_usb_read(void *buf, size_t n)
-{
-	return usb2Read(buf, n, USB_READ_TIMEOUT, USB_ENDPOINT);
-}
-
-int
 mc_usb_init()
 {
-	if (usb_device_system_init(USB_CDC) != WM_SUCCESS) {
-		int i;
-		wmprintf("usb_stdio_init failed\r\n");
-		for (i = 0; i < MC_MAX_LED_PINS; i++)
-			GPIO_WritePinOutput(mc_conf.led_pins[i], GPIO_IO_HIGH);
-		GPIO_WritePinOutput(mc_conf.led_pins[0], GPIO_IO_LOW);	/* red */
-		os_thread_sleep(5000);
-		return -1;
-	}
-	os_thread_sleep(1000);
+	USB_HwInit();
+	CdcInit();
 	mc_thread_create(usb_thread_main, NULL, -1);	/* create a thread for USB input */
 	return 0;
 }
@@ -193,6 +122,6 @@ void
 mc_usb_fin()
 {
 	usb_exit++;
-	os_thread_sleep(os_msec_to_ticks(USB_READ_TIMEOUT));	/* wait for the thread to termiante */
+	os_thread_sleep(os_msec_to_ticks(CDC_POLLING_MS * 2));	/* wait for the thread to termiante */
 	/* no API to deactivate USB! at least the thread has to be stopped... */
 }

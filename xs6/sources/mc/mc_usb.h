@@ -19,9 +19,12 @@
 
 #include <stddef.h>
 
+/* K5 Driver Library */
+#include "usb/cdc.h"
+
 extern int mc_usb_init();
 extern void mc_usb_fin();
-extern int mc_usb_read(void *buf, size_t n);
-extern int mc_usb_write(void *buf, size_t n);
+#define mc_usb_write(buf, n)	CdcWrite((uint8_t *)buf, 0, n)
+#define mc_usb_read(buf, n)		CdcRead((uint8_t *)buf, 0, n)
 
 #endif /* __MC_USB_H__ */

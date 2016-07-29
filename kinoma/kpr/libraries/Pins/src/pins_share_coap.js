@@ -40,7 +40,7 @@ var coapPins = {
 			session.autoAck = false;
 			coap.Pins.invoke(parseQuery(session.query).path, requestObject, function(result) {
 				response.setCode(2, 5);
-				if (result instanceof Chunk)
+				if (result instanceof ArrayBuffer)
 					response.setPayload(result, "application/octet-stream");
 				else
 					response.setPayload(JSON.stringify(result), "application/json");
@@ -88,7 +88,7 @@ var coapPins = {
 				var response = session.createResponse();
 				response.confirmable = false;
 				response.setCode(2, 5);
-				if (result instanceof Chunk)
+				if (result instanceof ArrayBuffer)
 					response.setPayload(result, "application/octet-stream");
 				else
 					response.setPayload(JSON.stringify(result), "application/json");

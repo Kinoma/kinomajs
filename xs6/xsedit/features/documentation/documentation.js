@@ -28,7 +28,7 @@ export default class extends Feature {
 	constructor(model, url) {
 		super(model, "Documentation");
 		this.Template = DocumentationPane;
-		this.docsURL = mergeURI(url, "docs.json");
+		this.docsURL = mergeURI(url, "./docs.json");
 		this.documentation = this.preferences = this.user = undefined;
 		this.documentationURL = mergeURI(model.cacheDirectory, "./documentation.json");
 		this.iconSkin = new Skin({ texture:new Texture("./icon.png", 2), x:0, y:0, width:60, height:60, states:60 });
@@ -58,9 +58,11 @@ export default class extends Feature {
 						}
 						if (info) {
 							let item = KPR.parseMarkdown(Files.readText(path), 0);
-							item.date = info.date;
-							items[file] = item;
-							write = true;
+							if (item) {
+								item.date = info.date;
+								items[file] = item;
+								write = true;
+							}
 						}
 					}
 					for (let key in items) {
@@ -83,8 +85,10 @@ export default class extends Feature {
 					let path = mergeURI(this.docsURL, file);
 					let info = Files.getInfo(path);
 					let item = KPR.parseMarkdown(Files.readText(path), 0);
-					item.date = info.date;
-					this.documentation.items[file] = item;
+					if (item) {
+						item.date = info.date;
+						this.documentation.items[file] = item;
+					}
 				}
 				write = true;
 			}
@@ -97,11 +101,13 @@ export default class extends Feature {
 				let path = mergeURI(this.docsURL, file);
 				if (Files.exists(path)) {
 					let item = this.documentation.items[file];
-					this.docs.push(Object.assign({
-						expanded: false,
-						url: mergeURI(this.docsURL, file),
-						variant: this.docs.length ? 0 : 1,
-					}, item));
+					if (item) {
+						this.docs.push(Object.assign({
+							expanded: false,
+							url: mergeURI(this.docsURL, file),
+							variant: this.docs.length ? 0 : 1,
+						}, item));
+					}
 				}
 			}
 			if (this.user) {

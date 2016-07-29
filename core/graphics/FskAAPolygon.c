@@ -667,7 +667,7 @@ XSortAAActiveEdgeCrossings(AAActiveEdge **pEdges, SInt32 fillRule)
 {
 	AAActiveEdge	*edges	= *pEdges;
 	AAActiveEdge	*crossings, *e, **lastCross;
-	SInt16			crossX;
+	SInt16			crossX = kFskSInt16Min;
 
 	if (fillRule == kFskFillRuleEvenOdd) {
 		for (crossings = NULL; edges != NULL; edges = edges->next) {

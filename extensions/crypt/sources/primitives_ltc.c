@@ -53,6 +53,7 @@ static char *gSha512Name = "sha512";
 static char *gSha384Name = "sha384";
 static char *gSha224Name = "sha224";
 static char *gMd5Name = "md5";
+static char *gGhashName = "ghash";
 #endif
 
 void
@@ -185,8 +186,6 @@ xs_sha224_constructor(xsMachine *the)
 #endif
 }
 
-
-
 void
 xs_md5_constructor(xsMachine *the)
 {
@@ -213,6 +212,28 @@ xs_md5_constructor(xsMachine *the)
 #endif
 }
 
+#include "ghash.h"
+
+void
+xs_ghash_constructor(xsMachine *the)
+{
+	cryptDigest *dgst;
+	FskErr err;
+
+	if ((err = FskMemPtrNew(sizeof(cryptDigest), (FskMemPtr *)&dgst)) != kFskErrNone)
+		cryptThrowFSK(err);
+	if ((dgst->ctx = xs_ghash_init(the)) == NULL) {
+		FskMemPtrDispose(dgst);
+		cryptThrowFSK(kFskErrMemFull);
+	}
+	dgst->update = (cryptDigestUpdateProc)ghash_update;
+	dgst->close = (cryptDigestCloseProc)ghash_result;
+	dgst->create = (cryptDigestCreateProc)ghash_init;
+	dgst->outputSize = dgst->blockSize = (128/8);
+	(*dgst->create)(dgst->ctx);
+	FskInstrumentedItemNew(dgst, gGhashName, &gDigestTypeInstrumentation);
+	xsSetHostData(xsThis, dgst);
+}
 
 /*
  * block cipher algorithms

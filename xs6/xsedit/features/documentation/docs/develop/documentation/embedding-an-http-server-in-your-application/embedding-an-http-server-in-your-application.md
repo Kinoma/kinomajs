@@ -14,52 +14,62 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-<img alt="" src="http://kinoma.com/develop/documentation/technotes/images/http-server.png" class="technoteIllus" >
+<!-- Version: 160412-KO / Last reviewed: October 2015
+
+It is often necessary for an Internet of Things device to include an HTTP server, for setup or for retrieving information gathered by the device. A KinomaJS app can easily create an HTTP server and advertise its presence on the local network. This Tech Note describes how to start, stop, and customize your app's HTTP server.
+-->
+
+<img alt="" src="img/embedding-an-http-server-in-your-application_icon.png" class="technoteIllus" >
 
 #Embedding an HTTP Server in Your Application
 
 **Alain Soquet, Software Architect**  
 April 16, 2015
 
-<!--From CR: The first paragraph (below) should be used as the intro to this Tech Note on the Kinoma Tech Notes page.-->
-
 It is often necessary for an Internet of Things device to include an HTTP server, for setup or for retrieving information gathered by the device. A KinomaJS app can easily create an HTTP server and advertise its presence on the local network. This Tech Note describes how to start, stop, and customize your app's HTTP server.
 
- 
 ## Starting the Server the Easy Way
 
 For simplicity and reliability, a KinomaJS app can create an HTTP server in one easy step, without having to configure any parameters.
 
 A KinomaJS app starts and stops its HTTP server with the `share` function:
 
-	application.share(true);   // Start the app HTTP server with the default options
-	application.share(false);  // Stop the app HTTP server
-	
+```
+application.share(true);   // Start the app HTTP server with the default options
+application.share(false);  // Stop the app HTTP server
+```
+
 You can obtain the same result with the `shared` accessor:
 
-	application.shared = true;   // Start the app HTTP server with the default options
-	application.shared = false;  // Stop the app HTTP server
+```
+application.shared = true;   // Start the app HTTP server with the default options
+application.shared = false;  // Stop the app HTTP server
+```
 
 The accessor can be used to check whether the server is running or not:
 
-	trace("The HTTP Server is " + (application.shared ? "running" : "stopped") + "\n");
-	
+```
+trace("The HTTP Server is " + (application.shared ? "running" : "stopped") + "\n");
+```
+
 The server port is selected automatically, so you do not have to know in advance which ports are available on your system. You can retrieve the port used by the server when it is running, with the `serverPort` accessor:
 
-	var port = application.serverPort;	
-	
- 
+```
+var port = application.serverPort;
+```
+
 ## Advertising the Server
 
 Having a server available is great, but it is even better if interested clients can discover its URL to start communicating with it. For that purpose, the application server is advertised by default with SSDP using the application ID as the device type. For more on SSDP, see the [Net Scanner](../net-scanner/) Tech Note.
 
 For example, if the application ID is `discoveryserver.example.kinoma.marvell.com` (from the [`discovery-server`](https://github.com/Kinoma/KPR-examples/tree/master/discovery-server) example), interested applications can discover the server as follows:
 
-	application.discover("discoveryserver.example.kinoma.marvell.com");
-	
+```
+application.discover("discoveryserver.example.kinoma.marvell.com");
+```
+
 See the [`discovery-client`](https://github.com/Kinoma/KPR-examples/tree/master/discovery-client) example for more details.
 
- 
 ## Starting the Server the Custom Way
 
 The default HTTP server settings work well for most situations; however, there are cases where the server needs to meet some specific requirements. In that case, the boolean passed to the `share` function is replaced by a JSON object specifying the custom parameters.
@@ -68,60 +78,71 @@ The default HTTP server settings work well for most situations; however, there a
 
 To start the server on a specific port--for example, 8080--use:
 
-	application.share({
-		port: 8080
-	});
- 	
+```
+application.share({
+	port: 8080
+});
+```
+
 ### Selecting the Advertisement Protocols
 
 The server can be advertised with SSDP and/or Zeroconf.
 
 To start the server and advertise it with Zeroconf instead of SSDP, use:
 
-	application.share({
-		zeroconf: true
-	});
+```
+application.share({
+	zeroconf: true
+});
+```
 
 ### Using a Secure Server
 
 To start an HTTPS server for communicating securely between your KinomaJS apps, use:
 
-	application.share({
-		ssl: true
-	});
+```
+application.share({
+	ssl: true
+});
+```
 
 The server will then use the default certificates bundled with KinomaJS.
 
 In case the server needs to use specific certificates or policies, you can provide them as follows:
 
-	application.share({
-		ssl: {
-			certificates: Files.readText(mergeURI(application.url, "./cert.pem")),
-			policies: "allowOrphan",
-			key: Files.readText(mergeURI(application.url, "./key.pem"))
-		}
-	});
+```
+application.share({
+	ssl: {
+		certificates: Files.readText(mergeURI(application.url, "./cert.pem")),
+		policies: "allowOrphan",
+		key: Files.readText(mergeURI(application.url, "./key.pem"))
+	}
+});
+```
 
 You can check whether the server is secure with the `serverIsSecure` getter:
 
-	trace("This is an " + (application.serverIsSecure ? "HTTPS" : "HTTP") + " server\n");
+```
+trace("This is an " + (application.serverIsSecure ? "HTTPS" : "HTTP") + " server\n");
+```
 
 ### Combining the Different Settings
 
 It is possible to combine the different settings inside the JSON object passed to `share`. The following example will open a secure server on port 443 and advertise it using both SSDP and Zeroconf.
 
-	application.share({
-		port: 443,
-		ssdp: true,
-		zeroconf: true,
-		ssl: {
-			certificates: Files.readText(mergeURI(application.url, "./cert.pem")),
-			policies: "allowOrphan",
-			key: Files.readText(mergeURI(application.url, "./key.pem"))
-		}
-	});
+```
+application.share({
+	port: 443,
+	ssdp: true,
+	zeroconf: true,
+	ssl: {
+		certificates: Files.readText(mergeURI(application.url, "./cert.pem")),
+		policies: "allowOrphan",
+		key: Files.readText(mergeURI(application.url, "./key.pem"))
+	}
+});
+```
 
- 
 ## Handling Incoming Requests
 
 Now that the server is up and running, the application needs to handle the request messages.
@@ -138,78 +159,86 @@ Some examples follow.
 
 ### Simple GET Request Handler
 
-	Handler.bind("/simpleGet", {
-		onInvoke: function(handler, message) {
-			if (message.method == "GET") {
-				message.setResponseHeader("Content-Type", "text/plain");
-				message.responseText = message.query;
-			}
-			else {
-				message.status = 405; // Method not allowed
-			}
+```
+Handler.bind("/simpleGet", {
+	onInvoke: function(handler, message) {
+		if (message.method == "GET") {
+			message.setResponseHeader("Content-Type", "text/plain");
+			message.responseText = message.query;
 		}
-	});
-	
+		else {
+			message.status = 405; // Method not allowed
+		}
+	}
+});
+```
+
 The handler returns the content of the query in the response body.
 
 ### File PUT Handler
 
-	Handler.bind("/filePut", {
-		onAccept: function(handler, message) {
-			if (message.method == "PUT") {
-				message.requestPath = mergeURI(application.url, "./upload.txt");
-				return true;
-			}
-			return false;
+```
+Handler.bind("/filePut", {
+	onAccept: function(handler, message) {
+		if (message.method == "PUT") {
+			message.requestPath = mergeURI(application.url, "./upload.txt");
+			return true;
 		}
-		onInvoke: function(handler, message) {
-			var url = mergeURI(application.url, "./upload.txt");
-			if (message.method == "PUT") {
-				var text = Files.readText(url);
-				// Do something with the file
-				...
-			}
-			else {
-				message.status = 405; // Method not allowed
-			}
+		return false;
+	}
+	onInvoke: function(handler, message) {
+		var url = mergeURI(application.url, "./upload.txt");
+		if (message.method == "PUT") {
+			var text = Files.readText(url);
+			// Do something with the file
+			...
 		}
-	});
+		else {
+			message.status = 405; // Method not allowed
+		}
+	}
+});
+```
 
 The handler stores the content of the request body in the file `upload.txt`. The file is ready to be used in `onInvoke`.
 
 ### File GET Handler
 
-	Handler.bind("/fileGet", {
-		onInvoke: function(handler, message) {
-			if (message.method == "GET") {
-				message.setResponseHeader("Content-Type", "text/plain");
-				message.responsePath = mergeURI(application.url, "./download.txt");
-			}
-			else {
-				message.status = 405; // Method not allowed
-    		}
-  		}
-	});
-	
+```
+Handler.bind("/fileGet", {
+	onInvoke: function(handler, message) {
+		if (message.method == "GET") {
+			message.setResponseHeader("Content-Type", "text/plain");
+			message.responsePath = mergeURI(application.url, "./download.txt");
+		}
+		else {
+			message.status = 405; // Method not allowed
+		}
+	}
+});
+```
+
 The content of the file `download.txt` is used as the response body.
 
 ### Handling Requests in the Application
 
-	var model = application.behavior = Object.create(Object.prototype, {
-		// Other application behavior functions
-		...
-		onInvoke: function(application, message) {
-			// Filter message on the message URL scheme
-			// to ensure it comes from the server
-			if ((message.scheme == "http") || (message.scheme == "https")) {
-				message.setResponseHeader("Content-Type", "text/plain");
-				message.responseText = "Sorry, there is no handler with path: ";
-				message.responseText += message.path;
-				message.status = 404; // Not found
-			}
+```
+var model = application.behavior = Object.create(Object.prototype, {
+	// Other application behavior functions
+	...
+	onInvoke: function(application, message) {
+		// Filter message on the message URL scheme
+		// to ensure it comes from the server
+		if ((message.scheme == "http") || (message.scheme == "https")) {
+			message.setResponseHeader("Content-Type", "text/plain");
+			message.responseText = "Sorry, there is no handler with path: ";
+			message.responseText += message.path;
+			message.status = 404; // Not found
 		}
-	});
-	
+	}
+});
+```
+
 This allows the application to catch all requests that do not correspond to a specific handler.
 
 ## Starting Supplementary Servers
@@ -222,21 +251,23 @@ After the server is started, all incoming requests are handled by the server beh
 
 For example:
 
-	var server = new HTTP.Server({port: 8080});
-	server.behavior = {
-		onInvoke: function(handler, message) {
-			message.setResponseHeader("Content-Type", "text/plain");
-			message.responseText = "Please handle incoming requests here!";
-			message.status = 200;
-		}
-	};
-	server.start();
+```
+var server = new HTTP.Server({port: 8080});
+server.behavior = {
+	onInvoke: function(handler, message) {
+		message.setResponseHeader("Content-Type", "text/plain");
+		message.responseText = "Please handle incoming requests here!";
+		message.status = 200;
+	}
+};
+server.start();
 	
-	trace("This is an " + (server.isSecure ? "HTTPS" : "HTTP")
-		+ " server on port " + server.port + "\n");
-					
-	...
+trace("This is an " + (server.isSecure ? "HTTPS" : "HTTP")
+	+ " server on port " + server.port + "\n");
+				
+...
 	
-	server.stop();
-	
+server.stop();
+```
+
 Unlike for the application server, the advertisement of supplementary servers should be done explicitly--for example, using the Zeroconf or SSDP extension.

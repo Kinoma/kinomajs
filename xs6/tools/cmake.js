@@ -454,7 +454,7 @@ export class Manifest extends MAKE.Manifest {
 			let sourcePath = toCMakePath(tool, item.sourcePath);
 			let destinationPath = toCMakePath(tool, item.destinationPath);
 			let directory = toCMakePath(tool, parts.directory);
-			file.line("xsc(SOURCE_FILE \"", sourcePath, "\" DESTINATION \"${TMP_DIR}/", directory, "\" OPTIONS ${XSC_FLAGS})");
+			file.line("xsc(SOURCE_FILE \"", sourcePath, "\" DESTINATION \"${TMP_DIR}/", directory, "\" OPTIONS ${XSC_FLAGS} -c -e)");
 		}
 		file.line();
 		for (let makefile of this.makefiles) {

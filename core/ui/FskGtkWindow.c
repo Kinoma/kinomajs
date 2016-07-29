@@ -20,6 +20,7 @@
 #include "FskFiles.h"
 #include "FskWindow.h"
 #include "FskGtkWindow.h"
+#include <gdk/gdk.h>
 
 #if SUPPORT_INSTRUMENTATION
 FskInstrumentedTypeRecord gFskGtkWindowTypeInstrumentation = {NULL, sizeof(FskInstrumentedTypeRecord), "FskGtkWindow"};
@@ -814,3 +815,39 @@ void FskGtkDragDropWindowUnregister(FskWindow fskWindow)
 	gdk_threads_leave();
 	return;
 }
+
+void FskGtkSetCursor(FskWindow fskWindow, UInt32 shape) {
+	FskGtkWindow gtkWin = (FskGtkWindow)fskWindow->gtkWin;
+	GdkWindow *gdk_window = gtk_widget_get_window(GTK_WIDGET(gtkWin->window));
+	GdkCursor *theCursor;
+	GdkDisplay *display;
+	display = gdk_display_get_default();
+	switch (shape) {
+		case kFskCursorArrow:
+			theCursor = gdk_cursor_new_for_display(display, GDK_LEFT_PTR);
+			break;
+		case kFskCursorWait:
+			theCursor = gdk_cursor_new_for_display(display, GDK_WATCH);
+			break;
+		case kFskCursorIBeam:
+			theCursor = gdk_cursor_new_for_display(display, GDK_XTERM);
+			break;
+		case kFskCursorResizeColumn:
+		case kFskCursorResizeLeftRight:
+			theCursor = gdk_cursor_new_for_display(display, GDK_SB_H_DOUBLE_ARROW);
+			break;
+		case kFskCursorResizeRow:
+		case kFskCursorResizeTopBottom:
+			theCursor = gdk_cursor_new_for_display(display, GDK_SB_V_DOUBLE_ARROW);
+			break;
+		default:
+			fprintf(stderr, "GTK - no cursor\n");
+			return;
+	
+	}
+//	gdk_threads_enter();
+	gdk_window_set_cursor(gdk_window, theCursor);
+//	gdk_threads_leave();
+	return;
+}
+

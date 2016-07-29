@@ -21,23 +21,23 @@ export default class HMAC {
 		this.hashLen = bitlen / 8;	// in byte
 	};
 	init(key) {
-		key = new Uint8Array(key);
+		var arr = new Uint8Array(key);
 		var h = this.h;
-		if (key.length > h.blockSize) {
+		if (arr.length > h.blockSize) {
 			// truncate the key
 			h.reset();
 			h.update(key);
-			key = h.close();
+			arr = new Uint8Array(h.close());
 		}
 		var n = h.blockSize;
-		var l = key.length;
+		var l = arr.length;
 		this.ipad = new Uint8Array(n);
 		this.opad = new Uint8Array(n);
 		if (l > n)
 			l = n;
 		var i = 0;
 		for (; i < l; i++) {
-			var c = key[i];
+			var c = arr[i];
 			this.ipad[i] = c ^ 0x36;
 			this.opad[i] = c ^ 0x5c;
 		}

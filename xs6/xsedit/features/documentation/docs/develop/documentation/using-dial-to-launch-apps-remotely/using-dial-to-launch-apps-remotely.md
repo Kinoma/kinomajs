@@ -14,14 +14,17 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-<img alt="" src="http://kinoma.com/develop/documentation/technotes/images/dial/Dial-image.png" class="technoteIllus" >
+<!-- Version: 160415-CR / Last reviewed: November 2015
+
+Most Internet of Things devices work together with a mobile app, enabling the user to monitor, configure, and control the device using a phone or tablet. The DIAL protocol created by Netflix is a great solution for connecting your mobile app to your IoT project running on Kinoma Create. This Tech Note introduces the DIAL protocol, how to discover DIAL-compatible devices using Net Scanner, and how to add DIAL support to your KinomaJS app.
+-->
+
+<img alt="" src="img/using-dial-to-launch-apps-remotely_icon.png" class="technoteIllus" >
 
 #Using DIAL to Launch Apps Remotely
 
-**Peter Hoddie, VP Kinoma**  
+**Peter Hoddie**  
 February 24, 2015
-
-<!--Use paragraph below as intro for this Note on Kinoma Tech Notes page-->
 
 Most Internet of Things devices work together with a mobile app, enabling the user to monitor, configure, and control the device using a phone or tablet. The DIAL protocol created by Netflix is a great solution for connecting your mobile app to your IoT project running on Kinoma Create. This Tech Note introduces the DIAL protocol, how to discover DIAL-compatible devices using Net Scanner, and how to add DIAL support to your KinomaJS app.
 
@@ -32,7 +35,7 @@ Applications are the fundamental building block for projects on Kinoma Create. W
 
 **Figure 1.** App Tiles on Kinoma Create
 
-![](http://www.kinoma.com/develop/documentation/technotes/images/dial/create-home.jpg)
+![](img/create-home.jpg)
 
 Users can launch apps by tapping app tiles on the built-in touch screen. But sometimes the device is out of reach, and launching from the touch screen is not always the user experience a developer is testing.
 
@@ -55,28 +58,31 @@ Kinoma Create uses SSDP multicast packets to announce the availability of the DI
 
 All KinomaJS applications running on Kinoma Create can be launched remotely using DIAL. The remote application that initiates the launch can send your application parameters to configure the application. To receive those parameters, your application implements a handler with the ID `dial`, which will be invoked immediately following application launch. Here is the outline of a simple DIAL handler that uses the query parameters of the DIAL HTTP request:
 
-	var HandlerBehavior = function(handler, data, context) {
-		Behavior.call(this, handler, data, context);
-	};
+```
+var HandlerBehavior = function(handler, data, context) {
+	Behavior.call(this, handler, data, context);
+};
 
-	HandlerBehavior.prototype = Object.create(Behavior.prototype, {
-		onInvoke: {
-			value: function(handler, message) {
-				if (("query" in message) && message.query) {
-					var query = parseQuery(message.query);
-					// Use query contents
-					...
-				}
+HandlerBehavior.prototype = Object.create(Behavior.prototype, {
+	onInvoke: {
+		value: function(handler, message) {
+			if (("query" in message) && message.query) {
+				var query = parseQuery(message.query);
+				// Use query contents
+				...
 			}
-		},
-	});
+		}
+	},
+});
+```
 	
 Here is the code that installs the dial handler, typically during an application `onLaunch`event:
 
-	var handler = new Handler("/dial");
-	handler.behavior = new HandlerBehavior(handler);
-	Handler.put(handler);
-	
+```
+var handler = new Handler("/dial");
+handler.behavior = new HandlerBehavior(handler);
+Handler.put(handler);
+```
 
 ##Sample Code to Get Started with DIAL
 
@@ -84,6 +90,6 @@ If you are just getting started with DIAL, a good place to start is the [`dial-c
 
 **Figure 2.** DIAL Client App  
 
-![](http://www.kinoma.com/develop/documentation/technotes/images/dial/dial-app.png)
+![](img/dial-app.png)
 
 A more complex example of using DIAL is the KinomaJS SomaFM internet radio app. Run the [`somafm-player`](https://github.com/Kinoma/KPR-examples/tree/master/somafm-player) app on one device and [`somafm-remote`](https://github.com/Kinoma/KPR-examples/tree/master/somafm-remote) on another. If you do not have two Kinoma Create devices yet, you can run one app on your Kinoma Create and another on the Kinoma Create Simulator using Kinoma Studio. The `somafm-player` app is a simple internet radio player using [SomaFM](http://somafm.com/); `somafm-remote` contains the same player but also knows how to launch `somafm-player` if it is installed on other devices. In `somafm-remote` you will see a list of available remote devices; selecting the remote device transfers playback from the device running `somafm-remote` to the other device.

@@ -75,7 +75,7 @@ class HTTPClient extends HTTP {
 			if (!params.tls_max_fragment_length)
 				params.tls_max_fragment_length = 1024;
 			if (!params.protocolVersion && params.tls && typeof params.tls == 'number')
-				params.protocolVersion = (Math.floor(params.tls) << 8) | Math.round((params.tls % 1) * 10) | 0x0301;
+				params.protocolVersion = ((Math.floor(params.tls) << 8) | Math.round((params.tls % 1) * 10)) + 0x0201;
 			this.sock = new SecureSocket(params);
 		}
 		else

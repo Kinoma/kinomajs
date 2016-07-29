@@ -149,10 +149,6 @@
 		</object>
 	</object>
 	
-	<patch prototype="KPR.message">
-		<function name="get requestObject" c="KPR_message_get_requestObject"/>
-		<function name="set requestObject" c="KPR_message_set_requestObject"/>
-	</patch>
 	<function name="MessageWithObject" params="url, object" prototype="KPR.message">
 		Message.call(this, url);
 		this.requestObject = object;

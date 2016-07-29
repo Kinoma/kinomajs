@@ -28,8 +28,10 @@ PINS_JS_SRCS = \
 	pins_PWM.js \
 	pins__http.js \
 	pins__ws.js \
-	pins__conn_ws.js \
+	pins__coap.js \
 	pins__conn_http.js \
+	pins__conn_ws.js \
+	pins__conn_coap.js \
 	pins_map.js
 
 BLL_JS_SRCS = \

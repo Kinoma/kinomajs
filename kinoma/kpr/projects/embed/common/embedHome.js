@@ -112,13 +112,15 @@ var HomeDeviceColumn = Container.template($ => ({
 		}
 		onDeviceChanged(column) {
 			column.first.url = "xkpr://shell/description/picture";
+			column.first.next.string = system.device;
 		}
 		onNameChanged(column) {
 			column.last.string = model.name;
 		}
 	},
 	contents: [
-		Picture($, { left:0, right:0, top:0, bottom:$.h12, }),
+		Picture($, { left:0, right:0, top:0, bottom:2 * $.h12, }),
+		Label($, { left:$.h12, right:$.h12, height:$.h12, bottom:$.h12, style:homeTitleStyle }),
 		Label($, { left:$.h12, right:$.h12, height:$.h12, bottom:0, style:homeTitleStyle }),
 	],
 }));

@@ -104,25 +104,14 @@ export class Client {
 	}
 
 	send(data, payload, callback) {
-		if (typeof data === 'string') {
-			data = {url: data};
+		if (typeof payload === 'function') {
+			callback = payload;
+			payload = undefined;
 		}
 
-		switch (typeof payload) {
-			case 'function':
-				callback = payload;
-				break;
-
-			case 'object':
-				data.payload = payload;
-				if (!data.method) data.method = Method.POST;
-				break;
-		}
-
-		data.onResponse = callback;
-
-		let request = this.createRequest(data)
+		let request = this.createRequest(data, payload)
 		let host = request.host;
+		if (callback) request.onResponse = callback;
 
 		resolv(host, address => {
 			if (address) {
@@ -155,8 +144,21 @@ export class Client {
 		endpoint.send(request);
 	}
 
-	createRequest(data) {
-		let request = require.weak('coap/create_request')(data);
+	createRequest(data, payload) {
+		if (typeof data === 'string') {
+			data = {url: data};
+		}
+
+		if (payload) {
+			if (typeof payload === 'string') {
+				payload = ArrayBuffer.fromString(payload);
+			}
+
+			data.payload = payload;
+			if (!data.method) data.method = Method.POST;
+		}
+
+		const request = require.weak('coap/create_request')(data);
 		if (!request.messageId) request.messageId = this._issueMessageId();
 		if (!request.token) request.token = this._issueToken();
 		return request;

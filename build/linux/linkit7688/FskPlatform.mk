@@ -74,6 +74,7 @@
 	<c option="-Wunused-function"/>
 	<c option="-Wunused-variable"/>
 	<c option="-Wno-multichar"/>
+	<c option="-DDEVICE_NAME=Linkit7688"/>
 	
 	<library name="-Wl,-rpath,$(LINKIT7688_SYSROOT)/usr/lib,-z,muldefs"/>
     <library name="-Wl,-rpath,.,-rpath,'$ORIGIN/lib'"/>

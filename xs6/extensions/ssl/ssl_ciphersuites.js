@@ -27,6 +27,7 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 16,
 		hashAlgorithm: SSL.cipherSuite.SHA1,
 		hashSize: 20,
+		encryptionMode: SSL.cipherSuite.CBC,
 	},
 	{
 		// TLS_RSA_WITH_AES_256_CBC_SHA
@@ -38,6 +39,7 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 16,
 		hashAlgorithm: SSL.cipherSuite.SHA1,
 		hashSize: 20,
+		encryptionMode: SSL.cipherSuite.CBC,
 	},
 	{
 		// TLS_RSA_WITH_DES_CBC_SHA
@@ -49,6 +51,7 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 8,
 		hashAlgorithm: SSL.cipherSuite.SHA1,
 		hashSize: 20,
+		encryptionMode: SSL.cipherSuite.CBC,
 	},
 	{
 		// TLS_RSA_WITH_3DES_EDE_CBC_SHA
@@ -60,6 +63,7 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 8,
 		hashAlgorithm: SSL.cipherSuite.SHA1,
 		hashSize: 20,
+		encryptionMode: SSL.cipherSuite.CBC,
 	},
 	{
 		// TLS_RSA_WITH_RC4_128_MD5
@@ -71,6 +75,7 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 0,
 		hashAlgorithm: SSL.cipherSuite.MD5,
 		hashSize: 16,
+		encryptionMode: SSL.cipherSuite.NONE,
 	},
 	{
 		// TLS_RSA_WITH_RC4_128_SHA
@@ -82,6 +87,7 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 0,
 		hashAlgorithm: SSL.cipherSuite.SHA1,
 		hashSize: 20,
+		encryptionMode: SSL.cipherSuite.NONE,
 	},
 	{
 		// TLS_RSA_WITH_AES_128_CBC_SHA256
@@ -93,6 +99,7 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 16,
 		hashAlgorithm: SSL.cipherSuite.SHA256,
 		hashSize: 32,
+		encryptionMode: SSL.cipherSuite.CBC,
 	},
 	{
 		// TLS_RSA_WITH_AES_256_CBC_SHA256
@@ -104,6 +111,59 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 16,
 		hashAlgorithm: SSL.cipherSuite.SHA256,
 		hashSize: 32,
+		encryptionMode: SSL.cipherSuite.CBC,
+	},
+	{
+		// TLS_DHE_RSA_WITH_AES_128_CBC_SHA256
+		value: [0x00, 0x67],
+		isExportable: false,
+		keyExchangeAlgorithm: SSL.cipherSuite.DHE_RSA,
+		cipherAlgorithm: SSL.cipherSuite.AES,
+		cipherKeySize: 16,
+		cipherBlockSize: 16,
+		hashAlgorithm: SSL.cipherSuite.SHA256,
+		hashSize: 32,
+		encryptionMode: SSL.cipherSuite.CBC,
+	},
+	{
+		// TLS_DHE_RSA_WITH_AES_256_CBC_SHA256
+		value: [0x00, 0x6b],
+		isExportable: false,
+		keyExchangeAlgorithm: SSL.cipherSuite.DHE_RSA,
+		cipherAlgorithm: SSL.cipherSuite.AES,
+		cipherKeySize: 32,
+		cipherBlockSize: 16,
+		hashAlgorithm: SSL.cipherSuite.SHA256,
+		hashSize: 32,
+		encryptionMode: SSL.cipherSuite.CBC,
+	},
+	{
+		// TLS_DHE_RSA_WITH_AES_128_GCM_SHA256 (RFC 5288)
+		value: [0x00, 0x9e],
+		isExportable: false,
+		keyExchangeAlgorithm: SSL.cipherSuite.DHE_RSA,
+		cipherAlgorithm: SSL.cipherSuite.AES,
+		cipherKeySize: 16,
+		cipherBlockSize: 16,
+		hashAlgorithm: SSL.cipherSuite.SHA256,
+		hashSize: 32,
+		encryptionMode: SSL.cipherSuite.GCM,
+		ivSize: 8,	// explicit nonce size
+		saltSize: 4,	// implicit part
+	},
+	{
+		// TLS_DHE_RSA_WITH_AES_256_GCM_SHA384 (RFC 5288)
+		value: [0x00, 0x9f],
+		isExportable: false,
+		keyExchangeAlgorithm: SSL.cipherSuite.DHE_RSA,
+		cipherAlgorithm: SSL.cipherSuite.AES,
+		cipherKeySize: 32,
+		cipherBlockSize: 16,
+		hashAlgorithm: SSL.cipherSuite.SHA384,
+		hashSize: 48,
+		encryptionMode: SSL.cipherSuite.GCM,
+		ivSize: 8,	// explicit nonce size
+		saltSize: 4,	// implicit part
 	},
 	{
 		// TLS_NULL_WITH_NULL_NULL
@@ -115,6 +175,7 @@ export const supportedCipherSuites = [
 		cipherBlockSize: 0,
 		hashAlgorithm: SSL.cipherSuite.NULL,
 		hashSize: 0,
+		encryptionMode: SSL.cipherSuite.NONE,
 	},
 ];
 

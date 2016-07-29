@@ -474,8 +474,15 @@ void KPR_Files_readBuffer(xsMachine* the)
 	FskInt64 size;
 	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
 	bailIfError(FskFileMap(path, &data, &size, 0, &map));
-	xsResult = xsNew1(xsGlobal, xsID_ArrayBuffer, xsInteger(size));
-	FskMemMove(xsToArrayBuffer(xsResult), data, (SInt32)size);
+	{
+		xsTry {
+			xsResult = xsNew1(xsGlobal, xsID_ArrayBuffer, xsInteger(size));
+			FskMemMove(xsToArrayBuffer(xsResult), data, (SInt32)size);
+		}
+		xsCatch {
+			err = kFskErrMemFull;
+		}
+	}
 bail:
 	FskFileDisposeMap(map);
 	FskMemPtrDispose(path);
@@ -492,8 +499,15 @@ void KPR_Files_readChunk(xsMachine* the)
 	xsTrace("Files.readChunk deprecated, use Files.readBuffer");
 	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
 	bailIfError(FskFileMap(path, &data, &size, 0, &map));
-	xsResult = xsNew1(xsGlobal, xsID_Chunk, xsInteger(size));
-	FskMemMove(xsGetHostData(xsResult), data, (SInt32)size);
+	{
+		xsTry {
+			xsResult = xsNew1(xsGlobal, xsID_Chunk, xsInteger(size));
+			FskMemMove(xsGetHostData(xsResult), data, (SInt32)size);
+		}
+		xsCatch {
+			err = kFskErrMemFull;
+		}
+	}
 bail:
 	FskFileDisposeMap(map);
 	FskMemPtrDispose(path);
@@ -516,7 +530,14 @@ void KPR_Files_readJSON(xsMachine* the)
 	xsSetHostDestructor(xsVar(1) , NULL);
 	xsSet(xsVar(1), xsID_length, xsInteger(size));
 	xsEnterSandbox();
-	xsResult = xsCall1(xsVar(0), xsID_parse, xsVar(1));	
+	{
+		xsTry {
+			xsResult = xsCall1(xsVar(0), xsID_parse, xsVar(1));	
+		}
+		xsCatch {
+			err = kFskErrBadData;
+		}
+	}
 	xsLeaveSandbox();
 bail:
 	FskFileDisposeMap(map);
@@ -533,7 +554,14 @@ void KPR_Files_readText(xsMachine* the)
 	FskInt64 size;
 	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
 	bailIfError(FskFileMap(path, &data, &size, 0, &map));
-	xsResult = xsStringBuffer((xsStringValue)data, (xsIntegerValue)size);
+	{
+		xsTry {
+			xsResult = xsStringBuffer((xsStringValue)data, (xsIntegerValue)size);
+		}
+		xsCatch {
+			err = kFskErrMemFull;
+		}
+	}
 bail:
 	FskFileDisposeMap(map);
 	FskMemPtrDispose(path);
@@ -550,12 +578,19 @@ void KPR_Files_readXML(xsMachine* the)
 	xsVars(2);
 	bailIfError(KprURLToPath(xsToString(xsArg(0)), &path));
 	bailIfError(FskFileMap(path, &data, &size, 0, &map));
-	xsVar(0) = xsGet(xsGlobal, xsID_DOM);
-	xsVar(1) = xsNewInstanceOf(xsChunkPrototype);
-	xsSetHostDestructor(xsVar(1) , NULL);
-	xsSetHostData(xsVar(1), data);
-	xsSet(xsVar(1), xsID_length, xsInteger(size));
-	xsResult = xsCall1(xsVar(0), xsID_parse, xsVar(1));	
+	{
+		xsTry {
+			xsVar(0) = xsGet(xsGlobal, xsID_DOM);
+			xsVar(1) = xsNewInstanceOf(xsChunkPrototype);
+			xsSetHostDestructor(xsVar(1) , NULL);
+			xsSetHostData(xsVar(1), data);
+			xsSet(xsVar(1), xsID_length, xsInteger(size));
+			xsResult = xsCall1(xsVar(0), xsID_parse, xsVar(1));	
+		}
+		xsCatch {
+			err = kFskErrBadData;
+		}
+	}
 bail:
 	FskFileDisposeMap(map);
 	FskMemPtrDispose(path);

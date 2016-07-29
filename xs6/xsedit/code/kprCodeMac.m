@@ -41,7 +41,7 @@ void KPR_system_alert(xsMachine* the)
 			else if (!FskStrCompare(string, "stop"))
 				[alert setAlertStyle:NSCriticalAlertStyle];
 			else if (!FskStrCompare(string, "note"))
-				[alert setAlertStyle:NSWarningAlertStyle];
+				[alert setAlertStyle:NSCriticalAlertStyle];
 		}
 		if (xsFindString(xsArg(0), xsID_prompt, &string))
 			[alert setMessageText:[NSString stringWithUTF8String:string]];

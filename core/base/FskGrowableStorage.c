@@ -431,7 +431,7 @@ FskErr
 FskGrowableStorageRotateItem(FskGrowableStorage storage, UInt32 index, UInt32 size, SInt32 shift)
 {
 	FskErr	err;
-	UInt8	*p, *q;
+	UInt8	*item, *temp;
 
 	BAIL_IF_FALSE(index + size <= storage->size, err, kFskErrItemNotFound);
 	shift %= (SInt32)size;
@@ -440,12 +440,15 @@ FskGrowableStorageRotateItem(FskGrowableStorage storage, UInt32 index, UInt32 si
 	if (shift == 0)
 		return kFskErrNone;
 
-	p = storage->storage + index;
-	BAIL_IF_ERR(err = FskMemPtrNewFromData(size, p, &q));
+	BAIL_IF_ERR(err = ResizeGrowableStorage(storage, storage->size + size));
+	storage->size -= size;
+	item = storage->storage + index;
+	temp = storage->storage + storage->size;
+	FskMemCopy(temp, item, size);
 	index = size - shift;
-	FskMemCopy(p + shift, q, index);
-	FskMemCopy(p, q + index, size - index);
-	FskMemPtrDispose(q);
+	FskMemCopy(item + shift, temp, index);
+	FskMemCopy(item, temp + index, size - index);
+
 bail:
 	return err;
 }

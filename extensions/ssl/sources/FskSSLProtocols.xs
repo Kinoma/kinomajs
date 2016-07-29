@@ -137,6 +137,18 @@
 				hmac.update(compressedPacket.getChunk());
 				return(hmac.close());
 			</function>
+			<function name="aeadAdditionalData" params="seqNum, type, version, len">
+				let tmps = new FskSSL.ChunkStream();
+				let c = seqNum.toChunk();
+				for (let i = 0, len = 8 - c.length; i < len; i++)
+					tmps.writeChar(0);
+				tmps.writeChunk(c);
+				tmps.writeChar(type);
+				tmps.writeChar(version.major);
+				tmps.writeChar(version.minor);
+				tmps.writeChars(len, 2);
+				return tmps.getChunk();
+			</function>
 
 			<function name="unpacketize" params="session, s">
 				session.traceProtocol(this);
@@ -145,37 +157,60 @@
 					FskSSL.tlsCompressed.unpacketize(session, s);
 					return;
 				}
-				var type = s.readChar();
-				var version = FskSSL.protocolVersion.parse(s);
-				var fragmentLen = s.readChars(2);
-				if (!(session.protocolVersion.major == 3 && session.protocolVersion.minor == 1) && session.chosenCipher.cipherBlockSize) { // 3.2 or higher && block cipher
-					var iv = s.readChunk(session.chosenCipher.cipherBlockSize);
-					cipher.enc.setIV(iv);
-					iv.free();
-					fragmentLen -= session.chosenCipher.cipherBlockSize;
+				let type = s.readChar();
+				let version = FskSSL.protocolVersion.parse(s);
+				let fragmentLen = s.readChars(2);
+				let fragment, content, contentLen, iv;
+				switch (session.chosenCipher.encryptionMode) {
+				case FskSSL.cipherSuite.NONE:
+				case FskSSL.cipherSuite.CBC:
+					if (!(session.protocolVersion.major == 3 && session.protocolVersion.minor == 1) && session.chosenCipher.cipherBlockSize) { // 3.2 or higher && block cipher
+						iv = s.readChunk(session.chosenCipher.cipherBlockSize);
+						cipher.enc.setIV(iv);
+						iv.free();
+						fragmentLen -= session.chosenCipher.cipherBlockSize;
+					}
+					fragment = s.readChunk(fragmentLen);
+					var plain = cipher.enc.decrypt(fragment);
+					var padLen = session.chosenCipher.cipherBlockSize ? plain.peek(plain.length - 1) + 1: 0;
+					contentLen = fragmentLen - session.chosenCipher.hashSize - padLen;
+					content = plain.slice(0, contentLen);
+					var mac = plain.slice(contentLen, contentLen + session.chosenCipher.hashSize);
+					s = new FskSSL.ChunkStream();
+					s.writeChar(type);
+					s.writeChar(version.major);
+					s.writeChar(version.minor);
+					s.writeChars(contentLen, 2);
+					s.writeChunk(content);
+					s.rewind();
+					if (cipher.hmac) {
+						if (mac.comp(this.calculateMac(cipher.hmac, session.readSeqNum, s)) != 0)
+							throw new FskSSL.Error(-121);	// SSL auth failed
+					}
+					break;
+				case FskSSL.cipherSuite.GCM:
+					let nonce = s.readChunk(session.chosenCipher.ivSize);
+					fragmentLen -= session.chosenCipher.ivSize;
+					iv = new Chunk(cipher.iv);
+					iv.append(nonce);
+					fragment = s.readChunk(fragmentLen);
+					let additional_data = this.aeadAdditionalData(session.readSeqNum, type, version, fragmentLen - cipher.enc.tagLength);
+					if (!(content = cipher.enc.process(fragment, null, iv, additional_data, false))) {
+						// @@ should send an aldert
+						throw new FskSSL.Error(-121);
+					}
+					contentLen = content.length;
+					s = new FskSSL.ChunkStream();
+					s.writeChar(type);
+					s.writeChar(version.major);
+					s.writeChar(version.minor);
+					s.writeChars(contentLen, 2);
+					s.writeChunk(content);
+					s.rewind();
+					break;
 				}
-				var fragment = s.readChunk(fragmentLen);
-				var plain = cipher.enc.decrypt(fragment);
-				var padLen = session.chosenCipher.cipherBlockSize ? plain.peek(plain.length - 1) + 1: 0;
-				var contentLen = fragmentLen - session.chosenCipher.hashSize - padLen;
-				var content = plain.slice(0, contentLen);
-				var mac = plain.slice(contentLen, contentLen + session.chosenCipher.hashSize);
-				fragment.free();
-
-				var s = new FskSSL.ChunkStream();
-				s.writeChar(type);
-				s.writeChar(version.major);
-				s.writeChar(version.minor);
-				s.writeChars(contentLen, 2);
-				s.writeChunk(content);
-				s.rewind();
-				content.free();
-				if (cipher.hmac) {
-					if (mac.comp(this.calculateMac(cipher.hmac, session.readSeqNum, s)) != 0)
-						throw new FskSSL.Error(-121);	// SSL auth failed
-				}
-				FskSSL.tlsCompressed.unpacketize(session, s);
 				session.readSeqNum.inc();
+				FskSSL.tlsCompressed.unpacketize(session, s);
 				s.close();
 			</function>
 
@@ -185,16 +220,16 @@
 				if (!cipher)
 					return(compressed);
 				compressed.rewind();
-				// calculate MAC in either case if a hash alogithm is specified in the cipher suite
-				var mac = this.calculateMac(cipher.hmac, session.writeSeqNum, compressed);
-				session.writeSeqNum.inc();
-				var s = new FskSSL.ChunkStream();
-				s.writeChar(compressed.readChar());		// type
-				s.writeChars(compressed.readChars(2), 2);	// protocol version
-				var compLength = compressed.readChars(2);	// size
-				// block cipher only at the moment
-				if (cipher.enc) {
-					var iv;
+				let s = new FskSSL.ChunkStream();
+				let compLength, fragment, iv;
+				switch (session.chosenCipher.encryptionMode) {
+				case FskSSL.cipherSuite.NONE:
+				case FskSSL.cipherSuite.CBC:
+					// calculate MAC in either case if a hash alogithm is specified in the cipher suite
+					var mac = this.calculateMac(cipher.hmac, session.writeSeqNum, compressed);
+					s.writeChar(compressed.readChar());		// type
+					s.writeChars(compressed.readChars(2), 2);	// protocol version
+					compLength = compressed.readChars(2);	// size
 					if (session.protocolVersion.major == 3 && session.protocolVersion.minor >= 2 && session.chosenCipher.cipherBlockSize) { // 3.2 or higher && block cipher
 						iv = FskSSL.RNG(session.chosenCipher.cipherBlockSize);
 						cipher.enc.setIV(iv);
@@ -211,17 +246,36 @@
 							tmps.writeChar(padSize);
 						tmps.writeChar(padSize);
 					}
-					var fragment = cipher.enc.encrypt(tmps.getChunk());
+					fragment = cipher.enc.encrypt(tmps.getChunk());
 					tmps.close();
 					if (iv) {
 						iv.append(fragment);
 						fragment = iv;
 					}
+					s.writeChars(fragment.length, 2);
+					s.writeChunk(fragment);
+					break;
+				case FskSSL.cipherSuite.GCM:
+					let type = compressed.readChar();
+					let version = FskSSL.protocolVersion.parse(compressed);
+					s.writeChar(type);
+					s.writeChar(version.major);
+					s.writeChar(version.minor);
+					compLength = compressed.readChars(2);	// size
+					fragment = compressed.readChunk(compLength);
+					let explicit_nonce = cipher.nonce.toChunk(session.chosenCipher.ivSize);
+					cipher.nonce.inc();
+					iv = new Chunk(cipher.iv);
+					iv.append(explicit_nonce);
+					let additional_data = this.aeadAdditionalData(session.writeSeqNum, type, version, compLength);
+					fragment = cipher.enc.process(fragment, null, iv, additional_data, true);
+					explicit_nonce.append(fragment);
+					fragment = explicit_nonce;
+					s.writeChars(fragment.length, 2);
+					s.writeChunk(fragment);
+					break;
 				}
-				else
-					var fragment = compressed.readChunk(compLength);
-				s.writeChars(fragment.length, 2);
-				s.writeChunk(fragment);
+				session.writeSeqNum.inc();
 				return(s);
 			</function>
 		</object>
@@ -290,6 +344,7 @@
 				session.alert = new Object();
 				session.alert.level = s.readChar();
 				session.alert.description = s.readChar();
+trace("SSL: alert: " + session.alert.level + "/" + session.alert.description + "\n");
 				if (session.alert.description != FskSSL.alert.close_notify)
 					throw new FskSSL.Error(-113);	// connection closed
 			</function>
@@ -299,6 +354,7 @@
 				var s = new FskSSL.ChunkStream();
 				s.writeChar(level);
 				s.writeChar(description);
+trace("SSL: sending alert: " + level + "/" + description + "\n");
 				var upper = FskSSL.recordProtocol.packetize(session, FskSSL.recordProtocol.alert, s);
 				s.close();
 				return(upper);
@@ -553,9 +609,9 @@
 						for (var i in session.extensions) {
 							var ext = session.extensions[i];
 							var type = this.extension_type[i];
-							es.writeChars(type, 2);
 							switch (type) {
 							case this.extension_type.server_name:
+								es.writeChars(type, 2);
 								var len = 1 + 2 + ext.length;
 								es.writeChars(2 + len, 2);
 								es.writeChars(len, 2);
@@ -564,6 +620,7 @@
 								es.writeString(ext);
 								break;
 							case this.extension_type.max_fragment_length:
+								es.writeChars(type, 2);
 								es.writeChars(2 + 1, 2);
 								es.writeChars(1, 2);
 								var j;
@@ -577,13 +634,15 @@
 								es.writeChar(j);
 								break;
 							case this.extension_type.application_layer_protocol_negotiation:
+								es.writeChars(type, 2);
 								var len = 0;
+								if (typeof ext == 'string') ext = ext.split(':');
 								for (var j = 0; j < ext.length; j++)
 									len += ext[j].length + 1;
-								es.writeChars(2 + len, 2);
+								es.writeChars(len + 2, 2);
+								es.writeChars(len, 2);
 								for (var j = 0; j < ext.length; j++) {
 									var name = ext[j];
-									es.writeChars(name.length + 1, 2);
 									es.writeChars(name.length, 1);
 									es.writeString(name);
 								}
@@ -739,14 +798,87 @@
 
 		<object name="serverKeyExchange" prototype="FskSSL.handshakeProtocol">
 			<string name="name" value="serverKeyExchange"/>
+			<!-- hash algorithms -->
+			<number name="none" value="0"/>
+			<number name="md5" value="1"/>
+			<number name="sha1" value="2"/>
+			<number name="sha224" value="3"/>
+			<number name="sha256" value="4"/>
+			<number name="sha512" value="5"/>
+			<!-- signature algorithms -->
+			<number name="anonymous" value="0"/>
+			<number name="rsa" value="1"/>
+			<number name="dsa" value="2"/>
+			<number name="ecdsa" value="3"/>
 			<function name="unpacketize" params="session, s">
 				session.traceProtocol(this);
-				// unsupported
+				switch (session.chosenCipher.keyExchangeAlgorithm) {
+				case FskSSL.cipherSuite.DHE_DSS:
+				case FskSSL.cipherSuite.DHE_RSA:
+					let tbs = new FskSSL.ChunkStream();
+					let dhparams = {};
+					let n = s.readChars(2);
+					tbs.writeChars(n, 2);
+					dhparams.dh_p = s.readChunk(n);
+					tbs.writeChunk(dhparams.dh_p);
+					n = s.readChars(2);
+					tbs.writeChars(n, 2);
+					dhparams.dh_g = s.readChunk(n);
+					tbs.writeChunk(dhparams.dh_g);
+					n = s.readChars(2);
+					tbs.writeChars(n, 2);
+					dhparams.dh_Ys = s.readChunk(n);
+					tbs.writeChunk(dhparams.dh_Ys);
+					session.dhparams = dhparams;
+					let hash_algo = s.readChar();
+					let sig_algo = s.readChar();
+					n = s.readChars(2);
+					let sig = s.readChunk(n);
+					let hash, pk;
+					switch (hash_algo) {
+					default:
+					case this.none: break;
+					case this.md5: hash = Crypt.MD5; break;
+					case this.sha1: hash = Crypt.SHA1; break;
+					case this.sha224: hash = Crypt.SHA224; break;
+					case this.sha256: hash = Crypt.SHA256; break;
+					case this.sha384: hash = Crypt.SHA384; break;
+					case this.sha512: hash = Crypt.SHA512; break;
+					}
+					switch (sig_algo) {
+					default:
+					case this.anonymous: break;
+					case this.rsa: pk = Crypt.PKCS1_5; break;
+					case this.dsa: pk = Crypt.DSA; break;
+					case this.ecdsa: pk = Crypt.ECDSA; break;
+					}
+					if (hash && pk && sig) {
+						let H = (new hash()).process(session.clientRandom, session.serverRandom, tbs.getChunk());
+						let key = session.peerCert.getKey();
+						let v = new pk(key.rsaKey);	// @@ RSA only!
+						if (!v.verify(H, sig)) {
+							// should send an alert, probably...
+							trace("SSL: serverKeyExchange: failed to verify signature\n");
+							throw new Error("SSL: serverKeyExchange: failed to verify signature");
+						}
+					}
+					hash = pk = sig = tbs = null;
+					break;
+				case FskSSL.cipherSuite.RSA:
+					// no server key exchange info
+					break;
+				case SSL.cipherSuite.DH_ANON:
+				case SSL.cipherSuite.DH_DSS:
+				case SSL.cipherSuite.DH_RSA:
+				default:
+					// not supported
+					throw new FskSSL.Error(-9);
+					break;
+				}
 			</function>
-
 			<function name="packetize" params="session">
 				session.traceProtocol(this);
-				// unsupported
+				// not supported yet
 			</function>
 		</object>
 
@@ -767,10 +899,10 @@
 				for (var i = 0; i < nCertTypes; i++) {
 					switch (s.readChar()) {
 					case this.rsa_sign:
-						types.push(FskSSL.cipherSuite.RSA);
+						types.push(FskSSL.cipherSuite.CERT_RSA);
 						break;
 					case this.dss_sign:
-						types.push(FskSSL.cipherSuite.DSA);
+						types.push(FskSSL.cipherSuite.CERT_DSA);
 						break;
 					default:
 						// not supported
@@ -801,10 +933,10 @@
 				s.writeChar(types.length);
 				for (var i = 0; i < types.length; i++) {
 					switch (types[i]) {
-					case FskSSL.cipherSuite.RSA:
+					case FskSSL.cipherSuite.CERT_RSA:
 						s.writeChar(this.rsa_sign);
 						break;
-					case FskSSL.cipherSuite.DSA:
+					case FskSSL.cipherSuite.CERT_DSA:
 						s.writeChar(this.dss_sign);
 						break;
 					}
@@ -858,7 +990,9 @@
 				session.traceProtocol(this);
 				var n = s.readChars(2);
 				var cipher = s.readChunk(n);
-				if (session.chosenCipher.keyExchangeAlgorithm == FskSSL.cipherSuite.RSA) {
+				let preMasterSecret;
+				switch (session.chosenCipher.keyExchangeAlgorithm) {
+				case FskSSL.cipherSuite.RSA:
 					// PKCS1.5
 					if (!session.myCert)
 						throw new FskSSL.Error(-2);	// out of sequence
@@ -872,10 +1006,16 @@
 						throw new FskSSL.Error(-13);	// bad data
 					}
 					*/
-					var preMasterSecret = plain;
-				}
-				else {
-					// RSA only for now
+					preMasterSecret = plain;
+					break;
+				case SSL.cipherSuite.DHE_DSS:
+				case SSL.cipherSuite.DHE_RSA:
+				case SSL.cipherSuite.DH_ANON:
+				case SSL.cipherSuite.DH_DSS:
+				case SSL.cipherSuite.DH_RSA:
+				default:
+					throw new FskSSL.Error(-9);
+					break;
 				}
 				this.generateMasterSecret(session, preMasterSecret);
 			</function>
@@ -884,20 +1024,45 @@
 			<target name="!wm || client">
 			<function name="packetize" params="session">
 				session.traceProtocol(this);
-				if (session.chosenCipher.keyExchangeAlgorithm == FskSSL.cipherSuite.RSA) {
+				let s = new FskSSL.ChunkStream();
+				let preMasterSecret;
+				switch (session.chosenCipher.keyExchangeAlgorithm) {
+				case FskSSL.cipherSuite.RSA:
 					var plain = new FskSSL.ChunkStream();
 					session.protocolVersion.serialize(plain);
 					plain.writeChunk(FskSSL.RNG(46));
-					var preMasterSecret = plain.getChunk();
+					preMasterSecret = plain.getChunk();
 					var key = session.peerCert.getKey();
 					var rsa = new Crypt.PKCS1_5(key.rsaKey);
 					var cipher = rsa.encrypt(preMasterSecret);
-					var s = new FskSSL.ChunkStream();
 					s.writeChars(cipher.length, 2);
 					s.writeChunk(cipher);
-				}
-				else {
-					// RSA only for now
+					break;
+				case FskSSL.cipherSuite.DHE_DSS:
+				case FskSSL.cipherSuite.DHE_RSA:
+				case FskSSL.cipherSuite.DH_ANON:
+				case FskSSL.cipherSuite.DH_DSS:
+				case FskSSL.cipherSuite.DH_RSA:
+					// we don't support fixed key DH in cert so should send DH anyway
+					if (!session.dhparams)
+						throw new FskSSL.Error(-2);
+					let dh = session.dhparams;
+					let r = FskSSL.RNG(dh.dh_p.length);
+					let x = new Arith.Integer(r);
+					let g = new Arith.Integer(dh.dh_g);
+					let p = new Arith.Integer(dh.dh_p);
+					let mod = new Arith.Module(new Arith.Z(), p);
+					let y = mod.exp(g, x);
+					let Yc = y.toChunk();
+					s.writeChars(Yc.length, 2);
+					s.writeChunk(Yc);
+					y = new Arith.Integer(dh.dh_Ys);
+					y = mod.exp(y, x);
+					preMasterSecret = y.toChunk();
+					break;
+				default:
+					throw new FskSSL.Error(-9);
+					break;
 				}
 				this.generateMasterSecret(session, preMasterSecret);
 				return(FskSSL.handshakeProtocol.packetize(session, FskSSL.handshakeProtocol.client_key_exchange, s));

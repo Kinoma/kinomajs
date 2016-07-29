@@ -583,10 +583,11 @@ cryptCTRModeSetIV(cryptEncryptionMode *ctx, UInt8 *data, UInt32 size, void *opt)
 	UInt32 blockSize = ctx->blkcphr->blockSize;
 
 	FskMemSet(ctx->ctr_ctrbuf, 0, blockSize);
-	FskMemCopy(ctx->ctr_ctrbuf, data, MIN(size, blockSize));
+	if (size > blockSize)
+		size = blockSize;
+	FskMemCopy(&ctx->ctr_ctrbuf[blockSize - size], data, size);
 	ctx->ctr_counter = load32(&ctx->ctr_ctrbuf[blockSize - sizeof(UInt32)]);
-	if (opt != NULL)
-		ctx->ctr_offset = *(UInt32 *)opt;
+	ctx->ctr_offset = 0;
 }
 
 static void
@@ -594,8 +595,6 @@ cryptCTRModeGetIV(cryptEncryptionMode *ctx, UInt8 **datap, UInt32 *sizep, void *
 {
 	*datap = ctx->ctr_ctrbuf;
 	*sizep = ctx->blkcphr->blockSize;
-	if (optp != NULL)
-		*optp = (void **)&ctx->ctr_offset;
 }
 
 void

@@ -15,7 +15,6 @@
  *     limitations under the License.
  */
 #include <wm_os.h>
-#include <mdev_rtc.h>
 #include "mc_env.h"
 #include "mc_event.h"
 #include "mc_time.h"
@@ -24,15 +23,63 @@
 #define MC_TIME_DIFF	"TIME_DIFF"
 #define MC_TIME_DST	"DST"
 
+#define USE_GPT	1
+
+#if USE_GPT
+#include <mdev_gpt.h>
+
+static void
+mc_time_init()
+{
+	mdev_t *mdev;
+
+	gpt_drv_init(GPT2_ID);
+	if ((mdev = gpt_drv_open(GPT2_ID)) == NULL)
+		return;
+	gpt_drv_set(mdev, 1000*1000-1);
+	GPT_Start(mdev->port_id);
+}
+
+static void
+gettime(struct timeval *tv)
+{
+	static int inited = 0;
+	static uint32_t lastsec = 0;
+	static uint32_t lasttick = 0;
+	uint32_t tick, sec;
+
+	if (!inited) {
+		mc_time_init();
+		inited = 1;
+	}
+	sec = wmtime_time_get_posix();
+	tick = GPT_GetCounterVal(GPT2_ID) / 50;		/* GPT running @ 50MHz */
+	if (sec == lastsec && tick < lasttick)
+		sec++;
+	if (sec < lastsec)
+		sec = lastsec;
+	else
+		lastsec = sec;
+	lasttick = tick;
+	tv->tv_sec = sec;
+	tv->tv_usec = tick;
+}
+#else
+#include <mdev_rtc.h>
+
+static void
+gettime(struct timeval *tv)
+{
+	tv->tv_sec = wmtime_time_get_posix();
+	tv->tv_usec = (((rtc_drv_get(NULL) & 0x3ff) * 1000 * 1000) / 1024);	/* RTC runs 1 kHz */
+}
+#endif
+
 int
 mc_gettimeofday(struct timeval *tv, struct timezone *tz)
 {
-	if (tv != NULL) {
-		unsigned long ticks = rtc_drv_get(NULL);
-
-		tv->tv_sec = wmtime_time_get_posix();
-		tv->tv_usec = ((ticks & 0x3ff) * 1000 * 1000) / 1024;
-	}
+	if (tv != NULL)
+		gettime(tv);
 	if (tz != NULL) {
 		const char *td = mc_env_get_default(MC_TIME_DIFF);
 		const char *dst = mc_env_get_default(MC_TIME_DST);

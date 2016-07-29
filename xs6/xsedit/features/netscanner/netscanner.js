@@ -379,25 +379,38 @@ class BrowserLineBehavior extends LineBehavior {
 		var data = this.data, $temp = data.$temp;
 		var friendlyName = $temp.friendlyName || "";
 		var thumbnailURL = $temp.thumbnailURL || "";
+		var text;
 		if (document) {
-			var device = document.getElementsByTagName("device").item(0);
-			if (device) {
-				friendlyName = device.getElementsByTagName("friendlyName").item(0).firstChild.nodeValue;
-				var iconList = device.getElementsByTagName("iconList").item(0);
-				if (iconList) {
-					var icons = iconList.getElementsByTagName("icon");
-					for (var i = 0; i < icons.length; i++) {
-						var icon = icons.item(i);
-						var mime = icon.getElementsByTagName("mimetype").item(0).firstChild.nodeValue;
-						if (("image/jpeg" == mime) || ("image/png" == mime)) {
-							var thumbnailURL = mergeURI(message.url, icon.getElementsByTagName("url").item(0).firstChild.nodeValue);
-							break;
+			if ("getElementsByTagName" in document) {
+				var device = document.getElementsByTagName("device").item(0);
+				if (device) {
+					friendlyName = device.getElementsByTagName("friendlyName").item(0).firstChild.nodeValue;
+					var iconList = device.getElementsByTagName("iconList").item(0);
+					if (iconList) {
+						var icons = iconList.getElementsByTagName("icon");
+						for (var i = 0; i < icons.length; i++) {
+							var icon = icons.item(i);
+							var mime = icon.getElementsByTagName("mimetype").item(0).firstChild.nodeValue;
+							if (("image/jpeg" == mime) || ("image/png" == mime)) {
+								var thumbnailURL = mergeURI(message.url, icon.getElementsByTagName("url").item(0).firstChild.nodeValue);
+								break;
+							}
 						}
 					}
+					text = DOM.serialize(document)
 				}
 			}
+			else if ("name" in document) {
+				friendlyName = document.name;
+				thumbnailURL = mergeURI(message.url, "/description/icon")
+				text = JSON.stringify(document, null, "\t");
+			}
 		}
-		$temp.text = document ? DOM.serialize(document) : undefined; // not available
+		else if (message.status == 200) {
+			message = new Message(mergeURI(message.url, "/description"));
+			line.invoke(message, Message.JSON);
+		}
+		$temp.text = text;
 		line.first.last.string = $temp.friendlyName = friendlyName;
  		line.last.url = $temp.thumbnailURL = thumbnailURL;
 	}

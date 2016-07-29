@@ -1871,6 +1871,7 @@ void fxVReport(void* console, txString theFormat, c_va_list theArguments)
 #endif
 #ifndef mxNoConsole
 	vfprintf(stdout, theFormat, theArguments);
+	fflush(stdout);
 #endif
 }
 
@@ -1913,6 +1914,7 @@ void fxVReportException(void* console, txString thePath, txInteger theLine, txSt
 		fprintf(stdout, "# exception: ");
 	vfprintf(stdout, theFormat, theArguments);
 	fprintf(stdout, "!\n");
+	fflush(stdout);
 #endif
 }
 
@@ -1955,6 +1957,7 @@ void fxVReportError(void* console, txString thePath, txInteger theLine, txString
 		fprintf(stdout, "# error: ");
 	vfprintf(stdout, theFormat, theArguments);
 	fprintf(stdout, "!\n");
+	fflush(stdout);
 #endif
 }
 
@@ -1997,5 +2000,6 @@ void fxVReportWarning(void* console, txString thePath, txInteger theLine, txStri
 		fprintf(stdout, "# warning: ");
 	vfprintf(stdout, theFormat, theArguments);
 	fprintf(stdout, "!\n");
+	fflush(stdout);
 #endif
 }

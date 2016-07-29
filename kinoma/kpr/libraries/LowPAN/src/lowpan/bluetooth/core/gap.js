@@ -163,7 +163,7 @@ class Context {
 		this._application.gapReady();
 	}
 	/* L2CAP Callback */
-	l2capConnected(connectionManager) {
+	l2capConnected(connectionManager, signalingCtx) {
 		logger.debug("L2CAP Connected");
 		let link = connectionManager.link;
 		if (!link.isLELink()) {
@@ -177,7 +177,7 @@ class Context {
 				link.localAddress = this._staticAddress;
 			}
 		}
-		let gapConn = new GAPConnection(this, connectionManager);
+		let gapConn = new GAPConnection(this, connectionManager, signalingCtx);
 		// TODO: Check if there is bonding
 		if (link.remoteAddress.isResolvable()) {
 			logger.debug("Connected peer uses RPA: " + link.remoteAddress.toString());
@@ -192,13 +192,6 @@ class Context {
 		} else {
 			this._application.gapConnected(gapConn, null);
 		}
-	}
-	/**
-	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
-	 * 9.3.9 Connection Parameter Update Procedure
-	 */
-	updateConnectionParameter(gapConn, connParameter) {
-		this._hci.commands.le.connectionUpdate(gapConn.handle, connParameter);
 	}
 	disconnect(gapConn, reason) {
 		let handle = gapConn.handle;
@@ -284,14 +277,14 @@ class Context {
 		let bonds = this._storage.getBonds();
 		let _loop = ctx => {
 			for (let i = ctx.index; i < bonds.length; i++) {
-				let bond = bonds[ctx.index];
-				if (bond.hasOwnProperty("pairingInfo") && bond.pairingInfo.keys.identityResolvingKey != null) {
-					let irk = bond.pairingInfo.keys.identityResolvingKey;
+				let bond = bonds[i];
+				if (bond.hasOwnProperty("keys") && bond.keys.identityResolvingKey != null) {
+					let irk = bond.keys.identityResolvingKey;
 					return SM.resolvePrivateAddress(this._hci.encrypt, irk, address).then(resolved => {
 						if (resolved) {
 							return bond.address;
 						} else {
-							ctx.index++;
+							ctx.index = i + 1;
 							return _loop(ctx);
 						}
 					});
@@ -561,10 +554,11 @@ class ATTConnection {
 }
 
 class GAPConnection {
-	constructor(ctx, connectionManager) {
+	constructor(ctx, connectionManager, signalingCtx) {
 		this._ctx = ctx;
 		this._connectionManager = connectionManager;
 		this._connectionManager.delegate = this;
+		this._signalingCtx = signalingCtx;
 		this._delegate = null;
 		// TODO: Open SDP Channel
 		/* Open ATT Channel */
@@ -605,12 +599,25 @@ class GAPConnection {
 	set delegate(delegate) {
 		this._delegate = delegate;
 	}
+	/**
+	 * Core 4.2 Specification, Vol 3, Part C: Generic Access Profile
+	 * 9.3.9 Connection Parameter Update Procedure
+	 */
+	updateConnectionParameter(connParameter, l2cap = false) {
+		if (l2cap) {
+			this._signalingCtx.sendConnectionParameterUpdateRequest(connParameter, response => {
+				logger.info("L2CAP CPU result=" + response.getInt16());
+			});
+		} else {
+			this._ctx.hci.commands.le.connectionUpdate(this.handle, connParameter);
+		}
+	}
 	isDisconnected() {
 		return this._connectionManager.link == null;
 	}
 	/* L2CAP Callback (ConnectionManager) */
-	disconnected() {
-		this._delegate.disconnected();
+	disconnected(reason) {
+		this._delegate.disconnected(reason);
 	}
 	/* SM Callback (SecurityManagement) */
 	pairingFailed(reason) {
@@ -625,11 +632,9 @@ class GAPConnection {
 	encryptionCompleted(div, pairingInfo) {
 		if (pairingInfo == null) {
 			logger.info("Encryption completed with bonded device");
-			let bond = this._ctx.storage.getBond(div);
-			if (bond == null) {
+			pairingInfo = this._ctx.storage.getBond(div);
+			if (pairingInfo == null) {
 				logger.warn("Could not find the bonding info: div=" + div);
-			} else {
-				pairingInfo = bond.pairingInfo;
 			}
 		} else {
 			let identityAddress = null;
@@ -649,12 +654,13 @@ class GAPConnection {
 				logger.warn("Cannot bond with non identity address");
 			}
 			if (pairingInfo.bonding && identityAddress != null) {
-				this._ctx.storage.storeBond(div, {pairingInfo, address: identityAddress});
+				pairingInfo.address = identityAddress;	// Save identity
+				this._ctx.storage.storeBond(div, pairingInfo);
 				logger.debug("Bonding Information stored: DIV=" + div);
 			}
 		}
 		this._attConnection.pairingInfo = pairingInfo;	// Update security information
-		this._delegate.encryptionCompleted(pairingInfo);
+		this._delegate.encryptionCompleted(div, pairingInfo);
 	}
 	/* SM Callback (SecurityManagement) */
 	encryptionFailed(status) {
@@ -673,19 +679,13 @@ class GAPConnection {
 		let div = this._ctx.storage.findBondIndexByAddress(remoteAddress);
 		if (div != -1) {
 			// TODO: Check security level
-			let bond = this._ctx.storage.getBond(div);
-			if (bond != null) {
-				return bond.pairingInfo;
-			}
+			return this._ctx.storage.getBond(div);
 		}
 		return null;
 	}
 	/* SM Callback (SecurityManagement) */
 	findBondByDIV(div) {
-		let bond = this._ctx.storage.getBond(div);
-		if (bond != null) {
-			return bond.pairingInfo;
-		}
+		return this._ctx.storage.getBond(div);
 	}
 	/* SM Callback (SecurityManagement) */
 	generateDIV() {

@@ -513,8 +513,22 @@ xs_handshake_finished_callback(xsMachine *the)
 	FskTimeCallbackScheduleNextRun(fssl->timer, time_callback, fssl);
 }
 
+
 FskErr
 FskSSLNew(void **fsslp, const char *host, int port, Boolean blocking, long flags, int priority)
+{
+	FskSSLOption option;
+
+	FskMemSet(&option, 0, sizeof(FskSSLOption));
+	option.host = host;
+	option.port = port;
+	option.blocking = blocking;
+	option.synchronous = !!(flags & kConnectFlagsSynchronous);
+
+	return FskSSLNewWithOption(fsslp, &option);
+}
+
+FskErr FskSSLNewWithOption(void **fsslp, FskSSLOption *option)
 {
 	FskSSL *fssl;
 	FskErr err;
@@ -532,11 +546,11 @@ FskSSLNew(void **fsslp, const char *host, int port, Boolean blocking, long flags
 		xsVars(3);
 		/* construct the options */
 		xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
-		if (blocking)
+		if (option->blocking)
 			xsSet(xsVar(0), xsID("blocking"), xsTrue);
-		if (flags & kConnectFlagsSynchronous)
+		if (option->synchronous)
 			xsSet(xsVar(0), xsID("synchronous"), xsTrue);
-		switch (priority) {
+		switch (option->priority) {
 		default:
 		case kFskNetSocketLowestPriority: prStr = "lowest"; break;
 		case kFskNetSocketLowPriority: prStr = "low"; break;
@@ -546,11 +560,23 @@ FskSSLNew(void **fsslp, const char *host, int port, Boolean blocking, long flags
 		}
 		(void)xsSet(xsVar(0), xsID("priority"), xsString((xsStringValue)prStr));
 		(void)xsSet(xsVar(0), xsID("raw"), xsTrue);
-		xsVar(1) = xsNew3(xsGet(xsGlobal, xsID("Stream")), xsID("Socket"), xsString((xsStringValue)host), xsInteger(port), xsVar(0));
+		xsVar(1) = xsNew3(xsGet(xsGlobal, xsID("Stream")), xsID("Socket"), xsString((xsStringValue)option->host), xsInteger(option->port), xsVar(0));
 		fssl->socket = xsVar(1); xsRemember(fssl->socket);
-		xsVar(2) = xsNewInstanceOf(xsObjectPrototype);
-		xsSet(xsVar(2), xsID("server_name"), xsString((char *) host));
-		xsVar(1) = xsNew1(xsGet(xsGlobal, xsID("FskSSL")), xsID("Session"), xsVar(2));
+
+		xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
+		xsSet(xsVar(0), xsID("server_name"), xsString((char *) option->host));
+		if (option->protocolVersion) {
+			xsVar(2) = xsNewInstanceOf(xsObjectPrototype);
+
+			xsSet(xsVar(2), xsID("major"), xsInteger(option->protocolVersion & 0xff));
+			xsSet(xsVar(2), xsID("minor"), xsInteger(option->protocolVersion >> 8));
+
+			xsSet(xsVar(0), xsID("protocolVersion"), xsVar(2));
+		}
+		if (option->applicationProtocols) {
+			xsSet(xsVar(0), xsID("application_layer_protocol_negotiation"), xsString((char *) option->applicationProtocols));
+		}
+		xsVar(1) = xsNew1(xsGet(xsGlobal, xsID("FskSSL")), xsID("Session"), xsVar(0));
 		fssl->ssl = xsVar(1); xsRemember(fssl->ssl);
 	} xsCatch {
 		if (xsHas(xsException, xsID("code")))

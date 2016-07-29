@@ -364,7 +364,7 @@ class PWMPinExplorerBehavior extends Behavior {
 		this.data = data;
 	}
 	onDisplaying(container) {
-		container.delegate("setPWMMode", this.data.pwmMode);
+		container.delegate("setPWMMode", this.data.mode);
 	}
 	setPWMMode(container, mode) {
 		let ledPane = this.data.PWMLEDPane;
@@ -381,10 +381,10 @@ class PWMPinExplorerBehavior extends Behavior {
 			motorPane.visible = motorPane.active = true;
 			motorPane.start();
 		}
-		this.data.pwmMode = mode;
+		this.data.mode = mode;
 	}
 	onUpdate(container) {
-		if (this.data.pwmMode == "led")
+		if (this.data.mode == "led")
 			this.data.PWMLEDPane.delegate("onUpdate");
 		else
 			this.data.PWMMotorPane.delegate("onUpdate");
@@ -933,11 +933,11 @@ class PWMPin extends GenericPin {
 		container.stop();
 	}
 	write(value) {
-		if (this.pwmMode == "led")
+		if (this.mode == "led")
 			this.pins.invoke(this.writePath, value);
 	}
 	writeDutyCyclePeriod(dutyCycle, period) {
-		if (this.pwmMode == "motor") {
+		if (this.mode == "motor") {
 			this.pins.invoke(this.writeDutyCyclePeriodPath, { dutyCycle:dutyCycle, period:period });
 		}
 	}

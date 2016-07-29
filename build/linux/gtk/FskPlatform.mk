@@ -76,6 +76,7 @@
 	<c option="-Werror-implicit-function-declaration"/>
 	<c option="-Wno-deprecated-declarations"/>
 	<c option="-Wno-multichar"/>
+	<c option="-DDEVICE_NAME=Linux\ GTK"/>
 	
 	<version name="debug">
 		<c option="-DmxDebug"/>

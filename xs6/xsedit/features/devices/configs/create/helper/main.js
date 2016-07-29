@@ -84,6 +84,59 @@ let handlers = {
 				helper.pinExplorerAddPin(explorer, 59 + pin, rightPins[pin], pinmux.rightVoltage);
 			}
 //			trace(JSON.stringify(explorer, null, " ") + "\n");
+	
+			var directions = pinmux.back;
+			
+			var fixedPins = [
+//				{ pin: 1, type: "Ground" },
+//				{ pin: 2, type: "Ground" },
+				{ pin: 3, type: "Digital", direction: directions[3] },
+				{ pin: 4, type: "Digital", direction: directions[4] },
+				{ pin: 5, type: "Digital", direction: directions[5] },
+				{ pin: 6, type: "Digital", direction: directions[6] },
+				{ pin: 7, type: "Digital", direction: directions[7] },
+				{ pin: 8, type: "Digital", direction: directions[8] },
+				{ pin: 9, type: "Digital", direction: directions[9] },
+				{ pin: 10, type: "Digital", direction: directions[10] },
+				{ pin: 11, type: "Digital", direction: directions[11] },
+				{ pin: 12, type: "Digital", direction: directions[12] },
+//				{ pin: 13, type: "Ground" },
+//				{ pin: 14, type: "Ground" },
+				{ pin: 15, type: "Digital", direction: directions[15] },
+				{ pin: 16, type: "Digital", direction: directions[16] },
+				{ pin: 17, type: "Digital", direction: directions[17] },
+				{ pin: 18, type: "Digital", direction: directions[18] },
+				{ pin: 19, type: "Digital", direction: directions[19] },
+				{ pin: 20, type: "Digital", direction: directions[20] },
+				{ pin: 21, type: "Digital", direction: directions[21] },
+				{ pin: 22, type: "Digital", direction: directions[22] },
+				{ pin: 23, type: "Digital", direction: directions[23] },
+				{ pin: 24, type: "Digital", direction: directions[24] },
+//				{ pin: 25, type: "Power", voltage: 3.3 },
+//				{ pin: 26, type: "Ground" },
+				{ pin: 27, type: "I2CData" },
+				{ pin: 28, type: "PWM" },
+				{ pin: 29, type: "I2CClock" },
+				{ pin: 30, type: "PWM" },
+				{ pin: 31, type: "UartTX" },
+//				{ pin: 32, type: "Ground" },
+				{ pin: 33, type: "UartRX" },
+				{ pin: 34, type: "PWM" },
+//				{ pin: 35, type: "Ground" },
+//				{ pin: 36, type: "Ground" },
+//				{ pin: 41, type: "Ground" },
+//				{ pin: 42, type: "Ground" },
+//				{ pin: 45, type: "Ground" },
+//				{ pin: 46, type: "Ground" },
+//				{ pin: 49, type: "Power", voltage: 3.3 },
+//				{ pin: 50, type: "Power", voltage: 5 },
+			];
+
+			for (var i=0, c=fixedPins.length; i<c; i++) {							// add all of the fixed pins
+				var aDesc = fixedPins[i];
+				helper.pinExplorerAddFixedPin(explorer, aDesc);
+			}
+		
 			Pins.configure(explorer, success => {
 				let url = helper.pinsStartSharing(query.ip);
 				if (url)
@@ -381,6 +434,53 @@ let model = application.behavior = Behavior({
 				};					
 			break;
 		}
+	},
+	pinExplorerAddFixedPin(explorer, desc) {
+		switch (desc.type) {
+			case TYPE_POWER:
+				explorer[TYPE_POWER + desc.pin] = {
+					pins: { power: { pin:desc.pin, type:TYPE_POWER, voltage:desc.voltage } },
+					require: TYPE_POWER,
+				};					
+			break;
+			case TYPE_GROUND:
+				explorer[TYPE_GROUND + desc.pin] = {
+					pins: { ground: { pin:desc.pin, type:TYPE_GROUND } },
+					require: TYPE_GROUND,
+				};					
+			break;
+			case TYPE_ANALOG:
+				explorer[TYPE_ANALOG + desc.pin] = {
+					pins: { analog: { pin:desc.pin, type:TYPE_ANALOG } },
+					require: TYPE_ANALOG,
+				};					
+			break;
+			case TYPE_DIGITAL:
+				if (desc.direction == "input") {
+					explorer[TYPE_DIGITAL + desc.pin] = {
+						pins: { digital: { pin:desc.pin, direction:"input" } },
+						require: TYPE_DIGITAL,
+					};		
+				}
+				else {
+					explorer[TYPE_DIGITAL + desc.pin] = {
+						pins: { digital: { pin:desc.pin, direction:"output" } },
+						require: TYPE_DIGITAL,
+					};		
+				}			
+			break;
+			case TYPE_I2C:
+			break;
+			case TYPE_SERIAL:
+			break;
+			case TYPE_PWM:
+				explorer[TYPE_PWM + desc.pin] = {
+					pins: { pwm: { pin:desc.pin, type:TYPE_PWM } },
+					require: TYPE_PWM,
+				};					
+			break;
+		}
+
 	},
 	pinsStartSharing(ip) {
  		if (!model.pins)

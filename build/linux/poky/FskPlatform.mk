@@ -91,6 +91,7 @@
 	<c option="-Wunused-function"/>
 	<c option="-Wunused-variable"/>
 	<c option="-Wno-multichar"/>
+	<c option="-DDEVICE_NAME=Kinoma\ Create"/>
 
 	<version name="debug">
 		<c option="-DmxDebug"/>

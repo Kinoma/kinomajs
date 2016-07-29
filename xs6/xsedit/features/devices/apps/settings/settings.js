@@ -119,7 +119,7 @@ class UpdateSetting {
 	put(line) {
 		let device = this.device;
 		system.alert({ 
-			type:"stop",
+			type:"note",
 			prompt:"Do you want to update \"" + device.name + "\" to " + this.title + " " + device[this.updateVersion] + "?",
 			info:"Please keep the device connected and powered during the update.",
 			buttons:["OK", "Cancel"]

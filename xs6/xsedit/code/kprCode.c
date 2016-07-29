@@ -460,6 +460,8 @@ void KprCodeDraw(void* it, FskPort port, FskRectangle area UNUSED)
 	KprStyleApply(style, port);
 	FskPortSetTextAlignment(port, kFskTextAlignLeft, kFskTextAlignTop);
 	{
+		double clipLeft = area->x;
+		double clipRight = clipLeft + area->width;
 		double clipTop = area->y;
 		double clipBottom = clipTop + area->height;
 		Boolean flag = (clipTop <= (style->margins.top + self->lineHeight)) ? 1 : 0;
@@ -486,14 +488,17 @@ void KprCodeDraw(void* it, FskPort port, FskRectangle area UNUSED)
 				break;
 			default:
 				if (flag && run->count) {
-					FskPortSetPenColor(port, &style->colors[run->color]);
-				#if TARGET_OS_IPHONE || TARGET_OS_MAC
-					FskPortTextDrawSubpixel(port, string, run->count, x, y, width, height);
-				#else
-					FskRectangleSet(&bounds, x, y, width, height);
-					FskPortTextDraw(port, string, run->count, &bounds);
-				#endif
-					x += fxUTF8ToUnicodeOffset(string, run->count) * self->columnWidth;
+					double right = x + (fxUTF8ToUnicodeOffset(string, run->count) * self->columnWidth);
+					if ((clipLeft < right) && (x < clipRight)) {
+						FskPortSetPenColor(port, &style->colors[run->color]);
+					#if TARGET_OS_IPHONE || TARGET_OS_MAC
+						FskPortTextDrawSubpixel(port, string, run->count, x, y, width, height);
+					#else
+						FskRectangleSet(&bounds, x, y, width, height);
+						FskPortTextDraw(port, string, run->count, &bounds);
+					#endif
+					}
+					x = right;
 				}
 				break;
 			}
@@ -1120,6 +1125,8 @@ void KPR_code_extract(xsMachine *the)
 	KprCode self = kprGetHostData(xsThis, this, code);
 	SInt32 from = xsToInteger(xsArg(0));
 	SInt32 to = from + xsToInteger(xsArg(1));
+	from = fxUnicodeToUTF8Offset(self->string, from);
+	to = fxUnicodeToUTF8Offset(self->string, to);
 	if (from < 0)
 		from = 0;
 	else if (from > (SInt32)self->length)
@@ -1137,12 +1144,15 @@ void KPR_code_find(xsMachine *the)
 	UInt32 argc = xsToInteger(xsArgc);
 	xsStringValue pattern = NULL;
 	xsBooleanValue caseless = 0;
+	xsBooleanValue select = 1;
 	KprCodeResult result;
     UInt32 size;
 	if (argc > 0)
 		pattern = xsToString(xsArg(0));
 	if (argc > 1)
 		caseless = xsToBoolean(xsArg(1));
+	if (argc > 2)
+		select = xsToBoolean(xsArg(2));
 	
 	self->pcreCount = 0;
 	FskMemPtrDisposeAt(&(self->pcreOffsets));
@@ -1163,19 +1173,22 @@ void KPR_code_find(xsMachine *the)
     size = FskGrowableArrayGetItemSize(self->results);
 	if (result->count >= 0) {
 		xsResult = xsTrue;
-		while (result->count >= 0) {
-			if (self->from <= result->from) {
-				KprCodeSelect(self, result->from, result->to - result->from);
-				return;
+		if (select) {
+			while (result->count >= 0) {
+				if (self->from <= result->from) {
+					KprCodeSelect(self, result->from, result->to - result->from);
+					return;
+				}
+				result = (KprCodeResult)(((char*)result) + size);
 			}
-			result = (KprCodeResult)(((char*)result) + size);
+			FskGrowableArrayGetPointerToItem(self->results, 0, (void **)&result);
+			KprCodeSelect(self, result->from, result->to - result->from);
 		}
-		FskGrowableArrayGetPointerToItem(self->results, 0, (void **)&result);
-		KprCodeSelect(self, result->from, result->to - result->from);
 	}
 	else {
 		xsResult = xsFalse;
-		KprCodeSelect(self, self->from, 0);
+		if (select)
+			KprCodeSelect(self, self->from, 0);
 	}
 }
 

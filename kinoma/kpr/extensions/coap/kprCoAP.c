@@ -1617,8 +1617,12 @@ static void KPR_CoAP_message_set_method(xsMachine *the, KprCoAPMessage self)
 
 	if (self->frozen) xsThrowIfFskErr(kFskErrBadState);
 
-	err = KprCoAPMethodFromString(xsToString(xsArg(0)), &method);
-	xsThrowIfFskErr(err);
+	if (xsTypeOf(xsArg(0)) == xsStringType) {
+		err = KprCoAPMethodFromString(xsToString(xsArg(0)), &method);
+		xsThrowIfFskErr(err);
+	} else {
+		method = xsToInteger(xsArg(0));
+	}
 
 	self->code = KprCoAPMessageCodeWith(0, method);
 }

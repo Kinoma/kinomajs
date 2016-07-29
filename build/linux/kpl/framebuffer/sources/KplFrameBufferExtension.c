@@ -196,11 +196,7 @@ FskErr fbGetEGLContext(void **displayOut, void **surfaceOut, void **contextOut, 
     nativeWin = (EGLNativeWindowType) fbCreateWindow(nativeDisp, 0, 0, g_Width, g_Height );
     printf( "nativeDisp: 0x%x, g_Width: %d g_Height: %d\n", nativeDisp, g_Width, g_Height );
     int winx, winy, winw, winh;
-//    fbGetWindowGeometry(nativeWin, &winx, &winy, &winw, &winh );
-winx = 0;
-winy = 0;
-winw = g_Width;
-winh = g_Height;
+    fbGetWindowGeometry(nativeWin, &winx, &winy, &winw, &winh );
     printf( "Dimensions: %d,%d,%d,%d\n", winx, winy, winw, winh );
 #else
     // This is code path for devices that uses Android GL library such as 988, 1088, etc

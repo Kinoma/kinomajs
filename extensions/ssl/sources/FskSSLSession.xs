@@ -129,15 +129,6 @@
 
 			<function name="setupCipher" params="connectionEnd">
 				function setupSub(o, cipher) {
-					var h;
-					switch (cipher.hashAlgorithm) {
-					case FskSSL.cipherSuite.MD5: h = new Crypt.MD5(); break;
-					case FskSSL.cipherSuite.SHA1: h = new Crypt.SHA1(); break;
-					case FskSSL.cipherSuite.SHA256: h = new Crypt.SHA256(); break;
-					default:
-						throw new Error("SSL: SetupCipher: unknown hash algorithm");
-					}
-					o.hmac = new Crypt.HMAC(h, o.macSecret);
 					switch (cipher.cipherAlgorithm) {
 					case FskSSL.cipherSuite.DES:
 						var enc = new Crypt.DES(o.key);
@@ -154,19 +145,39 @@
 					default:
 						throw new FskSSL.Error(-9);	// unknown algorithm -> kFskErrUnimplemented
 					}
-					if (cipher.cipherBlockSize != 0)
-						o.enc = new Crypt.CBC(enc, o.iv);	// no padding -- SSL 3.2 requires padding process beyond RFC2630
-					else
+					switch (cipher.encryptionMode) {
+					case FskSSL.cipherSuite.CBC:
+					case FskSSL.cipherSuite.NONE:
+						var h;
+						switch (cipher.hashAlgorithm) {
+						case FskSSL.cipherSuite.MD5: h = new Crypt.MD5(); break;
+						case FskSSL.cipherSuite.SHA1: h = new Crypt.SHA1(); break;
+						case FskSSL.cipherSuite.SHA256: h = new Crypt.SHA256(); break;
+						default:
+							throw new Error("SSL: SetupCipher: unknown hash algorithm");
+						}
+						o.hmac = new Crypt.HMAC(h, o.macSecret);
+						if (cipher.encryptionMode == FskSSL.cipherSuite.CBC)
+							o.enc = new Crypt.CBC(enc, o.iv);	// no padding -- SSL 3.2 requires padding process beyond RFC2630
+						else
+							o.enc = enc;
+						break;
+					case FskSSL.cipherSuite.GCM:
+						o.enc = new Crypt.GCM(enc);
+						o.nonce = new FskSSL.Integer(1);
+						break;
+					default:
 						o.enc = enc;
+						break;
+					}
 				}
 
 				var random = new Chunk();
 				random.append(this.serverRandom);
 				random.append(this.clientRandom);
-				if (this.protocolVersion.major == 3 && this.protocolVersion.minor == 1)	// version 3.1
-					var nbytes = this.chosenCipher.cipherKeySize * 2 + this.chosenCipher.cipherBlockSize * 2 + this.chosenCipher.hashSize * 2;
-				else	// version 3.2 or higher
-					var nbytes = this.chosenCipher.cipherKeySize * 2 + this.chosenCipher.hashSize * 2;
+				var macSize = this.chosenCipher.encryptionMode == FskSSL.cipherSuite.GCM ? 0 : this.chosenCipher.hashSize;
+				var ivSize = (this.protocolVersion.major == 3 && this.protocolVersion.minor == 1) ? this.chosenCipher.cipherBlockSize : (this.chosenCipher.saltSize || 0);
+				var nbytes = this.chosenCipher.cipherKeySize * 2 + macSize * 2 + ivSize * 2;
 				var keyBlock = FskSSL.PRF(this, this.masterSecret, "key expansion", random, nbytes);
 				random.free();
 				var s = new FskSSL.ChunkStream(keyBlock);
@@ -174,12 +185,14 @@
 				var cipher = this.chosenCipher;
 				if (connectionEnd) {
 					// client side
-					o.macSecret = s.readChunk(cipher.hashSize);
-					void s.readChunk(cipher.hashSize);
+					if (macSize > 0) {
+						o.macSecret = s.readChunk(macSize);
+						void s.readChunk(macSize);
+					}
 					o.key = s.readChunk(cipher.cipherKeySize);
 					void s.readChunk(cipher.cipherKeySize);
-					if (s.bytesAvailable > 0)
-						o.iv = s.readChunk(cipher.cipherBlockSize);
+					if (ivSize > 0)
+						o.iv = s.readChunk(ivSize);
 					else
 						o.iv = undefined;
 					setupSub(o, cipher);
@@ -187,13 +200,15 @@
 				}
 				else {
 					// server side
-					void s.readChunk(cipher.hashSize);
-					o.macSecret = s.readChunk(cipher.hashSize);
+					if (macSize > 0) {
+						void s.readChunk(macSize);
+						o.macSecret = s.readChunk(macSize);
+					}
 					void s.readChunk(cipher.cipherKeySize);
 					o.key = s.readChunk(cipher.cipherKeySize);
-					if (s.bytesAvailable > 0) {
-						void s.readChunk(cipher.cipherBlockSize);
-						o.iv = s.readChunk(cipher.cipherBlockSize);
+					if (ivSize > 0) {
+						void s.readChunk(ivSize);
+						o.iv = s.readChunk(ivSize);
 					}
 					else
 						o.iv = undefined;

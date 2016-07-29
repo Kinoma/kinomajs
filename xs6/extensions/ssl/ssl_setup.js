@@ -21,15 +21,6 @@ import Crypt from "crypt";
 
 function setupSub(o, cipher)
 {
-	var h;
-	switch (cipher.hashAlgorithm) {
-	case SSL.cipherSuite.MD5: h = new Crypt.MD5(); break;
-	case SSL.cipherSuite.SHA1: h = new Crypt.SHA1(); break;
-	case SSL.cipherSuite.SHA256: h = new Crypt.SHA256(); break;
-	default:
-		throw new Error("SSL: SetupCipher: unknown hash algorithm");
-	}
-	o.hmac = new Crypt.HMAC(h, o.macSecret);
 	switch (cipher.cipherAlgorithm) {
 	case SSL.cipherSuite.DES:
 		var enc = new Crypt.DES(o.key);
@@ -46,10 +37,33 @@ function setupSub(o, cipher)
 	default:
 		throw new Error("SSL: SetupCipher: unkown encryption algorithm");
 	}
-	if (cipher.cipherBlockSize != 0)
-		o.enc = new Crypt.CBC(enc, o.iv);	// no padding -- SSL 3.2 requires padding process beyond RFC2630
-	else
+	switch (cipher.encryptionMode) {
+	case SSL.cipherSuite.CBC:
+	case SSL.cipherSuite.NONE:
+		let h;
+		switch (cipher.hashAlgorithm) {
+		case SSL.cipherSuite.MD5: h = new Crypt.MD5(); break;
+		case SSL.cipherSuite.SHA1: h = new Crypt.SHA1(); break;
+		case SSL.cipherSuite.SHA256: h = new Crypt.SHA256(); break;
+		case SSL.cipherSuite.SHA384: h = new Crypt.SHA384(); break;
+		default:
+			throw new Error("SSL: SetupCipher: unknown hash algorithm");
+		}
+		o.hmac = new Crypt.HMAC(h, o.macSecret);
+		if (cipher.encryptionMode == SSL.cipherSuite.CBC)
+			o.enc = new Crypt.CBC(enc, o.iv);	// no padding -- SSL 3.2 requires padding process beyond RFC2630
+		else
+			o.enc = enc;
+		break;
+	case SSL.cipherSuite.GCM:
+		let Arith = require.weak("arith");
+		o.enc = new Crypt.GCM(enc);
+		o.nonce = new Arith.Integer(1);
+		break;
+	default:
 		o.enc = enc;
+		break;
+	}
 }
 
 function SetupCipher(session, connectionEnd)
@@ -57,31 +71,36 @@ function SetupCipher(session, connectionEnd)
 	var random = session.serverRandom;
 	random = random.concat(session.clientRandom);
 	var chosenCipher = session.chosenCipher;
-	var ivSize = session.protocolVersion <= 0x301 ? chosenCipher.cipherBlockSize : 0;
-	var nbytes = chosenCipher.cipherKeySize * 2 + chosenCipher.hashSize * 2 + ivSize * 2;
+	var macSize = chosenCipher.encryptionMode == SSL.cipherSuite.GCM ? 0 : chosenCipher.hashSize;
+	var ivSize = session.protocolVersion <= 0x301 ? chosenCipher.cipherBlockSize : (chosenCipher.saltSize || 0);
+	var nbytes = chosenCipher.cipherKeySize * 2 + macSize * 2 + ivSize * 2;
 	var keyBlock = PRF(session, session.masterSecret, "key expansion", random, nbytes);
 	var s = new SSLStream(keyBlock);
 	var o = {};
 	if (connectionEnd) {
-		o.macSecret = s.readChunk(chosenCipher.hashSize);
-		void s.readChunk(chosenCipher.hashSize);
+		if (macSize > 0) {
+			o.macSecret = s.readChunk(macSize);
+			void s.readChunk(macSize);
+		}
 		o.key = s.readChunk(chosenCipher.cipherKeySize);
 		void s.readChunk(chosenCipher.cipherKeySize);
-		if (s.bytesAvailable > 0)
-			o.iv = s.readChunk(chosenCipher.cipherBlockSize);
+		if (ivSize > 0)
+			o.iv = s.readChunk(ivSize);
 		else
 			o.iv = undefined;
 		setupSub(o, chosenCipher);
 		session.clientCipher = o;
 	}
 	else {
-		void s.readChunk(chosenCipher.hashSize);
-		o.macSecret = s.readChunk(chosenCipher.hashSize);
+		if (macSize > 0) {
+			void s.readChunk(macSize);
+			o.macSecret = s.readChunk(macSize);
+		}
 		void s.readChunk(chosenCipher.cipherKeySize);
 		o.key = s.readChunk(chosenCipher.cipherKeySize);
-		if (s.bytesAvailable > 0) {
-			void s.readChunk(chosenCipher.cipherBlockSize);
-			o.iv = s.readChunk(chosenCipher.cipherBlockSize);
+		if (ivSize > 0) {
+			void s.readChunk(ivSize);
+			o.iv = s.readChunk(ivSize);
 		}
 		else
 			o.iv = undefined;

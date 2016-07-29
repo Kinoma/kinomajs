@@ -16,7 +16,7 @@
 -->
 #Kinoma Element Quick Start Guide
 
-This document is a guide to quickly getting started writing apps for Kinoma Element. This guide will get your started with HTTP requests, sensors, and timers. The reference documentation for this tutorial is the [Programmer's Guide to Kinoma Element](../../develop/documentation/element/). Additional sample applications can be found in our [GitHub repository](https://github.com/Kinoma/KPR-examples) and inside the Samples section of the Kinoma Code IDE.
+This document is a guide to quickly getting started writing apps for Kinoma Element. This guide will get your started with HTTP requests, sensors, and timers. The reference documentation for this tutorial is the [Programmer's Guide to Kinoma Element](../element/). Additional sample applications can be found in our [GitHub repository](https://github.com/Kinoma/KPR-examples) and inside the Samples section of the Kinoma Code IDE.
 
 **It is important to update your Kinoma Element when setting up to get new functionality and performance improvements.**
 
@@ -28,7 +28,7 @@ Before you begin, you'll need to get your device ready for development. There ar
 
 **Option 1. (Recommended)** Install and open the [Kinoma Code](../../develop/code/) IDE and set up your Kinoma Element with the instructions below.
 
-**Option 2.** Use telnet or the USB console to connect to the command line interface of Kinoma Element. These are described in the [Programmer's Guide to Kinoma Element](../../develop/documentation/element/). Once connected, connect Kinoma Element to your preferred Wi-Fi network using the `connect` command and then update to the latest firmware by typing `update`.
+**Option 2.** Use telnet or the USB console to connect to the command line interface of Kinoma Element. These are described in the [Programmer's Guide to Kinoma Element](../element/). Once connected, connect Kinoma Element to your preferred Wi-Fi network using the `connect` command and then update to the latest firmware by typing `update`.
 
 ###Setting up your device in Kinoma Code
 
@@ -65,7 +65,7 @@ These status light colors are for Kinoma Element Software 1.0 and above. Please 
 
 To start your first project, follow the steps shown in the video below.
 
-<iframe width="100%" height="500" src="https://www.youtube.com/embed/9Upf9sTB3Es?rel=0&amp;vq=hd720" frameborder="0" allowfullscreen>
+<iframe width="100%" height="500" src="https://www.youtube.com/embed/ucj_t7JG-qE?rel=0&amp;vq=hd720" frameborder="0" allowfullscreen>
 <a href="https://www.youtube.com/embed/9Upf9sTB3Es?rel=0&amp;vq=hd720">Watch Video</a>
 </iframe>
 
@@ -111,7 +111,7 @@ trace("Hello world!\n")
 "Hello world!" will be printed when this application is run, just as it was in the previous example.
 
 ####Calling Functions from the Command Line
-> Note: The Kinoma Element Command Line Interface (CLI) is available over telnet and USB. See the Command Line Interface section of the [Programmer's Guide to Kinoma Element](../../develop/documentation/element/) for more details.
+> Note: The Kinoma Element Command Line Interface (CLI) is available over telnet and USB. See the Command Line Interface section of the [Programmer's Guide to Kinoma Element](../element/) for more details.
 
 You can call functions defined in your application from the command line if you use the built-in application framework.  For example, say you have a file main.js that contains the following code:
 
@@ -217,9 +217,8 @@ All hardware pin programming is done in JavaScript. The code for each hardware m
 
 > Note: BLL is an acronym for Blinking Light Library. A BLL is not limited to blinking an LED. A BLL can be used to interact with all kinds of hardware modules.
 
-For more details on creating BLLs and interacting with hardware, see [this document](../../develop/documentation/element-bll/).
+For more details on creating BLLs and interacting with hardware, see the [Pins Module](../element-pins-module/) and  [BLL Programming](../element-bll/) documentation.
 
-<!-- used http://kinoma.com/develop/documentation/pins/ as guide for above link...also that page should be updated for PWM, pins module, etc... -->
 
 
 ####The Pins Module
@@ -228,7 +227,7 @@ The [Pins module](https://github.com/Kinoma/kinomajs/blob/master/xs6/sources/mc/
 
 	import Pins from "pins";
 		
-You can then make calls to `Pins.configure`, `Pins.invoke`, and so on as detailed in the [Programmer's Guide to Kinoma Element](../../develop/documentation/element/).
+You can then make calls to `Pins.configure`, `Pins.invoke`, and so on as detailed in the [Programmer's Guide to Kinoma Element](../element/).
 		
 The following is a sample main.js file for a Kinoma Element attached to a digital button (like [these from Adafruit](https://www.adafruit.com/products/1010)): 
 

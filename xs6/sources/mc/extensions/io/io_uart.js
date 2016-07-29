@@ -46,10 +46,13 @@ export default class Serial @ "xs_uart_destructor" {
 			this.buf = null;
 		}
 
-		if (cons === undefined)
+		if (cons === undefined || cons == "ArrayBuffer")
 			;
-		else if (cons == String)
-			res = String.fromArrayBuffer(res);
+		else if (cons == String || cons == "String") {// document says we need to use "String"
+			if(res)
+				res = String.fromArrayBuffer(res);
+			else res = ""; // array buffer is empty
+		}
 		else
 			res = new cons(res);
 		return res

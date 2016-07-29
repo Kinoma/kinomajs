@@ -55,6 +55,7 @@ class ShellBehavior extends EmbedShellBehavior {
 		shell.share(false);
 		this.currentDevice = this.devices[item.value];
 		shell.share({ ssdp:true });
+		system.device = this.currentDevice.description.title
 		this.writePreferences();
 		shell.distribute("onDeviceChanged");
 		this.startup();
@@ -216,6 +217,7 @@ class ShellBehavior extends EmbedShellBehavior {
 			this.currentDevice = this.devices[preferences.deviceIndex];
 		if ("screenIndex" in preferences)
 			this.currentScreen = this.screens[preferences.screenIndex];
+		system.device = this.currentDevice.description.title
 	}
 	writePreferencesObject(preferences) {
 		super.writePreferencesObject(preferences);

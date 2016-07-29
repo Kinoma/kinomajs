@@ -28,6 +28,10 @@ const UART = require("./uart");
 const Utils = require("../../common/utils");
 const Logger = Utils.Logger;
 
+const HCI_COMMAND_PKT = 0x01;
+const HCI_ACLDATA_PKT = 0x02;
+const HCI_EVENT_PKT = 0x04;
+
 const TYPE_MASK = (1 << HCI_COMMAND_PKT) | (1 << HCI_EVENT_PKT) | (1 << HCI_ACLDATA_PKT);
 const EVENT_MASK1 = (1 << 0x05) | (1 << 0x08) | (1 << 0x0E) | (1 << 0x0F) | (1 << 0x13);
 const EVENT_MASK2 = (1 << (0x3E - 32));
@@ -64,7 +68,7 @@ class Transport extends UART.Transport {
 	dataReceived(data) {
 		logger.trace('data: ' + data.toString('hex'));
 
-		let responses = super.received(data, 0, data.length);
+		let responses = super.receive(data, 0, data.length);
 		for (let i = 0; i < responses.length; i++) {
 			this._hci.transportReceived(responses[i]);
 		}

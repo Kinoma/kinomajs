@@ -795,20 +795,6 @@ FskErr exceptionToFskErr(xsMachine *the)
     return err ? err : kFskErrUnknown;
 }
 
-void KPR_message_get_requestObject(xsMachine *the)
-{
-	KprMessage self = xsGetHostData(xsThis);
-	if (self->request.body && (self->request.size == 0xFFFFFFFF))
-		xsResult = xsDemarshall(self->request.body);
-}
-
-void KPR_message_set_requestObject(xsMachine *the)
-{
-	KprMessage self = xsGetHostData(xsThis);
-	self->request.body = xsMarshall(xsArg(0));
-	self->request.size = 0xFFFFFFFF;
-}
-
 static FskErr FskhardwarepinsDelay(int delay) {
 #if TARGET_OS_WIN32
 	Sleep(delay*1000);

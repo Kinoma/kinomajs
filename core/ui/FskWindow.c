@@ -411,7 +411,6 @@ FskErr FskWindowDispose(FskWindow win)
 		win->isDisposing = true;
 
 		FskTimeCallbackDispose(win->stillDownTimer);
-		FskTimeCallbackDispose(win->pressHoldTimer);
 		if (win->isDropTarget)
 			FskWindowCancelDragDrop(win);
 
@@ -1618,6 +1617,9 @@ FskErr FskWindowSetCursorShape(FskWindow win, UInt32 shape)
 #elif TARGET_OS_MAC && !TARGET_OS_IPHONE
     FskCocoaCursorSet(win, shape);
     return kFskErrNone;
+#elif TARGET_OS_KPL && SUPPORT_LINUX_GTK
+	FskGtkSetCursor(win, shape);
+	return kFskErrNone;
 #elif TARGET_OS_LINUX
 	win->cursorShape = shape;
 	FskCursorSetShape(shape);
@@ -1662,8 +1664,6 @@ void stillDownEvent(struct FskTimeCallBackRecord *callback, const FskTime time, 
 }
 
 #if TARGET_OS_WIN32
-
-static void windowEnterPressHold(struct FskTimeCallBackRecord *callback, const FskTime time, void *param);
 
 long FAR PASCAL FskWindowWndProc(HWND hwnd, UINT msg, UINT wParam, LONG lParam)
 {
@@ -2018,96 +2018,14 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 
 		case WM_KEYDOWN:
 		case WM_KEYUP:
-			{
+		{
 			UInt32 evtCode;
 			UInt32 functionKey = 0;
-			SInt32 rotate = FskWindowRotateGet(win);
 
 			if (msg == WM_KEYUP)
 				evtCode = kFskEventKeyUp;
 			else
 				evtCode = kFskEventKeyDown;
-
-			if (!imeActive(win) && (13 == wParam) /* || (32 == wParam) */) {
-				if (msg == WM_KEYUP) {
-					FskTimeCallbackDispose(win->pressHoldTimer);
-					win->pressHoldTimer = NULL;
-
-					if ((1 == win->pressHoldState) || (2 == win->pressHoldState)) {		// some phones send DOWN->CHAR->UP, others send CHAR->DOWN->UP
-						char key[2];
-
-						key[0] = (char)wParam;
-						key[1] = 0;
-						if (kFskErrNone == FskEventNew(&fskEvent, kFskEventKeyDown, NULL, 0)) {
-							FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, 2, key);
-							doOrQueue(win, fskEvent);
-						}
-						if (kFskErrNone == FskEventNew(&fskEvent, kFskEventKeyUp, NULL, 0)) {
-							FskEventParameterAdd(fskEvent, kFskEventParameterKeyUTF8, 2, key);
-							doOrQueue(win, fskEvent);
-						}
-					}
-
-					win->pressHoldState = 0;
-				}
-				else {
-					if (!win->pressHoldTimer) {
-						FskTimeRecord t;
-
-						FskTimeCallbackNew(&win->pressHoldTimer);
-
-						FskTimeGetNow(&t);
-						FskTimeAddMS(&t, 500);
-						FskTimeCallbackSet(win->pressHoldTimer, &t, windowEnterPressHold, win);
-
-						win->pressHoldState = 1;
-					}
-				}
-				return 0;
-			}
-
-			if (180 == rotate)
-				rotate = 0;		// at 180, we render as 0
-
-			if (0 != rotate) {
-				switch (wParam) {
-					case VK_UP:
-						if (90 == rotate)
-							wParam = VK_LEFT;
-						else if (270 == rotate)
-							wParam = VK_RIGHT;
-						else if (180 == rotate)
-							wParam = VK_DOWN;
-						break;
-
-					case VK_DOWN:
-						if (90 == rotate)
-							wParam = VK_RIGHT;
-						else if (270 == rotate)
-							wParam = VK_LEFT;
-						else if (180 == rotate)
-							wParam = VK_UP;
-						break;
-
-					case VK_LEFT:
-						if (90 == rotate)
-							wParam = VK_DOWN;
-						else if (270 == rotate)
-							wParam = VK_UP;
-						else if (180 == rotate)
-							wParam = VK_RIGHT;
-						break;
-
-					case VK_RIGHT:
-						if (90 == rotate)
-							wParam = VK_UP;
-						else if (270 == rotate)
-							wParam = VK_DOWN;
-						else if (180 == rotate)
-							wParam = VK_LEFT;
-						break;
-				}
-			}
 
 			if ((VK_F1 <= wParam) && (wParam <= VK_F16)) {
 				UInt32 modifiers = 0;
@@ -2133,9 +2051,10 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 					result = false;		// An application should return zero if it processes this message.
 				}
 			}
-			else if (lParam & 1 << 24) {
-				// extended key
-				switch (wParam) {
+			else {
+				if (lParam & 1 << 24) {
+					// extended key
+					switch (wParam) {
 					case VK_UP:
 						wParam = 30;
 						break;
@@ -2152,57 +2071,18 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 						wParam = 29;
 						break;
 
-					case VK_DELETE:
-						wParam = 127;
-						break;
-
-					case VK_PRIOR:
-						wParam = 11;
-						break;
-
-					case VK_NEXT:
-						wParam = 12;
-						break;
-
-					case VK_END:
-						wParam = 4;
-						break;
-
-					case VK_HOME:
-						wParam = 1;
-						break;
-
-					case 0xb3:		//VK_MEDIA_PLAY_PAUSE
-						wParam = 0;
-						functionKey = kFskEventFunctionKeyTogglePlayPause;
-						break;
-
-					case 0xb1:		//VK_MEDIA_PREV_TRACK
-						wParam = 0;
-						functionKey = kFskEventFunctionKeyPreviousTrack;
-						break;
-
-					case 0xb0:		//VK_MEDIA_NEXT_TRACK
-						wParam = 0;
-						functionKey = kFskEventFunctionKeyNextTrack;
-						break;
-
-					case 0xb2:		// VK_MEDIA_STOP
-						wParam = 0;
-						functionKey = kFskEventFunctionKeyStop;
-						break;
-
-					case 0xac:		// VK_BROWSER_HOME
-						wParam = 0;
-						functionKey = kFskEventFunctionKeyHome;
-						break;
-
 					default:
 						wParam = 0;
 						break;
+					}
 				}
+				else if ((wParam == VK_ESCAPE) && (evtCode == kFskEventKeyUp)) {
+					wParam = 27;
+				}
+				else
+					wParam = 0;
 
-				if (wParam || functionKey) {
+				if (wParam) {
 					UInt32 modifiers = 0;
 					if (0x8000 & GetKeyState(VK_CONTROL))
 						modifiers |= kFskEventModifierControl;
@@ -2226,19 +2106,12 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 					}
 				}
 			}
-			}
-			break;
+		}
+		break;
 
 		case WM_IME_CHAR:
 		case WM_CHAR: {
 			UInt32 modifiers = 0;
-
-			if (!imeActive(win) && (13 == wParam) /* || (32 == wParam) */) {
-				if (1 == win->pressHoldState)
-					win->pressHoldState = 2;		// we've ignored a char event, so if the hold isn't long enough, we need to generate the regular key event
-
-				return 0;			// we handle converting space & CR from key to char
-			}
 
 			if (0x8000 & GetKeyState(VK_CONTROL))
 				modifiers |= kFskEventModifierControl;
@@ -2251,23 +2124,23 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 			if (MK_LBUTTON & wParam)
 				modifiers |= kFskEventModifierMouseButton;
 
-		if (wParam < 32) {
-			// special cases for cut/copy/paste
-			if (3 == wParam) {
-				wParam = 'C';
-				modifiers |= kFskEventModifierControl;
+			if (wParam < 32) {
+				// special cases for cut/copy/paste
+				if (3 == wParam) {
+					wParam = 'C';
+					modifiers |= kFskEventModifierControl;
+				}
+				else
+					if (22 == wParam) {
+						wParam = 'V';
+						modifiers |= kFskEventModifierControl;
+					}
+					else
+						if (24 == wParam) {
+							wParam = 'X';
+							modifiers |= kFskEventModifierControl;
+						}
 			}
-			else
-			if (22 == wParam) {
-				wParam = 'V';
-				modifiers |= kFskEventModifierControl;
-			}
-			else
-			if (24 == wParam) {
-				wParam = 'X';
-				modifiers |= kFskEventModifierControl;
-			}
-		}
 
 			if (kFskErrNone == FskEventNew(&fskEvent, kFskEventKeyDown, NULL, modifiers)) {
 				char c[6];
@@ -2294,8 +2167,8 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 				doOrQueue(win, fskEvent);
 				checkUpdate = true;
 			}
-			}
-			break;
+		}
+		break;
 
 		case WM_COMMAND:
 			// send unique ID of selected item to window
@@ -2367,31 +2240,6 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 //		UpdateWindow(hwnd);
 
 	return result;
-}
-
-void windowEnterPressHold(struct FskTimeCallBackRecord *callback, const FskTime time, void *param)
-{
-	FskWindow win = param;
-	FskEvent event;
-	char zero = 0;
-	UInt32 functionKey = 65540;
-
-	windowIncrementUseCount(win);
-
-	if (kFskErrNone == FskEventNew(&event, kFskEventKeyDown, NULL, 0)) {
-		FskEventParameterAdd(event, kFskEventParameterKeyUTF8, 1, &zero);
-		FskEventParameterAdd(event, kFskEventParameterFunctionKey, sizeof(functionKey), &functionKey);
-		doOrQueue(win, event);
-	}
-	if (kFskErrNone == FskEventNew(&event, kFskEventKeyUp, NULL, 0)) {
-		FskEventParameterAdd(event, kFskEventParameterKeyUTF8, 1, &zero);
-		FskEventParameterAdd(event, kFskEventParameterFunctionKey, sizeof(functionKey), &functionKey);
-		doOrQueue(win, event);
-	}
-
-	win->pressHoldState = 3;
-
-	windowDecrementUseCount(win);
 }
 
 #endif

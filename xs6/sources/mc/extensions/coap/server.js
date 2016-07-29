@@ -20,29 +20,67 @@ import {
 	Method,
 	Option,
 	Port,
-	EXCHANGE_LIFETIME
+	EXCHANGE_LIFETIME,
+	Message,
+	ContentFormat
 } from 'coap/common';
 
 import {ListeningSocket, UDP} from "socket";
 import {Endpoint} from 'coap/endpoint';
 
-const remove = require.weak('utils').remove;
-
 export class ServerEndpoint extends Endpoint {
+	constructor(peer, transport, error) {
+		super(peer, transport, error);
+
+		this._messageId = (Math.random() * 0xffff) | 0;
+	}
+
+	issueMessageId() {
+		var mid = this._messageId++;
+		if (this._messageId > 0xffff) this._messageId = 0;
+		return mid;
+	}
+
+	send(response) {
+		if (!response.messageId) {
+			response.messageId = this.issueMessageId();
+		}
+
+		return super.send(response);
+	}
+}
+
+export const Response = {
+	__proto__: Message,
+	code: [2, 5],
+	payload: null,
+};
+
+function isSameBinary(a, b) {
+	if (a === undefined && b === undefined) return true;
+	if (typeof a !== 'string' || typeof b !== 'string') return false;
+	if (!(a instanceof ArrayBuffer) || !(b instanceof ArrayBuffer)) return false;
+
+	const Bin = require.weak('bin');
+	return Bin.comp(a, b) === 0;
 }
 
 export class Server {
 	constructor() {
 		this.Endpoint = ServerEndpoint;
 		this.Transport = require.weak('coap/transport');
-		this.sessionExpirePeriod = EXCHANGE_LIFETIME * 1000;
 
-		this.messageId = (Math.random() * 0xffff) | 0;
+		this.autoAck = true;
+
 		this.sessionId = 1;
 		this.endpoints = {}; // `peer` is the key
 		this.sessions = [];
 		this.resources = [];
 		this.expireCheck = null;
+	}
+
+	get sessionExpirePeriod() {
+		return EXCHANGE_LIFETIME * 1000;
 	}
 
 	start(port=Port) {
@@ -71,29 +109,31 @@ export class Server {
 	}
 
 	send(response, session) {
+		let contentFormat = ContentFormat.OctetStream;
 		switch (typeof response) {
 			case 'string':
 				response = ArrayBuffer.fromString(response);
+				contentFormat = ContentFormat.PlainText;
 				// fallthrough
 			case 'object':
 				if (response instanceof ArrayBuffer) {
-					response = {payload: response};
+					response = session.createResponse(response, contentFormat);
 				}
 				break;
 		}
 
-		response.type = session.type;
 		response.token = session.token;
 		if (!response.code) response.code = [2, 5];
 
 		if (!response.options) response.options = [];
-		if (response.contentFormat) response.options.push([Option.ContentFormat, response.contentFormat]);
 
-		if (session.confirmable && !session.ackSent) {
+		if (session.confirmable && !session.response && !session.ackSent) {
 			response.type = Type.Ack;
 			response.messageId = session.messageId;
-		} else {
-			response.messageId = this._issueMessageId();
+		}
+
+		if (session._observeId) {
+			response.observeId = session.issueObserveId();
 		}
 
 		session.endpoint.send(response);
@@ -103,6 +143,11 @@ export class Server {
 	onRequest(session) {
 		const path = session.path;
 
+		if (session.observeDeregister) {
+
+		}
+
+
 		for (const [pattern, func] of this.resources) {
 			if (pattern == path || pattern == '*') {
 				try {
@@ -110,19 +155,13 @@ export class Server {
 				} catch (e) {
 					if (typeof e == 'string') e = {message: "Internal server error: " + e};
 					if (!e.code) e.code = [5, 0];
-					throw e;
+					return e;
 				}
 				return;
 			}
 		}
 
-		throw {code: [4, 4], message: "resource not found"};
-	}
-
-	_issueMessageId() {
-		var mid = this.messageId++;
-		if (this.messageId > 0xffff) this.messageId = 0;
-		return mid;
+		return {code: [4, 4], message: "resource not found"};
 	}
 
 	_onReceive(request, peer) {
@@ -149,31 +188,30 @@ export class Server {
 	_runSession(session) {
 		if (session.response) {
 			if (session.ackSent) session.endpoint.sendAck(session);
-			this.send(session.response, session);
+			session.send(session.response);
 		} else {
-			try {
-				this.onRequest(session);
-
-				if (!session.response && session.confirmable) {
+			const error = this.onRequest(session);
+			if (!error) {
+				if (!session.response && session.confirmable && session.autoAck) {
 					session.endpoint.sendAck(session);
 					session.ackSent = Date.now();
 				}
-			} catch (e) {
-				if (session.observe) this.cancelObserve(session);
-				this._sendError(session, e.code, e.message);
+			} else {
+				if (session.observe) session.cancelObserve();
+				this._sendError(session, error.code, error.message);
 			}
 		}
 
 		if (!session.confirmable && session.response && !session.observe) {
-			remove(this.sessions, session);
+			const pos = this.sessions.indexOf(session);
+			if (pos >= 0) this.sessions.splice(pos, 1);
 		}
 	}
 
 	_sendError(session, code, message) {
-		this.send({
-			code: code,
-			payload: message ? ArrayBuffer.fromString(message) : nil,
-		}, session);
+		const response = session.createResponse(message);
+		response.code = code;
+		session.send(response);
 	}
 
 	_findOrCreateSession(request, endpoint) {
@@ -184,44 +222,57 @@ export class Server {
 
 	_findSession(request, endpoint) {
 		for (const s of this.sessions) {
-			if (s.messageId == request.messageId && s.endpoint == endpoint) {
+			if (s.endpoint == endpoint && s.messageId == request.messageId) {
+				return s;
+			}
+		}
+	}
+
+	_findSameClientSession(request, endpoint) {
+		const {comp} = require.weak('bin');
+		const uri = request.uri;
+
+		for (const s of this.sessions) {
+			if (s._observeId && s.endpoint == endpoint && s.uri == uri && isSameBinary(s.token, request.token)) {
 				return s;
 			}
 		}
 	}
 
 	_createSession(request, endpoint) {
-		log("created session for " + endpoint.peer)
+		const server = this;
+
 		const session = {
 			__proto__: request,
 			endpoint,
 			id: this.sessionId++,
 			expireAt: Date.now() + this.sessionExpirePeriod,
-			getOptions(option) {
-				if (!this.options || this.options.length == 0) return [];
+			autoAck: server.autoAck,
 
-				return this.options
-					.filter(([opt, value]) => opt == option)
-					.map(([opt, value]) => value);
+			createResponse(payload, contentFormat) {
+				const response = {__proto__: Response};
+				response.type = this.type;
+				response.setPayload(payload, contentFormat);
+				return response;
 			},
-			get confirmable() {
-				return this.type == Type.Con;
+			send(response) {
+				server.send(response, this);
 			},
-			get host() {
-				return this.getOptions(Option.UriHost).shift();
+			acceptObserve() {
+				if (this._observeId) throw new Error('session is already accepted');
+				this._observeId = 2;
 			},
-			get port() {
-				return this.getOptions(Option.UriPort).shift();
+			cancelObserve() {
+				delete this._observeId;
 			},
-			get path() {
-				return '/' + this.getOptions(Option.UriPath)
-								.map(encodeURIComponent)
-								.join('/');
+			issueObserveId() {
+				const id = this._observeId++;
+				if (this._observeId > 0xffffff) this._observeId = 3;
+				return id;
 			},
-			get query() {
-				return this.getOptions(Option.UriQuery)
-								.map(encodeURIComponent)
-								.join('&');
+			get isExpired() {
+				if (this._observeId) return false;
+				return this.expireAt <= Date.now()
 			}
 		};
 
@@ -238,11 +289,10 @@ export class Server {
 
 		const now = Date.now();
 
-		this.sessions
-			.filter(a => a.expireAt > now)
-			.sort((a, b) => {
-				return a.expireAt - b.expireAt;
-			});
+		this.sessions = this.sessions.filter(a => !a.isExpired);
+		this.sessions.sort((a, b) => {
+			return a.expireAt - b.expireAt;
+		});
 
 		if (this.sessions.length > 0) {
 			this.expireCheck = setTimeout(() => {

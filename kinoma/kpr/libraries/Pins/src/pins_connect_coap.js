@@ -39,10 +39,16 @@ var coapPins = {
 			requestObject = undefined;
 		}
 
-		var request = this.coap.createRequest(this.settings.url + "/invoke?path=" + path);
+		var request = this.coap.createRequest(this.settings.url + "invoke?path=" + path);
 		request.confirmable = true;
+
+		if (requestObject) {
+			request.method = CoAP.Method.POST;
+			request.setPayload(JSON.stringify(requestObject), 'JSON');
+		}
+
 		request.onResponse = function(response) {
-			var contentFormat = response.contentFormat.split(';')[0];
+			var contentFormat = response.contentFormat;
 			var result = response.payload;		//@@ test with binary payload
 			if ("application/json" == contentFormat)
 				result = JSON.parse(result);
@@ -62,9 +68,10 @@ var coapPins = {
 
 		condition = (typeof condition == "number") ? ("interval=" + condition) : ("timer=" + condition);
 
-		var url = this.settings.url + "/repeat?path=" + path + "&" + condition;
+		var url = this.settings.url + "repeat?path=" + path + "&" + condition;
 		var request = coap.createRequest(url);
-		request.token = this.id++;
+		var token = (new Uint32Array([this.id++])).buffer;
+		request.token = token;
 		request.observe = true;
 		request.confirmable = true;
 		request.onResponse = function(response) {
@@ -79,10 +86,10 @@ var coapPins = {
 
 			if (undefined === observe)
 				throw new Error;
-			
+
 			if (2 === observe)
 				return; // observe request received
-			
+
 			var contentFormat = response.contentFormat.split(';')[0];
 			var result = response.payload;		//@@ test with binary payload
 			if ("application/json" == contentFormat)
@@ -91,7 +98,7 @@ var coapPins = {
 				callback.call(null, result);
 		}
 		coap.send(request);
-		
+
 		return {
 			close: function() {
 				var request = coap.createRequest(url);

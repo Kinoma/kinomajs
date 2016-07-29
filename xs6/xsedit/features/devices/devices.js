@@ -1094,7 +1094,12 @@ class SimulatorConfig {
 	write(json) {
 	}
 	static get defaultURL() {
-		return this.tag + ((system.platform == "mac") ? ".app" : "/" + this.tag + ".exe");
+		if (system.platform == "mac")
+			return this.tag + ".app";
+		else if (system.platform == "win")
+			return this.tag + "/" + this.tag + ".exe";
+		else
+			return this.tag + "/" + this.tag;
 	}
 }
 
@@ -1106,7 +1111,7 @@ class CreateSimulatorConfig extends SimulatorConfig {
 
 CreateSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/create-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
 CreateSimulatorConfig.id = "com.marvell.kinoma.launcher.create";
-CreateSimulatorConfig.preferences = { simulatorFlag: (system.platform == "mac") }
+CreateSimulatorConfig.preferences = { simulatorFlag: true }
 CreateSimulatorConfig.product = "Kinoma Create";
 CreateSimulatorConfig.tag = "CreateShell";
 
@@ -1130,7 +1135,7 @@ class EmbedSimulatorConfig extends SimulatorConfig {
 
 EmbedSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/embed-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
 EmbedSimulatorConfig.id = "com.marvell.kinoma.launcher.embed";
-EmbedSimulatorConfig.preferences = { simulatorFlag: (system.platform == "win") }
+EmbedSimulatorConfig.preferences = { simulatorFlag: false }
 EmbedSimulatorConfig.product = "Kinoma Embed";
 EmbedSimulatorConfig.tag = "EmbedShell";
 
@@ -1317,6 +1322,7 @@ class DeviceMenuHeaderBehavior extends LineBehavior {
 	}
 	onDisplaying(container) {
 		let data = this.data;
+		this.arrow = true;
 		this.onDevicesChanged(container, data.filteredDevices);
 	}
 	onDevicesChanged(container, devices) {

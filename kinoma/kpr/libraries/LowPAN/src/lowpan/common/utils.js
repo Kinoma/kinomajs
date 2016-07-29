@@ -233,17 +233,13 @@ class Ringbuffer {
 		this._tail = 0;
 	}
 	get size() {
-		return this._size;
+		return (this._size - 1);
 	}
 	available() {
-		if (this._head == this._tail) {
-			return 0;
+		if (this._head >= this._tail) {
+			return this._head - this._tail;
 		} else {
-			if (this._head > this._tail) {
-				return this._head - this._tail;
-			} else {
-				return (this._size - this._tail) + this._head;
-			}
+			return (this._size - this._tail) + this._head;
 		}
 	}
 	isFull() {
@@ -283,35 +279,31 @@ class Ringbuffer {
 		return length;
 	}
 	writeByte(b) {
+		let nextHead = (this._head + 1) % this._size;
+		if (nextHead == this._tail) {
+			throw "No more space left";
+		}
 		this._buffer[this._head] = b & 0xFF;
-		this._head = (this._head + 1) % this._size;
+		this._head = nextHead;
 	}
 	write(b, off, length) {
-		let space = this._size - this.available();
+		let space = (this._size - 1) - this.available();
 		if (length > space) {
 			throw "No more space left";
 		}
 
-		let woff = 0;
-		let slot = length;
-		while (!this.isFull()) {
-			let count;
-			if (this._head >= this._tail) {
-				count = this._size - this._head;
+		if (this._head > this._tail) {
+			let front = this._size - this._head;
+			if (length > front) {
+				copy(b, off, this._buffer, this._head, front);
+				copy(b, off + front, this._buffer, 0, (length - front));
 			} else {
-				count = this._tail;
+				copy(b, off, this._buffer, this._head, length);
 			}
-			if (slot > count) {
-				slot = count;
-			}
-			copy(b, off + woff, this._buffer, this._head, slot);
-			this._head = (this._head + slot) % this._size;
-			woff += slot;
-			slot = length - slot;
-			if (woff == length) {
-				break;
-			}
+		} else {
+			copy(b, off, this._buffer, this._head, length);
 		}
+		this._head = (this._head + length) % this._size;
 	}
 }
 exports.Ringbuffer = Ringbuffer;

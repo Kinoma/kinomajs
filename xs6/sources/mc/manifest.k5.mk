@@ -14,11 +14,13 @@ SDK_PATH = $(MC_DIR)/wmsdk
 #SDK_PATH = $(F_HOME)/build/devices/wm/wmsdk_bundle-3.2.12/bin/wmsdk
 WMSDK_VERSION = 3002012
 
+USB_DRIVER_PATH = $(F_HOME)/libraries/kdriver
+
 include $(SDK_PATH)/.config
 
 PROGRAM = xsr6_mc
 
-C_OPTIONS = -DmxParse=1 -DmxRun=1 -DmxMC=1 -DmxNoFunctionLength -DmxNoFunctionName -DWMSDK_VERSION=$(WMSDK_VERSION) -DXIP=1 -DXS_ARCHIVE=1 -DK5=1
+C_OPTIONS = -DmxParse=1 -DmxRun=1 -DmxMC=1 -DmxNoFunctionLength -DmxNoFunctionName -DWMSDK_VERSION=$(WMSDK_VERSION) -DXIP=1 -DXS_ARCHIVE=1 -DK5=1 -I$(USB_DRIVER_PATH)/include
 AS_OPTIONS = -I $(MC_DIR)
 ifeq ($(DEBUG),)
 	C_OPTIONS += -D_RELEASE=1 -O2
@@ -30,7 +32,7 @@ endif
 
 include $(MC_DIR)/common.mk
 
-LDSCRIPT = $(PROGRAM)-xip.ld
+LDSCRIPT = $(MC_DIR)/$(PROGRAM)-xip.ld
 LINK_OPTIONS = -T $(LDSCRIPT) -nostartfiles -Xlinker -M -Xlinker -Map=$(TMP_DIR)/$(PROGRAM).map -Xlinker --gc-section
 ifeq ($(CONFIG_CPU_MW300), y)
 	ifeq ($(CONFIG_ENABLE_ROM_LIBS), y)
@@ -101,6 +103,13 @@ MC_OBJECTS = \
 	$(TMP_DIR)/heap_4.o \
 	$(TMP_DIR)/mw300_rd.o
 
+USB_DRIVER_OBJECTS = \
+	$(TMP_DIR)/ringbuf.o \
+	$(TMP_DIR)/cdc.o \
+	$(TMP_DIR)/dcd.o \
+	$(TMP_DIR)/device.o \
+	$(TMP_DIR)/rsrc.o
+
 all: $(BIN_DIR)/layout.txt $(BIN_DIR)/flash_k5.config $(BIN_DIR)/$(PROGRAM).ftfs
 
 $(BIN_DIR)/layout.txt: $(MC_DIR)/flash/layout.txt
@@ -115,11 +124,11 @@ $(BIN_DIR)/boot2.bin: $(MC_DIR)/flash/boot2.bin
 $(BIN_DIR)/mw30x_uapsta.bin: $(MC_DIR)/flash/mw30x_uapsta.bin
 	cp -p $< $@
 
-$(BIN_DIR)/$(PROGRAM)_k5.bin: $(TMP_DIR)/$(PROGRAM)_k5.axf
+$(BIN_DIR)/$(PROGRAM)_k5.bin: $(BIN_DIR)/$(PROGRAM)_k5.axf
 	$(SDK_PATH)/tools/bin/$(SDK_PLATFORM)/axf2firmware $< $@
 
-$(TMP_DIR)/$(PROGRAM)_k5.axf: $(TMP_DIR)/mc.xs.o $(XS_OBJECTS) $(MC_OBJECTS) $(OBJECTS) $(LDSCRIPT)
-	$(CC) $(C_OPTIONS) $(LINK_OPTIONS) -Xlinker --start-group $(TMP_DIR)/mc.xs.o $(XS_OBJECTS) $(MC_OBJECTS) $(OBJECTS) $(LIBRARIES) -Xlinker --end-group -o $@ -lm
+$(BIN_DIR)/$(PROGRAM)_k5.axf: $(TMP_DIR)/mc.xs.o $(OBJECTS) $(XS_OBJECTS) $(MC_OBJECTS) $(USB_DRIVER_OBJECTS) $(LDSCRIPT)
+	$(CC) $(C_OPTIONS) $(LINK_OPTIONS) -Xlinker --start-group $(TMP_DIR)/mc.xs.o $(OBJECTS) $(XS_OBJECTS) $(MC_OBJECTS) $(USB_DRIVER_OBJECTS) $(LIBRARIES) -Xlinker --end-group -o $@ -lm
 
 $(TMP_DIR)/mc.xs.o: $(MOD_DIR)/mc.xs.c
 	$(CC) $< -c $(C_OPTIONS) $(C_INCLUDES) -o $@
@@ -127,7 +136,7 @@ $(MOD_DIR)/mc.xs.c: $(MODULES)
 	$(XSL) -a mc -b $(MOD_DIR) -o $(TMP_DIR) -r 97 $^
 
 $(TMP_DIR)/mc_dl.o: $(TMP_DIR)/ext_stubs.sym.h
-$(TMP_DIR)/ext_stubs.sym.h: ext_stubs.sym
+$(TMP_DIR)/ext_stubs.sym.h: $(MC_DIR)/ext_stubs.sym
 	awk '\
 BEGIN	{printf("void *const ext_stubs[] = {\n(void *)&_mc_global,\n")} \
 	{printf("(void *)%s,\n", $$0)} \
@@ -145,6 +154,10 @@ $(XS_OBJECTS): $(TMP_DIR)/%.o: $(XS_DIR)/sources/%.c
 	$(CC) $< $(C_OPTIONS) $(C_INCLUDES) -c -o $@
 $(MC_OBJECTS): $(TMP_DIR)/%.o: $(MC_DIR)/%.c
 	$(CC) $< $(C_OPTIONS) $(C_INCLUDES) -c -o $@
+$(TMP_DIR)/ringbuf.o: $(TMP_DIR)/%.o: $(USB_DRIVER_PATH)/src/%.c
+	$(CC) $< $(C_OPTIONS) -c -o $@
+$(TMP_DIR)/cdc.o $(TMP_DIR)/dcd.o $(TMP_DIR)/device.o $(TMP_DIR)/rsrc.o: $(TMP_DIR)/%.o: $(USB_DRIVER_PATH)/src/usb/%.c
+	$(CC) $< -I$(USB_DRIVER_PATH)/include/usb -I$(USB_DRIVER_PATH)/Device/Marvell/88MW300/Include $(C_OPTIONS) -c -o $@
 
 $(BIN_DIR)/$(PROGRAM).ftfs: $(DATA)
 	(cd $(TMP_DIR); $(SDK_PATH)/tools/bin/flash_pack.py 1 $(PROGRAM).ftfs fs)

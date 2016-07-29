@@ -568,9 +568,11 @@
 			<function name="get query" c="KPR_message_get_query"/>
 			<function name="get requestBuffer" c="KPR_message_get_requestBuffer"/>
 			<function name="get requestChunk" c="KPR_message_get_requestChunk"/>
+			<function name="get requestObject" c="KPR_message_get_requestObject"/>
 			<function name="get requestText" c="KPR_message_get_requestText"/>
 			<function name="get responseBuffer" c="KPR_message_get_responseBuffer"/>
 			<function name="get responseChunk" c="KPR_message_get_responseChunk"/>
+			<function name="set responseObject" c="KPR_message_set_responseObject"/>
 			<function name="get responseText" c="KPR_message_get_responseText"/>
 			<function name="get scheme" c="KPR_message_get_scheme"/>
 			<function name="get status" c="KPR_message_get_status"/>
@@ -582,9 +584,11 @@
 			<function name="set priority" c="KPR_message_set_priority"/>
 			<function name="set requestBuffer" c="KPR_message_set_requestBuffer"/>
 			<function name="set requestChunk" c="KPR_message_set_requestChunk"/>
+			<function name="set requestObject" c="KPR_message_set_requestObject"/>
 			<function name="set requestText" c="KPR_message_set_requestText"/>
 			<function name="set responseBuffer" c="KPR_message_set_responseBuffer"/>
 			<function name="set responseChunk" c="KPR_message_set_responseChunk"/>
+			<function name="get responseObject" c="KPR_message_get_responseObject"/>
 			<function name="set responseText" c="KPR_message_set_responseText"/>
 			<function name="set status" params="status" c="KPR_message_set_status"/>
 		
@@ -744,6 +748,7 @@
 		return result;
 	]]></function>
 
+	<function name="get capsLockKey" c="KPR_get_capsLockKey"/>
 	<function name="get controlKey" c="KPR_get_controlKey"/>
 	<function name="get optionKey" c="KPR_get_optionKey"/>
 	<function name="get shiftKey" c="KPR_get_shiftKey"/>
@@ -769,6 +774,8 @@
 		</object>
 		<function name="Power" params="what" prototype="system.power" c="KPR_system_Power"/>
 		<function name="get platform" c="KPR_system_get_platform"/>
+		<function name="get device" c="KPR_system_get_device"/>
+		<function name="set device" params="it" c="KPR_system_set_device"/>
 		<function name="get settings" c="KPR_system_get_settings"/>
         <function name="set timezone" params="timezone" c="KPR_system_set_timezone"/>
         <function name="set date" params="secsSinceEpoch" c="KPR_system_set_date"/>

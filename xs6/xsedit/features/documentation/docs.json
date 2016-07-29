@@ -18,6 +18,7 @@
 		"./docs/create/user-guide/user-guide.md",
 		"./docs/element/quick-start/quick-start.md",
 		"./docs/develop/documentation/element-bll/element-bll.md",
+		"./docs/develop/documentation/element-pins-module/element-pins-module.md",
 	],
 	"force":false
 }

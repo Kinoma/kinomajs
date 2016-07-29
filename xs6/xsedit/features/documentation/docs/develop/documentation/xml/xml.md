@@ -14,7 +14,7 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-<!-- Version:160202-KO
+<!-- Version:160202-KO / Primary author: Patrick Soque / Last reviewed: ? Not since CR added comments/queries in it starting in March 2014
 
 This document is a detailed reference for the optional XML API for creating user interfaces and data bindings in KinomaJS.
 -->

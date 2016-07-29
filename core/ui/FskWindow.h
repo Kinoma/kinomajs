@@ -145,9 +145,6 @@ typedef Boolean (*FskWindowEventHandler)(FskEvent event, UInt32 eventCode, FskWi
 		FskRectangleRecord			stillDownArea;
 		UInt32						stillDownInterval;
 
-		FskTimeCallBack				pressHoldTimer;
-		UInt32						pressHoldState;
-
 		// cursor
 		UInt32						cursorShape;
 		SInt32                      cursorHideCount;

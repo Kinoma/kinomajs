@@ -98,6 +98,7 @@
 	<c option="-DYUV420i_RGB_ARM_IMPLEMENTATION=1"/>
 	<c option="-DTARGET_RT_ALSA=1"/>
 	<c option="-fsigned-char"/>
+	<c option="-DDEVICE_NAME=iap140"/>
 
 	<c option="-Wall"/>
 	<c option="-Werror-implicit-function-declaration"/>

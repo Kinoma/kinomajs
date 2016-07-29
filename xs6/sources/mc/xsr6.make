@@ -38,7 +38,9 @@ include $(SDK_PATH)/.config
 
 PROGRAM = xsr6_mc
 
-C_OPTIONS = -I$(XS6_MC_DIR) -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/pcre -I$(XS6_SRC_DIR)/mc -I$(XS6)/extensions/crypt -DmxRun=1 -DmxMC=1 -DmxNoFunctionLength -DmxNoFunctionName -DWMSDK_VERSION=$(WMSDK_VERSION) -DXIP=$(XIP) -DXS_ARCHIVE=$(XS_ARCHIVE)
+USB_DRIVER_PATH = $(F_HOME)/libraries/kdriver
+
+C_OPTIONS = -I$(XS6_MC_DIR) -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/pcre -I$(XS6_SRC_DIR)/mc -I$(XS6)/extensions/crypt -I$(USB_DRIVER_PATH)/include -DmxRun=1 -DmxMC=1 -DmxNoFunctionLength -DmxNoFunctionName -DWMSDK_VERSION=$(WMSDK_VERSION) -DXIP=$(XIP) -DXS_ARCHIVE=$(XS_ARCHIVE)
 AS_OPTIONS = -I $(XS6_MC_DIR)
 
 ifeq ($(XS_ARCHIVE), 1)
@@ -171,13 +173,20 @@ MC_OBJECTS = \
 	$(TMP_DIR)/heap_4.o \
 	$(TMP_DIR)/mw300_rd.o
 
+USB_DRIVER_OBJECTS = \
+	$(TMP_DIR)/ringbuf.o \
+	$(TMP_DIR)/cdc.o \
+	$(TMP_DIR)/dcd.o \
+	$(TMP_DIR)/device.o \
+	$(TMP_DIR)/rsrc.o
+
 ifeq ($(XS_ARCHIVE), 1)
 GEN_OBJECTS += $(TMP_DIR)/$(ARCHIVE).xs.o
 GEN_FILES += $(TMP_DIR)/$(ARCHIVE).xs.c $(TMP_DIR)/$(ARCHIVE).xs.h $(TMP_DIR)/$(ARCHIVE).xsa $(TMP_DIR)/$(ARCHIVE).xsa.h $(TMP_DIR)/mc_mapped_files.h
 archive = archive
 endif
 
-OBJECTS = $(XS6_OBJECTS) $(XS6_MC_OBJECTS) $(MC_OBJECTS) $(GEN_OBJECTS)
+OBJECTS = $(XS6_OBJECTS) $(XS6_MC_OBJECTS) $(MC_OBJECTS) $(USB_DRIVER_OBJECTS) $(GEN_OBJECTS)
 
 BINARIES = $(DEST_DIR)/application.xsb $(DEST_DIR)/inetd.xsb $(DEST_DIR)/launcher.xsb $(DEST_DIR)/config.xsb $(DEST_DIR)/synctime.xsb
 
@@ -258,6 +267,10 @@ $(MC_OBJECTS): $(TMP_DIR)/%.o: $(XS6_MC_DIR)/%.c
 	$(CC) $< $(C_OPTIONS) -c -o $@
 $(GEN_OBJECTS): $(TMP_DIR)/%.o: $(TMP_DIR)/%.c
 	$(CC) $< $(C_OPTIONS) -c -o $@
+$(TMP_DIR)/ringbuf.o: $(TMP_DIR)/%.o: $(USB_DRIVER_PATH)/src/%.c
+	$(CC) $< $(C_OPTIONS) -c -o $@
+$(TMP_DIR)/cdc.o $(TMP_DIR)/dcd.o $(TMP_DIR)/device.o $(TMP_DIR)/rsrc.o: $(TMP_DIR)/%.o: $(USB_DRIVER_PATH)/src/usb/%.c
+	$(CC) $< -I$(USB_DRIVER_PATH)/include/usb -I$(USB_DRIVER_PATH)/Device/Marvell/88MW300/Include $(C_OPTIONS) -c -o $@
 
 %.bin: %.axf
 	$(SDK_PATH)/tools/bin/$(SDK_PLATFORM)/axf2firmware $< $@

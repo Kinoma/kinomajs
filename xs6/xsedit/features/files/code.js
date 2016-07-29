@@ -154,7 +154,7 @@ class CodeViewBehavior extends Behavior {
 		var code = this.data.CODE;
 		var findLine = data.FIND;
 		var replaceLine = data.REPLACE;
-		code.behavior.find(code, data.findString, data.findMode);
+		code.behavior.find(code, data.findString, data.findMode, false);
 		data.FIND_FOCUS.focus();
 		if (!findLine.visible || replaceLine.visible)
 			container.run(new FindTransition, container.first, findLine, replaceLine, 1);
@@ -178,7 +178,6 @@ class CodeViewBehavior extends Behavior {
 		var code = data.CODE;
 		var findLine = data.FIND;
 		data.findString = code.selectionString;
-		data.findMode = 1;
 		code.behavior.find(code, data.findString, data.findMode);
 		var label = data.FIND_FOCUS;
 		label.string = data.findString;
@@ -225,11 +224,12 @@ class CodeViewBehavior extends Behavior {
 		container.distribute("onFound", this.resultCount);
 	}
 	onFindDone(container) {
+		if (container.transitioning) return;
 		var data = this.data;
 		var code = this.data.CODE;
 		var findLine = data.FIND;
 		var replaceLine = data.REPLACE;
-		code.behavior.find(code, "", 0);
+		code.behavior.find(code, "", 0, false);
 		if (findLine.visible)
 			container.run(new FindTransition, container.first, findLine, replaceLine, 0);
 	}
@@ -290,8 +290,8 @@ class CodeEditorBehavior extends CodeBehavior {
 		item.title = item.titles[line.first.variant & 1];
 		return true;
 	}
-	find(code, findString, findMode) {
-		code.find(findModeToPattern(findMode, findString), findModeToCaseless(findMode));
+	find(code, findString, findMode, select=true) {
+		code.find(findModeToPattern(findMode, findString), findModeToCaseless(findMode), select);
 		this.onSelected(code);
 		this.onReveal(code);
 	}
@@ -350,6 +350,12 @@ class CodeEditorBehavior extends CodeBehavior {
 		lines.behavior.onLineHeightChanged(lines, code.lineHeight);
 		let data = this.data;
 		let document = this.document = data.filesFeature.documents.items.find(item => item.url == data.url);
+		if (!document)
+			document = this.file = data.filesFeature.files.find(item => item.url == data.url);
+		if (!document) {
+			document = this.file = new Document(data.url);
+			data.filesFeature.addFile(document);
+		}
 		if (document) {
 			let state = document.state;
 			if (state) {
@@ -374,12 +380,6 @@ class CodeEditorBehavior extends CodeBehavior {
 				this.onFileChanged(code);
 			document.onCodeBegan(code);
 		}
-		else if (Files.exists(this.data.url)) {
-			this.notifier = new Files.DirectoryNotifier(this.data.url, url => {
-				this.onFileChanged(code, url)
-			});
-			this.onFileChanged(code);
-		}
 		else
 			debugger
 		let at = data.at;
@@ -393,15 +393,16 @@ class CodeEditorBehavior extends CodeBehavior {
 		super.onEdited(code);
 		let data = this.data;
 		let document = this.document;
-		let notifier = this.notifier;
 		if (!document) {
-			if (notifier) {
-				notifier.close();
-				this.notifier = null;
+			let file = this.file;
+			if (file) {
+				document = this.document = file;
+				this.file = null;
+				data.filesFeature.removeFile(file);
+				data.filesFeature.addDocument(document);
 			}
-			document = this.document = new Document(data.url);
-			document.onCodeBegan(code);
-			data.filesFeature.addDocument(document);
+			else 
+				debugger
 		}
 		if (!document.dirty) {
 			document.dirty = true;
@@ -434,6 +435,9 @@ class CodeEditorBehavior extends CodeBehavior {
 		var lines = this.data.LINES;
 		lines.behavior.onEdited(lines, code);
 		code.container.scrollTo(0, 0);
+		let document = this.document;
+		if (document)
+			document.clean();
 	}
 	onSelected(code) {
 		code.bubble("onCodeSelected");
@@ -442,9 +446,10 @@ class CodeEditorBehavior extends CodeBehavior {
 	onUndisplayed(code) {
 		let data = this.data;
 		let document = this.document;
-		let notifier = this.notifier;
+		if (!document)
+			document = this.file;
 		if (document) {
-			document.CODE = null;
+			document.onCodeEnded(code);
 			document.state = {
 				insertionOffset: this.insertionOffset,
 				history: this.history,
@@ -457,8 +462,8 @@ class CodeEditorBehavior extends CodeBehavior {
 				type: code.type,
 			}
 		}
-		else if (notifier)
-			notifier.close();
+		else
+			debugger
 	}
 	onUnfocused(code) {
 	}

@@ -131,7 +131,7 @@ export const PinExplorerView = Container.template($ => ({
 									column.empty();
 									if (probes) {
 										probes.forEach(probe => {
-											if (probe.isFront) 
+//*											if (probe.isFront) 
 												column.add(new probe.template(probe));
 										});
 									}

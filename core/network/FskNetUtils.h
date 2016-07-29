@@ -345,6 +345,29 @@ FskAPI(FskErr) FskNetConnectToHostPrioritized(char *host, int port, Boolean bloc
 #define FskNetConnectToHost(host, port, blocking, callback, refCon, flags, cert, debugName) \
 			FskNetConnectToHostPrioritized(host, port, blocking, callback, refCon, flags, \
 					kFskNetSocketDefaultPriority, cert, debugName)
+#if CLOSED_SSL
+	typedef struct FskSSLOption FskSSLOption;
+	enum {
+		kFskSSLProtocolVersionTLS_1_0 = 0x0301,
+		kFskSSLProtocolVersionTLS_1_1 = 0x0302,
+		kFskSSLProtocolVersionTLS_1_2 = 0x0303,
+	};
+
+	struct FskSSLOption {
+		const char *host;
+		int port;
+		Boolean blocking;
+		Boolean synchronous;
+		int priority;
+		UInt16 protocolVersion;
+
+		// ALPN
+		const char *applicationProtocols;
+	};
+	
+FskAPI(void) FskNetSSLOptionInitialize(const char *host, int port, long flags, int priority, FskSSLOption *option);
+FskAPI(FskErr) FskNetConnectToSecureHost(FskSSLOption *option, FskSocketCertificate cert, FskNetSocketCreatedCallback callback, void *refCon);
+#endif
 
 
 FskAPI(FskErr) FskNetSocketListen(FskSocket skt);

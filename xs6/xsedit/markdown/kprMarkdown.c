@@ -371,6 +371,7 @@ void KPR_text_formatMarkdownP(xsMachine* the, KprText self, KprMarkdownOptions o
 		char tmp;
 		KprMarkdownAttribute attribute;
 		KprMarkdownElement item;
+		KprMarkdownElementType formerElement = kprMarkdownP;
 		SInt32 c = FskGrowableArrayGetItemCount((FskGrowableArray)elements), i;
 		SInt32 index;
 		xsStringValue buffer;
@@ -412,7 +413,8 @@ void KPR_text_formatMarkdownP(xsMachine* the, KprText self, KprMarkdownOptions o
 				break;
 				
 			case kprMarkdownBR:
-				KprTextConcatText(text, "\n", 1);
+				if (formerElement != kprMarkdownBR)
+					KprTextConcatText(text, "\n", 1);
 				break;
 				
 			case kprMarkdownCODE:
@@ -481,6 +483,7 @@ void KPR_text_formatMarkdownP(xsMachine* the, KprText self, KprMarkdownOptions o
 			}
 			if (item->t.length > 0)
 				KprTextConcatText(text, string + lineRun->offset + item->t.offset, item->t.length);
+			formerElement = item->type;
 		}
 	}
 	
@@ -538,7 +541,7 @@ void KPR_text_formatMarkdownUL(xsMachine* the, KprText self, KprMarkdownOptions 
 
 void KPR_text_formatMarkdownTD(xsMachine* the, KprText self, KprMarkdownOptions options, KprMarkdownRun lineRun, KprMarkdownElement element, KprLine line, SInt32 width)
 {
-	KprMarkdownElement elements = element->elements;
+	KprMarkdownElement elements = element->elements, p = NULL;
 	KprCoordinatesRecord coordinates = { kprWidth, kprTopBottom, 0, width, 0, 0, 0, 0 };
 	KprColumn column = NULL;
 	
@@ -552,21 +555,56 @@ void KPR_text_formatMarkdownTD(xsMachine* the, KprText self, KprMarkdownOptions 
 			FskGrowableArrayGetPointerToItem((FskGrowableArray)elements, i, (void **)&item);
 			switch (item->type) {
 			case kprMarkdownP:
+				if (p) {
+					KPR_text_formatMarkdownP(the, self, options, lineRun, p, column, NULL);
+					FskGrowableArrayDispose((FskGrowableArray)p->elements);
+					FskMemPtrDispose(p);
+					p = NULL;
+				}
 				KPR_text_formatMarkdownP(the, self, options, lineRun, item, column, NULL);
 				break;
 			case kprMarkdownOL:
+				if (p) {
+					KPR_text_formatMarkdownP(the, self, options, lineRun, p, column, NULL);
+					FskGrowableArrayDispose((FskGrowableArray)p->elements);
+					FskMemPtrDispose(p);
+					p = NULL;
+				}
 				KPR_text_formatMarkdownOL(the, self, options, lineRun, item, column);
 				break;
 			case kprMarkdownUL:
+				if (p) {
+					KPR_text_formatMarkdownP(the, self, options, lineRun, p, column, NULL);
+					FskGrowableArrayDispose((FskGrowableArray)p->elements);
+					FskMemPtrDispose(p);
+					p = NULL;
+				}
 				KPR_text_formatMarkdownUL(the, self, options, lineRun, item, column);
 				break;
 			default:
-				d++;
+				if (p == NULL) {
+					FskMemPtrNewClear(sizeof(KprMarkdownElementRecord), (FskMemPtr *)&p);
+					if (p) {
+						p->n.length = -1;
+						p->n.offset = 0;
+						p->t.length = -1;
+						p->t.offset = 0;
+						p->type = kprMarkdownP;
+						FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(p->elements));
+					}
+				}
+				if (p && p->elements) {
+					FskGrowableArrayAppendItem((FskGrowableArray)p->elements, (void *)item);
+				}
 				break;
 			}
 		}
-		if (d == c)
-			KPR_text_formatMarkdownP(the, self, options, lineRun, element, column, NULL);
+		if (p) {
+			KPR_text_formatMarkdownP(the, self, options, lineRun, p, column, NULL);
+			FskGrowableArrayDispose((FskGrowableArray)p->elements);
+			FskMemPtrDispose(p);
+			p = NULL;
+		}
 	}
 }
 

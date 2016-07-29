@@ -19,12 +19,10 @@ import SSL from "ssl";
 
 export default class SecureSocket {
 	constructor(dict) {
-		if (dict.sock)
-			this._init(dict.sock, dict);
-		else {
-			var sock = new Socket(dict);
-			this._init(sock, dict);
-		}
+		const sock = dict.sock ? dict.sock : new Socket(dict);
+		const options = (dict.secure && typeof dict.secure != 'boolean') ? dict.secure : dict;
+
+		this._init(sock, options);
 	};
 	_init(sock, options) {
 		this.sock = sock;
@@ -119,6 +117,9 @@ export default class SecureSocket {
 	};
 	flush() {
 		// nothing to flush
+	};
+	get bytesWritable(){
+		return this.sock.bytesWritable;
 	};
 	close() {
 		if (this.error || this.closing) {

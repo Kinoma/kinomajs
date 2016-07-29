@@ -69,7 +69,31 @@ export const ContentFormat = {
 	XML: 41,
 	OctetStream: 42,
 	EXI: 47,
-	JSON: 50
+	JSON: 50,
+};
+
+export const ContentType = {
+	"text/plain; charset=utf-8": ContentFormat.PlainText,
+	"text/plain": ContentFormat.PlainText,
+	"text": ContentFormat.PlainText,
+	"plaintext": ContentFormat.PlainText,
+
+	"application/link-format": ContentFormat.LinkFormat,
+	"link-format": ContentFormat.LinkFormat,
+	"linkformat": ContentFormat.LinkFormat,
+
+	"application/xml": ContentFormat.XML,
+	"xml": ContentFormat.XML,
+
+	"application/octet-stream": ContentFormat.OctetStream,
+	"octet-stream": ContentFormat.OctetStream,
+	"octetstream": ContentFormat.OctetStream,
+
+	"application/exi": ContentFormat.EXI,
+	"exi": ContentFormat.EXI,
+
+	"application/json": ContentFormat.JSON,
+	"json": ContentFormat.JSON,
 };
 
 export const Observe = {
@@ -77,6 +101,143 @@ export const Observe = {
 	Deregister: 1
 };
 
+function findKey(obj, value) {
+	for (let key in obj) {
+		if (obj[key] === value) return key;
+	}
+}
+
+export function parseContentFormat(format) {
+	if (typeof format == 'string') {
+		if (format in ContentFormat) {
+			format = ContentFormat[format];
+		} else if (format.toLowerCase() in ContentType) {
+			format = ContentType[format.toLowerCase()];
+		} else {
+			throw new Error('invalid content format: ' + format);
+		}
+	} else if (typeof format != 'number') {
+		throw new Error('invalid content format: ' + format);
+	}
+
+	if (findKey(ContentFormat, format)) return format;
+
+	throw new Error('invalid content format: ' + format);
+}
+
+export const Message = {
+	getOptions(option) {
+		if (!this.options || this.options.length == 0) return [];
+
+		return this.options
+			.filter(([opt, value]) => opt == option)
+			.map(([opt, value]) => value);
+	},
+	getOption(option) {
+		return this.getOptions(option).shift();
+	},
+	addOption(option, value) {
+		if (!this.options) this.options = [];
+		this.options.push([option, value]);
+	},
+	setOption(option, value) {
+		this.clearOptions(option);
+		this.addOption(option, value);
+	},
+	clearOptions(option) {
+		if (this.options) {
+			this.options = this.options.filter(([opt, value]) => opt != option);
+		}
+	},
+	setCode(cls, detail) {
+		this.code = [cls, detail];
+	},
+	setPayload(payload, contentFormat) {
+		if (typeof payload == 'string') payload = ArrayBuffer.fromString(payload);
+		this.payload = payload;
+		this.contentFormat = contentFormat;
+	},
+	get observe() {
+		return this.observeId === Observe.Register;
+	},
+	set observe(val) {
+		if (val) {
+			this.observeId = Observe.Register;
+		} else {
+			this.clearOptions(Option.Observe);
+		}
+	},
+	get observeDeregister() {
+		return this.observeId === Observe.Deregister;
+	},
+	set observeDeregister(val) {
+		if (val) {
+			this.observeId = Observe.Deregister;
+		} else {
+			this.clearOptions(Option.Observe);
+		}
+	},
+	get observeId() {
+		return this.getOption(Option.Observe);
+	},
+	set observeId(val) {
+		this.clearOptions(Option.Observe);
+		this.addOption(Option.Observe, val);
+	},
+	get confirmable() {
+		return this.type == Type.Con;
+	},
+	set confirmable(flag) {
+		this.type = flag ? Type.Con : Type.Non;
+	},
+	get url() {
+		let url = 'coap://' + this.host;
+		const port = this.port;
+		if (port != Port) url += ':' + port;
+		url += '/' + this.getOptions(Option.UriPath).map(encodeURIComponent).join('/');
+		const queries = this.queries;
+		if (queries.length > 0) url += '?' + queries.map(encodeURIComponent).join('&');
+		return url;
+	},
+	get uri() {
+		return this.url;
+	},
+	get host() {
+		return this.getOption(Option.UriHost);
+	},
+	get port() {
+		const port = this.getOption(Option.UriPort);
+		return port ? port : Port;
+	},
+	get path() {
+		return '/' + this.getOptions(Option.UriPath).join('/');
+	},
+	get query() {
+		return this.queries.join('&');
+	},
+	get queries() {
+		return this.getOptions(Option.UriQuery);
+	},
+	get contentFormat() {
+		let format = this.getOption(Option.ContentFormat);
+		if (format !== undefined) {
+			return findKey(ContentFormat, format);
+		}
+	},
+	set contentFormat(val) {
+		this.clearOptions(Option.ContentFormat);
+		if (val != undefined && val != null) this.addOption(Option.ContentFormat, parseContentFormat(val));
+	},
+	get contentType() {
+		let format = this.getOption(Option.ContentFormat);
+		if (format !== undefined) {
+			return findKey(ContentType, format);
+		}
+	},
+	set contentType(val) {
+		this.contentFormat = val;
+	},
+};
 
 export const Port = 5683;
 
@@ -187,6 +348,8 @@ export default {
 	ContentFormat,
 	Observe,
 	optionFormat,
+
+	Message,
 
 	ACK_TIMEOUT,
 	ACK_RANDOM_FACTOR,

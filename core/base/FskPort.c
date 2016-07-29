@@ -2025,7 +2025,7 @@ FskErr picSaveEndDrawing(FskPort port)
                         if (kFskErrNone == FskTextFormatCacheNew(port->textEngine, &port->textFormatCache, port->bits, FskPortUInt32Scale(port, port->textSize), port->textStyle, port->fontName))
                             port->textFromFormat = false;
                     }
-                    FskGLTextGlyphsLoad(port->textEngine, item->parameters.textDraw.text, item->parameters.textDraw.textLen,
+                   	FskGLTextGlyphsLoad(port->textEngine, item->parameters.textDrawSubpixel.text, item->parameters.textDrawSubpixel.textLen,
                                             FskPortUInt32Scale(port, port->textSize), port->textStyle, port->textExtra, port->fontName,
                                             port->textFormatCache);
                     flushTextGlyphs = true;

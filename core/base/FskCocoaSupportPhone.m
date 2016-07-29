@@ -399,13 +399,19 @@ void FskCocoaWindowGetSize(FskWindow fskWindow, UInt32 *width, UInt32 *height)
 	CGFloat scale = ((FskCocoaView *)fskWindow->uiWindow).contentScaleFactor;
     deviceWidth = windowFrame.size.width * scale;
     deviceHeight = windowFrame.size.height * scale;
+    
 	if (fskWindow->uiWindowController == [FskCocoaApplication sharedApplication].mainViewController)
 	{
-		statusBarHeight = FskCocoaApplicationGetStatusBarHeight();
-		if (statusBarHeight > 0)
-		{
-			deviceHeight -= statusBarHeight * scale;
-		}
+        BOOL fullScreen = [[[NSBundle mainBundle] objectForInfoDictionaryKey:@"FSKFullScreen"] boolValue];
+    
+        if( ! fullScreen )
+        {
+            statusBarHeight = FskCocoaApplicationGetStatusBarHeight();
+            
+            if (statusBarHeight > 0) {
+                deviceHeight -= statusBarHeight * scale;
+            }
+        }
 	}
 
 	if (width)

@@ -406,63 +406,6 @@ ConvertEllipticalArcFromEndpointToCenterParameterization(
 }
 
 
-/********************************************************************************
- * IntersectRays2D
- * Gaussian elimination with full pivoting.
- * This is robust enough for fixed-point computations.
- ********************************************************************************/
-
-static void
-IntersectRays2D(const DRay2D *r0, const DRay2D *r1, double *xy)
-{
-	double	max, s, t;
-	int		maxi, i;
-	double	M[4], b[2];
-
-	M[0] = r0->dx;	M[1] = -r1->dx;
-	M[2] = r0->dy;	M[3] = -r1->dy;
-	b[0] = r1->x - r0->x;
-	b[1] = r1->y - r0->y;
-
-	max  = fabs(M[0]);
-	maxi = 0;
-	for (i = 1; i < 4; i++) {
-		if (max < (t = fabs(M[i]))) {
-			max  = t;
-			maxi = i;
-		}
-	}
-
-	switch (maxi) {
-		case 0:									/* Pivot around [0][0] */
-		default:
-			s = M[2] / M[0];					/* Scale to nullify [1][0] */
-			t = (b[1] - s * b[0]) / (M[3] - s * M[1]);	/* Solve for t1 */
-			xy[0] = r1->x + t * r1->dx;			/* Compute intersection on ray1 */
-			xy[1] = r1->y + t * r1->dy;
-			break;
-		case 1:									/* Pivot around [1][1] */
-			s = M[3] / M[1];					/* Scale to nullify [1][0] */
-			t = (b[1] - s * b[0]) / (M[2] - s * M[0]);	/* Solve for t0 */
-			xy[0] = r0->x + t * r0->dx;			/* Compute intersection on ray0 */
-			xy[1] = r0->y + t * r0->dy;
-			break;
-		case 2:									/* Pivot around [0][0] */
-			s = M[0] / M[2];					/* Scale to nullify [1][0] */
-			t = (b[0] - s * b[1]) / (M[1] - s * M[3]);	/* Solve for t1 */
-			xy[0] = r1->x + t * r1->dx;			/* Compute intersection on ray1 */
-			xy[1] = r1->y + t * r1->dy;
-			break;
-		case 3:									/* Pivot around [1][1] */
-			s = M[1] / M[3];					/* Scale to nullify [0][1] */
-			t = (b[0] - s * b[1]) / (M[0] - s * M[2]);	/* Solve for t0 */
-			xy[0] = r0->x + t * r0->dx;			/* Compute intersection on ray0 */
-			xy[1] = r0->y + t * r0->dy;
-			break;
-	}
-}
-
-
 /*******************************************************************************
  * ScaleStrokeWidth
  *******************************************************************************/

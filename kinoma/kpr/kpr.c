@@ -145,6 +145,7 @@ void KprModulesBasesCleanup(void)
 
 
 #ifndef KPR_NO_GRAMMAR
+extern xsBooleanValue fxIsCommonModule(xsMachine* the, xsStringValue path);
 
 extern xsIndex fxFindModule(xsMachine* the, xsIndex moduleID, xsSlot* slot);
 static xsIndex fxFindModuleKPR(xsMachine* the, xsIndex moduleID, xsSlot* slot);
@@ -160,6 +161,7 @@ extern xsBooleanValue fxFindArchive(xsMachine* the, xsStringValue path);
 static xsBooleanValue fxFindFile(xsMachine* the, xsStringValue path);
 static xsBooleanValue fxFindURI(xsMachine* the, xsStringValue base, xsStringValue name, xsStringValue dot, xsIndex* id);
 
+
 static xsStringValue gxExtensions[] = { 
 	".jsb", 
 	".xsb", 
@@ -167,6 +169,11 @@ static xsStringValue gxExtensions[] = {
 	".xml", 
 	NULL,
 };
+
+xsBooleanValue fxIsCommonModule(xsMachine* the, xsStringValue path)
+{
+	return (FskStrStr(path, "node_modules")) ? 1 : 0;
+}
 
 xsBooleanValue fxFindFile(xsMachine* the, xsStringValue path)
 {
@@ -604,6 +611,11 @@ void KPR_patch(xsMachine* the)
 	xsNewHostProperty(xsResult, xsID("load"), xsNewHostFunction(KPR_Grammar_load, 1), xsDefault, xsDontScript);
 	xsNewHostProperty(xsGlobal, xsID("instrument"), xsNewHostFunction(KPR_instrument, 2), xsDefault, xsDontScript);
 	xsNewHostProperty(xsGlobal, xsID("blendColors"), xsNewHostFunction(KPR_blendColors, 3), xsDefault, xsDontScript);
+}
+
+void KPR_get_capsLockKey(xsMachine *the)
+{
+	xsResult = (gShell->modifiers & kFskEventModifierCapsLock) ? xsTrue : xsFalse;
 }
 
 void KPR_get_controlKey(xsMachine *the)

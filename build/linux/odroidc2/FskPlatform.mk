@@ -111,6 +111,7 @@
 	<c option="-Wunused-function"/>
 	<c option="-Wunused-variable"/>
 	<c option="-Wno-multichar"/>
+	<c option="-DDEVICE_NAME=ODroid\ C2"/>
 	
 	<c option="-I$(F_HOME)/libraries/freetype/include"/>
 	<version name="debug">

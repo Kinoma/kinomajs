@@ -85,6 +85,9 @@ void	FskGtkWindowSetDialog(FskGtkWindow win,  GtkMessageType type, const char* t
 void FskGtkDragDropWindowRegister(FskWindow fskWindow, FskDragDropTargetProc dropTargetProc);
 void FskGtkDragDropWindowUnregister(FskWindow fskWindow);
 
+// cursor
+void FskGtkSetCursor(FskWindow fskWindow, UInt32 shape);
+
 #ifdef __cplusplus
 }
 #endif

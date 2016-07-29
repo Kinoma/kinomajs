@@ -25,6 +25,16 @@ import {
 	Observe,
 } from 'coap/common';
 
+export {
+	Type,
+	Method,
+	Option,
+	Port,
+	OptionFormat,
+	ContentFormat,
+	Observe
+};
+
 export const Client = require.weak('coap/client');
 export const Server = require.weak('coap/server');
 

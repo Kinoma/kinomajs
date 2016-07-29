@@ -43,6 +43,14 @@ Visualizations
   dot xs6/xsedit/markdown/kprMarkdownParser-md-inner.dot -Tpng > xs6/xsedit/markdown/kprMarkdownParser-md-inner.png
   dot xs6/xsedit/markdown/kprMarkdownParser-md-markdown.dot -Tpng > xs6/xsedit/markdown/kprMarkdownParser-md-markdown.png
 
+Caution: environment variables ($F_HOME or $XS6) in ragel paths are expanded in the generated .c file!
+
+         For example:
+         #line 1 "/Users/mwharton/Development/kinoma/fsk/xs6/xsedit/markdown/kprMarkdownParser.rl"
+
+         Compared to:
+         #line 1 "xs6/xsedit/markdown/kprMarkdownParser.rl"
+
 */
 
 #include "kprMarkdownParser.h"
@@ -351,26 +359,30 @@ bail:
 static FskErr doProcessText(KprMarkdownParser parser, char *str, KprMarkdownState state, char *stop, SInt32 line)
 {
 	FskErr err = kFskErrNone;
-	SInt32 length = state->textStop - state->textStart, space = 0;
+	char *start = state->textStart;
+	SInt32 length = state->textStop - start, space = 0;
 	if (state->depth > 0) {
-		char *text = state->textStart;
-		while (text < state->textStop) {
-			if (!_IsSpace(*text))
+		while (start < state->textStop) {
+			if (!_IsSpace(*start))
 				break;
 			space++;
-			text++;
+			start++;
 		}
 	}
 	if ((length > space) || (state->depth == 0)) {
 		if (state->depth > 0) {
 			KprMarkdownElement element = state->stack[state->top];
 			if (element) {
+				if ((space == 1) && (*state->textStart == ' ')) {
+					// The <code>top</code> and <code>bottom</code> coordinates...
+					start = state->textStart;
+				}
 				if (element->elements == NULL) {
 					bailIfError(FskGrowableArrayNew(sizeof(KprMarkdownElementRecord), kprMarkdownDefaultElementsOption, (FskGrowableArray*)&(element->elements)));
 				}
 				state->elementRecord.type = 0;
-				state->elementRecord.t.length = state->textStop - state->textStart;
-				state->elementRecord.t.offset = (SInt16)(state->textStart - str - state->offset);
+				state->elementRecord.t.length = state->textStop - start;
+				state->elementRecord.t.offset = (SInt16)(start - str - state->offset);
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)element->elements, (void *)&(state->elementRecord)));
 				state->elementRecord.t.length = -1;
 				state->elementRecord.t.offset = 0;
@@ -378,8 +390,8 @@ static FskErr doProcessText(KprMarkdownParser parser, char *str, KprMarkdownStat
 		}
 		#if KPRMARKDOWNDEBUGTEXT
 			fprintf(stdout, (state->depth ? KYEL "%6d " : KNRM "%6d "), (int)line);
-			if (state->textStart) {
-				fwrite(state->textStart, state->textStop - state->textStart, 1, stdout);
+			if (start) {
+				fwrite(start, state->textStop - start, 1, stdout);
 			}
 			fprintf(stdout, "\n" RESET);
 		#endif
@@ -661,7 +673,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 {
 	char *p = str + offset, *pe = p + length, *eof = pe, *te, *ts;
 	char *b, *h, *h1, *h2, *m1, *m2, *t1, *t2, *v1, *v2;
-	SInt32 act, cs, i, n, stack[STACKSIZE], top;
+	SInt32 act, cs, i, m, n, stack[STACKSIZE], top;
 	
 	FskErr err = kFskErrNone;
 	KprMarkdownRunRecord runRecord;
@@ -866,7 +878,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 		
 		fenced_code_scanner := |*
 		
-			( annex_span ( [`] @{ i = 1; } [`]+ @{ i++; } ) >M1 %M2 base_line when { (i == n) && (_spaces(ts, m1, -1, 0) == state->spaces) } ) => { // semantic condition
+			( annex_span ( [`] @{ i = 1; } [`]+ @{ i++; } ) >M1 %M2 base_line when { (i == n) && (_spaces(ts, m1, -1, 0) == m) } ) => { // semantic condition
 				#if KPRMARKDOWNDEBUGMARKDOWN
 					doProcessText(parser, str, state, fpc, state->line - 1);
 				#endif
@@ -887,7 +899,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 			};
 			
 			( base_line >T1 %T2_back ) => {
-				int indent = _indent(t1, t2, state->spaces, 1);
+				int indent = _indent(t1, t2, m, 1);
 				int length = t2 - t1 - indent;
 				int offset = indent; //@@ t1 - str
 				#if KPRMARKDOWNDEBUGMARKDOWN
@@ -1017,6 +1029,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 				}
 				bailIfError(FskGrowableArrayAppendItem((FskGrowableArray)parser->runs, (void *)run));
 				if (fc) {
+					m = state->spaces;
 					n = (SInt32)(m2 - m1);
 					fgoto fenced_code_scanner; // no fcall here
 				}
