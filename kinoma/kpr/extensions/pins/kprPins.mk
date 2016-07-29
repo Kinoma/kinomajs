@@ -39,7 +39,7 @@ XSC_OPTIONS += -t DEVICE -t USEA2D -t USEGPIO -t USEI2C -t K4GEN2 -t USEPWM -t U
 </common>
 </platform>
 
-<platform name="linux/iap140,linux/linkit7688,linux/pine64,linux/edison,linux/pi_gl,linux/pi,linux/beaglebone,linux/andro,linux/guitar,linux/hikey,linux/odroidc2">
+<platform name="linux/iap140,linux/linkit7688,linux/pine64,linux/edison,linux/pi_gl,linux/pi,linux/beaglebone,linux/andro,linux/guitar,linux/hikey,linux/odroidc2,linux/nanopim1,linux/chip">
 <source name="i2c.c"/>
 <source name="i2cdev.c"/>
 <source name="a2d.c"/>

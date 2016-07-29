@@ -179,6 +179,22 @@
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 					},
 				},
+				"nanopim1":{
+					"build":{
+						"DEVICE":true,
+					},
+					"extensions":{
+						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+					},
+				},
+				"chip":{
+					"build":{
+						"DEVICE":true,
+					},
+					"extensions":{
+						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+					},
+				},
 				"hikey":{
 					"build":{
 						"DEVICE":true,
