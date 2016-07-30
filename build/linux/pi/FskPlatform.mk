@@ -70,7 +70,7 @@
 	<c option="-fsigned-char"/>
 	<c option="-Wall"/>
 	<c option="-Wno-multichar"/>
-	<c option="-DDEVICE_NAME=Raspberry Pi"/>
+	<c option="-DDEVICE_NAME=Raspberry\ Pi"/>
 
 	<library name="--sysroot=$(PI_SYSROOT)" />
 
