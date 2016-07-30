@@ -2642,7 +2642,9 @@ void KPR_text_hitOffset(xsMachine *the)
 void KPR_text_select(xsMachine *the)
 {
 	KprText self = kprGetHostData(xsThis, this, text);
-	KprTextSelect(self, xsToInteger(xsArg(0)), xsToInteger(xsArg(1)));
+	SInt32 offset = xsToInteger(xsArg(0));
+	UInt32 length = xsToInteger(xsArg(1));
+	KprTextSelect(self, offset, length);
 }
 
 

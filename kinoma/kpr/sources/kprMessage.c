@@ -937,6 +937,13 @@ void KPR_message_get_requestChunk(xsMachine *the)
 	}
 }
 
+void KPR_message_get_requestObject(xsMachine *the)
+{
+	KprMessage self = xsGetHostData(xsThis);
+	if (self->request.body && (self->request.size == 0xFFFFFFFF))
+		xsResult = xsDemarshall(self->request.body);
+}
+
 void KPR_message_get_requestText(xsMachine *the)
 {
 	KprMessage self = xsGetHostData(xsThis);
@@ -970,6 +977,13 @@ void KPR_message_get_responseChunk(xsMachine *the)
 		xsResult = xsNew1(xsGlobal, xsID_Chunk, xsInteger(size));
 		FskMemCopy(xsGetHostData(xsResult), data, size);
 	}
+}
+
+void KPR_message_get_responseObject(xsMachine *the)
+{
+	KprMessage self = xsGetHostData(xsThis);
+	if (self->response.body && (self->response.size == 0xFFFFFFFF))
+		xsResult = xsDemarshall(self->response.body);
 }
 
 void KPR_message_get_responseText(xsMachine *the)
@@ -1042,7 +1056,7 @@ void KPR_message_set_requestBuffer(xsMachine* the)
 void KPR_message_set_requestChunk(xsMachine* the)
 {
 	KprMessage self = xsGetHostData(xsThis);
-	xsTrace("message.requestChunk deprecated, use requestBuffer\n");
+	//xsTrace("message.requestChunk deprecated, use requestBuffer\n");
 	if (xsTest(xsArg(0))) {
 		void* data = xsGetHostData(xsArg(0));
 		xsIntegerValue size = xsToInteger(xsGet(xsArg(0), xsID_length));
@@ -1050,6 +1064,13 @@ void KPR_message_set_requestChunk(xsMachine* the)
 	}
 	else
 		xsThrowIfFskErr(KprMessageSetRequestBody(self, NULL, 0));
+}
+
+void KPR_message_set_requestObject(xsMachine *the)
+{
+	KprMessage self = xsGetHostData(xsThis);
+	self->request.body = xsMarshall(xsArg(0));
+	self->request.size = 0xFFFFFFFF;
 }
 
 void KPR_message_set_requestText(xsMachine* the)
@@ -1078,7 +1099,7 @@ void KPR_message_set_responseBuffer(xsMachine* the)
 void KPR_message_set_responseChunk(xsMachine* the)
 {
 	KprMessage self = xsGetHostData(xsThis);
-	xsTrace("message.responseChunk deprecated, use responseBuffer\n");
+	//xsTrace("message.responseChunk deprecated, use responseBuffer\n");
 	if (xsTest(xsArg(0))) {
 		void* data = xsGetHostData(xsArg(0));
 		xsIntegerValue size = xsToInteger(xsGet(xsArg(0), xsID_length));
@@ -1086,6 +1107,13 @@ void KPR_message_set_responseChunk(xsMachine* the)
 	}
 	else
 		xsThrowIfFskErr(KprMessageSetResponseBody(self, NULL, 0));
+}
+
+void KPR_message_set_responseObject(xsMachine *the)
+{
+	KprMessage self = xsGetHostData(xsThis);
+	self->response.body = xsMarshall(xsArg(0));
+	self->response.size = 0xFFFFFFFF;
 }
 
 void KPR_message_set_responseText(xsMachine* the)

@@ -28,16 +28,12 @@ const char *KplECMAScriptGetPlatform(void)
 
 const char *KplECMAScriptGetDevice(void)
 {
-	if (gDeviceName)
-		return gDeviceName;
-	else {
 #if defined(DEVICE_NAME)
 #define xstr(a) str(a)
 #define str(a) #a
-		return xstr(DEVICE_NAME);
+	return xstr(DEVICE_NAME);
 #else
-		return "unknown";
+	return "unknown";
 #endif
-	}
 }
 

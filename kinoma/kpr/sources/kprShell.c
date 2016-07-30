@@ -2704,6 +2704,51 @@ void KPR_system_get_platform(xsMachine* the)
 	xsResult = xsString(platform);
 }
 
+char *gDeviceName = NULL;
+void KPR_system_get_device(xsMachine* the)
+{
+	char *device = NULL;
+	if (gDeviceName) {
+		xsResult = xsString(gDeviceName);
+		return;
+	}
+
+#if TARGET_OS_WIN32
+	device = "win";
+#elif TARGET_OS_MAC
+	#if TARGET_OS_IPHONE
+		device = "iphone";
+	#else
+		device = "mac";
+	#endif
+#elif TARGET_OS_LINUX
+	#if TARGET_OS_ANDROID
+		device = "android";
+	#else
+		device = "linux";
+	#endif
+#elif TARGET_OS_KPL
+	device = (char*)KplECMAScriptGetDevice();
+#else
+	device = "unknown";
+#endif
+	xsResult = xsString(device);
+}
+
+void KPR_system_set_device(xsMachine* the)
+{
+	char *deviceName = xsToString(xsArg(0));
+	char *device = NULL;
+
+	if (gDeviceName)
+		FskMemPtrDispose(device);
+
+	if (deviceName)
+		gDeviceName = FskStrDoCopy(deviceName);
+	else
+		gDeviceName = NULL;
+}
+
 void KPR_system_get_settings(xsMachine* the)
 {
 	xsEnterSandbox();
