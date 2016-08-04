@@ -1,5 +1,4 @@
 # General
-local.properties
 /bin
 /tmp
 *~
@@ -7,7 +6,7 @@ local.properties
 
 # xs
 /xs6/bin
-/xs6/lib
+/xs6/tmp
 
 # Freetype
 /libraries/freetype/src
