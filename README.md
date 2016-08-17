@@ -99,7 +99,7 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
   ```
 3. *(Optional)* Build `xsbug`, a graphical debugger used as an alternative to the Kinoma Studio debugger.
   ```
-  $ kprconfig6 -p mac -x -m ${XS6}/xsbug/manifest.json
+  $ kprconfig6 -p mac -x -m ${XS6}/xsbug6/manifest.json
   ```
 	The `xsbug` application is located at `${F_HOME}/bin/mac/Release/xsbug.app`.
 ### Build Your KinomaJS Application
@@ -146,7 +146,7 @@ Building KinomaJS for Linux/GTK requires a Linux build host. We use Ubuntu 14.04
 3. *(Optional)* Build `xsbug`, a graphical debugger used as an alternative to the Kinoma Studio debugger.
 
   ```
-  $ kprconfig6 -p linux/gtk -x -m ${XS6}/xsbug/manifest.json
+  $ kprconfig6 -p linux/gtk -x -m ${XS6}/xsbug6/manifest.json
   ```
 	The `xsbug` application is located at `${F_HOME}/bin/linux/gtk/Release/xsbug/xsbug`.
 ### Build Your KinomaJS Application
@@ -198,7 +198,7 @@ Building KinomaJS for Windows requires a machine running Windows 7 or greater. I
   ```       
 4. *(Optional)* Build `xsbug`, a graphical debugger used as an alternative to the Kinoma Studio debugger.
   ```
-  > kprconfig6 -p win -x -m %XS6%\xsbug\manifest.json
+  > kprconfig6 -p win -x -m %XS6%\xsbug6\manifest.json
   ```
 	The `xsbug` application is located at `%F_HOME%\bin\win\Release\xsbug\xsbug.exe`.
 ### Build Your KinomaJS Application
@@ -243,7 +243,7 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
  ```
 3. *(Optional)* Build `xsbug`, a graphical debugger used as an alternative to the Kinoma Studio debugger.
   ```
-  $ kprconfig6 -p mac -x -m ${XS6}/xsbug/manifest.json
+  $ kprconfig6 -p mac -x -m ${XS6}/xsbug6/manifest.json
   ```
   
 	The `xsbug` application is located at `${F_HOME}/bin/mac/Release/xsbug.app`.
@@ -312,7 +312,7 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
   ```
 3. *(Optional)* Build `xsbug`, a graphical debugger used as an alternative to the Kinoma Studio debugger.
   ```
-  $ kprconfig6 -p mac -x -m ${XS6}/xsbug/manifest.json
+  $ kprconfig6 -p mac -x -m ${XS6}/xsbug6/manifest.json
   ```
 	The `xsbug` application is located at `${F_HOME}/bin/mac/Release/xsbug.app`.
 
@@ -370,7 +370,7 @@ The build system uses `linux/aspen` as the target platform to build Kinoma Creat
   ```
 3. *(Optional)* Build the `xsbug` debugger: `xsbug` is a graphical debugger used as an alternative to the Kinoma Studio debugger.
   ```
-  $ kprconfig6 -p linux/gtk -x -m ${XS6}/xsbug/manifest.json
+  $ kprconfig6 -p linux/gtk -x -m ${XS6}/xsbug6/manifest.json
   ```
 	The `xsbug` application is located at `${F_HOME}/bin/linux/gtk/Release/xsbug/xsbug`.
 ### Build Your KinomaJS Application
@@ -433,7 +433,7 @@ Building KinomaJS for Element currently requires a non-parallel build and settin
   ```
 3. *(Optional)* Build `xsbug`, a graphical debugger used as an alternative to the Kinoma Studio debugger.
   ```
-  $ kprconfig6 -p mac -x -m ${XS6}/xsbug/manifest.json
+  $ kprconfig6 -p mac -x -m ${XS6}/xsbug6/manifest.json
   ```
 	The `xsbug` application is located at `${F_HOME}/bin/mac/Release/xsbug.app`.
 
@@ -561,7 +561,7 @@ The build system uses `linux/beaglebone`, `linux/edison`, `linux/pi_gl`, `linux/
   ```
 3. *(Optional)* Build the `xsbug` debugger: `xsbug` is a graphical debugger used as an alternative to the Kinoma Studio debugger.
   ```
-  $ kprconfig6 -p linux/gtk -x -m ${XS6}/xsbug/manifest.json
+  $ kprconfig6 -p linux/gtk -x -m ${XS6}/xsbug6/manifest.json
   ```
 	The `xsbug` application is located at `${F_HOME}/bin/linux/gtk/Release/xsbug/xsbug`.
 

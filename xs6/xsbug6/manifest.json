@@ -1,0 +1,108 @@
+{
+	"xsdebug":{
+		"enabled":true,
+	},
+	"build":{
+		"F_EXTENSIONS":"$(F_HOME)/extensions",
+		"F_KINOMA":"$(F_HOME)/kinoma",
+		"KDT_HOME":"$(F_KINOMA)/kpr/projects/kdt",
+		"KPL_HOME":"$(F_HOME)/build/linux/kpl",
+		"KPR_HOME":"$(F_KINOMA)/kpr",
+		"SHELL_HOME":"$(F_HOME)/xs6/xsbug6",
+	},
+	"environment":{
+		"VERSION":"1.0b0",
+		"NAME":"xsbug",
+		"NAMESPACE":"com.marvell.kinoma.xsbug",
+		"CA_list":"ca-bundle.crt",
+
+		"modulePath":"../",
+		"shellPath":"[applicationPath]shell/main.xsb",
+		
+		"screenScale":"1",
+		"windowMinWidth":"800",
+		"windowMinHeight":"600",
+		"windowStyle":"0",
+		"fitFonts":"0",
+		"useGL":"1",
+	},
+	"extensions":{
+		"fsZip":"$(F_EXTENSIONS)/fsZip/fsZip.mk",
+		"Crypt":"$(F_EXTENSIONS)/crypt/Crypt.mk",
+		"FskSSLAll":"$(F_EXTENSIONS)/ssl/FskSSLAll.mk",
+		"FskBMPCodec":"$(F_EXTENSIONS)/FskBMPCodec/FskBMPCodec.mk",
+		"FskGIFDecode":"$(F_EXTENSIONS)/FskGIFDecode/FskGIFDecode.mk",
+		"FskJPEGDecode":"$(F_EXTENSIONS)/FskJPEGDecode/FskJPEGDecode.mk",
+		"FskPNGDecode":"$(F_EXTENSIONS)/FskPNGDecode/FskPNGDecode.mk",
+		"mediareader":"$(F_KINOMA)/mediareader/mediareader.mk",
+		"kpr":"$(KPR_HOME)/kpr.mk",
+		"kprCode":"$(SHELL_HOME)/code/kprCode.mk",
+	},
+	"modules":{
+		"common/*": "$(SHELL_HOME)/common/*",
+		"shell/*": "$(SHELL_HOME)/shell/*",
+	},
+	"assets":{
+		"*":[
+			"$(F_HOME)/data/sslcert/ca-bundle.crt",
+		],
+		"fonts/OpenSans-*": "$(F_HOME)/data/fonts/OpenSans-*",
+		"common/assets/*": "$(SHELL_HOME)/common/assets/*",
+		"shell/assets/*": "$(SHELL_HOME)/shell/assets/*",
+	},
+	"platforms":{
+		"linux":{
+			"environment":{
+				"debugger":"192.168.56.1:5002",
+			},
+			"fonts":{
+				"default": "Fira Sans",
+				"path": "[applicationPath]fonts/"
+			},
+			"modules":{
+				"~": [
+					"$(SHELL_HOME)/common/desktopMac",
+					"$(SHELL_HOME)/common/desktopWin",
+				],
+			},
+			"assets":{
+				"fonts/Fira*": "$(F_HOME)/data/fonts/Fira*",
+			},
+		},
+		"mac":{
+			"modules":{
+				"~": [
+					"$(SHELL_HOME)/common/desktopLinux",
+					"$(SHELL_HOME)/common/desktopWin",
+				],
+			},
+		},
+		"win":{
+			"environment":{
+ 			},
+			"fonts":{
+				"default": "Fira Sans",
+				"path": "[applicationPath]fonts/"
+			},
+			"modules":{
+				"~": [
+					"$(SHELL_HOME)/common/desktopLinux",
+					"$(SHELL_HOME)/common/desktopMac",
+				],
+			},
+			"assets":{
+				"fonts/Fira*": "$(F_HOME)/data/fonts/Fira*",
+			},
+		},
+	},
+	"instrument":{
+		"log":"",
+		"syslog":"",
+		"trace":true,
+		"threads":true,
+		"times":true,
+		"androidlog":false,
+		"kinds":[
+		]
+	},
+}
