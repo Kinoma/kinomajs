@@ -16,5 +16,6 @@
  */
 var RNG = {
 	'get'(n) @ "xs_rng_get",
+	init(seed) @ "xs_rng_init",
 };
 export default RNG;

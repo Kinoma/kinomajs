@@ -174,7 +174,7 @@ export class FieldLabelBehavior extends Behavior {
 			edited = true;
 			break;
 		default:
-			this.insertKey(label, key);
+			this.insertKey(label, capsLockKey ? key.toUpperCase() : key);
 			edited = true;
 		}
 		this.onReveal(label);

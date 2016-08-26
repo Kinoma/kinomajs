@@ -556,7 +556,7 @@ txBoolean fxGetProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex 
 						mxTypeError("(proxy).get: different getter for non-configurable property");
 				}
 				else {
-					if ((property->flag & XS_DONT_SET_FLAG) && (!fxIsSameValue(the, property, slot)))
+					if ((property->flag & XS_DONT_SET_FLAG) && (!fxIsSameValue(the, property, slot, 0)))
 						mxTypeError("(proxy).get: different value for non-configurable, non-writable property");
 				}
 			}
@@ -602,7 +602,7 @@ txBoolean fxGetProxyPrototype(txMachine* the, txSlot* instance, txSlot* slot)
 			if (!fxIsInstanceExtensible(the, proxy->value.proxy.target)) {
 				mxPushUndefined();
 				fxGetInstancePrototype(the, proxy->value.proxy.target, the->stack);
-				if (!fxIsSameValue(the, slot, the->stack))
+				if (!fxIsSameValue(the, slot, the->stack, 0))
 					mxTypeError("(proxy).getPrototypeOf: different prototype for non-extensible object");
 				mxPop();
 			}
@@ -736,7 +736,7 @@ txBoolean fxSetProxyProperty(txMachine* the, txSlot* instance, txID id, txIndex 
 							mxTypeError("(proxy).set: true for non-configurable property with different setter");
 					}
 					else {
-						if ((property->flag & XS_DONT_SET_FLAG) && (!fxIsSameValue(the, property, slot)))
+						if ((property->flag & XS_DONT_SET_FLAG) && (!fxIsSameValue(the, property, slot, 0)))
 							mxTypeError("(proxy).set: true for non-configurable, non-writable property with different value");
 					}
 				}
@@ -786,7 +786,7 @@ txBoolean fxSetProxyPrototype(txMachine* the, txSlot* instance, txSlot* prototyp
 			if (!fxIsInstanceExtensible(the, proxy->value.proxy.target)) {
 				mxPushUndefined();
 				fxGetInstancePrototype(the, proxy->value.proxy.target, the->stack);
-				if (!fxIsSameValue(the, prototype, the->stack))
+				if (!fxIsSameValue(the, prototype, the->stack, 0))
 					mxTypeError("(proxy).setPrototypeOf: true for non-extensible object with different prototype");
 				mxPop();
 			}

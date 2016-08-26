@@ -17,13 +17,17 @@
 -->
 <makefile>
 
+<input name="$(F_HOME)/xs6/sources"/>
+<input name="$(F_HOME)/xs6/sources/fsk"/>
 <input name="$(F_HOME)/xs6/sources/pcre"/>
 <input name="$(F_HOME)/core/base"/>
 <input name="$(F_HOME)/kinoma/kpr"/>
 <input name="$(F_HOME)/kinoma/kpr/sources"/>
 
+<header name="xs6Script.h"/>
 <header name="kpr.h"/>
 <header name="kprCodeColor.h"/>
+
 <wrap name="kprCodeColor.c"/>
 <wrap name="kprCodeJS.c"/>
 <wrap name="kprCodeJSON.c"/>
@@ -31,8 +35,6 @@
 <input name="$(F_HOME)/xs6/xsedit/markdown"/>
 <wrap name="kprCodeMarkdown.c"/>
 
-<input name="$(F_HOME)/xs6/sources"/>
-<input name="$(F_HOME)/xs6/sources/fsk"/>
 <wrap name="kprCodeSearch.c"/>
 <wrap name="kprCodeService.c"/>
 <wrap name="kprCodeSerial.c"/>

@@ -73,6 +73,7 @@ static void fx_TypedArray_prototype_filter(txMachine* the);
 static void fx_TypedArray_prototype_find(txMachine* the);
 static void fx_TypedArray_prototype_findIndex(txMachine* the);
 static void fx_TypedArray_prototype_forEach(txMachine* the);
+static void fx_TypedArray_prototype_includes(txMachine* the);
 static void fx_TypedArray_prototype_indexOf(txMachine* the);
 static void fx_TypedArray_prototype_join(txMachine* the);
 static void fx_TypedArray_prototype_keys(txMachine* the);
@@ -238,6 +239,7 @@ void fxBuildDataView(txMachine* the)
 		{ fx_TypedArray_prototype_find, 1, _find },
 		{ fx_TypedArray_prototype_findIndex, 1, _findIndex },
 		{ fx_TypedArray_prototype_forEach, 1, _forEach },
+		{ fx_TypedArray_prototype_includes, 1, _includes },
 		{ fx_TypedArray_prototype_indexOf, 1, _indexOf },
 		{ fx_TypedArray_prototype_join, 1, _join },
 		{ fx_TypedArray_prototype_keys, 0, _keys },
@@ -1307,12 +1309,32 @@ void fx_TypedArray_prototype_forEach(txMachine* the)
 	}
 }
 
+void fx_TypedArray_prototype_includes(txMachine* the)
+{
+	mxTypedArrayDeclarations;
+	txInteger index = (txInteger)fxArgToIndex(the, 1, 0, length);
+	fxBoolean(the, mxResult, 0);
+	if (mxArgc > 0)
+		mxPushSlot(mxArgv(0));
+	else
+		mxPushUndefined();
+	mxPushUndefined();
+	while (index < length) {
+		(*dispatch->value.typedArray->getter)(the, data, view->value.dataView.offset + (index * delta), the->stack, EndianNative);
+		if (fxIsSameValue(the, the->stack, the->stack + 1, 1)) {
+			mxResult->value.boolean = 1;
+			break;
+		}
+		index++;
+	}
+	the->stack += 2;
+}
+
 void fx_TypedArray_prototype_indexOf(txMachine* the)
 {
 	mxTypedArrayDeclarations;
 	txInteger index = (txInteger)fxArgToIndex(the, 1, 0, length);
-	mxResult->kind = XS_INTEGER_KIND;
-	mxResult->value.integer = -1;
+	fxInteger(the, mxResult, -1);
 	if (mxArgc > 0)
 		mxPushSlot(mxArgv(0));
 	else

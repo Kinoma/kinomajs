@@ -1181,6 +1181,8 @@ const txNodeDescription gxTokenDescriptions[XS_TOKEN_COUNT] = {
 	{ XS_NO_CODE, XS_TOKEN_EOF, "", 0, NULL },
 	{ XS_CODE_EQUAL, XS_TOKEN_EQUAL, "Equal", sizeof(txBinaryExpressionNode), &gxBinaryExpressionNodeDispatch },
 	{ XS_CODE_EVAL, XS_TOKEN_EVAL, "Eval", sizeof(txEvalNode), &gxEvalNodeDispatch },
+	{ XS_CODE_EXPONENTIATION, XS_TOKEN_EXPONENTIATION, "Exponent", sizeof(txBinaryExpressionNode), &gxBinaryExpressionNodeDispatch },
+	{ XS_CODE_EXPONENTIATION, XS_TOKEN_EXPONENTIATION_ASSIGN, "ExponentAssign", sizeof(txAssignNode), &gxCompoundExpressionNodeDispatch },
 	{ XS_NO_CODE, XS_TOKEN_EXPORT, "Export", sizeof(txExportNode), &gxExportNodeDispatch },
 	{ XS_NO_CODE, XS_TOKEN_EXPRESSIONS, "Expressions", sizeof(txExpressionsNode), &gxExpressionsNodeDispatch },
 	{ XS_NO_CODE, XS_TOKEN_EXTENDS, "", 0, NULL },

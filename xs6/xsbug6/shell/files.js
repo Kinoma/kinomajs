@@ -273,12 +273,10 @@ export class FolderTableBehavior extends TableBehavior {
 				else
 					item = { depth, kind:"folder", name, url:mergeURI(data.url, name + "/"), expanded:false, items:[] };
 				items.push(item);
-				model.doUpdateFile(item.url);
 				info = iterator.getNext();
 			}
 			else {
 				items.push(former);
-				model.doUpdateFile(former.url);
 				i++;
 				former = (i < c) ? formers[i] : null;
 				info = iterator.getNext();

@@ -209,8 +209,8 @@ struct sxMachine {
 	txInteger echoSize;
 	txSocket connection;
 	txString name;
-	txSlot** sorter;
-	txBoolean breakOnExceptionFlag;
+	txBoolean breakOnExceptionsFlag;
+	txBoolean breakOnStartFlag;
 	void* reader;
 #endif
 #ifdef mxFrequency
@@ -431,7 +431,7 @@ mxExport txInteger fxUTF8ToUnicodeOffset(txString theString, txInteger theOffset
 extern void fxRunID(txMachine* the, txSlot* generator, txID theID);
 extern void fxRunScript(txMachine* the, txScript* script, txSlot* _this, txSlot* environment, txSlot* object, txSlot* module);
 extern txBoolean fxIsSameSlot(txMachine* the, txSlot* a, txSlot* b);
-extern txBoolean fxIsSameValue(txMachine* the, txSlot* a, txSlot* b);
+extern txBoolean fxIsSameValue(txMachine* the, txSlot* a, txSlot* b, txBoolean zero);
 
 /* xsMemory.c */
 extern void fxCheckStack(txMachine* the, txSlot* slot);

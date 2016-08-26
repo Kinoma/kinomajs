@@ -506,7 +506,7 @@ void fx_Object_is(txMachine* the)
 		mxPushSlot(mxArgv(1));
 	else
 		mxPushUndefined();
-	mxResult->value.boolean = fxIsSameValue(the, the->stack + 1, the->stack);
+	mxResult->value.boolean = fxIsSameValue(the, the->stack + 1, the->stack, 0);
 	mxResult->kind = XS_BOOLEAN_KIND;
 	the->stack += 2;
 }

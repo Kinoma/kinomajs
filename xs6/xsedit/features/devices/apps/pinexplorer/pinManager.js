@@ -97,7 +97,7 @@ var levelPopupSkin = new Skin({ texture:new Texture("./assets/level-popup.png", 
 var Separator = Content.template($ => ({ left:0, right:0, bottom:0, height:1, skin:blackSkin }));
 
 var PinLabel = Label.template($ => ({ style:pinLabelStyle, string:$.type }));
-var PinDirectionLabel = Label.template($ => ({ left:10, style:pinLabelStyle, string:$.direction }));
+var PinDirectionLabel = Label.template($ => ({ left:10, style:pinLabelStyle, string:$.direction, Behavior:PinDirectionLabelBehavior }));
 var PinVoltageLabel = Label.template($ => ({ left:10, style:pinLabelStyle, string:$.voltage }));
 var PinNumberLabel = Label.template($ => ({ right:10, style:pinNumberStyle, skin:whiteSkin, string:$.index }));
 
@@ -250,6 +250,12 @@ var AnalogPinExplorer = Container.template($ => ({
 }));
 
 // DIGITAL PIN
+
+class PinDirectionLabelBehavior extends Behavior {
+	onDigitalDirectionChanged(label, newDirection) {
+		label.string = newDirection;
+	}
+}
 
 var DigitalPinHeader = Line.template($ => ({
 	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
@@ -828,6 +834,7 @@ class DigitalPin extends GenericPin {
 		this.container = container;
 		container.time = 0;
 		container.start();
+		container.container.distribute("onDigitalOutSelected");
 	}
 	stop(container) {
 		if ("repeat" in this) {

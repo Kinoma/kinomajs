@@ -51,9 +51,6 @@ static void fxListLocal(txMachine* the);
 static void fxListModules(txMachine* the);
 static txSlot* fxParseAddress(txMachine* the, txString theAddress);
 static void fxSelect(txMachine* the, txString theAddress);
-static void fxSortProperties(txMachine* the, txSlot** theSorter, txIndex lb, txIndex ub);
-static int fxSortPropertiesCompare(txMachine* the, txSlot* i, txSlot* j);
-static void fxSortPropertiesSwap(txMachine* the, txSlot** theSorter, txIndex i, txIndex j);
 static void fxStep(txMachine* the);
 static void fxStepInside(txMachine* the);
 static void fxStepOutside(txMachine* the);
@@ -89,15 +86,23 @@ void fxClearBreakpoint(txMachine* the, txString thePath, txString theLine)
 	txSlot** aBreakpointAddress;
 	txSlot* aBreakpoint;
 
+	if (!thePath)
+		return;
 	if (!theLine)
 		return;
-	if (!thePath)
+	if (!c_strcmp(thePath, "exceptions")) {
+		the->breakOnExceptionsFlag = 0;
+		return;
+	}	
+	if (!c_strcmp(thePath, "start")) {
+		the->breakOnStartFlag = 0;
+		return;
+	}	
+	aKey = fxFindName(the, thePath);
+	if (!aKey)
 		return;
 	aLine = c_strtoul(theLine, NULL, 10);
 	if ((aLine <= 0) || (0x00007FFF < aLine))
-		return;
-	aKey = fxFindName(the, thePath);
-	if (!aKey)
 		return;
 	aBreakpointAddress = &(mxBreakpoints.value.list.first);
 	while ((aBreakpoint = *aBreakpointAddress)) {
@@ -148,12 +153,14 @@ void fxDebugCommand(txMachine* the)
 			fxListBreakpoints(the);
 		}
 		else if (fxDebugLoopTest(&p, "set-breakpoints")) {
+			the->breakOnExceptionsFlag = 0;
+			the->breakOnStartFlag = 0;
 			fxClearAllBreakpoints(the);
 			r = p;
 			while (r) {
 				r = c_strstr(r, "<breakpoint ");
 				if (!r)
-					goto bail;
+					break;
 				q = fxDebugLoopValue(&r, "path");
 				fxSetBreakpoint(the, q, fxDebugLoopValue(&r, "line"));
 				p = r;
@@ -166,6 +173,12 @@ void fxDebugCommand(txMachine* the)
 			fxSetBreakpoint(the, q, fxDebugLoopValue(&p, "line"));
 			fxEchoStart(the);
 			fxListBreakpoints(the);
+		}
+		else if (fxDebugLoopTest(&p, "step")) {
+			if (the->frame)
+				fxStep(the);
+			else
+				the->breakOnStartFlag = 1;
 		}
 		else
 			goto bail;
@@ -380,7 +393,7 @@ txString fxDebugLoopValue(txString* theBuffer, txString theName)
 
 void fxDebugThrow(txMachine* the, txString path, txInteger line, txString message)
 {
-	if (fxIsConnected(the) && (the->breakOnExceptionFlag))
+	if (fxIsConnected(the) && (the->breakOnExceptionsFlag))
 		fxDebugLoop(the, path, line, message);
 	else {
 		txSlot* frame = the->frame;
@@ -832,51 +845,20 @@ void fxEchoInstance(txMachine* the, txSlot* theInstance, txSlot* theList)
 		}
 	}
 	if (aCount) {
-		txSlot** aSorter = c_malloc(aCount * sizeof(txSlot*));
-		if (aSorter) {
-			txSlot** aSlotAddress = aSorter;
-			aSlot = aProperty;
-			while (aSlot) {
-				if (aSlot->ID < -1)
-					*aSlotAddress++ = aSlot;
-				aSlot = aSlot->next;
-			}
-			if (theInstance->ID >= 0) {
-				aSlot = the->aliasArray[theInstance->ID];
-				if (aSlot) {
-					aSlot = aSlot->next;
-					while (aSlot) {
-						if (aSlot->ID < -1)
-							*aSlotAddress++ = aSlot;
-						aSlot = aSlot->next;
-					}
-				}
-			}
-			fxSortProperties(the, aSorter, 0, aCount);
-			aSlotAddress = aSorter;
-			while (aCount) {
-				aSlot = *aSlotAddress++;
+		aSlot = aProperty;
+		while (aSlot) {
+			if (aSlot->ID < -1)
 				fxEchoProperty(the, aSlot, theList, C_NULL, -1, C_NULL);
-				aCount--;
-			}
-			c_free(aSorter);
+			aSlot = aSlot->next;
 		}
-		else {
-			aSlot = aProperty;
-			while (aSlot) {
-				if (aSlot->ID < -1)
-					fxEchoProperty(the, aSlot, theList, C_NULL, -1, C_NULL);
+		if (theInstance->ID >= 0) {
+			aSlot = the->aliasArray[theInstance->ID];
+			if (aSlot) {
 				aSlot = aSlot->next;
-			}
-			if (theInstance->ID >= 0) {
-				aSlot = the->aliasArray[theInstance->ID];
-				if (aSlot) {
+				while (aSlot) {
+					if (aSlot->ID < -1)
+						fxEchoProperty(the, aSlot, theList, C_NULL, -1, C_NULL);
 					aSlot = aSlot->next;
-					while (aSlot) {
-						if (aSlot->ID < -1)
-							fxEchoProperty(the, aSlot, theList, C_NULL, -1, C_NULL);
-						aSlot = aSlot->next;
-					}
 				}
 			}
 		}
@@ -1361,8 +1343,6 @@ void fxListGlobal(txMachine* the)
 	txSlot aKey;
 	txSlot aList;
 	txSlot* aProperty;
-	txInteger aCount;
-	txSlot** aSlotAddress;
 
 	aKey.next = C_NULL;
 	aKey.value.key.string = C_NULL;
@@ -1373,25 +1353,9 @@ void fxListGlobal(txMachine* the)
 
 	fxEcho(the, "<global>");
 	aProperty = mxGlobal.value.reference->next->next;
-	aCount = 0;
-	aSlotAddress = the->sorter;
 	while (aProperty) {
-		if (aProperty->ID >= -1)
-			fxEchoProperty(the, aProperty, &aList, C_NULL, -1, C_NULL);
-		else {
-			aCount++;
-			*aSlotAddress++ = aProperty;
-		}
+		fxEchoProperty(the, aProperty, &aList, C_NULL, -1, C_NULL);
 		aProperty = aProperty->next;
-	}
-	if (aCount) {
-		fxSortProperties(the, the->sorter, 0, aCount);
-		aSlotAddress = the->sorter;
-		while (aCount) {
-			aProperty = *aSlotAddress++;
-			fxEchoProperty(the, aProperty, &aList, C_NULL, -1, C_NULL);
-			aCount--;
-		}
 	}
 	fxEcho(the, "</global>");
 }
@@ -1493,30 +1457,11 @@ void fxListModules(txMachine* the)
 					fxEcho(the, "\"");
 					fxEchoAddress(the, exports);
 					if (exports->flag & XS_DEBUG_FLAG) {
-						txSlot** sorter = c_malloc(c * sizeof(txSlot*));
 						fxEcho(the, ">");
-						if (sorter) {
-							txSlot** address = sorter;
-							export = exports->value.reference->next;
-							while (export) {
-								*address++ = export;
-								export = export->next;
-							}
-							fxSortProperties(the, sorter, 0, c);
-							address = sorter;
-							while (c) {
-								export = *address++;
-								fxEchoExport(the, export, &aList);
-								c--;
-							}
-							c_free(sorter);
-						}
-						else {
-							export = exports->value.reference->next;
-							while (export) {
-								fxEchoExport(the, export, &aList);
-								export = export->next;
-							}
+						export = exports->value.reference->next;
+						while (export) {
+							fxEchoExport(the, export, &aList);
+							export = export->next;
 						}
 						fxEcho(the, "</node>");
 					}
@@ -1546,32 +1491,12 @@ void fxListModules(txMachine* the)
 					fxEcho(the, "\"");
 					fxEchoAddress(the, transfers);
 					if (transfers->flag & XS_DEBUG_FLAG) {
-						txSlot** sorter = c_malloc(c * sizeof(txSlot*));
 						fxEcho(the, ">");
-						if (sorter) {
-							txSlot** address = sorter;
-							transfer = transfers->value.reference->next;
-							while (transfer) {
-								txSlot* closure = mxTransferClosure(transfer);
-								*address++ = closure;
-								transfer = transfer->next;
-							}
-							fxSortProperties(the, sorter, 0, c);
-							address = sorter;
-							while (c) {
-								txSlot* closure = *address++;
-								fxEchoProperty(the, closure,  &aList,C_NULL, 0, C_NULL);
-								c--;
-							}
-							c_free(sorter);
-						}
-						else {
-							transfer = transfers->value.reference->next;
-							while (transfer) {
-								txSlot* closure = mxTransferClosure(transfer);
-								fxEchoProperty(the, closure,  &aList,C_NULL, 0, C_NULL);
-								transfer = transfer->next;
-							}
+						transfer = transfers->value.reference->next;
+						while (transfer) {
+							txSlot* closure = mxTransferClosure(transfer);
+							fxEchoProperty(the, closure,  &aList,C_NULL, 0, C_NULL);
+							transfer = transfer->next;
 						}
 						fxEcho(the, "</node>");
 					}
@@ -1674,11 +1599,19 @@ void fxSetBreakpoint(txMachine* the, txString thePath, txString theLine)
 		return;
 	if (!theLine)
 		return;
-	aLine = c_strtoul(theLine, NULL, 10);
-	if ((aLine <= 0) || (0x00007FFF < aLine))
+	if (!c_strcmp(thePath, "exceptions")) {
+		the->breakOnExceptionsFlag = 1;
 		return;
+	}	
+	if (!c_strcmp(thePath, "start")) {
+		the->breakOnStartFlag = 1;
+		return;
+	}	
 	aKey = fxNewNameC(the, thePath);
 	if (!aKey)
+		return;
+	aLine = c_strtoul(theLine, NULL, 10);
+	if ((aLine <= 0) || (0x00007FFF < aLine))
 		return;
 	fxDebugFile(the, aKey);
 	aBreakpoint = mxBreakpoints.value.list.first;
@@ -1695,44 +1628,6 @@ void fxSetBreakpoint(txMachine* the, txString thePath, txString theLine)
 		aBreakpoint->value.reference = aKey;
 		mxBreakpoints.value.list.first = aBreakpoint;
 	}
-}
-
-void fxSortProperties(txMachine* the, txSlot** theSorter, txIndex beg, txIndex end)
-{
-  if (end > beg + 1) {
-    txSlot* piv = theSorter[beg];
-    txIndex l = beg + 1, r = end;
-    while (l < r) {
-      if (fxSortPropertiesCompare(the, theSorter[l], piv) <= 0)
-        l++;
-      else
-        fxSortPropertiesSwap(the, theSorter, l, --r);
-    }
-    fxSortPropertiesSwap(the, theSorter, --l, beg);
-    fxSortProperties(the, theSorter, beg, l);
-    fxSortProperties(the, theSorter, r, end);
-  }
-}
-
-int fxSortPropertiesCompare(txMachine* the, txSlot* i, txSlot* j)
-{
-	i = fxGetKey(the, i->ID);
-	j = fxGetKey(the, j->ID);
-	if (i && j)
-		return c_strcmp(i->value.key.string, j->value.key.string);
-	if (i)
-		return 1;
-	if (j)
-		return -1;
-	return 0;
-}
-
-void fxSortPropertiesSwap(txMachine* the, txSlot** theSorter, txIndex i, txIndex j)
-{
-	txSlot* a = theSorter[i];
-	txSlot* b = theSorter[j];
-	theSorter[i] = b;
-	theSorter[j] = a;
 }
 
 void fxStep(txMachine* the)

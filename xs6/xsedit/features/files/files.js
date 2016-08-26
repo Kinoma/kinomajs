@@ -627,10 +627,11 @@ class FileViewer extends Viewer {
 			return new this.Template(this.feature.model);
 		for (let mapping of model.filesFeature.mappings) {
 			if (url.startsWith(mapping.remote)) {
-				url = mapping.locale.concat(url.slice(mapping.remote.length));
-				if (Files.exists(url))
-					model.url = url;
+				let localURL = mapping.locale.concat(url.slice(mapping.remote.length));
+				if (Files.exists(localURL)) {
+					model.url = localURL;
 					return new this.Template(this.feature.model);
+				}
 			}
 		}
 		return new ErrorView({ url, error:"File not found!" });
@@ -1550,7 +1551,8 @@ var ErrorView = Container.template($ => ({
 												shell.delegate("doOpenURL", locateURL, line);
 												var mappings = model.filesFeature.mappings;
 												mappings.unshift({locale, remote});
-												mappings.slice(10);
+												if (mappings.length > 10)
+													mappings.pop();
 											}
 											break;
 										}

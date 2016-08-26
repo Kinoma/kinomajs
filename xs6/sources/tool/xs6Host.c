@@ -741,7 +741,7 @@ void fxMarkHost(txMachine* the)
 txString fxMergePath(txString base, txString name, txString path)
 {
 	txSize baseLength, nameLength;
-	txString separator = strrchr(base, mxSeparator);
+	txString separator = c_strrchr(base, mxSeparator);
 	if (separator) {
 		separator++;
 		baseLength = separator - base;

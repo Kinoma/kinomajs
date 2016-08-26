@@ -103,6 +103,9 @@ class BigOnOffSwitchBehavior extends SwitchButtonBehavior {
 		this.data.explorerData.value = value;
 		this.data.explorerData.write(this.data.value);
 	}
+	onDigitalOutSelected(container) {		
+		this.onValueChanged(container, this.data.value);
+	}
 };
 
 export var BigOnOffSwitch = Container.template($ => ({
@@ -151,6 +154,9 @@ class InOutSwitchBehavior extends SwitchButtonBehavior {
 		var direction = this.data.explorerData.info.direction;
 		var toggledDirection = (direction == "input") ? "output" : "input";
 		container.container.delegate("setDirection", toggledDirection);		
+		this.data.explorerData.start(this.data.explorerData.container);
+		container.container.distribute("onDigitalOutSelected");
+		container.container.container.distribute("onDigitalDirectionChanged", toggledDirection);
 	}
 };
 

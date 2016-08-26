@@ -275,7 +275,19 @@ class CodeEditorBehavior extends CodeBehavior {
 		lines.behavior.onLineHeightChanged(lines, code.lineHeight);
 		let data = this.data;
 		if (Files.exists(this.data.url)) {
-			this.notifier = new Files.DirectoryNotifier(this.data.url, url => {
+			let fileURL = this.data.url;
+			this.notifier = new Files.DirectoryNotifier(fileURL, url => {
+				this.onFileChanged(code, url)
+			});
+			let dirURL = fileURL.substr(0, fileURL.lastIndexOf("/") + 1);
+			this.dirNotifier = new Files.DirectoryNotifier(dirURL, url => {
+				let info = Files.getInfo(fileURL);
+				if (this.info && (this.info.date == info.date))
+					return
+				this.notifier.close();
+				this.notifier = new Files.DirectoryNotifier(fileURL, url => {
+					this.onFileChanged(code, url)
+				});
 				this.onFileChanged(code, url)
 			});
 			this.onFileChanged(code);
@@ -293,6 +305,7 @@ class CodeEditorBehavior extends CodeBehavior {
 		code.stop();
 		this.onCursorCancel();
 		var url = this.data.url;
+		this.info = Files.getInfo(url);;
 		if (url.endsWith(".js")) {
 			code.type = "javascript";
 			this.parsing = true;
@@ -319,6 +332,10 @@ class CodeEditorBehavior extends CodeBehavior {
 		this.data.at = undefined;
 	}
 	onUndisplayed(code) {
+		this.dirNotifier.close();
+		this.dirNotifier = null;
+		this.notifier.close();
+		this.notifier = null;
 	}
 	onUnfocused(code) {
 	}

@@ -130,10 +130,11 @@ class Rule {
 
 class ModulesRule extends Rule {
 	appendPath(target, path, include, prefix) {
-		var tool = this.tool;
+	    var tool = this.tool;
+	    path = tool.resolveFilePath(path);
 		var parts = tool.splitPath(path);
 		if (parts.extension == ".js")
-			this.appendFile(tool.jsFiles, target + parts.name.slice(prefix.length), path, include);
+			this.appendFile(tool.jsFiles, target.split("/").join(tool.slash) + parts.name.slice(prefix.length), path, include);
 		else if ((parts.extension == ".c") || (parts.extension == ".cpp") || (parts.extension == ".m"))
 			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
 		else if (parts.extension == ".h")
@@ -143,27 +144,33 @@ class ModulesRule extends Rule {
 		var tool = this.tool;
 		var path = source + ".js";
 		if (FS.existsSync(path) > 0) {
-			var parts = tool.splitPath(path);
+		    path = tool.resolveFilePath(path);
+		    var parts = tool.splitPath(path);
+		    target = target.split("/").join(tool.slash);
 			this.appendFile(tool.jsFiles, straight ? target : target + parts.name, path, include);
 		}
 		var path = source + ".c";
 		if (FS.existsSync(path) > 0) {
-			var parts = tool.splitPath(path);
+		    path = tool.resolveFilePath(path);
+		    var parts = tool.splitPath(path);
 			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
 		}
 		var path = source + ".cpp";
 		if (FS.existsSync(path) > 0) {
-			var parts = tool.splitPath(path);
+		    path = tool.resolveFilePath(path);
+		    var parts = tool.splitPath(path);
 			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
 		}
 		var path = source + ".m";
 		if (FS.existsSync(path) > 0) {
-			var parts = tool.splitPath(path);
+		    path = tool.resolveFilePath(path);
+		    var parts = tool.splitPath(path);
 			this.appendFile(tool.cFiles, parts.name + ".o", path, include);
 		}
 		var path = source + ".h";
 		if (FS.existsSync(path) > 0) {
-			var parts = tool.splitPath(path);
+		    path = tool.resolveFilePath(path);
+		    var parts = tool.splitPath(path);
 			this.appendFolder(tool.cFolders, parts.directory, include);
 		}
 	}
@@ -174,13 +181,17 @@ class ModulesRule extends Rule {
 
 class AssetsRule extends Rule {
 	appendPath(target, path, include, prefix) {
-		var tool = this.tool;
+	    var tool = this.tool;
+	    path = tool.resolveFilePath(path);
 		var parts = tool.splitPath(path);
+		target = target.split("/").join(tool.slash);
 		this.appendFile(tool.resourcesFiles, target + parts.name.slice(prefix.length) + parts.extension, path, include);
 	}
 	appendSource(target, source, include, straight) {
-		if (FS.existsSync(source) > 0) {
+	    if (FS.existsSync(source) > 0) {
+	        source = tool.resolveFilePath(source);
 			var parts = tool.splitPath(source);
+			target = target.split("/").join(tool.slash);
 			this.appendFile(tool.resourcesFiles, straight ? target : target + parts.name + parts.extension, source, include);
 		}
 	}
@@ -716,7 +727,7 @@ class Tool extends TOOL {
 			path += part;
 			if (array.indexOf(path) == -1)
 				array.push(path);		
-			path += "/";
+			path += this.slash;
 		}
 	}
 	isKPR(path) {

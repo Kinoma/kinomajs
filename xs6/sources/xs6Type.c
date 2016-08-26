@@ -368,7 +368,7 @@ txBoolean fxDefineObjectProperty(txMachine* the, txSlot* instance, txID id, txIn
 				if (property->flag & XS_DONT_SET_FLAG) {
 					if ((mask & XS_DONT_SET_FLAG) && !(slot->flag & XS_DONT_SET_FLAG))
 						return 0;
-					if ((slot->kind != XS_UNINITIALIZED_KIND) && !fxIsSameValue(the, property, slot))
+					if ((slot->kind != XS_UNINITIALIZED_KIND) && !fxIsSameValue(the, property, slot, 0))
 						return 0;
 				}
 			}
@@ -966,7 +966,7 @@ txBoolean fxIsPropertyCompatible(txMachine* the, txSlot* property, txSlot* slot,
 			if (property->flag & XS_DONT_SET_FLAG) {
 				if ((mask & XS_DONT_SET_FLAG) && !(slot->flag & XS_DONT_SET_FLAG))
 					return 0;
-				if ((slot->kind != XS_UNINITIALIZED_KIND) && !fxIsSameValue(the, property, slot))
+				if ((slot->kind != XS_UNINITIALIZED_KIND) && !fxIsSameValue(the, property, slot, 0))
 					return 0;
 			}
 		}

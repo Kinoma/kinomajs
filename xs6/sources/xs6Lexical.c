@@ -916,6 +916,15 @@ void fxGetNextTokenAux(txParser* parser)
 				parser->token2 = XS_TOKEN_MULTIPLY_ASSIGN;
 				fxGetNextCharacter(parser);
 			}
+			else if (parser->character == '*') {
+				fxGetNextCharacter(parser);
+				if (parser->character == '=') {
+					parser->token2 = XS_TOKEN_EXPONENTIATION_ASSIGN;
+					fxGetNextCharacter(parser);
+				}
+				else
+					parser->token2 = XS_TOKEN_EXPONENTIATION;
+			}
 			else
 				parser->token2 = XS_TOKEN_MULTIPLY;
 			break;

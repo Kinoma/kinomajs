@@ -1382,10 +1382,6 @@ txMachine* fxCreateMachine(txCreation* theCreation, void* theArchive, txString t
 			//fxConnect(the);
 			the->connection = mxNoSocket;
 			the->name = theName;
-			the->sorter = (txSlot**)c_malloc(theCreation->keyCount * sizeof(txSlot*));
-			if (!the->sorter)
-				fxJump(the);
-			the->breakOnExceptionFlag = 1;
 		#endif
 		#ifdef mxProfile
 			the->profileID = 1;
@@ -1580,10 +1576,6 @@ void fxDeleteMachine(txMachine* the)
 	#endif
 	#ifdef mxDebug
 		//fxDisconnect(the);
-		if (the->sorter) {
-			c_free(the->sorter);
-			the->sorter = C_NULL;
-		}
 		if (the->echoBuffer) {
 			c_free(the->echoBuffer);
 			the->echoBuffer = C_NULL;
@@ -1629,10 +1621,6 @@ txMachine* fxCloneMachine(txCreation* theCreation, txMachine* theMachine, txStri
 				fxJump(the);
 			//fxConnect(the);
 			the->name = theName;
-			the->sorter = (txSlot**)c_malloc(theCreation->keyCount * sizeof(txSlot*));
-			if (!the->sorter)
-				fxJump(the);
-			the->breakOnExceptionFlag = 1;
 		#endif
 		#ifdef mxProfile
 			the->profileID = theMachine->profileID;
@@ -1781,10 +1769,6 @@ void fxShareMachine(txMachine* the)
 	#endif
 	#ifdef mxDebug
 		//fxDisconnect(the);
-		if (the->sorter) {
-			c_free(the->sorter);
-			the->sorter = C_NULL;
-		}
 		if (the->echoBuffer) {
 			c_free(the->echoBuffer);
 			the->echoBuffer = C_NULL;
@@ -1873,6 +1857,12 @@ txMachine* fxBeginHost(txMachine* the)
 	the->stack->next = the->frame;
 	the->stack->ID = XS_NO_ID;
 	the->stack->flag = XS_C_FLAG;
+#ifdef mxDebug
+	if (the->breakOnStartFlag) {
+		the->breakOnStartFlag = 0;
+		the->stack->flag |= XS_STEP_INTO_FLAG | XS_STEP_OVER_FLAG;
+	}
+#endif
 	the->stack->kind = XS_FRAME_KIND;
 	the->stack->value.frame.code = the->code;
 	the->stack->value.frame.scope = the->scope;

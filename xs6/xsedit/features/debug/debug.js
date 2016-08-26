@@ -200,6 +200,28 @@ export default class extends Feature {
 			result = a.line - b.line;
 		return result;
 	}
+	sortLines(view) {
+		let former = { column:-1, parent:null, path:null };
+		let exceptions = view.exceptions;
+		let lines = view.lines
+		lines.forEach(line => {
+			while (line.column <= former.column)
+				former = former.parent;
+			line.parent = former;
+			let name = line.name;
+			let path = former.path;
+			if (path)
+				line.path = path + name;
+			else if (exceptions && (name in exceptions))
+				line.path = exceptions[name];
+			else
+				line.path = name;
+			former = line;
+		});
+		lines.sort((a, b) => {
+			return a.path.compare(b.path);
+		});
+	}
 	sortFiles(items) {
 		if (items) {
 			items.forEach(item => this.sortFiles(item.items));
@@ -364,6 +386,9 @@ export default class extends Feature {
 			this.selectMachine(machine);
 			this.notify();
 		}
+		else if ((viewIndex == mxLocalsView) || (viewIndex == mxGrammarsView) || (viewIndex == mxGlobalsView)) {
+			this.sortLines(view);
+		}
 		if (this.currentMachine == machine)
 			shell.distribute("onMachineViewChanged", viewIndex);
 	}
@@ -376,6 +401,7 @@ export default class extends Feature {
 
 class View {
 	constructor(title) {
+		this.exceptions = null;
 		this.expanded = false;
 		this.lineIndex = -1;
 		this.lines = [];
@@ -414,6 +440,12 @@ class Machine {
 			new View("FILE"),
 			new View("LOG"),
 		];
+		this.localsView.exceptions = {
+			"(return)":"0",
+			"new.target":"1",
+			"(function)":"2",
+			"this":"3",
+		};
 		this.device = null;
 		this.ip = address.slice(0, address.lastIndexOf(":"));
 		this.iconSkin = null;

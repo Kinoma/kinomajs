@@ -468,7 +468,8 @@ void fxRunID(txMachine* the, txSlot* generator, txID id)
 		&&XS_CODE_VOID,
 		&&XS_CODE_WITH,
 		&&XS_CODE_WITHOUT,
-		&&XS_CODE_YIELD
+		&&XS_CODE_YIELD,
+		&&XS_CODE_EXPONENTIATION,
 	};
 	register void * const *bytes = gxBytes;
 #endif
@@ -2473,6 +2474,17 @@ XS_CODE_JUMP:
 			mxStack++;
 			mxNextCode(1);
 			mxBreak;
+		mxCase(XS_CODE_EXPONENTIATION)
+			slot = mxStack + 1;
+			mxToNumber(slot);
+			mxToNumber(mxStack);
+			if (c_isnan(mxStack->value.number))
+				slot->value.number = C_NAN;
+			else
+				slot->value.number = c_pow(slot->value.number, mxStack->value.number);
+			mxStack++;
+			mxNextCode(1);
+			mxBreak;
 		mxCase(XS_CODE_MULTIPLY)
 			slot = mxStack + 1;
 			mxToNumber(slot);
@@ -3193,7 +3205,7 @@ txBoolean fxIsSameSlot(txMachine* the, txSlot* a, txSlot* b)
 	return result;
 }
 
-txBoolean fxIsSameValue(txMachine* the, txSlot* a, txSlot* b)
+txBoolean fxIsSameValue(txMachine* the, txSlot* a, txSlot* b, txBoolean zero)
 {	
 	txBoolean result = 0;
 	if (a->kind == b->kind) {
@@ -3204,7 +3216,7 @@ txBoolean fxIsSameValue(txMachine* the, txSlot* a, txSlot* b)
 		else if (XS_INTEGER_KIND == a->kind)
 			result = a->value.integer == b->value.integer;
         else if (XS_NUMBER_KIND == a->kind)
-			result = ((c_isnan(a->value.number) && c_isnan(b->value.number)) || ((a->value.number == b->value.number) && (c_signbit(a->value.number) == c_signbit(b->value.number))));
+			result = ((c_isnan(a->value.number) && c_isnan(b->value.number)) || ((a->value.number == b->value.number) && (zero || (c_signbit(a->value.number) == c_signbit(b->value.number)))));
 		else if ((XS_STRING_KIND == a->kind) || (XS_STRING_X_KIND == a->kind))
 			result = c_strcmp(a->value.string, b->value.string) == 0;
 		else if (XS_SYMBOL_KIND == a->kind)
@@ -3214,11 +3226,11 @@ txBoolean fxIsSameValue(txMachine* the, txSlot* a, txSlot* b)
 	}
 	else if ((XS_INTEGER_KIND == a->kind) && (XS_NUMBER_KIND == b->kind)) {
 		txNumber aNumber = a->value.integer;
-		result = (aNumber == b->value.number) && (signbit(aNumber) == signbit(b->value.number));
+		result = (aNumber == b->value.number) && (zero || (signbit(aNumber) == signbit(b->value.number)));
 	}
 	else if ((XS_NUMBER_KIND == a->kind) && (XS_INTEGER_KIND == b->kind)) {
 		txNumber bNumber = b->value.integer;
-		result = (a->value.number == bNumber) && (signbit(a->value.number) == signbit(bNumber));
+		result = (a->value.number == bNumber) && (zero || (signbit(a->value.number) == signbit(bNumber)));
 	}
 	else if ((XS_STRING_KIND == a->kind) && (XS_STRING_X_KIND == b->kind))
 		result = c_strcmp(a->value.string, b->value.string) == 0;

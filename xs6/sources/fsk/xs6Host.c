@@ -1097,7 +1097,7 @@ void fx_xs_debug_setAutomatic(txMachine* the)
 
 void fx_xs_debug_getBreakOnException(txMachine* the)
 {
-	mxResult->value.boolean = the->breakOnExceptionFlag;
+	mxResult->value.boolean = the->breakOnExceptionsFlag;
 	mxResult->kind = XS_BOOLEAN_KIND;
 }
 
@@ -1105,7 +1105,7 @@ void fx_xs_debug_setBreakOnException(txMachine* the)
 {
 	if ((mxArgc < 1) || (mxArgv(0)->kind != XS_BOOLEAN_KIND))
 		mxTypeError("argument is no boolean");
-	the->breakOnExceptionFlag = mxArgv(0)->value.boolean;
+	the->breakOnExceptionsFlag = mxArgv(0)->value.boolean;
 }
 
 void fx_xs_debug_getConnected(txMachine* the)

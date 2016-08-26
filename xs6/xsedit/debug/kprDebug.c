@@ -425,7 +425,7 @@ void KprDebugMachineDataReader(FskThreadDataHandler handler UNUSED, FskThreadDat
 		}
 		xsEndHostSandboxCode();
 	}
-	if (err) {
+	if (err && (err != kFskErrNoData)) {
 		KprDebugMachineDispose(self);
 	}
 }

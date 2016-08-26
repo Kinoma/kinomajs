@@ -232,6 +232,7 @@ void fx_Date(txMachine* the)
 				fxCallID(the, mxID(_parse));
 				mxThis->value.reference->next->value.number = the->stack->value.number;
 				the->stack++;
+				return;
 			}
 			mxThis->value.reference->next->value.number = fxToNumber(the, slot);
 			return;

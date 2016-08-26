@@ -791,7 +791,7 @@ void fx_Promise_resolve(txMachine* the)
 		if (mxIsPromise(promise)) {
 			mxPushReference(promise);
 			fxGetID(the, mxID(_constructor));
-			if (fxIsSameValue(the, mxThis, the->stack)) {
+			if (fxIsSameValue(the, mxThis, the->stack, 0)) {
 				*mxResult = *mxArgv(0);
 				return;
 			}

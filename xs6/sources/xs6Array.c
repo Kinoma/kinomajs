@@ -43,6 +43,7 @@ static void fx_Array_prototype_filter(txMachine* the);
 static void fx_Array_prototype_find(txMachine* the);
 static void fx_Array_prototype_findIndex(txMachine* the);
 static void fx_Array_prototype_forEach(txMachine* the);
+static void fx_Array_prototype_includes(txMachine* the);
 static void fx_Array_prototype_indexOf(txMachine* the);
 static void fx_Array_prototype_join(txMachine* the);
 static void fx_Array_prototype_keys(txMachine* the);
@@ -79,6 +80,7 @@ void fxBuildArray(txMachine* the)
 		{ fx_Array_prototype_find, 1, _find },
 		{ fx_Array_prototype_findIndex, 1, _findIndex },
 		{ fx_Array_prototype_forEach, 1, _forEach },
+		{ fx_Array_prototype_includes, 1, _includes },
 		{ fx_Array_prototype_indexOf, 1, _indexOf },
 		{ fx_Array_prototype_join, 1, _join },
 		{ fx_Array_prototype_keys, 0, _keys },
@@ -1337,6 +1339,29 @@ void fx_Array_prototype_forEach(txMachine* the)
 			mxPop();
 		index++;
 	}
+}
+
+void fx_Array_prototype_includes(txMachine* the)
+{
+	txIndex length = (txIndex)fxGetArrayLength(the, mxThis);
+	txIndex index = (txIndex)fxArgToIndex(the, 1, 0, length);
+	txSlot* argument;
+	fxBoolean(the, mxResult, 0);
+	if (mxArgc > 0)
+		mxPushSlot(mxArgv(0));
+	else
+		mxPushUndefined();
+	argument = the->stack;
+	while (index < length) {
+		mxPushSlot(mxThis);
+		fxGetIndex(the, index);
+		if (fxIsSameValue(the, the->stack++, argument, 1)) {
+			mxResult->value.boolean = 1;
+			break;
+		}
+		index++;
+	}
+	mxPop();
 }
 
 void fx_Array_prototype_indexOf(txMachine* the)

@@ -65,6 +65,7 @@ static void fxRelationalExpression(txParser* parser);
 static void fxShiftExpression(txParser* parser);
 static void fxAdditiveExpression(txParser* parser);
 static void fxMultiplicativeExpression(txParser* parser);
+static void fxExponentiationExpression(txParser* parser);
 static void fxPrefixExpression(txParser* parser);
 static void fxPostfixExpression(txParser* parser);
 static void fxCallExpression(txParser* parser);
@@ -112,13 +113,14 @@ static void fxJSONArray(txParser* parser);
 #define XS_TOKEN_SHIFT_EXPRESSION 32
 #define XS_TOKEN_ADDITIVE_EXPRESSION 64
 #define XS_TOKEN_MULTIPLICATIVE_EXPRESSION 128
-#define XS_TOKEN_PREFIX_EXPRESSION 256
-#define XS_TOKEN_POSTFIX_EXPRESSION 512
-#define XS_TOKEN_END_STATEMENT 1024
-#define XS_TOKEN_REFERENCE_EXPRESSION 2048
-#define XS_TOKEN_NO_REGEXP 4096
-#define XS_TOKEN_BEGIN_BINDING 8192
-#define XS_TOKEN_IDENTIFIER_NAME 16384
+#define XS_TOKEN_EXPONENTIATION_EXPRESSION 256
+#define XS_TOKEN_PREFIX_EXPRESSION 512
+#define XS_TOKEN_POSTFIX_EXPRESSION 1024
+#define XS_TOKEN_END_STATEMENT 2048
+#define XS_TOKEN_REFERENCE_EXPRESSION 4096
+#define XS_TOKEN_NO_REGEXP 8192
+#define XS_TOKEN_BEGIN_BINDING 16384
+#define XS_TOKEN_IDENTIFIER_NAME 32768
 
 static txTokenFlag gxTokenFlags[XS_TOKEN_COUNT] = {
 	/* XS_NO_TOKEN */ 0,
@@ -170,6 +172,8 @@ static txTokenFlag gxTokenFlags[XS_TOKEN_COUNT] = {
 	/* XS_TOKEN_EOF */ XS_TOKEN_END_STATEMENT,
 	/* XS_TOKEN_EQUAL */ XS_TOKEN_EQUAL_EXPRESSION,
 	/* XS_TOKEN_EVAL */ 0,
+	/* XS_TOKEN_EXPONENTIATION */ XS_TOKEN_EXPONENTIATION_EXPRESSION,
+	/* XS_TOKEN_EXPONENTIATION_ASSIGN */ XS_TOKEN_ASSIGN_EXPRESSION,
 	/* XS_TOKEN_EXPORT */ XS_TOKEN_IDENTIFIER_NAME,
 	/* XS_TOKEN_EXPRESSIONS */ 0,
 	/* XS_TOKEN_EXTENDS */ XS_TOKEN_IDENTIFIER_NAME,
@@ -327,6 +331,8 @@ static txString gxTokenNames[XS_TOKEN_COUNT] = {
 	/* XS_TOKEN_EOF */ "",
 	/* XS_TOKEN_EQUAL */ "==",
 	/* XS_TOKEN_EVAL */ "eval",
+	/* XS_TOKEN_EXPONENTIATION */ "**",
+	/* XS_TOKEN_EXPONENTIATION_ASSIGN */ "**=",
 	/* XS_TOKEN_EXPORT */ "export",
 	/* XS_TOKEN_EXPRESSIONS */ "expressions",
 	/* XS_TOKEN_EXTENDS */ "extends",
@@ -1686,8 +1692,20 @@ void fxAdditiveExpression(txParser* parser)
 
 void fxMultiplicativeExpression(txParser* parser)
 {
-	fxPrefixExpression(parser);
+	fxExponentiationExpression(parser);
 	while (gxTokenFlags[parser->token] & XS_TOKEN_MULTIPLICATIVE_EXPRESSION) {
+		txToken aToken = parser->token;
+		txInteger aLine = parser->line;
+		fxGetNextToken(parser);
+		fxExponentiationExpression(parser);
+		fxPushNodeStruct(parser, 2, aToken, aLine);
+	}
+}
+
+void fxExponentiationExpression(txParser* parser)
+{
+	fxPrefixExpression(parser);
+	while (gxTokenFlags[parser->token] & XS_TOKEN_EXPONENTIATION_EXPRESSION) {
 		txToken aToken = parser->token;
 		txInteger aLine = parser->line;
 		fxGetNextToken(parser);
