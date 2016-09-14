@@ -38,7 +38,6 @@ let System = {
 	gc() @ "xs_system_gc",
 	_run() @ "xs_system_run",
 	addPath(path) @ "xs_system_addPath",
-	pm(level, timeout) @ "xs_system_pm",
 	reboot(force) @ "xs_system_reboot",
 	shutdown(force) @ "xs_system_shutdown",
 	onShutdown: function() {},

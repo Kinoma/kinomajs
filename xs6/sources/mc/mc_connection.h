@@ -81,6 +81,7 @@ typedef struct mc_connection {
 	char network_name[MC_CONNECTION_SSID_SIZE];	/* copy of the current "network" name */
 	/* only for Wifi */
 	struct in_addr ipaddr;
+	struct in_addr dns;
 #if LWIP_IPV6
 	struct in6_addr ipaddr6;
 #endif

@@ -35,17 +35,31 @@ var coapPins = {
 		coap.repeats = [];
 
 		coap.bind("/invoke", function(session) {
-			var response = session.createResponse();
-			var requestObject = response.payload ? JSON.parse(response.payload) : undefined; //@@ binary request
+			let requestObject;
+			if (session.payload) {
+				requestObject = JSON.parse(String.fromArrayBuffer(session.payload));
+			}
+
 			session.autoAck = false;
-			coap.Pins.invoke(parseQuery(session.query).path, requestObject, function(result) {
+
+			const path = parseQuery(session.query).path;
+			const cb = result => {
+				const response = session.createResponse();
 				response.setCode(2, 5);
-				if (result instanceof ArrayBuffer)
-					response.setPayload(result, "application/octet-stream");
-				else
-					response.setPayload(JSON.stringify(result), "application/json");
+				if (result !== undefined) {
+					if (result instanceof ArrayBuffer)
+						response.setPayload(result, "application/octet-stream");
+					else
+						response.setPayload(JSON.stringify(result), "application/json");
+				}
 				session.send(response);
-			});
+			};
+
+			if (requestObject !== undefined) {
+				coap.Pins.invoke(path, requestObject, cb);
+			} else {
+				coap.Pins.invoke(path, cb);
+			}
 		});
 
 		coap.bind("/repeat", function(session) {

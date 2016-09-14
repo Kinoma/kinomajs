@@ -31,7 +31,7 @@ static void KprZeroconfServiceStart(KprService service, FskThread thread, xsMach
 static void KprZeroconfServiceStop(KprService service);
 static void KprZeroconfServiceDiscover(KprService self, char* authority, char* id, Boolean useEnvironment);
 static void KprZeroconfServiceForget(KprService self, char* authority, char* id);
-static void KprZeroconfServiceShare(KprService self, char* authority, Boolean shareIt, Boolean useEnvironment);
+static void KprZeroconfServiceShare(KprService self, char* authority, Boolean shareIt, char* uuid);
 
 static KprServiceRecord gZeroconfService = {
 	NULL,
@@ -220,7 +220,7 @@ bail:
 	return;
 }
 
-void KprZeroconfServiceShare(KprService self, char* authority, Boolean shareIt, Boolean useEnvironment)
+void KprZeroconfServiceShare(KprService self, char* authority, Boolean shareIt, char* uuid)
 {
 	FskErr err = kFskErrNone;
 	char* type = NULL;
@@ -228,13 +228,14 @@ void KprZeroconfServiceShare(KprService self, char* authority, Boolean shareIt, 
 	KprHTTPServer server = KprHTTPServerGet(authority);
 	bailIfError(KprZeroconfServiceNewType(authority, &type));
 	advertisement = KprZeroconfAdvertisementFind(gKprZeroconfAdvertisements, type, 0);
-	if (shareIt && useEnvironment)
+	if (shareIt && !uuid)
 		shareIt = KprEnvironmentGetUInt32("useZeroconf", 0);
 	if (shareIt && server) {
 		if (!advertisement) {
-			UInt32 port = server ? KprHTTPServerGetPort(server) : 0;
-			Boolean secure = server ? KprHTTPServerIsSecure(server) : false;
-			char* uuid = FskUUIDGetForKey(authority);
+			UInt32 port = KprHTTPServerGetPort(server);
+			Boolean secure = KprHTTPServerIsSecure(server);
+			if (!uuid)
+				uuid = FskUUIDGetForKey(authority);
 			FskAssociativeArray txt = NULL;
 			if (secure) {
 				txt = FskAssociativeArrayNew();

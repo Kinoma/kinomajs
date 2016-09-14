@@ -15,7 +15,7 @@
 #     limitations under the License.
 #
 MODULE = files
-JS_SRC = xm_files.js
+JS_SRC = $(F_HOME)/xs6/extensions/files/files.js
 C_SRCS = xm_files.c
 
 include library.mk

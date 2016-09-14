@@ -243,14 +243,15 @@ void KprServicesForget(KprContext context, char* id)
 	}
 }
 
-void KprServicesShare(KprContext context, Boolean shareIt, char* services)
+void KprServicesShare(KprContext context, Boolean shareIt, char* services, char* uuid)
 {
 	KprService service = gServices;
 	while (service) {
 		if (service->share) {
 			if (!service->thread)
 				service->thread = KprShellGetThread(gShell);
-			FskThreadPostCallback(service->thread, (FskThreadCallback)service->share, service, FskStrDoCopy(context->id), (void*)(services ? (FskStrStr(services, service->id) != NULL) : shareIt), (void*)(services ? false : true));
+//			FskThreadPostCallback(service->thread, (FskThreadCallback)service->share, service, FskStrDoCopy(context->id), (void*)(services ? (FskStrStr(services, service->id) ? value : false) : value), (void*)(services ? false : true));
+			FskThreadPostCallback(service->thread, (FskThreadCallback)service->share, service, FskStrDoCopy(context->id), (void*)(services ? (FskStrStr(services, service->id) != NULL) : shareIt), (void*)uuid);
 		}
 		service = service->next;
 	}

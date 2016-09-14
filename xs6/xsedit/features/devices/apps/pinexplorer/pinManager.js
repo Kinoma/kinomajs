@@ -62,6 +62,7 @@ import {
 // import { HorizontalSlider, HorizontalSliderBehavior, horizontalSliderBarSkin, horizontalSliderButtonSkin } from "common/slider";
 // import { HorizontalSwitch, HorizontalSwitchBehavior, horizontalSwitchSkin, horizontalSwitchStyle } from "common/switch";
 
+/***
 var gIndexToPin = {
 	left: [
 		[51,52,53,54,55,56,57,58],
@@ -87,9 +88,11 @@ var gIndexToMap = {
 		[]
 	],
 };
+***/
 
 var pinLabelStyle = new Style({font:SEMIBOLD_FONT, size:14, color:WHITE, horizontal:"left" });
 var pinNumberStyle = new Style({font:SEMIBOLD_FONT, size:14, color:BLACK, horizontal:"center", left:4, right:4 });
+var pinDescriptionStyle = new Style({font:SEMIBOLD_FONT, size:14, color:WHITE, horizontal:"right" });
 var levelPopupPointerSkin = new Skin({ texture:new Texture("./assets/value-inspector-pointer.png", 1), x:0, y:0, width:17, height:9 });
 var levelPopupStyle = new Style({font:"bold", size:18, color:BLACK, horizontal:"center", vertical:"middle"});
 var levelPopupSkin = new Skin({ texture:new Texture("./assets/level-popup.png", 1), x:0, y:0, width:30, height:30, tiles: { left:10, right:10 } });
@@ -99,7 +102,8 @@ var Separator = Content.template($ => ({ left:0, right:0, bottom:0, height:1, sk
 var PinLabel = Label.template($ => ({ style:pinLabelStyle, string:$.type }));
 var PinDirectionLabel = Label.template($ => ({ left:10, style:pinLabelStyle, string:$.direction, Behavior:PinDirectionLabelBehavior }));
 var PinVoltageLabel = Label.template($ => ({ left:10, style:pinLabelStyle, string:$.voltage }));
-var PinNumberLabel = Label.template($ => ({ right:10, style:pinNumberStyle, skin:whiteSkin, string:$.index }));
+var PinNumberLabel = Label.template($ => ({ right:10, style:pinNumberStyle, skin:whiteSkin, width:24, string:$.index }));
+var PinDescriptionLabel = Label.template($ => ({ style:pinDescriptionStyle }));
 
 // var sliderTexture = new Texture("./assets/slider.png", 1);
 // horizontalSliderBarSkin = new Skin({ texture: sliderTexture, x:10, y:0, width:60, height:40, tiles:{ left:10, right:10 }, states:40 });
@@ -202,15 +206,47 @@ var PinFooter = Container.template($ => ({
 
 // GENERIC PIN
 
+export class PinHeaderBehavior extends HeaderBehavior {
+	changeArrowState(line, state) {
+		line.first.next.next.next.state = state;
+	}
+	onDisplaying(line) {
+		this.addDeviceSpecificPinDescriptions(line);
+	}
+	addDeviceSpecificPinDescriptions(line) {
+		let deviceTag = this.data.device.constructor.tag;
+		let pinNumber = this.data.info.pin;
+		let text = "";
+		switch(deviceTag) {
+			case "Create":
+				if (pinNumber <= 50)
+					text = "Back";
+				else if (pinNumber <= 58)
+					text = "Front - Left";
+				else if (pinNumber <= 66)
+					text = "Front - Right";
+			break
+			case "Element":
+				if (pinNumber <= 8)
+					text = "Left";
+				else if (pinNumber <= 16)
+					text = "Right";
+			break
+		}
+		line.add( new PinDescriptionLabel(this.data, { right:10, string:text }) );
+	}
+};
+
 var GenericPinHeader = Line.template($ => ({
 	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
-	Behavior: HeaderBehavior,
+	Behavior: PinHeaderBehavior,
 	contents: [
-		Content($, { width:0 }),
+		Content($, { width:8 }),
+		PinNumberLabel($),
+		Content($, { width:-10 }),
 		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
 		PinLabel($),
 		Content($, { left:0, right:0 }),
-		PinNumberLabel($),
 	],
 }));
 
@@ -225,14 +261,15 @@ var GenericPinContainer = Column.template($ => ({
 
 var PowerPinHeader = Line.template($ => ({
 	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
-	Behavior: HeaderBehavior,
+	Behavior: PinHeaderBehavior,
 	contents: [
-		Content($, { width:0 }),
+		Content($, { width:8 }),
+		PinNumberLabel($),
+		Content($, { width:-10 }),
 		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
 		PinLabel($),
 		PinVoltageLabel($),
 		Content($, { left:0, right:0 }),
-		PinNumberLabel($),
 	],
 }));
 
@@ -259,14 +296,15 @@ class PinDirectionLabelBehavior extends Behavior {
 
 var DigitalPinHeader = Line.template($ => ({
 	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
-	Behavior: HeaderBehavior,
+	Behavior: PinHeaderBehavior,
 	contents: [
-		Content($, { width:0 }),
+		Content($, { width:8 }),
+		PinNumberLabel($),
+		Content($, { width:-10 }),
 		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
 		PinLabel($),
 		PinDirectionLabel($),
 		Content($, { left:0, right:0 }),
-		PinNumberLabel($),
 	],
 }));
 
@@ -355,13 +393,14 @@ var DigitalOutputPinPane = Container.template($ => ({
 
 var PWMPinHeader = Line.template($ => ({
 	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
-	Behavior: HeaderBehavior,
+	Behavior: PinHeaderBehavior,
 	contents: [
-		Content($, { width:0 }),
+		Content($, { width:8 }),
+		PinNumberLabel($),
+		Content($, { width:-10 }),
 		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
 		PinLabel($),
 		Content($, { left:0, right:0 }),
-		PinNumberLabel($),
 	],
 }));
 

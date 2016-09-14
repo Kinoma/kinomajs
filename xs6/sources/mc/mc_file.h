@@ -24,22 +24,17 @@ struct mc_volume_info {
 	size_t used;	/* not supported yet */
 };
 
-#if !mxMC
-typedef FILE file;
-#endif
-
-struct ffs;
+struct mc_ffs;
 struct mc_file {
-	file *ftfs;
-	struct ffs *ffs;
+	struct mc_ffs *ffs;
+	const void *mmapped;
 	/* for stream read */
 #define MC_STREAM_BUFSIZ	128
-	uint8_t buf[MC_STREAM_BUFSIZ];
-	uint8_t *bp, *bufend;
+	uint8_t *buf, *bp, *bufend;
 	size_t length;
 	long pos;
-#if !mxMC
-	file *fd;	// for native file
+#if FTFS || !mxMC
+	void *aux;
 #endif
 };
 
@@ -50,57 +45,6 @@ struct mc_dirent {
 #if mxMC
 typedef uint32_t mode_t;
 #else
-typedef struct mdev {
-	uint8_t index;
-	void *fd;
-#if !MANAGE_OPEN_COUNT
-	uint8_t openCount;
-#endif
-	uint8_t *data;
-	bool dirty;
-} mdev_t;
-
-typedef struct flash_desc {
-	uint8_t fl_dev;
-	uint32_t fl_start;
-	uint32_t fl_size;
-} flash_desc_t;
-
-enum {
-	WM_SUCCESS = 0,
-	WM_FAIL = -1,
-};
-
-struct fs {
-};
-
-struct ftfs_super {
-	struct fs fs;
-//	FT_FILE fds[FTFS_MAX_FILE_DESCRIPTORS];
-//	uint32_t fds_mask;
-//	uint32_t active_addr;
-//	mdev_t *dev;
-//	unsigned fs_crc32;
-};
-
-enum flash_comp {
-	FC_COMP_BOOT2 = 0,
-	FC_COMP_FW,
-	FC_COMP_WLAN_FW,
-	FC_COMP_FTFS,
-	FC_COMP_PSM,
-	FC_COMP_USER_APP,
-};
-
-struct partition_entry {
-	uint8_t type;
-	uint8_t device;
-	char name[MAX_NAME];
-	uint32_t start;
-	uint32_t size;
-	uint32_t gen_level;
-};
-
 extern const char *mc_resolve_path(const char *path, int create);
 #endif
 

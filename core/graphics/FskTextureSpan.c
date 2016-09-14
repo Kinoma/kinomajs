@@ -282,7 +282,7 @@ static void InitRepeatVRegime(FskSpan *span) {
 	vEnd = td->v + (span->dx - 1) * td->texXform.M[0][1];							/* Where we'll be at the end of the span */
 
 	if (td->v >= td->vMax) {				/* In the wrap region */
-		td->vSpanMode = td->quality ? kSpanModeWrap : kSpanModeNormal;				/* TODO: append this span to an adjacent on when kSpanModeNormal */
+		td->vSpanMode = td->quality ? kSpanModeWrap : kSpanModeNormal;				/* TODO: append this span to an adjacent one when kSpanModeNormal */
 		if (td->texXform.M[0][1] >= 0) {											/* U increasing */
 			td->nv = (vEnd < td->vPeriod)	? span->dx								/* Stays in the wrap region until the end of the span */
 											: (td->vPeriod - td->v + td->texXform.M[0][1] - 1) / td->texXform.M[0][1];	/* ceiling */

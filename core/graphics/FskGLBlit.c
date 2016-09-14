@@ -1263,7 +1263,7 @@ FskErr FskErrorFromEGLError(int eglErr) {
 		{ -1,						kFskErrUnknown				}
 	};
 	const struct ELU *p;
-	for (p = lookupTab; p != &p[sizeof(lookupTab)/sizeof(lookupTab[0])-1]; ++p)
+	for (p = lookupTab; p != &lookupTab[sizeof(lookupTab)/sizeof(lookupTab[0])-1]; ++p)
 		if (eglErr == p->eglErr)
 			break;
 	return p->fskErr;

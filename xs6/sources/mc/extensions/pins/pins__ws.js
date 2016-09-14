@@ -49,20 +49,20 @@ var PinsWebSocketHandler = {
 			delete repeats[id];
 		}
 		// client.close();	//close the client
-		// should we close the websocket server or not? we should keep the server alive. 
+		// should we close the websocket server or not? we should keep the server alive.
 		this.clients.splice(index, 1);
 		this.repeats.splice(index, 1);
 	},
 	onStart(client){
 		let self = this;
-		this.repeats.push({}); 
+		this.repeats.push({});
 		this.clients.push(client);
 		client.onopen = function(){
 		};
 		client.onclose = function(){
 		};
 		let onClose = client.onClose;
-		client.onClose = function(){	
+		client.onClose = function(){
 			self.removeClient(client);// we need notification to remove our repeat
 			onClose();
 		};
@@ -76,12 +76,12 @@ var PinsWebSocketHandler = {
 					let id = obj.id + "_"
 					if(obj.repeat){
 						if( id in repeats){ /* its already on repeat */
-							repeats[id].close(); 
+							repeats[id].close();
 							delete repeats[id];
 						}
 						repeats[id] = Pins.repeat(obj.path, obj.interval ? obj.interval : obj.timer, function(result){
 							client.send(JSON.stringify({body: result, inReplyTo: obj.id}));
-						});	
+						});
 					}
 					else{
 						// stop repeat
@@ -96,11 +96,11 @@ var PinsWebSocketHandler = {
 					let cb = function(result){
 						client.send(JSON.stringify({body: result, inReplyTo: obj.id}));
 					};
-					if (obj.requestObject != undefined)
+					if (obj.requestObject !== undefined)
 						Pins.invoke(obj.path, obj.requestObject, cb)
 					else
 						Pins.invoke(obj.path, cb)
-				}	
+				}
 			}
 			catch(error){
 				trace("error happended!!!\n");

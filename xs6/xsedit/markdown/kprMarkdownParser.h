@@ -62,6 +62,7 @@ extern "C" {
 #define kprMarkdownParseAll 0x1
 #define kprMarkdownParseElements 0x2
 #define kprMarkdownParseToFirstHeader 0x4
+#define kprMarkdownDoNotReturnToTargetState 0x8
 
 #define kprMarkdownDefaultAttributesOption 1
 #define kprMarkdownDefaultElementsOption 2

@@ -16,6 +16,6 @@
 #
 MODULE = tftpd
 JS_SRC = inetd_tftpd.js
-C_SRCS = inetd_tftpd.c mc_tftpd.c soft_crc32.c
+C_SRCS = inetd_tftpd.c mc_tftpd.c
 
 include library.mk

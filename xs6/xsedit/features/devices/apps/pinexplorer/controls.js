@@ -33,6 +33,13 @@ import {
 } from "shell/assets";
 
 import {
+	whiteButtonSkin,
+	whiteButtonStyle,
+	grayButtonSkin,
+	grayButtonStyle
+} from "common/assets";
+
+import {
 	ButtonBehavior
 } from "common/control";
 
@@ -194,6 +201,15 @@ const motorLEDSwitchTextSkin = new Skin({ texture:motorLEDButtonTexture, x:200, 
 class MotorLEDSwitchBehavior extends SwitchButtonBehavior {
 	onCreate(container, data) {
 		this.data = data;
+		
+		let deviceTag = this.data.device.constructor.tag;				// Create Doesn't support Motor mode for back pins
+		let pinNumber = this.data.info.pin;
+		if ((deviceTag == "Create") && (pinNumber <= 50)) {
+			container.active = false;
+			container.visible = false;
+			return
+		}
+		
 		var selection = this.data.pwmMode;
 		var info = data.info;
 		var pin = info.pin;
@@ -486,4 +502,252 @@ const PWMControlsDialog = Layout.template($ => ({
 		Content($, {left:50, width:pinSize, top:0, height:71, skin:dropArrowSkin}),
 	],
 }));
+
+// Filter Buttons
+
+const pinFilterStyle = new Style({ font:SEMIBOLD_FONT, size:12, color:[BLACK, WHITE], horizontal:"left" });
+
+class FilterButtonLineBehavior extends Behavior {
+	onCreate(line, data) {
+		this.data = data;
+	}
+	onDisplaying(line) {
+		this.appendDeviceSpecificButtons(line);
+		this.appendAllNoneButtons(line);
+	}
+	onFilterButtonChanged(line) {
+		this.data.PROBES.delegate("onUpdate");
+	}
+	onAllFilterButtonChanged(line) {
+		let aButton = line.first.next;		// skip the label
+		while (aButton) {
+			let type = aButton.behavior.data.type;
+			if (type == "pin")
+				aButton.delegate("changeState", 2);
+			aButton = aButton.next;
+		}
+		this.data.PROBES.delegate("onUpdate");
+	}
+	onNoneFilterButtonChanged(line) {
+		let aButton = line.first.next;		// skip the label
+		while (aButton) {
+			let type = aButton.behavior.data.type;
+			if (type == "pin")
+				aButton.delegate("changeState", 0);
+			aButton = aButton.next;
+		}
+		this.data.PROBES.delegate("onUpdate");
+	}
+	filterProbes(line, probes) {
+		if (undefined == probes)
+			return undefined;
+				
+		let filteredTypes = [];
+//		let aButton = line.first;
+		let aButton = line.first.next; 		// skip the label column
+		while (aButton) {
+			if (aButton.state == 0)
+				filteredTypes.push(aButton.behavior.data.name);
+			aButton = aButton.next;
+		}
+		
+		let filteredProbes = [];
+		probes.forEach(probe => {
+			var isFiltered = false;
+			filteredTypes.forEach(type => {
+				if (type == probe.info.type)
+					isFiltered = true;
+			});
+			if (false == isFiltered)
+				filteredProbes.push(probe);
+		});
+				
+		filteredProbes = this.applyDeviceSpecificFiltering(line, filteredProbes);
+
+		return filteredProbes;
+	}
+	
+	applyDeviceSpecificFiltering(line, filteredProbes) {
+		let deviceTag = this.data.device.constructor.tag;
+		let createFilteredProbes = [];
+		let aButton = undefined;
+		
+		switch(deviceTag) {
+			case "Create":
+				aButton = line.first;
+				while (aButton) {
+					if (aButton.name == "Front") {
+						if (aButton.state != 0) {
+							filteredProbes.forEach(probe => {
+								let pinNumber = probe.info.pin;
+								if (pinNumber > 50)
+									createFilteredProbes.push(probe);
+							});
+						}
+					}
+					aButton = aButton.next;
+				}
+				aButton = line.first;
+				while (aButton) {
+					if (aButton.name == "Back") {
+						if (aButton.state != 0) {
+							filteredProbes.forEach(probe => {
+								let pinNumber = probe.info.pin;
+								if (pinNumber <= 50)
+									createFilteredProbes.push(probe);
+							});
+						}
+					}
+					aButton = aButton.next;
+				}
+				return createFilteredProbes;
+			break
+			case "Element":
+				createFilteredProbes = [];
+				aButton = line.first;
+				while (aButton) {
+					if (aButton.name == "Left") {
+						if (aButton.state != 0) {
+							filteredProbes.forEach(probe => {
+								let pinNumber = probe.info.pin;
+								if (pinNumber < 9)
+									createFilteredProbes.push(probe);
+							});
+						}
+					}
+					aButton = aButton.next;
+				}
+				aButton = line.first;
+				while (aButton) {
+					if (aButton.name == "Right") {
+						if (aButton.state != 0) {
+							filteredProbes.forEach(probe => {
+								let pinNumber = probe.info.pin;
+								if (pinNumber > 8)
+									createFilteredProbes.push(probe);
+							});
+						}
+					}
+					aButton = aButton.next;
+				}
+				return createFilteredProbes;
+			break
+		}
+	}
+
+	appendAllNoneButtons(line) {
+		line.add( new NoneAllButton({ name:"All", message:"onAllFilterButtonChanged", type:"all" }, { left:20 } ));
+		line.add( new NoneAllButton({ name:"None", message:"onNoneFilterButtonChanged", type:"none" }, { left:10 } ));
+	}
+
+	appendDeviceSpecificButtons(line) {
+		var deviceTag = this.data.device.constructor.tag;
+		switch(deviceTag) {
+			case "Create":
+				line.add( new FilterButton( { name:"Front", message:"onFilterButtonChanged", type:"pin" }, { left:10, name:"Front" } ));
+				line.add( new FilterButton( { name:"Back", message:"onFilterButtonChanged", type:"pin" }, { left:10, name:"Back" } ));
+			break
+			case "Element":
+				line.add( new FilterButton( { name:"Left", message:"onFilterButtonChanged", type:"pin" }, { left:10, name:"Left" } ));
+				line.add( new FilterButton( { name:"Right", message:"onFilterButtonChanged", type:"pin" }, { left:10, name:"Right" } ));
+			break
+		}
+	}
+};
+
+export const FilterButtonLine = Line.template($ => ({
+	clip:true,
+	Behavior: FilterButtonLineBehavior,
+	contents: [
+		Column($, {
+			left:10,
+			contents: [
+				Label($, { top:0, left:0, style:pinFilterStyle, string:"Pin"}),
+				Label($, { top:-3, left:0, style:pinFilterStyle, string:"Filters"}),
+			]
+		}),
+		FilterButton({ name:"Analog", message:"onFilterButtonChanged", type:"pin" }, { left:10 }),
+		FilterButton({ name:"Digital", message:"onFilterButtonChanged", type:"pin" }, { left:10 }),
+		FilterButton({ name:"PWM", message:"onFilterButtonChanged", type:"pin" }, { left:10 }),
+//		FilterButton({ name:"I2C", message:"onFilterButtonChanged", type:"pin" }, { left:10 }),
+//		FilterButton({ name:"Serial", message:"onFilterButtonChanged", type:"pin" }, { left:10 }),
+		FilterButton({ name:"Power", message:"onFilterButtonChanged", type:"pin" }, { left:10 }),
+		FilterButton({ name:"Ground", message:"onFilterButtonChanged", type:"pin" }, { left:10 }),
+//		NoneAllButton({ name:"All", message:"onAllFilterButtonChanged", type:"all" }, { left:20 }),
+//		NoneAllButton({ name:"None", message:"onNoneFilterButtonChanged", type:"none" }, { left:10 }),
+	],
+}));
+
+const roundedFilterButtonTexture = new Texture("assets/rounded-filter-button.png", 1);
+const roundedFilterButtonSkin = new Skin({ texture:roundedFilterButtonTexture, x:0, y:0, width:30, height:24, states:24, tiles: { left:10, right:10 } });
+
+const rectangleFilterButtonTexture = new Texture("assets/rectangle-filter-button.png", 1);
+const rectangleFilterButtonSkin = new Skin({ texture:rectangleFilterButtonTexture, x:0, y:0, width:30, height:24, states:24, tiles: { left:10, right:10 } });
+
+
+class FilterButtonBehavior extends Behavior {
+	onCreate(container, data) {
+		this.data = data;
+		this.changeState(container, 2);		// change to data.isSelected later ***
+		this.wasToggled = false;
+	}
+	changeState(container, state) {
+		container.state = state;
+		var content = container.first;
+		while (content) {
+			content.state = state;
+			content = content.next;
+		}
+	}
+	onTouchBegan(container, id, x, y, ticks) {
+		container.state = (this.saveState == 2 ? 0 : 2)
+		this.saveState = container.state;
+		this.changeState(container, container.state);
+		container.container.delegate(this.data.message);
+		this.wasToggled = true;
+	}
+	onTouchEnded(container, id, x, y, ticks) {
+		this.wasToggled = false;
+	}
+	
+	onMouseEntered(container, x, y) {
+		shell.behavior.cursorShape = system.cursors.arrow;
+		this.saveState = container.state;
+		this.changeState(container, 1);
+	}
+	onMouseExited(container, x, y) {
+		if (false == this.wasToggled) {
+			container.state = this.saveState;
+			this.changeState(container, container.state);
+		}
+	}
+};
+
+export const filterButtonStyle = new Style({ font:"Open Sans Semibold", size:14, color:[ WHITE, BLACK, BLACK, WHITE ] });
+
+export const FilterButton = Line.template($ => ({
+	skin:rectangleFilterButtonSkin, active:true, Behavior: FilterButtonBehavior,
+	contents: [
+		Container($, { width:10 }),
+		Label($, { style:filterButtonStyle, string:$.name }),
+		Container($, { width:10 }),
+	],
+}));
+
+class NoneAllButtonBehavior extends ButtonBehavior {
+	onTap(container) {
+		container.container.delegate(this.data.message);
+	}
+};
+
+export const NoneAllButton = Line.template($ => ({
+	skin:roundedFilterButtonSkin, active:true, Behavior: NoneAllButtonBehavior,
+	contents: [
+		Container($, { width:10 }),
+		Label($, { style:whiteButtonStyle, string:$.name }),
+		Container($, { width:10 }),
+	],
+}));
+
+
 

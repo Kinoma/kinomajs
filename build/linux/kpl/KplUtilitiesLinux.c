@@ -108,7 +108,7 @@ FskErr KplLauncherOpenURI(const char *uri)
 
 	exec = (stat(uri, &sb) == 0 && sb.st_mode & S_IXUSR);
 	if (exec) {
-		snprintf(command, sizeof(command), "%s &", uri);
+		snprintf(command, sizeof(command), "\"%s\" &", uri);
 	}
 	else {
 		snprintf(command, sizeof(command), "xdg-open \"%s\"", uri);

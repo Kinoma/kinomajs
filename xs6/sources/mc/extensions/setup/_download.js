@@ -41,11 +41,11 @@ function download(http, args)
 			let Bin = require.weak("bin");
 			var f = new File("/" + q.file);
 			if (q.file == "wififw")
-				f._read(8);		// size of the fw header
+				f.read(undefined, 8);		// size of the fw header
 			var md5 = new Crypt.MD5();
 			var blksz = md5.blockSize;
 			while (len > 0) {
-				md5.update(f._read(blksz > len ? len : blksz));
+				md5.update(f.read(undefined, blksz > len ? len : blksz));
 				len -= blksz;
 			}
 			f.close();

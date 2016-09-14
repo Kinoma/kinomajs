@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cd $F_HOME/xs6/sources/mc/rodata
+cd $1
 list=`ls -1`
 
 (\
@@ -10,4 +10,4 @@ list=`ls -1`
     i=0; \
     for f in $list; do echo "{\"$f\", _$i, sizeof(_$i)},"; i=`expr $i + 1`; done; \
     echo "};" \
-) > $1
+) > $2

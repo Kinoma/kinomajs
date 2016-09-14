@@ -19,8 +19,6 @@
 #include "mc_time.h"
 #include "mc_event.h"
 #if mxMC
-#include <wmstdio.h>
-#include <wm_os.h>
 #include <lwip/sockets.h>
 #else
 #include "mc_compat.h"

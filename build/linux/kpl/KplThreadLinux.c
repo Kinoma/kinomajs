@@ -416,7 +416,9 @@ FskErr KplThreadRunloopCycle(SInt32 msec)
         FskInstrumentedTypePrintfDebug(&gKplThreadTypeInstrumentation, "gtk_main should quit in %ds", waitTimeMS);
         g_timeout_add(waitTimeMS, quitGtkMain, NULL);
         gtk_main();
+		LinuxThreadWaitForData(thread, 0);
 	}
+	else
 #endif
 	LinuxThreadWaitForData(thread, waitTimeMS);
 

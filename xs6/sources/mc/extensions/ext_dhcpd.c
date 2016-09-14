@@ -17,39 +17,30 @@
 #include "mc_xs.h"
 #include "mc_stdio.h"
 #include "mc_module.h"
+#include "mc_wmsdk.h"
 
 #if !XS_ARCHIVE
 #include "ext_dhcpd.xs.c"
 MC_MOD_DECL(dhcpd);
 #endif
 
-#if mxMC
-#include <wm_net.h>
-#include <wmstats.h>
-#include <dhcp-server.h>
-
-/* used in WMSDK */
-#undef errno
-int errno;
-struct wm_stats g_wm_stats;
-
 static int dhcpd_running = 0;
 
 void
 xs_dhcpd_start(xsMachine *the)
 {
-	void *handler = net_get_uap_handle();
-	int err = dhcp_server_start(handler);
-	if (err != 0)
-		mc_log_error("dhcp_server_start returned %d\n", err);
-	dhcpd_running = err == 0;
+	if (mc_dhcpd_start() != 0) {
+		mc_log_error("dhcp_server_start returned\n");
+		return;
+	}
+	dhcpd_running++;
 }
 
 void
 xs_dhcpd_stop(xsMachine *the)
 {
 	if (dhcpd_running) {
-		dhcp_server_stop();
+		mc_dhcpd_stop();
 		dhcpd_running = 0;
 	}
 }
@@ -65,28 +56,7 @@ void
 xs_dhcpd_destructor(void *data)
 {
 	if (dhcpd_running) {
-		dhcp_server_stop();
+		mc_dhcpd_stop();
 		dhcpd_running = 0;
 	}
 }
-#else
-void
-xs_dhcpd_constructor(xsMachine *the)
-{
-}
-
-void
-xs_dhcpd_destructor(void *data)
-{
-}
-
-void
-xs_dhcpd_start(xsMachine *the)
-{
-}
-
-void
-xs_dhcpd_stop(xsMachine *the)
-{
-}
-#endif

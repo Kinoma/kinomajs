@@ -17,17 +17,18 @@
 .NOTPARALLEL:
 
 .SUFFIXES : .c .o .so .a
-$(TMP_DIR)/%.o : %.c
+$(TMP_DIR)/%.o : $(MOD_HOME)%.c
 	$(CC) -c $(C_OPTIONS) $(MOD_C_OPTIONS) $< -o $@
 	$(AR) cr $(TMP_DIR)/$(LIBMODULE) $@
 
+MOD_NAME = $(basename $(notdir $(JS_SRC)))
 OBJS = $(addprefix $(TMP_DIR)/, $(addsuffix .o, $(basename $(C_SRCS))))
 ENTRY = _mc_$(MODULE)_module
-XSB = $(addprefix $(TMP_DIR)/, $(addsuffix .xsb, $(basename $(JS_SRC))))
+XSB = $(addprefix $(TMP_DIR)/, $(addsuffix .xsb, $(MOD_NAME)))
 
 ifneq ($(XS_ARCHIVE), 1)
-XS_C = $(addprefix $(TMP_DIR)/, $(addsuffix .xs.c, $(basename $(JS_SRC))))
-XS_H = $(addprefix $(TMP_DIR)/, $(addsuffix .xs.h, $(basename $(JS_SRC))))
+XS_C = $(addprefix $(TMP_DIR)/, $(addsuffix .xs.c, $(MOD_NAME)))
+XS_H = $(addprefix $(TMP_DIR)/, $(addsuffix .xs.h, $(MOD_NAME)))
 endif
 
 ifndef USE_DEFAULT_LIBS
@@ -43,8 +44,8 @@ archive: $(DEST_DIR)/$(SUB_DIR)$(MODULE).xsb $(TMP_DIR)/$(LIBMODULE)
 $(DEST_DIR)/$(SUB_DIR)$(MODULE).xsb: $(XSB)
 	cp -p $(XSB) $@
 
-$(XSB): $(JS_SRC)
-	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(TMP_DIR) $(JS_SRC)
+$(XSB): $(MOD_HOME)$(JS_SRC)
+	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -c -o $(TMP_DIR) $(MOD_HOME)$(JS_SRC)
 	touch $(TMP_DIR)/.update
 
 $(DEST_DIR)/$(SUB_DIR)$(MODULE).so: $(OBJS)

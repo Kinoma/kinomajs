@@ -1665,9 +1665,9 @@ static FskErr DrawTransformedBitmap(const FskCanvas2dContextState *st,
 	FskSLinearTransform(S[0], T[0], U[0], 3, 3, 3);
 
 	/* Get points */
-	srcPts[0][0] = srcPts[1][0] = (float)(sx)				- zeroish;
+	srcPts[0][0] = srcPts[1][0] = (float)(sx)			- zeroish;
 	srcPts[2][0] = srcPts[3][0] = (float)(sx + sw - 1.)	+ zeroish;
-	srcPts[0][1] = srcPts[3][1] = (float)(sy)				- zeroish;
+	srcPts[0][1] = srcPts[3][1] = (float)(sy)			- zeroish;
 	srcPts[1][1] = srcPts[2][1] = (float)(sy + sh - 1.)	+ zeroish;
 
 	err = FskProjectImage(	sp, src->pixelFormat, src->rowBytes, src->bounds.width, src->bounds.height, U, 4, (const float(*)[2])srcPts, mode, NULL,

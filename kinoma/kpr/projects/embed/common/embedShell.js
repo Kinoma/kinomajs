@@ -475,7 +475,7 @@ Handler.Bind("/network/connect/status", class extends Behavior {
 Handler.Bind("/network/interface/add", class extends Behavior {
 	onComplete(handler, message, json) {
 		var network = model.network;
-		if ("ip_address" in json && "ssid" in json) {
+		if (json && "ip_address" in json && "ssid" in json) {
 			if (network.ip_address != json.ip_address)
 				debugger;
 			network.ip_address = json.ip_address;

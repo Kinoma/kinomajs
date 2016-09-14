@@ -19,16 +19,14 @@
 #include "mc_xs.h"
 
 #if mxMC
-#include <mdev_wdt.h>
-
+#include "mc_wmsdk.h"
+#include <lowlevel_drivers.h>
 static int wdt_enable = 0;
 
 static void
 wdt_interrupt()
 {
-	WDT_IntClr();
-	CLK_ModuleClkDisable(CLK_WDT);
-	WDT_Disable();
+	mc_wdt_close();
 	mc_shutoff();
 }
 
@@ -36,7 +34,7 @@ static void
 wdt_auto_strobe(int s, unsigned int flags, void *closure)
 {
 	if (wdt_enable)
-		WDT_RestartCounter();
+		mc_wdt_restart_counter();
 }
 
 void
@@ -46,7 +44,6 @@ xs_wdt_start(xsMachine *the)
 	int index = xsToInteger(xsArg(0));
 	int autostrobe =  ac > 1 && xsTest(xsArg(1));
 	int shutdown =  ac > 2 && xsTest(xsArg(2));
-	WDT_Config_Type cfg;
 
 	if (shutdown) {
 		NVIC_SetPriority(WDT_IRQn, 0xf);
@@ -54,10 +51,7 @@ xs_wdt_start(xsMachine *the)
 		install_int_callback(INT_WDT, 0, wdt_interrupt);
 	}
 
-	cfg.timeoutVal = index;
-	cfg.mode = shutdown ? WDT_MODE_INT : WDT_MODE_RESET;
-	cfg.resetPulseLen = WDT_RESET_PULSE_LEN_2;
-	WDT_Init(&cfg);
+	mc_wdt_init(index, shutdown);
 
 	CLK_ModuleClkEnable(CLK_WDT);
 #if defined(CONFIG_CPU_MW300)
@@ -66,7 +60,7 @@ xs_wdt_start(xsMachine *the)
 	 */
 	CLK_ModuleClkDivider(CLK_WDT, 1);
 #endif
-	WDT_Enable();
+	mc_wdt_enable();
 	if (!shutdown) {
 		wdt_enable = 1;
 		if (autostrobe)
@@ -78,8 +72,7 @@ void
 xs_wdt_stop(xsMachine *the)
 {
 	if (wdt_enable) {
-		CLK_ModuleClkDisable(CLK_WDT);
-		WDT_Disable();
+		mc_wdt_disable();
 		wdt_enable = 0;
 		mc_event_unregister(-1);
 	}

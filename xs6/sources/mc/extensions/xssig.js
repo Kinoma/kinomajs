@@ -53,7 +53,7 @@ export default {
 				return false;
 			let buf = new ArrayBuffer(128);
 			let dgst = new Crypt.SHA1();
-			while (f._read(128, buf))
+			while (f.read(undefined, 128, buf))
 				dgst.update(buf);
 			f.close();
 			h = dgst.close();

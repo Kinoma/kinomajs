@@ -25,8 +25,8 @@ $(DEST_DIR)/$(SUBDIR)$(MODULE).xsb: $(TMP_DIR)/$(XSB)
 	cp -pf $(TMP_DIR)/$(XSB) $@
 
 ifneq (x$(JS_SRC), x)
-$(TMP_DIR)/$(XSB): $(JS_SRC)
-	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -o $(TMP_DIR) $(JS_SRC)
+$(TMP_DIR)/$(XSB): $(MOD_HOME)$(JS_SRC)
+	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -o $(TMP_DIR) $(MOD_HOME)$(JS_SRC)
 	touch $(TMP_DIR)/.update
 endif
 ifneq (x$(XS_SRC), x)

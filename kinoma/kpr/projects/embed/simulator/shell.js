@@ -26,12 +26,61 @@ import {
 	whiteSkin,
 } from "embedHome";
 
+import {
+	Configure
+} from "configure";
+
 import PinsSimulators from "PinsSimulators6";
+
+system.cursors = { arrow: 1 }
+shell.changeCursor = function() {}
 
 var smallTitleStyle = new Style({ font:"bold", size:16, color:"white", horizontal:"left" });
 var largeTitleStyle = new Style({ font:"bold", size:24, color:"white", horizontal:"left" });
 
 class ShellBehavior extends EmbedShellBehavior {
+/* HOVER */
+	onHover() {
+		this.onTouchMoved(shell, 0, this.hoverX, this.hoverY, 0);
+	}
+	onTouchBegan(shell, id, x, y, ticks) {
+		this.onTouchMoved(shell, id, x, y, ticks);
+		this.hoverFlag = false;
+	}
+	onTouchEnded(shell, id, x, y, ticks) {
+		this.hoverFlag = true;
+		this.onTouchMoved(shell, id, x, y, ticks);
+	}
+	onTouchMoved(shell, id, x, y, ticks) {
+		if (this.hoverFlag) {
+			var content = shell.hit(x, y);
+			if (this.hoverContent != content) {
+				this.cursorShape = 0;
+				if (this.hoverContent)
+					this.hoverContent.bubble("onMouseExited", x, y);
+				this.hoverContent = content;
+				if (this.hoverContent)
+					this.hoverContent.bubble("onMouseEntered", x, y);
+				shell.changeCursor(this.cursorShape);
+			}
+			else if (this.hoverContent)
+				this.hoverContent.bubble("onMouseMoved", x, y);
+			this.hoverX = x;
+			this.hoverY = y;
+		}
+	}
+	onTouchScrolled(shell, touched, dx, dy, ticks) {
+		if (Math.abs(dx) > Math.abs(dy))
+			dy = 0;
+		else
+			dx = 0;
+		var content = this.hoverContent;
+		while (content) {
+			if (content instanceof Scroller)
+				content.delegate("onTouchScrolled", touched, dx, dy, ticks);
+			content = content.container;
+		}
+	}
 /* APPLE MENU */
 	canAbout() {
 		return true;
@@ -55,29 +104,25 @@ class ShellBehavior extends EmbedShellBehavior {
 		shell.share(false);
 		this.currentDevice = this.devices[item.value];
 		shell.share({ ssdp:true });
+		this.currentDevice.description.uuid = shell.uuid;
 		system.device = this.currentDevice.description.title
 		this.writePreferences();
 		shell.distribute("onDeviceChanged");
 		this.startup();
 	}
 /* SCREEN MENU */
+	canConfigure() {
+		return !shell.transitioning;
+	}
 	canScreen(shell, item) {
 		item.check = this.currentScreen == this.screens[item.value];
 		return true;
 	}
+	doConfigure() {
+		Configure(this);
+	}
 	doScreen(shell, item) {
-		this.currentScreen = this.screens[item.value];
-		let hostContainer = this.getHostContainer();
-		let host = hostContainer.first;
-		hostContainer.remove(host);
-		
-		let container = this.window.last;
-		container.replace(container.first, new ScreenContainer(this.currentScreen));
-		
-		hostContainer = this.getHostContainer();
-		hostContainer.add(host);
-		if (host.adapt)
-			host.adapt();
+		this.selectScreen(this.screens[item.value]);
 	}
 /* APPLICATION MENU */
 	canBreakApplication() {
@@ -107,21 +152,35 @@ class ShellBehavior extends EmbedShellBehavior {
 	}
 	
 /* EVENTS */
+	onCreate() {
+		this.cursorShape = system.cursors.arrow;
+		this.hoverContent = null;
+		this.hoverFlag = true;
+		this.hoverX = -1;
+		this.hoverY = -1;
+		super.onCreate();
+		this.currentDevice.description.uuid = shell.uuid;
+	}
 	onDefaults() {
 		super.onDefaults();
 		this.loadDevices();
-		this.loadScreens();
+		this.loadResources();
 	}
 	onOpen() {
 		this.devices.forEach(device => device.description.name = this.name);
+		this.loadScreen(this.currentScreen);
 		this.window = new Window(this);
 		shell.add(this.window);
-		shell.updateMenus();
+		this.updateScreenMenu();
 		shell.windowTitle = "EmbedShell";
 		super.onOpen();
 	}
 	onNameChanged() {
 		this.devices.forEach(device => device.description.name = this.name);
+	}
+	onQuit() {
+		this.unloadScreen(this.currentScreen);
+		super.onQuit();
 	}
 	
 /* APPLICATIONS */
@@ -178,36 +237,6 @@ class ShellBehavior extends EmbedShellBehavior {
 		scroller.partsContainer.remove(container);
 	}
 
-/* SCREENS */
-	loadScreens() {
-		let url = mergeURI(shell.url, "./screens/");
-		let iterator = new Files.Iterator(url);
-		let info = iterator.getNext();
-		this.screens = [];
-		while (info) {
-			if (info.type == Files.directoryType) {
-				try {
-					let jsonURL = mergeURI(url, info.path + "/" + info.path + ".json");
-					let pngURL = mergeURI(url, info.path + "/" + info.path + ".png");
-					if (Files.exists(jsonURL) && Files.exists(pngURL)) {
-						let screen = JSON.parse(Files.readText(jsonURL));
-						let texture = new Texture(pngURL);
-						screen.skin = new Skin({ texture, x:0, y:0, width:texture.width, height:texture.height }); 
-						this.screens.push(screen);
-					}
-				}
-				catch(e) {
-				}
-			}
-			info = iterator.getNext();
-		}
-		this.currentScreen = this.screens[0];
-		let screenMenu = shell.menus[1];
-		this.screens.forEach((screen, i) => {
-			screenMenu.items.push({ title:screen.title, key:i.toString(), command:"Screen", value:i });
-		});
-	}
-	
 /* PREFERENCES */
 	readPreferencesObject(preferences) {
 		super.readPreferencesObject(preferences);
@@ -215,6 +244,8 @@ class ShellBehavior extends EmbedShellBehavior {
 			shell.windowState = preferences.windowState;
 		if ("deviceIndex" in preferences)
 			this.currentDevice = this.devices[preferences.deviceIndex];
+		if (("screens" in preferences) && (preferences.screens.length == 10))
+			this.screens = preferences.screens;
 		if ("screenIndex" in preferences)
 			this.currentScreen = this.screens[preferences.screenIndex];
 		system.device = this.currentDevice.description.title
@@ -223,7 +254,161 @@ class ShellBehavior extends EmbedShellBehavior {
 		super.writePreferencesObject(preferences);
 		preferences.windowState = shell.windowState;
 		preferences.deviceIndex = this.devices.indexOf(this.currentDevice);
+		preferences.screens = this.screens;
 		preferences.screenIndex = this.screens.indexOf(this.currentScreen);
+	}
+	
+/* RESOURCES */
+	loadResources() {
+		let url = mergeURI(shell.url, "./screens/");
+		let iterator = new Files.Iterator(url);
+		let info = iterator.getNext();
+		let resources = this.resources = [];
+		while (info) {
+			if (info.type == Files.directoryType) {
+				try {
+					let jsonURL = mergeURI(url, info.path + "/" + info.path + ".json");
+					let pngURL = mergeURI(url, info.path + "/" + info.path + ".png");
+					if (Files.exists(jsonURL) && Files.exists(pngURL)) {
+						let resource = JSON.parse(Files.readText(jsonURL));
+						resource.texture = new Texture(pngURL);
+						resource.iconSkin = this.makeIconSkin(resource.texture); 
+						resources.push(resource);
+					}
+				}
+				catch(e) {
+				}
+			}
+			info = iterator.getNext();
+		}
+		let screens = this.screens = [];
+		for (let kind = 0; kind < 10; kind++) {
+			let resource = resources[kind];
+			screens.push({
+				width: Math.round(resource.width * resource.scale),
+				height: Math.round(resource.height * resource.scale),
+				scale: resource.scale,
+				kind
+			});
+		}
+		this.currentScreen = this.screens[0];
+		this.screenMode = false;
+	}
+	makeIconSkin(texture) {
+		var srcWidth = texture.width;
+		var srcHeight = texture.height;
+		var dstWidth;
+		var dstHeight
+		if (srcWidth > srcHeight) {
+			dstWidth = 200;
+			dstHeight = Math.round(200 * srcHeight / srcWidth);
+		}
+		else {
+			dstWidth = Math.round(200 * srcWidth / srcHeight);
+			dstHeight = 200;
+		}
+		var port = new Port({width: dstWidth, height: dstHeight});
+		port.behavior = {
+			onDraw: function(port) {
+				port.drawImage(texture, 0, 0, dstWidth, dstHeight, 0, 0, srcWidth, srcHeight);
+			}
+		}
+		return new Skin({ texture:new Texture(port, 2), x:0, y:0, width:dstWidth >> 1, height:dstHeight >> 1, aspect:"fit" }); 
+	}
+	
+/* SCREEN */
+	changeScreen() {
+		this.unloadScreen(this.currentScreen);
+		this.loadScreen(this.currentScreen);
+		this.swapScreen(this.currentScreen);
+		this.updateScreenMenu();
+		shell.distribute("onScreenChanged");
+	}
+	changeScreenMode(shell, mode) {
+		this.screenMode = mode;
+		if (mode) {
+			let screen = this.currentScreen;
+			let resource = this.resources[screen.kind];
+			if (mode) {
+				screen.width = Math.round(resource.width * resource.scale);
+				screen.height =  Math.round(resource.height * resource.scale);
+				screen.scale = resource.scale;
+			}
+			else {
+				screen.width =  Math.round(resource.height * resource.scale);
+				screen.height =  Math.round(resource.width * resource.scale);
+				screen.scale = resource.scale;
+			}
+			this.changeScreen();
+		}
+		shell.distribute("onScreenModeChanged", mode);
+	}
+	loadScreen(screen) {
+		let resource = this.resources[screen.kind];
+		let texture = resource.texture;
+		let srcWidth = texture.width;
+		let srcHeight = texture.height;
+		let sx = screen.width / resource.width / screen.scale;
+		let sy = screen.height / resource.height / screen.scale;
+		let dstWidth = Math.round(srcWidth * sx);
+		let dstHeight = Math.round(srcHeight * sy);
+		screen.x = Math.round(resource.x * sx);
+		screen.y = Math.round(resource.y * sy);
+		screen.dx = Math.round(screen.width / screen.scale);
+		screen.dy = Math.round(screen.height / screen.scale);
+		var canvas = new Canvas({width: dstWidth, height: dstHeight});
+		var ctx = canvas.getContext("2d");
+		ctx.save();
+		ctx.translate(dstWidth / 2, dstHeight / 2);
+		ctx.scale(sx, sy);
+		ctx.drawImage(texture, -srcWidth / 2, -srcHeight / 2, srcWidth, srcHeight);
+		ctx.restore();
+		screen.skin = new Skin({ texture:new Texture(canvas), x:0, y:0, width:dstWidth, height:dstHeight }); 
+		
+		this.screenMode = (screen.width == Math.round(resource.width * resource.scale))
+				&& (screen.height ==  Math.round(resource.height * resource.scale))
+				&& (screen.scale == resource.scale);
+	}
+	selectScreen(screen) {
+		let mode = this.screenMode;
+		this.unloadScreen(this.currentScreen);
+		this.currentScreen = screen;
+		this.loadScreen(screen);
+		this.swapScreen(screen);
+		shell.distribute("onScreenChanged");
+		if (mode != this.screenMode)
+			shell.distribute("onScreenModeChanged", this.screenMode);
+	}
+	swapScreen(screen) {
+		let hostContainer = this.getHostContainer();
+		let host = hostContainer.first;
+		hostContainer.remove(host);
+		
+		let container = this.window.last;
+		container.replace(container.first, new ScreenContainer(screen));
+		
+		hostContainer = this.getHostContainer();
+		hostContainer.add(host);
+		if (host.adapt)
+			host.adapt();
+	}
+	unloadScreen(screen) {
+		delete screen.skin;
+		delete screen.x;
+		delete screen.y;
+		delete screen.dx;
+		delete screen.dy;
+	}
+	updateScreenMenu() {
+		let screenMenu = shell.menus[1];
+		screenMenu.items = screenMenu.items.slice(0, 2);
+		this.screens.forEach((screen, i) => {
+			let title = screen.width + " x " + screen.height;
+			if (screen.scale != "1")
+				title += " ÷ " + screen.scale;
+			screenMenu.items.push({ title, key:i.toString(), command:"Screen", value:i });
+		});
+		shell.updateMenus();
 	}
 };
 
@@ -271,7 +456,7 @@ var ScreenContainer = Container.template($ => ({
 	width:$.skin.width, height:$.skin.height, skin:$.skin,
 	contents: [
 		Container($, {
-			left:$.x, width:$.width, top:$.y, height:$.height, skin:blackSkin,
+			left:$.x, width:$.dx, top:$.y, height:$.dy, skin:blackSkin,
 			contents: [
 			]
 		}),
@@ -287,6 +472,8 @@ shell.menus = [
 	{ 
 		title: "Screen",
 		items: [
+			{ title: "Configure...", key: "C", command: "Configure"},
+			null,
 		],
 	},
 	{ 

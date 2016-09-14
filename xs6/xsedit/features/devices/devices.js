@@ -282,11 +282,11 @@ export default class extends Feature {
 			if (device.local) {
 				device.ip = undefined;
 				if (device.constructor.tag == "Create")
-					index = devices.findIndex(device => device.constructor.tag == "CreateShell");
+					index = devices.findIndex(device => (device.constructor.tag == "CreateShell") && device.constructor.preferences.simulatorFlag);
 				else if (device.constructor.tag == "Element")
-					index = devices.findIndex(device => device.constructor.tag == "ElementShell");
+					index = devices.findIndex(device => (device.constructor.tag == "ElementShell") && device.constructor.preferences.simulatorFlag);
 				else
-					index = devices.findIndex(device => device.constructor.tag == "EmbedShell");
+					index = devices.findIndex(device => (device.constructor.tag == "EmbedShell") && device.constructor.preferences.simulatorFlag);
 				if (index >= 0) {
 					device.simulatorConfig = devices[index];
 					devices[index] = device;
@@ -484,7 +484,7 @@ export default class extends Feature {
 					this.device.wsClose();
 			}
 			ws.onerror = function(error) {
-//  				trace("WS: onerror " + this.wsIndex + " -> " + error.code + " " + error.reason + "\n");
+//  				trace("WS: onerror " + this.wsIndex + " -> " + error.code + " " + error.message + "\n");
 			}
 			ws.onmessage = function(message) {
 //  				trace("WS: onmessage " + this.wsIndex + ": " + message.data + "\n");

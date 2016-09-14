@@ -56,7 +56,7 @@ export default class CertificateManager {
 	getIndex(fname, target) {
 		let Bin = require.weak("bin");
 		var f = new File(fname), buf, res = -1;
-		for (var i = 0; buf = f._read(20); i++) {
+		for (var i = 0; buf = f.read(undefined, 20); i++) {
 			if (Bin.comp(buf, target) == 0) {
 				res = i;
 				break;

@@ -21,6 +21,7 @@
 #include "mc_time.h"
 #include "mc_misc.h"
 #include "mc_ipc.h"
+#include "mc_wmsdk.h"
 #include "mc_module.h"
 #if !mxMC
 #include "mc_compat.h"
@@ -233,9 +234,6 @@ xs_system_set_timezone(xsMachine *the)
 	}
 }
 
-#if mxMC
-#include "firmware_structure.h"
-#else
 struct img_hdr {
 	uint32_t magic_str;
 	uint32_t magic_sig;
@@ -243,7 +241,6 @@ struct img_hdr {
 	uint32_t seg_cnt;
 	uint32_t entry;
 };
-#endif
 
 void
 xs_system_get_timestamp(xsMachine *the)
@@ -327,39 +324,11 @@ xs_system_addPath(xsMachine *the)
 	}
 }
 
-#if mxMC
-#include <mdev_pm.h>
-#include <pwrmgr.h>
-
-void
-xs_system_pm(xsMachine *the)
-{
-	int ac = xsToInteger(xsArgc);
-	int state = xsToInteger(xsArg(0));
-	int duration = ac > 1 ? xsToInteger(xsArg(1)) : 0;
-	int reason;
-
-	reason = pm_mcu_state((power_state_t)state, (uint32_t)duration);
-	mc_log_debug("PM: wakeup reason = %d\n", reason);
-	xsSetInteger(xsResult, reason);
-}
-#else	/* !mxMC */
-void
-xs_system_pm(xsMachine *the)
-{
-}
-#endif	/* mxMC */
-
 void
 xs_system_reboot(xsMachine *the)
 {
-	if (xsToInteger(xsArgc) > 0 && xsTest(xsArg(0))) {
-#if mxMC
-		pm_reboot_soc();	/* force reboot */
-#else
-		exit(0);	/* if only we can get argv... */
-#endif
-	}
+	if (xsToInteger(xsArgc) > 0 && xsTest(xsArg(0)))
+		mc_pm_reboot();
 	else {
 		g_reboot = 1;
 		mc_event_exit(1);
@@ -367,6 +336,8 @@ xs_system_reboot(xsMachine *the)
 }
 
 #if mxMC
+#include <mdev_gpio.h>
+
 static void
 blink_led(void *data)
 {

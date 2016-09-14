@@ -15,7 +15,8 @@
 #     limitations under the License.
 #
 MODULE = bin
-JS_SRC = ext_bin.js
-C_SRCS = ext_bin.c
+MOD_HOME = $(F_HOME)/xs6/extensions/bin/
+JS_SRC = bin.js
+C_SRCS = bin.c
 
 include library.mk

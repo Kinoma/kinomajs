@@ -31,7 +31,7 @@ static void KprSSDPServiceStart(KprService service, FskThread thread, xsMachine*
 static void KprSSDPServiceStop(KprService service);
 static void KprSSDPServiceDiscover(KprService self, char* authority, char* id, Boolean useEnvironment);
 static void KprSSDPServiceForget(KprService self, char* authority, char* id);
-static void KprSSDPServiceShare(KprService self, char* authority, Boolean shareIt, Boolean useEnvironment);
+static void KprSSDPServiceShare(KprService self, char* authority, Boolean shareIt, char* uuid);
 
 static KprServiceRecord gSSDPService = {
 	NULL,
@@ -103,14 +103,14 @@ void KprSSDPServiceForget(KprService self, char* authority, char* id)
 	return;
 }
 
-void KprSSDPServiceShare(KprService self, char* authority, Boolean shareIt, Boolean useEnvironment)
+void KprSSDPServiceShare(KprService self, char* authority, Boolean shareIt, char* uuid)
 {
 	FskErr err = kFskErrNone;
 	KprSSDPDevice device = NULL;
 	KprHTTPServer server = KprHTTPServerGet(authority);
-	char* uuid = FskUUIDGetForKey(authority);
-
-	if (shareIt && useEnvironment)
+	if (!uuid)
+		uuid = FskUUIDGetForKey(authority);
+	if (shareIt && !uuid)
 		shareIt = KprEnvironmentGetUInt32("useSSDP", 0);
 	if (shareIt && server) {
 		if (!KprSSDPGetDevice(uuid)) {

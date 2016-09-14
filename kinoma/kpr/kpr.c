@@ -217,6 +217,18 @@ xsIndex fxFindModuleKPR(xsMachine* the, xsIndex moduleID, xsSlot* slot)
 	if (!slash)
 		slash = name;
 	dot = FskStrRChr(slash, '.');
+	if (dot) {
+		xsBooleanValue known = 0;
+		xsStringValue* extension;
+		for (extension = gxExtensions; *extension; extension++) {
+			if (!FskStrCompare(dot, *extension)) {
+				known = 1;
+				break;
+			}
+		}
+		if (!known)
+			dot = NULL;
+	}
 	if (!dot)
 		dot = name + FskStrLen(name);
 	if (relative) {

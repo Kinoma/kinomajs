@@ -31,8 +31,7 @@ export default class Serial @ "xs_uart_destructor" {
 		while (!data || data.byteLength < n) {
 			var cnt = data ? (n-data.byteLength) : n;
 			var d = this._read(cnt);
-			if (d)
-				data = data ? data.concat(d) : d;
+			data = data ? (d ? data.concat(d):data) :d
 			if (t >= 0 && (new Date()).getTime() > t){
 				break;
 			}
@@ -49,9 +48,7 @@ export default class Serial @ "xs_uart_destructor" {
 		if (cons === undefined || cons == "ArrayBuffer")
 			;
 		else if (cons == String || cons == "String") {// document says we need to use "String"
-			if(res)
-				res = String.fromArrayBuffer(res);
-			else res = ""; // array buffer is empty
+			res = res ? String.fromArrayBuffer(res):"";
 		}
 		else
 			res = new cons(res);

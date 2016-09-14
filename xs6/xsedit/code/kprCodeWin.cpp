@@ -691,7 +691,6 @@ bail:
 void KPR_system_networkInterfaceIndexToName(xsMachine* the)
 {
 	SInt32 index = xsToInteger(xsArg(0));
-	IP_ADAPTER_INFO info;
 	PIP_ADAPTER_ADDRESSES pAddresses = NULL, pAddress;
 	ULONG flags = GAA_FLAG_INCLUDE_PREFIX;
 	ULONG family = AF_INET;

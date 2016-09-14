@@ -20,35 +20,17 @@
 #include "mc_ipc.h"
 #include "mc_xs.h"
 #include "mc_usb.h"
-
 #include <wmstdio.h>
 #include <wm_os.h>
-
+#include "mc_wmsdk.h"
 /* K5 Driver Library */
 #include <usb/cdc.h>
-
-/* for LEDs */
-#include "mc_misc.h"
-#include <mdev_pinmux.h>
-#include <mdev_gpio.h>
 
 static int usb_exit = 0;
 #define CDC_POLLING_MS	50
 
 #define CRLF	((uint8_t *) "\r\n")
 #define BS		((uint8_t *) "\b \b")
-
-static void
-usb_log(const char *fmt, ...)
-{
-	va_list args;
-	char buf[MAX_MSG_LEN];
-
-	va_start(args, fmt);
-	vsnprintf(buf, sizeof(buf), fmt, args);
-	va_end(args);
-	mc_log_write(buf, strlen(buf));
-}
 
 static void
 usb_callback(xsMachine *the, void *closure)
@@ -112,7 +94,7 @@ usb_thread_main(void *args)
 int
 mc_usb_init()
 {
-	USB_HwInit();
+	mc_usb_hw_init();
 	CdcInit();
 	mc_thread_create(usb_thread_main, NULL, -1);	/* create a thread for USB input */
 	return 0;

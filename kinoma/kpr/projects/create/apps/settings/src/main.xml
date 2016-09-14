@@ -1554,8 +1554,8 @@
 						Screen: ClearCachesScreen,
 						title : "Caches",
 						items : [
-							{ Line : CacheLine, label : "Kinoma Studio App Cache", action : "/clearApps" },
-							{ Line : CacheLine, label : "Apps Prefs", action : "/clearAppsPrefs" },
+							{ Line : CacheLine, label : "App Cache", action : "/clearApps" },
+							{ Line : CacheLine, label : "App Preferences", action : "/clearAppsPrefs" },
 							{ Line : CacheLine, label : "Cookies", action : "/clearCookies" },
 							{ Line : CacheLine, label : "HTTP", action : "/clearHTTP" },
 							{ Line : CacheLine, label : "Known Wi-Fi Networks", action : "/clearNetworks" },

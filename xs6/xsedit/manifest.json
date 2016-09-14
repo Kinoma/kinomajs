@@ -97,6 +97,7 @@
 			},
 			"environment":{
 				"NAME":"Kinoma_Code",
+				"ssdpDiscoverSelf":"1",
 				"xdebugger":"192.168.56.1:5002",
 			},
 			"fonts":{

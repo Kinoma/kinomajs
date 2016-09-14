@@ -29,6 +29,8 @@
 //		CoAP
 //
 
+var PinsConfig = require("pins_config");
+
 exports.disconnected = 0;
 exports.power3_3V = 1;
 exports.ground = 2;
@@ -78,7 +80,7 @@ exports.configure = function(configuration, mux, callback)
 					break;
 				case 2:
 					if (!mux)
-						mux = configurationToMux(this.configuration);
+						mux = PinsConfig.configurationToMux(this.configuration);
 					var current = result;
 					if (equalPins(current.leftPins, mux.leftPins) &&
 						equalPins(current.rightPins, mux.rightPins) &&
@@ -321,6 +323,12 @@ exports.toMessage = function(path, object) {
 			message.setRequestHeader("referrer", "xkpr://shell");
 			break;
 		
+		case "getFixedPins":
+			message = new Message("pins:/pinmux/getFixed");
+			message.requestObject = object;
+			message.setRequestHeader("referrer", "xkpr://shell");
+			break;
+
 		default:
 			message = new MessageWithObject("pins:" + path, object);
 			break;
@@ -390,169 +398,12 @@ function findConnectionDescription(services, uuid, name) {
 	}
 }
 
-function configurationToMux(config)
-{
-	var mux = {
-			leftPins: makeDisconnectedHeader(8),
-			rightPins: makeDisconnectedHeader(8),
-			back: makeBackHeader(),
-			leftVoltage: ("leftVoltage" in config) ? config.leftVoltage : undefined,
-			rightVoltage: ("rightVoltage" in config) ? config.rightVoltage : undefined
-	};
-
-	for (var bll in config) {
-		if ((bll == "leftVoltage") || (bll == "rightVoltage"))
-			continue;
-		if (!("pins" in config[bll]))
-			continue;
-		var pins = config[bll].pins;
-		for (var pin in pins) {
-			pin = pins[pin];
-			switch (pin.type) {
-				case "Digital":
-					setPin(mux, pin.pin, ("output" == pin.direction) ? exports.digitalOut : exports.digitalIn);
-					break;
-				case "A2D":
-				case "Analog":
-					setPin(mux, pin.pin, exports.analogIn);
-					break;
-				case "I2C":
-					setPin(mux, pin.sda, exports.i2cData);
-					setPin(mux, pin.clock, exports.i2cClock);
-					break;
-				case "Serial":
-					if ("rx" in pin) setPin(mux, pin.rx, exports.serialRx);
-					if ("tx" in pin) setPin(mux, pin.tx, exports.serialTx);
-					break;
-				case "PWM":
-					setPin(mux, pin.pin, exports.pwm);
-					break;
-				case "Power":
-					if ((5 != pin.voltage) && (3.3 != pin.voltage)) throw new Error("unsupported voltage " + pin.voltage)
-					setPin(mux, pin.pin, (5 == pin.voltage) ? exports.power5V : exports.power3_3V);
-					break;
-				case "Ground":
-					setPin(mux, pin.pin, exports.ground);
-					break;
-				case "Audio":
-					break;
-				default:
-					throw new Error("Unrecognized pin type " + pin.type);
-					break;
-			}
-		}
-	}
-
-	if (undefined === mux.leftVoltage)
-		mux.leftVoltage = 3.3;
-	if (undefined === mux.rightVoltage)
-		mux.rightVoltage = 3.3;
-
-	return mux;
-}
-
-function setPin(mux, pin, type)
-{
-	if ((51 <= pin) && (pin <= 58)) {
-		validatePinAssignment(pin, mux.leftPins[pin - 51], type);
-		if ((exports.power3_3V == type) || (exports.power5V == type)) {
-			var leftVoltage = (exports.power3_3V == type) ? 3.3 : 5;
-			if (undefined === mux.leftVoltage)
-				mux.leftVoltage = leftVoltage;
-			else if (mux.leftVoltage !== leftVoltage)
-				throw new Error("Cannot assign two different voltages to pins in left header");
-			type = exports.power3_3V;
-		}
-		mux.leftPins[pin - 51] = type;
-		switch (pin - 51) {		// mirror front left pins to back
-			case 0:	mux.back[37] = type; break;
-			case 1:	mux.back[36] = type; break;
-			case 2:	mux.back[39] = type; break;
-			case 3:	mux.back[40] = type; break;
-			case 4:	mux.back[43] = type; break;
-			case 5:	mux.back[42] = type; break;
-			case 6:	mux.back[47] = type; break;
-			case 7:	mux.back[46] = type; break;
-		}
-	}
-	else
-	if ((59 <= pin) && (pin <= 66)) {
-		validatePinAssignment(pin, mux.rightPins[pin - 59], type);
-		if ((exports.power3_3V == type) || (exports.power5V == type)) {
-			var rightVoltage = (exports.power3_3V == type) ? 3.3 : 5;
-			if (undefined === mux.rightVoltage)
-				mux.rightVoltage = rightVoltage;
-			else if (mux.rightVoltage !== rightVoltage)
-				throw new Error("Cannot assign two different voltages to pins in right header");
-			type = exports.power3_3V;
-		}
-		mux.rightPins[pin - 59] = type;
-	}
-	else
-	if ((1 <= pin) && (pin <= 50)) {
-		validatePinAssignment(pin, mux.back[pin - 1], type);
-		mux.back[pin - 1] = type;
-		switch (pin - 51) {		// mirror back pins to front left
-			case 37: mux.leftPins[0] = type; break;
-			case 36: mux.leftPins[1] = type; break;
-			case 39: mux.leftPins[2] = type; break;
-			case 40: mux.leftPins[3] = type; break;
-			case 43: mux.leftPins[4] = type; break;
-			case 42: mux.leftPins[5] = type; break;
-			case 47: mux.leftPins[6] = type; break;
-			case 46: mux.leftPins[7] = type; break;
-		}
-	}
-}
-
-function validatePinAssignment(pin, from, to)
-{
-	if (from == to)
-		return;
-
-	if ((from == exports.digitalUnconfigured) &&
-		((to == exports.digitalIn) || (to == exports.digitalOut)))
-		return;
-
-	if (from == exports.disconnected)
-		return;
-
-	throw new Error("Cannot configure pin " + pin + ", already assigned.");
-}
-
 function equalPins(a, b)
 {
 	for (var i = 0; i < 8; i++)
 		if (a[i] != b[i])
 			return false;
 	return true;	
-}
-
-function normalizeFrontConfig(config)
-{
-	if (!config) config = new Array;
-	config = config.map(function(pin) {
-		switch (pin) {
-			case this.power5V:
-			case this.power3_3V:
-				return this.power3_3V;
-			case this.ground:
-			case this.analogIn:
-			case this.digitalIn:
-			case this.digitalOut:
-			case this.i2cClock:
-			case this.i2cData:
-			case this.pwm:
-				return pin;
-			default:
-				return this.disconnected; 
-		}
-	}, exports);
-
-	while (config.length < 8)
-		config.push(exports.disconnected);
-
-	return config;
 }
 
 function normalizeVoltage(voltage)
@@ -567,41 +418,4 @@ function normalizeVoltage(voltage)
 	}
 }
 
-function makeDisconnectedHeader(count)
-{
-	var header = new Array(count);
-	for (var i = 0; i < count; i++)
-		header[i] = exports.disconnected;
-	return header;
-}
 
-function makeBackHeader(count)
-{
-	var header = makeDisconnectedHeader(51);
-	
-	for (var i = 1; i <= 24; i++)
-		header[i] = exports.digitalUnconfigured;
-
-	header[1] = header[2] =
-	header[13] = header[14] =
-	header[26] = header[32] =
-	header[35] = header[36] =
-	header[41] = header[42] =
-	header[45] = header[46] = exports.ground;
-
-	header[25] = exports.power3_3V;
-	header[49] = exports.power3_3V;
-	header[50] = exports.power5V;
-
-	header[28] = header[30] = header[34] = exports.pwm;
-
-	header[31] = exports.serialTx;
-	header[33] = exports.serialRx;
-
-	header[27] = exports.i2cData;
-	header[29] = exports.i2cClock;
-
-	header.shift();
-	
-	return header;
-}

@@ -279,6 +279,17 @@ bail:
 
 static FskErr doExitElement(KprMarkdownParser parser, char *str, KprMarkdownState state)
 {
+	// special case: treat unmatched inner </br> as empty element
+	if (state->depth > 0) {
+		KprMarkdownElementInfo info = getElementInfoByName(state->elementStart, state->elementStop);
+		if (info && (info->type == kprMarkdownBR)) {
+			KprMarkdownElement element = state->stack[state->top];
+			if (element && (element->type != kprMarkdownBR)) {
+				doEnterElement(parser, str, state);
+				state->flags |= kprMarkdownDoNotReturnToTargetState;
+			}
+		}
+	}
 	state->depth--;
 	state->top--;
 	#if KPRMARKDOWNDEBUGMARKUP
@@ -731,6 +742,17 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 			}
 			else {
 				bailIfError(doExitElement(parser, str, state));
+			}
+		}
+		
+		action handle_target_state {
+			// special case: treat unmatched inner </br> as empty element
+			if (state->flags & kprMarkdownDoNotReturnToTargetState) {
+				state->flags &= ~kprMarkdownDoNotReturnToTargetState;
+				fgoto inner;
+			}
+			else {
+				fret;
 			}
 		}
 		
@@ -1284,7 +1306,7 @@ FskErr KprMarkdownParse(KprMarkdownParser parser, char *str, SInt32 offset, SInt
 		
 		content = ( comment | element | inner_text );
 		
-		inner := ( content* '</' element_name >start_element %stop_element [ ]? '>' @exit_element @{ fret; } ) $err(try_markdown);
+		inner := ( content* '</' element_name >start_element %stop_element [ ]? '>' @exit_element @handle_target_state ) $err(try_markdown);
 		
 		main := ( ( [ ]{0,3} ( comment | element ) >mark ) >hold base_line @use_markup )* $err(try_markdown); # slop factor
 		

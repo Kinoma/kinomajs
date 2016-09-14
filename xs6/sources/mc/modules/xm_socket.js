@@ -24,7 +24,6 @@ class RawSocket @ "xs_socket_destructor" {
 	flush() @ "xs_socket_flush";
 	static aton(str) @ "xs_socket_aton";
 	static ntoa(addr) @ "xs_socket_ntoa";
-	static resolv(name, f) @ "xs_socket_resolv";	// obsolete
 
 	get port() @ "xs_socket_getPort";
 	get addr() @ "xs_socket_getAddr";

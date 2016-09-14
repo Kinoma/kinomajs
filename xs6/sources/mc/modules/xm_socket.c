@@ -19,12 +19,12 @@
 #include "mc_misc.h"
 #include "mc_ipc.h"
 #include "mc_module.h"
+#include "mc_wifi.h"
 #if mxMC
 #include <lwip/netdb.h>
 #include <lwip/inet.h>
 #include <lwip/dns.h>
 #include <lwip/tcpip.h>
-#include <wlan.h>
 #else
 #include "mc_compat.h"
 #define LWIP_IPV6	1
@@ -58,45 +58,7 @@ struct mc_socket {
 	xsSlot this;
 };
 
-typedef struct {
-	const char *name;
-	mc_event_thread_callback_f callback;
-	struct in_addr addr;
-	int err;
-	xsMachine *the;
-	xsSlot this;
-	struct mc_socket *sock;
-} mc_resolv_t;
-
 extern void xs_socket_destructor(void *data);
-
-static void
-mc_resolver_main(void *data)
-{
-	mc_resolv_t *resolv = (mc_resolv_t *)data;
-	struct addrinfo hint;
-	struct addrinfo *res = NULL;
-
-	hint.ai_flags = 0;
-	hint.ai_family = AF_INET;
-	hint.ai_socktype = 0;
-	hint.ai_protocol = 0;
-	if (lwip_getaddrinfo(resolv->name, NULL, &hint, &res) == 0 && res != NULL) {
-		struct sockaddr_in *sin = (struct sockaddr_in *)res->ai_addr;
-		resolv->addr = sin->sin_addr;
-		resolv->err = 0;
-		lwip_freeaddrinfo(res);
-	}
-	else
-		resolv->err = -1;
-	mc_event_thread_call(resolv->callback, resolv, 0);
-}
-
-static int
-mc_resolv_async(mc_resolv_t *resolv)
-{
-	return mc_thread_create(mc_resolver_main, resolv, -1);
-}
 
 static size_t
 mc_socket_buflen(struct mc_socket *sock)
@@ -219,63 +181,6 @@ mc_socket_connect(struct mc_socket *sock)
 	}
 }
 
-static void
-mc_socket_resolv_callback(xsMachine *the, void *closure)
-{
-	mc_resolv_t *resolv = closure;
-	struct mc_socket *sock = resolv->sock;
-
-	if (sock->state == SOCK_STATE_CLOSING) {
-		xs_socket_destructor(sock);
-		return;
-	}
-	// mc_log_debug("socket: mc_socket_resolv_callback\n");
-	if (resolv->err == 0) {
-		sock->sin.sin_family = AF_INET;
-		sock->sin.sin_port = htons(sock->port);
-		sock->sin.sin_addr = resolv->addr;
-
-		if (sock->type == SOCK_STREAM) {
-			resolv->err = mc_socket_connect(sock);
-		} else {
-			sock->state = SOCK_STATE_CONNECTING;
-			mc_event_register(sock->s, MC_SOCK_READ | MC_SOCK_WRITE, mc_socket_callback, sock);
-		}
-	}
-	if (resolv->err != 0) {
-		xsBeginHost(sock->the);
-		xsCall_noResult(sock->this, xsID("onError"), NULL);
-		xsEndHost(sock->the);
-	}
-	mc_free(resolv);
-}
-
-static int
-gethostbyname_async(struct mc_socket *sock, const char *name, struct in_addr *addrp)
-{
-	mc_resolv_t *resolv;
-
-	if (inet_aton(name, addrp))
-		return 1;
-	if (strcmp(name, "localhost") == 0) {
-		addrp->s_addr = htonl(INADDR_LOOPBACK);
-		return 1;
-	}
-	if ((resolv = mc_malloc(sizeof(mc_resolv_t))) == NULL) {
-		errno = ENOMEM;
-		return -1;
-	}
-	resolv->name = name;
-	resolv->callback = mc_socket_resolv_callback;
-	resolv->sock = sock;
-	sock->state = SOCK_STATE_RESOLVING;
-	if (mc_resolv_async(resolv) != 0) {
-		mc_free(resolv);
-		return -1;
-	}
-	return 0;	/* in progress */
-}
-
 void
 xs_socket_constructor(xsMachine *the)
 {
@@ -285,7 +190,6 @@ xs_socket_constructor(xsMachine *the)
 	int sock_type, sock_proto;
 	int s = -1;
 	int flags;
-	struct sockaddr_in sin;
 	struct in_addr iaddr;
 	struct mc_socket *sock = NULL;
 	xsIndex id_host = xsID("host");
@@ -340,11 +244,8 @@ xs_socket_constructor(xsMachine *the)
 #if mxMC
 		if (host != NULL) {
 			struct in_addr addr;
-			uint8_t mcast_mac[MLAN_MAC_ADDR_LENGTH];
-			if (inet_aton(host, &addr)) {
-				wifi_get_ipv4_multicast_mac(ntohl(addr.s_addr), mcast_mac);
-				wifi_add_mcast_filter(mcast_mac);	/* should be ok to 'add' the address every time... */
-			}
+			if (inet_aton(host, &addr))
+				mc_wifi_add_mcast_filter(&addr);
 		}
 #endif
 		if (lwip_setsockopt(s, IPPROTO_IP, IP_MULTICAST_IF, &iaddr, sizeof(struct in_addr)) != 0)
@@ -377,29 +278,11 @@ xs_socket_constructor(xsMachine *the)
 	sock->port = port;
 	sock->type = sock_type;
 	sock->addr = iaddr;
-	sock->state = SOCK_STATE_INIT;
+	sock->state = host != NULL && port >= 0 ? SOCK_STATE_RESOLVING : SOCK_STATE_INIT;
 	sock->sbuf = NULL;
 	sock->the = the;
 	sock->this = xsThis;
 
-	if (host != NULL && port >= 0) {
-		int resolved;
-		if (*host == '\0')
-			sock->state = SOCK_STATE_RESOLVING;
-		else if ((resolved = gethostbyname_async(sock, host, &iaddr)) < 0)
-			ERROR("socket: namelookup failed");
-		else if (resolved) {
-			sin.sin_family = AF_INET;
-			sin.sin_port = htons(port);
-			sin.sin_addr = iaddr;
-			sock->sin = sock->peer = sin;
-			if (sock_type == SOCK_STREAM) {
-				if (mc_socket_connect(sock) != 0)
-					ERROR("socket: connect failed: %d", errno);
-			}
-		}
-		/* else the name lookup is in progress. Do not free or close the socket after here! */
-	}
 	if (sock_type == SOCK_DGRAM) {
 		if (sock->state == SOCK_STATE_RESOLVING) {
 			mc_event_register(s, MC_SOCK_READ, mc_socket_callback, sock);
@@ -556,11 +439,7 @@ xs_socket_listeningSocket(xsMachine *the)
 			maddr.imr_interface.s_addr = inet_addr(xsToString(xsVar(0)));
 			maddr.imr_multiaddr.s_addr = sin.sin_addr.s_addr;
 #if mxMC
-			{
-				uint8_t mcast_mac[MLAN_MAC_ADDR_LENGTH];
-				wifi_get_ipv4_multicast_mac(ntohl(maddr.imr_multiaddr.s_addr), mcast_mac);
-				wifi_add_mcast_filter(mcast_mac);	/* should be ok to 'add' the address every time... */
-			}
+			mc_wifi_add_mcast_filter(&maddr.imr_multiaddr);
 #endif
 			if (lwip_setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, &maddr, sizeof(struct ip_mreq)) != 0) {
 				lwip_close(s);
@@ -992,51 +871,4 @@ xs_socket_ntoa(xsMachine *the)
 		return;	// undefined
 	memcpy(&addr, data, sizeof(addr));
 	xsSetString(xsResult, inet_ntoa(addr));
-}
-
-/*
- * resolver
- */
-static void
-xs_socket_resolv_destructor(void *data)
-{
-	if (data != NULL)
-		mc_free(data);
-}
-
-static void
-mc_resolver_callback(xsMachine *the, void *closure)
-{
-	mc_resolv_t *resolv = closure;
-
-	xsBeginHost(resolv->the);
-	xsVars(1);
-	if (resolv->err == 0)
-		xsSetString(xsVar(0), inet_ntoa(resolv->addr));
-	else
-		xsSetNull(xsVar(0));
-	xsCall_noResult(resolv->this, xsID("_callback"), &xsVar(0), NULL);
-	xsForget(resolv->this);
-	xsEndHost(resolv->the);
-}
-
-void
-xs_socket_resolv(xsMachine *the)
-{
-	mc_resolv_t *resolv;
-
-	if ((resolv = mc_malloc(sizeof(mc_resolv_t))) == NULL)
-		mc_xs_throw(the, "resolv: no mem");
-	xsResult = xsNewHostObject(xs_socket_resolv_destructor);
-	xsSet(xsResult, xsID("_callback"), xsArg(1));
-	resolv->this = xsResult;
-	xsRemember(resolv->this);
-	resolv->the = the;
-	xsSetHostData(xsResult, resolv);
-	resolv->name = xsToString(xsArg(0));
-	resolv->callback = mc_resolver_callback;
-	if (mc_resolv_async(resolv) != 0) {
-		resolv->err = -1;
-		mc_resolver_callback(the, resolv);
-	}
 }

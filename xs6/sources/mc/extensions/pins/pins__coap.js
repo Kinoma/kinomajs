@@ -48,7 +48,8 @@ export default {
 
 			session.autoAck = false;
 
-			Pins.invoke(parseQuery(session).path, requestObject, result => {
+			const path = parseQuery(session).path;
+			const cb = result => {
 				const response = session.createResponse();
 				if (result !== undefined) {
 					if (result instanceof ArrayBuffer)
@@ -57,7 +58,13 @@ export default {
 						response.setPayload(JSON.stringify(result), "application/json");
 				}
 				session.send(response);
-			});
+			};
+
+			if (requestObject !== undefined) {
+				Pins.invoke(path, requestObject, cb);
+			} else {
+				Pins.invoke(path, cb);
+			}
 		});
 
 		this.coap.bind('/repeat', session => {

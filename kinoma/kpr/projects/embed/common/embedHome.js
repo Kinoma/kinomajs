@@ -54,13 +54,21 @@ export var HomeContainer = Container.template($ => ({
 		onDisplaying(container) {
 			let width = container.width;
 			let height = container.height;
-			let $ = {
+			let size = Math.sqrt(width**2 + height**2);
+			let $ = width > height ? {
 				w2: Math.round(width / 2),
 				w3: Math.round(width / 3),
 				h2: Math.round(height / 2),
 				h8: Math.round(height / 8),
 				h12: Math.round(height / 12),
 				h24: Math.round(height / 24),
+			} : {
+				w2: Math.round(height / 2),
+				w3: Math.round(height / 3),
+				h2: Math.round(width / 2),
+				h8: Math.round(width / 8),
+				h12: Math.round(width / 12),
+				h24: Math.round(width / 24),
 			};
 			container.style.size = $.h12;
 			container.empty();

@@ -24,7 +24,7 @@ export TARGET_SYSTEM = mac
 export MACOS_ARCH = -arch i386
 export MACOS_VERSION_MIN = -mmacosx-version-min=10.7
 
-C_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN) -DmxRun=1 -DmxDebug=1 -g -Wall -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/tool -I$(XS6_MC_DIR) -I$(XS6)/extensions/crypt -DXS_ARCHIVE=$(XS_ARCHIVE)
+C_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN) -DmxRun=1 -DmxDebug=1 -g -Wall -I$(XS6_INC_DIR) -I$(XS6_SRC_DIR) -I$(XS6_SRC_DIR)/tool -I$(XS6_MC_DIR) -I$(XS6_MC_DIR)/wmlib -I$(XS6)/extensions/crypt -DXS_ARCHIVE=$(XS_ARCHIVE)
 LINK_OPTIONS = $(MACOS_ARCH) $(MAXOS_VERSION_MIN)
 LIBRARIES = -framework CoreServices
 
@@ -65,6 +65,7 @@ export MOD_LIBRARIES =  -L$(TMP_DIR_HOST) -lmc -framework CoreServices -lSystem
 
 export LIBMODULE = libmodule.a
 LIBMC = $(TMP_DIR)/libmc.a
+WMSDK_LIB = $(TMP_DIR)/libmc_wmsdk.a
 
 ARCHIVE = mc
 
@@ -122,6 +123,7 @@ MC_OBJECTS = \
 	$(TMP_DIR)/mc_event.o \
 	$(TMP_DIR)/mc_env.o \
 	$(TMP_DIR)/mc_file.o \
+	$(TMP_DIR)/mc_ffs.o \
 	$(TMP_DIR)/mc_ipc.o \
 	$(TMP_DIR)/mc_misc.o \
 	$(TMP_DIR)/mc_stdio.o \
@@ -129,14 +131,14 @@ MC_OBJECTS = \
 
 SIGNED_MODULES = setup/_download
 
-.PHONY: xsr6 mc modules extensions external proprietary tools sign host_fs
+.PHONY: xsr6 mc modules extensions external proprietary tools sign lib
 .SUFFIXES: .update
 
-all: $(TMP_DIR) $(BIN_DIR) $(MOD_DIR) $(DEST_DIR) xsr6 mc
+all: $(TMP_DIR) $(BIN_DIR) $(MOD_DIR) $(DEST_DIR) lib xsr6 mc
 
 xsr6: $(BIN_DIR)/xsr6
 
-mc: $(DEST_DIR)/application.xsb $(DEST_DIR)/inetd.xsb $(DEST_DIR)/launcher.xsb $(DEST_DIR)/config.xsb $(DEST_DIR)/synctime.xsb $(LIBMC) modules extensions external proprietary tools $(MOD_DIR)/$(ARCHIVE).xsa $(MOD_DIR)/$(ARCHIVE).so host_fs
+mc: $(DEST_DIR)/application.xsb $(DEST_DIR)/inetd.xsb $(DEST_DIR)/launcher.xsb $(DEST_DIR)/config.xsb $(DEST_DIR)/synctime.xsb $(LIBMC) modules extensions external proprietary tools $(MOD_DIR)/$(ARCHIVE).xsa $(MOD_DIR)/$(ARCHIVE).so
 
 $(TMP_DIR):
 	mkdir -p $(TMP_DIR)
@@ -154,8 +156,8 @@ $(TMP_DIR)/$(ARCHIVE).xsa $(TMP_DIR)/$(ARCHIVE).xs.c: $(TMP_DIR)/.update
 	rm -f $(TMP_DIR)/$(ARCHIVE).xsa
 	$(XS6_TOOL_DIR)/xsl6 -a $(ARCHIVE) -o $(TMP_DIR) -b $(DEST_DIR) -r 97 `find $(DEST_DIR) -name '*.xsb' -print`
 	mv -f $(DEST_DIR)/$(ARCHIVE).xs.[ch] $(TMP_DIR)
-$(TMP_DIR)/$(ARCHIVE).so: $(TMP_DIR)/$(LIBMODULE) $(LIBMC) $(TMP_DIR)/$(ARCHIVE).xs.c
-	$(CC) $(C_OPTIONS) $(MOD_LINK_OPTIONS) $(TMP_DIR)/$(ARCHIVE).xs.c -o $@ $(TMP_DIR)/$(LIBMODULE) $(LIBMC)
+$(TMP_DIR)/$(ARCHIVE).so: $(TMP_DIR)/$(LIBMODULE) lib $(LIBMC) $(TMP_DIR)/$(ARCHIVE).xs.c
+	$(CC) $(C_OPTIONS) $(MOD_LINK_OPTIONS) $(TMP_DIR)/$(ARCHIVE).xs.c -o $@ $(TMP_DIR)/$(LIBMODULE) $(WMSDK_LIB) $(LIBMC)
 $(LIBMC): $(MC_OBJECTS)
 	rm -f $@
 	ar cr $@ $(MC_OBJECTS)
@@ -165,13 +167,11 @@ $(BIN_DIR)/xsr6: $(XS6_OBJECTS) $(XS6_TOOL_OBJECTS)
 modules extensions external proprietary tools:
 	(if [ -d $@ ]; then cd $@; for i in *.make; do make -I $(XS6_MC_DIR) -f $$i $(mod_target); done; fi)
 
-host_fs:
-	mkdir -p ~/tmp/mc
-	cp -fp data/* ~/tmp/mc
-	if [ -d proprietary/data ]; then cp -fp proprietary/data/* ~/tmp/mc; fi
-
-$(TMP_DIR)/mc_mapped_files.h: rodata
-	sh tools/mkmap.sh $@
+$(TMP_DIR)/mc_mapped_files.h: rodata data
+	mkdir -p $(TMP_DIR)/fs
+	cp -fp $(XS6_MC_DIR)/data/* $(TMP_DIR)/fs
+	if [ -d $(XS6_MC_DIR)/proprietary/data ]; then cp -fp $(XS6_MC_DIR)/proprietary/data/* $(TMP_DIR)/fs; fi
+	sh tools/mkmap.sh $(TMP_DIR)/fs $@
 
 $(TMP_DIR)/mc_file.o: $(TMP_DIR)/mc_mapped_files.h
 
@@ -187,6 +187,9 @@ $(DEST_DIR)/%.xsb: $(TMP_DIR)/%.xsb
 	touch $(TMP_DIR)/.update
 $(TMP_DIR)/%.xsb: %.js
 	$(XS6_TOOL_DIR)/xsc6 $(XSC_OPTIONS) -o $(TMP_DIR) $<
+
+lib:
+	(cd wmlib; make -I $(XS6_MC_DIR) -f mc_wmsdk.make)
 
 %.update:;
 

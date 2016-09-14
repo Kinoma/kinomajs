@@ -408,11 +408,26 @@ On Mac OS X, the KinomaJS build uses Homebrew to manage installation and mainten
 3. Install CMake.
   ```
   $ brew install cmake
-  ```
-4. Get a copy of the KinomaJS source code. It can be downloaded using your web browser from the [KinomaJS repository on GitHub](http://github.org/kinoma/kinomajs) or using the `git` command-line tool, as follows:
+  ```4. Get the AWS Starter Kit. Building the Kinoma Element firmware requires a specific version of the AWS Starter Kit.
+
+   ```
+   git clone https://github.com/marvell-iot/aws_starter_sdk.git
+   cd aws_starter_sdk
+   git checkout 55b733531001e33db65a67b561cd834ac28fa65a
+   ```
+
+5. Get the toolchain
+
+   ```
+   brew tap PX4/homebrew-px4
+   brew update
+   brew install gcc-arm-none-eabi
+   ```
+   
+6. Get a copy of the KinomaJS source code. It can be downloaded using your web browser from the [KinomaJS repository on GitHub](http://github.org/kinoma/kinomajs) or using the `git` command-line tool, as follows:
   ```
   $ git clone https://github.com/kinoma/kinomajs.git
-  ```5. Set up two environment variables to point to the source tree.
+  ```7. Set up two environment variables to point to the source tree.
   ```
   $ export F_HOME=/path/to/kinomajs  $ export XS6=${F_HOME}/xs6
  ```       
@@ -438,7 +453,15 @@ Building KinomaJS for Element currently requires a non-parallel build and settin
 	The `xsbug` application is located at `${F_HOME}/bin/mac/Release/xsbug.app`.
 
 <a id="mc-build"></a>
-### Build Your KinomaJS Application
+### Build the Kinoma Element Firmware
+
+```
+	cd $F_HOME/xs6/sources/mc
+	make K5=1 AWS_WMSDK=<path to AWS Starter SDK>
+```
+
+### Build the Kinoma Element Simulator
+
 Build the Kinoma Element simulator that is included in the KinomaJS repository.
 ```
 $ cd ${F_HOME}$ kprconfig6 -d -x -m ${F_HOME}/kinoma/kpr/projects/element/manifest.json```

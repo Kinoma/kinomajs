@@ -24,11 +24,7 @@
 
 #include <wmstdio.h>
 #include <wm_os.h>
-#include <pwrmgr.h>
-#include <partition.h>
-#include <rtc.h>
-#include <critical_error.h>
-#include <mdev_pm.h>
+#include "mc_wmsdk.h"
 
 #ifdef mxStress
 extern int gxStress;
@@ -245,9 +241,9 @@ mc_thread_main(os_thread_arg_t data)
 #endif
 	board_led_button_init();
 	wmtime_init();
-	pm_init();		/* (hw)rtc shoud be initialized here */
-	rtc_time_set(0);	/* another trick to run RTC normally */
-	part_init();
+	mc_pm_init();		/* (hw)rtc shoud be initialized here */
+	mc_rtc_time_set(0);	/* another trick to run RTC normally */
+	mc_partition_init();
 	if (_setjmp(_mc_jmpbuf) != 0)
 		goto bail;
 	do {
@@ -299,15 +295,13 @@ mc_shutoff()
 	powerground_init();
 	header_gpio_init();
 #endif
-	CLK_RC32M_SfllRefClk();	/* switch to the internal clock so we can now shut wifi off */
-	PMU_PowerDownWLAN();
-	pm_mcu_state(PM4, 0);	/* deep sleep */
+	mc_pm_shutoff();
 }
 
 void
-critical_error(critical_errno_t errno, void *data)
+critical_error(int errno, void *data)
 {
 	fprintf(stderr, "[crit] Critical error number: 0x%x\n", errno);
 	fprintf(stderr, "[crit] rebooting...\n");
-	pm_reboot_soc();
+	mc_pm_reboot();
 }

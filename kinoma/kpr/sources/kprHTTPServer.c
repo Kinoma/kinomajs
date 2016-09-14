@@ -59,8 +59,6 @@
 struct KprHTTPServerStruct {
 	KprHTTPServer next;
 	UInt32 port;
-	char* id;
-	UInt32 idLength;
 	char* authority;
 	UInt32 authorityLength;
 	FskHTTPServer server;
@@ -212,6 +210,22 @@ UInt32 KprHTTPServerGetPort(KprHTTPServer self)
 UInt32 KprHTTPServerGetTimeout(KprHTTPServer self)
 {
 	return self->server->keepAliveTimeout;
+}
+
+char* KprHTTPServerGetUUID(KprHTTPServer self)
+{
+	FskErr err = kFskErrNone;
+	UInt32 length = self->authorityLength + 16;
+	char* buffer = NULL;
+	char* uuid = NULL;
+	bailIfError(FskMemPtrNewClear(length, &buffer));
+	FskStrNumToStr(self->port, buffer, length);
+	FskStrCat(buffer, self->authority);
+	uuid = FskUUIDGetForKey(buffer);
+
+bail:
+	FskMemPtrDispose(buffer);
+	return uuid;
 }
 
 Boolean KprHTTPServerIsSecure(KprHTTPServer self)
@@ -1034,7 +1048,12 @@ void KPR_context_get_shared(xsMachine *the)
 void KPR_context_get_uuid(xsMachine *the)
 {
 	KprContext context = xsGetContext(the);
-	char* uuid = FskUUIDGetForKey(context->id);
+	KprHTTPServer server = KprHTTPServerGet(context->id);
+	char* uuid = NULL;
+	if (server)
+		uuid = KprHTTPServerGetUUID(server);
+	else
+		uuid = FskUUIDGetForKey(context->id);
 	xsResult = xsString(uuid);
 }
 
@@ -1067,12 +1086,12 @@ void KPR_context_set_shared(xsMachine *the)
 			UInt32 port = KprEnvironmentGetUInt32((context == (KprContext)gShell) ? "httpShellPort" : "httpApplicationPort", 0);
 			xsThrowIfFskErr(KprHTTPServerNew(&self, context->id, "", port, NULL));
 			KprHTTPServerStart(self);
-			KprServicesShare((KprContext)context, true, NULL);
+			KprServicesShare((KprContext)context, true, NULL, NULL);
 		}
 	}
 	else {
 		if (self) {
-			KprServicesShare((KprContext)context, false, NULL);
+			KprServicesShare((KprContext)context, false, NULL, NULL);
 			KprHTTPServerStop(self, true);
 			KprHTTPServerDispose(self);
 		}
@@ -1094,7 +1113,7 @@ void KPR_context_share(xsMachine *the)
 	}
 	else
 		shareIt = xsTest(xsArg(0));
-	
+
 	xsEnterSandbox();
 	if (shareIt) {
 		if (!self) {
@@ -1148,17 +1167,16 @@ void KPR_context_share(xsMachine *the)
 			xsThrowIfFskErr(KprHTTPServerNew(&self, context->id, "", port, certs));
 			KprHTTPServerStart(self);
 		}
-		KprServicesShare((KprContext)context, true, services);
+		KprServicesShare((KprContext)context, true, services, KprHTTPServerGetUUID(self));
 	}
 	else {
 		if (self) {
-			KprServicesShare((KprContext)context, false, NULL);
+			KprServicesShare((KprContext)context, false, NULL, KprHTTPServerGetUUID(self));
 			KprHTTPServerStop(self, true);
 			KprHTTPServerDispose(self);
 		}
 	}
 	xsLeaveSandbox();
-	return;
 }
 
 //--------------------------------------------------

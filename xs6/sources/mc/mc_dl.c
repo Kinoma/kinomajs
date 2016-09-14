@@ -206,8 +206,7 @@ mc_dlerror()
 #include <task.h>
 #include <queue.h>
 #include <wmstdio.h>
-#include <wm_net.h>
-#include <wm_wlan.h>
+#include <wm_os.h>
 #include <lwip/sockets.h>
 #include <lwip/netdb.h>
 #include <lwip/inet.h>

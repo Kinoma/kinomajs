@@ -13,6 +13,7 @@ MC_OBJECTS = \
 	$(TMP_DIR)/xs_patch.o \
 	$(TMP_DIR)/mc_event.o \
 	$(TMP_DIR)/mc_env.o \
+	$(TMP_DIR)/mc_ffs.o \
 	$(TMP_DIR)/mc_file.o \
 	$(TMP_DIR)/mc_ipc.o \
 	$(TMP_DIR)/mc_misc.o \

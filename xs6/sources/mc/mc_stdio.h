@@ -47,7 +47,11 @@
 #define LWIP_COMPAT_SOCKETS	0	/* to avoid renaming very common function names, like read, write, socket... */
 #include <lwip/sockets.h>	/* errno, etc. other than the socket compat functions */
 #define gethostbyname(a)	lwip_gethostbyname(a)
-#include <fs.h>		/* SEEK_SET... */
+#ifndef SEEK_SET
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+#endif
 
 #if WMSDK_VERSION < 3002012
 typedef unsigned int wint_t;	/* needed in the GNU stdlib */
@@ -65,6 +69,7 @@ typedef struct mc_dir MC_DIR;
 extern int fprintf(MC_FILE *stream, const char *format, ...);
 extern int vfprintf(MC_FILE *stream, const char *format, va_list ap);
 #define printf(...)	fprintf(stdout, __VA_ARGS__)
+#define fflush(x)	/* nothing to do in mc */
 #define ERANGE	34
 #define DBL_MIN		2.2250738585072015E-308
 #define DBL_MAX		1.7976931348623157E+308
@@ -77,7 +82,6 @@ extern int vfprintf(MC_FILE *stream, const char *format, va_list ap);
 #else	/* !mxMC */
 
 #define WMSDK_VERSION 2040000
-#define FT_MAX_FILENAME 24
 #define MAX_NAME    8	/* partition name */
 struct mc_file;
 typedef struct mc_file MC_FILE;

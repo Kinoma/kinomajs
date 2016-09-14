@@ -93,20 +93,6 @@ FskInstrumentedSimpleType(GlyphPath, glyphpath);												/**< This declares t
 
 #define USE_UNHINTED_OUTLINES
 
-#if 1//!defined(MARVELL_SOC_PXA168)
-	#define USE_GENERIC_FONT_MAPPING
-#endif /* TARGET_OS */
-
-#if (TARGET_OS_MAC && !defined(USE_GENERIC_FONT_MAPPING)) || TARGET_OS_WIN32
-static const char	*gDefaultFontNames[] = {
-	"Helvetica",
-	"Arial",
-	"Verdana",
-	"Times",
-	NULL
-};
-#endif
-
 
 #if GLYPH_DEBUG
 #include "FskTextConvert.h"
@@ -164,41 +150,10 @@ static void LogEquivalenceClasses(FskConstGrowableEquivalences coll, const char 
 #endif /* GLYPH_DEBUG */
 
 
-#ifndef USE_GENERIC_FONT_MAPPING
 
-/********************************************************************************
- * GetNextTokenInCommaSeparatedList
- ********************************************************************************/
-
-static int
-GetNextTokenInCommaSeparatedList(const char **inStrP, char *outStr, UInt32 maxChars)
-{
-	const char	*s0, *s1;
-	UInt32		n;
-
-	s0 = *inStrP;
-	if (0 == *s0)
-		return 0;
-
-	if (NULL == (s1 = FskStrChr(s0, ','))) {	/* No more commas: last string */
-		n = FskStrLen(s0);
-		*inStrP = s0 + n;						/* Advance pointer to the terminating 0 character */
-	}
-	else {
-		n = s1 - s0;
-		*inStrP = s1 + 1;						/* Advance pointer to the character after the comma */
-	}
-	if (n >= maxChars)
-		n = maxChars - 1;						/* Truncate if the name is too long to fit in the buffer */
-	FskMemCopy(outStr, s0, n);
-	outStr[n] = 0;
-	return 1;
-}
-
-#endif /* !USE_GENERIC_FONT_MAPPING */
+/* TODO: Generic font mapping (i.e. FindTheBestFont()) might be better located in FskText.c */
 
 
-#ifdef USE_GENERIC_FONT_MAPPING	/* This might be better located in FskText.c */
 
 /********************************************************************************
  * Equivalence class strings
@@ -655,7 +610,6 @@ bail:
 	*bestFont = nextStr;
 	return err;
 }
-#endif /* USE_GENERIC_FONT_MAPPING */
 
 
 #if 0
@@ -692,40 +646,7 @@ GetFontWithCString(const char *name, const FskFontAttributes *at)
 	CTFontSymbolicTraits symbolicTraits = 0;
 	FskErr err = kFskErrNone;
 
-#ifndef USE_GENERIC_FONT_MAPPING
-	if (FskStrCompare(name, "sans-serif") == 0)
-	{
-#if TARGET_OS_IPHONE
-		name = "Helvetica";
-#else
-		name = "Arial";
-#endif
-		genericFamilyName = true;
-	}
-	else if (FskStrCompare(name, "serif") == 0)
-	{
-		name = "Times";
-		genericFamilyName = true;
-	}
-	else if (FskStrCompare(name, "cursive") == 0)
-	{
-		name = "Zapfino";	// ??
-		genericFamilyName = true;
-	}
-	else if (FskStrCompare(name, "fantasy") == 0)
-	{
-		name = "Herculanum";	// ??
-		genericFamilyName = true;
-	}
-	else if (FskStrCompare(name, "monospace") == 0)
-	{
-		name = "Courier New";
-		genericFamilyName = true;
-	}
-#else /* USE_GENERIC_FONT_MAPPING */
 	BAIL_IF_ERR(err = FindTheBestFont(name, &name));
-#endif /* USE_GENERIC_FONT_MAPPING */
-
 
 	nameString = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingUTF8);
 	BAIL_IF_NULL(nameString, err, kFskErrOperationFailed);
@@ -831,34 +752,10 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 	textContext = *pTextContext;
 
 	/* Determine the font family, or one similar to it */
-#ifndef USE_GENERIC_FONT_MAPPING
-	if (at->family != NULL) {		/* Parse the font family */
-		const char *fs;
-		char fontName[256];
-		for (fs = at->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName));) {
-			if ((font = GetFontWithCString(fontName, at)) != NULL) {
-				LOGD("Succeeded getting text context from \"%s\"", fontName);
-				break;
-			}
-			LOGD("Failed    getting text context from \"%s\"", fontName);
-		}
-	}
-	if (font == NULL) {		/* Couldn't find the fonts - choose one from our default list */
-		const char **fl;
-		for (fl = gDefaultFontNames; *fl != NULL; fl++) {
-			if ((font = GetFontWithCString(*fl, at)) != NULL) {
-				LOGD("Succeeded getting text context from default \"%s\"", *fl);
-				break;
-			}
-			LOGD("Failed    getting text context from default \"%s\"", *fl);
-		}
-	}
-#else /* USE_GENERIC_FONT_MAPPING */
 	if (at->family != NULL) {
 		font = GetFontWithCString(at->family, at);		/* This is "guaranteed" to return an available font */
 		LOGD("%s getting text context from \"%s\"", (font ? "Succeeded" : "Failed   "), at->family);
 	}
-#endif /* USE_GENERIC_FONT_MAPPING */
 
 	BAIL_IF_NULL(font, err, kFskErrNotFound);
 
@@ -1385,29 +1282,6 @@ NewStyleFromFontAttributes(const FskFontAttributes *attr, ATSUStyle *atsuStyle)
 	//BAIL_IF_ERR(err = ATSUClearStyle(atsuStyle);	// Probably not necessary
 
 	/* Determine the font family, or one similar to it */
-#ifndef USE_GENERIC_FONT_MAPPING
-	if (attr->family != NULL) {						/* Parse the font family */
-		const char	*fs;
-		char		fontName[256];
-		for (fs = attr->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName)); ) {
-			if ((fmFontFamily = GetFMFontFamilyFromFontName(fontName)) != kInvalidFontFamily) {
-				LOGD("Succeeded getting text context from \"%s\"", fontName);
-				break;
-			}
-			LOGD("Failed    getting text context from \"%s\"", fontName);
-		}
-	}
-	if (fmFontFamily ==  kInvalidFontFamily) {		/* Couldn't find the fonts - choose one from our default list */
-		const char **fl;
-		for (fl = gDefaultFontNames; *fl != NULL; fl++) {
-			if ((fmFontFamily = GetFMFontFamilyFromFontName(*fl)) != kInvalidFontFamily) {
-				LOGD("Succeeded getting text context from default \"%s\"", *fl);
-				break;
-			}
-			LOGD("Failed    getting text context from default \"%s\"", *fl);
-		}
-	}
-#else /* USE_GENERIC_FONT_MAPPING */
 	if (at->family != NULL) {
 		const char *fontName;
 		BAIL_IF_ERR(err = FindTheBestFont(attributes->family, &fontName));
@@ -1415,7 +1289,6 @@ NewStyleFromFontAttributes(const FskFontAttributes *attr, ATSUStyle *atsuStyle)
 		if (!fmFontFamily)
 			LOGD("GetFMFontFamilyFromFontName(\"%s\" --> \"%s\") failed", at->family, fontName);
 	}
-#endif /* USE_GENERIC_FONT_MAPPING */
 
 	/* Set the style to select the closest member of the font family */
 	fmStyle = 0;
@@ -1879,43 +1752,10 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *at, FskTextContext 
 	textContext->hWnd = GetForegroundWindow();	//NULL;
 	textContext->hdc = GetDC(textContext->hWnd);
 
-#ifndef USE_GENERIC_FONT_MAPPING
-	/* Make sure we have the list of font names, because Windows gives us a font even with a bogus name */
-	err = FskGetSystemFontFaceNameList(&faceNames, textContext->hdc);
-
-	/* Parse the font family, and see if we have one of the fonts */	textContext->hFont = NULL;
-	if (at->family != NULL) {
-		const char	*fs;
-		char		fontName[256];
-		char		*fn;
-		for (fs = at->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName)); ) {
-			if (	((fn = FskGrowableArrayBSearchItems(faceNames, fontName, MyCompareFontNamesProc)) != NULL)
-				&&	CreateFontFromFontName(at, fn, textContext)
-			) {
-				LOGD("Succeeded creating font from \"%s\"", fontName);
-				break;
-			}
-			LOGD("Failed    creating font from \"%s\"", fontName);
-		}
-	}
-#else /* USE_GENERIC_FONT_MAPPING */
 	if (at->family != NULL) {
 		const char *fontName;
 		BAIL_IF_ERR(err = FindTheBestFont(at->family, &fontName));
 		(void)CreateFontFromFontName(at, fontName, textContext);
-	}
-#endif /* USE_GENERIC_FONT_MAPPING */
-
-	/* Couldn't find any fonts: look through our default list */
-	if (textContext->hFont == NULL) {
-		const char **fl;
-		for (fl = gDefaultFontNames; *fl != NULL; fl++) {
-			if (CreateFontFromFontName(at, *fl, textContext)) {
-				LOGD("Succeeded getting text context from \"%s\"", *fl);
-				break;
-			}
-			LOGD("Failed    getting text context from default \"%s\"", *fl);
-		}
 	}
 	BAIL_IF_NULL(textContext->hFont, err, kFskErrNotFound);
 
@@ -2612,21 +2452,9 @@ FskTextContextFromFontAttributesNew(const FskFontAttributes *attributes, FskText
 	textContext->face = NULL;
 	/* Determine the font family, or one similar to it */
 	if (attributes->family != NULL) {						/* Parse the font family */
-#ifndef USE_GENERIC_FONT_MAPPING
-		const char	*fs;
-		char		fontName[256];
-		for (fs = attributes->family; GetNextTokenInCommaSeparatedList(&fs, fontName, sizeof(fontName)); ) {
-			if ((textContext->face = FskFTFindFont(fontName, textStyle, attributes->size)) != NULL) {
-				LOGD("Succeeded getting text context from \"%s\"", fontName);
-				break;
-			}
-			LOGD("Failed    getting text context from \"%s\"", fontName);
-		}
-#else /* USE_GENERIC_FONT_MAPPING */
 		const char *fontName;
 		BAIL_IF_ERR(err = FindTheBestFont(attributes->family, &fontName));
 		textContext->face = FskFTFindFont(fontName, textStyle, attributes->size);
-#endif /* USE_GENERIC_FONT_MAPPING */
 	}
 	if (textContext->face == NULL) {		/* Couldn't find the fonts - choose one from our default list */
 		BAIL_IF_NULL((textContext->face = FskFTFindFont(NULL, textStyle, attributes->size)), err, kFskErrNotFound);

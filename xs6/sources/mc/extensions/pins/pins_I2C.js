@@ -39,7 +39,7 @@ export default class I2C {
 	};
 	readBlockDataSMB(reg, size, type) {
 		var buf = this.i2c.read(reg, size);
-		if (type == 'Chunk')
+		if (type == 'ArrayBuffer')
 			return buf;
 		else
 			return new Uint8Array(buf);	// @@ not an Array buf a TypedArray.. no one will notice the difference

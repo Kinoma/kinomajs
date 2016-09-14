@@ -33,6 +33,14 @@ import {
 	tileSelectionSkin,
 } from "features/devices/tiles";
 
+import {
+	whiteSkin
+} from "features/devices/assets";
+
+import {
+	FilterButtonLine,
+} from "controls";
+
 const appTitle = "Pin Explorer";
 const iconSkin = new Skin({ texture:new Texture("./icon.png", 1), x:0, y:0, width:74, height:56, aspect:"fit" });
 
@@ -114,8 +122,9 @@ export const PinExplorerView = Container.template($ => ({
 	Behavior: PinExplorerViewBehavior,
 	contents:[
 		AppViewHeader({ skin:greenHeaderSkin, title:appTitle, device:$.device }),
+		FilterButtonLine($, { left:1, right:1, top:60, height:40, skin:whiteSkin, anchor:"FILTER_BUTTON_LINE"}),
 		Container($, {
-			left:1, right:1, top:60, bottom:1,
+			left:1, right:1, top:60 + 40, bottom:1,
 			contents: [
 				SpinnerContent($, { anchor:"SPINNER" }),
 				Scroller($, {
@@ -127,12 +136,11 @@ export const PinExplorerView = Container.template($ => ({
 							Behavior: class extends ValueBehavior {
 								onUpdate(column) {
 									let data = this.data;
-									let probes = data.probes;
+									let filteredProbes = this.data.FILTER_BUTTON_LINE.delegate("filterProbes", data.probes);
 									column.empty();
-									if (probes) {
-										probes.forEach(probe => {
-//*											if (probe.isFront) 
-												column.add(new probe.template(probe));
+									if (filteredProbes) {
+										filteredProbes.forEach(probe => {
+											column.add(new probe.template(probe));
 										});
 									}
 									column.container.adjust();

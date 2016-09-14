@@ -38,7 +38,7 @@ typedef void (*KprServiceStartProc)(KprService self, FskThread thread, xsMachine
 typedef void (*KprServiceStopProc)(KprService self);
 typedef void (*KprServiceDiscoverProc)(KprService self, char* authority, char* id, Boolean useEnvironment);
 typedef void (*KprServiceForgetProc)(KprService self, char* authority, char* id);
-typedef void (*KprServiceShareProc)(KprService self, char* authority, Boolean shareIt, Boolean useEnvironment);
+typedef void (*KprServiceShareProc)(KprService self, char* authority, Boolean shareIt, char* uuid);
 
 struct KprServiceStruct {
 	KprService next;
@@ -61,7 +61,7 @@ FskAPI(void) KprServicesStart(KprShell shell);
 FskAPI(void) KprServicesStop(KprShell shell);
 FskAPI(void) KprServicesDiscover(KprContext context, char* id, char* services);
 FskAPI(void) KprServicesForget(KprContext context, char* id);
-FskAPI(void) KprServicesShare(KprContext context, Boolean shareIt, char* services);
+FskAPI(void) KprServicesShare(KprContext context, Boolean shareIt, char* services, char* uuid);
 
 FskAPI(Boolean) KprServiceAccept(KprService self, KprMessage message);
 FskAPI(void) KprServiceCancel(KprService self, KprMessage message);

@@ -20,13 +20,12 @@
 #include "mc_env.h"
 #include "mc_xs.h"
 #include "mc_tftpd.h"
-#include "soft_crc32.h"
-
-#if mxMC
-#include "ftfs.h"
-#include "firmware_structure.h"
-#else
+#if !mxMC
 #include "mc_compat.h"
+#endif
+#include "tftp.h"
+#include "mc_wmsdk.h"
+
 typedef struct {
 	uint8_t magic[8];
 	uint32_t crc;
@@ -63,10 +62,6 @@ struct wlan_fw_header {
 #define FW_BLK_LOADABLE_SEGMENT	2	/* loads data to follow */
 #define FW_BLK_FN_CALL		3	/* calls function at given addr */
 #define FW_BLK_POKE_DATA	4	/* pokes 32-bit value to address */
-
-#endif
-
-#include "tftp.h"
 
 typedef struct {
 	int s;

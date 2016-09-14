@@ -162,10 +162,10 @@ class Rule {
 			var sources = property[target];
 			if (sources instanceof Array) {
 				for (var source of sources) 
-					this.iterate(target, source, false);
+					this.iterate(target, tool.resolveVariable(source), false);
 			}
 			else
-				this.iterate(target, sources, false);
+				this.iterate(target, tool.resolveVariable(sources), false);
 		}
 		for (var target in property) {
 			var sources = property[target];

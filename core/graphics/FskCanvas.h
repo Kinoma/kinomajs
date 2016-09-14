@@ -261,15 +261,16 @@ FskAPI(Boolean)	FskCanvasIsAccelerated(FskConstCanvas2dContext ctx);
 
 /** Returns a data: URL of the form "data:image/png;base64,dataComposedOfUrlCharacters".
  *	\param[in]	cnv		The canvas.
- *	\param[in]	type	The type of the image desired; if NULL is supplied, then "image/png" is used.
- *						Possibilities are "image/png", "image/jpeg", and "image/svg+xml".
- *						Only "image/png" is required by the Canvas specification.
- *	\param[in]	quality	The desired quality of the encoded image. This is ignored for everything
- *						except for "image/jpeg". Quality varies from 0 to 1.
+ *	\param[in]	type	The type of the image desired: either "image/png" or "image/jpeg"; "image/svg+xml" has not been implemented.
+ *						If NULL is supplied, then "image/png" is used, which is the only type required by the Canvas specification.
+ *	\param[in]	quality	The desired quality of the encoded image. This is ignored for everything except for "image/jpeg".
+ *						Quality varies from 0 to 1.
  *	\param[out]	dataURL	The resultant data:url-encoded image, newly allocated. Dispose with FskMemPtrDispose();
  *	\return		kFskErrNone	if the data:URL was successfully created.
- *	\note		We implement "image/jpeg", "image/png" and "image/bmp", but not "image/svg+xml".
  *	\warning	This can generate strings that are longer than 1024, which is the suggested maximum length of HTML attributes.
+ *	\bug		We have also implemented "image/bmp", but images with alpha do not produce viewable results in all browsers;
+ *				it is better to use "image/png", which produces smaller URLs that are supported universally.
+ *	\note		We have not implemented "image/svg+xml".
  */
 FskAPI(FskErr)	FskCanvasToDataURL(FskCanvas cnv, const char *type, float quality, char **dataURL);
 

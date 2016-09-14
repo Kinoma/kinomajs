@@ -120,7 +120,7 @@ static void windowIncrementUseCount(FskWindow win);
 static void windowDecrementUseCount(FskWindow win);
 static void postProcessEventMsg(FskWindow win);
 void rotateAndScalePoints(FskWindow win, FskPointAndTicks pts, UInt32 count);
-void sendEventWindowUpdate(FskWindow win, Boolean redrawAll, Boolean skipBeforeUpdate, const FskTime updateTime);		//@@ redrawAll parameter actually should be a rectangle indicating the invalidated portion of the window
+void sendEventWindowUpdate(FskWindow win, FskRectangle windowUpdateArea, Boolean skipBeforeUpdate, const FskTime updateTime);
 static void sendEventWindowSizeChanged(FskWindow win);
 #if TARGET_OS_MAC || TARGET_OS_WIN32 || (TARGET_OS_KPL && SUPPORT_LINUX_GTK)
     static void sendEventWindowClose(FskWindow win);
@@ -1813,8 +1813,8 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 			SInt32 windowScale = FskWindowScaleGet(win);
 			BeginPaint(win->hwnd, &ps);
 				FskRectangleSet(&windowUpdateArea, ps.rcPaint.left / windowScale, ps.rcPaint.top / windowScale, (ps.rcPaint.right - ps.rcPaint.left) / windowScale, (ps.rcPaint.bottom - ps.rcPaint.top) / windowScale);
-				sendEventWindowUpdate(win, !FskRectangleIsEqual(&windowUpdateArea, &win->port->invalidArea), false, NULL);		//@@ scaling!!
-			EndPaint(win->hwnd, &ps);
+				sendEventWindowUpdate(win, &windowUpdateArea, false, NULL);		//@@ scaling!!
+				EndPaint(win->hwnd, &ps);
 			processAnEvent = true;
 			}
 			break;
@@ -2248,10 +2248,11 @@ long FAR PASCAL FskWindowWndProcNoHook(HWND hwnd, UINT msg, UINT wParam, LONG lP
 	static Boolean needMoreRedraw = 0;
 #endif
 
-void sendEventWindowUpdate(FskWindow win, Boolean redrawAll, Boolean skipBeforeUpdate, const FskTime updateTimeIn)
+void sendEventWindowUpdate(FskWindow win, FskRectangle windowUpdateArea, Boolean skipBeforeUpdate, const FskTime updateTimeIn)
 {
 	FskEvent fskEvent;
     FskTimeRecord updateTime;
+	Boolean redrawAll;
 
 	#if TARGET_OS_ANDROID
         FskBitmap gFB = NULL;
@@ -2273,11 +2274,17 @@ void sendEventWindowUpdate(FskWindow win, Boolean redrawAll, Boolean skipBeforeU
 
 	#endif /* TARGET_OS_ANDROID */
 
-
     if (updateTimeIn)
         updateTime = *updateTimeIn;
     else
         FskTimeGetNow(&updateTime);
+
+	if (windowUpdateArea) {
+		FskRectangleUnion((FskConstRectangle)windowUpdateArea, (FskConstRectangle)&win->port->invalidArea, &win->port->invalidArea);
+		redrawAll = !FskRectangleIsEqual(windowUpdateArea, &win->port->invalidArea);
+	}
+	else
+		redrawAll = false;
 
     FskRectangleSetEmpty(&win->invalidArea);
 
@@ -2646,7 +2653,7 @@ void FskWindowUpdate(FskWindow win, const FskTime time)
        ;
 #endif
 
-	sendEventWindowUpdate(win, false, false, time);
+	sendEventWindowUpdate(win, NULL, false, time);
 }
 
 FskErr FskWindowCopyToBitmap(FskWindow window, const FskRectangle srcIn, Boolean forExport, FskBitmap *bitsOut)
@@ -3094,7 +3101,7 @@ Boolean FskWindowCheckEvents() {
 #endif /* PETERS_HACK */
 #if TARGET_OS_MAC && USE_DISPLAY_LINK
 			if (FskCocoaWindowDisplayPaused(win))
-				sendEventWindowUpdate(win, false, false, NULL);
+				sendEventWindowUpdate(win, NULL, false, NULL);
 #else
 			if (!win->updateTimer && !win->useFrameBufferUpdate)
 				;		// we will update the window in a different way
@@ -3103,7 +3110,7 @@ Boolean FskWindowCheckEvents() {
 			else if (!win->updateSuspended && FskListContains(&thread->timerCallbacks, win->updateTimer))
 				;		// we will draw soon. wait to do that so the period remains consistent.
 			else {
-				sendEventWindowUpdate(win, false, false, NULL);
+				sendEventWindowUpdate(win, NULL, false, NULL);
 			}
 #endif
 		}
@@ -3184,7 +3191,7 @@ void windowUpdateCallback(struct FskTimeCallBackRecord *callback, const FskTime 
 		}
 	}
 	else
-		sendEventWindowUpdate(win, false, true, NULL);
+		sendEventWindowUpdate(win, NULL, true, NULL);
 
 	scheduleWindowUpdateCallback(win);
 
@@ -3401,7 +3408,7 @@ void FskWindowCocoaSizeChanged(FskWindow win)
 	sendEventWindowSizeChanged(win);
 
 	if (!FskRectangleIsEmpty(&win->port->invalidArea))
-		sendEventWindowUpdate(win, false, false, NULL);
+		sendEventWindowUpdate(win, NULL, false, NULL);
 }
 
 void FskWindowCocoaClose(FskWindow win)

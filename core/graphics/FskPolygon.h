@@ -120,7 +120,7 @@ enum {
 	kFskColorSourceTypeTexture,						/**< A texture or pattern. */
 	kFskColorSourceTypeProcedure,					/**< A procedure. */
 #if defined(FSK_POLYGON_TEXTURE) && FSK_POLYGON_TEXTURE
-	kFskColorSourceTypeMax					= kFskColorSourceTypeProcedure-1	/* Procedural color sources not implemented. TODO: implement textures. */
+	kFskColorSourceTypeMax					= kFskColorSourceTypeProcedure-1	/* Procedural color sources not implemented. */
 #else /* !FSK_POLYGON_TEXTURE */
 	kFskColorSourceTypeMax					= kFskColorSourceTypeTexture-1		/* Procedural and texture color sources not implemented */
 #endif /* !FSK_POLYGON_TEXTURE */

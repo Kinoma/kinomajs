@@ -16,6 +16,8 @@
 #
 .PHONY: archive
 
+MDNS_DIR = $(F_HOME)/xs6/extensions/mdns
+
 ifeq ($(TARGET_SYSTEM), mc)
 MDNS_MAKEFILE = mdns_mc.make
 else
@@ -23,8 +25,8 @@ MDNS_MAKEFILE = mdns_host.make
 endif
 
 all archive:
-	(cd mdns; make -f $(MDNS_MAKEFILE) $@)
+	(cd $(MDNS_DIR); make -f $(MDNS_MAKEFILE) $@)
 	touch $(TMP_DIR)/.update
 
 clean:
-	(cd mdns; make -f $(MDNS_MAKEFILE) $@)
+	(cd $(MDNS_DIR); make -f $(MDNS_MAKEFILE) $@)

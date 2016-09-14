@@ -49,6 +49,7 @@
 	<source name="kprCodeWin.cpp"/>
 	<library name="Wlanapi.lib"/>
 	<library name="IPHLPAPI.lib"/>
+  <library name="SetupAPI.lib"/>
 </platform>
 
 </makefile>

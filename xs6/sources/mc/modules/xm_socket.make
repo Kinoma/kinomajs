@@ -15,7 +15,7 @@
 #     limitations under the License.
 #
 MODULE = socket
-JS_SRC = xm_socket.js
+JS_SRC = $(F_HOME)/xs6/extensions/socket/socket.js
 C_SRCS = xm_socket.c
 
 include library.mk

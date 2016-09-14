@@ -345,7 +345,6 @@ mc_env_init()
 {
 	if (mc_default_env.buf != NULL)
 		return 0;
-	mc_file_init();
 	return mc_env_new(&mc_default_env, MC_ENV_DEFAULT_PATH, 0, 1);
 }
 
