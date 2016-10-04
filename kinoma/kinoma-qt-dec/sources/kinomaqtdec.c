@@ -28,14 +28,7 @@
 #include "FskBitmap.h"
 #include "QTReader.h"
 
-#if TARGET_OS_MAC && (defined(__LP64__) || TARGET_OS_IPHONE)
-#define USE_VIDEO_TOOLBOX	1
-#endif
-#ifdef USE_VIDEO_TOOLBOX
 #include <VideoToolbox/VideoToolbox.h>
-#else
-#include <QuickTime/QuickTime.h>
-#endif
 
 
 //#define CACHE_OUTPUT_FRAMES
@@ -140,14 +133,10 @@ typedef struct
 	UInt32				sampleDescriptionSeed;
 
 	FskImageDecompress	deco;
-#ifdef USE_VIDEO_TOOLBOX
 	VTDecompressionSessionRef decompressionSession;
 	VTDecompressionOutputCallbackRecord callbackRecord;
 	CMVideoCodecType codecType;
 	CMVideoFormatDescriptionRef videoDesc;
-#else
-	ICMDecompressionSessionRef	decompressionSession; // decompresses and scales captured frames
-#endif
 
 	int					sync_mode;
 	FskListMutex		func_item_list;
@@ -708,11 +697,7 @@ int  YUVBuffer_push( FskBitmapFormatEnum dst_pixel_format, YUVBuffer *b,  CVPixe
 	
 	dlog(  "YUVBuffer_push, idx: %d, composition_time: %d\n", idx, (int)b->composition_time[idx] );
 	
-#ifdef USE_VIDEO_TOOLBOX
 	if( src_pix_format != kCVPixelFormatType_422YpCbCr8 )
-#else
-	if( src_pix_format != k2vuyPixelFormat )
-#endif
 	{
 		BAIL( kFskErrBadState );
 	}
@@ -1265,17 +1250,10 @@ FskErr qtDecCanHandle(UInt32 format, const char *mime, const char *extension, Bo
 	*canHandle |= FskStrCompare(mime, "x-video-codec/avc") == 0;
 	
 	//263
-#ifdef USE_VIDEO_TOOLBOX
 	*canHandle |= format == 'h263';
 	*canHandle |= format == 's263';
 	*canHandle |= FskStrCompare(mime, "x-video-codec/263") == 0;
-	//*canHandle |= FskStrCompare(mime, "x-video-codec/h263-flash") == 0;
-#else
-	//*canHandle |= format == 'h263';
-	//*canHandle |= format == 's263';
-	//*canHandle |= FskStrCompare(mime, "x-video-codec/263") == 0;
-#endif
-	
+
 	//mp4v
 	*canHandle |= format == 'mp4v';
 	*canHandle |= FskStrCompare(mime, "x-video-codec/mp4") == 0;
@@ -1297,13 +1275,6 @@ FskErr qtDecNew(FskImageDecompress deco, UInt32 format, const char *mime, const 
 	if (err != noErr) 
 		goto bail;
 #endif
-	
-#ifndef USE_VIDEO_TOOLBOX
-	err = EnterMovies();
-	if (err != noErr)
-		goto bail;
-#endif
-		
 	
 	err = FskMemPtrNewClear(sizeof(kinomaQTDecode), (FskMemPtr *)&state);
 	BAIL_IF_ERR( err ); 
@@ -1327,12 +1298,10 @@ FskErr qtDecNew(FskImageDecompress deco, UInt32 format, const char *mime, const 
 	state->dst_pixel_format = kFskBitmapFormatYUV420;
 	
 	state->sync_mode		= 0;	
-#ifdef USE_VIDEO_TOOLBOX
 	state->codecType = ((format == 'avc1') || (FskStrCompare(mime, "x-video-codec/avc") == 0)) ? kCMVideoCodecType_H264 :
 					   ((format == 'h263') || (format == 's263') || (FskStrCompare(mime, "x-video-codec/263") == 0)) ? kCMVideoCodecType_H263 :
 //					   ((FskStrCompare(mime, "x-video-codec/h263-flash") == 0)) ? kCMVideoCodecType_H263 :
 						kCMVideoCodecType_MPEG4Video;
-#endif
 
 bail:
 	if (kFskErrNone != err)
@@ -1378,7 +1347,6 @@ FskErr qtDecDispose(void *stateIn, FskImageDecompress deco)
 		
 		if( state->decompressionSession != NULL )
 		{
-#ifdef USE_VIDEO_TOOLBOX
 			if (state->decompressionSession != NULL)
 			{
 				VTDecompressionSessionInvalidate(state->decompressionSession);
@@ -1388,9 +1356,6 @@ FskErr qtDecDispose(void *stateIn, FskImageDecompress deco)
 			{
 				CFRelease(state->videoDesc);
 			}
-#else
-			ICMDecompressionSessionRelease( state->decompressionSession );
-#endif
 		}
 			
 		FskMemPtrDispose(state);
@@ -1400,7 +1365,6 @@ FskErr qtDecDispose(void *stateIn, FskImageDecompress deco)
 }
 
 
-#ifdef USE_VIDEO_TOOLBOX
 static void decoder_callback(void *decompressionOutputRefCon, void *sourceFrameRefCon, OSStatus status, VTDecodeInfoFlags infoFlags, CVImageBufferRef imageBuffer, CMTime presentationTimeStamp, CMTime presentationDuration )
 {
 	kinomaQTDecode *state = (kinomaQTDecode *)decompressionOutputRefCon;
@@ -1439,51 +1403,6 @@ static void decoder_callback(void *decompressionOutputRefCon, void *sourceFrameR
 bail:
 	;
 }
-#else
-static void  decoder_callback(void *refCon, OSStatus result, ICMDecompressionTrackingFlags flag, CVPixelBufferRef pixelBuffer, 
-              TimeValue64 displayTime, TimeValue64 displayDur, ICMValidTimeFlags validTimeFlags, void *rsvr, void *srcFrmRefCon )
-{
-	kinomaQTDecode	*state	= (kinomaQTDecode *)refCon;
-	OSStatus		err		= noErr;
-	
-	dlog( "$$$$$$\n");
-	dlog( "$$$$$$ decoder_callback, result: %d, flag: %x\n", (int)result, (int)flag );
-	dlog( "$$$$$$ srcFrmRefCon:   %d\n",	(int)srcFrmRefCon );
-	dlog( "$$$$$$ displayTime:    %d\n",	(int)displayTime );
-	dlog( "$$$$$$ displayDur:     %d\n",	(int)displayDur );
-	dlog( "$$$$$$ validTimeFlags: %d\n", (int)validTimeFlags );
-	dlog( "$$$$$$\n");
-
-	//if( kICMDecompressionTracking_ReleaseSourceData & decompressionTrackingFlags ) 
-	//	dlog( "if we were responsible for managing source data buffers, we should release the source buffer here, using srcFrmRefCon to identify it\n" );
-	if( ( kICMDecompressionTracking_EmittingFrame & flag ) && pixelBuffer )
-	{
-		CVPixelBufferLockBaseAddress( pixelBuffer, 0);
-		
-		if( state->sync_mode )
-		{
-			//if( drop_flag )
-			if( state->yuv_buffer == NULL )
-				err = YUVBuffer_new( &state->yuv_buffer );
-			
-			if( err == noErr )
-			{
-				dlog( "calling  YUVBuffer_push\n" );		
-				err =  YUVBuffer_push( state->dst_pixel_format, state->yuv_buffer, pixelBuffer, displayTime );
-			}
-		}
-		else
-		{
-			err = send_out_frame_async( state, pixelBuffer, displayTime );
-		}
-		
-		CVPixelBufferUnlockBaseAddress (pixelBuffer, 0);
-		BAIL_IF_ERR(err);
-	}
-bail:
-	;
-}
-#endif
 
 
 FskErr qtDecDecompressFrame(void *stateIn, FskImageDecompress deco, const void *data_in, UInt32 dataSize_in, FskInt64 *decodeTime, UInt32 *compositionTimeOffset, FskInt64 *compositionTime, UInt32 frameType)
@@ -1566,23 +1485,12 @@ FskErr qtDecDecompressFrame(void *stateIn, FskImageDecompress deco, const void *
 	if( state->decompressionSession == NULL ) 
 	{	
 		//AVCC avcC;
-#ifdef USE_VIDEO_TOOLBOX
 		CFMutableDictionaryRef extensions = NULL;
 		CFMutableDictionaryRef videoDecoderDesc = NULL;
 		CFMutableDictionaryRef destImageBufferAttr = NULL;
 
 		if (state->codecType == kCMVideoCodecType_H264)
 		{
-#else
-		Handle									idh =	NULL;
-		ImageDescription						*desc;
-		ICMDecompressionSessionOptionsRef		sessionOptions = NULL;
-		CFMutableDictionaryRef					pixelBufferAttributes = NULL;
-		CFNumberRef								number = NULL;
-		OSType									pixelFormat = k2vuyPixelFormat;
-		ICMDecompressionTrackingCallbackRecord	trackingCallbackRec = { NULL };
-		UInt32									descWidth;
-#endif
         AVCC avcC;
         unsigned char	*avcc_data = NULL;
 		
@@ -1608,7 +1516,6 @@ FskErr qtDecDecompressFrame(void *stateIn, FskImageDecompress deco, const void *
 		state->display_width	= kinoma_desc->width;
 		state->display_height	= kinoma_desc->height;
 
-#ifdef USE_VIDEO_TOOLBOX
 		if (avcc_data != NULL)
 		{
 			UInt32 avcc_data_size = FskMisaligned32_GetN(avcc_data) - 8;
@@ -1695,112 +1602,13 @@ FskErr qtDecDecompressFrame(void *stateIn, FskImageDecompress deco, const void *
 			err = kFskErrBadState;
 			goto bail;
 		}
-#else
-		idh = NewHandleClear( kinoma_desc->idSize );
-		if( idh == NULL ) 
-			goto bail;
-		
-		desc = *((ImageDescriptionHandle) (idh));
-
-		dlog( "refit kinoma_desc for idh\n" );
-		memcpy( (void *)desc, (void *)kinoma_desc, kinoma_desc->idSize ); 
-		{
-			int total_bytes = kinoma_desc->idSize;
-			unsigned char *d = (unsigned char *)desc;
-			int desc_size = sizeof( ImageDescription );
-			
-			dlog( "total_bytes: %d, desc_size: %d\n",total_bytes, desc_size );
-			d += desc_size;
-			total_bytes -= desc_size;
-			dlog( "after desc, total_bytes: %d\n",total_bytes );
-			
-			#define SWAP4(d)						\
-			{										\
-				t0=d[0];t1=d[1];t2=d[2];t3=d[3];	\
-				d[0]=t3;d[1]=t2;d[2]=t1;d[3]=t0;	\
-			}
-			while(total_bytes > 8 )
-			{
-				int		this_size;
-				OSType  this_type;
-				int		t0,t1,t2,t3;
-				
-				this_size    = FskMisaligned32_GetN(d);
-				dlog( "got this_size: %d, swap it\n", (int)this_size );
-				total_bytes -= this_size;
-				if( this_size < 8 || total_bytes < 0 )
-				{
-					dlog( "this_size is 0, breaking\n" );
-					break;
-				}
-				this_size -= 8;
-				
-				SWAP4(d)
-				d+= 4;
-				this_type = FskMisaligned32_GetN(d);
-				dlog( "got this_type: %s, , swap it\n", (char *)&this_type );
-				SWAP4(d)
-				d += 4;
-				d += this_size;
-			}
-		}
-
-		pixelBufferAttributes = CFDictionaryCreateMutable( NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks );
-		descWidth = desc->width;
-		number = CFNumberCreate( NULL, kCFNumberIntType, &descWidth );
-		CFDictionaryAddValue( pixelBufferAttributes, kCVPixelBufferWidthKey, number );
-		CFRelease( number );
-		
-		number = CFNumberCreate( NULL, kCFNumberIntType, &desc->height );
-		CFDictionaryAddValue( pixelBufferAttributes, kCVPixelBufferHeightKey, number );
-		CFRelease( number );
-		
-		number = CFNumberCreate( NULL, kCFNumberSInt32Type, &pixelFormat );
-		CFDictionaryAddValue( pixelBufferAttributes, kCVPixelBufferPixelFormatTypeKey, number );
-		CFRelease( number );
-		
-		dlog( "setting decoder_callback\n" );
-		trackingCallbackRec.decompressionTrackingCallback =	decoder_callback;
-		trackingCallbackRec.decompressionTrackingRefCon =	state;
-		
-		if(0)
-		{
-			Boolean yes = true;
-			err = ICMDecompressionSessionOptionsCreate(NULL, &sessionOptions);
-			BAIL_IF_ERR( err );
-			
-			err = ICMDecompressionSessionOptionsSetProperty( sessionOptions,
-													  kQTPropertyClass_ICMDecompressionSessionOptions,
-													  kICMDecompressionSessionOptionsPropertyID_DisplayOrderRequired,
-													  sizeof(Boolean),
-													  &yes);
-			BAIL_IF_ERR( err );
-		}
-		
-		dlog( "calling ICMDecompressionSessionCreate\n" );
-		err = ICMDecompressionSessionCreate( NULL, (ImageDescriptionHandle)(idh), sessionOptions, pixelBufferAttributes, &trackingCallbackRec, &state->decompressionSession );
-		if( err )
-		{
-			state->bad_state = 1;
-			dlog( "calling ICMDecompressionSessionCreate failed, bad_state, set err:kFskErrBadState!!!\n" );
-			err = kFskErrBadState;
-			goto bail;
-		}
-		
-		CFRelease( pixelBufferAttributes );
-		//ICMDecompressionSessionOptionsRelease( sessionOptions );
-#endif
 	}
 
 	if( eosing  )
 	{
 		dlog( "eosing\n" );
 		dlog( "calling ICMDecompressionSessionFlush\n");
-#ifdef USE_VIDEO_TOOLBOX
 		VTDecompressionSessionFinishDelayedFrames(state->decompressionSession);
-#else
-		err = ICMDecompressionSessionFlush( state->decompressionSession );
-#endif
 		goto bail;
 	}
 
@@ -1816,7 +1624,6 @@ FskErr qtDecDecompressFrame(void *stateIn, FskImageDecompress deco, const void *
 	}
 
 	{
-#ifdef USE_VIDEO_TOOLBOX
 		CMBlockBufferRef dataBuffer;
 		CMSampleBufferRef sampleBuffer;
 		CMSampleTimingInfo timingInfo ;
@@ -1840,34 +1647,6 @@ FskErr qtDecDecompressFrame(void *stateIn, FskImageDecompress deco, const void *
 		err = VTDecompressionSessionDecodeFrame(state->decompressionSession, sampleBuffer, decodeFlags, (void *)(uintptr_t)deco->frameNumber, NULL);
 		CFRelease(sampleBuffer);
 		BAIL_IF_ERR(err);
-#else
-		ICMFrameTimeRecord	frameTime = {{0}};
-		ICMFrameTimeRecord  *frame_time = &frameTime;
-		TimeValue time = (TimeValue)composition_time;
-		*(TimeValue64 *)&frameTime.value = composition_time;
-		frameTime.scale			= state->timeScale;
-		frameTime.decodeTime    = decode_time;
-		frameTime.rate			= fixed1;
-		frameTime.recordSize	= sizeof(ICMFrameTimeRecord);
-		frameTime.frameNumber	= deco->frameNumber;
-		frameTime.flags			= icmFrameTimeHasDecodeTime;
-		
-		if( kinoma_desc->cType == 'avc1' )
-			frameTime.flags |=  icmFrameTimeIsNonScheduledDisplayTime;
-		
-		dlog( "calling ICMDecompressionSessionDecodeFrame, frame refCon:\n" );
-		dlog( "=====>\n");
-		dlog( "=====>flag:           %x\n",  (int)frameTime.flags );
-		dlog( "=====>srcFrmRefCon:   %d\n",	(int)deco->frameNumber );
-		dlog( "=====>displayTime:    %d\n",	(int)composition_time );
-		dlog( "=====>decodeTime:     %d\n",	(int)decode_time );
-		dlog( "=====>\n");
-		err = ICMDecompressionSessionDecodeFrame( state->decompressionSession, (UInt8 *)data_in, dataSize_in, NULL, frame_time, (void *)deco->frameNumber );
-		BAIL_IF_ERR( err );
-
-		dlog( "calling ICMDecompressionSessionSetNonScheduledDisplayTime: Pull decoded frame out\n" );
-		ICMDecompressionSessionSetNonScheduledDisplayTime( state->decompressionSession, time, state->timeScale, 0 );
-#endif
 	}
 	
 	if( state->sync_mode )
@@ -1916,11 +1695,7 @@ FskErr qtDecFlush(void *stateIn, FskImageDecompress deco )
 	}
 	
 	dlog( "calling ICMDecompressionSessionFlush\n");
-#ifdef USE_VIDEO_TOOLBOX
 	VTDecompressionSessionFinishDelayedFrames(state->decompressionSession);
-#else
-	err = ICMDecompressionSessionFlush( state->decompressionSession );
-#endif
 	if( state->func_item_list != NULL )
 	{
 		FskErr flush_err = kFskErrShutdown;//dec->error_happened ? kFskErrBadData: kFskErrShutdown;

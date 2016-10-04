@@ -41,7 +41,7 @@ LIBRARIES = $(F_HOME)/../jb/sdk/QT704SDK/libraries/qtmlclient.lib	\
 
 <platform name="MacOSX">
 <common>
-LIBRARIES = -framework QuartzCore -framework QuickTime -framework Carbon
+LIBRARIES = -framework QuartzCore -framework VideoToolbox
 </common>
 </platform>
 

@@ -83,8 +83,6 @@
 		"kprTouchd":"$(KPR_HOME)/extensions/touchd/kprTouchd.mk",
 		"kprCoAP":"$(KPR_HOME)/extensions/coap/kprCoAP.mk",
 		"kprMQTT":"$(KPR_HOME)/extensions/mqtt/kprMQTT.mk",
-		"kprSocket":"$(KPR_HOME)/extensions/socket/kprSocket.mk",
-		"kprProxyServices":"$(KPR_HOME)/extensions/services/kprProxyService.mk",
 		"kprXMPP":"$(KPR_HOME)/extensions/xmpp/kprXMPP.mk",
 	},
 	"fonts":{

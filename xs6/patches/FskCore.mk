@@ -558,7 +558,6 @@
 
 		<library name="-framework CoreFoundation"/>
 		<library name="-framework CoreServices"/>
-		<library name="-framework QuickTime"/>
 		<library name="-framework SystemConfiguration"/>
 		<library name="-framework IOKit"/>
 		<library name="-framework OpenGL"/>
@@ -570,7 +569,8 @@
 		<library name="-framework CoreMedia"/>
 		<library name="-framework AVFoundation"/>
 		<library name="-lresolv"/>
-		<library name="-lstdc++"/>
+		<library name="-lc++"/>
+		<library name="-stdlib=libc++"/>
 
 		<source name="FskYUV420ToYUV422.c"/>
 		<header name="FskYUV420ToYUV422.h"/>
