@@ -25,6 +25,7 @@
 <input name="$(F_HOME)/kinoma/mediareader/sources"/>
 <input name="$(F_HOME)/kinoma/qtvrpano/cubic"/>
 <input name="$(F_HOME)/extensions/http/sources/"/>
+<input name="$(F_HOME)/extensions/ssl/"/>
 <input name="$(F_HOME)/kinoma/kpr/extensions/templates/"/>
 <input name="$(F_HOME)/kinoma/kpr/extensions/upnp/"/>
 

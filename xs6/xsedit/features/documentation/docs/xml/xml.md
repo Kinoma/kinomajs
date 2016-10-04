@@ -48,7 +48,7 @@ This element's XML attributes. Attributes have one of the types listed in Table 
     <tr>
       <td><code>expression</code></td>
       <td>A JavaScript expression</td>
-      <td><code>true</code></br><code>25</code></br><code>'Santa Claus'</code></br><code>$.party</code></td>
+      <td><code>true</code><br/><code>25</code><br/><code>'Santa Claus'</code><br/><code>$.party</code></td>
       <td><code>undefined</code></td>
     </tr>
 
@@ -68,12 +68,12 @@ This element's XML attributes. Attributes have one of the types listed in Table 
 
     <tr>
       <td><code>reference</code></td>
-      <td>An identifier to reference an element in the same module or program </br></br>
-      or</br></br> 
+      <td>An identifier to reference an element in the same module or program <br/><br/>
+      or<br/><br/> 
       The identifier of a <code>require</code> element followed by a dot and an identifier to reference an element in a required module</td>
-      <td><code>Present</code></br></br>
-      or</br></br>
-      <code>CHRISTMAS.Present</code></br></td>
+      <td><code>Present</code><br/><br/>
+      or<br/><br/>
+      <code>CHRISTMAS.Present</code><br/></td>
       <td><code>null</code></td>
     </tr>
 

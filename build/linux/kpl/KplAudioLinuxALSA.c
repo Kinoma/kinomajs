@@ -30,8 +30,11 @@ if (status < 0) goto bail; }
 #define bailIfError(X) { (err = (X));\
 if (err != kFskErrNone) goto bail; }
 
-#if RASPBERRY_PI
-#define kAlsaDeviceName "plughw:0,0"
+#define STRINGIFY(x) #x
+#define QUOTED(x)	STRINGIFY(x)
+
+#if defined(ALSA_DEVICE_NAME)
+#define kAlsaDeviceName QUOTED(ALSA_DEVICE_NAME)
 #else
 #define kAlsaDeviceName "plug:dmix"
 #endif

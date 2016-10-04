@@ -66,11 +66,12 @@
 	<c option="-D_LARGEFILE_SOURCE"/>
 	<c option="-D_REENTRANT"/>
 	<c option="-D__FSK_LAYER__=1"/>
-	<c option="-DRASPBERRY_PI=1"/>
 	<c option="-fsigned-char"/>
 	<c option="-Wall"/>
 	<c option="-Wno-multichar"/>
+	<c option="-DRASPBERRY_PI=1"/>
 	<c option="-DDEVICE_NAME=Raspberry\ Pi"/>
+	<c option="-DALSA_DEVICE_NAME='plughw:0,0'"/>
 
 	<library name="--sysroot=$(PI_SYSROOT)" />
 

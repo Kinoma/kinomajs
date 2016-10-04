@@ -104,7 +104,7 @@ export class EmbedShellBehavior extends Behavior {
 		this.startup();
 	}
 	onQuit() {
-		this.goHome();
+		//this.goHome();
 		shell.share(false);
 		this.writePreferences();
 	}

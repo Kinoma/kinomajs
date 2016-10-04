@@ -112,6 +112,7 @@
 				],
 				"simulators": [
 					"$(F_HOME)/bin/linux/gtk/Release/CreateShell",
+					"$(F_HOME)/bin/linux/gtk/Release/EmbedShell",
 				],
 				"tools": [
 					"$(F_HOME)/xs6/bin/linux/x86_64/Release/xsc6",
@@ -135,6 +136,7 @@
 				"simulators": [
                     "$(F_HOME)/bin/mac/Release/CreateShell.app",
                     "$(F_HOME)/bin/mac/Release/ElementShell.app",
+                    "$(F_HOME)/bin/mac/Release/EmbedShell.app",
 				],
 			},
 		},
@@ -154,6 +156,7 @@
 				],
 				"simulators": [
 					"$(F_HOME)/bin/win/release/CreateShell",
+					"$(F_HOME)/bin/win/release/EmbedShell",
 				],
 				"tools": [
 					"$(F_HOME)/xs6/bin/win/release/xsc6.exe",

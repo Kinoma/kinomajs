@@ -58,7 +58,6 @@
 	<c option="-DBAD_FTRUNCATE=1"/>
 	<c option="-DCLOSED_SSL=1"/>
 	<c option="-D __PI2_GL__=1"/>
-	<c option="-DRASPBERRY_PI=1"/>
 	<c option="-DFSK_APPLICATION_$(FSK_APPLICATION)=1"/>
 	<c option="-DFSK_EMBED=1"/>
 	<c option="-I${F_HOME}/libraries/libtess2/Include/ "/>
@@ -82,6 +81,8 @@
 	<c option="-Wall"/>
 	<c option="-Wno-multichar"/>
 	<c option="-DDEVICE_NAME=Raspberry\ Pi"/>
+	<c option="-DRASPBERRY_PI=1"/>
+	<c option="-DALSA_DEVICE_NAME='plughw:0,0'"/>
 
 	<library name="--sysroot=${PI_SYSROOT}" />
 

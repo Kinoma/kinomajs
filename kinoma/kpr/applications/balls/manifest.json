@@ -163,6 +163,14 @@
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 					},
 				},
+				"iap220":{
+					"build":{
+						"DEVICE":true,
+					},
+					"extensions":{
+						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
+					},
+				},
 				"pine64":{
 					"build":{
 						"DEVICE":true,

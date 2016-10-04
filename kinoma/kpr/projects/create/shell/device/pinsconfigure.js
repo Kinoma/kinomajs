@@ -55,6 +55,7 @@ exports.get = function() {
 
     return result;
 }
+
 exports.set = function(parameters) {
     /* voltage */
 	parameters.leftVoltage = (5 == parameters.leftVoltage) ? 0 : 1;
