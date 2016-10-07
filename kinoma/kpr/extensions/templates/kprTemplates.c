@@ -1271,7 +1271,6 @@ void KPR_SkinPatch(xsMachine *the)
 	xsResult = xsGet(xsFunction, xsID_prototype);
 	if (xsIsInstanceOf(xsThis, xsResult)) {
 		KprSkin self;
-		KprShell shell = gShell;
 		xsIntegerValue c = xsToInteger(xsArgc);
 		UInt32 flags = 0;
 		KprSkinDataRecord data;
@@ -1352,7 +1351,7 @@ void KPR_SkinPatch(xsMachine *the)
 			}
 		}
 		xsLeaveSandbox();
-		KprSkinNew(&self, (KprContext)shell, flags, &data);
+		KprSkinNew(&self, (KprContext)xsGetContext(the), flags, &data);
 		kprVolatileConstructor(KPR_Skin);
 		xsResult = xsThis;
 	}
@@ -1399,11 +1398,10 @@ void KPR_StylePatch(xsMachine *the)
 	xsResult = xsGet(xsFunction, xsID_prototype);
 	if (xsIsInstanceOf(xsThis, xsResult)) {
 		KprStyle self;
-		KprShell shell = gShell;
 		xsIntegerValue c = xsToInteger(xsArgc);
 		double n;
 		xsVars(1);
-		KprStyleNew(&self, (KprContext)shell, NULL, NULL);
+		KprStyleNew(&self, (KprContext)xsGetContext(the), NULL, NULL);
 		kprVolatileConstructor(KPR_Style);
 		if ((c == 1) && xsTest(xsArg(0)) && (xsTypeOf(xsArg(0)) != xsStringType)) {
 			xsIntegerValue integer;
