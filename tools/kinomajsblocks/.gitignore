@@ -1,0 +1,4 @@
+tsbuild/
+typings/
+node_modules/
+bower_components/

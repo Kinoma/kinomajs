@@ -1,0 +1,224 @@
+/*
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
+.clearfix{
+  clear:both;
+}
+
+#primary_nav_wrap {
+  margin-top: 0px;
+}
+
+#primary_nav_wrap ul {
+  list-style: none;
+  position: relative;
+  float: left;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  background-image:url(media/kinoma-banner-with-logo.png);
+  background-repeat:no-repeat;
+  /*background: #7DBF2E;*/
+}
+
+#primary_nav_wrap ul a {
+  display: block;
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 32px;
+  padding: 10px 15px;
+  font-family: "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif
+}
+
+#primary_nav_wrap ul li {
+  position: relative;
+  float: right;
+  margin: 0;
+  padding: 0;
+  display: block;
+}
+
+#primary_nav_wrap ul ul li:hover {
+  background: #d2d2d2;
+}
+#primary_nav_wrap ul ul li a {
+  color: #333;
+  font-weight: 300;
+}
+#primary_nav_wrap ul ul a {
+  line-height: 120%;
+  padding: 10px 0px
+}
+#primary_nav_wrap ul ul ul {
+  top: 0;
+  left: 100%
+}
+#primary_nav_wrap ul li:hover > ul {
+  display: block
+}
+
+#primary_nav_wrap li#runButton {
+  background: #ff9a00;
+}
+#primary_nav_wrap li#runButton:hover {
+  background: #ffb13a;
+}
+#primary_nav_wrap #runButton {
+  width: 100px;
+  text-align: center;
+}
+#primary_nav_wrap #runButton a .spinner {
+  display: none;
+}
+#primary_nav_wrap #runButton a#runIcon.active .spinner {
+  display: inherit;
+}
+#primary_nav_wrap #runButton a#runIcon.active .runText {
+  display: none;
+}
+
+/* ============================================================
+  SWITCH - YES NO
+============================================================ */
+#primary_nav_wrap input.cmn-toggle-yes-no + label {
+  border: 2px solid white;
+  border-radius: 4px;
+  height: 36px;
+  margin-top: 8px;
+  margin-right: 10px;
+  padding: 5px;
+  width: 240px;
+}
+#primary_nav_wrap input.cmn-toggle-yes-no + label:hover{
+background-color: #92d641;
+}
+#primary_nav_wrap input.cmn-toggle-yes-no + label:before, input.cmn-toggle-yes-no + label:after {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  color: #fff;
+  font-size: 16px;
+  text-align: center;
+  line-height: 10px;
+  padding: 10px 15px;
+}
+#primary_nav_wrap input.cmn-toggle-yes-no + label:before {
+  /*background-color: #92d641;*/
+  content: attr(data-off);
+  -webkit-transition: -webkit-transform 0.5s;
+  -moz-transition: -moz-transform 0.5s;
+  -o-transition: -o-transform 0.5s;
+  transition: transform 0.5s;
+  -webkit-backface-visibility: hidden;
+  -moz-backface-visibility: hidden;
+  -ms-backface-visibility: hidden;
+  -o-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+#primary_nav_wrap input.cmn-toggle-yes-no + label:after {
+  background-color: #92d641;
+  border-radius: 4px;
+  content: attr(data-on);
+  -webkit-transition: -webkit-transform 0.5s;
+  -moz-transition: -moz-transform 0.5s;
+  -o-transition: -o-transform 0.5s;
+  transition: transform 0.5s;
+  -webkit-transform: rotateY(180deg);
+  -moz-transform: rotateY(180deg);
+  -ms-transform: rotateY(180deg);
+  -o-transform: rotateY(180deg);
+  transform: rotateY(180deg);
+  -webkit-backface-visibility: hidden;
+  -moz-backface-visibility: hidden;
+  -ms-backface-visibility: hidden;
+  -o-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+#primary_nav_wrap input.cmn-toggle-yes-no:checked + label:before {
+  -webkit-transform: rotateY(180deg);
+  -moz-transform: rotateY(180deg);
+  -ms-transform: rotateY(180deg);
+  -o-transform: rotateY(180deg);
+  transform: rotateY(180deg);
+}
+#primary_nav_wrap input.cmn-toggle-yes-no:checked + label:after {
+  -webkit-transform: rotateY(0);
+  -moz-transform: rotateY(0);
+  -ms-transform: rotateY(0);
+  -o-transform: rotateY(0);
+  transform: rotateY(0);
+}
+#primary_nav_wrap .cmn-toggle {
+  position: absolute;
+  margin-left: -9999px;
+  visibility: hidden;
+}
+#primary_nav_wrap .cmn-toggle + label {
+  display: block;
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+#primary_nav_wrap .switch {
+  height: 32px;
+  float: right;
+  font-family: "HelveticaNeue", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  margin-right: 8px;
+}
+
+::-webkit-input-placeholder {
+   color: #ddd;
+}
+
+:-moz-placeholder { /* Firefox 18- */
+   color: #ddd;
+}
+
+::-moz-placeholder {  /* Firefox 19+ */
+   color: #ddd;
+}
+
+:-ms-input-placeholder {
+   color: #ddd;
+}
+
+.link {
+  background-position: -21px 0px;
+}
+
+#linkContainer a {
+    background-color: #7dbf2e;
+    border: 2px solid white;
+    border-radius: 4px;
+    height: 36px;
+    margin: 8px 20px 0px 10px;
+    padding: 3px 10px !important;
+    line-height: 24px !important;
+}
+
+#linkContainer a:hover {
+    box-shadow: none;
+    background-color: #99da2b;
+}

@@ -1,0 +1,19 @@
+{
+   "compileOnSave": true,
+   "compilerOptions": {
+     "target": "es5",
+     "module": "commonjs",
+     "outDir": "tsbuild/app/",
+     "moduleResolution": "node",
+     "sourceMap": true,
+     "emitDecoratorMetadata": true,
+     "experimentalDecorators": true,
+     "removeComments": true,
+     "noImplicitAny": false
+   },
+    "exclude": [
+        "node_modules",
+        "tsbuild",
+        "bower_components"
+    ]
+}

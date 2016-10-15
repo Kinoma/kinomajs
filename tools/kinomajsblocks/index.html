@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<!-- /*
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */ -->
+<html >
+  <head>
+    <title>KinomaJS Blocks</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="media/favicon.ico">
+    <!-- If developing locally, uncomment all external library paths -->
+    <!-- 1. Load libraries -->
+
+     <!-- Polyfill(s) for older browsers -->
+    <!-- <script src="node_modules/core-js/client/shim.min.js"></script>
+    <script src="node_modules/zone.js/dist/zone.js"></script>
+    <script src="node_modules/reflect-metadata/Reflect.js"></script>
+    <script src="node_modules/systemjs/dist/system.src.js"></script> -->
+
+    <!-- Bootstrap  -->
+    <!-- <script src="node_modules/ng2-bootstrap/bundles/ng2-bootstrap.min.js"></script>
+    <link rel="stylesheet" href="node_modules/bootstrap/dist/css/bootstrap.min.css"> -->
+
+    <!-- Font Awesome -->
+    <!-- <link rel="stylesheet" href="node_modules/font-awesome/css/font-awesome.min.css"> -->
+
+    <!-- Compressed Blockly -->
+    <!-- <script src="bower_components/google-blockly/blockly_compressed.js"></script>
+    <script src="bower_components/google-blockly/blocks_compressed.js"></script> -->
+
+    <!-- Compressed Blockly Javascript generator -->
+    <!-- <script src="bower_components/google-blockly/javascript_compressed.js"></script> -->
+
+    <!--  Blockly language strings -->
+    <!-- <script src="bower_components/google-blockly/msg/messages.js"></script>
+    <script src="bower_components/google-blockly/msg/js/en.js"></script> -->
+
+    <!-- Custom Blockly blocks -->
+    <!-- <script src="blocks/kinomablocks.js"></script>
+    <script src="blocks/kinomablocksgen.js"></script> -->
+
+    <!-- Prettify -->
+    <!-- <script src="node_modules/google-code-prettify/bin/prettify.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="node_modules/google-code-prettify/bin/prettify.min.css"> -->
+
+    <!-- 2. Configure SystemJS -->
+    <!-- <script src="systemjs.config.js"></script> -->
+
+    <!-- Gulp bundles all external libraries, and app code. comment out if developing locally -->
+    <link rel="stylesheet" href="tsbuild/lib/css/vendors.min.css">
+    <script src="tsbuild/lib/js/vendors.min.js"></script>
+
+    <!-- Master styling  do not comment this -->
+    <link rel="stylesheet" type="text/css" href="style.css">
+
+    <script>
+      System.config({
+        packages: {'tsbuild': {defaultExtension: 'js'}}
+      });
+      // 3. Run SystemJS
+      System.import('tsbuild/dist/js/app.min.js').catch(function(err){ console.error(err); });
+      // for testing locally replace above with below
+      //  System.import('tsbuild/app/main.js').catch(function(err){ console.error(err); });
+    </script>
+  </head>
+  <!-- 4. Display the application -->
+  <body >
+    <blockly-app>Loading...</blockly-app>
+  </body>
+</html>

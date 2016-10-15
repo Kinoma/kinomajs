@@ -1,0 +1,90 @@
+/*
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
+li:hover {
+  color: red;
+}
+li {
+  position: relative;
+  float: right;
+  margin: 0;
+  padding: 0;
+  display: block;
+}
+
+li:hover {
+  background: #f6f6f6;
+  color: red;
+}
+
+li:hover > ul {
+  display: block
+}
+
+input[type="text"] {
+  display: block;
+  margin-top: 0px;
+  width: 85%;
+  font-family: sans-serif;
+  font-size: 16px;
+  appearance: none;
+  box-shadow: none;
+  border-radius: 0px;
+
+}
+
+input[type="text"]:focus {
+  outline: none;
+}
+
+::-webkit-input-placeholder {
+   color: #ddd;
+}
+
+:-moz-placeholder { /* Firefox 18- */
+   color: #ddd;
+}
+
+::-moz-placeholder {  /* Firefox 19+ */
+   color: #ddd;
+}
+
+:-ms-input-placeholder {
+   color: #ddd;
+}
+
+input[type="text"] {
+  border-radius: 5px;
+    padding: 5px;
+  border: solid 2px white;
+  margin-top: 8px;
+  margin-right: 0px;
+  background: #7DBF2E none repeat scroll 0 0;
+  color: white;
+  text-indent: 5px;
+}
+
+input[type="text"]:hover,
+input[type="text"]:focus {
+  border: solid 2px white;
+  background: white none repeat scroll 0 0;
+  color: black;
+  transition: all 500ms ease;
+}
+
+li:hover {
+  background: none;
+}

@@ -1,0 +1,44 @@
+/*
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
+.doc_button {
+  color: #fff;
+   background-color: #7DBF2E ;
+   border-color: #7DBF2E ;
+   padding: 10px 16px;
+   text-decoration: none;
+   font-size: 18px;
+   line-height: 1.3333333;
+   border-radius: 6px;
+   display: inline-block;
+   margin: 5px 0px 0px 5px;
+   font-weight: 400;
+   text-align: center;
+   white-space: nowrap;
+   vertical-align: middle;
+   cursor: pointer;
+   background-image: none;
+}
+.modal-content {
+  width: 400px;
+  margin-left: 30%;
+}
+.modal-body{
+  text-align: center;
+}
+input {
+  width: 360px;
+}

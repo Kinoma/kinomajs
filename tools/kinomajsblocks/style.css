@@ -1,0 +1,76 @@
+/*
+ *     Copyright (C) 2010-2016 Marvell International Ltd.
+ *     Copyright (C) 2002-2010 Kinoma, Inc.
+ *
+ *     Licensed under the Apache License, Version 2.0 (the "License");
+ *     you may not use this file except in compliance with the License.
+ *     You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     Unless required by applicable law or agreed to in writing, software
+ *     distributed under the License is distributed on an "AS IS" BASIS,
+ *     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *     See the License for the specific language governing permissions and
+ *     limitations under the License.
+ */
+html, body
+{
+    height: 100%;
+    width: 100%;
+}
+
+body {
+  background-color: #fff;
+  font-family: sans-serif;
+  margin: 0;
+  overflow: hidden;
+}
+
+/*Blockly SVG Toolbox tree is generated outside of the main app instance*/
+.blocklyToolboxDiv {
+    background-color: #f5f5f5 !important;
+    border-right: 1px solid #ccc !important;
+    overflow-x: visible;
+    overflow-y: auto;
+    position: absolute;
+}
+
+.blocklyTreeIcon {
+    background-image: none !important;
+    height: 16px;
+    vertical-align: middle;
+    width: 6px !important;
+}
+
+.blocklyTreeSeparator {
+    background-color: #bababa !important;
+    background-image:url(./media/kinoma-divider-image.png);
+    border-bottom: medium none;
+    height: 26px !important;
+    margin: 5px 0;
+    border-left: 0px !important;
+}
+
+.blocklyTreeRoot div:nth-of-type(1) .blocklyTreeSeparator {
+    background-image:url(./media/blockly-divider-image.png) !important;
+    margin-top: -5px;
+}
+/* easier to read black text on yellow sound block*/
+.sound_block_text_css {
+  fill: black !important;
+  color: black !important;
+}
+
+/*global overrides*/
+.alert{
+  margin-bottom: 0px !important;
+}
+
+.tooltip-inner {
+  max-width: 400px !important;
+  background-color: white;
+  font-size: 16px;
+  color: black;
+  border: 2px solid black;
+}

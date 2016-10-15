@@ -139,6 +139,18 @@ The source for Kinoma Code (originally called xsedit) is located in [./xs6/xsedi
 
 ***
 
+##KinomaJS Blocks
+
+<p align="center"> <img src="http://kinoma.com/media/press-images/img/KinomaJS-Blocks_sm.jpg" height="150" alt=""/></p>
+
+KinomaJS Blocks is a visual code editor designed to help developers build starter projects for Kinoma Create and Kinoma Element. The project is built on Angular 2(RC7) and runs in a web browser. The [live version](http://kinomajsblocks.appspot.com/static/index.html) is hosted using Google App Engine, but you can modify and build it yourself by following the instructions in [this document](./tools/kinomajsblocks/README.md). 
+
+###Documentation
+
+- [KinomaJS Blocks documentation](./tools/kinomajsblocks/docs/blockly.md): provides information about using the KinomaJS Blocks editor and describes the functionality of each block
+
+***
+
 ##KPL
 
 The Kinoma Porting Layer (KPL) is the bottom of the KinomaJS stack. It is a very light portability layer, modeled, as much as practical, on POSIX. Because KinomaJS runs on a wide variety of operating systems, the goal is to isolate all direct calls to the host operating in KPL. Some RTOS hosts do not support the full ANSI C library, so it cannot even be safely assumed that functions like printf are available. To avoid surprises with the size of types, a portable-type system modeled on that used by QuickTime is used.

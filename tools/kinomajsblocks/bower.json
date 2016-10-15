@@ -1,0 +1,21 @@
+{
+  "name": "kinomajsblocks",
+  "description": "Blockly based web editor for KinomaJS code",
+  "main": "index.html",
+  "authors": [
+    "Brook-Kinoma <brook@kinoma.com>"
+  ],
+  "license": "ISC",
+  "homepage": "",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "google-blockly": "*"
+  }
+}
