@@ -53,7 +53,7 @@
 	"platforms":{
 		"linux":{
 			"environment":{
-				"debugger":"192.168.56.1:5002",
+				"xdebugger":"192.168.56.1:5002",
 			},
 			"fonts":{
 				"default": "Fira Sans",
