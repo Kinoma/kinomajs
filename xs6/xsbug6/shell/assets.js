@@ -161,7 +161,7 @@ export const fieldScrollerSkin = new Skin({ fill: WHITE, stroke:HOVER_GRAY, bord
 
 export const tabsPaneSkin = new Skin({ fill:GRAYS[14], stroke:GRAYS[24], borders: { bottom:1 }  });
 export const tabSkin = new Skin({ fill:[GRAYS[6], GRAYS[14], GRAYS[10], GRAYS[6]], stroke:GRAYS[24], borders: { right:1 }  });
-export const tabStyle = new Style({ font:SEMIBOLD_FONT, size:12, color:[BLACK, GRAYS[75], GRAYS[75], BLACK], horizontal:"center", left:20, right:20 });
+export const tabStyle = new Style({ font:SEMIBOLD_FONT, size:12, color:[BLACK, GRAYS[75], GRAYS[75], BLACK], horizontal:"center", left:26, right:26 });
 
 export const paneBodySkin = new Skin({ fill:WHITE });
 export const paneBorderSkin = new Skin({ fill:GRAYS[14] });

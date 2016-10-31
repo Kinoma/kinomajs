@@ -18,5 +18,6 @@
 <package>
 	<import href="FskCore.xs"/>
 	<import href="Crypt.xs"/>
+	<import href="FskStream.xs"/>
 	<import href="FskSSL.xs"/>
 </package>

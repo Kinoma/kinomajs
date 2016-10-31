@@ -9,7 +9,12 @@ import {
 	tabSkin,
 	tabStyle,
 	tabsPaneSkin,
+	buttonsSkin,
 } from "shell/assets";
+
+import {
+	ButtonBehavior
+} from "common/control";
 
 import {
 	ScrollerBehavior,
@@ -37,7 +42,7 @@ class TabsPaneBehavior extends Behavior {
 	}
 };
 
-class TabBehavior extends Behavior {
+class BreakpointsTabBehavior extends Behavior {
 	changeState(container, state) {
 		container.state = state;
 		var content = container.first.first;
@@ -56,14 +61,7 @@ class TabBehavior extends Behavior {
 		}
 	}
 	onMachineSelected(container, machine) {
-		if (this.machine == machine) {
-			container.active = false;
-			this.changeState(container, 0);
-		}
-		else {
-			container.active = true;
-			this.changeState(container, 1);
-		}
+		this.changeState(container, this.machine == machine ? 0 : 1);
 	}
 	onTouchBegan(container) {
 		this.changeState(container, 0);
@@ -71,12 +69,29 @@ class TabBehavior extends Behavior {
 	}
 	onMouseEntered(container, x, y) {
 		shell.behavior.cursorShape = system.cursors.arrow;
-		this.changeState(container, container.active ? 2 : 0);
+		this.changeState(container, this.machine != model.currentMachine ? 2 : 0);
 	}
 	onMouseExited(container, x, y) {
-		this.changeState(container, container.active ? 1 : 0);
+		this.changeState(container, this.machine != model.currentMachine ? 1 : 0);
 	}
 };
+
+class TabBehavior extends BreakpointsTabBehavior {
+	onMouseEntered(container, x, y) {
+		container.last.visible = this.machine.closable;
+		super.onMouseEntered(container, x, y);
+	}
+	onMouseExited(container, x, y) {
+		container.last.visible = false;
+		super.onMouseExited(container, x, y);
+	}
+};
+
+class CloseButtonBehavior extends ButtonBehavior {
+	onTap(content) {
+		model.debug.closeMachine(this.data.address);
+	}
+}
 
 export var TabsPane = Layout.template($ => ({
 	left:0, right:0, top:0, height:27, skin:tabsPaneSkin, Behavior:TabsPaneBehavior,
@@ -95,20 +110,21 @@ export var TabsPane = Layout.template($ => ({
 }));
 
 var Tab = Container.template($ => ({
-	top:0, bottom:0, skin:tabSkin, Behavior:TabBehavior,
+	top:0, bottom:0, skin:tabSkin, active:true, Behavior:TabBehavior,
 	contents: [
 		Container($, { 
 			top:0, bottom:0,
 			contents: [
-				Content($, { left:0, width:20, visible:$.broken, skin:tabBrokenSkin, }),
+				Content($, { left:3, width:20, visible:$.broken, skin:tabBrokenSkin, }),
 				Label($, { top:0, bottom:0, style:tabStyle, string:$.title }),
 			],
 		}),
+		Content($, { left:0, width:26, active:true, visible:false, skin:buttonsSkin, variant:6, state:1, Behavior:CloseButtonBehavior }),
 	],
 }));
 
 var BreakpointsTab = Container.template($ => ({
-	width:52, top:0, bottom:0, skin:tabSkin, Behavior:TabBehavior,
+	width:52, top:0, bottom:0, skin:tabSkin, active:true, Behavior:BreakpointsTabBehavior,
 	contents: [
 		Label($, { 
 			left:5, right:5, height:16, skin:tabBreakpointSkin, style:tabBreakpointStyle,

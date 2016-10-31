@@ -90,6 +90,34 @@ export class FieldDeleterBehavior extends Behavior {
 };
 
 export class FieldLabelBehavior extends Behavior {
+	canClear(label) {
+		return label.editable && (label.selectionLength > 0);
+	}
+	canCopy(label) {
+		return label.editable && (label.selectionLength > 0) && !label.hidden;
+	}
+	canCut(label) {
+		return label.editable && (label.selectionLength > 0) && !label.hidden;
+	}
+	canPaste(label) {
+		return label.editable && shell.behavior.hasClipboard();
+	}
+	doClear(label) {
+		label.insert();
+		this.onEdited(label);
+	}
+	doCopy(label) {
+		let string = label.string.substr(label.selectionOffset, label.selectionLength);
+		shell.behavior.setClipboard(string);
+	}
+	doCut(label) {
+		this.doCopy(label);
+		this.doClear(label);
+	}
+	doPaste(label) {
+		label.insert(shell.behavior.getClipboard());
+		this.onEdited(label);
+	}
 	filterKey(label, key) {
 		if (!key) return null;
 		var c = key.charCodeAt(0);

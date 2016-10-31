@@ -244,6 +244,7 @@ class CallLineBehavior extends LineBehavior {
 		let column = line.container;
 		let behavior = column.behavior;
 		let data = this.data;
+		behavior.machine.framesView.lineIndex = line.index;
 		behavior.data.doDebugFile(behavior.viewIndex, data.path, data.line, data.value);
 		behavior.trigger(column, line);
 	}

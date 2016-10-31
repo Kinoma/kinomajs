@@ -21,9 +21,9 @@ exports.pins = {
 }
 
 exports.configure = function() {
-	// Initialize each of the BLL objects by calling their init function
+	// Define and add simulator parts
 }
 
 exports.close = function() {
-	// Close the objects used to communicate with the pins
+	// Remove simulator parts
 }

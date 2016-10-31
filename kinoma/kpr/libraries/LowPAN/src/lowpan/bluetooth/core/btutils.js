@@ -21,22 +21,25 @@
  * Bluetooth v4.2 - Bluetooth Utilities
  */
 
-var Utils = require("../../common/utils");
-var Buffers = require("../../common/buffers");
-var ByteBuffer = Buffers.ByteBuffer;
+const Utils = require("../../common/utils");
+const Logger = Utils.Logger;
+const Buffers = require("../../common/buffers");
+const ByteBuffer = Buffers.ByteBuffer;
 
-var BD_ADDR_SIZE = 6;
-var BD_ADDR_SEPARATOR = ":";
+const BD_ADDR_SIZE = 6;
+const BD_ADDR_SEPARATOR = ":";
 
-var UUID_SIZE = 16;
-var BASE_UUID = [
+const UUID_SIZE = 16;
+const BASE_UUID = [
 	0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00,
 	0x00, 0x80,
 	0x00, 0x10,
 	0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00
 ];
-var UUID_SEPARATOR = "-";
+const UUID_SEPARATOR = "-";
+
+let logger = Logger.getLogger("BTUtils");
 
 function toCharArray(str) {
 	var ca = [];
@@ -230,11 +233,15 @@ class BluetoothAddress {
 	/**
 	 * Static function to create instance by byte array
 	 */
-	static getByAddress(byteArray, le = false, random = false) {
-		if (byteArray.length != BD_ADDR_SIZE) {
+	static getByAddress(byteArray, random) {
+		if (byteArray.length < BD_ADDR_SIZE) {
 			return null;
 		}
-		if (le) {
+		if (byteArray.length >= (BD_ADDR_SIZE + 1)) {
+			return new LEBluetoothAddress(byteArray.slice(0, BD_ADDR_SIZE),
+				(byteArray[BD_ADDR_SIZE] == 0x01));
+		}
+		if (random !== undefined) {
 			return new LEBluetoothAddress(byteArray, random);
 		}
 		return new BluetoothAddress(byteArray);
@@ -242,7 +249,7 @@ class BluetoothAddress {
 	/**
 	 * Static function to create instance by string representation.
 	 */
-	static getByString(addressString, le = false, random = false) {
+	static getByString(addressString, random) {
 		let byteArray = [];
 		if (BD_ADDR_SEPARATOR.length > 0) {
 			let ar = addressString.split(BD_ADDR_SEPARATOR);
@@ -255,7 +262,7 @@ class BluetoothAddress {
 				byteArray.push(parseInt(addressString.substring(pos, pos + 2), 16));
 			}
 		}
-		if (le) {
+		if (random !== undefined) {
 			return new LEBluetoothAddress(byteArray, random);
 		}
 		return new BluetoothAddress(byteArray);
@@ -333,4 +340,128 @@ class LEBluetoothAddress extends BluetoothAddress {
 		}
 		return super.equals(target);
 	}
+	toByteArray() {
+		let array = new Uint8Array(BD_ADDR_SIZE + 1);
+		array.set(this._array);
+		array[BD_ADDR_SIZE] = this._random ? 0x01 : 0x00;
+		return array;
+	}
 }
+
+class MemoryBondingStorage {
+	constructor() {
+		this._bondings = new Array();
+	}
+	_allocateBond() {
+		for (let i = 0; i < this._bondings.length; i++) {
+			if (this._bondings[i] == null) {
+				return i;
+			}
+		}
+		return this._bondings.push(null) - 1;
+	}
+	addBond(index, info) {
+		this._bondings[index] = info;
+	}
+	removeBond(index) {
+		if (index < 0 || this._bondings.length <= index) {
+			return;
+		}
+		this._bondings[index] = null;
+	}
+	getBond(index) {
+		if (index < 0 || this._bondings.length <= index) {
+			return null;
+		}
+		return this._bondings[index];
+	}
+	/* GAP Callback: Bonding Storage */
+	storeBond(address, info) {
+		let index = this._allocateBond();
+		info.address = address;
+		this.addBond(index, info);
+	}
+	/* GAP Callback: Bonding Storage */
+	getBonds() {
+		let results = new Array();
+		for (let i = 0; i < this._bondings.length; i++) {
+			if (this._bondings[i] != null) {
+				results.push(this._bondings[i]);
+			}
+		}
+		return results;
+	}
+	/* GAP Callback: Bonding Storage */
+	findBondByAddress(address) {
+		for (let i = 0; i < this._bondings.length; i++) {
+			if (this._bondings[i] != null) {
+				let address = this._bondings[i].address;
+				if (address != null && address.equals(address)) {
+					return this._bondings[i];
+				}
+			}
+		}
+		return null;
+	}
+}
+exports.MemoryBondingStorage = MemoryBondingStorage;
+
+class GAPConnectionManager {
+	constructor() {
+		this._connections = new Map();
+		this._onAllDisconnected = null;
+	}
+	set onAllDisconnected(cb) {
+		this._onAllDisconnected = cb;
+	}
+	disconnectAllConnections() {
+		logger.debug("Disconnect all bearers...");
+		let num = 0;
+		this.forEachConnection(connection => {
+			connection.disconnect(0x15);
+			num++;
+		});
+		if (num == 0) {
+			logger.debug("No bearers are active");
+			if (this._onAllDisconnected != null) {
+				this._onAllDisconnected();
+			}
+		} else {
+			logger.debug("" + num + " disconnetion is pending.");
+		}
+	}
+	registerConnection(connection) {
+		if (this._connections.has(connection.handle)) {
+			logger.warn("Connection is active: " + Utils.toHexString(connection.handle, 2));
+		}
+		this._connections.set(connection.handle, connection);
+	}
+	unregisterConnection(handle) {
+		this._connections.delete(handle);
+		if (this._connections.size == 0) {
+			logger.debug("All bearers are disconnected.");
+			if (this._onAllDisconnected != null) {
+				this._onAllDisconnected();
+			}
+		}
+	}
+	forEachConnection(func) {
+		this._connections.forEach((value, key, map) => {
+			if (value != null && !value.isDisconnected()) {
+				func(value);
+			}
+		});
+	}
+	getConnection(handle) {
+		if (!this._connections.has(handle)) {
+			return null;
+		}
+		let connection = this._connections.get(handle);
+		if (connection.isDisconnected()) {
+			logger.warn("Connection is disconnected");
+			return null;
+		}
+		return connection;
+	}
+}
+exports.GAPConnectionManager = GAPConnectionManager;

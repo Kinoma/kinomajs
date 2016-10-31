@@ -151,11 +151,18 @@ function isGroupSupported(type) {
 	return false;
 }
 
+/* Check for GAP Security Requirement (10.3.1) */
 function checkSecurityRequirement(requirement, context) {
-	let pairingInfo = context.bearer.pairingInfo;
-	if (!context.bearer.encrypted) {
-		if (requirement.encryption) {
-			if (pairingInfo != null) {
+	let secureConnection = requirement.hasOwnProperty("secureConnection") ? requirement.secureConnection : false;
+	let actualRequirement = {
+		encryption: secureConnection ? true : requirement.encryption,
+		authentication: secureConnection ? true : requirement.authentication,
+		secureConnection
+	};
+	let securityInfo = context.bearer.connection.securityInfo;
+	if (!context.bearer.connection.encrypted) {
+		if (actualRequirement.encryption) {
+			if (securityInfo != null) {
 				// Has some LTK
 				throw ErrorCode.INSUFFICIENT_ENCRYPTION;
 			} else {
@@ -166,19 +173,19 @@ function checkSecurityRequirement(requirement, context) {
 			if ((context.opcode & Opcode.SIGNED) == 0) {
 				throw ErrorCode.INSUFFICIENT_ENCRYPTION;	// XXX: Never sent
 			}
-			// XXX: We knew pairingInfo is available when signed.
+			// XXX: We knew securityInfo is available when signed.
 		}
 	}
-	if (pairingInfo == null) {
+	if (securityInfo == null) {
 		// FIXME: If SM's FORCE_LTK is true, this might happens.
 		logger.warn("Encrypted but not LTK!");
 		throw ErrorCode.INSUFFICIENT_AUTHENTICATION;
 	}
-	if (pairingInfo.legacy) {
-		if (requirement.secureConnection) {
+	if (securityInfo.legacy) {
+		if (actualRequirement.secureConnection) {
 			throw ErrorCode.INSUFFICIENT_AUTHENTICATION;
 		}
-		if (!pairingInfo.authenticated && requirement.authentication) {
+		if (!securityInfo.authenticated && actualRequirement.authentication) {
 			throw ErrorCode.INSUFFICIENT_AUTHENTICATION;
 		}
 	}
@@ -197,13 +204,10 @@ class Attribute {
 			onRead: null,
 			onWrite: null
 		};
-		this._security = {
-			read: null,
-			write: null
-		};
+		this._requirements = null;
 	}
-	get security() {
-		return this._security;
+	set requirements(requirements) {
+		this._requirements = requirements;
 	}
 	assignHandle(handle) {
 		this.handle = handle;
@@ -218,9 +222,9 @@ class Attribute {
 		if (this.callback.onRead == null) {
 			throw ErrorCode.READ_NOT_PERMITTED;
 		}
-		if (this._security.read != null) {
+		if (this._requirements != null && this._requirements.hasOwnProperty("read")) {
 			logger.debug("Check security requirement on read");
-			checkSecurityRequirement(this._security.read, context);
+			checkSecurityRequirement(this._requirements.read, context);
 		}
 		return this.callback.onRead(this, context);
 	}
@@ -228,9 +232,9 @@ class Attribute {
 		if (this.callback.onWrite == null) {
 			throw ErrorCode.WRITE_NOT_PERMITTED;
 		}
-		if (this._security.write != null) {
+		if (this._requirements != null && this._requirements.hasOwnProperty("write")) {
 			logger.debug("Check security requirement on write");
-			checkSecurityRequirement(this._security.write, context);
+			checkSecurityRequirement(this._requirements.write, context);
 		}
 		this.callback.onWrite(this, value, context);
 	}
@@ -312,7 +316,7 @@ class AttributeDatabase {
 			+ ", end=" + Utils.toHexString(end, 2)
 			+ ", type=" + type.toString()
 			+ ", value=" + Utils.toFrameString(value)
-		);	
+		);
 		return this._findAttributes(start, end, type, value, false);
 	}
 	findAttributesByType(start, end, type) {
@@ -367,10 +371,8 @@ class ATTBearer {
 		this.mtu = ATT_MTU;
 		this.pendingTransactions = [];
 		this._connection = connection;
-		this._connection.onReceived = buffer => this._attOnReceived(buffer);
+		this._connection.bearer = this;
 		this._database = database;
-		this._pairingInfo = null;
-		this._signCounter = 0;	// XXX: Need to be stored in extarnal database
 		/* Callbacks */
 		this.onNotification = null;
 		this.onIndication = null;
@@ -378,14 +380,8 @@ class ATTBearer {
 	get database() {
 		return this._database;
 	}
-	get encrypted() {
-		return this._connection.encrypted;
-	}
-	get identifier() {
-		return this._connection.identifier;
-	}
-	get pairingInfo() {
-		return this._connection.pairingInfo;
+	get connection() {
+		return this._connection;
 	}
 	allocateBuffer() {
 		// Allocate ByteBuffer capacity=mtu, littleEndian=true
@@ -470,7 +466,7 @@ class ATTBearer {
 		}
 	}
 	/** GAP Connection delegate method */
-	_attOnReceived(buffer) {
+	received(buffer) {
 		const opcode = buffer.getInt8();
 		if (Opcode.isResponse(opcode) || opcode == Opcode.HANDLE_VALUE_CONFIRMATION) {
 			/* Responses or Confirmations */
@@ -530,6 +526,13 @@ class ATTBearer {
 				this.sendPDU(respBuffer.getByteArray());
 			}
 		}
+	}
+	readClientConfiguration(characteristic, connection) {
+		logger.warn("CCC storage for reading is not available");
+		return 0x0000;
+	}
+	writeClientConfiguration(characteristic, connection, value) {
+		logger.warn("CCC storage for writing is not available");
 	}
 }
 exports.ATTBearer = ATTBearer;

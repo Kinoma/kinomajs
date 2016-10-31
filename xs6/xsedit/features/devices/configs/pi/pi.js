@@ -100,7 +100,7 @@ export default class Pi extends DeviceConfig {
 	pinExplorerStart(container) {
 		return this.wsRequest({
 			handler: "pinExplorerStart",
-			ip: this.ip,
+			ip: this.currentIP,
 		});
 	}
 	pinExplorerStop(container) {
@@ -112,7 +112,7 @@ export default class Pi extends DeviceConfig {
 		return this.wsRequest({
 			handler: "pinsShare",
 			shared,
-			ip: this.ip,
+			ip: this.currentIP,
 		});
 	}
 	// STUDIO
@@ -149,6 +149,21 @@ export default class Pi extends DeviceConfig {
 		return this.wsRequest({
 			handler: "updateSystemStatus",
 		});
+	}
+	getPinFilteringInfo() {
+		let pinFilteringInfo =
+		{
+			buttons: [
+				{ name: "Pins", startPin:1, endPin:40 }
+			],
+			locations: [
+				{ name: "Pins", startPin:1, endPin:40 }
+			]
+		}
+		return pinFilteringInfo;
+	}
+	pwmPinHasMotorMode(logicalPinNumber) {
+		return true;
 	}
 }
 

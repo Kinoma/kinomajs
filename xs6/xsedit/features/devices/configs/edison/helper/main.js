@@ -17,11 +17,20 @@
  */
 var Pins = require("pins");
 
+let havePinsLibWith_Config = true;
+var PinsConfig;
+try {
+	PinsConfig = require("pins_config");
+}
+catch (error) {
+	havePinsLibWith_Config = false;
+}
+
 // ----------------------------------------------------------------------------------
 // Skins
 // ----------------------------------------------------------------------------------
 const blackSkin = new Skin({fill: "black"});
-const iconSkin = new Skin({ texture:new Texture("./icon.png", 2), x:0, y:0, width:128, height:128, aspect:"fit" });
+const iconSkin = new Skin({ texture:new Texture("./icon.png", 1), x:0, y:0, width:256, height:256, aspect:"fit" });
 
 // ----------------------------------------------------------------------------------
 // Main screen / UI elements
@@ -34,7 +43,6 @@ var MainScreen = Container.template(function($) { return {
 	left: 0, right: 0, top: 0, bottom: 0, skin: blackSkin, active:true,
 	contents: [
 		Content($, { center:0, middle:0, skin:iconSkin }),
-// 		Label($, { anchor:"LABEL", bottom:10, style:whiteStyle, string:"IP" }),
 	]
 }});
 
@@ -56,31 +64,79 @@ const PINMUX_DIGITAL_IN = 4;
 const PINMUX_DIGITAL_OUT = 5;
 const PINMUX_I2C_CLK = 6
 const PINMUX_I2C_SDA = 7;
-const PINMUX_PWM = 8;
+const PINMUX_SERIAL_RX = 8
+const PINMUX_SERIAL_TX = 9;
+const PINMUX_PWM = 10;
 
 const TYPE_DISCONNECTED = "Disconnected";
 const TYPE_POWER = "Power";
 const TYPE_GROUND = "Ground";
 const TYPE_ANALOG = "Analog";
 const TYPE_DIGITAL = "Digital";
-const TYPE_I2C_CLK = "I2C Clock"
-const TYPE_I2C_SDA = "I2C Data";
+const TYPE_I2C = "I2C"
+const TYPE_I2C_CLOCK = "I2CClock"
+const TYPE_I2C_DATA = "I2CData"
+const TYPE_SERIAL = "Serial";
 const TYPE_PWM = "PWM";
+
+let i2CClocks = [];
+let i2CDatas = [];
 
 let handlers = {
 	pinExplorerStart(helper, query) {
 		Pins.invoke("getPinMux", pinmux => {
 			trace(JSON.stringify(pinmux, null, " ") + "\n");
 			let explorer = {};
+if (0) {
 			let leftPins = pinmux.leftPins;
-			for (let pin = 0, c = leftPins.length; pin < c; pin++) {
-				helper.pinExplorerAddPin(explorer, 51 + pin, leftPins[pin], pinmux.leftVoltage);
+			for (let pin = 0, c = leftPins.length; pin < c; pin++)
+				helper.pinExplorerAddPin(explorer, 51 + pin, leftPins[pin], pinmux.leftVoltage);	// This will push I2C pins onto i2cClocks[] and i2cData[]
+			
+			let numPairs = Math.min(i2CClocks.length, i2CDatas.length);
+			for (let i = 0; i < numPairs; i++) {
+				let i2CClockPin = i2CClocks[i];
+				let i2CDataPin = i2CDatas[i];
+				helper.pinExplorerAddI2CPinPair(explorer, i2CClockPin,  i2CDataPin); 
 			}
+			i2CClocks = [];
+			i2CDatas = [];
+			
 			let rightPins = pinmux.rightPins;
-			for (let pin = 0, c = rightPins.length; pin <= c; pin++) {
+			for (let pin = 0, c = rightPins.length; pin <= c; pin++)
 				helper.pinExplorerAddPin(explorer, 59 + pin, rightPins[pin], pinmux.rightVoltage);
+			
+			numPairs = Math.min(i2CClocks.length, i2CDatas.length);
+			for (let i = 0; i < numPairs; i++) {
+				let i2CClockPin = i2CClocks[i];
+				let i2CDataPin = i2CDatas[i];
+				helper.pinExplorerAddI2CPinPair(explorer, i2CClockPin, i2CDataPin); 
 			}
 			trace(JSON.stringify(explorer, null, " ") + "\n");
+}
+
+			var directions = pinmux.back;
+
+			i2CClocks = [];
+			i2CDatas = [];
+			let fixedPins = undefined;
+			if (havePinsLibWith_Config)
+				fixedPins = PinsConfig.getFixed(directions);
+			if (fixedPins) {
+				for (var i=0, c=fixedPins.length; i<c; i++) {
+			// add all of the fixed pins
+					var aDesc = fixedPins[i];
+					if (aDesc.type != "Mirrored")
+						helper.pinExplorerAddFixedPin(explorer, aDesc);
+				}
+			}
+			
+			numPairs = Math.min(i2CClocks.length, i2CDatas.length);
+			for (let i = 0; i < numPairs; i++) {
+				let i2CClockPin = i2CClocks[i];
+				let i2CDataPin = i2CDatas[i];
+				helper.pinExplorerAddI2CPinPair(explorer, i2CClockPin, i2CDataPin); 
+			}
+
 			Pins.configure(explorer, success => {
 				let url = helper.pinsStartSharing(query.ip);
 				if (url)
@@ -198,6 +254,10 @@ let handlers = {
 	updateSoftwareStatus(helper, query) {
 		helper.wsResponse(helper.softwareStatus);
 	},
+	getLogicalToPhysicalMapJson(helper, query) {
+		let map = Pins.getLogicalToPhysicalMapJson();
+		helper.wsResponse(map);
+	},
 };
 
 let model = application.behavior = Behavior({
@@ -213,12 +273,14 @@ let model = application.behavior = Behavior({
 
 		let connect = getEnvironmentVariable("debugger");
 		let url = "http://" + connect.split(":")[0] + ":9999/xsedit?id=" + application.id;
-// 		this.data.LABEL.string = url;
 		let message = new Message(url);
 		message.invoke(Message.TEXT).then(host => {
 			this.xsedit = host;
 			this.wsConnect(host);
 		});
+        setEnvironmentVariable("debugger", "localhost");
+        let disconnect = new Message("xkpr://shell/disconnect?terminate=false");
+        disconnect.invoke();
 	},
 	onQuit(application) {
 		if (this.pins) {
@@ -233,35 +295,42 @@ let model = application.behavior = Behavior({
 		let sourceURL = status.sourceURL = json.url;
 		let targetURL = status.targetURL = mergeURI(Files.temporaryDirectory, "software");
 		status.updating = true;
-		status.message = "DOWNLOADING";
+		status.message = "Downloading Update";
 		status.md5 = json.md5;
 		Files.deleteFile(targetURL);
 		application.invoke(new Message("/downloadSoftware?" + serializeQuery({ sourceURL, targetURL })));
 	},
 	onSoftwareDownloadError() {
 		let status = this.softwareStatus;
-		status.message = "DOWNLOAD FAILED";
+		status.message = "Download failed!";
+		status.error = true;
 	},
 	onSoftwareDownloadProgress(offset, size) {
 		let status = this.softwareStatus;
-		status.message = "DOWNLOADING " + offset + "/" + size;
+		status.offset = offset;
+		status.size = size;
 	},
 	onSoftwareDownloaded() {
 		let status = this.softwareStatus;
+		status.offset = -1;
 		let path;
 		if ("toPath" in Files)
 			path = Files.toPath(status.targetURL);
 		else
 			path = status.targetURL.slice(7);
-		status.message = "UPDATING";
+		status.message = "Applying Update";
+		status.path = path;
 // 		application.invoke(new Message("/installSoftware?" + serializeQuery({ path, md5: status.md5 })));
 	},
 	onSoftwareInstallError() {
-		status.message = "UPDATE FAILED";
+		let status = this.softwareStatus;
+		status.message = "Update failed!";
+		status.error = true;
 	},
 	onSoftwareInstalled() {
-		application.invoke(new Message("xkpr://shell/close?id=" + application.id));
-		application.invoke(new Message("xkpr://shell/quitLauncher"));
+		let status = this.softwareStatus;
+		status.finished = true;
+		this.reboot = true;
 	},
 	// pins
 	pinExplorerAddPin(explorer, pin, type, voltage) {
@@ -299,12 +368,90 @@ let model = application.behavior = Behavior({
 				};					
 			break;
 			case PINMUX_I2C_CLK:
+				i2CClocks.push(pin);
 			break;
 			case PINMUX_I2C_SDA:
+				i2CDatas.push(pin);
+			break;
+			case PINMUX_SERIAL_RX:
+			break;
+			case PINMUX_SERIAL_TX:
 			break;
 			case PINMUX_PWM:
+				explorer[TYPE_PWM + pin] = {
+					pins: { pwm: { pin } },
+					require: TYPE_PWM,
+				};
 			break;
 		}
+	},
+	pinExplorerAddI2CPinPair(explorer, i2CClockPinDesc, i2CDataPinDesc) {
+		let clockPinNumber = i2CClockPinDesc.pin;
+		let dataPinNumber = i2CDataPinDesc.pin;
+		let busNum = i2CClockPinDesc.bus;
+		if (undefined != busNum) {
+			explorer[TYPE_I2C + clockPinNumber + "_" + dataPinNumber] = {
+				pins: { i2c: { type:TYPE_I2C, clock:clockPinNumber, sda:dataPinNumber, address:0, bus:busNum } },
+				require: TYPE_I2C,
+			};					
+		}
+		else {
+			explorer[TYPE_I2C + clockPinNumber + "_" + dataPinNumber] = {
+				pins: { i2c: { type:TYPE_I2C, clock:clockPinNumber, sda:dataPinNumber, address:0 } },
+				require: TYPE_I2C,
+			};
+		}
+	},
+	pinExplorerAddFixedPin(explorer, desc) {
+		switch (desc.type) {
+			case TYPE_POWER:
+				explorer[TYPE_POWER + desc.pin] = {
+					pins: { power: { pin:desc.pin, type:TYPE_POWER, voltage:desc.voltage } },
+					require: TYPE_POWER,
+				};
+			break;
+			case TYPE_GROUND:
+				explorer[TYPE_GROUND + desc.pin] = {
+					pins: { ground: { pin:desc.pin, type:TYPE_GROUND } },
+					require: TYPE_GROUND,
+				};
+			break;
+			case TYPE_ANALOG:
+				explorer[TYPE_ANALOG + desc.pin] = {
+					pins: { analog: { pin:desc.pin, type:TYPE_ANALOG } },
+					require: TYPE_ANALOG,
+				};
+			break;
+			case TYPE_DIGITAL:
+				if (desc.direction == "input") {
+					explorer[TYPE_DIGITAL + desc.pin] = {
+						pins: { digital: { pin:desc.pin, direction:"input" } },
+						require: TYPE_DIGITAL,
+					};
+				}
+				else {
+					explorer[TYPE_DIGITAL + desc.pin] = {
+						pins: { digital: { pin:desc.pin, direction:"output" } },
+						require: TYPE_DIGITAL,
+					};
+				}
+			break;
+			case TYPE_I2C_CLOCK:
+				i2CClocks.push(desc);
+			break;
+			case TYPE_I2C_DATA:
+				i2CDatas.push(desc);
+			break;
+			case TYPE_SERIAL:
+			break;
+			case TYPE_PWM:
+				explorer[TYPE_PWM + desc.pin] = {
+					pins: { pwm: { pin:desc.pin, type:TYPE_PWM } },
+					require: TYPE_PWM,
+				};
+			break;
+		}
+
 	},
 	pinsStartSharing(ip) {
  		if (!model.pins)
@@ -347,7 +494,7 @@ let model = application.behavior = Behavior({
 					handlers[handler](helper, json);
 			}
 			catch (e) {
-				this.helper.wsErrorResponse(505, "Internal Server Error");
+				this.helper.wsErrorResponse(500, "Internal Server Error");
 			}
 		}
 		ws.onclose = function() {
@@ -356,6 +503,7 @@ let model = application.behavior = Behavior({
 			this.helper = undefined;
 		}
 		ws.onerror = function(error) {
+            application.invoke(new Message("xkpr://shell/close?id=" + application.id));
 // 			trace("WSC: onerror " + error.code + " " + error.reason  + "\n");
 		}
 	},
@@ -392,7 +540,6 @@ Handler.Bind("/downloadSoftware", class extends Behavior {
 		handler.download(new Message(query.sourceURL), query.targetURL);
 	}
 	onProgress(handler, message, offset, size) {
-// 		trace("PROGRESS " + offset + " " + size + "\n");
 		model.onSoftwareDownloadProgress(offset, size);
 	}
 	onComplete(handler, message) {

@@ -20,6 +20,7 @@
 <input name="$(F_HOME)/libraries/expat"/>
 <input name="$(F_HOME)/kinoma/kpr/"/>
 <input name="$(F_HOME)/kinoma/kpr/sources/"/>
+<input name="$(F_HOME)/extensions/ssl"/>
 
 <header name="kpr.h"/>
 

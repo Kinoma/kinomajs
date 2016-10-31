@@ -722,8 +722,6 @@ const resultCountStyle = new Style({ font: NORMAL_FONT, size:12, color:GRAY, hor
 
 import { 
 	ButtonBehavior, 
-	FieldLabelBehavior, 
-	FieldScrollerBehavior, 
 } from "common/control";
 
 import {

@@ -91,7 +91,7 @@ export default class SSLSession {
 		this.minProtocolVersion = this.options.protocolVersion || SSL.minProtocolVersion;	// only for the server side
 		this.maxProtocolVersion = SSL.maxProtocolVersion;	// ditto
 		this.applicationData = undefined;
-		this.cacheManager = (this.options.cache === undefined || this.options.cache) && new CacheManager();
+		this.cacheManager = (this.options.cache === undefined || this.options.cache) && new CacheManager(options.cacheKey);
 		this.certificateManager = new CertificateManager(options);
 	};
 	initiateHandshake(s) {

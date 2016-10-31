@@ -59,13 +59,17 @@ const preferenceSecondNameStyle = new Style({ font:SEMIBOLD_FONT, size:12, color
 const preferenceThirdNameStyle = new Style({ font:NORMAL_FONT, size:12, color:GRAYS[85], horizontal:"left" });
 const preferenceValueStyle = new Style({ font:NORMAL_FONT, size:12, color:GRAYS[85], horizontal:"left", left:2 });
 
-export var fieldScrollerSkin = new Skin({ fill: [ "white","white" ], stroke:GRAYS[6], borders: { left:1, right:1, bottom:1, top:1 } });
+export var fieldScrollerSkin = new Skin({ fill: [ WHITE, WHITE ], stroke:GRAYS[6], borders: { left:1, right:1, bottom:1, top:1 } });
 
 export const fieldLabelSkin = new Skin({ fill: [ "transparent","transparent",PASTEL_GRAY,PASTEL_ORANGE ] });
 export const fieldLabelStyle = new Style({ font:NORMAL_FONT, size:12, color:GRAYS[85], horizontal:"right", left:10 })
 
 const preferenceButtonStyle = new Style({ font:SEMIBOLD_FONT, size:12, color:GRAYS[85] });
 const preferenceCommentStyle = new Style({ font:LIGHT_FONT, size:12, color:GRAYS[85], horizontal:"left", left:10 });
+
+const popupButtonSkin = new Skin({ fill: [ WHITE, WHITE, WHITE, WHITE ], stroke:GRAYS[6], borders: { left:1, right:1, bottom:1, top:1 }});
+const popupButtonStyle = new Style({ font:NORMAL_FONT, size:12, color:GRAYS[85], horizontal:"left", left:2 });
+const popupItemSkin = new Skin({ fill: [ WHITE, WHITE, GRAYS[6], GRAYS[10] ] });
 
 // BEHAVIORS
 
@@ -76,13 +80,18 @@ import {
 } from "common/control";
 
 import {
+	PopupButtonBehavior,
+	MenuItemBehavior,
+	popupCheckSkin
+} from "common/menu";
+
+import {
 	HolderColumnBehavior,
 	HolderContainerBehavior,
 	LineBehavior,
 	HeaderBehavior,
 	TableBehavior,
 } from "shell/behaviors";
-
 
 class PreferencesColumnBehavior extends Behavior {
 	onCreate(column) {
@@ -127,9 +136,10 @@ class PreferencesColumnBehavior extends Behavior {
 							name: "Interfaces",
 						},
 						{
-							Sheet: DebuggerPortSheet,
-							Template: DebuggerPortLine,
+							Sheet: FieldSheet,
+							Template: FieldLine,
 							name: "Port Number",
+							width: 52,
 							get value() {
 								return model.port;
 							},
@@ -142,7 +152,7 @@ class PreferencesColumnBehavior extends Behavior {
 								else if (it > 65535)
 									it = 65535;
 								if (model.port != it) {
-									model.port = it	
+									this.LABEL.string = model.port = it	
 									shell.distribute("onPortChanged");
 								}
 							},
@@ -177,6 +187,32 @@ class PreferencesTableBehavior extends TableBehavior {
 		this.expand(table, data.expanded);
 	}
 }
+
+class EditablePreferenceLineBehavior extends LineBehavior {
+	onDialogClosed(line, data) {
+		this.dialog = null;
+		if (data.ok)
+			this.data.value = data.value;
+	}
+	onTap(line) {
+		let data = {
+			Template:this.data.Sheet,
+			button:line,
+			name:this.data.name,
+			ok:false,
+			value:this.data.value,
+			width:this.data.width,
+		};
+		this.dialog = new EditablePreferenceDialog(data);
+		shell.add(this.dialog);
+	}
+	onUndisplayed(line) {
+		if (this.dialog) {
+			shell.remove(this.dialog);
+			this.dialog = null;
+		}
+	}
+};
 
 class EditablePreferenceDialogBehavior extends Behavior {	
 	onClose(layout, item) {
@@ -237,30 +273,30 @@ class EditablePreferenceDialogBehavior extends Behavior {
 	}
 };
 
-class EditablePreferenceLineBehavior extends LineBehavior {
-	onDialogClosed(line, data) {
-		this.dialog = null;
-		if (data.ok)
-			this.data.value = data.value;
-	}
-	onTap(line) {
-		let data = {
-			Template:this.data.Sheet,
-			button:line,
-			name:this.data.name,
-			ok:false,
+class PreferencePopupButtonBehavior extends PopupButtonBehavior {
+	onDescribeMenu(container) {
+		return {
+			ItemTemplate:PreferencePopupItem,
+			items:this.data.items,
 			value:this.data.value,
+			context: shell,
 		};
-		this.dialog = new EditablePreferenceDialog(data);
-		shell.add(this.dialog);
 	}
-	onUndisplayed(line) {
-		if (this.dialog) {
-			shell.remove(this.dialog);
-			this.dialog = null;
-		}
+	onMenuSelected(container, value) {
+		if (!value)
+			return;
+		this.data.value = value;
 	}
-};
+	onSerialConfigurationChanged(container) {
+		container.first.string = this.data.value;
+	}
+}
+
+class PopupLineBehavior extends LineBehavior {
+	onTap(line) {
+		line.last.delegate("onTap");
+	}
+}
 
 class ToggleLineBehavior extends LineBehavior {
 	changeState(line) {
@@ -278,14 +314,6 @@ import {
 	HorizontalScrollbar,
 	VerticalScrollbar,
 } from "common/scrollbar";
-
-var EditablePreferenceDialog = Layout.template($ => ({
-	left:0, right:0, top:0, bottom:0, active:true, backgroundTouch:true,
-	Behavior: EditablePreferenceDialogBehavior,
-	contents: [
-		$.Template($, {}),
-	],
-}));
 
 export var PreferencesView = Container.template($ => ({
 	left:0, right:0, top:0, bottom:0, clip:true,
@@ -365,26 +393,19 @@ var InterfacesLine = Line.template($ => ({
 	],
 }));
 
-var DebuggerPortLine = Line.template($ => ({
+var FieldLine = Line.template($ => ({
 	left:0, right:0, height:26, skin:preferenceLineSkin, active:true,
 	Behavior: EditablePreferenceLineBehavior,
 	contents: [
 		Content($, { width:50 }),
 		Label($, { width:180, style:preferenceSecondNameStyle, string:$.name }),
 		Container($, {
-			width:52, height:26,
+			width:$.width, height:26,
 			contents: [
 				Scroller($, {
 					left:0, right:0, top:2, bottom:2, skin:fieldScrollerSkin, clip:true,
 					contents: [
-						Label($, { 
-							left:0, right:0, top:2, bottom:2, style:preferenceValueStyle, string:$.value,
-							Behavior: class extends Behavior {
-								onPortChanged(label) {
-									label.string = model.port;
-								}
-							}
-						}),
+						Label($, { anchor:"LABEL", left:0, right:0, top:2, bottom:2, style:preferenceValueStyle, string:$.value }),
 					],
 				}),
 			],
@@ -392,13 +413,21 @@ var DebuggerPortLine = Line.template($ => ({
 	],
 }));
 
-var DebuggerPortSheet = Line.template($ => ({
+var EditablePreferenceDialog = Layout.template($ => ({
+	left:0, right:0, top:0, bottom:0, active:true, backgroundTouch:true,
+	Behavior: EditablePreferenceDialogBehavior,
+	contents: [
+		$.Template($, {}),
+	],
+}));
+
+var FieldSheet = Line.template($ => ({
 	skin:preferenceLineSkin, state:2,
 	contents: [
 		Content($, { width:50 }),
 		Label($, { width:180, style:preferenceSecondNameStyle, string:$.name }),
 		Container($, {
-			width:52, height:26,
+			width:$.width, height:26,
 			contents: [
 				Scroller($, {
 					left:0, right:0, top:2, bottom:2, skin:fieldScrollerSkin, clip:true, active:true,
@@ -423,6 +452,30 @@ var DebuggerPortSheet = Line.template($ => ({
 			],
 		}),
 	],
+}));
+
+var PreferencePopupLine = Line.template($ => ({
+	left:0, right:0, height:26, skin:preferenceLineSkin, active:true,
+	Behavior: PopupLineBehavior,
+	contents: [
+		Content($, { width:50 }),
+		Label($, { width:180, style:preferenceSecondNameStyle, string:$.name }),
+		Container($, {
+			width:$.width, top:2, bottom:2, skin:popupButtonSkin, active:true, Behavior:PreferencePopupButtonBehavior,
+			contents: [
+				Label($, { anchor:"LABEL", left:0, right:0, style:popupButtonStyle, string:$.value }),
+			],
+		}),
+	],
+}));
+
+var PreferencePopupItem = Line.template($ => ({
+	left:0, right:0, height:24, skin:popupItemSkin, active:true,
+	Behavior:MenuItemBehavior,
+	contents: [
+		Content($, { width:24, height:24, skin:popupCheckSkin, visible:false }),
+		Label($, {left:0, height:24, style:popupButtonStyle, string:$.toString() }),
+	]
 }));
 
 var ToggleLine = Line.template(function($) { return {

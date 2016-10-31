@@ -163,6 +163,7 @@ KprServiceRecord gXKPRService = {
 };
 
 FskThread gServicesThread = NULL;
+xsMachine *gServiceMachine = NULL;
 Boolean gServicesThreadQuitting = false;
 
 #if SUPPORT_INSTRUMENTATION
@@ -183,13 +184,13 @@ static void KprServicesLoop(void* theParameter)
 	FskErr err = kFskErrNone;
 	KprService service = gServices;
 	FskThread thread = FskThreadGetCurrent();
-	xsMachine* the = xsAliasMachine(&allocation, gShell->root, "services", gShell);
-	bailIfNULL(the);
+	gServiceMachine = xsAliasMachine(&allocation, gShell->root, "services", gShell);
+	bailIfNULL(gServiceMachine);
 
 	while (service) {
 		if (service->flags & kprServicesThread) {
 			FskInstrumentedTypePrintfNormal(&KprServiceInstrumentation, "Starting %s", service->id);
-			(*service->start)(service, thread, the);
+			(*service->start)(service, thread, gServiceMachine);
 		}
 		service = service->next;
 	}
@@ -205,8 +206,10 @@ static void KprServicesLoop(void* theParameter)
 		service = service->next;
 	}
 bail:
-	if (the)
-		xsDeleteMachine(the);
+	if (gServiceMachine) {
+		xsDeleteMachine(gServiceMachine);
+		gServiceMachine = NULL;
+	}
 	return;
 }
 
@@ -287,9 +290,20 @@ void KprServicesStop(KprShell shell)
 	}
 }
 
+// @TODO Should be obsolete
 FskThread KprHTTPGetThread()
 {
+	return KprServicesGetThread();
+}
+
+FskThread KprServicesGetThread()
+{
 	return gServicesThread;
+}
+
+xsMachine *KprServicesGetMachine()
+{
+	return gServiceMachine;
 }
 
 #if SUPPORT_INSTRUMENTATION

@@ -175,6 +175,7 @@ void fxDebugCommand(txMachine* the)
 			fxListBreakpoints(the);
 		}
 		else if (fxDebugLoopTest(&p, "step")) {
+			fxEchoStart(the);
 			if (the->frame)
 				fxStep(the);
 			else

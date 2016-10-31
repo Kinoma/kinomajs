@@ -307,9 +307,10 @@ class Tool extends TOOL {
 				name = argv[argi];
 				if (this.binPath)
 					throw new Error("-b '" + name + "': too many bin directories!");
+				this.ensureDirectory(name);
 				path = this.resolveDirectoryPath(name);
-				if (!path)
-					throw new Error("-b '" + name + "': directory not found!");
+//				if (!path)
+//					throw new Error("-b '" + name + "': directory not found!");
 				this.binPath = path;
 				break;
 			case "-c":
@@ -414,9 +415,10 @@ class Tool extends TOOL {
 				name = argv[argi];
 				if (this.outputDirectory)
 					throw new Error("-t '" + name + "': too many directories!");
+				this.ensureDirectory(name);
 				path = this.resolveDirectoryPath(name);
-				if (!path)
-					throw new Error("-t '" + name + "': directory not found!");
+//				if (path)
+//					throw new Error("-t '" + name + "': directory not found!");
 				this.tmpPath = path;
 				break;
 			case "-v":
@@ -548,6 +550,15 @@ class Tool extends TOOL {
 		if (flag)
 			FS.mkdirSync(path);
 		return path;
+	}
+	ensureDirectory(directory) {
+		let parts = directory.split("/");
+		let path = parts.shift();
+		for (let part of parts) {
+			path += this.slash + part;
+			if (!FS.existsSync(path))
+				FS.mkdirSync(path);
+		}
 	}
 	escapeMakePath(path) {
 		return path.replace(/ /i, '\\ ');

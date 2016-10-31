@@ -264,7 +264,7 @@ class Ringbuffer {
 			return 0;
 		}
 
-		if (this._head > this._tail) {
+		if (this._head >= this._tail) {
 			copy(this._buffer, this._tail, b, off, length);
 		} else {
 			let front = this._size - this._tail;
@@ -292,7 +292,7 @@ class Ringbuffer {
 			throw "No more space left";
 		}
 
-		if (this._head > this._tail) {
+		if (this._head >= this._tail) {
 			let front = this._size - this._head;
 			if (length > front) {
 				copy(b, off, this._buffer, this._head, front);

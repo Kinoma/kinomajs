@@ -218,6 +218,26 @@ export default class Create extends DeviceConfig {
 			handler: "updateSystemStatus",
 		});
 	}
+	getPinFilteringInfo() {
+		let pinFilteringInfo = 
+		{
+			buttons: [
+				{ name:"Front", startPin:51, endPin:66 },
+				{ name:"Back", startPin:1, endPin:50 }
+			],
+			locations: [
+				{ name:"Front - Left", startPin:51, endPin:58 },
+				{ name:"Front - Right", startPin:59, endPin:66 },
+				{ name:"Back", startPin:1, endPin:50 }
+			]
+		}
+		return pinFilteringInfo;
+	}
+	pwmPinHasMotorMode(logicalPinNumber) {
+		// logical and physical same on create
+		let physicalPinNumber = logicalPinNumber
+		return (physicalPinNumber > 50);
+	}
 }
 
 Handler.Bind("/network/configure", class extends Behavior {

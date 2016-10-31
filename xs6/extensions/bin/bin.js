@@ -14,6 +14,7 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+
 var Bin = {
 	comp(a1, a2, n = -1) {
 		var i1 = new Uint8Array(a1), i2 = new Uint8Array(a2);
@@ -48,6 +49,7 @@ var Bin = {
 	},
 	encode(buf) @ "xs_bin_encode",
 	decode(str) @ "xs_bin_decode",
+	pem_decode(str) @ "xs_pem_decode",
 	/**
 	 * generate ArrayBuffer with the value using minimum size but greater than 1
 	 * @param number val 			value to be encoded.

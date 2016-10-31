@@ -59,6 +59,7 @@ var console = {
 class Task {
 	constructor(context) {
 		this.context = context;
+		this.uuid = undefined;
 	}
 }
 
@@ -175,6 +176,24 @@ else {
 	CommandTask.rmdir = "rmdir";
 }
 
+class AdaptCreateApplicationTask extends Task {
+	constructor(context, src, dst) {
+		super(context);
+		this.src = src;
+		this.dst = dst;
+	}
+	execute(queue) {
+		//console.log("# adapt application " + this.dst + " from " + this.src);
+		let document = Files.readXML(this.src);
+		let main = document.element.getAttribute("program");
+		if (main.charAt(0) == '/')
+			main = main.substr(1);
+		document.element.setAttribute("program", main);
+		Files.writeXML(this.dst, document);
+		queue.run();
+	}
+}
+
 class CreateApplicationTask extends Task {
 	constructor(context, src, dst) {
 		super(context);
@@ -184,7 +203,10 @@ class CreateApplicationTask extends Task {
 	execute(queue) {
 		//console.log("# create application " + this.dst + " from " + this.src);
 		let json = Files.readJSON(this.src);
-		let buffer = `<?xml version="1.0" encoding="utf-8"?><application xmlns="http://www.kinoma.com/kpr/application/1" id="${ json.id }" program="${ json.Create.main }" title="${ json.title }"></application>`
+		let main = json.Create.main;
+		if (main.charAt(0) == '/')
+			main = main.substr(1);
+		let buffer = `<?xml version="1.0" encoding="utf-8"?><application xmlns="http://www.kinoma.com/kpr/application/1" id="${ json.id }" program="${ main }" title="${ json.title }"></application>`
 		Files.writeText(this.dst, buffer);
 		queue.run();
 	}
@@ -455,7 +477,8 @@ class SyncTask extends FSTask {
 			var path = toApplicationFile ? toApplicationFile.path : this.path + "/application.xml";
 			if (fromApplicationFile) {
 				if (!toApplicationFile || (toApplicationFile.date < fromApplicationFile.date)) {
-					queue.push(new CommandTask(context, CommandTask.cp, [ fromApplicationFile.path, path ]));
+//					queue.push(new CommandTask(context, CommandTask.cp, [ fromApplicationFile.path, path ]));
+					queue.push(new AdaptCreateApplicationTask(context, fromApplicationFile.path, path));
 					queue.push(new ChecksumTask(context, path));
 				}
 			}
@@ -489,6 +512,8 @@ Handler.Bind("/tool", class extends Behavior {
 			message.setRequestHeader("Authorization", "Basic " + options.auth);
 		if ("body" in options)
 			message.requestText = options.body;
+		if ("timeout" in options)
+			message.timeout = options.timeout;
 		if (request.requestObject) {
 			let headers = request.requestObject;
 			for (var name in headers) {
@@ -516,7 +541,7 @@ class HTTPTask extends Task {
 			console.log("### " + message.error);
 		else
 			console.log("### " + message.status);
-		queue.exit(1);
+		queue.exit(1, this.context.uuid);
 	}
 	request(queue, options, headers) {
 		var message = new Message("/tool?" + serializeQuery(options));
@@ -679,6 +704,7 @@ class PingTask extends HTTPTask {
 			auth: context.authorization,
 			url: context.url,
 			path: "./ping",
+			timeout: 30,
 		});
 	}
 }
@@ -876,6 +902,7 @@ class RunContext {
 		let url;
 		this.createApplication = device.constructor.templateTag == "createSample";
 		this.debugHost = device.debugHost;
+		this.uuid = device.uuid;
 		this.debugPort = debug.port;
 		this.helperID = device.helperID;
 		this.url = device.toolURL;
@@ -1055,8 +1082,10 @@ class Tool extends Queue {
 			task.execute(this);
 		}
 	}
-	exit(result) {
+	exit(result, uuid) {
 		this.tasks = [];
+		if (uuid)
+			model.devicesFeature.onHTTPTaskError(uuid);
 		//console.log("< " + result);
 	}
 	delete(device, project, debug, callback) {

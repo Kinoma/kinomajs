@@ -17,22 +17,12 @@
 #ifndef __FSKSSL_H__
 #define __FSKSSL_H__
 
-#if OPEN_SSL
-#include "openssl/ssl.h"
-#include "openssl/err.h"
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 FskAPI(FskErr) FskSSLInitialize(char *CA_List);
 FskAPI(void) FskSSLTerminate(void);
-
-#if OPEN_SSL
-FskAPI(SSL_CTX *) FskSSLGetContext();
-FskAPI(Boolean) FskSSLCheckServerCert(SSL *ssl, char *hostname);
-#endif
 
 #if CLOSED_SSL
 #include "FskNetUtils.h"

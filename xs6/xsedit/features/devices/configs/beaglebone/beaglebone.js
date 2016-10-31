@@ -17,6 +17,7 @@
 import {
 	model,
 } from "shell/main";
+
 import { 
 	DeviceConfig, 
 	updateCredentials 
@@ -41,16 +42,16 @@ export default class BeagleBone extends DeviceConfig {
 		};
 	}
 	getUpdateInfo() {
-//		var create = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update?target=CREATE_SHELL_RELEASE");
-//		create.setRequestHeader("Accept", "application/json");
-//		create.setRequestCertificate(updateCredentials);
-//		var firmware = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update?target=CREATE_FIRMWARE_RELEASE");
-//		firmware.setRequestHeader("Accept", "application/json");
-//		firmware.setRequestCertificate(updateCredentials);
-//		return Promise.all([
-//			create.invoke(Message.JSON).then(json => { return json }),
-//			firmware.invoke(Message.JSON).then(json => { return json }),
-//		]);
+// 		var software = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update?target=CREATE_SHELL_RELEASE");
+// 		software.setRequestHeader("Accept", "application/json");
+// 		software.setRequestCertificate(updateCredentials);
+// 		var system = new Message("https://auth.developer.cloud.kinoma.com/kinoma-device-update?target=CREATE_FIRMWARE_RELEASE");
+// 		system.setRequestHeader("Accept", "application/json");
+// 		system.setRequestCertificate(updateCredentials);
+// 		return Promise.all([
+// 			software.invoke(Message.JSON).then(json => { return json }),
+// 			system.invoke(Message.JSON).then(json => { return json }),
+// 		]);
 	}
 	isSimulator() {
 		return this.systemVersion.indexOf(getEnvironmentVariable("OS")) == 0;
@@ -100,7 +101,7 @@ export default class BeagleBone extends DeviceConfig {
 	pinExplorerStart(container) {
 		return this.wsRequest({
 			handler: "pinExplorerStart",
-			ip: this.ip,
+			ip: this.currentIP,
 		});
 	}
 	pinExplorerStop(container) {
@@ -112,7 +113,7 @@ export default class BeagleBone extends DeviceConfig {
 		return this.wsRequest({
 			handler: "pinsShare",
 			shared,
-			ip: this.ip,
+			ip: this.currentIP,
 		});
 	}
 	// STUDIO
@@ -150,6 +151,21 @@ export default class BeagleBone extends DeviceConfig {
 			handler: "updateSystemStatus",
 		});
 	}
+	getPinFilteringInfo() {
+		let pinFilteringInfo =
+		{
+			buttons: [
+				{ name: "Pins", startPin:1, endPin:249 }
+			],
+			locations: [
+				{ name: "Pins", startPin:1, endPin:249 }
+			]
+		}
+		return pinFilteringInfo;
+	}
+	pwmPinHasMotorMode(logicalPinNumber) {
+		return true;
+	}
 }
 
 Handler.Bind("/network/configure", class extends Behavior {
@@ -164,7 +180,6 @@ Handler.Bind("/network/configure", class extends Behavior {
 		configure.invoke();
 	}
 });
-
 
 BeagleBone.iconSkin = new Skin({ texture:new Texture("./icon.png", 1), x:0, y:0, width:60, height:60 });
 BeagleBone.id = "com.marvell.kinoma.launcher.beaglebone";

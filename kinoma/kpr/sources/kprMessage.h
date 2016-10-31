@@ -69,6 +69,9 @@ FskAPI(void) KprServiceInvoke(KprService self, KprMessage message);
 FskAPI(void) KprServiceRegister(KprService service);
 FskAPI(void) KprServiceUnregister(KprService service);
 
+FskAPI(FskThread) KprServicesGetThread();
+FskAPI(xsMachine *) KprServicesGetMachine();
+
 typedef void (*KprStreamDisposeProc)(void* it);
 typedef Boolean (*KprStreamReconnectableProc)(void* it, KprMessage message);
 typedef FskErr (*KprStreamReceiveProc)(void* it, KprMessage message, xsMachine* machine, char* data, int size);

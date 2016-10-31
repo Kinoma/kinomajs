@@ -98,7 +98,6 @@ const KeyDistributionFormat = {
 
 const PASSKEY_MINIMUM = 0;
 const PASSKEY_MAXIMUM = 999999;
-const FORCE_LTK = true;		// FIXME: Temporary workaround for testing
 
 class SecurityManagement {
 	constructor(hci, connection, keyMgmt, parameter) {
@@ -107,9 +106,12 @@ class SecurityManagement {
 		this._parameter = parameter;
 		this._keyMgmt = keyMgmt;
 		this._delegate = null;
-		connection.delegate = this;
+		/* HACK: Do not register delegate now, will be registered later
+		 * by GAP layer
+		 */
+	//	connection.delegate = this;
 		connection.link.security = this;
-		this.reset();
+		this._reset();
 	}
 	get hci() {
 		return this._hci;
@@ -127,24 +129,18 @@ class SecurityManagement {
 		this._delegate = delegate;
 	}
 	/* Public API */
-	startEncryption() {
+	startEncryption(securityInfo) {
 		let link = this._connection.link;
-		if (link.isLESlave()) {
-			/* Slave Security Request */
-			this.sendCommand(assembleValue8(Code.SECURITY_REQUEST, this.generateAuthReq()));
-		} else {
-			let info = this._delegate.findBondByAddress(link.remoteAddress);
-			if (info == null || info.keys.longTermKey == null) {
-				logger.debug("No LTK or Security level issue");
-				this.startPairing(true);
-				return;
-			}
-			if (link.encrptionStatus != 0) {	// FIXME
-				logger.debug("Already encrypted, will refresh");
-			}
-			logger.debug("Start encryption using current LTK");
-			link.startEncryption(info.keys.random, info.keys.ediv, info.keys.longTermKey);
+		if (link.encrptionStatus != 0) {	// FIXME
+			logger.debug("Already encrypted, will refresh");
 		}
+		logger.debug("Start encryption using current LTK");
+		link.startEncryption(securityInfo.random, securityInfo.ediv, securityInfo.longTermKey);
+	}
+	/* Public API */
+	sendSecurityRequest() {
+		/* Slave Security Request */
+		this.sendCommand(assembleValue8(Code.SECURITY_REQUEST, this.generateAuthReq()));
 	}
 	/* Public API */
 	passkeyEntry(passkey) {
@@ -169,13 +165,12 @@ class SecurityManagement {
 		}
 		return authReq;
 	}
-	reset() {
+	_reset() {
 		logger.debug("Reset");
 		this._state = null;
 		this._pairingInfo = null;
 		this._shortTermKey = null;
 		this._shortTermKeyRequested = false;
-		this._div = -1;
 	}
 	sendCommand(packet) {
 		logger.trace("Send SMP Command: code=" + Utils.toHexString(packet[0]) +
@@ -185,10 +180,11 @@ class SecurityManagement {
 	pairingFailed(reason) {
 		logger.debug("Pairing Failed: reason=" + Utils.toHexString(reason));
 		this.sendCommand(assembleValue8(Code.PAIRING_FAILED, reason));
-		this.reset();
+		this._reset();
 		this._delegate.pairingFailed(reason);
 	}
-	startPairing(sendRequest) {
+	/* Public API */
+	startPairing(sendRequest = true) {
 		logger.debug("Start Phase 1");
 		this._state = new PairingFeatureExchangeState(this);
 		if (sendRequest) {
@@ -241,18 +237,35 @@ class SecurityManagement {
 		}
 	}
 	/* Phase 3 Callback (KeyDistributionState) */
-	keyExchanged(db) {
+	keyExchanged(keys) {
 		logger.debug("End Phase 3");
-		this._pairingInfo.keys = db;
-		this._delegate.encryptionCompleted(this._div, this._pairingInfo);
-		this.reset();
+		let securityInfo = {
+			longTermKey: keys.longTermKey,
+			ediv: keys.ediv,
+			random: keys.random,
+			identityResolvingKey: keys.identityResolvingKey,
+			address: keys.address,
+			signatureKey: keys.signatureKey,
+			keySize: this._pairingInfo.keySize,
+			legacy: this._pairingInfo.legacy,
+			bonding: this._pairingInfo.bonding,
+			authenticated: this._pairingInfo.authenticated
+		};
+		this._delegate.encryptionCompleted(securityInfo);
+		this._reset();
 	}
 	/* L2CAP Callback (Connection) */
 	disconnected() {
 		logger.warn("TODO: Disconnected");
 	}
 	/* L2CAP Callback (Connection) */
-	received(buffer) {
+	received() {
+		let buffer;
+		while ((buffer = this._connection.dequeueFrame()) != null) {
+			this._received(buffer);
+		}
+	}
+	_received(buffer) {
 		let code = buffer.getInt8();
 		// TODO: 2.3.6 Repeated Attempts
 		switch (code) {
@@ -267,14 +280,14 @@ class SecurityManagement {
 				if (link.isLESlave() || this._state != null) {
 					return;		// Ignore
 				}
-				this.startEncryption(authReq);
+				this._delegate.securityRequested(authReq);
 			}
 			return;
 		case Code.PAIRING_FAILED:
 			{
 				let status = buffer.getInt8();
 				logger.debug("Got Pairing Failed " + Utils.toHexString(status));
-				this.reset();
+				this._reset();
 				this._delegate.pairingFailed(status);
 			}
 			return;
@@ -289,28 +302,24 @@ class SecurityManagement {
 	/* HCI Callback (ACLLink) */
 	encryptionFailed(status) {
 		logger.debug("Encryption failed: " + Utils.toHexString(status));
-		this.reset();
+		this._reset();
 		this._delegate.encryptionFailed(status);
 	}
 	/* HCI Callback (ACLLink) */
-	encryptionStatusChanged(link, enabled) {
-		logger.debug("Encryption enabled: " + Utils.toHexString(enabled));
-		if (enabled != 0x01) {
-			logger.debug("Encryption is not ON");
-			return;
-		}
+	encryptionEnabled(link) {
+		logger.debug("Encryption enabled");
 		if (this._shortTermKey != null) {
 			this._shortTermKey = null;
 			logger.debug("Start Phase 3");
-			this._div = this._delegate.generateDIV();
-			this._state = new KeyDistributionState(this, this._keyMgmt, this._div);
+			this._state = new KeyDistributionState(this, this._keyMgmt);
 			/* Slave always distributes the keys first */
-			if (link.isLESlave() || this.pairingInfo.responderKeys == 0) {
+			if (link.isLESlave() || this._pairingInfo.responderKeys == 0) {
 				this._state.distributeKeys();
 			}
 		} else {
-			this._delegate.encryptionCompleted(this._div, this._pairingInfo);
-			this.reset();
+			/* Encryption is enabled with LTK, no pairing was performed. */
+			this._delegate.encryptionCompleted(null);
+			this._reset();
 		}
 	}
 	/* HCI Callback (LELink) */
@@ -328,12 +337,9 @@ class SecurityManagement {
 				+ ", ediv=" + Utils.toHexString(ediv, 2));
 			this._keyMgmt.recoverDIV(random, ediv).then(div => {
 				logger.debug("DIV Recovered: div=" + Utils.toHexString(div, 2));
-				let bond = this._delegate.findBondByDIV(div);
-				if (!FORCE_LTK && bond == null) {
-					logger.error("Bond is deleted");
-					link.replyLongTermKey(null);
-				}
-				this._div = div;
+				/* Slave will now generates LTK is the identical to the
+				 * one previously distributed, then reply.
+				 */
 				return this._keyMgmt.generateLTK(div);
 			}).then(ltk => {
 				link.replyLongTermKey(ltk);
@@ -640,11 +646,11 @@ class LELegacyPairingState extends State {
 }
 
 class KeyDistributionState extends State {
-	constructor(smCtx, keyMgmt, div) {
+	constructor(smCtx, keyMgmt) {
 		super("Phase 3");
 		this._smCtx = smCtx;
 		this._keyMgmt = keyMgmt;
-		this._div = div;
+		this._div = 0;
 		this._db = {
 			longTermKey: null,
 			ediv: null,
@@ -664,18 +670,32 @@ class KeyDistributionState extends State {
 		this._localKeys &= 0x07;
 		this._remoteKeys &= 0x07;
 	}
+	_generateDIV() {
+		if (this._div > 0) {
+			return Promise.resolve(this._div);
+		} else {
+			return this._smCtx.hci.random64().then(r => {
+				this._div = Utils.toInt16(r);
+				return this._div;
+			});
+		}
+	}
 	distributeKeys() {
 		this.log("Distribute Local Keys");
 		let promises = [];
 		/* Key Distribution order: LTK->EDIV/Rand->IRK->BD_ADDR->CSRK */
 		if ((this._localKeys & KeyDistributionFormat.ENC_KEY) > 0 && this._smCtx.pairingInfo.legacy) {
 			promises.push(
-				this._keyMgmt.generateLTK(this._div).then(ltk => {
+				this._generateDIV().then(div => {
+					return this._keyMgmt.generateLTK(div);
+				}).then(ltk => {
 					return Promise.resolve(assembleValue128(Code.ENCRYPTION_INFORMATION, ltk));
 				})
 			);
 			promises.push(
-				this._keyMgmt.generateEDIV(this._div).then(r => {
+				this._generateDIV().then(div => {
+					return this._keyMgmt.generateEDIV(div);
+				}).then(r => {
 					return Promise.resolve(assembleMasterIdentification(r.ediv, r.random));
 				})
 			);
@@ -698,7 +718,9 @@ class KeyDistributionState extends State {
 		}
 		if ((this._localKeys & KeyDistributionFormat.SIGN) > 0) {
 			promises.push(
-				this._keyMgmt.generateCSRK().then(csrk => {
+				this._generateDIV().then(div => {
+					return this._keyMgmt.generateCSRK(div);
+				}).then(csrk => {
 					return Promise.resolve(assembleValue128(Code.SIGNING_INFORMATION, csrk));
 				})
 			);
@@ -753,7 +775,7 @@ class KeyDistributionState extends State {
 		case Code.IDENTITY_ADDRESS_INFORMATION:
 			this.log("Got BD_ADDR");
 			let addressType = buffer.getInt8();
-			this._db.address = BluetoothAddress.getByAddress(buffer.getByteArray(6), true, (addressType == 0x01));
+			this._db.address = BluetoothAddress.getByAddress(buffer.getByteArray(6), (addressType == 0x01));
 			this.keyReceived(KeyDistributionFormat.ID_KEY);
 			return true;
 		case Code.SIGNING_INFORMATION:
@@ -990,7 +1012,7 @@ exports.generatePrivateAddress = (encrypt, random64, irk) => {
 			let address = new Uint8Array(6);
 			address.set(hash);
 			address.set(prand, 3);
-			return BluetoothAddress.getByAddress(address, true, true);
+			return BluetoothAddress.getByAddress(address, true);
 		});
 	});
 };

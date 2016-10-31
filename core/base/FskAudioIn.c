@@ -573,7 +573,16 @@ void macAudioInCallback(void *a0, void *a1, void *a2, void *a3)
 
 #include <alsa/asoundlib.h>
 
-#define AUDIODEV_NAME   "default"
+#define STRINGIFY(x) #x
+#define QUOTED(x)	STRINGIFY(x)
+
+#if defined(ALSA_DEVICE_NAME)
+	#define AUDIODEV_NAME QUOTED(ALSA_DEVICE_NAME)
+#else
+	#define AUDIODEV_NAME "default"
+#endif
+
+//#define AUDIODEV_NAME   "default"
 
 enum {
 	REC_STOP = 0,

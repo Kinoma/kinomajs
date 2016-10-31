@@ -85,15 +85,6 @@ var ATT = require("./att");
 ATT.setSupportedGroups(SUPPORTED_GROUPS);
 exports.ATT = ATT;
 
-exports.createReadOnlyStringCharacteristic = function (uuid, defaultValue = null) {
-	let characteristic = new Characteristic(uuid, Properties.READ);
-	characteristic.addFormat({format: Format.UTF8S});
-	if (defaultValue != null) {
-		characteristic.value = defaultValue;
-	}
-	return characteristic;
-};
-
 function serializeInt32Data(octets, data) {
 	return Utils.toByteArray(data, octets, true);
 }
@@ -179,10 +170,6 @@ const FormatSerializer = {
 	[Format.UTF16S]: serializeString		// FIXME
 };
 
-exports.serializeWithFormat = (value, format) => {
-	return FormatSerializer[format](value);
-};
-
 const FormatParser = {
 	[Format.BOOLEAN]: (buffer) => {return buffer.getInt8() == 1;},
 	[Format.UINT2]: (buffer) => {return buffer.getInt8() & 0x03;},
@@ -203,10 +190,6 @@ const FormatParser = {
 	[Format.SINT64]: (buffer) => {return buffer.getByteArray(8)},
 	[Format.UTF8S]: parseString,
 	[Format.UTF16S]: parseString		// FIXME
-};
-
-exports.parseWithFormat = (data, format) => {
-	return FormatParser[format](ByteBuffer.wrap(data));
 };
 
 const FormatNames = {
@@ -237,34 +220,97 @@ const FormatNames = {
 	["struct"]: Format.STRUCT
 };
 
-exports.getFormatByName = function (name) {
+function getFormatByName(name) {
 	if (FormatNames.hasOwnProperty(name)) {
 		return FormatNames[name];
 	}
 	return -1;
 };
 
-exports.serializeFormat = format => {
-	let buffer = ByteBuffer.allocate(7);
-	buffer.putInt8(format.format);
-	buffer.putInt8(format.hasOwnProperty("exponent") ? format.exponent : 0);
-	buffer.putInt16(format.hasOwnProperty("unit") ? format.unit.toUUID16() : 0);
-	buffer.putInt8(format.hasOwnProperty("nameSpace") ? format.nameSpace : GATT.NAMESPACE_BLUETOOTH_SIG);
-	buffer.putInt16(format.hasOwnProperty("description") ? format.description : 0);
-	buffer.flip();
-	return buffer.getByteArray();
-};
-
-exports.parseFormat = data => {
-	let buffer = ByteBuffer.wrap(data);
-	return {
-		format: buffer.getInt8(),
-		exponent: buffer.getInt8(),
-		unit: UUID.getByUUID16(buffer.getInt16()),
-		nameSpace: buffer.getInt8(),
-		description: buffer.getInt16()
-	};
-};
+class Descriptor {
+	constructor(uuid) {
+		this._uuid = uuid;
+		this._localValue = null;
+		this._serializer = null;
+		this._parser = null;
+		/* Known Descriptors */
+		if (uuid.equals(UUID_CHARACTERISTIC_EXTENDED_PROPERTIES) ||
+			uuid.equals(UUID_CLIENT_CHARACTERISTIC_CONFIGURATION) ||
+			uuid.equals(UUID_SERVER_CHARACTERISTIC_CONFIGURATION)) {
+			this._serializer = FormatSerializer[Format.UINT16];
+			this._parser = FormatParser[Format.UINT16];
+		} else if (uuid.equals(UUID_CHARACTERISTIC_USER_DESCRIPTION)) {
+			this._serializer = FormatSerializer[Format.UTF8S];
+			this._parser = FormatParser[Format.UTF8S];
+		} else if (uuid.equals(UUID_CHARACTERISTIC_PRESENTATION_FORMAT)) {
+			this._serializer = format => {
+				let buffer = ByteBuffer.allocate(7);
+				buffer.putInt8(format.format);
+				buffer.putInt8(format.hasOwnProperty("exponent") ? format.exponent : 0);
+				buffer.putInt16(format.hasOwnProperty("unit") ? format.unit.toUUID16() : 0);
+				buffer.putInt8(format.hasOwnProperty("nameSpace") ? format.nameSpace : NAMESPACE_BLUETOOTH_SIG);
+				buffer.putInt16(format.hasOwnProperty("description") ? format.description : 0);
+				buffer.flip();
+				return buffer.getByteArray();
+			};
+			this._parser = data => {
+				let buffer = ByteBuffer.wrap(data);
+				return {
+					format: buffer.getInt8(),
+					exponent: buffer.getInt8(),
+					unit: UUID.getByUUID16(buffer.getInt16()),
+					nameSpace: buffer.getInt8(),
+					description: buffer.getInt16()
+				};
+			};
+		} else if (uuid.equals(UUID_CHARACTERISTIC_AGGREGATE_FORMAT)) {
+			this._serializer = handles => {
+				let buffer = ByteBuffer.allocate(handles.length * 2);
+				for (let i = 0; i < handles.length; i++) {
+					buffer.putInt16(handles[i]);
+				}
+				buffer.flip();
+				return buffer.getByteArray();
+			};
+			this._parser = data => {
+				let handles = new Array();
+				let buffer = ByteBuffer.wrap(data);
+				while (buffer.remaining() > 0) {
+					handles.push(buffer.getInt16());
+				}
+				return handles;
+			};
+		}
+	}
+	get uuid() {
+		return this._uuid;
+	}
+	get value() {
+		return this._localValue;
+	}
+	set value(value) {
+		this._localValue = value;
+	}
+	_serializeValue() {
+		if (this._serializer != null) {
+			return this._serializer(this._localValue);
+		}
+		return this._localValue;
+	}
+	_parseValue(data) {
+		if (data == null) {
+			this._localValue = [];
+			return;
+		}
+		let buffer = ByteBuffer.wrap(data);
+		if (this._parser != null) {
+			this._localValue = this._parser(buffer);
+			return;
+		}
+		this._localValue = data;
+	}
+}
+exports.Descriptor = Descriptor;
 
 class Characteristic {
 	constructor(uuid, properties) {
@@ -274,6 +320,7 @@ class Characteristic {
 		this._formats = [];
 		this._serializer = null;
 		this._parser = null;
+		this._descriptors = new Array();
 	}
 	get uuid() {
 		return this._uuid;
@@ -293,10 +340,30 @@ class Characteristic {
 	set parser(parser) {
 		this._parser = parser;
 	}
-	addFormat(format) {
-		this._formats.push(format);
+	get descriptors() {
+		return this._descriptors;
 	}
-	serializeValue() {
+	set formats(formats) {
+		this._formats = new Array();
+		for (let f = 0; f < formats.length; f++) {
+			let format = getFormatByName(formats[f]);
+			if (format > 0) {
+				this._formats.push({format: format});
+			}
+		}
+	}
+	_addDescriptor(descriptor) {
+		this._descriptors.push(descriptor);
+	}
+	getDescriptorByUUID(uuid) {
+		for (let descriptor of this._descriptors) {
+			if (descriptor.uuid.equals(uuid)) {
+				return descriptor;
+			}
+		}
+		return null;
+	}
+	_serializeValue() {
 		if (this._serializer != null) {
 			return this._serializer(this._localValue);
 		}
@@ -305,14 +372,14 @@ class Characteristic {
 				return FormatSerializer[this._formats[0].format](this._localValue);
 			}
 			let data = [];
-			for (let format of this._formats) {
-				data.concat(FormatSerializer[format.format](this._localValue[0]));
+			for (let i = 0; i < this._formats.length; i++) {
+				data.concat(FormatSerializer[this._formats[i].format](this._localValue[i]));
 			}
 			return data;
 		}
 		return this._localValue;
 	}
-	parseValue(data) {
+	_parseValue(data) {
 		if (data == null) {
 			this._localValue = [];
 			return;
@@ -339,16 +406,6 @@ class Characteristic {
 }
 exports.Characteristic = Characteristic;
 
-class Include {
-	constructor(uuid) {
-		this._uuid = uuid;
-	}
-	get uuid() {
-		return this._uuid;
-	}
-}
-exports.Include = Include;
-
 class Service {
 	constructor(uuid, primary = true) {
 		this._uuid = uuid;
@@ -369,7 +426,7 @@ class Service {
 	addIncludedService(include) {
 		this._includes.set(include.uuid.toString(), include);
 	}
-	addCharacteristic(characteristic) {
+	_addCharacteristic(characteristic) {
 		this._characteristics.set(characteristic.uuid.toString(), characteristic);
 	}
 	getIncludedServiceByUUID(uuid) {
@@ -388,7 +445,7 @@ class Profile {
 	get services() {
 		return this._services.values();
 	}
-	addService(service) {
+	_addService(service) {
 		this._services.set(service.uuid.toString(), service);
 	}
 	getServiceByUUID(uuid) {

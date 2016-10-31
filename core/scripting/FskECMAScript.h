@@ -193,8 +193,6 @@ FskAPI(void) FskECMAScriptQuitIf(xsMachine *the, FskErr err) FSK_FUNCTION_ANALYZ
 		Boolean			needToDispose;
 	} xsNativeEventRecord, *xsNativeEvent;
 
-	FskAPI(FskErr) readStreamIntoMemory(xsMachine *the, xsSlot *stream, xsSlot *scratch, unsigned char **data, UInt32 *dataSize);
-	
 	FskAPI(FskBitmap) xsBitmapToFskBitmap(xsMachine *the, xsSlot *xsBits);
 	FskAPI(void) fskBitmapToXSBitmap(xsMachine *the, FskBitmap fskBits, Boolean disposable, xsSlot *xsBits);
 	FskAPI(void) xsBitmapEnsure(xsMachine *the, xsNativeBitmap nb, xsSlot *obj);

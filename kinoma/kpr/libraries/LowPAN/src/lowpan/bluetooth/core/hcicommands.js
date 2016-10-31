@@ -48,6 +48,24 @@ class CommandSet {
 	constructor(commandExec) {
 		this._commandExec = commandExec;
 	}
+	submitCommand(opcode, command) {
+		return new Promise((resolve, reject) => {
+			let cb = {
+				commandStatus: (opcode, status) => {
+					(status == 0x00) ? resolve() : reject(status);
+				},
+				commandComplete: (opcode, buffer) => {
+					let status = buffer.getInt8();
+					(status == 0x00) ? resolve(buffer) : reject(status);
+				}
+			};
+			if ((command == null) || (command instanceof ByteBuffer)) {
+				this._commandExec.submitCommand(opcode, command, cb);
+			} else {
+				this._commandExec.submitCommandWithArray(opcode, command, cb);
+			}
+		});
+	}
 }
 
 /******************************************************************************
@@ -65,13 +83,13 @@ class LinkControlCommandSet extends CommandSet {
 		super(commandExec);
 	}
 	/* HCI will generate command status */
-	disconnect(handle, reason, callback) {
+	disconnect(handle, reason) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt16(handle & 0x0FFF);
 		buffer.putInt8(reason);
 		buffer.flip();
 		logger.debug("LinkControl::Disconnect");
-		this._commandExec.submitCommand(LinkControl.DISCONNECT, buffer, callback);
+		return this.submitCommand(LinkControl.DISCONNECT, buffer);
 	}
 }
 
@@ -81,7 +99,11 @@ class LinkControlCommandSet extends CommandSet {
 const OGF_CONTROLLER = 0x03;
 
 const Controller = {
-	RESET: toOpcode(OGF_CONTROLLER, 0x0003)
+	RESET: toOpcode(OGF_CONTROLLER, 0x0003),
+	SET_EVENT_MASK: toOpcode(OGF_CONTROLLER, 0x0001),
+	RESET: toOpcode(OGF_CONTROLLER, 0x0003),
+	READ_LE_HOST_SUPPORT: toOpcode(OGF_CONTROLLER, 0x006C),
+	WRITE_LE_HOST_SUPPORT: toOpcode(OGF_CONTROLLER, 0x006D)
 };
 exports.Controller = Controller;
 
@@ -89,9 +111,25 @@ class ControllerCommandSet extends CommandSet {
 	constructor(commandExec) {
 		super(commandExec);
 	}
-	reset(callback) {
+	setEventMask(eventMask) {
+		logger.debug("Controller::SetEventMask");
+		return this.submitCommand(Controller.SET_EVENT_MASK, eventMask);
+	}
+	reset() {
 		logger.debug("Controller::Reset");
-		this._commandExec.submitCommand(Controller.RESET, null, callback);
+		return this.submitCommand(Controller.RESET, null);
+	}
+	readLEHostSupport() {
+		logger.debug("Controller::ReadLEHostSupport");
+		return this.submitCommand(Controller.READ_LE_HOST_SUPPORT, null);
+	}
+	writeLEHostSupport(leSupported, simultaneous) {
+		let buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
+		buffer.putInt8(leSupported);
+		buffer.putInt8(simultaneous);
+		buffer.flip();
+		logger.debug("Controller::WriteLEHostSupport");
+		return this.submitCommand(Controller.WRITE_LE_HOST_SUPPORT, buffer);
 	}
 }
 
@@ -101,6 +139,7 @@ class ControllerCommandSet extends CommandSet {
 const OGF_INFORMATIONAL = 0x04;
 
 const Informational = {
+	READ_LOCAL_VERSION_INFORMATION: toOpcode(OGF_INFORMATIONAL, 0x0001),
 	READ_BUFFER_SIZE: toOpcode(OGF_INFORMATIONAL, 0x0005),
 	READ_BD_ADDR: toOpcode(OGF_INFORMATIONAL, 0x0009)
 };
@@ -110,13 +149,17 @@ class InformationalCommandSet extends CommandSet {
 	constructor(commandExec) {
 		super(commandExec);
 	}
-	readBufferSize(callback) {
-		logger.debug("Informational::ReadBufferSize");
-		this._commandExec.submitCommand(Informational.READ_BUFFER_SIZE, null, callback);
+	readLocalVersionInformation() {
+		logger.debug("Informational::ReadLocalVersionInformation");
+		return this.submitCommand(Informational.READ_LOCAL_VERSION_INFORMATION, null);
 	}
-	readBDAddr(callback) {
+	readBufferSize() {
+		logger.debug("Informational::ReadBufferSize");
+		return this.submitCommand(Informational.READ_BUFFER_SIZE, null);
+	}
+	readBDAddr() {
 		logger.debug("Informational::ReadBD_ADDR");
-		this._commandExec.submitCommand(Informational.READ_BD_ADDR, null, callback);
+		return this.submitCommand(Informational.READ_BD_ADDR, null);
 	}
 }
 
@@ -134,12 +177,12 @@ class StatusCommandSet extends CommandSet {
 	constructor(commandExec) {
 		super(commandExec);
 	}
-	readRSSI(handle, callback) {
-		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
+	readRSSI(handle) {
+		let buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt16(handle & 0x0FFF);
 		buffer.flip();
 		logger.debug("Status::ReadRSSI");
-		this._commandExec.submitCommand(Status.READ_RSSI, buffer, callback);
+		return this.submitCommand(Status.READ_RSSI, buffer);
 	}
 }
 
@@ -160,6 +203,10 @@ const LE = {
 	SET_SCAN_ENABLE: toOpcode(OGF_LE, 0x000C),
 	CREATE_CONNECTION: toOpcode(OGF_LE, 0x000D),
 	CREATE_CONNECTION_CANCEL: toOpcode(OGF_LE, 0x000E),
+	READ_WHITE_LIST_SIZE: toOpcode(OGF_LE, 0x000F),
+	CLEAR_WHITE_LIST: toOpcode(OGF_LE, 0x0010),
+	ADD_DEVICE_TO_WHITE_LIST: toOpcode(OGF_LE, 0x0011),
+	REMOVE_DEVICE_FROM_WHITE_LIST: toOpcode(OGF_LE, 0x0012),
 	CONNECTION_UPDATE: toOpcode(OGF_LE, 0x0013),
 	ENCRYPT: toOpcode(OGF_LE, 0x0017),
 	RAND: toOpcode(OGF_LE, 0x0018),
@@ -177,57 +224,57 @@ class LECommandSet extends CommandSet {
 	constructor(commandExec) {
 		super(commandExec);
 	}
-	setEventMask(eventMask, callback) {
+	setEventMask(eventMask) {
 		logger.debug("LE::SetEventMask");
-		this._commandExec.submitCommandWithArray(LE.SET_EVENT_MASK, eventMask, callback);
+		return this.submitCommand(LE.SET_EVENT_MASK, eventMask);
 	}
-	readBufferSize(callback) {
+	readBufferSize() {
 		logger.debug("LE::ReadBufferSize");
-		this._commandExec.submitCommand(LE.READ_BUFFER_SIZE, null, callback);
+		return this.submitCommand(LE.READ_BUFFER_SIZE, null);
 	}
-	setRandomAddress(address, callback) {
+	setRandomAddress(address) {
 		logger.debug("LE::SetRandomAddress");
-		this._commandExec.submitCommandWithArray(LE.SET_RANDOM_ADDRESS, address.getRawArray(), callback);
+		return this.submitCommand(LE.SET_RANDOM_ADDRESS, address.getRawArray());
 	}
-	setAdvertisingParameters(parameters, type, ownAddressType, peerAddressType, address, channelMap, filterPolicy, callback) {
+	setAdvertisingParameters(parameters, type, ownAddressType, address, channelMap, filterPolicy) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt16(parameters.intervalMin);
 		buffer.putInt16(parameters.intervalMax);
 		buffer.putInt8(type);
 		buffer.putInt8(ownAddressType);
-		buffer.putInt8(peerAddressType);
 		if (address != null) {
+			buffer.putInt8(address.isRandom() ? 0x01 : 0x00);
 			buffer.putByteArray(address.getRawArray());
 		} else {
-			buffer.skip(6);
+			buffer.skip(7);
 		}
 		buffer.putInt8(channelMap);
 		buffer.putInt8(filterPolicy);
 		buffer.flip();
 		logger.debug("LE::SetAdvertisingParameters");
-		this._commandExec.submitCommand(LE.SET_ADVERTISING_PARAMETERS, buffer, callback);
+		return this.submitCommand(LE.SET_ADVERTISING_PARAMETERS, buffer);
 	}
-	setAdvertisingData(data, callback) {
+	setAdvertisingData(data) {
 		var buffer = ByteBuffer.allocateUint8Array(32, true);	// Fixed length
 		buffer.putInt8(data.length);
 		buffer.putByteArray(data);
 		logger.debug("LE::SetAdvertisingData");
-		this._commandExec.submitCommandWithArray(LE.SET_ADVERTISING_DATA, buffer.array, callback);
+		return this.submitCommand(LE.SET_ADVERTISING_DATA, buffer.array);
 	}
-	setScanResponseData(data, callback) {
+	setScanResponseData(data) {
 		var buffer = ByteBuffer.allocateUint8Array(32, true);	// Fixed length
 		buffer.putInt8(data.length);
 		buffer.putByteArray(data);
 		logger.debug("LE::SetScanResponseData");
-		this._commandExec.submitCommandWithArray(LE.SET_SCAN_RESPONSE_DATA, buffer.array, callback);
+		return this.submitCommand(LE.SET_SCAN_RESPONSE_DATA, buffer.array);
 	}
-	setAdvertiseEnable(enable, callback) {
+	setAdvertiseEnable(enable) {
 		logger.debug("LE::SetAdvertiseEnable");
 		let array = new Uint8Array(1);
 		array[0] = enable ? 0x01 : 0x00;
-		this._commandExec.submitCommandWithArray(LE.SET_ADVERTISE_ENABLE, array, callback);
+		return this.submitCommand(LE.SET_ADVERTISE_ENABLE, array);
 	}
-	setScanParameters(parameters, callback) {
+	setScanParameters(parameters) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt8(parameters.scanType);
 		buffer.putInt16(parameters.interval);
@@ -236,24 +283,28 @@ class LECommandSet extends CommandSet {
 		buffer.putInt8(parameters.filterPolicy);
 		buffer.flip();
 		logger.debug("LE::SetScanParameters");
-		this._commandExec.submitCommand(LE.SET_SCAN_PARAMETERS, buffer, callback);
+		return this.submitCommand(LE.SET_SCAN_PARAMETERS, buffer);
 	}
-	setScanEnable(enable, duplicatesFilter, callback) {
+	setScanEnable(enable, duplicatesFilter) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt8(enable ? 0x01 : 0x00);
 		buffer.putInt8(duplicatesFilter ? 0x01 : 0x00);
 		buffer.flip();
 		logger.debug("LE::Scan=" + enable);
-		this._commandExec.submitCommand(LE.SET_SCAN_ENABLE, buffer);
+		return this.submitCommand(LE.SET_SCAN_ENABLE, buffer);
 	}
 	/* HCI will generate command status */
-	createConnection(scanParameters, useWhiteList, peerAddressType, address, ownAddressType, connParameters, callback) {
+	createConnection(scanParameters, useWhiteList, peerAddressType, address, ownAddressType, connParameters) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt16(scanParameters.interval);
 		buffer.putInt16(scanParameters.window);
 		buffer.putInt8(useWhiteList ? 0x01 : 0x00);
 		buffer.putInt8(peerAddressType);
-		buffer.putByteArray(address.getRawArray());
+		if (address != null) {
+			buffer.putByteArray(address.getRawArray());
+		} else {
+			buffer.skip(6);
+		}
 		buffer.putInt8(ownAddressType);
 		buffer.putInt16(connParameters.intervalMin);
 		buffer.putInt16(connParameters.intervalMax);
@@ -263,14 +314,38 @@ class LECommandSet extends CommandSet {
 		buffer.putInt16(connParameters.maximumCELength);
 		buffer.flip();
 		logger.debug("LE::CreateConnection");
-		this._commandExec.submitCommand(LE.CREATE_CONNECTION, buffer, callback);
+		return this.submitCommand(LE.CREATE_CONNECTION, buffer);
 	}
 	createConnectonCancel(callback) {
 		logger.debug("LE::CreateConnectionCancel");
-		this._commandExec.submitCommand(LE.CREATE_CONNECTION_CANCEL, null, callback);
+		return this.submitCommand(LE.CREATE_CONNECTION_CANCEL, null);
+	}
+	readWhiteListSize(callback) {
+		logger.debug("LE::ReadWhiteListSize");
+		return this.submitCommand(LE.READ_WHITE_LIST_SIZE, null);
+	}
+	clearWhiteList(callback) {
+		logger.debug("LE::ClearWhiteList");
+		return this.submitCommand(LE.CLEAR_WHITE_LIST, null);
+	}
+	addDeviceToWhiteList(address) {
+		let buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
+		buffer.putInt8(address.isRandom() ? 0x01 : 0x00);
+		buffer.putByteArray(address.getRawArray());
+		buffer.flip();
+		logger.debug("LE::AddDeviceToWhiteList");
+		return this.submitCommand(LE.ADD_DEVICE_TO_WHITE_LIST, buffer);
+	}
+	removeDeviceFromWhiteList(address) {
+		let buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
+		buffer.putInt8(address.isRandom() ? 0x01 : 0x00);
+		buffer.putByteArray(address.getRawArray());
+		buffer.flip();
+		logger.debug("LE::RemoveDeviceFromWhiteList");
+		return this.submitCommand(LE.REMOVE_DEVICE_FROM_WHITE_LIST, buffer);
 	}
 	/* HCI will generate command status */
-	connectionUpdate(handle, connParameters, callback) {
+	connectionUpdate(handle, connParameters) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt16(handle & 0x0FFF);
 		buffer.putInt16(connParameters.intervalMin);
@@ -281,21 +356,21 @@ class LECommandSet extends CommandSet {
 		buffer.putInt16(connParameters.maximumCELength);
 		buffer.flip();
 		logger.debug("LE::ConnectionUpdate");
-		this._commandExec.submitCommand(LE.CONNECTION_UPDATE, buffer, callback);
+		return this.submitCommand(LE.CONNECTION_UPDATE, buffer);
 	}
-	encrypt(key, plainData, callback) {
+	encrypt(key, plainData) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, false);
 		buffer.putByteArray(key);
 		buffer.putByteArray(plainData);
 		buffer.flip();
 		logger.debug("LE::Encrypt");
-		this._commandExec.submitCommand(LE.ENCRYPT, buffer, callback);
+		return this.submitCommand(LE.ENCRYPT, buffer);
 	}
 	rand(callback) {
 		logger.debug("LE::Rand");
-		this._commandExec.submitCommand(LE.RAND, null, callback);
+		return this.submitCommand(LE.RAND, null);
 	}
-	startEncryption(handle, random, ediv, ltk, callback) {
+	startEncryption(handle, random, ediv, ltk) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt16(handle & 0x0FFF);
 		buffer.putByteArray(random);
@@ -303,24 +378,24 @@ class LECommandSet extends CommandSet {
 		buffer.putByteArray(ltk);
 		buffer.flip();
 		logger.debug("LE::StartEncryption");
-		this._commandExec.submitCommand(LE.START_ENCRYPTION, buffer, callback);
+		return this.submitCommand(LE.START_ENCRYPTION, buffer);
 	}
-	longTermKeyRequestReply(handle, ltk, callback) {
+	longTermKeyRequestReply(handle, ltk) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt16(handle & 0x0FFF);
 		buffer.putByteArray(ltk);
 		buffer.flip();
 		logger.debug("LE::LongTermKeyRequestReply");
-		this._commandExec.submitCommand(LE.LTK_REQUEST_REPLY, buffer, callback);
+		return this.submitCommand(LE.LTK_REQUEST_REPLY, buffer);
 	}
-	longTermKeyRequestNegativeReply(handle, callback) {
+	longTermKeyRequestNegativeReply(handle) {
 		var buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt16(handle & 0x0FFF);
 		buffer.flip();
 		logger.debug("LE::LongTermKeyRequestNegativeReply");
-		this._commandExec.submitCommand(LE.LTK_REQUEST_NEGATIVE_REPLY, buffer, callback);
+		return this.submitCommand(LE.LTK_REQUEST_NEGATIVE_REPLY, buffer);
 	}
-	addDeviceToResolvingList(address, peerIRK, localIRK, callback) {
+	addDeviceToResolvingList(address, peerIRK, localIRK) {
 		let buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt8(address.isRandom() ? 0x01 : 0x00);
 		buffer.putByteArray(address.getRawArray());
@@ -328,22 +403,22 @@ class LECommandSet extends CommandSet {
 		buffer.putByteArray(localIRK);
 		buffer.flip();
 		logger.debug("LE::AddDeviceToResolvingList");
-		this._commandExec.submitCommand(LE.ADD_DEVICE_TO_RESOLVING_LIST, buffer, callback);
+		return this.submitCommand(LE.ADD_DEVICE_TO_RESOLVING_LIST, buffer);
 	}
-	removeDeviceFromResolvingList(address, callback) {
+	removeDeviceFromResolvingList(address) {
 		let buffer = ByteBuffer.allocateUint8Array(BUFFER_SIZE, true);
 		buffer.putInt8(address.isRandom() ? 0x01 : 0x00);
 		buffer.putByteArray(address.getRawArray());
 		buffer.flip();
 		logger.debug("LE::RemoveDeviceFromResolvingList");
-		this._commandExec.submitCommand(LE.REMOVE_DEVICE_FROM_RESOLVING_LIST, buffer, callback);
+		return this.submitCommand(LE.REMOVE_DEVICE_FROM_RESOLVING_LIST, buffer);
 	}
 	clearResolvingList(callback) {
 		logger.debug("LE::ClearResolvingList");
-		this._commandExec.submitCommand(LE.CLEAR_RESOLVING_LIST, null, callback);
+		return this.submitCommand(LE.CLEAR_RESOLVING_LIST, null);
 	}
-	setAddressResolutionEnable(enable, callback) {
+	setAddressResolutionEnable(enable) {
 		logger.debug("LE:SetAddressResolutionEnable");
-		this._commandExec.submitCommandWithArray(LE.SET_ADDRESS_RESOLUTION_ENABLE, [enable ? 0x01 : 0x00], callback);
+		return this.submitCommand(LE.SET_ADDRESS_RESOLUTION_ENABLE, [enable ? 0x01 : 0x00]);
 	}
 }

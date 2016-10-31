@@ -192,7 +192,7 @@ export var popupShadowsSkin = new Skin({ texture: popupTexture, x:40, y:0, width
 });
 export var popupCheckSkin = new Skin({ texture: popupTexture, x:80, y:0, width:20, height:20 });
 export var popupArrowsSkin = new Skin({ texture: popupTexture, x:80, y:20, width:20, height:10, states:10 });
-export var popupItemStyle = new Style({ font: "Open Sans", size:14, color: ["gray", "black", "black", "black"], horizontal:"left", left:10 });
+export var popupItemStyle = new Style({ font: "Open Sans", size:12, color: ["gray", "black", "black", "black"], horizontal:"left", left:10 });
 export const menuIconSkin = new Skin({ texture:popupTexture, x:80, y:40, width:20, height:20, states:20 });
 
 export class PopupButtonBehavior extends ButtonBehavior {
@@ -241,12 +241,9 @@ class PopupDialogBehavior extends Behavior {
 		let column = scroller.first;
 		let index = this.selection;
 		let step = column.first.measure().height;
-		let menuCoordinates = { left:button.x, width:button.width, top:0, height:0 }
-		let listCoordinates = { left:0, right:0, top:0 };
-
 		let y = button.y + ((button.height - step) >> 1);
 		let listTop = y - (index * step);
-		scroller.coordinates = { left:button.x, width:button.width, top:0, bottom:0 };
+		scroller.coordinates = { left:button.x - step, width:button.width + step, top:0, bottom:0 };
 		scroller.tracking = true;
 		scroller.scrollTo(0, 0 - listTop);
 		return height;

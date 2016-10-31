@@ -24,7 +24,6 @@
 const Utils = require("../../common/utils");
 const Ringbuffer = Utils.Ringbuffer;
 const Buffers = require("../../common/buffers");
-const SerialBuffer = Buffers.SerialBuffer;
 const ByteBuffer = Buffers.ByteBuffer;
 
 var logger = new Utils.Logger("UART");
@@ -50,7 +49,7 @@ var PREAMBLE_SIZE = [];
 var PACKET_READER = [];
 PREAMBLE_SIZE[UART_ACL_DATA_PACKET - 1] = 4;
 PACKET_READER[UART_ACL_DATA_PACKET - 1] = function (buffer) {
-	var tmp = buffer.readByte() | (buffer.readByte() << 8);
+	let tmp = buffer.readByte() | (buffer.readByte() << 8);
 	return {
 		handle: tmp & 0xFFF,
 		packetBoundary: (tmp >> 12) & 0x3,
@@ -62,7 +61,7 @@ PACKET_READER[UART_ACL_DATA_PACKET - 1] = function (buffer) {
 
 PREAMBLE_SIZE[UART_SYNC_DATA_PACKET - 1] = 3;
 PACKET_READER[UART_SYNC_DATA_PACKET - 1] = function (buffer) {
-	var tmp = buffer.getInt16();
+	let tmp = buffer.readByte() | (buffer.readByte() << 8);
 	return {
 		handle: tmp & 0xFFF,
 		packetStatus: (tmp >> 12) & 0x3,
@@ -82,9 +81,14 @@ PACKET_READER[UART_EVENT_PACKET - 1] = function (buffer) {
 
 class Transport {
 	constructor(serial) {
-		this._txBuffer = new SerialBuffer(serial, HCI_MAX_ACL_SIZE, true);
+		this._serial = serial;
+		this._delegate = null;
+		this._txBuffer = ByteBuffer.allocateUint8Array(HCI_MAX_ACL_SIZE, true);
 		this._rxRingbuffer = new Ringbuffer(MAX_RX_BUFFER);
 		this._reset();
+	}
+	set delegate(delegate) {
+		this._delegate = delegate;
 	}
 	_reset() {
 		this._tempObject = null;
@@ -92,8 +96,13 @@ class Transport {
 		this._packetType = 0;
 		this._state = STATE_PACKET_TYPE;
 	}
+	_flush() {
+		this._txBuffer.flip();
+		let array = this._txBuffer.getByteArray();
+		this._serial.write(array.buffer);
+	}
 	sendCommand(command) {
-		logger.trace("<==sendCommand");
+		logger.debug("<==sendCommand");
 		this._txBuffer.clear();
 		this._txBuffer.putInt8(UART_COMMAND_PACKET);
 		this._txBuffer.putInt16(command.opcode);
@@ -101,11 +110,11 @@ class Transport {
 		if (command.data != null) {
 			this._txBuffer.putByteArray(command.data);
 		}
-		this._txBuffer.flush();
-		logger.trace("==>sendCommand");
+		this._flush();
+		logger.debug("==>sendCommand");
 	}
 	sendACLData(acl) {
-		logger.trace("<==sendACLData");
+		logger.debug("<==sendACLData");
 		logger.debug("ACL (handle="
 			+ Utils.toHexString(acl.handle, 2)
 			+ "): << " + Utils.toFrameString(acl.data, 0, acl.length));
@@ -120,8 +129,8 @@ class Transport {
 		if (acl.data != null) {
 			this._txBuffer.putByteArray(acl.data);
 		}
-		this._txBuffer.flush();
-		logger.trace("==>sendACLData");
+		this._flush();
+		logger.debug("==>sendACLData");
 	}
 	sendSynchronousData(handle, packetStatus, length, data) {
 		this._txBuffer.clear();
@@ -172,7 +181,11 @@ class Transport {
 			}
 		}
 
-		return responses;
+		if (this._delegate != null) {
+			for (let i = 0; i < responses.length; i++) {
+				this._delegate.transportReceived(responses[i]);
+			}
+		}
 	};
 }
 exports.Transport = Transport;

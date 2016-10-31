@@ -597,8 +597,6 @@ const samplesLoadingStyle = new Style({ font:NORMAL_FONT, size:14, color:GRAY, h
 
 import { 
 	ButtonBehavior, 
-	FieldLabelBehavior, 
-	FieldScrollerBehavior, 
 } from "common/control";
 
 import { 

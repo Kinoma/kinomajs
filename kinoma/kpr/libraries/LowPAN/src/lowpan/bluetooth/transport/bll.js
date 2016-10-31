@@ -44,15 +44,7 @@ function pollTransport() {
 		logger.debug("serial.read returns 0");
 		return;
 	}
-	let responses = _transport.receive(new Uint8Array(buffer), 0, buffer.byteLength);
-	if (responses.length > 0) {
-		for (let i = 0; i < responses.length; i++) {
-			/* Do not use TypedArray directly */
-			responses[i].buffer = (responses[i].data != null) ? responses[i].data.buffer : null;
-			responses[i].data = null;
-		}
-		_notification.invoke(responses);
-	}
+	_transport.receive(new Uint8Array(buffer), 0, buffer.byteLength);
 }
 
 exports.configure = function () {
@@ -67,6 +59,14 @@ exports.configure = function () {
 	_serial.init();
 	_repeat = PINS.repeat("serial", this, pollTransport);
 	_transport = new UART.Transport(_serial);
+	_transport.delegate = {
+		transportReceived: response => {
+			/* Do not use TypedArray directly */
+			response.buffer = (response.data != null) ? response.data.buffer : null;
+			response.data = null;
+			_notification.invoke(response);
+		}
+	};
 };
 
 exports.sendCommand = function (command) {

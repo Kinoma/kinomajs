@@ -18,7 +18,6 @@
 <package>
 	<import href="xsChunk.xs"/>
 	<import href="xsGrammar.xs"/>
-	<import href="FskStream.xs"/>
 	<object name="FileSystem">
 		<function name="getExtension" params="path"><![CDATA[
 			var index = path.lastIndexOf(".")

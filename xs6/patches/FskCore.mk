@@ -18,13 +18,13 @@
 <makefile>
 	<input name="$(F_HOME)/xs6/patches"/>
 	<input name="$(F_HOME)/core/base"/>
-	<input name="$(F_HOME)/core/grammars"/>
 	<input name="$(F_HOME)/core/graphics"/>
 	<input name="$(F_HOME)/core/managers"/>
 	<input name="$(F_HOME)/core/misc"/>
 	<input name="$(F_HOME)/core/network"/>
 	<input name="$(F_HOME)/core/scripting"/>
 	<input name="$(F_HOME)/core/ui"/>
+	<input name="$(F_HOME)/extensions/ssl"/>
 	<input name="$(F_HOME)/libraries/expat"/>
 	<input name="$(F_HOME)/libraries/QTReader"/>
 	<input name="$(F_HOME)/libraries/zlib"/>
@@ -112,7 +112,6 @@
 	<source name="FskNetInterface.c"/>
 	<source name="FskNetUtils.c"/>
 	<source name="FskResolver.c"/>
-	<source name="FskSSL.c"/>
 
 	<header name="FskHeaders.h"/>
 	<header name="FskHTTPAuth.h"/>
@@ -120,7 +119,6 @@
 	<header name="FskNetUtils.h"/>
 	<header name="FskNetInterface.h"/>
 	<header name="FskResolver.h"/>
-	<header name="FskSSL.h"/>
 	<header name="HTTP.h"/>
 	<header name="md5.h"/>
 
@@ -203,7 +201,6 @@
 	<header name="xmltok.h"/>
 
 	<source name="FskECMAScript.c"/>
-	<source name="FskECMAScriptIO.c"/>
 
 	<header name="FskECMAScript.h"/>
 

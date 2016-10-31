@@ -221,6 +221,23 @@ export default class Element extends DeviceConfig {
 		model.devicesFeature.onDeviceDown(this);
 		this.updateAlert(data, true, "The device is now restarting.");
 	}
+	getPinFilteringInfo(helper, query) {
+		let pinFilteringInfo = 
+		{
+			buttons: [
+				{ name:"Left", startPin:1, endPin:8 },
+				{ name:"Right", startPin:9, endPin:16 }
+			],
+			locations: [
+				{ name:"Left", startPin:1, endPin:8 },
+				{ name:"Right", startPin:9, endPin:16 }
+			]
+		}
+		return pinFilteringInfo;
+	}
+	pwmPinHasMotorMode(logicalPinNumber) {
+		return true;
+	}
 }
 
 Handler.Bind("/updateElement", class extends Behavior {

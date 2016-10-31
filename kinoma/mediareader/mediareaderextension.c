@@ -15,7 +15,6 @@
  *     limitations under the License.
  */
 #define __FSKMEDIAREADER_PRIV__
-#include "FskECMAScript.h"
 #include "FskMediaReader.h"
 #include "FskMediaPlayer.h"
 

@@ -42,13 +42,10 @@ class Transport {
 }
 exports.Transport = Transport;
 
-exports.notificationReceived = (gap, responses) => {
-	for (let i = 0; i < responses.length; i++) {
-		/* Recover TypedArray from array buffer */
-		if (responses[i].length > 0) {
-			responses[i].data = new Uint8Array(
-				responses[i].buffer, 0, responses[i].length);
-		}
-		gap.hci.transportReceived(responses[i]);
+exports.notificationReceived = (gap, response) => {
+	/* Recover TypedArray from array buffer */
+	if (response.length > 0) {
+		response.data = new Uint8Array(response.buffer, 0, response.length);
 	}
+	gap.hci.transportReceived(response);
 };

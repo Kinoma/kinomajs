@@ -22,6 +22,7 @@
 <input name="$(F_HOME)/kinoma/kpr/"/>
 <input name="$(F_HOME)/kinoma/kpr/sources/"/>
 <input name="$(F_HOME)/extensions/crypt/sources/"/>
+<input name="$(F_HOME)/extensions/ssl"/>
 <header name="kpr.h"/>
 
 <source name="kprWebSocket.c"/>

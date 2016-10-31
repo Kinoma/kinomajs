@@ -55,10 +55,6 @@ import {
 } from "shell/assets";
 
 import {
-	ButtonBehavior,
-} from "common/control";
-
-import {
 	ProgressBar,
 } from "common/dialog";
 

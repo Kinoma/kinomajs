@@ -68,6 +68,13 @@ exports.configure = function(configuration, mux, callback)
 	if (mux && configuration)
 		throw new Error("Can only configure pin mix or BLL configuration, not both");
 
+	// route to pins:configure for devices with no muxable pins
+	if ((undefined == mux) && (false == PinsConfig.hasMuxablePins())) {			
+		var message = new MessageWithObject("pins:configure", configuration, Message.JSON);
+		message.invoke().then(callback.call(null, true));
+		return;
+	}
+
 	var container = new Container({behavior: Behavior({
 		onComplete: function(handler, message, result) {
 			switch (this.state) {
@@ -135,6 +142,24 @@ exports.configure = function(configuration, mux, callback)
 	exports.remember(container);
 	container.behavior.state = mux ? 1 : 0;
 	container.behavior.onComplete();
+}
+
+exports.configureWithPhysicalPins = function(configuration, callback)
+{
+	for (var bll in configuration) {
+		if ((bll == "leftVoltage") || (bll == "rightVoltage"))
+			continue;
+		if (!("pins" in configuration[bll]))
+			continue;
+		var pins = configuration[bll].pins;
+		for (var pin in pins) {
+			pin = pins[pin];
+			let logicalPinNum = this.physicalToLogicalPin(pin.pin);
+			if (undefined != logicalPinNum)
+				pin.pin = logicalPinNum;
+		}
+	}
+	this.configure(configuration, callback);
 }
 
 exports.invoke = function(path, requestObject, callback)
@@ -322,12 +347,6 @@ exports.toMessage = function(path, object) {
 			message.requestObject = object;
 			message.setRequestHeader("referrer", "xkpr://shell");
 			break;
-		
-		case "getFixedPins":
-			message = new Message("pins:/pinmux/getFixed");
-			message.requestObject = object;
-			message.setRequestHeader("referrer", "xkpr://shell");
-			break;
 
 		default:
 			message = new MessageWithObject("pins:" + path, object);
@@ -417,5 +436,60 @@ function normalizeVoltage(voltage)
 			return 3.3;
 	}
 }
+
+let physicalToLogicalMap = undefined;
+
+exports.physicalToLogicalPin = function(physicalPinNumber) {
+	if (undefined == physicalToLogicalMap) {
+		physicalToLogicalMap = new Map();
+		let fixedPins = PinsConfig.getFixed();
+		for (var i=0, c=fixedPins.length; i<c; i++) {
+			let aPinDesc = fixedPins[i];
+			physicalToLogicalMap.set(i, aPinDesc.pin);
+		}
+	}
+	return physicalToLogicalMap.get(physicalPinNumber-1);
+}
+
+let logicalToPhysicalMap = undefined;
+
+exports.logicalToPhysicalPin = function(logicalPinNumber) {
+/*
+	if (undefined == logicalToPhysicalMap) {
+		logicalToPhysicalMap = new Map();
+		let fixedPins = PinsConfig.getFixed();
+		for (var i=0, c=fixedPins.length; i<c; i++) {
+			let aPinDesc = fixedPins[i];
+			logicalToPhysicalMap.set(aPinDesc.pin, i+1);
+		}
+	}
+*/
+	return logicalToPhysicalMap.get(logicalPinNumber);
+}
+
+function buildLogicalToPhysicalMap() {
+	logicalToPhysicalMap = new Map();
+	let fixedPins = PinsConfig.getFixed();
+	for (var i=0, c=fixedPins.length; i<c; i++) {
+		let aPinDesc = fixedPins[i];
+		logicalToPhysicalMap.set(aPinDesc.pin, i+1);
+	}
+}
+
+function mapToJson(map) {
+	return JSON.stringify([...map]);
+}
+
+function jsonToMap(jsonStr) {
+	return new Map(JSON.parse(jsonStr));
+}
+
+exports.getLogicalToPhysicalMapJson = function() {
+	if (undefined == logicalToPhysicalMap)
+		buildLogicalToPhysicalMap();
+	return mapToJson(logicalToPhysicalMap);
+}
+
+
 
 

@@ -168,13 +168,15 @@ bail:
 static FskErr sHTTPServerGotSocket(struct FskSocketRecord *skt, void *refCon) {
 	FskHTTPServerListener listener = (FskHTTPServerListener)refCon;
 	listener->handshaking = false;
-	if (listener->http && skt != NULL && FskNetSocketGetLastError(skt) == kFskErrNone)
+	FskErr err = skt != NULL ? FskNetSocketGetLastError(skt) : kFskErrOperationFailed;
+	if (listener->http && err == kFskErrNone)
 		return httpServerListenerStart(listener, skt);
 	else {
 		if (skt != NULL)
 			FskNetSocketClose(skt);
-		FskHTTPServerListenerDispose(listener);
-		return kFskErrOperationFailed;
+		if (err != kFskErrSSLHandshakeFailed)
+			FskHTTPServerListenerDispose(listener);
+		return err;
 	}
 }
 

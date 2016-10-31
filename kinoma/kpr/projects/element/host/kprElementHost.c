@@ -18,9 +18,20 @@
 #include "kprShell.h"
 #include "kprUtilities.h"
 
+#define xsNewFunction2(_FUNCTION,_SLOT0,_SLOT1) \
+	(xsOverflow(-4), \
+	fxPush(_SLOT0), \
+	fxPush(_SLOT1), \
+	fxPushCount(the, 2), \
+	fxPush(_FUNCTION), \
+	fxNew(the), \
+	fxPop())
+
 FskCondition gElementHostCondition = NULL;
 FskMutex gElementHostMutex = NULL;
 void* gElementHostResult = NULL;
+
+static Boolean gMCQuitting = false;
 
 FskExport(FskErr) kprElementHost_fskLoad(FskLibrary library)
 {
@@ -41,7 +52,6 @@ struct KprElementHostStruct {
 	void* archive;
 	xsMachine* machine;
 	FskThread thread;
-	Boolean quitting;
 };
 
 static void PINS_close(xsMachine* the);
@@ -49,6 +59,8 @@ static void PINS_configure(xsMachine* the);
 static void PINS_invoke(xsMachine* the);
 static void PINS_repeat(xsMachine* the);
 static void console_log(xsMachine* the);
+
+static void KPR_elementHost_timerCallback(xsMachine* the);
 
 static void KPR_elementLoop(void* params)
 {
@@ -62,7 +74,7 @@ static void KPR_elementLoop(void* params)
 			xsVar(1) = xsNewHostFunction(console_log, 0);
 			xsSet(xsVar(0), xsID("log"), xsVar(1));
 			xsSet(xsGlobal, xsID("console"), xsVar(0));
-			
+
 			xsVar(0) = xsNewInstanceOf(xsObjectPrototype);
 			xsVar(1) = xsNewHostFunction(PINS_close, 0);
 			xsSet(xsVar(0), xsID("close"), xsVar(1));
@@ -75,6 +87,12 @@ static void KPR_elementLoop(void* params)
 			xsSet(xsGlobal, xsID("PINS"), xsVar(0));
 
 			xsVar(0) = xsGet(xsGlobal, xsID("require"));
+			xsVar(1) = xsCall1(xsVar(0), xsID("weak"), xsString("timeinterval"));
+			xsResult = xsNewHostFunction(KPR_elementHost_timerCallback, 0);
+			xsResult = xsNewFunction2(xsVar(1), xsResult, xsInteger(100));
+			xsCall0(xsResult, xsID("start"));
+			xsSet(xsGlobal, xsID("KPR_elementHost_timer"), xsResult);
+
 			xsCall1(xsVar(0), xsID("weak"), xsString("application"));
 		}
 		xsCatch {
@@ -83,7 +101,7 @@ static void KPR_elementLoop(void* params)
 		}
 	}
 	xsEndHost(self->machine);
-	while (!self->quitting)
+	while (!gMCQuitting)
 		FskThreadRunloopCycle(-1);
 	xsDeleteMachine(self->machine);
 	fxUnmapArchive(self->archive);
@@ -96,8 +114,8 @@ void KPR_elementHost(void* data)
 {
 	KprElementHost self = data;
 	if (self) {
-		self->quitting = true;
-		// FskThreadJoin(self->thread);
+		gMCQuitting = true;
+		FskThreadJoin(self->thread);
 	}
 }
 
@@ -135,6 +153,19 @@ void KPR_elementHost_launch(xsMachine* the)
 void KPR_elementHost_purge(xsMachine* the)
 {
 
+}
+
+void KPR_elementHost_timerCallback(xsMachine* the)
+{
+	if (gMCQuitting) {
+		xsVars(1);
+		xsResult = xsGet(xsGlobal, xsID("KPR_elementHost_timer"));
+		xsCall0(xsResult, xsID("close"));
+		
+		xsVar(0) = xsGet(xsGlobal, xsID("require"));
+		xsResult = xsCallFunction1(xsVar(0), xsUndefined, xsString("system"));
+		xsCall0(xsResult, xsID("shutdown"));
+	}
 }
 
 void KPR_elementHost_quit(xsMachine* the)

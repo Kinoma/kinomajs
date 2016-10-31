@@ -17,6 +17,7 @@
 -->
 <package>
 	<import href="FskCore.xs" link="dynamic"/>
+	<import href="FskStream.xs" link="dynamic"/>
 	<import href="Crypt.xs" link="dynamic"/>
 
 	<object name="FskSSL">

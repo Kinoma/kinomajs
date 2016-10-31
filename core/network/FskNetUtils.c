@@ -87,7 +87,7 @@
 	#include "KplSocket.h"
 #endif
 
-#if OPEN_SSL || CLOSED_SSL
+#if CLOSED_SSL
 #include "FskSSL.h"
 #endif
 
@@ -127,14 +127,6 @@ extern Boolean gQuitting;
 static void macCallBack(CFSocketRef s, CFSocketCallBackType cbType, CFDataRef addr, const void *data, void *info);
 #endif
 
-#if OPEN_SSL
-static void sDoSSLTransaction(FskSocket skt);
-enum {
-	kSSLStateConnect = 0x13,
-	kSSLStateCheckServer,
-};
-static void sSSLSocketConnected(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon);
-#endif
 static void sSocketConnected(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon);
 
 
@@ -204,7 +196,7 @@ FskErr FskNetTerminate(void) {
 		sFskNetNotificationTerminate();
 		sFskNetSocketTerminate();
 		FskAsyncResolverTerminate();
-#if OPEN_SSL || CLOSED_SSL
+#if CLOSED_SSL
 		FskSSLTerminate();
 #endif
 
@@ -639,29 +631,6 @@ bail:
 	return err;
 }
 
-#if OPEN_SSL
-// ---------------------------------------------------------------------
-FskErr FskNetSocketDoSSL(char *host, FskSocket skt, FskNetSocketCreatedCallback callback, void *refCon)
-{
-	FskMemPtrDispose(skt->hostname);
-	skt->hostname = FskStrDoCopy(host);
-	skt->afterCreate = callback;
-	skt->afterCreateRefCon = refCon;
-
-	if (!skt->ssl) {
-		skt->ssl = SSL_new(FskSSLGetContext());
-		skt->bio = BIO_new_socket(skt->platSkt, BIO_NOCLOSE);
-		SSL_set_bio(skt->ssl, skt->bio, skt->bio);
-		skt->sslState = kSSLStateConnect;
-	}
-	else
-		skt->sslState = kSSLStateCheckServer;
-
-	sDoSSLTransaction(skt);
-	return kFskErrNone;
-}
-#endif
-
 // ---------------------------------------------------------------------
 FskErr FskNetSocketNewUDP(FskSocket *newSocket, char *debugName)
 {
@@ -790,21 +759,6 @@ FskErr FskNetSocketClose(FskSocket skt)
 		FskThreadRemoveDataHandler(&skt->handler);
 
 	if (skt->platSkt >= 0) {
-	#if OPEN_SSL
-		if (skt->ssl) {
-			int ret;
-			BIO_flush(skt->bio);
-			ret = SSL_shutdown(skt->ssl);
-			if (!ret) {
-				shutdown(skt->platSkt, 1);
-				ret = SSL_shutdown(skt->ssl);
-			}
-			SSL_free(skt->ssl);
-// - SSL_free does this			BIO_free(skt->bio);
-			skt->ssl = NULL;
-			skt->bio = NULL;
-		}
-	#endif
 		FskMemPtrDisposeAt((void**)(void*)&skt->hostname);
 
 		if (!skt->owned) {
@@ -1018,49 +972,6 @@ volatile	FskErr		err;
 	skt->pendingReadable = false;
 	bufLen = bufSize;
 
-#if OPEN_SSL
-	if (skt->ssl) {
-		ret = SSL_read(skt->ssl, buf, bufLen);
-		err = SSL_get_error(skt->ssl, ret);
-		switch (err) {
-			case SSL_ERROR_NONE:
-				*amt = ret;
-#if SUPPORT_INSTRUMENTATION
-				if (FskInstrumentedItemHasListeners(skt)) {
-					FskSocketInstrTrans	msg;
-					msg.skt = skt;
-					msg.buf = buf;
-					msg.amt = ret;
-		   			FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLRecvd, &msg);
-				}
-#endif
-				break;
-			case SSL_ERROR_ZERO_RETURN:
-				SSL_clear(skt->ssl);
-				SSL_free(skt->ssl);
-				ERR_remove_state(0);
-				skt->ssl = NULL;
-	    		FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLClosed, skt);
-				return kFskErrConnectionClosed;
-			case SSL_ERROR_WANT_READ:
-				return kFskErrNoData;
-			case SSL_ERROR_WANT_WRITE:
-				return kFskErrNoData;
-			default:
-	    		FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLRecvErr, skt);
-				ERR_print_errors_fp(stderr);
-				if (SSL_get_shutdown(skt->ssl) & SSL_RECEIVED_SHUTDOWN)
-					SSL_shutdown(skt->ssl);
-				else
-					SSL_clear(skt->ssl);
-				SSL_free(skt->ssl);
-				ERR_remove_state(0);
-				skt->ssl = NULL;
-				return kFskErrConnectionClosed;
- 		}
-	}
-	else
-#endif
 	{
 #if !TARGET_OS_KPL
 		ret = recv(skt->platSkt, buf, bufLen, 0);
@@ -1135,50 +1046,6 @@ FskErr FskNetSocketSendRawTCP(FskSocket skt, void *buf, const int bufSize, int *
 
 	bufLen = bufSize;
 
-#if OPEN_SSL
-	if (skt->ssl) {
-		int err;
-		ret = SSL_write(skt->ssl, buf, bufLen);
-		err = SSL_get_error(skt->ssl, ret);
-		switch (err) {
-			case SSL_ERROR_NONE:
-				*amt = ret;
-#if SUPPORT_INSTRUMENTATION
-				if (FskInstrumentedItemHasListeners(skt)) {
-					FskSocketInstrTrans	msg;
-					msg.skt = skt;
-					msg.buf = buf;
-					msg.amt = ret;
-		   			FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLSent, &msg);
-				}
-#endif
-				break;
-			case SSL_ERROR_ZERO_RETURN:
-				SSL_clear(skt->ssl);
-				SSL_free(skt->ssl);
-				ERR_remove_state(0);
-				skt->ssl = NULL;
-	    		FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLClosed, skt);
-				return kFskErrConnectionClosed;
-			case SSL_ERROR_WANT_READ:
-				return kFskErrNoData;
-			case SSL_ERROR_WANT_WRITE:
-				return kFskErrNoData;
-			default:
-	    		FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLSendErr, skt);
-				ERR_print_errors_fp(stderr);
-				if (SSL_get_shutdown(skt->ssl) & SSL_RECEIVED_SHUTDOWN)
-					SSL_shutdown(skt->ssl);
-				else
-					SSL_clear(skt->ssl);
-				SSL_free(skt->ssl);
-				ERR_remove_state(0);
-				skt->ssl = NULL;
-				return kFskErrConnectionClosed;
-		}
-	}
-	else
-#endif
 	{
 #if !TARGET_OS_KPL
 		ret = send(skt->platSkt, buf, bufLen, 0);
@@ -1593,83 +1460,6 @@ bail:
 }
 
 // ---------------------------------------------------------------------
-#if OPEN_SSL
-static void sFskNetSocketSSLTransaction(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon) {
-	FskSocket skt = (FskSocket)refCon;
-	sDoSSLTransaction(skt);
-}
-
-static void sDoSSLTransaction(FskSocket skt) {
-	int result;
-	Boolean wantRead = false, wantWrite = false;
-
-	if (skt->sslTransactionHandler)
-		FskThreadRemoveDataHandler(&skt->sslTransactionHandler);
-
-	switch (skt->sslState) {
-		case kSSLStateConnect:
-   			FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLStateConnect, skt);
-			result = SSL_connect(skt->ssl);
-			if (result <= 0) {
-				result = SSL_get_error(skt->ssl, result);
-				switch (result) {
-					case SSL_ERROR_WANT_WRITE:
-						wantWrite = true;
-						break;
-					case SSL_ERROR_WANT_READ:
-						wantRead = true;
-						break;
-					default:
-   						FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLConnectErr, ERR_error_string(result, NULL));
-						break;
-				}
-			}
-			else {
-				skt->sslState = kSSLStateCheckServer;
-				sDoSSLTransaction(skt);
-			}
-
-			if (wantRead || wantWrite) {
-				FskThreadAddDataHandler(&skt->sslTransactionHandler, (FskThreadDataSource)skt, sFskNetSocketSSLTransaction, wantRead, wantWrite, skt);
-			}
-			break;
-		case kSSLStateCheckServer:
-			if (!FskSSLCheckServerCert(skt->ssl, skt->hostname)) {
-   				FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLServerCertFailed, skt);
-				result = (*skt->afterCreate)(NULL, skt->afterCreateRefCon);
-			}
-			else {
-   				FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgSSLServerCertSuccess, skt);
-				result = (*skt->afterCreate)(skt, skt->afterCreateRefCon);
-			}
-			break;
-	}
-}
-
-// ---------------------------------------------------------------------
-static void doSSLConnected(FskSocket skt) {
-	FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgTCPConnectedSSL, skt);
-
-	if (!skt->ssl) {
-		skt->ssl = SSL_new(FskSSLGetContext());
-		skt->bio = BIO_new_socket(skt->platSkt, BIO_NOCLOSE);
-		SSL_set_bio(skt->ssl, skt->bio, skt->bio);
-		skt->sslState = kSSLStateConnect;
-	}
-	else
-		skt->sslState = kSSLStateCheckServer;
-
-	sDoSSLTransaction(skt);
-}
-
-static void sSSLSocketConnected(FskThreadDataHandler handler, FskThreadDataSource source, void *refCon) {
-	FskSocket skt = (FskSocket)refCon;
-	FskThreadRemoveDataHandler(&skt->handler);
-	doSSLConnected(skt);
-}
-#endif		// OPEN_SSL
-
-// ---------------------------------------------------------------------
 static void doConnected(FskSocket skt) {
 	FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgTCPConnected, skt);
 	(*skt->afterCreate)(skt, skt->afterCreateRefCon);
@@ -1714,20 +1504,9 @@ static FskErr sConnectToHost(FskSocket skt)
 		if ((skt->lastErr == kFskErrNoData) && skt->nonblocking) {
 			skt->lastErr = kFskErrNone;
 #if  TARGET_OS_MAC
-	#if OPEN_SSL
-			if (skt->isSSL)
-				FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSSLSocketConnected, true, true, skt);
-			else
-	#endif
-				FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSocketConnected, true, true, skt);
+			FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSocketConnected, true, true, skt);
 #else
-
-	#if OPEN_SSL
-			if (skt->isSSL)
-				FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSSLSocketConnected, false, true, skt);
-			else
-	#endif
-				FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSocketConnected, false, true, skt);
+			FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSocketConnected, false, true, skt);
 #endif
 			return kFskErrNone;
 		}
@@ -1746,12 +1525,7 @@ static FskErr sConnectToHost(FskSocket skt)
 	if (0 != err) {
 		if ((skt->lastErr == kFskErrNoData) && skt->nonblocking) {
 			skt->lastErr = kFskErrNone;
-	#if OPEN_SSL
-			if (skt->isSSL)
-				FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSSLSocketConnected, false, true, skt);
-			else
-	#endif
-				FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSocketConnected, false, true, skt);
+			FskThreadAddDataHandler(&skt->handler, (FskThreadDataSource)skt, sSocketConnected, false, true, skt);
 			return kFskErrNone;
 		}
 
@@ -1769,15 +1543,7 @@ failed:
 	if (err)
 		FskInstrumentedItemSendMessage(skt, kFskSocketInstrMsgTCPConnectFailed, skt);
 
-#if OPEN_SSL
-	if (skt->isSSL) {
-		doSSLConnected(skt);
-	}
-	else
-#endif
-	{
-		doConnected(skt);
-	}
+	doConnected(skt);
 
 	return err;
 }
@@ -1851,11 +1617,6 @@ FskErr FskNetConnectToHostPrioritized(char *host, int port, Boolean blocking,
 	skt->portRemote = port;
 	skt->hostname = FskStrDoCopy(host);
 
-#if OPEN_SSL
-	if (flags & kConnectFlagsSSLConnection) {
-		skt->isSSL = true;
-	}
-#endif
 	skt->afterCreate = callback;
 	skt->afterCreateRefCon = refCon;
 	skt->nonblocking = !blocking;

@@ -70,6 +70,9 @@
 			},
 		},
 		"mac":{
+			"environment":{
+				"xdebugger":"localhost:5003",
+ 			},
 			"modules":{
 				"~": [
 					"$(SHELL_HOME)/common/desktopLinux",

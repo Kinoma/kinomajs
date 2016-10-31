@@ -114,3 +114,156 @@ xs_bin_decode(xsMachine *the)
 	n = c_decode64(xsToArrayBuffer(xsResult), src, n);
 	xsSetArrayBufferLength(xsResult, n);
 }
+
+
+/*
+ * PEM
+ */
+
+static char *
+pem_strnnew(xsMachine *the, char *src, int n)
+{
+	char *dst;
+
+	if ((dst = c_malloc(n + 1)) == NULL)
+		xsUnknownError("out of memory");
+	c_memcpy(dst, src, n);
+	dst[n] = '\0';
+	return(dst);
+}
+
+static char *
+pem_getline(char **pp, char *endp)
+{
+	char *p = *pp, *line = p;
+
+	for (; p < endp && *p != '\n'; p++)
+		;
+	if (p < endp) {
+		*pp = p + 1;
+		return(line);
+	}
+	else
+		return(NULL);
+}
+
+static char *
+pem_getKeyword(xsMachine *the, char *p)
+{
+	char *kw;
+
+	if (p[10] != ' ')
+		return(NULL);
+	/* -----BEGIN keyword */
+	kw = p += 11;
+	for (; *p != '\n'; p++) {
+		if (*p == '-' && c_strncmp(p, "-----", 5) == 0)
+			return(pem_strnnew(the, kw, p - kw));
+	}
+	return(NULL);
+}
+
+static int
+pem_processHeaders(xsMachine *the, char **pp, char *endp, xsSlot *res)
+{
+	char *name, *value;
+	char *p, *tp, *endh;
+
+	/* first, figure out whther there is headers or not */
+	tp = *pp;
+	endh = NULL;
+	while ((p = pem_getline(&tp, endp)) != NULL && c_strncmp(p, "-----", 5) != 0) {
+		if (*p == '\n' || (*p == '\r' && *(p+1) == '\n')) {
+			endh = p;
+			break;
+		}
+	}
+	if (endh == NULL)
+		return(0);	/* no headers */
+	/* then, set the header name and value to the result */
+	xsVar(1) = xsNewInstanceOf(xsObjectPrototype);
+	while ((p = pem_getline(pp, endh)) != NULL) {
+		name = p;
+		value = NULL;
+		for (; *p != '\n'; p++) {
+			if (value == NULL && *p == ':')		/* find the first delimiter */
+				value = p + 1;
+		}
+		if (value) {
+			name = pem_strnnew(the, name, value - name - 1);	/* remove ':' */
+			for (; *value == ' '; value++)
+				;
+			if (*(p - 1) == '\r')
+				--p;
+			value = pem_strnnew(the, value, p - value);
+			xsSet(xsVar(1), xsID(name), xsString(value));
+			c_free(name);
+			c_free(value);
+		}
+	}
+	(void)pem_getline(pp, endp);	/* remove the empty line */
+	xsSet(*res, xsID("headers"), xsVar(1));
+	return(1);
+}
+
+static char *
+pemDecodeMessage(xsMachine *the, char **pp, char *endp, xsSlot *res)
+{
+	char *p, *body;
+
+	while ((p = pem_getline(pp, endp)) != NULL) {
+		if (c_strncmp(p, "-----BEGIN", 10) == 0) {
+			char *keyword = pem_getKeyword(the, p);
+			if (!keyword)
+				continue;
+			*res = xsNew1(xsThis, xsID("Message"), xsString(keyword));
+			c_free(keyword);
+			pem_processHeaders(the, pp, endp, res);
+			/* assume encodingType is always base64 */
+			body = *pp;
+			while ((p = pem_getline(pp, endp)) != NULL && c_strncmp(p, "-----", 5) != 0)
+				;
+			if (p != NULL) {
+				char *bp = pem_strnnew(the, body, p - body);
+				size_t n = howmany(c_strlen(bp), 4) * 3;
+
+				xsVar(1) = xsArrayBuffer(NULL, n);
+				n = c_decode64(xsToArrayBuffer(xsVar(1)), bp, n);
+				xsSetArrayBufferLength(xsVar(1), n);
+				xsSet(*res, xsID("body"), xsVar(1));
+				c_free(bp);
+			}
+			*pp = p;
+			break;
+		}
+	}
+	return(p);
+}
+
+void
+xs_pem_decode(xsMachine *the)
+{
+	void *data = NULL;
+	int dataLen = 0;
+	char *p, *endp;
+
+	xsVars(2);	/* internal use */
+	if (xsTypeOf(xsArg(0)) == xsStringType) {
+		data = xsToString(xsArg(0));
+		dataLen = c_strlen(data);
+	}
+	else if (xsIsInstanceOf(xsArg(0), xsArrayBufferPrototype)) {
+		data = xsToArrayBuffer(xsArg(0));
+		dataLen = xsGetArrayBufferLength(xsArg(0));
+	}
+	else
+		xsTypeError("not a string");
+	if ((p = c_malloc(dataLen)) == NULL)
+		xsUnknownError("out of memory");
+	c_memcpy(p, data, dataLen);
+	endp = p + dataLen;
+	xsResult = xsNewInstanceOf(xsArrayPrototype);
+	while (pemDecodeMessage(the, &p, endp, &xsVar(0)))
+		(void)xsCall1(xsResult, xsID("push"), xsVar(0));
+	c_free(p);
+}

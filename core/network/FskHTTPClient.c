@@ -21,7 +21,7 @@
 
 #include "FskHTTPAuth.h"
 
-#if OPEN_SSL || CLOSED_SSL
+#if CLOSED_SSL
 #include "FskSSL.h"
 #endif
 
@@ -116,9 +116,6 @@ static void sCanSendData(FskThreadDataHandler handler, FskThreadDataSource sourc
 static void sClientRunCycle(FskTimeCallBack cb, FskTime when, void *param);
 static FskErr clientReceivedData(FskHTTPClientRequest req, char *buffer, int amt);
 static void sReissueRequest(FskHTTPClient client, FskHTTPClientRequest request);
-#if OPEN_SSL
-static FskErr sHTTPClientConnectedSSLThruProxy(struct FskSocketRecord *skt, void *refCon);
-#endif
 
 static int clientInterfaceChangedCB(struct FskNetInterfaceRecord *iface, UInt32 status, void *param);
 
@@ -685,6 +682,7 @@ static void sClientKillMe(FskTimeCallBack cb, FskTime when, void *param) {
 		return;
 
 	FskInstrumentedItemSendMessage(client, kFskHTTPClientInstrMsgKillIdle, client);
+	client->requestState = kHTTPClientConnectFailed;
 	client->responseState = kHTTPClientDone;
 	client->status.lastErr = kFskErrTimedOut;
 	sClientCycle(client);
@@ -769,13 +767,7 @@ FskErr FskHTTPClientBegin(FskHTTPClient client)
 	}
 
 	if (client->skt && FskNetSocketIsWritable(client->skt)) {
-#if OPEN_SSL
-		if (client->sslProxied) {
-			FskInstrumentedItemSendMessage(client, kFskHTTPClientInstrMsgBeginSSLThruProxy, client);
-			client->requestState = kHTTPClientConnectingSSL;
-			return FskNetSocketDoSSL(client->host, client->skt, (FskNetSocketCreatedCallback)sHTTPClientGotSocket, client);
-		}
-#else /* if CLOSED_SSL */
+#if CLOSED_SSL
 		if( client->sslProxied && ( client->protocolNum==kFskHTTPProtocolHTTPS && !client->skt->isSSL) )
 		{
 			void* ssl = 0;
@@ -813,7 +805,7 @@ FskErr FskHTTPClientBegin(FskHTTPClient client)
 	client->interfaceSeedPreConnect = client->interfaceSeed;
 	client->status.lastErr = 0;
 
-#if OPEN_SSL || CLOSED_SSL
+#if CLOSED_SSL
 	if (client->protocolNum == kFskHTTPProtocolHTTPS) {
 		if (client->proxyAddrS) {
 			FskInstrumentedItemSendMessage(client, kFskHTTPClientInstrMsgBeginConnectToSecureProxy, client);
@@ -2144,7 +2136,7 @@ transition:
 
 			// start up the next request
 			if (client->httpRequests) {
-#if OPEN_SSL || CLOSED_SSL
+#if CLOSED_SSL
 				if( client->sslProxied && client->waitingForSocket &&
 							( client->protocolNum==kFskHTTPProtocolHTTPS && !client->skt->isSSL ) )
 				{
@@ -2159,9 +2151,6 @@ transition:
 
 					FskInstrumentedItemSendMessage(client, kFskHTTPClientInstrMsgBeginSSLThruProxy, client);
 					client->requestState = kHTTPClientConnectingSSL;
-#if OPEN_SSL
-					err = FskNetSocketDoSSL(client->host, client->skt, (FskNetSocketCreatedCallback)sHTTPClientConnectedSSLThruProxy, client);
-#else
 					err = FskSSLAttach( &ssl, client->skt );
 					if( kFskErrNone == err ) {
 						FskSSLLoadCerts( ssl, &cert );
@@ -2169,7 +2158,6 @@ transition:
 						if( kFskErrNone == err )
 							client->skt->isSSL = true;
 					}
-#endif
 				}
 				else
 #endif
@@ -2208,42 +2196,6 @@ done:
 	sFskHTTPClientRequestDownUse(request);
 	return retVal;
 }
-
-#if OPEN_SSL
-
-FskErr sHTTPClientConnectedSSLThruProxy(struct FskSocketRecord *skt, void *refCon)
-{
-	FskHTTPClient client = (FskHTTPClient)refCon;
-
-//	client->skt = skt;
-	client->waitingForSocket = false;
-
-	// someone cancelled the connection
-	if (kHTTPClientCancel == client->requestState) {
-		sClientCycle(client);
-		return kFskErrNone;
-	}
-
-	if (client->disposed) {
-		FskHTTPClientDispose(client);
-		return kFskErrNone;
-	}
-
-	if (!skt) {
-		if (kFskHTTPProtocolHTTPS == client->protocolNum) {
-			FskInstrumentedItemSendMessage(client, kFskHTTPClientInstrMsgSSLConnectFailed, client);
-			client->status.lastErr = kFskErrSSLHandshakeFailed;
-			client->requestState = kHTTPClientSocketError;
-			sClientCycle(client);
-		}
-		return kFskErrNoMoreSockets;
-	}
-
-	client->requestState = kHTTPClientIdle;
-	sClientCycle(client);
-	return kFskErrNone;
-}
-#endif
 
 static FskErr sClientCycleResponse(FskHTTPClient client)
 {
@@ -3161,7 +3113,7 @@ static FskErr sHTTPClientRequestBlob(FskHTTPClient client, FskHTTPClientRequest 
 
 	*bufferSizeUsed = bufferPos;
 
-#if OPEN_SSL || CLOSED_SSL
+#if CLOSED_SSL
 bail:
 #endif
 	FskMemPtrDispose(hostString);
@@ -3249,7 +3201,7 @@ static FskErr sHTTPClientMakeRequest(FskHTTPClient client)
 	BAIL_IF_ERR(err);
 
 	client->requestState = kHTTPClientSendRequest;
-#if OPEN_SSL || CLOSED_SSL
+#if CLOSED_SSL
 	if (client->protocolNum == kFskHTTPProtocolHTTPS && (client->proxyPort && !client->sslProxied)) {
 		client->requestNextState = kHTTPClientPrepareForResponse;
 	}

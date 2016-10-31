@@ -17,6 +17,8 @@
  */
 var Pins = require("pins");
 
+var PinsConfig = undefined;
+
 // ----------------------------------------------------------------------------------
 // Skins
 // ----------------------------------------------------------------------------------
@@ -65,8 +67,13 @@ const TYPE_GROUND = "Ground";
 const TYPE_ANALOG = "Analog";
 const TYPE_DIGITAL = "Digital";
 const TYPE_I2C = "I2C"
+const TYPE_I2C_CLOCK = "I2CClock"
+const TYPE_I2C_DATA = "I2CData"
 const TYPE_SERIAL = "Serial";
 const TYPE_PWM = "PWM";
+
+let i2CClocks = [];
+let i2CDatas = [];
 
 let handlers = {
 	pinExplorerStart(helper, query) {
@@ -76,36 +83,65 @@ let handlers = {
 			explorer.leftVoltage = pinmux.leftVoltage;
 			explorer.rightVoltage = pinmux.rightVoltage;
 			let leftPins = pinmux.leftPins;
-			for (let pin = 0, c = leftPins.length; pin < c; pin++) {
-				helper.pinExplorerAddPin(explorer, 51 + pin, leftPins[pin], pinmux.leftVoltage);
+			for (let pin = 0, c = leftPins.length; pin < c; pin++)
+				helper.pinExplorerAddPin(explorer, 51 + pin, leftPins[pin], pinmux.leftVoltage);	// This will push I2C pins onto i2cClocks[] and i2cData[]
+			
+			let numPairs = Math.min(i2CClocks.length, i2CDatas.length);
+			for (let i = 0; i < numPairs; i++) {
+				let i2CClockPin = i2CClocks[i];
+				let i2CDataPin = i2CDatas[i];
+				helper.pinExplorerAddI2CPinPair(explorer, i2CClockPin,  i2CDataPin); 
 			}
+			i2CClocks = [];
+			i2CDatas = [];
+			
 			let rightPins = pinmux.rightPins;
-			for (let pin = 0, c = rightPins.length; pin <= c; pin++) {
+			for (let pin = 0, c = rightPins.length; pin <= c; pin++)
 				helper.pinExplorerAddPin(explorer, 59 + pin, rightPins[pin], pinmux.rightVoltage);
+			
+			numPairs = Math.min(i2CClocks.length, i2CDatas.length);
+			for (let i = 0; i < numPairs; i++) {
+				let i2CClockPin = i2CClocks[i];
+				let i2CDataPin = i2CDatas[i];
+				helper.pinExplorerAddI2CPinPair(explorer, i2CClockPin, i2CDataPin); 
 			}
+						
 //			trace(JSON.stringify(explorer, null, " ") + "\n");
 	
 			var directions = pinmux.back;
-			
-			Pins.invoke("getFixedPins", directions, fixedPins => {
-				if (fixedPins) {
-					for (var i=0, c=fixedPins.length; i<c; i++) {							// add all of the fixed pins
-						var aDesc = fixedPins[i];
+
+			i2CClocks = [];
+			i2CDatas = [];
+			let fixedPins = undefined;
+
+			if (undefined != PinsConfig)
+				fixedPins = PinsConfig.getFixed(directions);			
+
+			if (fixedPins) {
+				for (var i=0, c=fixedPins.length; i<c; i++) {							// add all of the fixed pins
+					var aDesc = fixedPins[i];
+					if (aDesc.type != "Mirrored")
 						helper.pinExplorerAddFixedPin(explorer, aDesc);
-					}
 				}
-				Pins.configure(explorer, success => {
-					let url = helper.pinsStartSharing(query.ip);
-					if (url)
-						helper.wsResponse(url)
-					else
-						helper.wsErrorResponse(500, "Internal Server Error")
-				}, error => {
-					helper.pinsStopSharing();
-					helper.wsErrorResponse(500, "Internal Server Error");
-				});
-			});
+			}
 			
+			numPairs = Math.min(i2CClocks.length, i2CDatas.length);
+			for (let i = 0; i < numPairs; i++) {
+				let i2CClockPin = i2CClocks[i];
+				let i2CDataPin = i2CDatas[i];
+				helper.pinExplorerAddI2CPinPair(explorer, i2CClockPin, i2CDataPin); 
+			}
+
+			Pins.configure(explorer, success => {
+				let url = helper.pinsStartSharing(query.ip);
+				if (url)
+					helper.wsResponse(url)
+				else
+					helper.wsErrorResponse(500, "Internal Server Error")
+			}, error => {
+				helper.pinsStopSharing();
+				helper.wsErrorResponse(500, "Internal Server Error");
+			});
 		});
 	},
 	pinExplorerStop(helper, query) {
@@ -167,7 +203,7 @@ let handlers = {
 		message.invoke(Message.JSON).then(json => {
 			helper.wsResponse("scanned" in json ? json.scanned : []);
 		});
-	},
+	},	
 	getNetworkMAC(helper, query) {
 		let message = new Message("xkpr://shell/network/connect/status");
 		message.invoke(Message.JSON).then(json => {
@@ -228,7 +264,15 @@ let handlers = {
 		helper.wsResponse(helper.systemStatus);
 		if (helper.systemStatus.finished)
 			application.invoke(new Message("xkpr://shell/close?id=" + application.id));
-	}
+	},
+	getLogicalToPhysicalMapJson(helper, query) {
+		if (undefined == PinsConfig)
+			helper.wsResponse("");
+		else {
+			let map = Pins.getLogicalToPhysicalMapJson();
+			helper.wsResponse(map);
+		}
+	},
 };
 
 let model = application.behavior = Behavior({
@@ -383,8 +427,14 @@ let model = application.behavior = Behavior({
 				};					
 			break;
 			case PINMUX_I2C_CLK:
+				i2CClocks.push( { pin: pin, type: type } );
+			break;
+			case PINMUX_I2C_SDA:
+				i2CDatas.push({ pin: pin, type: type });
 			break;
 			case PINMUX_SERIAL_RX:
+			break;
+			case PINMUX_SERIAL_TX:
 			break;
 			case PINMUX_PWM:
 				explorer[TYPE_PWM + pin] = {
@@ -393,6 +443,23 @@ let model = application.behavior = Behavior({
 				};					
 			break;
 		}
+	},
+	pinExplorerAddI2CPinPair(explorer, i2CClockPinDesc, i2CDataPinDesc) {
+		let clockPinNumber = i2CClockPinDesc.pin;
+		let dataPinNumber = i2CDataPinDesc.pin;
+		let busNum = i2CClockPinDesc.bus;
+		if (undefined != busNum) {
+			explorer[TYPE_I2C + clockPinNumber + "_" + dataPinNumber] = {
+				pins: { i2c: { type:TYPE_I2C, clock:clockPinNumber, sda:dataPinNumber, address:0, bus:busNum } },
+				require: TYPE_I2C,
+			};
+		}
+		else {
+			explorer[TYPE_I2C + clockPinNumber + "_" + dataPinNumber] = {
+				pins: { i2c: { type:TYPE_I2C, clock:clockPinNumber, sda:dataPinNumber, address:0 } },
+				require: TYPE_I2C,
+			};
+		}				
 	},
 	pinExplorerAddFixedPin(explorer, desc) {
 		switch (desc.type) {
@@ -428,7 +495,11 @@ let model = application.behavior = Behavior({
 					};		
 				}			
 			break;
-			case TYPE_I2C:
+			case TYPE_I2C_CLOCK:
+				i2CClocks.push(desc);
+			break;
+			case TYPE_I2C_DATA:
+				i2CDatas.push(desc);
 			break;
 			case TYPE_SERIAL:
 			break;
@@ -462,9 +533,29 @@ let model = application.behavior = Behavior({
 // 			trace("WSC: onopen\n");
 			try {
 				this.helper = helper;
+				
 				// var uuid = require.weak("uuid");
 				let message = new Message(mergeURI(url, "xkpr://shell/description"));
-				message.invoke(Message.JSON).then(json => {
+				message.invoke(Message.JSON).then(json => {				
+					let havePinsLibWith_Config = true;
+					let splitCurrentVersion = json.version.split(".");
+					let splitNewEnoughVersion = "7.1.89".split(".");
+					let bigCurrentNum = splitCurrentVersion[0];
+					let bigNewEnoughNum = splitNewEnoughVersion[0];
+					let midCurrentNum = splitCurrentVersion[1];
+					let midNewEnoughNum = splitNewEnoughVersion[1];
+					let smallCurrentNum = splitCurrentVersion[2];
+					let smallNewEnoughNum = splitNewEnoughVersion[2];
+					if (bigCurrentNum < bigNewEnoughNum)
+						havePinsLibWith_Config = false;
+					else if (midCurrentNum < midNewEnoughNum)
+						havePinsLibWith_Config = false;
+					else if (smallCurrentNum < smallNewEnoughNum)
+						havePinsLibWith_Config = false;
+					
+					if (havePinsLibWith_Config)
+						PinsConfig = require("pins_config");
+
 					this.send(json.uuid);
 				});
 			}

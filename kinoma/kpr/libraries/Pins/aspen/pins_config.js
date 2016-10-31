@@ -218,3 +218,66 @@ function makeDisconnectedHeader(count)
 	return header;
 }
 
+exports.getFixed = function(directions)
+{	
+	if (undefined == directions)
+		directions = new Array(50);
+	var fixedPins = [
+		{ pin: 1, type: "Ground" },
+		{ pin: 2, type: "Ground" },
+		{ pin: 3, type: "Digital", direction: directions[3] },
+		{ pin: 4, type: "Digital", direction: directions[4] },
+		{ pin: 5, type: "Digital", direction: directions[5] },
+		{ pin: 6, type: "Digital", direction: directions[6] },
+		{ pin: 7, type: "Digital", direction: directions[7] },
+		{ pin: 8, type: "Digital", direction: directions[8] },
+		{ pin: 9, type: "Digital", direction: directions[9] },
+		{ pin: 10, type: "Digital", direction: directions[10] },
+		{ pin: 11, type: "Digital", direction: directions[11] },
+		{ pin: 12, type: "Digital", direction: directions[12] },
+		{ pin: 13, type: "Ground" },
+		{ pin: 14, type: "Ground" },
+		{ pin: 15, type: "Digital", direction: directions[15] },
+		{ pin: 16, type: "Digital", direction: directions[16] },
+		{ pin: 17, type: "Digital", direction: directions[17] },
+		{ pin: 18, type: "Digital", direction: directions[18] },
+		{ pin: 19, type: "Digital", direction: directions[19] },
+		{ pin: 20, type: "Digital", direction: directions[20] },
+		{ pin: 21, type: "Digital", direction: directions[21] },
+		{ pin: 22, type: "Digital", direction: directions[22] },
+		{ pin: 23, type: "Digital", direction: directions[23] },
+		{ pin: 24, type: "Digital", direction: directions[24] },
+		{ pin: 25, type: "Power", voltage: 3.3 },
+		{ pin: 26, type: "Ground" },
+		{ pin: 27, type: "I2CData" },
+		{ pin: 28, type: "PWM" },
+		{ pin: 29, type: "I2CClock" },
+		{ pin: 30, type: "PWM" },
+		{ pin: 31, type: "UartTX" },
+		{ pin: 32, type: "Ground" },
+		{ pin: 33, type: "UartRX" },
+		{ pin: 34, type: "PWM" },
+		{ pin: 35, type: "Ground" },
+		{ pin: 36, type: "Ground" },
+		{ pin: 37, type: "Mirrored" },
+		{ pin: 38, type: "Mirrored" },
+		{ pin: 39, type: "Mirrored" },
+		{ pin: 40, type: "Mirrored" },
+		{ pin: 41, type: "Ground" },
+		{ pin: 42, type: "Ground" },
+		{ pin: 43, type: "Mirrored" },
+		{ pin: 44, type: "Mirrored" },
+		{ pin: 45, type: "Ground" },
+		{ pin: 46, type: "Ground" },
+		{ pin: 43, type: "Mirrored" },
+		{ pin: 44, type: "Mirrored" },
+		{ pin: 49, type: "Power", voltage: 3.3 },
+		{ pin: 50, type: "Power", voltage: 5 },
+	];
+	return fixedPins;
+}
+
+exports.hasMuxablePins = function()
+{
+	return true;
+}

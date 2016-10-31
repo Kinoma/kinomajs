@@ -367,7 +367,7 @@
 
 				function exceptionGuard(f) {
 					return function() {
-						var that = this;
+						let that = this;
 						try {
 							f.call(this);
 						} catch(e) {
@@ -379,6 +379,8 @@
 
 				s.allDone = function(err) {
 					var session = this.sslSession;
+					if (err)
+						this.error = true;
 					if (session.timer) {
 						session.timer.close();
 						session.timer = undefined;
@@ -496,7 +498,7 @@
 
 				if (s.connected) {
 					if (this.timeout) {
-						var that = this;
+						let that = this;
 						this.timer = new Timer();
 						this.timer.onCallback = function() {
 							that.socket.allDone(-120);	// handshake failed
@@ -646,7 +648,7 @@
 			</function>
 
 			<function name="close" params="s">
-				if (this.alert)
+				if (this.alert || this.error)
 					return;		// probably the peer has already closed the connection
 				if (this.writeBuffer) {
 					s.flush();

@@ -138,7 +138,6 @@ class ConnectionManager {
 	}
 	/* HCI Callback (ACLLink) */
 	disconnected(reason) {
-		this._link = null;
 		for (let key in this.connections) {
 			if (this.connections.hasOwnProperty(key)) {
 				this.connections[key].disconnected();
@@ -146,6 +145,12 @@ class ConnectionManager {
 		}
 		if (this._delegate != null) {
 			this._delegate.disconnected(reason);
+		}
+	}
+	/* HCI Calback (LELink) */
+	connectionUpdated(connParameters) {
+		if (this._delegate != null) {
+			this._delegate.connectionUpdated(connParameters);
 		}
 	}
 }
@@ -157,6 +162,7 @@ class Connection {
 		this._destinationChannel = destinationChannel;
 		this._rxBuffer = null;
 		this._delegate = null;
+		this._frameQueue = new Array();
 	}
 	set delegate(delegate) {
 		this._delegate = delegate;
@@ -164,6 +170,13 @@ class Connection {
 	get link() {
 		return this._connectionManager.link;
 	}
+	dequeueFrame() {
+		if (this._frameQueue.length == 0) {
+			return null;
+		}
+		return this._frameQueue.shift();
+	}
+	/* L2CAP Callback (ConnectionManager) */
 	allocateReceiveBuffer(length) {
 		logger.trace("Start receiving length=" + length);
 		this._rxBuffer = ByteBuffer.allocateUint8Array(length, true);
@@ -182,12 +195,11 @@ class Connection {
 				+ " dst=" + Utils.toHexString(this._sourceChannel, 2)
 				+ " " + Utils.toFrameString(this._rxBuffer.array));
 			this._rxBuffer.flip();
-			if (this._delegate != null) {
-				this._delegate.received(this._rxBuffer);
-			} else {
-				logger.warn("Dropping frame");
-			}
+			this._frameQueue.push(this._rxBuffer);
 			this._rxBuffer = null;
+			if (this._delegate != null) {
+				this._delegate.received();
+			}
 		}
 	}
 	sendBasicFrame(data) {
@@ -221,7 +233,7 @@ const Code = {
 	ECHO_REQUEST: 0x08,
 	ECHO_RESPONSE: 0x09,
 	CONNECTION_PARAMETER_UPDATE_REQUEST: 0x12,
-	CONNECTION_PARAMETER_UPDATE_RESPONES: 0x13
+	CONNECTION_PARAMETER_UPDATE_RESPONSE: 0x13
 };
 
 class SignalingContext {
@@ -273,7 +285,11 @@ class SignalingContext {
 		this.sendSignalingPacket(Code.CONNECTION_PARAMETER_UPDATE_REQUEST, 0, packet, callback);
 	}
 	/** L2CAP Connection delegate method */
-	received(buffer) {
+	received() {
+		let buffer = this._connection.dequeueFrame();
+		if (buffer == null) {
+			return;
+		}
 		let code = buffer.getInt8();
 		let identifier = buffer.getInt8();
 		let length = buffer.getInt16();
@@ -301,10 +317,15 @@ class SignalingContext {
 						minimumCELength: 0,
 						maximumCELength: 0
 					}
-				);
-				this.sendSignalingPacket(
-					Code.CONNECTION_PARAMETER_UPDATE_RESPONES,
-					identifier, Utils.toByteArray(0x0000, 2, true));
+				).then(() => {
+					this.sendSignalingPacket(
+						Code.CONNECTION_PARAMETER_UPDATE_RESPONSE,
+						identifier, Utils.toByteArray(0x0000, 2, true));
+				}).catch(status => {
+					this.sendSignalingPacket(
+						Code.CONNECTION_PARAMETER_UPDATE_RESPONSE,
+						identifier, Utils.toByteArray(0x0001, 2, true));
+				});
 			}
 			return;
 		default:

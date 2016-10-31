@@ -59,7 +59,6 @@ const pathSpanStyle = new Style({ font:SEMIBOLD_FONT, size:14, color:[LIGHT_GRAY
 
 import { 
 	ButtonBehavior, 
-	FieldLabelBehavior, 
 	FieldScrollerBehavior, 
 } from "common/control";
 

@@ -14,7 +14,6 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-import Pins from "pins";
 
 import {
 	BLACK,
@@ -35,6 +34,7 @@ import {
 	blackSkin,
 	blackStyle,
 	whiteSkin,
+	fieldLabelStyle,
 } from "features/devices/assets";
 
 import {
@@ -50,6 +50,15 @@ import {
 	MotorLEDSwitch,
 	gSelectedPWMControlIndex,
 	PWMControlsButton,
+	I2CReadWriteSwitch,
+	I2CByteWordSwitch,
+	I2CReadWritePinsButton,
+	I2CEditableWordLabel,
+	I2CEditableByteLabel,
+	I2CWordLabel,
+	I2CByteLabel,
+	I2CRegisterLabel,
+	I2CAddressLabel,
 } from "controls";
 
 import {
@@ -58,6 +67,10 @@ import {
 	TriangleWaveformControl,
 	CanvasSliderBehavior,
 } from "features/devices/waveforms";
+
+import {
+	gPinFilterInfo
+} from "pinexplorer";
 
 // import { HorizontalSlider, HorizontalSliderBehavior, horizontalSliderBarSkin, horizontalSliderButtonSkin } from "common/slider";
 // import { HorizontalSwitch, HorizontalSwitchBehavior, horizontalSwitchSkin, horizontalSwitchStyle } from "common/switch";
@@ -92,6 +105,7 @@ var gIndexToMap = {
 
 var pinLabelStyle = new Style({font:SEMIBOLD_FONT, size:14, color:WHITE, horizontal:"left" });
 var pinNumberStyle = new Style({font:SEMIBOLD_FONT, size:14, color:BLACK, horizontal:"center", left:4, right:4 });
+var physicalPinNumberStyle = new Style({font:SEMIBOLD_FONT, size:12, color:WHITE, horizontal:"left", left:4 });
 var pinDescriptionStyle = new Style({font:SEMIBOLD_FONT, size:14, color:WHITE, horizontal:"right" });
 var levelPopupPointerSkin = new Skin({ texture:new Texture("./assets/value-inspector-pointer.png", 1), x:0, y:0, width:17, height:9 });
 var levelPopupStyle = new Style({font:"bold", size:18, color:BLACK, horizontal:"center", vertical:"middle"});
@@ -102,54 +116,42 @@ var Separator = Content.template($ => ({ left:0, right:0, bottom:0, height:1, sk
 var PinLabel = Label.template($ => ({ style:pinLabelStyle, string:$.type }));
 var PinDirectionLabel = Label.template($ => ({ left:10, style:pinLabelStyle, string:$.direction, Behavior:PinDirectionLabelBehavior }));
 var PinVoltageLabel = Label.template($ => ({ left:10, style:pinLabelStyle, string:$.voltage }));
-var PinNumberLabel = Label.template($ => ({ right:10, style:pinNumberStyle, skin:whiteSkin, width:24, string:$.index }));
+
+class PinNumberLabelBehavior extends Behavior {
+	onDisplaying(label) {
+		if (PinManager.needPhysicalPinLabels()) {
+			if (label.string.length <= 2)
+				label.coordinates = { width:24 };
+		}
+		else
+			label.coordinates = { width:24 };
+	}
+}
+
+var PinNumberLabel = Label.template($ => ({ style:pinNumberStyle, skin:whiteSkin, string:$.index, Behavior:PinNumberLabelBehavior }));
+var SDAPinNumberLabel = Label.template($ => ({ style:pinNumberStyle, skin:whiteSkin, string:$.sda, Behavior:PinNumberLabelBehavior }));
+var ClockPinNumberLabel = Label.template($ => ({ style:pinNumberStyle, skin:whiteSkin, string:$.clock, Behavior:PinNumberLabelBehavior }));
 var PinDescriptionLabel = Label.template($ => ({ style:pinDescriptionStyle }));
 
-// var sliderTexture = new Texture("./assets/slider.png", 1);
-// horizontalSliderBarSkin = new Skin({ texture: sliderTexture, x:10, y:0, width:60, height:40, tiles:{ left:10, right:10 }, states:40 });
-// horizontalSliderButtonSkin = new Skin({ texture: sliderTexture, x:90, y:0, width:20, height:40, states:40 });
-// export var Slider = Line.template($ => ({
-// 	left:0, right:0, height:50,
-// 	contents: [
-// 		Label($, { width:120, top:0, bottom:0, string:$.label, style:nameStyle }),
-// 		HorizontalSlider($, { 
-// 			left:0, right:0,
-// 			Behavior: class extends HorizontalSliderBehavior {
-// 				onLayoutChanged(container) {
-// 					super.onLayoutChanged(container);
-// 					container.next.string = this.getValue(container) + this.data.unit;
-// 				}
-// 				onValueChanged(container) {
-// // 					shell.behavior.controller[this.data.event](this.getValue(container));
-// 				}
-// 			},
-// 		}),
-// 		Label($, { width:60, top:0, bottom:0, style:valueStyle }),
-// 	]
-// }));
-// 
-// var switchTexture = new Texture("./assets/switch.png", 1);
-// horizontalSwitchSkin = new Skin({ texture: switchTexture, x:0, y:0, width:80, height:40, tiles:{ left:2, right:2 }, states:40, variants:80 });
-// horizontalSwitchStyle = new Style({ size:12 });
-// export var Switch = Line.template($ => ({
-// 	left:0, right:0, height:50,
-// 	contents: [
-// 		Label($, { width:140, top:0, bottom:0, string:"", style:blackStyle }),
-// 		HorizontalSwitch($, { 
-// 			left:0, right:0 , top:0, bottom:0,
-// 			Behavior: class extends HorizontalSwitchBehavior {
-// 				onCreate(container, $) {
-// 					super.onCreate(container, $);
-// 					this.data = $;
-// 				}
-// 				onValueChanged(container) {
-// 					this.data.invoke(container, this.getValue(container));
-// 				}
-// 			},
-// 		}),
-// 		Content($, { width:80 }),
-// 	]
-// }));
+class PhysicalPinNumberLabelBehavior extends Behavior {
+	onCreate(label, data) {
+		this.data = data;
+	}
+	onDisplaying(label) {
+		if (false == PinManager.needPhysicalPinLabels())
+			label.coordinates = { height:0 };
+		else {
+			let device = this.data.device;
+			let physicalPinNum = undefined;
+			if (undefined != device.logicalToPhysicalMap)
+				physicalPinNum = device.logicalToPhysicalMap.get(this.data.info.pin);
+			if (undefined != physicalPinNum)
+				label.string = "physical pin number - " + physicalPinNum;
+		}
+	}
+}
+
+var PhysicalPinNumberLabel = Label.template($ => ({ style:physicalPinNumberStyle, Behavior:PhysicalPinNumberLabelBehavior }));
 
 class GenericPinBehavior extends TableBehavior {
 	addLines(column) {
@@ -207,46 +209,63 @@ var PinFooter = Container.template($ => ({
 // GENERIC PIN
 
 export class PinHeaderBehavior extends HeaderBehavior {
-	changeArrowState(line, state) {
-		line.first.next.next.next.state = state;
+	onCreate(column, data) {
+		this.data = data;
 	}
-	onDisplaying(line) {
-		this.addDeviceSpecificPinDescriptions(line);
+	changeArrowState(column, state) {
+//		column.first.first.next.next.next.state = state;
+		this.data.ARROW.state = state;
 	}
-	addDeviceSpecificPinDescriptions(line) {
-		let deviceTag = this.data.device.constructor.tag;
-		let pinNumber = this.data.info.pin;
+	onDisplaying(column) {
+		this.addDeviceSpecificPinDescriptions(column);
+	}
+	addDeviceSpecificPinDescriptions(column) {
+		let device = this.data.device;
+		let logicalPinNum = this.data.info.pin;
+		let physicalPinNum = logicalPinNum;
+		if (undefined != device.logicalToPhysicalMap)
+			physicalPinNum = device.logicalToPhysicalMap.get(logicalPinNum);
+trace("addDeviceSpecificPinDescriptions - logical: " + logicalPinNum + " physical: " + physicalPinNum + "\n");
 		let text = "";
-		switch(deviceTag) {
-			case "Create":
-				if (pinNumber <= 50)
-					text = "Back";
-				else if (pinNumber <= 58)
-					text = "Front - Left";
-				else if (pinNumber <= 66)
-					text = "Front - Right";
-			break
-			case "Element":
-				if (pinNumber <= 8)
-					text = "Left";
-				else if (pinNumber <= 16)
-					text = "Right";
-			break
-		}
-		line.add( new PinDescriptionLabel(this.data, { right:10, string:text }) );
+		let deviceFilterInfo = gPinFilterInfo.get(device);
+  		let locations = deviceFilterInfo.locations;
+  		  		
+  		locations.forEach(location => {
+trace(" -- location: " + location.name + "\n");
+			if ((physicalPinNum >= location.startPin) && (physicalPinNum <= location.endPin))
+				text = location.name;
+		});
+		let label = new PinDescriptionLabel(this.data, { right:10, string:text });
+		this.addLocationLabel(column, label);
+	}
+	addLocationLabel(column, label) {
+		column.first.add( label );
 	}
 };
 
-var GenericPinHeader = Line.template($ => ({
-	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
-	Behavior: PinHeaderBehavior,
+var Arrow = Content.template($ => ({
+	anchor: "ARROW", width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1
+}));
+
+var GenericPinLine = Line.template($ => ({
+	left:0, right:0, height:30,
 	contents: [
 		Content($, { width:8 }),
 		PinNumberLabel($),
-		Content($, { width:-10 }),
-		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
+		Content($, { width:-6 }),
+//		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
+		Arrow($),
 		PinLabel($),
 		Content($, { left:0, right:0 }),
+	],
+}));
+
+var GenericPinHeader = Column.template($ => ({
+	left:0, right:0, skin:greenHeaderSkin, active:$.canExpand(),
+	Behavior: PinHeaderBehavior,
+	contents: [
+		GenericPinLine($, { left:0, right:0, height:30 }),
+		PhysicalPinNumberLabel($, { left:4, top:-6, height:18 })
 	],
 }));
 
@@ -259,22 +278,29 @@ var GenericPinContainer = Column.template($ => ({
 
 // POWER PIN
 
-var PowerPinHeader = Line.template($ => ({
-	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
-	Behavior: PinHeaderBehavior,
+var PowerPinLine = Line.template($ => ({
+	left:0, right:0, height:30,
 	contents: [
 		Content($, { width:8 }),
 		PinNumberLabel($),
-		Content($, { width:-10 }),
-		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
+		Content($, { width:-6 }),
+//		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
+		Arrow($),
 		PinLabel($),
 		PinVoltageLabel($),
 		Content($, { left:0, right:0 }),
 	],
 }));
 
-var redSkin = new Skin({ fill:"red" });		//*
-var blueSkin = new Skin({ fill:"blue" });
+var PowerPinHeader = Column.template($ => ({
+	left:0, right:0, skin:greenHeaderSkin, active:$.canExpand(),
+	Behavior: PinHeaderBehavior,
+	contents: [
+		PowerPinLine($, { left:0, right:0, height:30 }),
+		PhysicalPinNumberLabel($, { left:4, top:-6, height:18 })
+	],
+}));
+
 
 // ANALOG PIN
 
@@ -294,17 +320,26 @@ class PinDirectionLabelBehavior extends Behavior {
 	}
 }
 
-var DigitalPinHeader = Line.template($ => ({
-	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
-	Behavior: PinHeaderBehavior,
+var DigitalPinLine = Line.template($ => ({
+	left:0, right:0, height:30,
 	contents: [
 		Content($, { width:8 }),
 		PinNumberLabel($),
-		Content($, { width:-10 }),
-		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
+		Content($, { width:-6 }),
+//		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
+		Arrow($),
 		PinLabel($),
 		PinDirectionLabel($),
 		Content($, { left:0, right:0 }),
+	],
+}));
+
+var DigitalPinHeader = Column.template($ => ({
+	left:0, right:0, skin:greenHeaderSkin, active:$.canExpand(),
+	Behavior: PinHeaderBehavior,
+	contents: [
+		DigitalPinLine($, { left:0, right:0, height:30 }),
+		PhysicalPinNumberLabel($, { left:4, top:-6, height:18 })
 	],
 }));
 
@@ -391,16 +426,25 @@ var DigitalOutputPinPane = Container.template($ => ({
 
 // PWM PIN
 
-var PWMPinHeader = Line.template($ => ({
-	left:0, right:0, height:30, skin:greenHeaderSkin, active:$.canExpand(),
-	Behavior: PinHeaderBehavior,
+var PWMPinLine = Line.template($ => ({
+	left:0, right:0, height:30,
 	contents: [
 		Content($, { width:8 }),
 		PinNumberLabel($),
-		Content($, { width:-10 }),
-		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
+		Content($, { width:-6 }),
+//		Content($, { width:30, height:30, skin:fileGlyphsSkin, visible:$.canExpand(), state:$.expanded ? 3 : 1, variant:1 }),
+		Arrow($),
 		PinLabel($),
 		Content($, { left:0, right:0 }),
+	],
+}));
+
+var PWMPinHeader = Column.template($ => ({
+	left:0, right:0, skin:greenHeaderSkin, active:$.canExpand(),
+	Behavior: PinHeaderBehavior,
+	contents: [
+		PWMPinLine($, { left:0, right:0, height:30 }),
+		PhysicalPinNumberLabel($, { left:4, top:-6, height:18 })
 	],
 }));
 
@@ -538,7 +582,161 @@ var PWMMotorPane = Container.template($ => ({
 	],
 }));
 
-    
+// I2C PIN
+
+var I2CPinLine = Line.template($ => ({
+	left:0, right:0,
+	contents: [
+		Column($, {
+			contents: [
+				Line($, { height:26,
+					contents: [
+						Content($, { width:8 }),
+						SDAPinNumberLabel($),
+					]
+				}),
+				Line($, { height:26,
+					contents: [
+						Content($, { width:8 }),
+						ClockPinNumberLabel($),
+					]
+				}),
+			]
+		}),
+		Content($, { width:-6 }),
+		Arrow($),
+		Column($, { left:0,
+			contents: [
+				Line($, { height:26,
+					contents: [
+						Label($, { style:pinLabelStyle, string:"I2C SDA  " }),
+					]
+				}),
+				Line($, { height:26,
+					contents: [
+						Label($, { style:pinLabelStyle, string:"I2C Clock" }),
+					]
+				}),
+			]
+		}),
+		Content($, { left:0, right:0 }),
+	],
+}));
+
+export class I2CPinHeaderBehavior extends PinHeaderBehavior {
+	addLocationLabel(column, label) {
+		column.first.add( label );
+	}
+};
+
+var I2CPinHeader = Column.template($ => ({
+	left:0, right:0, skin:greenHeaderSkin, active:$.canExpand(),
+	Behavior: I2CPinHeaderBehavior,
+	contents: [
+		I2CPinLine($, { left:0, right:0 }),
+		PhysicalPinNumberLabel($, { left:4, top:-6, height:18 })		//*** will need custom one
+	],
+}));
+
+class I2CPinExplorerBehavior extends Behavior {
+	onCreate(container, data) {
+		this.data = data;
+	}
+	onDisplaying(container) {
+	}
+	onUpdate(container) {
+	}
+}
+
+var i2cLabelStyle = new Style({ font:SEMIBOLD_FONT, size:14, color:BLACK, horizontal:"left" });
+
+var I2CValueField = Container.template($ => ({
+	width:160, height:30, skin:blackSkin,
+	Behavior: class extends Behavior {
+		onCreate(container, data) {
+			this.data = data;
+			this.onI2CMessageTypeChanged(container);
+		}
+		onI2CMessageTypeChanged(container) {
+			let data = this.data;
+			if (data.isWrite) {
+				if (data.isWord)				// write word
+					container.replace(container.last, new I2CEditableWordLabel( this.data ) );
+				else							// write byte
+					container.replace(container.last, new I2CEditableByteLabel( this.data ) );
+			}
+			else {
+				if (data.isWord)				// read word
+					container.replace(container.last, new I2CWordLabel( this.data ) );
+				else							// read byte
+					container.replace(container.last, new I2CByteLabel( this.data ) );
+			}
+		}
+	},
+	contents: [
+		Content($, { left:1, top:1, right:1, bottom:1, skin:whiteSkin }),
+		I2CWordLabel($),
+	]
+}));
+
+var I2CPinExplorer = Container.template($ => ({
+	left:0, right:0, height:155, skin:whiteSkin,
+	Behavior: I2CPinExplorerBehavior,
+	contents: [
+	
+		Column($, {
+			contents: [
+				Line($, {
+					contents: [
+						Column($, {
+							contents: [
+								Label($, { left:22, style:i2cLabelStyle, string:"Address" }),
+								I2CAddressLabel($, { top:10, width:160, height:30, string:"00" }),
+							]
+						}),
+						Content($, { width:20, height:30 }),
+						Column($, {
+							contents: [
+								Label($, { left:0, style:i2cLabelStyle, string:"Operation" }),
+								I2CReadWriteSwitch($, { left:-8 }),
+							]
+						}),
+						Content($, { width:20, height:30 }),
+						Column($, {
+							contents: [
+								Label($, { left:0, style:i2cLabelStyle, string:"Size" }),
+								I2CByteWordSwitch($, { left:-8 }),
+							]
+						}),
+						Content($, { width:20, height:30 }),
+						Column($, {
+							contents: [
+								Label($, { left:22, style:i2cLabelStyle, string:"Value" }),
+								I2CValueField($, { top:10, width:160, height:30, skin:blackSkin }),
+							]
+						}),
+						Content($, { width:20, height:30 }),
+						Column($, {
+							contents: [
+								Label($, { left:22, style:i2cLabelStyle, string:"Register" }),
+								I2CRegisterLabel($, { top:10, width:160, height:30, string:"00" }),
+							]
+						}),
+					]
+				}),
+				Line($, {
+					left:398, 
+					contents: [
+						I2CReadWritePinsButton($, { top:10, left:28 }),
+					]
+				})
+			]
+		})
+		
+		
+	],
+}));
+
 class AnalogOutputSliderBehavior extends CanvasSliderBehavior {
 	onCreate(canvas, data) {
 		if (false == "min" in data)	data.min = 0;
@@ -743,16 +941,6 @@ export class GenericPin {
 	get index() {
 		return this.info.pin;
 	}
-	get isFront() {
-		switch (this.device.constructor.tag) {
-			case "Create":
-				return (this.info.pin > 50);
-			break;
-			case "Element":
-				return true;
-			break;
-		}
-	}
 	get isReadable() {
 		return false;
 	}
@@ -833,13 +1021,16 @@ class AnalogPin extends GenericPin {
 
 class DigitalPin extends GenericPin {
 	constructor(device, pins, pin, info) {
+trace("digitalPin constructor - pin " + pin + "\n");
 		super(device, pins, pin, info);
 		this.controlIndex = 0;
 	}
 	canExpand() {
+trace("DigitalPin - canExpand - true\n");
 		return true;
 	}
 	get direction() {
+trace("DigitalPin - direction - " + this.info.direction + "\n");
 		return this.info.direction;
 	}
 	get header() {
@@ -893,23 +1084,94 @@ class DigitalPin extends GenericPin {
 }
 
 class I2CPin extends GenericPin {
+	constructor(device, pins, pin, info) {
+		super(device, pins, pin, info);
+		this.info.pin = this.info.sda;		// for filtering
+
+		this.readByteResult = -1;
+		this.readWordResult = -1;
+
+		this.isWrite = false;
+		this.isWord = false;
+		this.address = this.info.address;
+		this.writeByteValue = 0x00;
+		this.writeWordValue = 0x0000;
+		this.register = 0x00;
+		
+		this.addressString = this.address.toString();
+		this.writeByteValueString = this.writeByteValue.toString();
+		this.writeWordValueString = this.writeWordValue.toString();
+		this.registerString = this.register.toString();
+	}	
 	get index() {
 		return this.info.sda;
 	}
-	get isFront() {
-		return (this.info.sda > 50) && (this.info.clock > 50);
+	get sda() {
+		return this.info.sda;
+	}
+	get clock() {
+		return this.info.clock;
 	}
 	get type() {
-		return "I2C Data";
+		return "I2C";
 	}
+	get header() {
+		return I2CPinHeader;
+	}
+	get explorer() {
+		return I2CPinExplorer;
+	}
+	canExpand() {
+		return true;
+	}
+	getBLLInstanceName() {
+		return "I2C" + this.clock + "_" + this.sda;
+	}
+	setAddress(address) {
+		this.address = address;
+		var path = "/" + this.getBLLInstanceName() + "/setAddress";
+		this.pins.invoke(path, address);
+	}
+	getAddress() {
+		return this.address;
+	}
+	writeWordDataSMB(register, wordData) {
+		var path = "/" + this.getBLLInstanceName() + "/writeWordDataSMB";
+		var params = { register : register, value : wordData };
+		this.pins.invoke(path, params);
+	}
+	writeByteDataSMB(register, byteData) {
+		var path = "/" + this.getBLLInstanceName() + "/writeByteDataSMB";
+		var params = { register : register, value : byteData };
+		this.pins.invoke(path, params);
+	}
+	bindCallback(object, functionName) {
+		return function(param, param2) {
+			object[functionName](param, param2);
+		}
+	}
+	readWordDataSMB(register, readWordCallback) {
+		this.readWordCallback = readWordCallback;
+		var path = "/" + this.getBLLInstanceName() + "/readWordDataSMB";
+		this.pins.invoke(path, register, this.bindCallback(this, "onReadWordDataSMB"));
+	}
+	onReadWordDataSMB(value) {
+		this.readWordCallback(value);
+	}
+	readByteDataSMB(register, readByteCallback) {
+		this.readByteCallback = readByteCallback;
+		var path = "/" + this.getBLLInstanceName() + "/readByteDataSMB";
+		this.pins.invoke(path, register, this.bindCallback(this, "onReadByteDataSMB"));
+	}
+	onReadByteDataSMB(value) {
+		this.readByteCallback(value);
+	}
+
 }
 
 class SerialPin extends GenericPin {
 	get index() {
 		return this.info.rx;
-	}
-	get isFront() {
-		return (this.info.rx > 50) && (this.info.tx > 50);
 	}
 	get type() {
 		return "Serial";
@@ -922,19 +1184,14 @@ class PWMPin extends GenericPin {
 		this.mode = "led";				// "led" | "motor"
 		this.period = undefined;
 		this.dutyCycle = undefined;
+		this.device = device;
+		this.logicalPinNumber = info.pin;
 	}
 	get type() {
 		return "PWM";
 	}
 	get hasMotorMode() {
-		switch (this.device.constructor.tag) {
-			case "Create":
-				return this.isFront;
-			break;
-			case "Element":
-				return true;
-			break;
-		}
+		return this.device.pwmPinHasMotorMode(this.logicalPinNumber);
 	}
 	get pwmMode() {
 		return this.mode;
@@ -957,7 +1214,8 @@ class PWMPin extends GenericPin {
 		return "/" + this.pin + "/write";
 	}
 	get writeDutyCyclePeriodPath() {
-		return "/" + this.pin + "/writeDutyCyclePeriod";
+//		return "/" + this.pin + "/writeDutyCyclePeriod";
+		return "/" + this.pin + "/write";
 	}
 	get explorer() {
 		return PWMPinExplorer;
@@ -984,7 +1242,8 @@ class PWMPin extends GenericPin {
 	}
 	writeDutyCyclePeriod(dutyCycle, period) {
 		if (this.mode == "motor") {
-			this.pins.invoke(this.writeDutyCyclePeriodPath, { dutyCycle:dutyCycle, period:period });
+//			this.pins.invoke(this.writeDutyCyclePeriodPath, { dutyCycle:dutyCycle, period:period });
+			this.pins.invoke(this.writeDutyCyclePeriodPath, [ dutyCycle, period ]);
 		}
 	}
 }
@@ -1002,17 +1261,38 @@ var gPinClass = {
 
 // PIN MANAGER
 
+let i2CClocks = [];
+let i2CDatas = [];
+
 export class PinManager {
 	static createProbes(device, pins, configuration) {
+		let i2CPairs = [];
+		this.logicalDifferFromPhysical = false;
 		let probes = [];
 		for (let pin in configuration) {
 			if ((pin != "leftVoltage") && (pin != "rightVoltage")) {
-				let probe = PinManager.createProbe(device, pins, pin, configuration[pin].pins);
-				if (probe) {
-					probes.push(probe);
-				}
+				let info = configuration[pin].pins;
+				let keys = Object.keys(info);
+				if (keys.length != 1) return;
+				let key = keys[0];
+				let logicalPinNum = info[key].pin;
+				let physicalPinNum = undefined;
+				if (undefined != device.logicalToPhysicalMap)
+					physicalPinNum = device.logicalToPhysicalMap.get(logicalPinNum);
+				else
+					physicalPinNum = logicalPinNum
+				if ((physicalPinNum != undefined) && (physicalPinNum != logicalPinNum))
+					this.logicalDifferFromPhysical = true;
 			}
 		}
+		for (let pin in configuration) {
+			if ((pin != "leftVoltage") && (pin != "rightVoltage")) {
+				let probe = PinManager.createProbe(device, pins, pin, configuration[pin].pins);
+				if (probe)
+					probes.push(probe);
+			}
+		}
+				
 		probes.sort(function(a, b) {
 			if (a.index < b.index)
 				return -1;
@@ -1026,7 +1306,10 @@ export class PinManager {
 		let keys = Object.keys(info);
 		if (keys.length != 1) return;
 		let key = keys[0];
-		trace("createProbe " + key + "\n");
+trace("createProbe " + key + " pin: " + pin + "\n");
 		return new gPinClass[key](device, pins, pin, info[key]);
+	}
+	static needPhysicalPinLabels() {
+		return this.logicalDifferFromPhysical;
 	}
 }

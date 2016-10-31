@@ -106,7 +106,6 @@ var lineNumberStyle = new Style({
 
 import { 
 	ButtonBehavior, 
-	FieldLabelBehavior, 
 	FieldScrollerBehavior, 
 } from "common/control";
 

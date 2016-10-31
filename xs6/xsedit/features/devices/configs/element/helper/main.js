@@ -37,10 +37,15 @@ const TYPE_GROUND = "Ground";
 const TYPE_ANALOG = "Analog";
 const TYPE_DIGITAL = "Digital";
 const TYPE_I2C = "I2C"
+const TYPE_I2C_CLOCK = "I2CClock"
+const TYPE_I2C_DATA = "I2CData"
 const TYPE_SERIAL = "Serial";
 const TYPE_PWM = "PWM";
 
 const HTTP_ERROR_500 = "Internal Server Error";
+
+let i2CClocks = [];
+let i2CDatas = [];
 
 let handlers = {
 	blinkLight(helper, query) {
@@ -111,10 +116,28 @@ let handlers = {
 			for (let pin = 0, c = leftPins.length; pin < c; pin++) {
 				helper.pinExplorerAddPin(explorer, 1 + pin, leftPins[pin], pinmux.leftVoltage);
 			}
+			
+			let numPairs = Math.min(i2CClocks.length, i2CDatas.length);
+			for (let i = 0; i < numPairs; i++) {
+				let i2CClockPin = i2CClocks[i];
+				let i2CDataPin = i2CDatas[i];
+				helper.pinExplorerAddI2CPinPair(explorer, i2CClockPin,  i2CDataPin); 
+			}
+			i2CClocks = [];
+			i2CDatas = [];
+
 			let rightPins = pinmux.rightPins;
 			for (let pin = 0, c = rightPins.length; pin <= c; pin++) {
 				helper.pinExplorerAddPin(explorer, 9 + pin, rightPins[pin], pinmux.rightVoltage);
 			}
+			
+			numPairs = Math.min(i2CClocks.length, i2CDatas.length);
+			for (let i = 0; i < numPairs; i++) {
+				let i2CClockPin = i2CClocks[i];
+				let i2CDataPin = i2CDatas[i];
+				helper.pinExplorerAddI2CPinPair(explorer, i2CClockPin, i2CDataPin); 
+			}
+
 			Pins.configure(explorer, success => {
 				let url = helper.pinsStartSharing(query.ip);
 				if (url)
@@ -158,7 +181,11 @@ let handlers = {
 	},
 	updateSystemStatus(helper, query) {
 		helper.wsResponse(helper.systemStatus);
-	}
+	},
+	getLogicalToPhysicalMapJson(helper, query) {
+		let map = Pins.getLogicalToPhysicalMapJson();
+		helper.wsResponse(map);
+	},
 };
 
 class XSEditHelper {
@@ -219,6 +246,12 @@ class XSEditHelper {
 				};					
 			break;
 			case PINMUX_I2C_CLK:
+				i2CClocks.push(pin);
+			break;
+			case PINMUX_I2C_SDA:
+				i2CDatas.push(pin);
+			break;
+			case PINMUX_I2C_CLK:
 			break;
 			case PINMUX_SERIAL_RX:
 			break;
@@ -229,6 +262,12 @@ class XSEditHelper {
 				};					
 			break;
 		}
+	}
+	pinExplorerAddI2CPinPair(explorer, i2CClockPin, i2CDataPin) {
+			explorer[TYPE_I2C + i2CClockPin + "_" + i2CDataPin] = {
+			pins: { i2c: { type:TYPE_I2C, clock:i2CClockPin, sda:i2CDataPin, address:0 } },
+			require: TYPE_I2C,
+		};					
 	}
 	pinsStartSharing() {
 		if (Pins.handlers.length == 0)

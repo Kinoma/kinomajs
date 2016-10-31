@@ -23,44 +23,40 @@
 
 const GATT = require("../core/gatt");
 const ATT = GATT.ATT;
+const BTUtils = require("../core/btutils");
+const UUID = BTUtils.UUID;
 
 const Utils = require("../../common/utils");
 const Logger = Utils.Logger;
 const Buffers = require("../../common/buffers");
 const ByteBuffer = Buffers.ByteBuffer;
 
+const DESCRIPTOR_PERM_READ_ONLY = {readable: true, writable: false};
+const DESCRIPTOR_PERM_READ_WRITE = {readable: true, writable: true};
+
 var logger = Logger.getLogger("GATTServer");
 
-class Characteristic extends GATT.Characteristic {
-	constructor(uuid, properties, extProperties = 0x0000) {
-		super(uuid, properties);
-		/* Descriptors */
-		if ((this._properties & GATT.Properties.EXT) > 0) {
-			this._extProperties = extProperties;
-		} else {
-			this._extProperties = 0x0000;
-		}
-		this._description = null;
-		this._clientConfigurations = {};
-		/* Security Configs */
-		this._security = null;
-		this._securityCC = null;
-		this._securityDesc = null;
-		/* ATT Contexts */
-		this._attribute = null;
-		this._valueAttribute = null;
+class Descriptor extends GATT.Descriptor {
+	constructor(uuid, {readable, writable}) {
+		super(uuid);
+		this._readable = readable;
+		this._writable = writable;
+		/* Security Requirements */
+		this._requirements = null;
 		/* Callbacks */
 		this._onValueRead = null;
 		this._onValueWrite = null;
+		/* ATT Contexts */
+		this._attribute = null;
 	}
-	get extProperties() {
-		return this._extProperties;
+	get handle() {
+		return (this._attribute != null) ? this._attribute.handle : 0;
 	}
-	get description() {
-		return this._description;
+	get readable() {
+		return this._readable;
 	}
-	set description(description) {
-		this._description = description;
+	get writable() {
+		return this._writable;
 	}
 	set onValueRead(onValueRead) {
 		this._onValueRead = onValueRead;
@@ -68,36 +64,153 @@ class Characteristic extends GATT.Characteristic {
 	set onValueWrite(onValueWrite) {
 		this._onValueWrite = onValueWrite;
 	}
-	set security(security) {
-		this._security = security;
+	set requirements(requirements) {
+		if (this._attribute != null) {
+			this._attribute.requirements = requirements;
+		} else {
+			this._requirements = requirements;
+		}
 	}
-	set clientConfigurationSecurity(security) {
-		this._securityCC = security;
+	_deploy(db) {
+		/* Deploy attribute */
+		let valueAttribute = db.allocateAttribute(this._uuid);
+		if (this._readable) {
+			valueAttribute.callback.onRead = (attribute, context) => {
+				if (this._onValueRead != null) {
+					this._onValueRead(this, context.bearer.connection);
+				}
+				return this._serializeValue();
+			};
+		}
+		if (this._writable) {
+			valueAttribute.callback.onWrite = (attribute, value, context) => {
+				this._parseValue(value);
+				if (this._onValueWrite != null) {
+					this._onValueWrite(this, context.bearer.connection);
+				}
+			};
+		}
+		if (this._requirements != null) {
+			valueAttribute.requirements = this._requirements;
+		}
+		this._attribute = valueAttribute;
 	}
-	set descriptionSecurity(security) {
-		this._securityDesc = security;
+}
+
+class Characteristic extends GATT.Characteristic {
+	constructor(uuid, properties, extProperties = 0x0000) {
+		super(uuid, properties);
+		/* Standard descriptor values */
+		if ((properties & GATT.Properties.EXT) > 0) {
+			this._extProperties = extProperties;
+		} else {
+			this._extProperties = 0x0000;
+		}
+		/* Default configuration */
+		this._configuration = {
+			description: {
+				readable: true,
+				value: null,
+				requirements: null
+			},
+			client: {
+				writable: true,
+				requirements: null
+			},
+			server: {
+				writable: true,
+				value: 0x0000,
+				requirements: null
+			}
+		};
+		/* Security Requirements */
+		this._requirements = null;
+		/* ATT Contexts */
+		this._attribute = null;
+		this._valueAttribute = null;
+		/* Callbacks */
+		this._onValueRead = null;
+		this._onValueWrite = null;
+	}
+	get handle() {
+		return (this._attribute != null) ? this._attribute.handle : 0;
+	}
+	get extProperties() {
+		return this._extProperties;
+	}
+	get configuration() {
+		return this._configuration;
+	}
+	set configuration(configuration) {
+		this._configuration = configuration;
+	}
+	set onValueRead(onValueRead) {
+		this._onValueRead = onValueRead;
+	}
+	set onValueWrite(onValueWrite) {
+		this._onValueWrite = onValueWrite;
+	}
+	set requirements(requirements) {
+		this._requirements = requirements;
+	}
+	addDescriptor(template) {
+		if (this._attribute != null) {
+			logger.error("Adding descriptors after deploy is not supported.");
+			return;
+		}
+		let uuid = ((typeof template.uuid) == "string") ?
+			UUID.getByString(template.uuid) : template.uuid;
+		let descriptor = new Descriptor(uuid, {
+			readable: template.readable,
+			writable: template.writable
+		});
+		if (template.hasOwnProperty("value")) {
+			descriptor.value = template.value;
+		}
+		if (template.hasOwnProperty("requirements")) {
+			descriptor.requirements = template.requirements;
+		}
+		if (template.hasOwnProperty("onValueWrite")) {
+			descriptor.onValueWrite = template.onValueWrite;
+		}
+		if (template.hasOwnProperty("onValueRead")) {
+			descriptor.onValueRead = template.onValueRead;
+		}
+		this._addDescriptor(descriptor);
+		return descriptor;
 	}
 	/**
 	 * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
 	 * 4.10.1 Notifications
 	 */
-	notifyValue(bearer, value) {
+	notifyValue(connection, value) {
+		let config = connection.bearer.readClientConfiguration(this, connection);
+		if ((config & GATT.ClientConfiguration.NOTIFICATION) == 0) {
+			logger.debug("Client is not configured for notification");
+			return false;
+		}
 		if (value !== undefined) {
 			this.value = value;
 		}
-		bearer.sendPDU(ATT.assembleHandleValueNotificationPDU(this._valueAttribute.handle, this.serializeValue()));
+		connection.bearer.sendPDU(ATT.assembleHandleValueNotificationPDU(this._valueAttribute.handle, this._serializeValue()));
+		return true;
 	}
 	/**
 	 * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
 	 * 4.11.1 Indications
 	 */
-	indicateValue(bearer, value) {
+	indicateValue(connection, value) {
+		let config = connection.bearer.readClientConfiguration(this, connection);
+		if ((config & GATT.ClientConfiguration.INDICATION) == 0) {
+			logger.debug("Client is not configured for indication");
+			return null;
+		}
 		if (value !== undefined) {
 			this.value = value;
 		}
 		return new Promise((resolve, reject) => {
-			bearer.scheduleTransaction(
-				ATT.assembleHandleValueIndicationPDU(this._valueAttribute.handle, this.serializeValue()),
+			connection.bearer.scheduleTransaction(
+				ATT.assembleHandleValueIndicationPDU(this._valueAttribute.handle, this._serializeValue()),
 				{
 					transactionCompleteWithResponse: (opcode, response) => {
 						if (opcode != ATT.Opcode.HANDLE_VALUE_CONFIRMATION) {
@@ -115,7 +228,7 @@ class Characteristic extends GATT.Characteristic {
 			);
 		});
 	}
-	serializeDefinition() {
+	_serializeDefinition() {
 		let uuid16 = this._uuid.isUUID16();
 		let buffer = ByteBuffer.allocate(3 + (uuid16 ? 2 : 16), true);
 		buffer.putInt8(this._properties);
@@ -128,31 +241,21 @@ class Characteristic extends GATT.Characteristic {
 		buffer.flip();
 		return buffer.getByteArray();
 	}
-	hasClientConfiguration() {
-		return (this._properties & GATT.Properties.NOTIFY) > 0 || (this._properties & GATT.Properties.INDICATE) > 0;
-	}
-	getClientConfiguration(bearer) {
-		let identifier = bearer.identifier;
-		if (!this._clientConfigurations.hasOwnProperty(identifier)) {
-			this._clientConfigurations[identifier] = 0x0000;
-		}
-		return this._clientConfigurations[identifier];
-	}
-	deploy(db) {
+	_deploy(db) {
 		/* Deploy definition attribute */
 		let definitionAttribute = db.allocateAttribute(GATT.UUID_CHARACTERISTIC);
 		definitionAttribute.callback.onRead = (attribute) => {
 			logger.debug("Characteristic definition on read");
-			return this.serializeDefinition();
+			return this._serializeDefinition();
 		};
 		/* Deploy value attribute */
 		let valueAttribute = db.allocateAttribute(this._uuid);
 		if ((this._properties & GATT.Properties.READ) > 0) {
-			valueAttribute.callback.onRead = (attribute) => {
+			valueAttribute.callback.onRead = (attribute, context) => {
 				if (this._onValueRead != null) {
-					this._onValueRead(this);
+					this._onValueRead(this, context.bearer.connection);
 				}
-				return this.serializeValue();
+				return this._serializeValue();
 			};
 		}
 		let allowWrite = (this._properties & GATT.Properties.WRITE) > 0;
@@ -172,120 +275,86 @@ class Characteristic extends GATT.Characteristic {
 					logger.error("SignedWriteCommand is not allowed");
 					throw ATT.ErrorCode.REQUEST_NOT_SUPPORTED;
 				}
+				this._parseValue(value);
 				if (this._onValueWrite != null) {
-					this._onValueWrite(this);
+					this._onValueWrite(this, context.bearer.connection);
 				}
-				this.parseValue(value);
 			};
 		}
-		if (this._security != null) {
-			if (this._security.hasOwnProperty("read")) {
-				valueAttribute.security.read = this._security.read;
-			}
-			if (this._security.hasOwnProperty("write")) {
-				valueAttribute.security.write = this._security.write;
-			}
+		if (this._requirements != null) {
+			valueAttribute.requirements = this._requirements;
 		}
 		this._valueAttribute = valueAttribute;
-		/* Deploy descriptors */
+
+		/* Deploy GATT defined format descriptors
+		 * Unlike other descriptors, those descriptors are not visible
+		 * to user.
+		 */
 		/* 3.3.3.1 Characteristic Extended Properties */
 		if ((this._properties & GATT.Properties.EXT) > 0) {
 			logger.debug("Deploy: Characteristic Extended Properties");
-			let descriptorAttribute = db.allocateAttribute(GATT.UUID_CHARACTERISTIC_EXTENDED_PROPERTIES);
-			descriptorAttribute.callback.onRead = (attribute) => {
-				logger.debug("Characteristic ext properties on read");
-				return GATT.serializeWithFormat(this._extProperties, GATT.Format.UINT16);
-			};
+			let descriptor = new Descriptor(GATT.UUID_CHARACTERISTIC_EXTENDED_PROPERTIES, DESCRIPTOR_PERM_READ_ONLY);
+			descriptor.value = this._extProperties;
+			descriptor._deploy(db);
 		}
 		/* 3.3.3.2 Characteristic User Description */
 		let writableAux = (this._extProperties & GATT.ExtendedProperties.WRITABLE_AUX) > 0;
-		if (this._description != null || writableAux) {
+		if (writableAux || this._userDescription != null) {
 			logger.debug("Deploy: Characteristic User Description");
-			let descriptorAttribute = db.allocateAttribute(GATT.UUID_CHARACTERISTIC_USER_DESCRIPTION);
-			descriptorAttribute.callback.onRead = (attribute) => {
-				logger.debug("Characteristic user description on read");
-				return GATT.serializeWithFormat(this._description, GATT.Format.UTF8S);
-			};
-			if (writableAux) {
-				descriptorAttribute.callback.onWrite = (attribute, value) => {
-					logger.debug("Characteristic user description on write");
-					this._description = GATT.parseWithFormat(value, GATT.Format.UTF8S);
-				};
-			}
-			if (this._securityDesc != null) {
-				if (this._securityDesc.hasOwnProperty("read")) {
-					descriptorAttribute.security.read = this._securityDesc.read;
-				}
-				if (this._securityDesc.hasOwnProperty("write")) {
-					descriptorAttribute.security.write = this._securityDesc.write;
-				}
-			}
-			this._description.attribute = descriptorAttribute;
+			let descriptor = new Descriptor(GATT.UUID_CHARACTERISTIC_USER_DESCRIPTION, {
+				readable: this._configuration.description.readable,
+				writable: writableAux
+			});
+			descriptor.onValueRead = (d, connection) => d.value = this._configuration.description.value;
+			descriptor.onValueWrite = (d, connection) => this._configuration.description.value = d.value;
+			descriptor.requirements = this._configuration.description.requirements;
+			descriptor._deploy(db);
 		}
 		/* 3.3.3.3 Client Characteristic Configuration */
-		if (this.hasClientConfiguration()) {
+		if ((this._properties & GATT.Properties.NOTIFY) > 0 || (this._properties & GATT.Properties.INDICATE) > 0) {
 			logger.debug("Deploy: Client Characteristic Configuration");
-			let descriptorAttribute = db.allocateAttribute(GATT.UUID_CLIENT_CHARACTERISTIC_CONFIGURATION);
-			descriptorAttribute.callback.onRead = (attribute, context) => {
-				logger.debug("Characteristic client config on read");
-				if (context == null) {
-					logger.error("ATT context not found while reading");
-					/* XXX: We assume ATT is requesting find attributes by value */
-					return null;
-				}
-				let config = this.getClientConfiguration(context.bearer);
-				return GATT.serializeWithFormat(config, GATT.Format.UINT16);
-			};
-			descriptorAttribute.callback.onWrite = (attribute, value, context) => {
-				logger.debug("Characteristic client config on write");
-				if (!this.hasClientConfiguration()) {
-					logger.debug("Characteristic has no client configuration");
-					return;
-				}
-				let identifier = context.bearer.identifier;
-				let config = 0x0000;
-				let configToWrite = GATT.parseWithFormat(value, GATT.Format.UINT16);
-				if ((this._properties & GATT.Properties.NOTIFY) > 0 && (configToWrite & GATT.ClientConfiguration.NOTIFICATION) > 0) {
-					logger.debug("Config notification for link=" + Utils.toHexString(identifier, 2));
-					config |= GATT.ClientConfiguration.NOTIFICATION;
-				}
-				if ((this._properties & GATT.Properties.INDICATE) > 0 && (configToWrite & GATT.ClientConfiguration.INDICATION) > 0) {
-					logger.debug("Config indication for link=" + Utils.toHexString(identifier, 2));
-					config |= GATT.ClientConfiguration.INDICATION;
-				}
-				this._clientConfigurations[identifier] = config;
-			};
-			if (this._securityCC != null) {
-				if (this._securityCC.hasOwnProperty("write")) {
-					descriptorAttribute.security.write = this._securityCC.write;
-				}
-			}
+			let descriptor = new Descriptor(GATT.UUID_CLIENT_CHARACTERISTIC_CONFIGURATION, {
+				readable: true,
+				writable: this._configuration.client.writable
+			});
+			descriptor.onValueRead = (d, connection) =>
+				d.value = connection.bearer.readClientConfiguration(this, connection);
+			descriptor.onValueWrite = (d, connection) =>
+				connection.bearer.writeClientConfiguration(this, connection, d.value);
+			descriptor.requirements = this._configuration.client.requirements;
+			descriptor._deploy(db);
 		}
 		/* 3.3.3.4 Server Characteristic Configuration */
-		// TODO
+		if ((this._properties & GATT.Properties.BROADCAST) > 0) {
+			logger.debug("Deploy: Server Characteristic Configuration");
+			let descriptor = new Descriptor(GATT.UUID_SERVER_CHARACTERISTIC_CONFIGURATION, {
+				readable: true,
+				writable: this._configuration.server.writable
+			});
+			descriptor.onValueRead = (d, connection) => d.value = this._configuration.server.value;
+			descriptor.onValueWrite = (d, connection) => this._configuration.server.value = d.value;
+			descriptor.requirements = this._configuration.server.requirements;
+			descriptor._deploy(db);
+		}
 		/* 3.3.3.5 Characteristic Presentation Format */
+		let formatHandles = new Array();
 		for (let format of this._formats) {
 			logger.debug("Deploy: Characteristic Presentation Format");
-			let descriptorAttribute = db.allocateAttribute(GATT.UUID_CHARACTERISTIC_PRESENTATION_FORMAT);
-			descriptorAttribute.callback.onRead = (attribute) => {
-				logger.debug("Characteristic presentation format on read");
-				return GATT.serializeFormat(format);
-			};
-			format.attribute = descriptorAttribute;
+			let descriptor = new Descriptor(GATT.UUID_CHARACTERISTIC_PRESENTATION_FORMAT, DESCRIPTOR_PERM_READ_ONLY);
+			descriptor.value = format;
+			descriptor._deploy(db);
+			formatHandles.push(descriptor._attribute.handle);
 		}
 		/* 3.3.3.6 Characteristic Aggregate Format */
 		if (this._formats.length > 1) {
-			logger.debug("Deploy: Characteristic Presentation Format");
-			let descriptorAttribute = db.allocateAttribute(GATT.UUID_CHARACTERISTIC_AGGREGATE_FORMAT);
-			descriptorAttribute.callback.onRead = (attribute) => {
-				logger.debug("Characteristic Presentation Format on read");
-				let buffer = ByteBuffer.allocate(this._formats.length * 2);
-				for (let format of this._formats) {
-					buffer.putInt16(format.attribute.handle);
-				}
-				buffer.flip();
-				return buffer.getByteArray();
-			};
+			logger.debug("Deploy: Characteristic Aggregate Format");
+			let descriptor = new Descriptor(GATT.UUID_CHARACTERISTIC_AGGREGATE_FORMAT, DESCRIPTOR_PERM_READ_ONLY);
+			descriptor.value = formatHandles;
+			descriptor._deploy(db);
+		}
+		/* Deploy other descriptors */
+		for (let descriptor of this.descriptors) {
+			descriptor._deploy(db);
 		}
 		definitionAttribute.groupEnd = db.getEndHandle();	// Should fix it
 		this._attribute = definitionAttribute;
@@ -293,34 +362,32 @@ class Characteristic extends GATT.Characteristic {
 }
 exports.Characteristic = Characteristic;
 
-class Include extends GATT.Include {
-	constructor(uuid, profile) {
-		super(uuid);
-		this._profile = profile;
-		/* ATT Contexts */
-		this._attribute = null;
-	}
-	serializeDefinition() {
-		let candidate = this._profile.getServiceByUUID(this._uuid);
-		let buffer = ByteBuffer.allocate(6, true);
-		buffer.putInt16(candidate.start);
-		buffer.putInt16(candidate.end);
-		if (this._uuid.isUUID16()) {
-			buffer.putInt16(this._uuid.toUUID16());
+function toCharacteristicProperties(params) {
+	var properties = 0;
+	for (var i = 0; i < params.length; i++) {
+		switch (params[i]) {
+		case "broadcast":
+			properties |= GATT.Properties.BROADCAST;
+			break;
+		case "read":
+			properties |= GATT.Properties.READ;
+			break;
+		case "writeWithoutResponse":
+			properties |= GATT.Properties.WRITE_WO_RESP;
+			break;
+		case "write":
+			properties |= GATT.Properties.WRITE;
+			break;
+		case "notify":
+			properties |= GATT.Properties.NOTIFY;
+			break;
+		case "indicate":
+			properties |= GATT.Properties.INDICATE;
+			break;
 		}
-		buffer.flip();
-		return buffer.getByteArray();
 	}
-	deploy(db) {
-		let definitionAttribute = db.allocateAttribute(GATT.UUID_INCLUDE);
-		definitionAttribute.callback.onRead = (attribute) => {
-			logger.debug("Include definition on read");
-			return this.serializeDefinition();
-		};
-		this._attribute = definitionAttribute;
-	}
+	return properties;
 }
-exports.Include = Include;
 
 class Service extends GATT.Service {
 	constructor(uuid, primary = true) {
@@ -328,27 +395,87 @@ class Service extends GATT.Service {
 		/* ATT Contexts */
 		this._attribute = null;
 	}
-	serializeDefinition() {
+	get start() {
+		return (this._attribute != null) ? this._attribute.handle : 0;
+	}
+	get end() {
+		return (this._attribute != null) ? this._attribute.groupEnd : 0;
+	}
+	addCharacteristic(template) {
+		if (this._attribute != null) {
+			logger.error("Adding characteristics after deploy is not supported.");
+			return;
+		}
+		let properties = template.properties;
+		if (properties instanceof Array) {
+			properties = toCharacteristicProperties(properties);
+		}
+		let uuid = ((typeof template.uuid) == "string") ?
+			UUID.getByString(template.uuid) : template.uuid;
+		let extProperties = template.hasOwnProperty("extProperties") ?
+			template.extProperties : 0x0000;
+		let characteristic = new Characteristic(uuid, properties, extProperties);
+		if (template.hasOwnProperty("value")) {
+			characteristic.value = template.value;
+		}
+		if (template.hasOwnProperty("formats")) {
+			characteristic.formats = template.formats;
+		}
+		if (template.hasOwnProperty("requirements")) {
+			characteristic.requirements = template.requirements;
+		}
+		if (template.hasOwnProperty("onValueWrite")) {
+			characteristic.onValueWrite = template.onValueWrite;
+		}
+		if (template.hasOwnProperty("onValueRead")) {
+			characteristic.onValueRead = template.onValueRead;
+		}
+		if (template.hasOwnProperty("configuration")) {
+			characteristic.configuration = template.configuration;
+		}
+		if (template.hasOwnProperty("descriptors")) {
+			for (let templateDesc of template.descriptors) {
+				characteristic.addDescriptor(templateDesc);
+			}
+		}
+		this._addCharacteristic(characteristic);
+		return characteristic;
+	}
+	_serializeDefinition() {
 		if (this._uuid.isUUID16()) {
 			return Utils.toByteArray(this._uuid.toUUID16(), 2, true);
 		}
 		return this._uuid.getRawArray();
 	}
-	deploy(db) {
+	_serializeIncludeDefinition() {
+		let buffer = ByteBuffer.allocate(6, true);
+		buffer.putInt16(this._attribute.handle);
+		buffer.putInt16(this._attribute.groupEnd);
+		if (this.uuid.isUUID16()) {
+			buffer.putInt16(this.uuid.toUUID16());
+		}
+		buffer.flip();
+		return buffer.getByteArray();
+	}
+	_deploy(db) {
 		/* Deploy definition attribute */
 		let definitionAttribute = db.allocateAttribute(
 			this._primary ? GATT.UUID_PRIMARY_SERVICE : GATT.UUID_SECONDARY_SERVICE);
 		definitionAttribute.callback.onRead = (attribute) => {
 			logger.debug("Service definition on read");
-			return this.serializeDefinition();
+			return this._serializeDefinition();
 		};
 		/* Deploy includes */
 		for (let include of this.includes) {
-			include.deploy(db);
+			let includeAttribute = db.allocateAttribute(GATT.UUID_INCLUDE);
+			includeAttribute.callback.onRead = (attribute) => {
+				logger.debug("Include definition on read");
+				return include._serializeIncludeDefinition();
+			};
 		}
 		/* Deploy characteristics */
 		for (let characteristic of this.characteristics) {
-			characteristic.deploy(db);
+			characteristic._deploy(db);
 		}
 		definitionAttribute.groupEnd = db.getEndHandle();	// Should fix it
 		this._attribute = definitionAttribute;
@@ -368,24 +495,26 @@ class Profile extends GATT.Profile {
 	get database() {
 		return this._database;
 	}
-	deployServices(services) {
-		let start = this._database.getEndHandle() + 1;
+	addService(template) {
+		let service = new Service(
+			((typeof template.uuid) == "string") ?
+				UUID.getByString(template.uuid) : template.uuid,
+			template.primary);
+		if (template.hasOwnProperty("characteristics")) {
+			for (let templateChar of template.characteristics) {
+				service.addCharacteristic(templateChar);
+			}
+		}
+		this._addService(service);
+		return service;
+	}
+	deploy() {
 		/* Add all Services */
-		for (let service of services) {
-			service.deploy(this._database);
-			this.addService(service);
+		for (let service of this.services) {
+			service._deploy(this._database);
 		}
 		/* Generate handles */
 		this._database.assignHandles();
-
-		let end = this._database.getEndHandle();
-		logger.info("Service Changed(Added): start=" + Utils.toHexString(start, 2)
-			+ ", end=" + Utils.toHexString(end, 2));
-
-		return {
-			start,
-			end
-		};
 	}
 }
 exports.Profile = Profile;

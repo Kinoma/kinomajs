@@ -55,6 +55,15 @@ import {
 	HelperBehavior,
 } from "features/devices/behaviors";
 
+export var gPinFilterInfo = new Map();
+
+function mapToJson(map) {
+	return JSON.stringify([...map]);
+}
+function jsonToMap(jsonStr) {
+	return new Map(JSON.parse(jsonStr));
+}
+
 class PinExplorerViewBehavior extends HelperBehavior {
 	onCreate(container, data) {
 		this.data = data;
@@ -62,6 +71,8 @@ class PinExplorerViewBehavior extends HelperBehavior {
 	onDeviceHelperUp(container) {
 		super.onDeviceHelperUp(container);
 		let device = this.data.device;
+		let filteringInfo = device.getPinFilteringInfo();
+		gPinFilterInfo.set(device, filteringInfo);
 		device.pinExplorerStart(container).then(url => {
 			this.onPinExplorerLaunched(container, url);
 		}, error => {
@@ -72,26 +83,52 @@ class PinExplorerViewBehavior extends HelperBehavior {
 		let device = this.data.device;
 		device.pinExplorerStop(container);
 	}
+	mapToJson(map) {
+		return JSON.stringify([...map]);
+	}
 	onPinExplorerLaunched(container, url) {
+		let device = this.data.device;
+		let tag = this.data.device.constructor.tag;
+		if (tag == "Element" || tag == "ElementShell") {		// avoid requiring Element to implement getPhysicalToLogicalMap
+			let map = new Map();
+			for (var i=1; i <= 16; i++)
+				map.set(i, i);
+			let jsonMap = this.mapToJson(map);
+			this.onGotLogicalToPhysicalMap(container, jsonMap, url);
+			return;
+		}
+		
+		device.getLogicalToPhysicalMapJson().then(map => {
+			this.onGotLogicalToPhysicalMap(container, map, url);
+		});
+	}
+	onGotLogicalToPhysicalMap(container, map, url) {
 		let data = this.data;
+		let logicalToPhysicalMap = undefined;
+		if (map.length != 0)										// special casing for Pins.getLogicalToPhysicalMapJson not being present
+			logicalToPhysicalMap = jsonToMap(map);
+		data.device.logicalToPhysicalMap = logicalToPhysicalMap;
+		
 		data.SPINNER.visible = false;
 		data.SPINNER.stop();
 		data.url = url;
 		let pins = this.data.pins = Pins.connect(url);
 		pins.invoke("configuration", configuration => this.onConfiguration(configuration))
 	}
-	onConfiguration(configuration) {
+	onConfiguration(configuration) {	
 		if (!this.data.PROBES.container) return;
 		if (!configuration) {
 			var pins = this.data.pins;
 			pins.invoke("configuration", configuration => this.onConfiguration(configuration))
 		}
 		else {
-			trace(JSON.stringify(configuration) + "\n");
 			let data = this.data;
+			data.FILTER_BUTTON_LINE.delegate("appendDeviceSpecificButtons");
+			data.FILTER_BUTTON_LINE.delegate("appendAllNoneButtons");
 			let probes = PinManager.createProbes(data.device, data.pins, configuration);
 			data.probes = probes;
-			data.PROBES.delegate("onUpdate");
+			data.PROBES.delegate("onUpdate");	
+			trace(JSON.stringify(configuration) + "\n");
 		}
 	}
 };

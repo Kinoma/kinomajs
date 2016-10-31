@@ -19,7 +19,8 @@
 
 <input name="../crypt"/>
 <input name="../crypt/sources"/>
-<input name="../../core/grammars"/>
+<input name="$(F_HOME)/kinoma/kpr"/>
+<input name="$(F_HOME)/kinoma/kpr/sources"/>
 
 <include name="/makefiles/xsFskDefaults.mk"/>
 

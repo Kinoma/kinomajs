@@ -89,3 +89,11 @@ exports.processCallSMB = function(param)
 {
 	return this.i2c.processCallSMB(param.register, param.value);
 }
+
+exports.setAddress = function(address)
+{
+	this.i2c.close();
+	this.i2c = PINS.create( { type: "I2C", sda: this.sda, clock: this.clock, address: address } );
+	this.i2c.init();
+}
+

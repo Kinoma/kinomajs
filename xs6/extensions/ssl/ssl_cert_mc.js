@@ -23,8 +23,8 @@ import Crypt from "crypt";
 export default class CertificateManager {
 	constructor(options) {
 		this.registeredCerts = [];
-		if (options.certificate)
-			this.register(options.certificate);
+		if (options.certificates)
+			options.certificates.forEach(e => this.register(e));
 	};
 	getCerts() {
 		// return the self certs

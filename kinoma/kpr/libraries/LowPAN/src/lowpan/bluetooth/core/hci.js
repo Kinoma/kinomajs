@@ -40,13 +40,17 @@ const EVENT_ENCRYPTION_CHANGE = 0x08;
 const EVENT_COMMAND_COMPLETE = 0x0E;
 const EVENT_COMMAND_STATUS = 0x0F;
 const EVENT_NUMBER_OF_COMPLETED_PACKETS = 0x13;
+const EVENT_ENCRYPTION_KEY_REFRESH_COMPLETE = 0x30;
 const EVENT_LE_META = 0x3E;
+
+const HANDLE_DISCONNECTED_MASK = 0x8000;
 
 const LEEvent = {
 	CONNECTION_COMPLETE: 0x01,
 	ADVERTISING_REPORT: 0x02,
 	CONNECTION_UPDATE_COMPLETE: 0x03,
-	LTK_REQUEST: 0x05
+	LTK_REQUEST: 0x05,
+	DIRECT_ADVERTISING_REPORT: 0x0B
 };
 
 const LEConst = {
@@ -59,9 +63,8 @@ const LEConst = {
 	},
 	AdvertisingFilterPolicy: {
 		ALL: 0x00,
-		CONNECTION_WHITE_LIST: 0x01,
-		SCAN_WHITE_LIST: 0x02,
-		ALL_WHITE_LIST: 0x03
+		SCAN_WHITE_LIST: 0x01,
+		CONNECTION_WHITE_LIST: 0x02
 	},
 	ScanType: {
 		PASSIVE: 0x00,
@@ -75,9 +78,8 @@ const LEConst = {
 	},
 	ScanningFilterPolicy: {
 		ALL: 0x00,
-		WHITE_LIST_ONLY: 0x01,
-		ALL_UNDIRECTED: 0x02,
-		ALL_WHITE_LIST: 0x03
+		WHITE_LIST: 0x01,
+		RESOLVABLE_DIRECTED: 0x02
 	},
 	EventType: {
 		ADV_IND: 0x00,
@@ -89,8 +91,12 @@ const LEConst = {
 };
 exports.LEConst = LEConst;
 
+const DEFAULT_EVENT_MASK = Utils.multiIntToByteArray(
+	[0xfffbffff, 0x3dbff807], Utils.INT_32_SIZE, 2, true
+);
+
 const DEFAULT_LE_EVENT_MASK = Utils.multiIntToByteArray(
-	[0x0000001F, 0x00000000], Utils.INT_32_SIZE, 2, true
+	[0x0000041F, 0x00000000], Utils.INT_32_SIZE, 2, true
 );
 
 const logger = new Utils.Logger("HCI");
@@ -104,6 +110,7 @@ exports.createLayer = transport => {
 class Context {
 	constructor(transport) {
 		this._transport = transport;
+		this._transport.delegate = this;
 		this._delegate = null;
 		this._discoveryCallback = null;
 		this._linkMgr = new LinkManager(this, transport);
@@ -127,12 +134,51 @@ class Context {
 		this._discoveryCallback = callback;
 	}
 	init(reset = true) {
+		let p;
 		if (reset) {
 			logger.info("Reset HCI");
-			this._commands.controller.reset(this);
+			p = this._commands.controller.reset();
 		} else {
-			this._commands.le.setEventMask(DEFAULT_LE_EVENT_MASK, this);
+			p = Promise.resolve(null);
 		}
+
+		p.then(response => {
+			return this._commands.controller.setEventMask(DEFAULT_EVENT_MASK, this);
+		}).then(response => {
+			return this._commands.le.setEventMask(DEFAULT_LE_EVENT_MASK);
+		}).then(response => {
+			return this._commands.informational.readLocalVersionInformation(this);
+		}).then(response => {
+			return this._commands.controller.writeLEHostSupport(0x01, 0x00, this);
+		}).then(response => {
+			return this._commands.informational.readBDAddr();
+		}).then(response => {
+			this._publicAddress = BluetoothAddress.getByAddress(response.getByteArray(6), false);
+			logger.info("publicAddress=" + this._publicAddress.toString());
+			return this._commands.le.readBufferSize();
+		}).then(response => {
+			let linkCtx = this._linkMgr.getLinkContext(true);
+			linkCtx.maxDataLength = response.getInt16();
+			linkCtx.maxPackets = response.getInt8();
+			logger.debug("maxDataLength(LE)=" + linkCtx.maxDataLength);
+			logger.debug("maxPackets(LE)=" + linkCtx.maxPackets);
+			return this._commands.informational.readBufferSize();
+		}).then(response => {
+			let linkCtx = this._linkMgr.getLinkContext(false);
+			linkCtx.maxDataLength = response.getInt16();
+			response.skip(1);
+			linkCtx.maxPackets = response.getInt16();
+			logger.debug("maxDataLength(ACL)=" + linkCtx.maxDataLength);
+			logger.debug("maxPackets(ACL)=" + linkCtx.maxPackets);
+			let linkCtxLE = this._linkMgr.getLinkContext(true);
+			if (linkCtxLE.maxDataLength == 0 || linkCtxLE.maxPackets == 0) {
+				logger.info("Use ACL Buffer Size");
+				linkCtxLE.maxDataLength = linkCtx.maxDataLength;
+				linkCtxLE.maxPackets = linkCtx.maxPackets;
+			}
+			this.initComplete();
+		});
+
 	}
 	initComplete() {
 		this._initDone = true;
@@ -143,60 +189,7 @@ class Context {
 			this._delegate.hciConnected(link);
 		}
 	}
-	commandComplete(opcode, response) {
-		if (this._initDone) {
-			return;
-		}
-		let status = response.getInt8();
-		if (status != 0) {
-			logger.warn("Init Error opcode=" + Utils.toHexString(opcode, 2)
-				+ ", status=" + Utils.toHexString(status));
-			return;
-		}
-		switch (opcode) {
-		case Commands.Controller.RESET:
-			this._commands.le.setEventMask(DEFAULT_LE_EVENT_MASK, this);
-			break;
-		case Commands.LE.SET_EVENT_MASK:
-			this._commands.informational.readBDAddr(this);
-			break;
-		case Commands.Informational.READ_BD_ADDR:
-			this._publicAddress = BluetoothAddress.getByAddress(response.getByteArray(6), true, false);
-			logger.info("publicAddress=" + this._publicAddress.toString());
-			this._commands.le.readBufferSize(this);
-			break;
-		case Commands.LE.READ_BUFFER_SIZE:
-			{
-				let linkCtx = this._linkMgr.getLinkContext(true);
-				linkCtx.maxDataLength = response.getInt16();
-				linkCtx.maxPackets = response.getInt8();
-				logger.debug("maxDataLength(LE)=" + linkCtx.maxDataLength);
-				logger.debug("maxPackets(LE)=" + linkCtx.maxPackets);
-				this._commands.informational.readBufferSize(this);
-			}
-			break;
-		case Commands.Informational.READ_BUFFER_SIZE:
-			{
-				let linkCtx = this._linkMgr.getLinkContext(false);
-				linkCtx.maxDataLength = response.getInt16();
-				response.skip(1);
-				linkCtx.maxPackets = response.getInt16();
-				logger.debug("maxDataLength(ACL)=" + linkCtx.maxDataLength);
-				logger.debug("maxPackets(ACL)=" + linkCtx.maxPackets);
-				let linkCtxLE = this._linkMgr.getLinkContext(true);
-				if (linkCtxLE.maxDataLength == 0 || linkCtxLE.maxPackets == 0) {
-					logger.info("Use ACL Buffer Size");
-					linkCtxLE.maxDataLength = linkCtx.maxDataLength;
-					linkCtxLE.maxPackets = linkCtx.maxPackets;
-				}
-				this.initComplete();
-			}
-			break;
-		}
-	}
-	/**
-	 * Callback from lower transport layer
-	 */
+	/* Transport Callback */
 	transportReceived(response) {
 		/* FIXME: We assume the response from UART transport */
 		switch (response.packetType) {
@@ -234,6 +227,9 @@ class Context {
 			case EVENT_ENCRYPTION_CHANGE:
 				this._linkMgr.eventEncryptionChange(buffer);
 				break;
+			case EVENT_ENCRYPTION_KEY_REFRESH_COMPLETE:
+				this._linkMgr.eventEncryptionKeyRefreshComplete(buffer);
+				break;
 			case EVENT_LE_META:
 				this.leEventReceived(buffer);
 				break;
@@ -252,7 +248,11 @@ class Context {
 			break;
 		case LEEvent.ADVERTISING_REPORT:
 			logger.trace("ADVERTISING_REPORT");
-			this._discoveryCallback(readLEAdvertisingReport(buffer));
+			this._discoveryCallback(readLEAdvertisingReport(buffer, false));
+			break;
+		case LEEvent.DIRECT_ADVERTISING_REPORT:
+			logger.trace("DIRECT ADVERTISING_REPORT");
+			this._discoveryCallback(readLEAdvertisingReport(buffer, true));
 			break;
 		case LEEvent.CONNECTION_UPDATE_COMPLETE:
 			logger.trace("CONNECTION_UPDATE_COMPLETE");
@@ -280,18 +280,8 @@ class Context {
 		return this._random64.bind(this);
 	}
 	_random64() {
-		return new Promise((resolve, reject) => {
-			this._commands.le.rand({
-				commandComplete: (opcode, buffer) => {
-					let status = buffer.getInt8();
-					if (status == 0) {
-						resolve(buffer.getByteArray(8));
-					} else {
-						logger.error("LE rand failed: status=" + Utils.toHexString(status));
-						reject(status);
-					}
-				}
-			});
+		return this._commands.le.rand().then(response => {
+			return response.getByteArray(8);
 		});
 	}
 	/* Crypto Implementation */
@@ -299,37 +289,32 @@ class Context {
 		return this._encrypt.bind(this);
 	}
 	_encrypt(key, plainData) {
-		return new Promise((resolve, reject) => {
-			this._commands.le.encrypt(key, plainData, {
-				commandComplete: (opcode, buffer) => {
-					let status = buffer.getInt8();
-					if (status == 0) {
-						let e = buffer.getByteArray(16);
-						resolve(e);
-					} else {
-						logger.error("LE encryption failed: status=" + Utils.toHexString(status));
-						reject(status);
-					}
-				}
-			});
+		return this._commands.le.encrypt(key, plainData).then(response => {
+			return response.getByteArray(16);
 		});
 	}
 }
 
-function readLEAdvertisingReport(buffer) {
+function readLEAdvertisingReport(buffer, direct) {
 	let reports = [];
 	let numReports = buffer.getInt8();
 	for (let i = 0; i < numReports; i++) {
-		let report = {
-			eventType: buffer.getInt8(),
-			peer: {
-				addressType: buffer.getInt8(),
-				address: buffer.getByteArray(6)
-			},
-			length: buffer.getInt8()
-		};
-		if (report.length > 0) {
-			report.data = buffer.getByteArray(report.length);
+		let report = {};
+		report.eventType = buffer.getInt8();
+		let addressType = buffer.getInt8();
+		report.address = BluetoothAddress.getByAddress(buffer.getByteArray(6), ((addressType & 0x01) > 0));
+		report.resolved = (addressType & 0x02) > 0;
+		if (direct) {
+			/* Direct_Address is always RPA */
+			buffer.skip(1);
+			report.directAddress = BluetoothAddress.getByAddress(buffer.getByteArray(6), true);
+		} else {
+			/* Data available */
+			report.length = buffer.getInt8();
+			report.data = null;
+			if (report.length > 0) {
+				report.data = buffer.getByteArray(report.length);
+			}
 		}
 		report.rssi = Utils.toSignedByte(buffer.getInt8());
 		reports.push(report);
@@ -407,8 +392,8 @@ class LinkManager {
 			}
 			logger.info("Disonnected: handle=" + Utils.toHexString(handle, 2)
 				+ ", reason=" + Utils.toHexString(reason));
-			link.disconnected(reason);
 			this._linkMap[handle] = null;
+			link.disconnected(reason);
 			// TODO
 		} else {
 			logger.warn("Disconnection failed: status=" + Utils.toHexString(status));
@@ -446,13 +431,27 @@ class LinkManager {
 			logger.warn("EC: Unknown handle=" + Utils.toHexString(handle, 2));
 		}
 	}
+	eventEncryptionKeyRefreshComplete(buffer) {
+		let status = buffer.getInt8();
+		let handle = buffer.getInt16() & 0x0FFF;
+		let link = this.getACLLink(handle);
+		if (link != null) {
+			if (status == 0) {
+				link.encryptionRefreshed();
+			} else {
+				link.encryptionFailed(status);
+			}
+		} else {
+			logger.warn("EKRC: Unknown handle=" + Utils.toHexString(handle, 2));
+		}
+	}
 	eventLEConnectionComplete(buffer) {
 		let status = buffer.getInt8();
 		if (status == 0x00) {
 			let handle = buffer.getInt16() & 0x0FFF;
 			let role = buffer.getInt8();
 			let random = buffer.getInt8() == 0x01;
-			let address = BluetoothAddress.getByAddress(buffer.getByteArray(6), true, random);
+			let address = BluetoothAddress.getByAddress(buffer.getByteArray(6), random);
 			let connParameters = {
 				interval: buffer.getInt16(),
 				latency: buffer.getInt16(),
@@ -467,7 +466,8 @@ class LinkManager {
 			this.addACLLink(link);
 		} else {
 			logger.error("Connection complete with error: status="
-				+ Utils.toHexString(info.status));
+				+ Utils.toHexString(status));
+			// TODO: Notify upper layer
 		}
 	}
 	eventLEConnectionUpdateComplete(buffer) {
@@ -485,7 +485,7 @@ class LinkManager {
 			}
 		} else {
 			logger.error("Connection update complete with error: status="
-				+ Utils.toHexString(info.status));
+				+ Utils.toHexString(status));
 		}
 	}
 	eventLELTKRequest(buffer) {
@@ -529,10 +529,17 @@ class ACLLink {
 	get encrptionStatus() {
 		return this._encryptionStatus;
 	}
+	isDisconnected() {
+		return (this._handle & HANDLE_DISCONNECTED_MASK) > 0;
+	}
 	isLELink() {
 		return this._le;
 	}
 	send(buffer) {
+		if (this.isDisconnected()) {
+			logger.error("Link is disconnected");
+			return;
+		}
 		let context = this._linkMgr.getLinkContext(this._le);
 		if (context.maxDataLength == 0) {
 			throw "Link buffer size is zero!";
@@ -577,11 +584,15 @@ class ACLLink {
 		}
 	}
 	disconnected(reason) {
+		this._handle &= HANDLE_DISCONNECTED_MASK;
 		this._delegate.disconnected(reason);
 	}
 	updateEncryptionStatus(enabled) {
 		this._encryptionStatus = enabled;
-		this._security.encryptionStatusChanged(this, enabled);
+		this._security.encryptionEnabled(this);
+	}
+	encryptionRefreshed() {
+		this._security.encryptionEnabled(this);
 	}
 	encryptionFailed(status) {
 		this._security.encryptionFailed(status);
@@ -593,10 +604,11 @@ class LELink extends ACLLink {
 		super(handle, remoteAddress, true, linkMgr);
 		this._localAddress = localAddress;
 		this._remoteAddress = remoteAddress;
-		this._info = info;
+		this._slave = (info.role == 0x01);
+		this._connParameters = info.connParameters;
 	}
 	isLESlave() {
-		return (this._info.role == 0x01);
+		return this._slave;
 	}
 	get localAddress() {
 		return this._localAddress;
@@ -607,20 +619,17 @@ class LELink extends ACLLink {
 	get remoteAddress() {
 		return this._remoteAddress;
 	}
-	set remoteAddress(address) {
-		if (address.isIdentity()) {
-			/* Allow identity address only */
-			this._remoteAddress = address;
-		}
+	get connParameters() {
+		return this._connParameters;
 	}
 	startEncryption(random, ediv, ltk) {
-		this._linkMgr.context.commands.le.startEncryption(this.handle, random, ediv, ltk);
+		return this._linkMgr.context.commands.le.startEncryption(this.handle, random, ediv, ltk);
 	}
 	replyLongTermKey(ltk) {
 		if (ltk != null) {
-			this._linkMgr.context.commands.le.longTermKeyRequestReply(this.handle, ltk);
+			return this._linkMgr.context.commands.le.longTermKeyRequestReply(this.handle, ltk);
 		} else {
-			this._linkMgr.context.commands.le.longTermKeyRequestNegativeReply(this.handle);
+			return this._linkMgr.context.commands.le.longTermKeyRequestNegativeReply(this.handle);
 		}
 	}
 	longTermKeyRequested(random, ediv) {
@@ -631,7 +640,8 @@ class LELink extends ACLLink {
 		}
 	}
 	connectionUpdated(connParameters) {
-		logger.info("Connection Updated: " + JSON.stringify(connParameters));	// XXX: Should notify to upper layer
+		this._connParameters = connParameters;
+		this._delegate.connectionUpdated(connParameters);
 	}
 }
 

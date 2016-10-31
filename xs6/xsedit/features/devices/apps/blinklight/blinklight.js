@@ -24,10 +24,6 @@ import {
 } from "common/assets";
 
 import {
-	ButtonBehavior
-} from "common/control";
-
-import {
 	DropDialogBehavior,
 	dropSideSkin,
 	dropSkin,

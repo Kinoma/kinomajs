@@ -41,6 +41,14 @@ export default class extends Feature {
 		this.machines = [];
 		this.debuggees = [];
 		this.currentMachine = null;
+		this.sortingRegexps = [
+			/(\[)([0-9]+)(\])/,
+			/(\(\.)([0-9]+)(\))/,
+			/(\(\.\.)([0-9]+)(\))/,
+			/(arg\()([0-9]+)(\))/,
+			/(var\()([0-9]+)(\))/,
+		];
+		this.sortingZeros = "0000000000";
 	}
 
 	canAbort() {
@@ -203,15 +211,26 @@ export default class extends Feature {
 	sortLines(view) {
 		let former = { column:-1, parent:null, path:null };
 		let exceptions = view.exceptions;
-		let lines = view.lines
+		let lines = view.lines;
+		let zeros = this.sortingZeros;
+		let regexps = this.sortingRegexps;
+		let c = regexps.length;
 		lines.forEach(line => {
 			while (line.column <= former.column)
 				former = former.parent;
 			line.parent = former;
 			let name = line.name;
+			for (let i = 0; i < c; i++) {
+				let results = regexps[i].exec(name);
+				if (results) {
+					let result = results[2];
+					name = results[1] + zeros.slice(0, -result.length) + result + results[3];
+					break;
+				}
+			}
 			let path = former.path;
 			if (path)
-				line.path = path + name;
+				line.path = path + "." + name;
 			else if (exceptions && (name in exceptions))
 				line.path = exceptions[name];
 			else
@@ -537,8 +556,6 @@ const machineItemStyle = new Style({ font:SEMIBOLD_FONT, size:14, color:BLACK, h
 
 import { 
 	ButtonBehavior, 
-	FieldLabelBehavior, 
-	FieldScrollerBehavior, 
 } from "common/control";
 
 import {

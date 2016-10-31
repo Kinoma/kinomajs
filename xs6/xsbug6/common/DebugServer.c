@@ -38,7 +38,6 @@ typedef struct KprDebugMachineStruct KprDebugMachineRecord, *KprDebugMachine;
 #define XS_BUFFER_COUNT 1024
 
 struct KprDebugStruct {
-	KprDebug next;
 	xsSlot behavior;
 	xsMachine* the;
 	xsSlot slot;
@@ -52,10 +51,15 @@ struct KprDebugStruct {
 struct KprDebugMachineStruct {
 	KprDebugMachine next;
 	KprDebug debug;
+	
+	void (*dispose)(KprDebugMachine);
+	void (*write)(KprDebugMachine, void*, size_t);
+	
 	FskSocket socket;
 	FskThreadDataHandler reader;
 	KprSocketWriter writer;
-	char address[32];
+	
+	char address[1024];
 	char* title;
 	
 	int broken;
@@ -121,6 +125,7 @@ enum {
 	
 	mxListFilesCommand
 };
+
 
 #if SUPPORT_INSTRUMENTATION
 static FskInstrumentedTypeRecord KprDebugInstrumentation = { NULL, sizeof(FskInstrumentedTypeRecord), "KprDebug", FskInstrumentationOffset(KprDebugRecord), NULL, 0, NULL, KprInsrumentationFormatMessage, NULL, 0 };
@@ -242,7 +247,9 @@ KprDebugMachine KprDebugFindMachine(KprDebug self, char* address)
 // KprDebugMachine
 //--------------------------------------------------
 
+static void KprDebugMachineDisposeData(KprDebugMachine self);
 static void KprDebugMachineReadError(KprSocketErrorContext context UNUSED, FskErr err, void *refcon);
+static void KprDebugMachineWriteData(KprDebugMachine self, void *buffer, size_t size);
 static void KprDebugMachineWriteError(KprSocketErrorContext context UNUSED, FskErr err, void *refcon);
 
 #define kSocketBufferSize (128 * 1024)
@@ -282,6 +289,9 @@ FskErr KprDebugMachineNew(KprDebugMachine* it, KprDebug debug, FskSocket skt)
 	BAIL_IF_ERR(err = FskMemPtrNewClear(sizeof(KprDebugMachineRecord), it));
 	self = *it;
 	self->debug = debug;
+	self->dispose = KprDebugMachineDisposeData;
+	self->write = KprDebugMachineWriteData;
+	
 	self->socket = skt;
 
 	BAIL_IF_ERR(err = FskNetSocketGetRemoteAddress(skt, &ip, &port));
@@ -314,14 +324,24 @@ void KprDebugMachineDispose(KprDebugMachine self)
 		KprDebugMachineCallbackText(self, "onMachineUnregistered", mxNoCommand, NULL, NULL);
 		xsEndHostSandboxCode();
 		FskListRemove(&self->debug->machine, self);
-		KprSocketWriterDispose(self->writer);
-		self->writer = NULL;
-		FskThreadRemoveDataHandler(&self->reader);
-		FskNetSocketClose(self->socket);
-		self->socket = NULL;
+		(*self->dispose)(self);
 		FskMemPtrDisposeAt(&self->title);
 		FskInstrumentedItemDispose(self);
 		FskMemPtrDispose(self);
+	}
+}
+
+void KprDebugMachineDisposeData(KprDebugMachine self)
+{
+	if (self->writer) {
+		KprSocketWriterDispose(self->writer);
+		self->writer = NULL;
+	}
+	if (self->reader)
+		FskThreadRemoveDataHandler(&self->reader);
+	if (self->socket) {
+		FskNetSocketClose(self->socket);
+		self->socket = NULL;
 	}
 }
 
@@ -404,29 +424,41 @@ void KprDebugMachineDataReader(FskThreadDataHandler handler UNUSED, FskThreadDat
 
 	err = FskNetSocketRecvTCP(self->socket, self->buffer, XS_BUFFER_COUNT, &size);
 	if (size > 0) {
+// 		fprintf(stderr, "%.*s", size, self->buffer);
 		xsBeginHostSandboxCode(debug->the, debug->code);
 		xsVars(4);
 		KprDebugMachineParse(self, self->buffer, size);
 		if (self->done) {
+            self->done = 0;
 			self->state = XS_HEADER_STATE;
 			self->dataIndex = 0;
-			
-			if (self->broken) {
-				xsCall0(xsGet(xsGlobal, xsID_system), xsID_gotoFront);
-			}
-			else if (self->logging) {
-				self->logging = 0;
-			}
-			else {
-				xsCall1(debug->slot, xsID_go, xsString(self->address));
-				KprDebugMachineCallback(self, "gone");
-			}
+			KprDebugMachineCallback(self, "onMachineDone");
+
+// 			self->state = XS_HEADER_STATE;
+// 			self->dataIndex = 0;
+// 			
+// 			if (self->broken) {
+// 				xsCall0(xsGet(xsGlobal, xsID_system), xsID_gotoFront);
+// 			}
+// 			else if (self->logging) {
+// 				self->logging = 0;
+// 			}
+// 			else {
+// 				xsCall1(debug->slot, xsID_go, xsString(self->address));
+// 				KprDebugMachineCallback(self, "gone");
+// 			}
 		}
 		xsEndHostSandboxCode();
 	}
-	if (err && (err != kFskErrNoData)) {
+	if (err) {
 		KprDebugMachineDispose(self);
 	}
+}
+
+void KprDebugMachineWriteData(KprDebugMachine self, void *buffer, size_t size)
+{
+// 	fprintf(stderr, "%.*s", size, buffer);
+	KprSocketWriterSendBytes(self->writer, buffer, size);
 }
 
 void KprDebugMachineWriteError(KprSocketErrorContext context UNUSED, FskErr err, void *refcon)
@@ -456,6 +488,7 @@ void KprDebugMachineDispatchCommand(KprDebugMachine self, int theCommand, char* 
 		strcat(aBuffer, "<abort/>");
 		break;
 	case mxGoCommand:
+//		self->broken = false;
 		strcat(aBuffer, "<go/>");
 		break;
 	case mxLogoutCommand:
@@ -566,8 +599,9 @@ void KprDebugMachineDispatchCommand(KprDebugMachine self, int theCommand, char* 
 	default:
 		return;
 	}
+	strcat(aBuffer, "\15\12\15\12");
 	aCount = strlen(aBuffer);
-	KprSocketWriterSendBytes(self->writer, aBuffer, aCount);
+	(*self->write)(self, aBuffer, aCount);
 }
 
 
@@ -903,6 +937,7 @@ void KprDebugMachinePopTag(KprDebugMachine self, char* theName)
 	else if (strcmp(theName, "break") == 0) {
 		self->view = mxNoCommand;
 		self->broken = 1;
+		KprDebugMachineCallback(self, "onMachineBroken");
 	}
 	else if (strcmp(theName, "breakpoints") == 0) {
 		KprDebugMachineUnlockView(self, mxBreakpointsView);
@@ -1293,6 +1328,21 @@ void KPR_debug_close(xsMachine *the)
 	KprDebugClose(self);
 }
 
+void KPR_debug_closeMachine(xsMachine *the)
+{
+	KprDebug self = xsGetHostData(xsThis);
+	KprDebugMachine machine = NULL;
+	xsIntegerValue c = xsToInteger(xsArgc);
+	if (c >= 1) {
+		char* address = xsToString(xsArg(0));
+		machine = KprDebugFindMachine(self, address);
+	}
+	if (machine)
+		KprDebugMachineDispose(machine);
+	else
+		xsThrowIfFskErr(kFskErrInvalidParameter);
+}
+
 void KPR_debug_abort(xsMachine *the)
 {
 	KPR_debug_trigger(the, mxAbortCommand);
@@ -1348,9 +1398,9 @@ void KPR_debug_addBreakpoints(xsMachine *the)
 			strcat(aBuffer, aValue);
 			strcat(aBuffer, "\"/>");
 		}
-		strcat(aBuffer, "</set-breakpoints>");
+		strcat(aBuffer, "</set-breakpoints>\15\12\15\12");
 		c = strlen(aBuffer);
-		KprSocketWriterSendBytes(machine->writer, aBuffer, c);
+		(*machine->write)(machine, aBuffer, c);
 	}
 	else
 		xsThrowIfFskErr(kFskErrInvalidParameter);

@@ -14,12 +14,14 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
-import Environment from "env";
+import Crypt from "crypt";
 import Bin from "bin";
 
 export default class CacheManager {
-	constructor() {
-		this.cache = new Environment("ssl", true, true);	// both autosave / encryption = true
+	constructor(key) {
+		let Files = require.weak("files");
+		let path = Files.preferencesDirectory + "/ssl";
+		this.cache = new Crypt.Vault(path, key, true);	// autosave = true
 	};
 	getByHost(hostname) {
 		var cache = this.cache.get(hostname);

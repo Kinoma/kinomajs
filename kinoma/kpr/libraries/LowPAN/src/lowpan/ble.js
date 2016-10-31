@@ -18,7 +18,7 @@
 
 /**
  * Kinoma LowPAN Framework: Kinoma Bluetooth Stack
- * Bluetooth v4.2 - Public BLL API
+ * Bluetooth v4.2 - Public BLL API (Obsolete)
  */
 
 /* Mandatory BLE stack modules */
@@ -34,30 +34,39 @@ const Logger = Utils.Logger;
 const Buffers = require("./common/buffers");
 const ByteBuffer = Buffers.ByteBuffer;
 
+/* GATT related optional BLE stack modules */
+const GATT = require("./bluetooth/core/gatt");
+const ATT = GATT.ATT;
+const GATTServer = require("./bluetooth/gatt/server");
+const GATTClient = require("./bluetooth/gatt/client");
+
 /* Marvell BT chip */
 const DEFAULT_UART_DEVICE = "/dev/mbtchar0";
 const DEFAULT_UART_BAUDRATE = 115200;
 
 /* API consts */
 const LOGGING_ENABLED = false;
+const DEFAULT_MTU = 158;
 
-var logger = Logger.getLogger("BLE");
+let logger = Logger.getLogger("BLE");
 
 /* Pins instances */
-var _notification = null;
-var _serial = null;
-var _repeat = null;
+let _notification = null;
+let _serial = null;
+let _repeat = null;
 
 /* Transport */
-var _transport = null;
+let _transport = null;
 
 /* GAP instances */
-var _gapApplication = null;
-var _storage = null;
-var _gap = null;
+let _gapApplication = null;
+let _storage = null;
+let _gap = null;
+let _ccConfigs = new Map();
 
-var ADVANCED_MODE = false;
-var GATTAPI = null;
+let _scanResponseData = null;
+
+let _profile = new GATTServer.Profile();
 
 // ----------------------------------------------------------------------------------
 // Pins Configuration
@@ -69,19 +78,10 @@ function pollTransport() {
 		logger.trace("serial.read returns 0");
 		return;
 	}
-	let responses = _transport.receive(new Uint8Array(buffer), 0, buffer.byteLength);
-	for (let i = 0; i < responses.length; i++) {
-		_gap.hci.transportReceived(responses[i]);
-	}
+	_transport.receive(new Uint8Array(buffer), 0, buffer.byteLength);
 }
 
 exports.configure = function (data) {
-	if (data.hasOwnProperty("mode")) {
-		ADVANCED_MODE = (data.mode === "advanced");
-	}
-	if (ADVANCED_MODE) {
-		logger.info("Advanced Mode API");
-	}
 	if (data.hasOwnProperty("logging")) {
 		Logger.setOutputEnabled(data.logging);
 		if ("loggers" in data) {
@@ -116,20 +116,11 @@ exports.configure = function (data) {
 				bond.address = getBluetoothAddressByJSON(bond.address);
 				bond.keys.address = getBluetoothAddressByJSON(bond.keys.address);
 				logger.debug("Bond#" + i + ": " + bond.address.toString());
-				_storage.addBond(i, bond, false);
+				_storage.addBond(i, bond);
 			}
 		}
 	}
 	_gap = GAP.createLayer(_gapApplication, _storage);
-	if (!ADVANCED_MODE) {
-		GATTAPI = require("./bllgatt");
-		GATTAPI.setCallback(doNotification);
-		GATTAPI.setGAPApplication(_gapApplication);
-		/* Export all API */
-		for (let key in GATTAPI) {
-			module.exports[key] = GATTAPI[key];
-		}
-	}
 	_gap.init(_transport);
 };
 
@@ -138,16 +129,17 @@ exports.close = function () {
 	_notification.close();
 	_notification = null;
 	let closed = false;
-	_gapApplication.close(() => {
+	_gapApplication.onAllDisconnected = () => {
 		logger.debug("Shutdown");
-		_gap._hci.commands.controller.reset({
-			commandComplete: (opcode, response) => {
+		_gap._hci._commandExec.submitCommand(0x0C03, null, {
+			commandComplete: (opcode, buffer) => {
 				_repeat.close();
 				_serial.close();
 				closed = true;
 			}
 		});
-	});
+	};
+	_gapApplication.disconnectAllConnections();
 	while (!closed) {
 		pollTransport();
 	}
@@ -156,7 +148,7 @@ exports.close = function () {
 
 function getBluetoothAddressByJSON(obj) {
 	return obj != null ?
-		BluetoothAddress.getByString(obj.address, true, obj.type != "public") :
+		BluetoothAddress.getByString(obj.address, obj.type != "public") :
 		null;
 }
 
@@ -195,13 +187,13 @@ function preMarshall(val) {
 	}
 }
 
-function doNotification(notification) {
+function sendMessage(message) {
 	if (_notification == null) {
 		return;
 	}
-	let sanitised = preMarshall(notification);
+	let sanitised = preMarshall(message);
 
-	if (notification.notification == "gap/discover") {
+	if (message.notification == "gap/discover") {
 		/* Suppress Logging... */
 		logger.trace("Notification: " + JSON.stringify(sanitised));
 	} else {
@@ -214,236 +206,199 @@ function doNotification(notification) {
 // GAP Configuration
 // ----------------------------------------------------------------------------------
 
-class BondingStorage {
+class BondingStorage extends BTUtils.MemoryBondingStorage {
 	constructor() {
-		this._bondings = new Array();
+		super();
 	}
-	/* GAP Callback: Bonding Storage */
-	allocateBond() {
-		for (let i = 0; i < this._bondings.length; i++) {
-			if (this._bondings[i] == null) {
-				return i;
-			}
-		}
-		return this._bondings.push(null) - 1;
-	}
-	/* GAP Callback: Bonding Storage */
-	storeBond(index, info) {
-		if (index < 0 || this._bondings.length <= index) {
-			return false;
-		}
-		this.addBond(index, info);
-	}
-	addBond(index, info, notify = true) {
-		this._bondings[index] = info;
-		if (notify) {
-			doNotification({
-				notification: "gap/bond/add",
-				index,
-				info
-			});
-		}
-	}
-	removeBond(index, notify = true) {
-		if (index < 0 || this._bondings.length <= index) {
-			return;
-		}
-		this._bondings[index] = null;
-		if (notify) {
-			doNotification({
-				notification: "gap/bond/remove",
-				index
-			});
-		}
-	}
-	/* GAP Callback: Bonding Storage */
-	getBond(index) {
-		if (index < 0 || this._bondings.length <= index) {
-			return null;
-		}
-		return this._bondings[index];
-	}
-	/* GAP Callback: Bonding Storage */
-	getBonds() {
-		let results = new Array();
-		for (let i = 0; i < this._bondings.length; i++) {
-			if (this._bondings[i] != null) {
-				results.push(this._bondings[i]);
-			}
-		}
-		return results;
-	}
-	/* GAP Callback: Bonding Storage */
-	findBondIndexByAddress(address) {
-		for (let i = 0; i < this._bondings.length; i++) {
-			if (this._bondings[i] != null) {
-				let address = this._bondings[i].address;
-				if (address != null && address.equals(address)) {
-					return i;
-				}
-			}
-		}
-		return -1;
+	addBond(index, info) {
+		super.addBond(index, info);
+		sendMessage({
+			identifier: "gap/bond/add",
+			index,
+			info
+		});
 	}
 }
 
-class GAPApplication {
+function getClientConfigurations(connection) {
+	let address = connection.address;
+	let key = address.toString() + "/" + address.typeString;
+	if (!_ccConfigs.has(key)) {
+		_ccConfigs.set(key, new Map());
+	}
+	return _ccConfigs.get(key);
+}
+
+function removeClientConfigurations(connection) {
+	let address = connection.address;
+	let key = address.toString() + "/" + address.typeString;
+	if (connection.securityInfo != null && connection.securityInfo.bonding && address.isIdentity()) {
+		logger.debug("CCC will be kept");
+		return;
+	}
+	_ccConfigs.delete(key);
+	logger.debug("CCC for " + key + " has been deleted");
+	// TODO: Persistence
+}
+
+function saveClientConfigurations(connection) {
+	let address = connection.address;
+	let key = address.toString() + "/" + address.typeString;
+	logger.debug("CCC for " + key + " has been written");
+	// TODO: Persistence
+}
+
+class ATTBearer extends ATT.ATTBearer {
+	constructor(connection, database) {
+		super(connection, database);
+	}
+	readClientConfiguration(characteristic, connection) {
+		let uuid = characteristic.uuid.toString();
+		let configs = getClientConfigurations(connection);
+		if (!configs.has(uuid)) {
+			return 0x0000;
+		}
+		return configs.get(uuid);
+	}
+	writeClientConfiguration(characteristic, connection, value) {
+		let uuid = characteristic.uuid.toString();
+		let configs = getClientConfigurations(connection);
+		configs.set(uuid, value);
+		saveClientConfigurations(connection);
+	}
+}
+
+class GAPApplication extends BTUtils.GAPConnectionManager {
 	constructor() {
-		this._contexts = new Array();
-		this._closing = false;
-		this._closeCallback = null;
-	}
-	close(callback = null) {
-		this._closing = true;
-		this._closeCallback = callback;
-		logger.debug("Disconnect all bearers...");
-		let num = 0;
-		this.forEachContext(context => {
-			_gap.disconnect(context, 0x15);
-			num++;
-		});
-		if (num == 0) {
-			logger.debug("No bearers are active");
-			if (callback != null) {
-				callback();
-			}
-		} else {
-			logger.debug("" + num + " disconnetion is pending.");
-		}
-	}
-	registerContext(context) {
-		for (let i = 0; i < this._contexts.length; i++) {
-			if (this._contexts[i] == null) {
-				this._contexts[i] = context;
-				return i;
-			}
-		}
-		return this._contexts.push(context) - 1;
-	}
-	unregisterContext(index) {
-		this._contexts[index] = null;
-		if (this._closing) {
-			let num = 0;
-			this.forEachContext(context => num++);
-			if (num == 0) {
-				logger.debug("All bearers are disconnected.");
-				if (this._closeCallback != null) {
-					this._closeCallback();
-				}
-			}
-		}
-	}
-	forEachContext(func) {
-		for (let i = 0; i < this._contexts.length; i++) {
-			let context = this._contexts[i];
-			if (context != null && !context.isDisconnected()) {
-				func(context);
-			}
-		}
-	}
-	getContext(index) {
-		let context = this._contexts[index];
-		if (context == null || context.isDisconnected()) {
-			throw "Bearer has been disconnected";
-		}
-		return context;
+		super();
 	}
 	/* GAP Callback */
 	gapReady() {
 		logger.info("GAP Ready");
-		doNotification({
+		sendMessage({
 			notification: "system/reset"
 		});
 	}
 	/* GAP Callback */
-	gapConnected(context, rpa) {
-		let index = this.registerContext(context);
-		context.delegate = new GAPContextDelegate(this, index);
-		if (ADVANCED_MODE) {
-			/* User will handle ATT externally */
-			context.attConnection.onReceived = buffer => {
-				doNotification({
-					notification: "att/received",
-					connection: index,
-				//	buffer: buffer.getByteArray().buffer
-					array: Array.from(buffer.getByteArray())
+	gapConnected(connection) {
+		this.registerConnection(connection);
+		let handle = connection.handle;
+		connection.delegate = {
+			/* GAP Callback */
+			pairingFailed: reason => {
+				sendMessage({
+					notification: "sm/pairing/failed",
+					connection: handle,
+					reason
 				});
-			};
-		} else {
-			/* Keep ATT bearer instance */
-			context.bearer = GATTAPI.onConnection(context, index);
+			},
+			/* GAP Callback */
+			passkeyRequested: input => {
+				sendMessage({
+					notification: "sm/passkey",
+					connection: handle,
+					input
+				});
+			},
+			/* GAP Callback */
+			encryptionCompleted: securityChanged => {
+				sendMessage({
+					notification: "sm/encryption/complete",
+					connection: handle,
+					securityChanged
+				});
+			},
+			/* GAP Callback */
+			encryptionFailed: status => {
+				sendMessage({
+					notification: "sm/encryption/failed",
+					connection: handle,
+					status
+				});
+			},
+			/* GAP Callback */
+			disconnected: reason => {
+				logger.debug("Disconnected: index=" + handle
+					+ ", reason=" + Utils.toHexString(reason));
+				this.unregisterConnection(handle);
+				removeClientConfigurations(connection);
+				sendMessage({
+					notification: "gap/disconnect",
+					connection: handle,
+					reason
+				});
+			},
+			/* GAP Callback */
+			connectionUpdated: parameters => {
+				logger.debug("Connection Updated: index=" + handle);
+				sendMessage({
+					notification: "gap/updated",
+					connection: handle,
+					parameters
+				});
+			}
+		};
+		/* Setup ATT bearer inside the BLL thread */
+		let bearer = new ATTBearer(connection, _profile.database);
+		/* Override callbacks */
+		bearer.onNotification = (opcode, notification) => {
+			sendMessage({
+				notification: "gatt/characteristic/notify",
+				connection: handle,
+				characteristic: notification.handle,
+				value: notification.value
+			});
+		};
+		bearer.onIndication = (opcode, indication) => {
+			sendMessage({
+				notification: "gatt/characteristic/indicate",
+				connection: handle,
+				characteristic: indication.handle,
+				value: indication.value
+			});
+		};
+		if (!connection.peripheral) {
+			GATTClient.exchangeMTU(bearer, DEFAULT_MTU);
 		}
-		let link = context._connectionManager.link;
-		let hciInfo = link._info;	// FIXME
-		doNotification({
+		sendMessage({
 			notification: "gap/connect",
-			connection: index,
-			peripheral: context.peripheral,
-			address: link.remoteAddress.toString(),
-			addressType: link.remoteAddress.typeString,
-			rpa: rpa != null ? rpa.toString() : null,
-			interval: hciInfo.connParameters.interval,
-			timeout: hciInfo.connParameters.supervisionTimeout,
-			latency: hciInfo.connParameters.latency,
-			bond: _storage.findBondIndexByAddress(link.remoteAddress)
+			connection: connection.handle,
+			peripheral: connection.peripheral,
+			address: connection.address.toString(),
+			addressType: connection.address.typeString,
+			interval: connection.parameters.interval,
+			timeout: connection.parameters.supervisionTimeout,
+			latency: connection.parameters.latency
 		});
 	}
 	/* GAP Callback */
-	gapDiscovered(discoveredList) {
-		for (let discovered of discoveredList) {
-			let {rssi, remoteAddress, structures, eventType} = discovered;
-			doNotification({
-				notification: "gap/discover",
-				rssi: rssi,
-				address: remoteAddress.toString(),
-				addressType: remoteAddress.isRandom() ? "random" : "public",
-				resolvable: remoteAddress.isResolvable(),
-				data: parseADFromStructures(structures),
-				type: eventType
-			});
+	gapDiscovered(device) {
+		let message = {
+			notification: "gap/discover",
+			address: device.address.toString(),
+			addressType: device.address.isRandom() ? "random" : "public",
+			resolvable: device.address.isResolvable(),
+			rssi: device.rssi,
+		};
+		if (device.hasOwnProperty("scanResponse")) {
+			message.type = 0x04;
+			message.data = parseADFromStructures(device.scanResponse);
+		} else {
+			if (device.directed) {
+				message.type = 0x01;
+				message.data = null;
+			} else {
+				message.type = (device.connectable ? 0x00 : (device.scannable ? 0x02 : 0x03));
+				message.data = parseADFromStructures(device.advertising);
+			}
 		}
+		sendMessage(message);
 	}
 	/* GAP Callback */
 	privacyEnabled(privateAddress) {
-		doNotification({
+		sendMessage({
 			notification: "gap/privacy/complete",
 			rpa: privateAddress.toString()
-		});
-	}
-}
-
-class GAPContextDelegate {
-	constructor(gapApp, index) {
-		this._gapApp = gapApp;
-		this._index = index;
-	}
-	passkeyRequested(input) {
-		doNotification({
-			notification: "sm/passkey",
-			connection: this._index,
-			input
-		});
-	}
-	encryptionCompleted(div, info) {
-		doNotification({
-			notification: "sm/encryption/complete",
-			connection: this._index,
-			bond: (info != null) ? div : -1
-		});
-	}
-	encryptionFailed(status) {
-		let msg = "Encryption Failed: status=" + Utils.toHexString(status);
-		logger.error(msg);
-		throw new Error(msg);
-	}
-	disconnected(reason) {
-		logger.debug("Disconnected: index=" + this._index
-			+ ", reason=" + Utils.toHexString(reason));
-		this._gapApp.unregisterContext(this._index);
-		doNotification({
-			notification: "gap/disconnect",
-			connection: this._index,
-			reason
 		});
 	}
 }
@@ -470,7 +425,13 @@ exports.gapStartScanning = function (params) {
 	var duplicates = ("duplicates" in params) ? params.duplicates : "allow";
 
 	logger.debug("gapStartScanning");
-	_gap.startScanning(interval, window, !(duplicates == "allow"));
+	_gap.startScanning({
+		discovery: false,
+		active,
+		interval,
+		window,
+		duplicatesFilter: !(duplicates == "allow")
+	});
 };
 
 exports.gapStopScanning = function () {
@@ -487,10 +448,9 @@ exports.gapConnect = function (params) {
 	var latency = ("latency" in params) ? params.latency : 0;
 
 	logger.debug("gapConnect");
-	var peerAddress = BluetoothAddress.getByString(address, true, random);
+	var peerAddress = BluetoothAddress.getByString(address, random);
 
-	_gap.stopScanning();		// XXX: Make sure it stops scanning
-	_gap.directConnection(peerAddress, {
+	_gap.establishConnection(peerAddress, {
 		intervalMin: intervalMin,
 		intervalMax: intervalMax,
 		latency: latency,
@@ -502,7 +462,7 @@ exports.gapConnect = function (params) {
 
 exports.gapSetScanResponseData = function (params) {
 	logger.debug("gapSetScanResponseData");
-	_gap.setScanResponseData(serializeAD(params));
+	_scanResponseData = serializeAD(params);
 };
 
 exports.gapStartAdvertising = function (params) {
@@ -514,9 +474,15 @@ exports.gapStartAdvertising = function (params) {
 	var structures = ("data" in params) ? serializeAD(params.data) : null;
 
 	logger.debug("gapStartAdvertising");
-	_gap.setDiscoverableMode(GAP.DiscoverableMode.GENERAL);
-	_gap.setConnectableMode(GAP.ConnectableMode.UNDIRECTED);
-	_gap.startAdvertising(intervalMin, intervalMax, structures);
+	_gap.startAdvertising({
+		advertising: structures,
+		scanResponse: _scanResponseData,
+		discoverable: true,
+		limited: false,
+		connectable: true,
+		address: null,
+		fast: true,
+	});
 };
 
 exports.gapStopAdvertising = function () {
@@ -534,8 +500,11 @@ exports.gapUpdateConnection = function (params) {
 
 	logger.debug("gapUpdateConnection");
 
-	var context = _gapApplication.getContext(index);
-	context.updateConnectionParameter({
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
+	}
+	gapConn.updateConnectionParameter({
 		intervalMin: intervalMin,
 		intervalMax: intervalMax,
 		latency: latency,
@@ -550,13 +519,21 @@ exports.gapDisconnect = function (params) {
 
 	logger.debug("gapDisconnect");
 
-	var context = _gapApplication.getContext(index);
-	_gap.disconnect(context, 0x13);
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
+	}
+	gapConn.disconnect(0x13);
 };
 
 exports.gapEnablePrivacy = function () {
 	logger.debug("gapEnablePrivacy");
 	_gap.enablePrivacyFeature(true);
+};
+
+exports.gapDisablePrivacy = function () {
+	logger.debug("gapDisablePrivacy");
+	_gap.enablePrivacyFeature(false);
 };
 
 exports.gapDeleteBond = function (params) {
@@ -573,8 +550,11 @@ exports.smStartEncryption = function (params) {
 
 	logger.debug("smStartEncryption");
 
-	var security = _gapApplication.getContext(index).security;
-	security.startEncryption();
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
+	}
+	gapConn.startAuthentication();
 };
 
 exports.smSetSecurityParameter = function (params) {
@@ -582,19 +562,11 @@ exports.smSetSecurityParameter = function (params) {
 
 	logger.debug("smSetSecurityParameter");
 
-	var security = _gapApplication.getContext(index).security;
-	if ("bonding" in params) {
-		security.parameter.bonding = params.bonding;
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
 	}
-	if ("mitm" in params) {
-		security.parameter.mitm = params.mitm;
-	}
-	if ("display" in params) {
-		security.parameter.display = params.display;
-	}
-	if ("keyboard" in params) {
-		security.parameter.keyboard = params.keyboard;
-	}
+	gapConn.setSecurityParameter(params);
 };
 
 exports.smPasskeyEntry = function (params) {
@@ -602,8 +574,11 @@ exports.smPasskeyEntry = function (params) {
 
 	logger.debug("smPasskeyEntry");
 
-	var security = _gapApplication.getContext(index).security;
-	security.passkeyEntry(params.passkey);
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
+	}
+	gapConn.passkeyEntry(params.passkey);
 };
 
 // ----------------------------------------------------------------------------------
@@ -615,42 +590,23 @@ exports.hciReadRSSI = function (params) {
 
 	logger.debug("hciReadRSSI");
 
-	var context = _gapApplication.getContext(index);
-	_gap._hci.commands.status.readRSSI(
-		context.handle,
-		{
-			commandComplete: function (opcode, response) {
-				var status = response.getInt8();
-				if (status != 0) {
-					throw new Error("readRSSI failed: " + Utils.toHexString(status));
-				}
-				var hciHandle = response.getInt16();	// XXX: Should check
-				var rssi = Utils.toSignedByte(response.getInt8());
-				doNotification({
-					notification: "gap/rssi",
-					connection: index,
-					rssi: rssi
-				});
-			}
-		}
-	);
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
+	}
+	_gap._hci.commands.status.readRSSI(gapConn.handle).then(response => {
+		let hciHandle = response.getInt16();	// XXX: Should check
+		let rssi = Utils.toSignedByte(response.getInt8());
+		sendMessage({
+			notification: "gap/rssi",
+			connection: index,
+			rssi: rssi
+		});
+	});
 };
 
 /* FIXME: Compatibility Alias */
 exports.gapReadRSSI = exports.hciReadRSSI;
-
-// ----------------------------------------------------------------------------------
-// API - L2CAP (ATT Channel) (Advanced Mode API)
-// ----------------------------------------------------------------------------------
-
-exports.attSendAttributePDU = function (params) {
-	let index = params.connection;
-
-	logger.debug("attSendAttributePDU");
-
-	let context = _gapApplication.getContext(index);
-	context.attConnection.sendAttributePDU(new Uint8Array(params.buffer));
-};
 
 // ----------------------------------------------------------------------------------
 // GAP Advertising Data
@@ -673,165 +629,295 @@ function parseADFromStructures(structures) {
 	return bgStructures;
 }
 
-function serializeAD(params) {
-	let structures = new Array();
-	for (let key in params) {
-		if (params.hasOwnProperty(key) && AdvertisingDataSerializer.hasOwnProperty(key)) {
-			let serializer = AdvertisingDataSerializer[key];
-			let data = serializer.serialize(params[key]);
-			structures.push({
-				type: serializer.type,
-				data
+const serializeAD = require("bluetooth/core/gapadvdata").serialize
+
+
+// ----------------------------------------------------------------------------------
+// API - GATT (Standard Mode API)
+// ----------------------------------------------------------------------------------
+
+function procedureComplete(connHandle, handle) {
+	sendMessage({
+		notification: "gatt/request/complete",
+		connection: connHandle
+	});
+}
+
+function procedureCompleteWithError(procedure, errorCode, handle) {
+	let msg = procedure + " failed: " + "ATT(" + Utils.toHexString(errorCode) + ")";
+	logger.error(msg);
+	throw new Error(msg);
+}
+
+exports.gattDiscoverAllPrimaryServices = function (params) {
+	let index = params.connection;
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
+	}
+	let bearer = gapConn.bearer;
+	GATTClient.discoverPrimaryServices(bearer, results => {
+		for (let result of results) {
+			sendMessage({
+				notification: "gatt/service",
+				connection: index,
+				start: result.start,
+				end: result.end,
+				uuid: result.uuid.toString()
 			});
 		}
-	}
-	return structures;
-}
+	}).then(() => {
+		procedureComplete(index);
+	}).catch((errorCode, handle) => {
+		procedureCompleteWithError("gattDiscoverAllPrimaryServices", errorCode, handle);
+	});
+};
 
-function serializeUUIDList(data) {
-	let buffer = ByteBuffer.allocateUint8Array(GAP.MAX_AD_LENGTH - 2, true);
-	for (let uuidStr of data) {
-		let uuid = UUID.getByString(uuidStr);
-		if (uuid.isUUID16()) {
-			buffer.putInt16(uuid.toUUID16());
-		} else {
-			buffer.putByteArray(uuid.toUUID128());
+exports.gattDiscoverAllCharacteristics = function (params) {
+	let index = params.connection;
+	let start = params.start;
+	let end = params.end;
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
+	}
+	let bearer = gapConn.bearer;
+	GATTClient.discoverCharacteristics(bearer, 0x0001, 0xFFFF, results => {
+		for (let result of results) {
+			sendMessage({
+				notification: "gatt/characteristic",
+				connection: index,
+				properties: parseCharacteristicProperties(result.properties),
+				characteristic: result.handle,
+				uuid: result.uuid.toString()
+			});
 		}
+		return true;
+	}).then(() => {
+		procedureComplete(index);
+	}).catch((errorCode, handle) => {
+		procedureCompleteWithError("gattDiscoverAllCharacteristics", errorCode, handle);
+	});
+};
+
+exports.gattDiscoverAllCharacteristicDescriptors = function (params) {
+	let index = params.connection;
+	let start = params.start;
+	let end = params.end;
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
 	}
-	buffer.flip();
-	return buffer.getByteArray();
-}
+	let bearer = gapConn.bearer;
+	GATTClient.discoverCharacteristicDescriptors(bearer, start, end, results => {
+		for (let result of results) {
+			sendMessage({
+				notification: "gatt/descriptor",
+				connection: index,
+				descriptor: result.handle,
+				uuid: result.uuid.toString()
+			});
+		}
+		return true;
+	}).then(() => {
+		procedureComplete(index);
+	}).catch((errorCode, handle) => {
+		procedureCompleteWithError("gattDiscoverAllCharacteristicDescriptors", errorCode, handle);
+	});
+};
 
-function serializeServiceData({uuid, data = null}) {
-	let buffer = ByteBuffer.allocateUint8Array(GAP.MAX_AD_LENGTH - 2, true);
-	if (uuid.isUUID16()) {
-		buffer.putInt16(uuid.toUUID16());
-	} else {
-		buffer.putByteArray(uuid.toUUID128());
+exports.gattReadCharacteristicValue = function (params) {
+	let index = params.connection;
+	let handle = params.characteristic;
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
 	}
-	if (data != null) {
-		buffer.putByteArray(data);
+	let bearer = gapConn.bearer;
+	GATTClient.readValue(bearer, handle).then(result => {
+		sendMessage({
+			notification: "gatt/characteristic/value",
+			connection: index,
+			characteristic: handle,
+			value: result
+		});
+	}).catch((errorCode, handle) => {
+		procedureCompleteWithError("gattReadCharacteristicValue", errorCode, handle);
+	});
+};
+
+exports.gattWriteWithoutResponse = function (params) {
+	let index = params.connection;
+	let handle = params.characteristic;
+	let value = params.value;
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
 	}
-	buffer.flip();
-	return buffer.getByteArray();
+	let bearer = gapConn.bearer;
+	GATTClient.writeWithoutResponse(bearer, handle, new Uint8Array(value));
+};
+
+exports.gattWriteCharacteristicValue = function (params) {
+	let index = params.connection;
+	let handle = params.characteristic;
+	let value = params.value;
+	let gapConn = _gapApplication.getConnection(index);
+	if (gapConn == null) {
+		return;
+	}
+	let bearer = gapConn.bearer;
+	GATTClient.writeValue(bearer, handle, new Uint8Array(value)).then(() => {
+		procedureComplete(index, handle);
+	}).catch((errorCode, handle) => {
+		procedureCompleteWithError("gattReadCharacteristicValue", errorCode, handle);
+	});
+};
+
+function parseCharacteristicProperties(properties) {
+	let parsed = [];
+	if ((properties & GATT.Properties.BROADCAST) > 0) {
+		parsed.push("broadcast");
+	}
+	if ((properties & GATT.Properties.READ) > 0) {
+		parsed.push("read");
+	}
+	if ((properties & GATT.Properties.WRITE_WO_RESP) > 0) {
+		parsed.push("writeWithoutResponse");
+	}
+	if ((properties & GATT.Properties.WRITE) > 0) {
+		parsed.push("write");
+	}
+	if ((properties & GATT.Properties.NOTIFY) > 0) {
+		parsed.push("notify");
+	}
+	if ((properties & GATT.Properties.INDICATE) > 0) {
+		parsed.push("indicate");
+	}
+	return parsed;
 }
 
-function serializeUInt8(data) {
-	return [data & 0xFF];
-}
+exports.gattAddServices = function (params) {
+	logger.debug("gattAddServices");
 
-function serializeUInt16(data) {
-	return Utils.toByteArray(data, 2, true);
-}
-
-function serializeAddress(data) {
-	return BluetoothAddress.getByString(data).getRawArray();
-}
-
-var AdvertisingDataSerializer = {
-	["incompleteUUID16List"]: {
-		type: GAP.ADType.INCOMPLETE_UUID16_LIST,
-		serialize: serializeUUIDList
-	},
-	["completeUUID16List"]: {
-		type: GAP.ADType.COMPLETE_UUID16_LIST,
-		serialize: serializeUUIDList
-	},
-	["incompleteUUID128List"]: {
-		type: GAP.ADType.INCOMPLETE_UUID128_LIST,
-		serialize: serializeUUIDList
-	},
-	["completeUUID128List"]: {
-		type: GAP.ADType.COMPLETE_UUID128_LIST,
-		serialize: serializeUUIDList
-	},
-	["shortName"]: {
-		type: GAP.ADType.SHORTENED_LOCAL_NAME,
-		serialize: BTUtils.toCharArray
-	},
-	["completeName"]: {
-		type: GAP.ADType.COMPLETE_LOCAL_NAME,
-		serialize: BTUtils.toCharArray
-	},
-	["flags"]: {
-		type: GAP.ADType.FLAGS,
-		serialize: (data) => {
-			let flags = 0;
-			for (let flag of data) {
-				flags |= flag;
+	for (let s = 0; s < params.services.length; s++) {
+		let serviceTmp = params.services[s];
+		logger.debug("Service#" + s + ": " + serviceTmp.uuid);
+		let service = _profile.addService(serviceTmp);
+		/* Setup callback */
+		for (let characteristic of service.characteristics) {
+			characteristic.onValueRead = c => {
+				logger.debug("Characteristic value on read: handle="
+					+ Utils.toHexString(c.handle, 2));
+			};
+			characteristic.onValueWrite = c => {
+				logger.debug("Characteristic value on write: handle="
+					+ Utils.toHexString(c.handle, 2));
+				sendMessage({
+					notification: "gatt/local/write",
+					service: service.uuid,
+					characteristic: c.uuid,
+					value: c.value
+				});
+			};
+			characteristic.config = new Map();
+			let descriptor = characteristic.getDescriptorByUUID(
+				GATT.UUID_CLIENT_CHARACTERISTIC_CONFIGURATION);
+			if (descriptor != null) {
+				descriptor.onValueRead = (d, c) => {
+					if (characteristic.config.has(c.handle)) {
+						d.value = characteristic.config.get(c.handle);
+					} else {
+						d.value = 0x0000;
+					}
+				};
+				descriptor.onValueWrite = (d, c) => {
+					characteristic.config.set(c.handle, d.value);
+				};
 			}
-			return [flags];
 		}
-	},
-	["manufacturerSpecific"]: {
-		type: GAP.ADType.MANUFACTURER_SPECIFIC_DATA,
-		serialize: ({identifier, data /* = null // FIXME: KINOMA STUDIO WILL CRASH!!  */}) => {
-			let buffer = ByteBuffer.allocateUint8Array(GAP.MAX_AD_LENGTH - 2, true);
-			buffer.putInt16(identifier);
-			if (data != undefined && data != null) {
-				buffer.putByteArray(data);
-			}
-			buffer.flip();
-			return buffer.getByteArray();
-		}
-	},
-	["txPowerLevel"]: {
-		type: GAP.ADType.TX_POWER_LEVEL,
-		serialize: serializeUInt8
-	},
-	["connectionInterval"]: {
-		type: GAP.ADType.SLAVE_CONNECTION_INTERVAL_RANGE,
-		serialize: ({intervalMin, intervalMax}) => {
-			let buffer = ByteBuffer.allocateUint8Array(4, true);
-			buffer.putInt16(intervalMin);
-			buffer.putInt16(intervalMax);
-			return buffer.array;
-		}
-	},
-	["solicitationUUID16List"]: {
-		type: GAP.ADType.SOLICITATION_UUID16_LIST,
-		serialize: serializeUUIDList
-	},
-	["solicitationUUID128List"]: {
-		type: GAP.ADType.SOLICITATION_UUID128_LIST,
-		serialize: serializeUUIDList
-	},
-	["serviceDataUUID16"]: {
-		type: GAP.ADType.SERVICE_DATA_UUID16,
-		serialize: serializeServiceData
-	},
-	["serviceDataUUID128"]: {
-		type: GAP.ADType.SERVICE_DATA_UUID128,
-		serialize: serializeServiceData
-	},
-	["appearance"]: {
-		type: GAP.ADType.APPEARANCE,
-		serialize: serializeUInt16
-	},
-	["publicAddress"]: {
-		type: GAP.ADType.PUBLIC_TARGET_ADDRESS,
-		serialize: serializeAddress
-	},
-	["randomAddress"]: {
-		type: GAP.ADType.RANDOM_TARGET_ADDRESS,
-		serialize: serializeAddress
-	},
-	["advertisingInterval"]: {
-		type: GAP.ADType.ADVERTISING_INTERVAL,
-		serialize: serializeUInt16
-	},
-/*
-	["deviceAddress"]: {
-		type: GAP.ADType.LE_BLUETOOTH_DEVICE_ADDRESS,
-		serialize: null			// TODO
-	},
-*/
-	["role"]: {
-		type: GAP.ADType.LE_ROLE,
-		serialize: serializeUInt8
-	},
-	["uri"]: {
-		type: GAP.ADType.URI,
-		serialize: BTUtils.toCharArray
 	}
+	_profile.deploy();
+
+	sendMessage({
+		notification: "gatt/services/add",
+		services: toAddServiceResults(_profile.services)
+	});
+};
+
+function toAddServiceResults(services) {
+	let results = [];
+	for (let s = 0; s < services.length; s++) {
+		let service = services[s];
+		let result = {
+			uuid: service.uuid.toString(),
+			characteristics: []
+		};
+		for (let c = 0; c < service.characteristics.length; c++) {
+			let characteristic = service.characteristics[c];
+			result.characteristics.push({
+				uuid: characteristic.uuid.toString(),
+				handle: characteristic.handle
+			});
+		}
+		results.push(result);
+	}
+	return results;
+}
+
+exports.gattWriteLocal = function (params) {
+	let serviceUUID = UUID.getByString(params.service);
+	let characteristicUUID = UUID.getByString(params.characteristic);
+	let value = params.value;
+
+	logger.debug("gattWriteLocal");
+
+	/* Find characteristic */
+	let service = _profile.getServiceByUUID(serviceUUID);
+	if (service == null) {
+		logger.error("Service " + serviceUUID.toString() + " not found.");
+		return;
+	}
+	let characteristic = service.getCharacteristicByUUID(characteristicUUID);
+	if (characteristic == null) {
+		logger.error("Characteristic " + characteristicUUID.toString() + " not found.");
+		return;
+	}
+
+	/* Update characteristic value */
+	characteristic.value = value;
+
+	/* Auto Notify/Indication */
+	_gapApplication.forEachConnection(connection => {
+		/* Try notification first, then retry with indication. */
+		if (!characteristic.notifyValue(connection)) {
+			characteristic.indicateValue(connection);
+		}
+	});
+};
+
+exports.gattReadLocal = function (params) {
+	let serviceUUID = UUID.getByString(params.service);
+	let characteristicUUID = UUID.getByString(params.characteristic);
+
+	logger.debug("gattReadLocal");
+
+	/* Find characteristic */
+	let service = _profile.getServiceByUUID(serviceUUID);
+	if (service == null) {
+		logger.error("Service " + serviceUUID.toString() + " not found.");
+		return;
+	}
+	let characteristic = service.getCharacteristicByUUID(characteristicUUID);
+	if (characteristic == null) {
+		logger.error("Characteristic " + characteristicUUID.toString() + " not found.");
+		return;
+	}
+
+	sendMessage({
+		notification: "gatt/local/read",
+		service: serviceUUID,
+		characteristic: characteristicUUID,
+		value: characteristic.value
+	});
 };

@@ -104,9 +104,9 @@ export default class extends Feature {
 		this.ssdp = new SSDP.Client(ssdpDeviceType);
 		this.ssdp.behavior = this;
 		this.ssdp.start();
-		this.mdns = new Zeroconf.Browser(mdnsServiceType);
-		this.mdns.behavior = this;
-		this.mdns.start();
+//		this.mdns = new Zeroconf.Browser(mdnsServiceType);
+//		this.mdns.behavior = this;
+//		this.mdns.start();
 		this.updates = {};
 		this.ssdpHelpers = [];
  		this.wsServerStart();
@@ -304,6 +304,21 @@ export default class extends Feature {
 			this.notify();
 		}
 	}
+	onHTTPTaskError(uuid) {
+		trace("onHTTPTaskError " + uuid + "\n");
+		let device = this.findDeviceByUUID(uuid);
+		if (!device) return;
+		system.alert({ 
+			type:"stop",
+			prompt:"Device \"" + device.name + "\" does not seem to be available anymore.",
+			info:"Do you want to remove it from the list?",
+			buttons:["OK", "Cancel"]
+		}, ok => {
+			if (ok) {
+				this.ssdp.remove(uuid);
+			}
+		});
+	}
 	onSSDPServerUp(discovery) {
 		trace("onSSDPServerUp " + JSON.stringify(discovery) + "\n");
 		let device = this.findDeviceByUUID(discovery.uuid);
@@ -332,9 +347,12 @@ export default class extends Feature {
 						discovery.port = split[1];
 						if (discovery.description.id == "com.marvell.kinoma.launcher.element") {
 							if (discovery.description.xsedit) {
-//								discovery.url = "http://" + discovery.ip + ":8081/app/";
-//								this.onSSDPServerUp(discovery);
-								return;
+								discovery.url = "http://" + discovery.ip + ":8081";
+								discovery.port = 8081;
+								if (!discovery.description.hostname) {
+									this.onSSDPServerUp(discovery);
+									return;
+								}
 							}
 							else if ("studio" in discovery.description)
 								discovery.description.id = discovery.description.id + ".factory"; // upgrade factory devices
@@ -353,8 +371,7 @@ export default class extends Feature {
 		trace("onSSDPServerDown " + JSON.stringify(discovery) + "\n");
 		if (discovery.type == ssdpDeviceType) {
 			let device = this.findDeviceByUUID(discovery.uuid);
-			if (device && (device.constructor.tag != "Element"))
-				this.onDeviceDown(device, discovery.interfaceName);
+			this.onDeviceDown(device, discovery.interfaceName);
 		}
 	}
 	onZeroconfServiceUp(service) {
@@ -484,6 +501,8 @@ export default class extends Feature {
 					this.device.wsClose();
 			}
 			ws.onerror = function(error) {
+				if ("device" in this)
+					context.onHTTPTaskError(this.device.uuid);
 //  				trace("WS: onerror " + this.wsIndex + " -> " + error.code + " " + error.message + "\n");
 			}
 			ws.onmessage = function(message) {
@@ -819,7 +838,7 @@ export class DeviceConfig {
 		return this.wsRequest({
 			handler: "getNetworkList",
 		});
-	}
+	}	
 	getNetworkMAC() {
 		if (this.MAC)
 			return Promise.resolve(this.MAC);
@@ -864,6 +883,11 @@ export class DeviceConfig {
 	updateSystemStatus() {
 		return this.wsRequest({
 			handler: "updateSystemStatus",
+		});
+	}
+	getLogicalToPhysicalMapJson() {
+		return this.wsRequest({
+			handler: "getLogicalToPhysicalMapJson",
 		});
 	}
 }
@@ -1135,7 +1159,7 @@ class EmbedSimulatorConfig extends SimulatorConfig {
 
 EmbedSimulatorConfig.iconSkin = new Skin({ texture:new Texture("./assets/embed-simulator.png", 1), x:0, y:0, width:60, height:60, states:60, variants:60 });
 EmbedSimulatorConfig.id = "com.marvell.kinoma.launcher.embed";
-EmbedSimulatorConfig.preferences = { simulatorFlag: false }
+EmbedSimulatorConfig.preferences = { simulatorFlag: true }
 EmbedSimulatorConfig.product = "Kinoma Embed";
 EmbedSimulatorConfig.tag = "EmbedShell";
 

@@ -23,10 +23,6 @@
 #include "FskResolver.h"
 #include "FskMedia.h"		// for property stuff
 
-#if OPEN_SSL
-	#include <openssl/ssl.h>
-#endif
-
 #ifdef __FSKNETUTILS_PRIV__
 	#if TARGET_OS_MAC
 			#import <CoreFoundation/CFSocket.h>
@@ -131,13 +127,6 @@ typedef void (*FskNetNotificationCallback)(int what, int message, void *refCon);
 		FskResolver	rr;
 
 		Boolean	isSSL;
-#if OPEN_SSL
-		SSL_CTX	*context;
-		SSL		*ssl;
-		BIO		*bio;
-		struct FskThreadDataHandlerRecord *sslTransactionHandler;
-		int		sslState;
-#endif
 #if CLOSED_SSL
 		void	*fssl;
 #endif
@@ -326,7 +315,7 @@ enum {
 };
 
 
-#if OPEN_SSL || CLOSED_SSL
+#if CLOSED_SSL
 FskAPI(FskErr) FskNetSocketDoSSL(char *host, FskSocket skt, FskNetSocketCreatedCallback callback, void *refCon);
 #endif
 

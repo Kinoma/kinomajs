@@ -1,4 +1,3 @@
-//@module
 /*
  *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
@@ -22,78 +21,52 @@
  *
  */
 
-const GATT = require("./bluetooth/core/gatt");
-const ATT = GATT.ATT;
-const GATTServer = require("./bluetooth/gatt/server");
-const GATTClient = require("./bluetooth/gatt/client");
+import Pins from "pins";
+
+import Buffers from "./common/buffers";
+import Utils from "./common/utils";
+
+import GATT from "./bluetooth/core/gatt";
+import GATTServer from "./bluetooth/gatt/server";
+import GATTClient from "./bluetooth/gatt/client";
+//import BTUtils from "./bluetooth/core/btutils";
 const BTUtils = require("./bluetooth/core/btutils");
-const BluetoothAddress = BTUtils.BluetoothAddress;
-const UUID = BTUtils.UUID;
 
-const Buffers = require("./common/buffers");
+export const BluetoothAddress = BTUtils.BluetoothAddress;
+export const UUID = BTUtils.UUID;
+
 const ByteBuffer = Buffers.ByteBuffer;
+const Logger = Utils.Logger;
 
-const Pins = require("pins");
+const DEFAULT_BONDING_FILE_NAME = "ble_bondings.json";
 
-const DEFAULT_BONDING_FILE_NAME = "ble_bondigs.json";
+/* Default Scanning Parameters: General Discovery */
+const DEFAULT_SCANNING_PARAMETERS = {
+	observer: false,
+	duplicatesFilter: true
+};
 
-class ProxyATTConnection {
-	constructor(bll, id) {
-		this._bll = bll;
-		this._id = id;
-		this._onReceived = null;
-		this._pairingInfo = null;
-		this._encrypted = false;
-	}
-	set onReceived(callback) {
-		this._onReceived = callback;
-	}
-	get identifier() {
-		return this._id;
-	}
-	get pairingInfo() {
-		return this._pairingInfo;
-	}
-	set pairingInfo(info) {
-		this._pairingInfo = info;
-	}
-	get encrypted() {
-		return this._encrypted;
-	}
-	sendAttributePDU(data) {
-		Pins.invoke("/" + this._bll + "/attSendAttributePDU", {
-			connection: this._id,
-			buffer: data.buffer
-		});
-	}
-	received(data) {
-		this._onReceived(ByteBuffer.wrap(data));
-	}
-	disconnected() {
-	//	logger.info("Disconnected: pendingPDUs=" + this.pendingTransactions.length);
-	}
-}
+/* Default Advertising Parameters: General Discoverable + Undirected Connectable */
+const DEFAULT_ADVERTISING_PARAMETERS = {
+	discoverable: true,
+	conneactable: true
+};
 
-function getAddressFromResponse(response) {
-	if (response.hasOwnProperty("address")) {
-		return BluetoothAddress.getByString(
-			response.address, true, response.addressType != "public");
-	}
-	return null;
-}
+let logger = Logger.getLogger("BLE");
 
-class BLE {
-	constructor() {
+export default class BLE {
+	constructor(clearBondings = false) {
 		this._bll = "";
 		this._server = new GATTServer.Profile();
 		this._connections = new Map();
 		this._ready = false;
 		this._bondingFileURI = mergeURI(Files.documentsDirectory, DEFAULT_BONDING_FILE_NAME);
-		if (Files.exists(this._bondingFileURI)) {
+		if (!clearBondings && Files.exists(this._bondingFileURI)) {
 			this._bondingDB = Files.readJSON(this._bondingFileURI);
 		} else {
 			this._bondingDB = new Array();
 		}
+		this._ccConfigs = new Map();
 		/* Event Handlers */
 		this._onReady = null;
 		this._onConnected = null;
@@ -102,13 +75,13 @@ class BLE {
 	}
 	get configuration() {
 		return {
-			require: "/lowpan/ble",
-			mode: "advanced",
+			require: "/lowpan/bluetooth/core/bll",
 			bondings: this._bondingDB,
-		//	logging: true,
+			logging: true,
 			loggers: [
-		//		{ name: "BLE", level: "TRACE" },
+		//		{ name: "BLL", level: "DEBUG" },
 		//		{ name: "GAP", level: "DEBUG" },
+		//		{ name: "SM", level: "DEBUG" },
 		//		{ name: "L2CAP", level: "DEBUG" },
 		//		{ name: "HCI", level: "TRACE" },
 		//		{ name: "HCIComm", level: "TRACE" },
@@ -132,7 +105,10 @@ class BLE {
 	}
 	init(bll) {
 		this._bll = bll;
-		Pins.when("ble", "notification", response => this.onNotification(response));
+		Pins.when(bll, "notification", response => this.onNotification(response));
+	}
+	invoke(name, arg) {
+		Pins.invoke("/" + this._bll + "/" + name, arg);
 	}
 	get bll() {
 		return this._bll;
@@ -140,83 +116,127 @@ class BLE {
 	get server() {
 		return this._server;
 	}
-	startScanning() {
-		Pins.invoke("/ble/gapStartScanning");
+	startScanning(parameters = DEFAULT_SCANNING_PARAMETERS) {
+		this.invoke("startScanning", {parameters});
 	}
 	stopScanning() {
-		Pins.invoke("/ble/gapStopScanning");
+		this.invoke("stopScanning");
 	}
-	connect(address) {
-		Pins.invoke("/ble/gapConnect", {
-			address: address.toString(),
-			addressType: address.typeString
+	connect(address = null, parameters = null) {
+		this.invoke("establishConnection", {
+			address: (address != null) ? Array.from(address.toByteArray()) : null,
+			parameters
 		});
 	}
-	setScanResponseData(data) {
-		Pins.invoke("/ble/gapSetScanResponseData", data);
-	}
-	startAdvertising(parameter) {
-		Pins.invoke("/ble/gapStartAdvertising", parameter);
+	startAdvertising(parameters = DEFAULT_ADVERTISING_PARAMETERS) {
+		this.invoke("startAdvertising", {parameters});
 	}
 	stopAdvertising() {
-		Pins.invoke("/ble/gapStopAdvertising");
+		this.invoke("stopAdvertising");
 	}
 	enablePrivacy() {
-		Pins.invoke("/ble/gapEnablePrivacy");
+		this.invoke("enablePrivacy");
 	}
-	deleteBonding(bond) {
-		Pins.invoke("/ble/gapDeleteBond", {
-			index: bond
+	disablePrivacy() {
+		this.invoke("disablePrivacy");
+	}
+	setWhiteList(addresses) {
+		let a = new Array();
+		for (let address of addresses) {
+			a.push(address.toByteArray());
+		}
+		this.invoke("setWhiteList", {
+			addresses: a
 		});
 	}
-	onNotification(response) {
-		if (response.hasOwnProperty("connection")) {
-			let connection = this._connections.get(response.connection);
+	getClientConfigurations(connection) {
+		let address = connection.address;
+		let key = address.toString() + "/" + address.typeString;
+		if (!this._ccConfigs.has(key)) {
+			this._ccConfigs.set(key, new Map());
+		}
+		return this._ccConfigs.get(key);
+	}
+	removeClientConfigurations(connection) {
+		let address = connection.address;
+		let key = address.toString() + "/" + address.typeString;
+		if (connection.securityInfo != null && connection.securityInfo.bonding && address.isIdentity()) {
+			logger.debug("CCC will be kept");
+			return;
+		}
+		this._ccConfigs.delete(key);
+		logger.debug("CCC for " + key + " has been deleted");
+		// TODO: Persistence
+	}
+	saveClientConfigurations(connection) {
+		logger.debug("CCC for " + key + " has been written");
+		// TODO: Persistence
+	}
+	onNotification(message) {
+		if (message.hasOwnProperty("connection")) {
+			let connection = this._connections.get(message.connection);
 			if (connection !== undefined) {
-				connection.onNotification(response);
+				connection.onNotification(message);
 			}
 		}
-		let notification = response.notification;
-		switch (notification) {
-		case "system/reset":
+		switch (message.identifier) {
+		case "ready":
 			this._ready = true;
 			if (this._onReady != null) {
 				this._onReady();
 			}
 			break;
-		case "gap/connect":
+		case "connected":
 			{
-				let connection = new BLEConnection(this, response);
-				this._connections.set(response.connection, connection);
+				let connection = new BLEConnection(this, message);
+				this._connections.set(message.connection, connection);
 				if (this._onConnected != null) {
 					this._onConnected(connection);
 				}
 			}
 			break;
-		case "gap/discover":
+		case "discovered":
 			if (this._onDiscovered != null) {
-				let device = {
-					address: getAddressFromResponse(response),
-					data: response.data,
-					type: response.type,
-					rssi: response.rssi
-				};
-				this._onDiscovered(device);
+				message.address = BluetoothAddress.getByAddress(message.address);
+				if (message.hasOwnProperty("directAddress")) {
+					message.directAddress = BluetoothAddress.getByAddress(message.directAddress);
+				}
+				this._onDiscovered(message);
 			}
 			break;
-		case "gap/privacy/complete":
+		case "privacyEnabled":
 			if (this._onPrivacyEnabled != null) {
-				this._onPrivacyEnabled(BluetoothAddress.getByString(response.rpa, true, true));
+				this._onPrivacyEnabled(BluetoothAddress.getByAddress(message.address));
 			}
 			break;
-		case "gap/disconnect":
-			this._connections.delete(response.connection);
+		case "disconnected":
+			this._connections.delete(message.connection);
 			break;
-		case "gap/bond/add":
-		case "gap/bond/remove":
-			this._bondingDB[response.index] = response.hasOwnProperty("info") ? response.info : null;
+		case "bondModified":
+			this._bondingDB[message.index] = message.hasOwnProperty("info") ? message.info : null;
 			Files.writeJSON(this._bondingFileURI, this._bondingDB);
 		}
+	}
+}
+
+class ATTBearer extends GATT.ATT.ATTBearer {
+	constructor(ble, connection, database) {
+		super(connection, database);
+		this._ble = ble;
+	}
+	readClientConfiguration(characteristic, connection) {
+		let uuid = characteristic.uuid.toString();
+		let configs = this._ble.getClientConfigurations(connection);
+		if (!configs.has(uuid)) {
+			return 0x0000;
+		}
+		return configs.get(uuid);
+	}
+	writeClientConfiguration(characteristic, connection, value) {
+		let uuid = characteristic.uuid.toString();
+		let configs = this._ble.getClientConfigurations(connection);
+		configs.set(uuid, value);
+		this._ble.saveClientConfigurations(connection);
 	}
 }
 
@@ -224,96 +244,161 @@ class BLEConnection {
 	constructor(ble, info) {
 		this._ble = ble;
 		this._info = info;
-		this._proxy = new ProxyATTConnection(ble.bll, info.connection);
+		this._parameters = info.parameters;
+		this._securityInfo = info.securityInfo;
+		this._encrypted = false;
 		/* ATT & GATT */
-		this._bearer = new ATT.ATTBearer(this._proxy, ble.server.database);
+		this._bearer = new ATTBearer(ble, this, ble.server.database);
 		this._client = new GATTClient.Profile(this._bearer);
-		/* SM */
-		this._bond = info.bond;
 		/* Event Handlers */
 		this._onPasskeyRequested = null;
-		this._onEncryptionCompleted = null;
-		this._onEncryptionFailed = null;
+		this._onAuthenticationCompleted = null;
+		this._onAuthenticationFailed = null;
 		this._onDisconnected = null;
+		this._onUpdated = null;
 	}
 	set onPasskeyRequested(cb) {
 		this._onPasskeyRequested = cb;
 	}
-	set onEncryptionCompleted(cb) {
-		this._onEncryptionCompleted = cb;
+	set onAuthenticationCompleted(cb) {
+		this._onAuthenticationCompleted = cb;
 	}
-	set onEncryptionFailed(cb) {
-		this._onEncryptionCompleted = cb;
+	set onAuthenticationFailed(cb) {
+		this._onAuthenticationFailed = cb;
 	}
 	set onDisconnected(cb) {
 		this._onDisconnected = cb;
 	}
-	get bond() {
-		return this._bond;
+	set onUpdated(cb) {
+		this._onUpdated = cb;
+	}
+	get bearer() {
+		return this._bearer;
+	}
+	set bearer(bearer) {
+		this._bearer = bearer;
 	}
 	get client() {
 		return this._client;
 	}
+	get handle() {
+		return this._info.connection;
+	}
+	get peripheral() {
+		return this._info.peripheral;
+	}
+	get parameters() {
+		return this._parameters;
+	}
 	get address() {
-		return getAddressFromResponse(this._info);
+		return BluetoothAddress.getByAddress(this._info.address);
+	}
+	get identity() {
+		if (this._securityInfo != null && this._securityInfo.address != null) {
+			return this._securityInfo.address;
+		}
+		let address = this.address;
+		if (address.isIdentity()) {
+			return address;
+		}
+		return null;
+	}
+	get encrypted() {
+		return this._encrypted;
+	}
+	get securityInfo() {
+		return this._securityInfo;
 	}
 	isPeripheral() {
 		return this._info.peripheral;
 	}
-	updateConnection(parameter) {
-		parameter.connection = this._info.connection;
-		Pins.invoke("/ble/gapUpdateConnection", parameter);
-	}
-	disconnect() {
-		Pins.invoke("/ble/gapDisconnect", {
-			connection: this._info.connection
+	updateConnection(parameters, l2cap) {
+		this._ble.invoke("updateConnection", {
+			connection: this._info.connection,
+			parameters,
+			l2cap
 		});
 	}
-	startEncryption() {
-		Pins.invoke("/ble/smStartEncryption", {
+	disconnect(reason) {
+		this._ble.invoke("disconnect", {
+			connection: this._info.connection,
+			reason
+		});
+	}
+	startAuthentication() {
+		this._ble.invoke("startAuthentication", {
 			connection: this._info.connection
 		});
 	}
 	setSecurityParameter(parameter) {
-		parameter.connection = this._info.connection;
-		Pins.invoke("/ble/smSetSecurityParameter", parameter);
+		this._ble.invoke("setSecurityParameter", {
+			connection: this._info.connection,
+			parameter
+		});
 	}
 	passkeyEntry(passkey) {
-		Pins.invoke("/ble/smPasskeyEntry", {
+		this._ble.invoke("passkeyEntry", {
 			connection: this._info.connection,
 			passkey
 		});
 	}
-	onNotification(response) {
-		let notification = response.notification;
-		switch (notification) {
-		case "att/received":
-		//	this._proxy.received(new Uint8Array(response.buffer));
-			this._proxy.received(response.array);
+	sendAttributePDU(data) {
+		this._ble.invoke("sendAttributePDU", {
+			connection: this._info.connection,
+			buffer: data.buffer
+		});
+	}
+	onNotification(message) {
+		switch (message.identifier) {
+		case "attReceived":
+			if (this._bearer != null) {
+				this._bearer.received(ByteBuffer.wrap(new Uint8Array(message.buffer)));
+			}
 			break;
-		case "sm/passkey":
+		case "passkeyRequested":
 			if (this._onPasskeyRequested != null) {
-				this._onPasskeyRequested(response.input);
+				this._onPasskeyRequested(message.input);
 			}
 			break;
-		case "sm/encryption/complete":
-			this._bond = response.bond;
-			if (this._onEncryptionCompleted != null) {
-				this._onEncryptionCompleted();
+		case "encryptionCompleted":
+			this._encrypted = true;
+			if (message.securityChanged) {
+				logger.debug("securityInfo is updated on Proxy ATT connection");
+				if (message.securityInfo.address != null) {
+					message.securityInfo.address =
+						BluetoothAddress.getByAddress(message.securityInfo.address);
+				}
+				this._securityInfo = message.securityInfo;
+			}
+			if (this._onAuthenticationCompleted != null) {
+				this._onAuthenticationCompleted(message.securityChanged);
 			}
 			break;
-		// TODO: onEncryptionFailed
-		case "gap/disconnect":
+		case "pairingFailed":
+			if (this._onAuthenticationFailed != null) {
+				this._onAuthenticationFailed(message.reason, true);
+			}
+			break;
+		case "encryptionFailed":
+			if (this._onAuthenticationFailed != null) {
+				this._onAuthenticationFailed(message.reason, false);
+			}
+			break;
+		case "disconnected":
 			if (this._onDisconnected != null) {
-				this._onDisconnected(response.reason);
+				this._onDisconnected(message.reason);
 			}
+			break;
+		case "updated":
+			this._parameters = message.parameters;
+			if (this._onUpdated != null) {
+				this._onUpdated(message.parameters);
+			}
+			break;
+		case "rssi":
 			break;
 		}
 	}
 }
 
-module.exports = GATT;
-module.exports.Server = GATTServer;
-module.exports.Client = GATTClient;
-module.exports.UUID = UUID;
-module.exports.BLE = BLE;
+export {GATT};

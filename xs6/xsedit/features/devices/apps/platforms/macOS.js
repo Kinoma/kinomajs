@@ -61,25 +61,6 @@ const iconSkin = new Skin({ texture:new Texture("./icon.png", 2), x:0, y:0, widt
 
 // BEHAVIORS
 
-import { 
-	ButtonBehavior, 
-	FieldLabelBehavior, 
-	FieldScrollerBehavior, 
-} from "common/control";
-
-import { 
-	DropDialog,
-} from "common/menu";
-
-import {
-	LineBehavior,
-} from "shell/behaviors";
-
-import {
-	HelperBehavior,
-	WaitContent,
-} from "features/devices/behaviors";
-
 import {
 	TileBehavior,
 	tileSelectionSkin,

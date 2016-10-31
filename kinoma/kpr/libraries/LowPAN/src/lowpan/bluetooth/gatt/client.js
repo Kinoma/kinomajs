@@ -381,7 +381,7 @@ exports.readUsingCharacteristicUUID = readUsingCharacteristicUUID;
  * Core 4.2 Specification, Vol 3, Part G: Generic Attribute Profile
  * 4.8.1 Read Multiple Characteristic Values
  */
-function readMultipleCharacteristicValues(bearer, characteristics) {
+function readMultipleCharacteristicValues(bearer, characteristics, sizeList) {
 	let handles = [];
 	for (let i = 0; i < characteristics.length; i++) {
 		handles.push(characteristics[i].handle);
@@ -397,13 +397,13 @@ function readMultipleCharacteristicValues(bearer, characteristics) {
 					let offset = 0;
 					for (let i = 0; i < characteristics.length; i++) {
 						let remaining = response.length - offset;
-						let len = characteristics[i].length;
+						let len = sizeList[i];
 						if (len <= 0) {
 							len = remaining;
 						}
 						len = Math.min(len, remaining);
 						let value = response.subarray(offset, offset + len);
-						characteristics[i].parseValue(value);
+						characteristics[i]._parseValue(value);
 						offset += len;
 						if (offset >= response.length) {
 							break;
@@ -465,15 +465,14 @@ function writeValue(bearer, handle, value) {
 }
 exports.writeValue = writeValue;
 
-class Descriptor {
+class Descriptor extends GATT.Descriptor {
 	constructor(bearer, {uuid, handle}) {
-		this._uuid = uuid;
+		super(uuid);
 		this._handle = handle;
-		this._localValue = null;
 		/* Client Functions */
 		this.readDescriptorValue = length => {
 			return readValue(bearer, handle, length).then(response => {
-				this.parseValue(response);
+				this._parseValue(response);
 				return this.value;
 			});
 		};
@@ -481,51 +480,11 @@ class Descriptor {
 			if (value !== undefined) {
 				this.value = value;
 			}
-			return writeValue(bearer, handle, this.serializeValue());
+			return writeValue(bearer, handle, this._serializeValue());
 		};
-	}
-	get uuid() {
-		return this._uuid;
 	}
 	get handle() {
 		return this._handle;
-	}
-	get value() {
-		return this._localValue;
-	}
-	set value(value) {
-		this._localValue = value;
-	}
-	serializeValue() {
-		if (this._uuid.equals(GATT.UUID_CHARACTERISTIC_EXTENDED_PROPERTIES) ||
-			this._uuid.equals(GATT.UUID_CLIENT_CHARACTERISTIC_CONFIGURATION) ||
-			this._uuid.equals(GATT.UUID_SERVER_CHARACTERISTIC_CONFIGURATION)) {
-			return GATT.serializeWithFormat(this._localValue, GATT.Format.UINT16);
-		} else if (this._uuid.equals(GATT.UUID_CHARACTERISTIC_USER_DESCRIPTION)) {
-			return GATT.serializeWithFormat(this._localValue, GATT.Format.UTF8S);
-		} else if (this._uuid.equals(GATT.UUID_CHARACTERISTIC_PRESENTATION_FORMAT)) {
-			// XXX: Write will not be allowed
-			return GATT.serializeFormat(this._localValue);
-		} else if (this._uuid.equals(GATT.UUID_CHARACTERISTIC_AGGREGATE_FORMAT)) {
-			// XXX: Write will not be allowed
-		} else {
-			return this._localValue;
-		}
-	}
-	parseValue(data) {
-		if (this._uuid.equals(GATT.UUID_CHARACTERISTIC_EXTENDED_PROPERTIES) ||
-			this._uuid.equals(GATT.UUID_CLIENT_CHARACTERISTIC_CONFIGURATION) ||
-			this._uuid.equals(GATT.UUID_SERVER_CHARACTERISTIC_CONFIGURATION)) {
-			this._localValue = GATT.parseWithFormat(data, GATT.Format.UINT16);
-		} else if (this._uuid.equals(GATT.UUID_CHARACTERISTIC_USER_DESCRIPTION)) {
-			this._localValue = GATT.parseWithFormat(data, GATT.Format.UTF8S);
-		} else if (this._uuid.equals(GATT.UUID_CHARACTERISTIC_PRESENTATION_FORMAT)) {
-			this._localValue = GATT.parseFormat(data);
-		} else if (this._uuid.equals(GATT.UUID_CHARACTERISTIC_AGGREGATE_FORMAT)) {
-			// TODO
-		} else {
-			this._localValue = data;
-		}
 	}
 }
 exports.Descriptor = Descriptor;
@@ -535,21 +494,20 @@ class Characteristic extends GATT.Characteristic {
 		super(uuid, properties);
 		this._handle = handle;
 		this._end = handle;
-		this._descriptors = new Map();
 		/* Client Functions */
 		this.discoverAllCharacteristicDescriptors = () => {
 			return discoverCharacteristicDescriptors(bearer, handle, this._end, results => {
 				for (let result of results) {
 					logger.debug("Descriptor discovered: uuid=" + result.uuid.toString()
 						+ ", handle=" + Utils.toHexString(result.handle, 2));
-					this.addDescriptor(new Descriptor(bearer, result));
+					this._addDescriptor(new Descriptor(bearer, result));
 				}
 				return true;
 			});
 		};
 		this.readCharacteristicValue = length => {
 			return readValue(bearer, handle, length).then(response => {
-				this.parseValue(response);
+				this._parseValue(response);
 				return this.value;
 			});
 		};
@@ -557,13 +515,13 @@ class Characteristic extends GATT.Characteristic {
 			if (value !== undefined) {
 				this.value = value;
 			}
-			writeWithoutResponse(bearer, handle, this.serializeValue(), signed);
+			writeWithoutResponse(bearer, handle, this._serializeValue(), signed);
 		};
 		this.writeCharacteristicValue = value => {
 			if (value !== undefined) {
 				this.value = value;
 			}
-			return writeValue(bearer, handle, this.serializeValue());
+			return writeValue(bearer, handle, this._serializeValue());
 		};
 		/* Callbacks */
 		this._onIndication = null;
@@ -575,20 +533,11 @@ class Characteristic extends GATT.Characteristic {
 	get end() {
 		return this._end;
 	}
-	get descriptors() {
-		return this._descriptors.values();
-	}
 	set onIndication(onIndication) {
 		this._onIndication = onIndication;
 	}
 	set onNotification(onNotification) {
 		this._onNotification = onNotification;
-	}
-	addDescriptor(descriptor) {
-		this._descriptors.set(descriptor.uuid.toString(), descriptor);
-	}
-	getDescriptorByUUID(uuid) {
-		return this._descriptors.get(uuid.toString());
 	}
 }
 exports.Characteristic = Characteristic;
@@ -614,7 +563,7 @@ class Service extends GATT.Service {
 				for (let result of results) {
 					logger.debug("Characteristic discovered: uuid=" + result.uuid.toString()
 						+ ", handle=" + Utils.toHexString(result.handle, 2));
-					this.addCharacteristic(new Characteristic(bearer, result));
+					this._addCharacteristic(new Characteristic(bearer, result));
 				}
 				return true;
 			}
@@ -635,7 +584,7 @@ class Service extends GATT.Service {
 					}
 				);
 				characteristic.value = attribute.value;
-				this.addCharacteristic(characteristic);
+				this._addCharacteristic(characteristic);
 				return characteristic.value;
 			});
 		};
@@ -687,7 +636,7 @@ class Profile extends GATT.Profile {
 		let _cb = results => {
 			for (let result of results) {
 				logger.debug("Service discovered: uuid=" + result.uuid.toString());
-				this.addService(new Service(bearer, result));
+				this._addService(new Service(bearer, result));
 			}
 		};
 		this.discoverAllPrimaryServices = discoverPrimaryServices.bind(this, bearer, _cb, null);
@@ -710,7 +659,7 @@ class Profile extends GATT.Profile {
 		if (characteristic != null) {
 			logger.debug("Value received on characteristic uuid=" + characteristic.uuid.toString()
 				+ ", opcode=" + Utils.toHexString(opcode));
-			characteristic.parseValue(result.value);
+			characteristic._parseValue(result.value);
 			if (opcode == ATT.Opcode.HANDLE_VALUE_NOTIFICATION) {
 				if (characteristic._onNotification != null) {
 					characteristic._onNotification(characteristic.value);

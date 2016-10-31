@@ -102,6 +102,7 @@ class Machine {
 	constructor(address) {
 		this.address = address;
 		this.broken = false;
+		this.once = false;
 		this.running = true;
 		this.timeout = 0;
 		this.views = [
@@ -131,6 +132,9 @@ class Machine {
 		
 		this.consoleScroll = { x:0, y:0 };
 		this.debugScroll = { x:0, y:0 };
+	}
+	get closable() {
+		return !this.broken;
 	}
 	get framesView() {
 		return this.views[0];
@@ -185,8 +189,15 @@ class DebugBehavior extends DesktopShellBehavior {
 		this.consoleScroll = { x:0, y:0 };
 		this.breakOnStart = 0;
 		this.breakOnExceptions = 1;
+		this.sortingRegexps = [
+			/(\[)([0-9]+)(\])/,
+			/(\(\.)([0-9]+)(\))/,
+			/(\(\.\.)([0-9]+)(\))/,
+			/(arg\()([0-9]+)(\))/,
+			/(var\()([0-9]+)(\))/,
+		];
+		this.sortingZeros = "0000000000";
 	}
-
 	closeServer() {
 		this.machines.forEach(machine => this.debug.abort(machine.address));
 		this.debug.close();
@@ -240,6 +251,20 @@ class DebugBehavior extends DesktopShellBehavior {
 		this.debug = new DebugServer({ port:this.port });
   		this.debug.behavior = this;
 	}
+	runMachine(machine) {
+		machine.framesView.empty();
+		machine.localsView.empty();
+		machine.modulesView.empty();
+		machine.globalsView.empty();
+		machine.running = true;
+		shell.distribute("onMachineChanged", machine);
+		if (machine == this.currentMachine) {
+			shell.distribute("onMachineViewChanged", mxFramesView);
+			shell.distribute("onMachineViewChanged", mxLocalsView);
+			shell.distribute("onMachineViewChanged", mxGrammarsView);
+			shell.distribute("onMachineViewChanged", mxGlobalsView);
+		}
+	}
 	selectMachine(machine) {
 		if (this.currentMachine != machine) {
 			shell.distribute("onMachineDeselected", this.currentMachine);
@@ -261,15 +286,26 @@ class DebugBehavior extends DesktopShellBehavior {
 	sortLines(view) {
 		let former = { column:-1, parent:null, path:null };
 		let exceptions = view.exceptions;
-		let lines = view.lines
+		let lines = view.lines;
+		let zeros = this.sortingZeros;
+		let regexps = this.sortingRegexps;
+		let c = regexps.length;
 		lines.forEach(line => {
 			while (line.column <= former.column)
 				former = former.parent;
 			line.parent = former;
 			let name = line.name;
+			for (let i = 0; i < c; i++) {
+				let results = regexps[i].exec(name);
+				if (results) {
+					let result = results[2];
+					name = results[1] + zeros.slice(0, -result.length) + result + results[3];
+					break;
+				}
+			}
 			let path = former.path;
 			if (path)
-				line.path = path + name;
+				line.path = path + "." + name;
 			else if (exceptions && (name in exceptions))
 				line.path = exceptions[name];
 			else
@@ -289,6 +325,30 @@ class DebugBehavior extends DesktopShellBehavior {
 	}
 	toggleBreakOnStart(it) {
 		this.breakOnStart = it;
+	}
+	onMachineBroken(address) {
+		let machine = this.findMachine(address);
+		machine.broken = true;
+		shell.distribute("onMachineViewChanged", mxFramesView);
+	}
+	onMachineDone(address) {
+		let machine = this.findMachine(address);
+		if (machine.once) {
+			machine.once = false;
+			this.debug.addBreakpoints(address, this.breakpoints.items.map(item => ({ path:Files.toPath(item.url), line:item.line })), this.breakOnStart, this.breakOnExceptions);
+		}
+		else if (machine.broken) {
+			machine.framesView.expanded = true;
+			var lineIndex = machine.framesView.lineIndex;
+			if ((lineIndex < 0) || (machine.framesView.lines.length <= lineIndex))
+				machine.framesView.lineIndex = 0;
+			machine.localsView.expanded = true;
+			shell.distribute("onMachineChanged", machine);
+			if (!this.currentMachine || !this.currentMachine.broken)
+				this.selectMachine(machine);
+		}
+		else
+			this.debug.go(address);
 	}
 	onMachineFileChanged(address, path, at) {
 		// trace("onMachineFileChanged " + path + " " + at + "\n");
@@ -313,8 +373,10 @@ class DebugBehavior extends DesktopShellBehavior {
 		machine.tag = tag;
 		machine.title = title;
 		machine.visible = true;
-		this.debug.addBreakpoints(address, this.breakpoints.items.map(item => ({ path:Files.toPath(item.url), line:item.line })), this.breakOnStart, this.breakOnExceptions);
 		shell.distribute("onMachinesChanged", this.machines);
+		machine.broken = false;
+		machine.once = true;
+		this.runMachine(machine);
 	}
 	onMachineUnregistered(address) {
 		// trace("onMachineUnregistered " + address + "\n");
@@ -332,18 +394,8 @@ class DebugBehavior extends DesktopShellBehavior {
 		view.lines = lines;
 		// trace("onMachineViewChanged " + machine.address + " " + viewIndex + " " + lines.length + " " + machine.broken + "\n");
 		view.lines = lines;
-		if (viewIndex == mxFramesView) {
-			machine.broken = true;
-			machine.localsView.expanded = true;
-			view.expanded = true;
-			view.lineIndex = 0;
-			shell.distribute("onMachineChanged", machine);
-			if (!this.currentMachine || !this.currentMachine.broken)
-				this.selectMachine(machine);
-		}
-		else if ((viewIndex == mxLocalsView) || (viewIndex == mxGrammarsView) || (viewIndex == mxGlobalsView)) {
+		if ((viewIndex == mxLocalsView) || (viewIndex == mxGrammarsView) || (viewIndex == mxGlobalsView))
 			this.sortLines(view);
-		}
 		if (this.currentMachine == machine)
 			shell.distribute("onMachineViewChanged", viewIndex);
 	}
@@ -362,24 +414,12 @@ class DebugBehavior extends DesktopShellBehavior {
 	}
 	onTimeChanged() {
 		let now = Date.now();
-		let currentMachine = this.currentMachine;
 		let machines = this.machines;
 		let c = machines.length;
 		for (let i = 0; i < c; i++) {
 			let machine = machines[i];
 			if ((!machine.broken) && (!machine.running) && (machine.timeout <= now)) {
-				machine.framesView.empty();
-				machine.localsView.empty();
-				machine.modulesView.empty();
-				machine.globalsView.empty();
-				machine.running = true;
-				shell.distribute("onMachineChanged", machine);
-				if (machine == currentMachine) {
-					shell.distribute("onMachineViewChanged", mxFramesView);
-					shell.distribute("onMachineViewChanged", mxLocalsView);
-					shell.distribute("onMachineViewChanged", mxGrammarsView);
-					shell.distribute("onMachineViewChanged", mxGlobalsView);
-				}
+				this.runMachine(machine);
 			}
 		}
 	}
@@ -501,7 +541,7 @@ class ShellBehavior extends DebugBehavior {
 			this.doOpenURL(url);
 	}
 	doOpenURL(url, at) {
-		trace("### doOpenURL " + url + "\n");
+		//trace("### doOpenURL " + url + "\n");
 		if (this.url != url) {
 			let items = this.history.items;
 			let index = items.findIndex(item => item.url == url);

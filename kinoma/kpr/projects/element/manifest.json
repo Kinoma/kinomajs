@@ -15,7 +15,7 @@
 		"APP_HOME":"$(KPR_HOME)/projects/element",
 	},
 	"environment":{
-		"VERSION":"1.0",
+		"VERSION":"1.1",
 		"NAME":"ElementShell",
 		"NAMESPACE":"com.marvell.kinoma.shell.element",
 		"CA_list":"ca-bundle.crt",
@@ -46,6 +46,8 @@
 		"FskJPEGEncode":"$(F_EXTENSIONS)/FskJPEGEncode/FskJPEGEncode.mk",
 		"mediareader":"$(F_KINOMA)/mediareader/mediareader.mk",
 		"kpr":"$(KPR_HOME)/kpr.mk",
+        "kprSocket":"$(KPR_HOME)/extensions/socket/kprSocket.mk",
+        "kprProxyServices":"$(KPR_HOME)/extensions/services/kprProxyService.mk",
 		"kprElementHost":"$(APP_HOME)/host/kprElementHost.mk",
 	},
 	"resources":{

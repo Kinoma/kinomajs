@@ -341,8 +341,6 @@ extern FskErr FSK_fskLoad(FskLibrary library);
 extern FskErr FSK_fskUnload(FskLibrary library);
 extern FskErr FskCore_fskLoad(FskLibrary library);
 extern FskErr FskCore_fskUnload(FskLibrary library);
-extern FskErr FskSSLAll_fskLoad(FskLibrary library);
-extern FskErr FskSSLAll_fskUnload(FskLibrary library);
 
 FskErr FskPlatform_fskLoad(FskLibrary library)
 {
@@ -363,18 +361,6 @@ FskErr FskCore_fskLoad(FskLibrary library)
 }
 
 FskErr FskCore_fskUnload(FskLibrary library)
-{
-	FskErr err = kFskErrNone;
-    return err;
-}
-
-FskErr FskSSLAll_fskLoad(FskLibrary library)
-{
-	FskErr err = kFskErrNone;
-    return err;
-}
-
-FskErr FskSSLAll_fskUnload(FskLibrary library)
 {
 	FskErr err = kFskErrNone;
     return err;

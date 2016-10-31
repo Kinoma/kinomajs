@@ -15,7 +15,7 @@
 		"CREATE_HOME":"$(F_KINOMA)/kpr/projects/create",
 	},
 	"environment":{
-		"VERSION":"2.0",
+		"VERSION":"2.1",
 		"NAME":"CreateShell",
 		"NAMESPACE":"com.marvell.kinoma.shell.create",
 		"CA_list":"ca-bundle.crt",
@@ -83,6 +83,8 @@
 		"kprTouchd":"$(KPR_HOME)/extensions/touchd/kprTouchd.mk",
 		"kprCoAP":"$(KPR_HOME)/extensions/coap/kprCoAP.mk",
 		"kprMQTT":"$(KPR_HOME)/extensions/mqtt/kprMQTT.mk",
+		"kprSocket":"$(KPR_HOME)/extensions/socket/kprSocket.mk",
+		"kprProxyServices":"$(KPR_HOME)/extensions/services/kprProxyService.mk",
 		"kprXMPP":"$(KPR_HOME)/extensions/xmpp/kprXMPP.mk",
 	},
 	"fonts":{
@@ -147,7 +149,7 @@
 		"linux":{
 			"environment":{
 				"fontsPath":"[applicationPath]fonts/",
-				"ssdpDiscoverSelf":"0",
+				"ssdpDiscoverSelf":"1",
 			},
 			"extensions":{
 				"FskMediaReaderAMR":null,
@@ -180,6 +182,11 @@
 			},
 			"platforms":{
 				"gtk":{
+					"resources":{
+						"modules": [
+							"$(KPR_HOME)/libraries/Pins/mac/*",
+						],
+					},
 					"extensions":{
 						"kinomaaacipp":"$(F_KINOMA)/kinoma-aac-ipp/kinomaaacipp.mk",
 						"kinomaavc":"$(F_KINOMA)/kinoma-avc/kinomaavc.mk",
@@ -217,6 +224,7 @@
 					},
 					"resources":{
 						"modules": [
+							"$(KPR_HOME)/libraries/Pins/aspen/*",
 							"$(KPR_HOME)/libraries/HID/HID.mk",
 						]
 					}
@@ -238,6 +246,7 @@
 					},
 					"resources":{
 						"fsFixes": [
+							"$(KPR_HOME)/libraries/Pins/aspen/*",
 							"$(F_HOME)/build/devices/k4/FSfixes/*"
 						],
 					}
@@ -256,6 +265,11 @@
 				"kinomaqtdec":"$(F_KINOMA)/kinoma-qt-dec/kinomaqtdec.mk",
 				"kprLibrary":null,
 			},
+			"resources":{
+				"modules": [
+					"$(KPR_HOME)/libraries/Pins/mac/*",
+				],
+			}
 		},
 		"win":{
 			"build":{
@@ -270,6 +284,9 @@
 				"FskMediaReaderFLAC":null,
 			},
 			"resources":{
+				"modules": [
+					"$(KPR_HOME)/libraries/Pins/win/*",
+				],
 				"~": [
 
 				]

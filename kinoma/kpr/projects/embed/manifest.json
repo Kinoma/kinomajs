@@ -15,7 +15,7 @@
 		"SHELL_HOME":"$(F_KINOMA)/kpr/projects/embed",
 	},
 	"environment":{
-		"VERSION":"1.0",
+		"VERSION":"1.1",
 		"NAME":"EmbedShell",
 		"NAMESPACE":"com.marvell.kinoma.shell.embed",
 		"CA_list":"ca-bundle.crt",
@@ -27,7 +27,6 @@
 		"ssdpByebyeRepeat":"3",
 		"hardwarepinsSimulator":"true",
 		"modulePath":"[applicationPath]modules/;[applicationPath]modules/pins/",
-		"screenScale":"1",
 		"httpPoolSize":"5",
 		"httpCacheSize":"197",
 		"httpCookiesSize":"197",
@@ -40,6 +39,7 @@
 		"windowStyle":"0",
 		"PICVersion":"11",
 		"PICsNeedUpdate":"false",
+		"screenScale":"1",
 	},
 	"extensions":{
 		"fsZip":"$(F_EXTENSIONS)/fsZip/fsZip.mk",
@@ -81,6 +81,8 @@
 		"kprTouchd":"$(KPR_HOME)/extensions/touchd/kprTouchd.mk",
 		"kprCoAP":"$(KPR_HOME)/extensions/coap/kprCoAP.mk",
 		"kprMQTT":"$(KPR_HOME)/extensions/mqtt/kprMQTT.mk",
+		"kprSocket":"$(KPR_HOME)/extensions/socket/kprSocket.mk",
+		"kprProxyServices":"$(KPR_HOME)/extensions/services/kprProxyService.mk",
 		"kprXMPP":"$(KPR_HOME)/extensions/xmpp/kprXMPP.mk",
 	},
 	"fonts":{
@@ -159,6 +161,11 @@
 						"kinomamp4decipp":null,
 						"kinomapngdecipp":null,
 					},
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/gtk/*",
+						],
+					},
 					"build":{
 						"SIMULATOR":true,
 					},
@@ -173,6 +180,12 @@
 						"xdebugger":"10.0.1.200:5002",
 						"useGL":"1",
 						"windowRotation":"270",
+						"screenScale":"2",
+					},
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/iap140/*",
+						],
 					},
 					"extensions":{
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
@@ -204,6 +217,12 @@
 						"xdebugger":"10.0.1.200:5002",
 						"useGL":"1",
 						"windowRotation":"270",
+						"screenScale":"2",
+					},
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/iap220/*",
+						],
 					},
 					"extensions":{
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
@@ -235,6 +254,11 @@
                         "xdebugger":"10.0.1.200:5002",
                         "useGL":"1",
                     },
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/linkit7688/*",
+						],
+					},
                     "extensions":{
                         "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
                         "FskPinDigitalMRAA":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalMRAA/FskPinDigitalMRAA.mk",
@@ -269,6 +293,11 @@
                         "xdebugger":"10.0.1.200:5002",
                         "useGL":"1",
                     },
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/pine64/*",
+						],
+					},
                     "extensions":{
                         "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 						"FskPinDigitalLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalLinux/FskPinDigitalLinux.mk",
@@ -301,6 +330,11 @@
                         "xdebugger":"10.0.1.200:5002",
                         "useGL":"1",
                     },
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/guitar/*",
+						],
+					},
                     "extensions":{
                         "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 						"FskPinDigitalLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalLinux/FskPinDigitalLinux.mk",
@@ -332,6 +366,11 @@
                         "xdebugger":"10.0.1.200:5002",
                         "useGL":"1",
                     },
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/chip/*",
+						],
+					},
                     "extensions":{
                         "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 						"FskPinDigitalLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalLinux/FskPinDigitalLinux.mk",
@@ -363,6 +402,11 @@
                         "xdebugger":"10.0.1.200:5002",
                         "useGL":"0",
                     },
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/nanopim1/*",
+						],
+					},
                     "extensions":{
                         "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 						"FskPinDigitalLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalLinux/FskPinDigitalLinux.mk",
@@ -394,6 +438,11 @@
                         "xdebugger":"10.0.1.200:5002",
                         "useGL":"1",
                     },
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/hikey/*",
+						],
+					},
                     "extensions":{
                         "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 						"FskPinDigitalLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalLinux/FskPinDigitalLinux.mk",
@@ -425,6 +474,11 @@
                         "xdebugger":"10.0.1.200:5002",
                         "useGL":"1",
                     },
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/odroidc2/*",
+						],
+					},
                     "extensions":{
                         "KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 						"FskPinDigitalLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalLinux/FskPinDigitalLinux.mk",
@@ -455,6 +509,11 @@
 						"KPR_BINARY_NAME":"EmbedShell",
 						"xdebugger":"10.0.1.200:5002",
 						"useGL":"0",
+					},
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/beaglebone/*",
+						],
 					},
 					"extensions":{
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
@@ -490,6 +549,11 @@
 						"xdebugger":"10.0.1.67:5002",
 						"useGL":"0",
 					},
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/andro/*",
+						],
+					},
 					"extensions":{
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
 						"FskPinDigitalLinux":"$(KPR_HOME)/extensions/pins/pins/FskPinDigitalLinux/FskPinDigitalLinux.mk",
@@ -515,6 +579,11 @@
 						"KPR_BINARY_NAME":"EmbedShell",
 						"xdebugger":"10.0.1.200:5002",
 						"useGL":"0",
+					},
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/edison/*",
+						],
 					},
 					"extensions":{
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
@@ -542,6 +611,11 @@
 						"KPR_BINARY_NAME":"EmbedShell",
 						"xdebugger":"10.0.1.200:5002",
 						"useGL":"1",
+					},
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/pi/*",
+						],
 					},
 					"extensions":{
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
@@ -574,6 +648,11 @@
 						"KPR_BINARY_NAME":"EmbedShell",
 						"xdebugger":"10.0.1.200:5002",
 						"useGL":"0",
+					},
+					"resources":{
+						"modules":[
+							"$(KPR_HOME)/libraries/Pins/pi/*",
+						],
 					},
 					"extensions":{
 						"KplFrameBuffer":"$(KPL_HOME)/framebuffer/KplFrameBuffer.mk",
@@ -611,6 +690,11 @@
 				"kinomaqtdec":"$(F_KINOMA)/kinoma-qt-dec/kinomaqtdec.mk",
 				"kprLibrary":null,
 			},
+			"resources":{
+				"modules":[
+					"$(KPR_HOME)/libraries/Pins/mac/*",
+				],
+			},
 		},
 		"win":{
 			"build":{
@@ -625,9 +709,9 @@
 				"FskMediaReaderFLAC":null,
 			},
 			"resources":{
-				"~": [
-
-				]
+				"modules":[
+					"$(KPR_HOME)/libraries/Pins/win/*",
+				],
 			},
 		},
 	},

@@ -22,7 +22,6 @@ export default class pine64 extends DeviceConfig {
 			url: mergeURI(this.constructor.url, "./helper/"),
 			query: {
 				id: this.helperID,
-				title: "Kinoma Code Helper",
 			}
 		};
 	}
@@ -102,18 +101,6 @@ export default class pine64 extends DeviceConfig {
 		});
 	}
 	// STUDIO
-    getNetworkSSID() {
-        if (model.SSID)
-            return Promise.resolve(model.SSID);
-        else {
-            let message = this.newStudioMessage("/network/status");
-            return message.invoke(Message.JSON).then(status => {
-                if (status && "ssid" in status)
-                    model.SSID = status.ssid;
-                return Promise.resolve(model.SSID);
-            });
-        }
-    }
 	networkConfigure(config) {
 		this.wsClose();
 		let delay = new Message("/network/configure?" + serializeQuery({uuid:this.uuid}));
@@ -148,6 +135,21 @@ export default class pine64 extends DeviceConfig {
 			handler: "updateSystemStatus",
 		});
 	}
+    getPinFilteringInfo() {
+        let pinFilteringInfo =
+        {
+            buttons: [
+                { name: "Pins", startPin:1, endPin:362 }
+            ],
+            locations: [
+                { name: "Pins", startPin:1, endPin:362 }
+            ]
+        }
+        return pinFilteringInfo;
+    }
+    pwmPinHasMotorMode(logicalPinNumber) {
+        return true;
+    }
 }
 
 Handler.Bind("/network/configure", class extends Behavior {

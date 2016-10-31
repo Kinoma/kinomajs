@@ -282,7 +282,9 @@ export class CodeBehavior extends Behavior {
 				insertions = "\n";
 				var from = code.findLineBreak(code.selectionOffset, false);
 				if ((from < code.selectionOffset) && code.isSpace(from)) {
+					var max = code.findLineBreak(code.selectionOffset, true);
 					var to = code.findWordBreak(from, true);
+					if ((max > 0) && (to > max)) to = max - 1;
 					insertions += code.extract(from, to - from);
 				}
 				break;

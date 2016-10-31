@@ -224,8 +224,6 @@ const textSkin = new Skin({ fill:[PASTEL_YELLOW, "transparent", "#e0e0e0", PASTE
 
 import {
 	ButtonBehavior,
-	FieldLabelBehavior,
-	FieldScrollerBehavior,
 } from "common/control";
 
 import {

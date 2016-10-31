@@ -1,4 +1,3 @@
-//@program
 /*
  *     Copyright (C) 2010-2016 Marvell International Ltd.
  *     Copyright (C) 2002-2010 Kinoma, Inc.
@@ -15,25 +14,25 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+import Pins from "pins";
 
-var model = application.behavior = Object.create(Object.prototype, {
-
-   onComplete: { value: function(application, message) {
-      // After the BLLs have been configured, build the UI and issue single/repeated commands to the BLL
-      application.skin = new Skin({fill: "black"});
-   }},
-   
-   onLaunch: { value: function(application) {
-      // Configure the BLLs used by this application
-        application.invoke(new MessageWithObject("pins:configure", {
-            sensor: {
-                require: "bll",
-                pins: {
-               // Specify the pins required by this BLL
-                }
-            }}), Message.TEXT);
-
-        this.data = {};
-    }}
-   
-});
+class ApplicationBehavior extends Behavior {
+	onLaunch(application) {
+		Pins.configure({
+			sensor: {
+				require: "bll",
+				pins: {
+					// Specify the pins required by this BLL
+				}
+			},
+		}, function(success) {
+			if (success) {
+				// After the pins have been configured, build the UI and issue single/repeated commands to the BLLs
+				application.skin = new Skin({fill: "black"});
+			} else {
+				trace("Failed to configure pins.\n");
+			}
+		});
+	}
+}
+var model = application.behavior = new ApplicationBehavior();
