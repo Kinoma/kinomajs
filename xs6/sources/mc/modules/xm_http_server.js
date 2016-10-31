@@ -16,7 +16,7 @@
  */
 
 import HTTP from "http";
-import {Socket, ListeningSocket} from "socket";
+import {Socket, ListeningSocket, SecureSocket} from "socket";
 import System from "system";
 
 class HTTPServerMessage extends HTTP {
@@ -36,27 +36,30 @@ class HTTPServerMessage extends HTTP {
 
 		/* add headers for blockly web app */
 //@@ maybe these shouldn't be present for all HTTP server requests
+/*
 		this.setHeader("access-control-allow-origin", "*");
 		this.setHeader("access-control-allow-methods", "PUT,POST,GET,DELETE,OPTIONS");
 		this.setHeader("access-control-allow-headers", "Origin, X-Requested-With, Content-Type, Accept");
+*/
 
 		if (close)
-			this.setHeader("connection", "close");
+			this.setHeader("Connection", "close");
 		if (contentType)
-			this.setHeader("content-type", contentType);
+			this.setHeader("Content-Type", contentType);
 		this.sock.send("HTTP/" + this.version + " " + this.statusCode + " " + reason + "\r\n");
 		if (s !== undefined && s !== null) {
 			let length = (typeof s == "string") ? s.length : s.byteLength;
-			this.setHeader("content-length", length);
+			this.setHeader("Content-Length", length);
 			this.sendHeaders();
 			this.sock.send(s);
 		}
 		else if (s === null) {
-			this.setHeader("transfer-encoding", "chunked");
+			this.setHeader("Transfer-Encoding", "chunked");
 			this.sendHeaders();
 		}
 		else {
-			this.setHeader("content-length", 0);
+			if (status != 204)	// no content
+				this.setHeader("Content-Length", 0);
 			this.sendHeaders();
 		}
 		if (this.version == "1.0" || close)
@@ -162,7 +165,7 @@ class HTTPServer {
 	onConnect(s) {
 		// got a new connection
 		let nsock = s.accept();
-		let securityProto = this.params.securityProto || (this.params.tls ? require.weak("SecureSocket") : undefined);
+		let securityProto = this.params.securityProto || (this.params.tls ? SecureSocket : undefined);
 		if (securityProto) {
 			let params = this.params;
 			params.sock = nsock;

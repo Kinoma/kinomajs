@@ -52,6 +52,7 @@ CRYPT_JS_SRCS = \
 	crypt_srp.js \
 	crypt_stream.js \
 	crypt_tdes.js \
+	crypt_vault.js \
 	crypt_x509.js
 
 CRYPT_C_SRCS = \

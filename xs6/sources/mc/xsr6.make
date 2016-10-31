@@ -232,9 +232,9 @@ $(WMLIB): $(MC_WMSDK_LIB) $(WMSDK_LIBS)
 	(cd $(TMP_DIR)/wmsdk; for i in $(WMSDK_LIBS); do $(AR) x $$i; done; $(AR) x $(MC_WMSDK_LIB); $(AR) cr $@ *.o)
 
 $(XS6_MC_DIR)/wmlib/libfreertos.a: $(SDK_PATH)/libs/libfreertos.a
-	cp -p $*.a $@
+	-cp -p $*.a $@
 $(XS6_MC_DIR)/wmlib/liblwip.a: $(SDK_PATH)/libs/liblwip.a
-	cp -p $*.a $@
+	-cp -p $*.a $@
 endif
 
 $(TMP_DIR):

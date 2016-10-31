@@ -63,11 +63,12 @@ let services = {
 	},
 
 	description: function(http, args) {
-		var name = System.hostname;
+		let name = System.hostname || "Kinoma Element";
+		let ver = System.get("FW_VER");
 		http.response('application/json', JSON.stringify({
-			"firmware": System.get("FW_VER"),
+			"firmware": ver,
 			"version": "7.1.41",	// version should be at least 7.1 (XS6)
-			"name": name || "Kinoma Element",
+			"name": name,
 			"debugShell": "true",
 			"id": "com.marvell.kinoma.launcher.element",
 			"studio": {
@@ -77,7 +78,10 @@ let services = {
 			   "install": "always",
 			   "profile": false
 			},
-			"xsedit": true
+			"xsedit": true,
+			"fwVersion": ver,
+			"osVersion": System.osVersion,
+			"hostname": name
 		}));
 	},
 

@@ -27,9 +27,9 @@
 		"crypt/*": [
 			"$(XS)/extensions/crypt/crypt_*",
 			"$(MC)/external/crypt_*",
-			"$(MC)/external/c25519/src/*",
-			"$(MC)/external/poly1305-donna/poly1305-*",
-			"$(F_HOME)/libraries/kcl/*",
+			"$(F_HOME)/libraries/c25519/src/*",
+			"$(F_HOME)/libraries/poly1305-donna/poly1305-*",
+			"$(F_HOME)/libraries/kcl/*"
 		],
 		"arith/*": [
 			"$(XS)/extensions/crypt/arith_*",
@@ -46,6 +46,7 @@
 		"setup/*": "$(MC)/extensions/setup/*",
 		"ssl/cert": "$(XS)/extensions/ssl/ssl_cert_mc",
 		"ssl/*": "$(XS)/extensions/ssl/ssl_*",
+		"crypt/vault": "$(MC)/extensions/crypt_vault_priv",
 		"utils/*": [
 			"$(MC)/extensions/utils/*",
 			"$(F_HOME)/kinoma/kpr/libraries/Utilities/src/utils/buffer"
@@ -66,9 +67,11 @@
 			"$(MC)/modules/xm_*",
 			"$(MC)/synctime",
 			"$(MC)/tools/*",
+			"$(MC)/wmlib/*",
 			"$(XS)/extensions/crypt/arith",
 			"$(XS)/extensions/crypt/crypt",
 			"$(XS)/extensions/ssl/ssl",
+			"$(XS)/extensions/bin/*",
 		],
 	},
 	"resources": {
@@ -80,21 +83,25 @@
 		"mac":{
 			"modules": {
 				"~": [
-					"$(MC)/extensions/mdns/mdns_server",
-					"$(MC)/extensions/mdns/mdns_service",
+					"$(XS)/extensions/mdns/mdns_server",
+					"$(XS)/extensions/mdns/mdns_service",
+					"$(MC)/extensions/soft_crc32",
+					"$(MC)/wmlib/mc_ftfs",
+					"$(MC)/wmlib/mw300_rd",
 				],
-				"mdns": "$(MC)/extensions/mdns/mdns_host",
-				"mdns/*": "$(MC)/extensions/mdns/mdns_*",
+				"mdns": "$(XS)/extensions/mdns/mdns_host",
+				"mdns/*": "$(XS)/extensions/mdns/mdns_*",
 			},
 		},
 		"k5":{
 			"modules": {
 				"~": [
-					"$(MC)/extensions/mdns/mdns_host",
-					"$(MC)/extensions/mdns/mdns_mac",
+					"$(XS)/extensions/mdns/mdns_host",
+					"$(XS)/extensions/mdns/mdns_mac",
+					"$(MC)/extensions/soft_crc32",
 				],
-				"mdns": "$(MC)/extensions/mdns/mdns",
-				"mdns/*": "$(MC)/extensions/mdns/mdns_*",
+				"mdns": "$(XS)/extensions/mdns/mdns",
+				"mdns/*": "$(XS)/extensions/mdns/mdns_*",
 			},
 		},
 	},

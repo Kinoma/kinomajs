@@ -17,6 +17,7 @@
 const HTTP_ERROR_400 = "Bad Request";
 const HTTP_ERROR_404 = "Not Found";
 const HTTP_ERROR_500 = "Internal Server Error";
+const HTTP_ERROR_507 = "Insufficient Storage";
 
 const HTTP_TYPE_JSON = "application/json";
 
@@ -31,18 +32,9 @@ let handlers = {
 				if (app != id) {
 					// remove files from previous app
 					let Files = require.weak("files");
+					Files.deleteVolume("k0");
 					let manifest = Files.applicationDirectory + "/.manifest";
-					let json;
-					if (Files.getInfo(manifest)) {
-						json = Files.read(manifest);
-						Files.deleteFile(manifest);
-					}
-					if (json) {
-						json = JSON.parse(String.fromArrayBuffer(json));
-						for (let name in json.checksums) {
-							Files.deleteFile(Files.applicationDirectory + "/" + name);
-						}
-					}
+					Files.write(manifest, "{}");
 					env.set("APP_ID", id);
 					env.save();
 				}
@@ -92,8 +84,10 @@ let handlers = {
 			let json;
 			if (Files.getInfo(path))
 				json = Files.read(path);
-			else
+			else {
+				Files.deleteVolume("k0");
 				json = "{}";
+			}
 			http.response(HTTP_TYPE_JSON, json);
 		}
 	},
@@ -138,6 +132,7 @@ let handlers = {
 		}
 	},
 	upload(http, query) {
+		let Files = require.weak("files");
 		try {
 			if (!('path' in query)) {
 				http.response(400, HTTP_ERROR_400);
@@ -146,12 +141,12 @@ let handlers = {
 			if (http.content) {
 				let parts = query.path.split("/");
 				let f = parts.slice(2).join("/");	// file path
-				let Files = require.weak("files");
 				Files.write(Files.applicationDirectory + "/" + f, http.content);
 			}
 			http.response();
 		} catch(error) {
-			http.errorResponse(500, HTTP_ERROR_500);
+			Files.deleteVolume("k0");
+			http.errorResponse(507, HTTP_ERROR_507);
 		}
 	}
 };

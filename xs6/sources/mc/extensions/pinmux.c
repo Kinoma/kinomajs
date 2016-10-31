@@ -127,6 +127,7 @@ xs_pin_write(xsMachine *the)
 void
 xs_pin_read(xsMachine *the)
 {
+	xsSetInteger(xsResult, 0);
 }
 
 void

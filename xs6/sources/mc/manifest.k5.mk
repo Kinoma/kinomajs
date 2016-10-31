@@ -13,6 +13,8 @@ XSL = $(XS_DIR)/bin/mac/release/xsl6
 SDK_PATH = $(MC_DIR)/wmsdk
 #SDK_PATH = $(F_HOME)/build/devices/wm/wmsdk_bundle-3.2.12/bin/wmsdk
 WMSDK_VERSION = 3002012
+export XS_ARCHIVE = 1
+export XIP = 1
 
 USB_DRIVER_PATH = $(F_HOME)/libraries/kdriver
 
@@ -30,7 +32,18 @@ else
 endif
 # ??? C_OPTIONS += -fPIC
 
+export SDK_INC_PATH = $(SDK_PATH)/incl
+export SDK_EXTERNAL_PATH = $(SDK_INC_PATH)
+export FREERTOS_INC_PATH = $(SDK_INC_PATH)/freertos
+export LWIP_INC_PATH = $(SDK_INC_PATH)/lwip
+export AUTOCONF = $(SDK_PATH)/incl/autoconf.h
+export XS6_MC_DIR = $(MC_DIR)
+export XS6_INC_DIR = $(XS_DIR)/includes
+export XS6_SRC_DIR = $(XS_DIR)/sources
+
 include $(MC_DIR)/common.mk
+
+C_OPTIONS += -I $(SDK_PATH)/incl/platform/net/lwip -I $(SDK_PATH)/incl/sdk/drivers/wlan -I $(SDK_PATH)/incl/usb
 
 LDSCRIPT = $(MC_DIR)/$(PROGRAM)-xip.ld
 LINK_OPTIONS = -T $(LDSCRIPT) -nostartfiles -Xlinker -M -Xlinker -Map=$(TMP_DIR)/$(PROGRAM).map -Xlinker --gc-section
@@ -93,6 +106,7 @@ MC_OBJECTS = \
 	$(TMP_DIR)/mc_dl.o \
 	$(TMP_DIR)/mc_elf.o \
 	$(TMP_DIR)/mc_env.o \
+	$(TMP_DIR)/mc_ffs.o \
 	$(TMP_DIR)/mc_file.o \
 	$(TMP_DIR)/mc_ipc.o \
 	$(TMP_DIR)/mc_misc.o \
@@ -100,8 +114,7 @@ MC_OBJECTS = \
 	$(TMP_DIR)/mc_time.o \
 	$(TMP_DIR)/mc_usb.o \
 	$(TMP_DIR)/mc_xs.o \
-	$(TMP_DIR)/heap_4.o \
-	$(TMP_DIR)/mw300_rd.o
+	$(TMP_DIR)/heap_4.o
 
 USB_DRIVER_OBJECTS = \
 	$(TMP_DIR)/ringbuf.o \

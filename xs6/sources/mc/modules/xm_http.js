@@ -60,7 +60,7 @@ export default class HTTP {
 		this.setHeader(key, value);
 	}
 	setHeader(key, value) {
-		this.outgoingHeaders.set(key.toLowerCase(), value);
+		this.outgoingHeaders.set(key, value);
 	}
 	getHeader(key) {
 		return this.incomingHeaders.get(key.toLowerCase());

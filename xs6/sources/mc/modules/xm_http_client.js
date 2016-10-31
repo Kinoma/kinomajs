@@ -16,7 +16,7 @@
  */
 
 import HTTP from "http";
-import {Socket} from "socket";
+import {Socket, SecureSocket} from "socket";
 
 class HTTPClient extends HTTP {
 	constructor(uri, options) {
@@ -69,7 +69,6 @@ class HTTPClient extends HTTP {
 		for (let i in this.options)
 			params[i] = this.options[i];
 		if (this.ssl || params.tls) {
-			let SecureSocket = require.weak("SecureSocket");
 			if (!params.tls_server_name)
 				params.tls_server_name = adr;
 			if (!params.tls_max_fragment_length)

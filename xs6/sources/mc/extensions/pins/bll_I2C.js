@@ -14,6 +14,9 @@
  *     See the License for the specific language governing permissions and
  *     limitations under the License.
  */
+
+import Pins from "pins";
+
 export default {
 	pins: {
 		i2c: {type: "I2C"},
@@ -54,4 +57,9 @@ export default {
 	close(...args) {
 		return this.i2c.close(...args);
 	},
+	setAddress(address) {
+		this.i2c.close();
+		this.i2c = Pins.createPin( { type: "I2C", sda: this.sda, clock: this.clock, address: address } );
+		this.i2c.init();
+	}
 };
