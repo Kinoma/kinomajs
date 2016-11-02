@@ -97,7 +97,7 @@ function setPin(mux, pin, type)
 			case 0:	mux.back[37] = type; break;
 			case 1:	mux.back[36] = type; break;
 			case 2:	mux.back[39] = type; break;
-			case 3:	mux.back[40] = type; break;
+			case 3:	mux.back[38] = type; break;
 			case 4:	mux.back[43] = type; break;
 			case 5:	mux.back[42] = type; break;
 			case 6:	mux.back[47] = type; break;
@@ -125,7 +125,7 @@ function setPin(mux, pin, type)
 			case 37: mux.leftPins[0] = type; break;
 			case 36: mux.leftPins[1] = type; break;
 			case 39: mux.leftPins[2] = type; break;
-			case 40: mux.leftPins[3] = type; break;
+			case 38: mux.leftPins[3] = type; break;
 			case 43: mux.leftPins[4] = type; break;
 			case 42: mux.leftPins[5] = type; break;
 			case 47: mux.leftPins[6] = type; break;
@@ -269,8 +269,8 @@ exports.getFixed = function(directions)
 		{ pin: 44, type: "Mirrored" },
 		{ pin: 45, type: "Ground" },
 		{ pin: 46, type: "Ground" },
-		{ pin: 43, type: "Mirrored" },
-		{ pin: 44, type: "Mirrored" },
+		{ pin: 47, type: "Mirrored" },
+		{ pin: 48, type: "Mirrored" },
 		{ pin: 49, type: "Power", voltage: 3.3 },
 		{ pin: 50, type: "Power", voltage: 5 },
 	];

@@ -20,8 +20,11 @@ exports.pins = {
 	i2c: {type: "I2C"}
 }
 
-exports.configure = function()
+exports.configure = function(configuration)
 {
+	this.sda = configuration.pins.i2c.sda;
+	this.clock = configuration.pins.i2c.clock;
+	this.bus = configuration.pins.i2c.bus;
 	this.i2c.init();
 }
 
@@ -93,7 +96,7 @@ exports.processCallSMB = function(param)
 exports.setAddress = function(address)
 {
 	this.i2c.close();
-	this.i2c = PINS.create( { type: "I2C", sda: this.sda, clock: this.clock, address: address } );
+	this.i2c = PINS.create( { type: "I2C", bus: this.bus, sda: this.sda, clock: this.clock, address: address } );
 	this.i2c.init();
 }
 

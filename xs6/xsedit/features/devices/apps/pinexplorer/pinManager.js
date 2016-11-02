@@ -629,12 +629,35 @@ export class I2CPinHeaderBehavior extends PinHeaderBehavior {
 	}
 };
 
+class I2CPhysicalPinNumbersLabelBehavior extends Behavior {
+	onCreate(label, data) {
+		this.data = data;
+	}
+	onDisplaying(label) {
+		if (false == PinManager.needPhysicalPinLabels())
+			label.coordinates = { height:0 };
+		else {
+			let device = this.data.device;
+			let sdaPhysicalPinNum = undefined;
+			let clockPhysicalPinNum = undefined;
+			if (undefined != device.logicalToPhysicalMap) {
+				sdaPhysicalPinNum = device.logicalToPhysicalMap.get(this.data.info.sda);
+				clockPhysicalPinNum = device.logicalToPhysicalMap.get(this.data.info.clock);
+			}
+			if ((undefined != sdaPhysicalPinNum) && (undefined != clockPhysicalPinNum))
+				label.string = "sda physical pin number - " + sdaPhysicalPinNum + ", clock physical pin number - " + clockPhysicalPinNum;
+		}
+	}
+}
+
+var I2CPhysicalPinNumbersLabel = Label.template($ => ({ style:physicalPinNumberStyle, Behavior:I2CPhysicalPinNumbersLabelBehavior }));
+
 var I2CPinHeader = Column.template($ => ({
 	left:0, right:0, skin:greenHeaderSkin, active:$.canExpand(),
 	Behavior: I2CPinHeaderBehavior,
 	contents: [
 		I2CPinLine($, { left:0, right:0 }),
-		PhysicalPinNumberLabel($, { left:4, top:-6, height:18 })		//*** will need custom one
+		I2CPhysicalPinNumbersLabel($, { left:4, top:-2, height:18 })
 	],
 }));
 

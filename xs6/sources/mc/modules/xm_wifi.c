@@ -189,7 +189,8 @@ xs_wm_connect(xsMachine *the)
 {
 	switch (xsTypeOf(xsArg(0))) {
 	case xsIntegerType:
-	case xsNumberType: {
+	case xsNumberType: 
+	case xsStringType:{
 		uint32_t state = xsToInteger(xsArg(0));
 		switch (state & MC_CONNECTION_MODE_MASK) {
 		case MC_CONNECTION_CONFIG_NORMAL:
