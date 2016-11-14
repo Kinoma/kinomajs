@@ -38,6 +38,15 @@
 #include <sys/ioctl.h>
 #include <poll.h>
 
+#include <sys/socket.h>
+#define BTPROTO_HCI			1
+#define HCI_CHANNEL_USER	1
+struct sockaddr_hci {
+	sa_family_t		hci_family;
+	unsigned short	hci_dev;
+	unsigned short	hci_channel;
+};
+
 static Boolean linuxSerialCanHandle(SInt32 rxNumber, SInt32 txNumber, const char *name, char **remappedName);
 static FskErr linuxSerialNew(FskPinSerial *pin, SInt32 rxNumber, SInt32 txNumber, const char *name, SInt32 baud);
 static void linuxSerialDispose(FskPinSerial pin);
@@ -104,6 +113,24 @@ FskErr linuxSerialNew(FskPinSerial *pin, SInt32 rxNumber, SInt32 txNumber, const
 
 	err = FskMutexNew(&ls->mutex, "serial pin");
 	if (err) goto bail;
+
+	if (strncmp(name, "hci", 3) == 0) {
+		struct sockaddr_hci addr;
+
+		ls->ttyFile = socket(AF_BLUETOOTH, SOCK_RAW /*| SOCK_CLOEXEC*/, BTPROTO_HCI);
+		if (ls->ttyFile == -1)
+			BAIL(kFskErrOperationFailed);
+
+		memset(&addr, 0, sizeof(addr));
+		addr.hci_family = AF_BLUETOOTH;
+		addr.hci_dev = atoi(name + 3);
+		addr.hci_channel = HCI_CHANNEL_USER;
+		if (bind(ls->ttyFile, (struct sockaddr *) &addr, sizeof(addr)) == -1)
+			BAIL(kFskErrOperationFailed);
+
+		err = kFskErrNone;
+		goto bail;
+	}
 
 	ls->ttyFile = open(name, O_RDWR | O_NOCTTY | O_NDELAY | O_NONBLOCK);
 	if (ls->ttyFile < 0)
