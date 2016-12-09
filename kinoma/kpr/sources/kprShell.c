@@ -347,6 +347,8 @@ void KprShellAdjust(KprShell self)
 		if (self->flags & kprAssetsChanged) {
 			self->flags &= ~kprAssetsChanged;
 			KprShellUpdateStyles(self);
+			if (self->applicationChain.first)
+				KprShellUpdateStyles((KprShell)self->applicationChain.first->content);
 			(*self->dispatch->cascade)(self, self->style);
 			all = true;
 		}
