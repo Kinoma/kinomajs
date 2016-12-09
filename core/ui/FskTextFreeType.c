@@ -1342,6 +1342,9 @@ FskErr freeTypeGetBounds(FskTextEngineState stateIn, FskBitmap bits, const char 
 	textSize = newTextSize;
 #endif
 
+	bounds->x = bounds->y = 0;
+	bounds->width = bounds->height = 0;
+
 	if (textLen == 0) {
 		return kFskErrNone;
 	}
@@ -1394,7 +1397,6 @@ bail:
 
 	FskMutexRelease(gFTMutex);
 
-	bounds->x = bounds->y = 0;
 	bounds->width = FT_ROUND_TO_INT(strikeWidth);
 	bounds->height = FT_ROUND_TO_INT(strikeHeight);
 
