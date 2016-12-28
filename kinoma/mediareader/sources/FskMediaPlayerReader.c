@@ -3588,7 +3588,8 @@ Boolean syncVideoBitmap(readerMediaPlayerTrack track, FskSampleTime time, Boolea
 	result = true;
 	track->video.framesAtDecompressor -= 1;
 //printf("framesAtDecompressor = %d (sync)\n", track->video.framesAtDecompressor);
-
+	decompressVideoFrames(track);
+	
 flush:
 	flushVideoBefore(track, &target->decodeTime);
 
