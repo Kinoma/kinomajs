@@ -58,9 +58,7 @@ These status light colors are for Kinoma Element Software 1.0 and above. Please 
 
 To start your first project, follow the steps shown in the video below.
 
-<iframe width="100%" height="500" src="https://www.youtube.com/embed/ucj_t7JG-qE?rel=0&amp;vq=hd720" frameborder="0" allowfullscreen>
-<a href="https://www.youtube.com/embed/9Upf9sTB3Es?rel=0&amp;vq=hd720">Watch Video</a>
-</iframe>
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=9Upf9sTB3Es" target="_blank"><img src="http://img.youtube.com/vi/9Upf9sTB3Es/0.jpg" alt="screenshot from video" width="240" height="180" border="10" /></a>
 
 Here is the object used in the sample application.json file:
 
@@ -258,9 +256,10 @@ This application does the following:
 - Reads the button's value every 1000ms
 - Prints whether the button is being pressed or not every time it is read
 
-<iframe width="100%" height="500" src="https://www.youtube.com/embed/V-DlgAEa4N8?rel=0&amp;vq=hd720" frameborder="0" allowfullscreen>
-<a href="https://www.youtube.com/embed/V-DlgAEa4N8?rel=0&amp;vq=hd720">Watch Video</a>
-</iframe>
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=V-DlgAEa4N8
+" target="_blank"><img src="http://img.youtube.com/vi/V-DlgAEa4N8/0.jpg" 
+alt="screenshot of video" width="240" height="180" border="10" /></a>
+
 
 ###HTTP Communication
 Kinoma Element can be used as an HTTP client or an HTTP server. Examples of both follow.
@@ -311,9 +310,10 @@ export default main;
 
 The server URL is of the form http://[element-ip-address]:[port], for example http://1.2.3.4:80
 
-<iframe width="100%" height="500" src="https://www.youtube.com/embed/vkpXQOzQ9cI?rel=0&amp;vq=hd720" frameborder="0" allowfullscreen>
-<a href="https://www.youtube.com/embed/vkpXQOzQ9cI?rel=0&amp;vq=hd720">Watch Video</a>
-</iframe>
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=vkpXQOzQ9cI
+" target="_blank"><img src="http://img.youtube.com/vi/vkpXQOzQ9cI/0.jpg" 
+alt="screenshot of video" width="240" height="180" border="10" /></a>
+
 
 > The app used to test HTTP requests in the video above is [Postman](http://www.getpostman.com/).
 
