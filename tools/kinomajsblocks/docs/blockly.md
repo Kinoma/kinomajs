@@ -82,7 +82,7 @@ The name of the read pin is the first value input, repeating will read forever, 
 
 The name of the read pin is the first value input, the second is the value to write. To write to a digital out pin for example, 1 is on, and 0 is off. 
 
-###KinomaJS Time Blocks
+### KinomaJS Time Blocks
 
 **Interval Block**
 
