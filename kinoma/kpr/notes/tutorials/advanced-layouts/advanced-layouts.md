@@ -1,11 +1,11 @@
-#Scrolling Content and Programmatically Adjusting Layout
+# Scrolling Content and Programmatically Adjusting Layout
 
 This tutorial describes two advanced uses of the KinomaJS containment hierarchy in UI development: scrolling content and programmatically adjusting layout. You will learn how to make large pieces of content scroll on the screen horizontally or vertically and how to build your own layout manager in JavaScript.
 
 A full description of the objects introduced in this tutorial can be found in the [*KinomaJS JavaScript Reference*](../../../../../xs6/xsedit/features/documentation/docs/javascript/javascript.md) document.
 
 
-##Scrolling Content
+## Scrolling Content
 
 The `scroller` object is a `container` object that scrolls its first `content` object horizontally and/or vertically. If you have content larger than the dimensions of the screen, you will need to place it in a scroller to be able to see all of it.
 
@@ -35,7 +35,7 @@ Now you can start filling in your `main.js` file. To add a module, you use `requ
 var SCROLLER = require("scroller");
 ```
 	
-###Scrolling Vertically
+### Scrolling Vertically
 
 Now create a container template that will let you pass in the content you want to be scrollable when you create an instance. The following code creates a container that scrolls vertically with a scroll bar and shadows that move as you scroll. The scroll bar and shadows are optional.
 
@@ -94,7 +94,7 @@ You can now run the application on your preferred simulator. The video in Figure
 
 <iframe width="100%" height="500" src="https://www.youtube.com/embed/yImfySOY4vU?rel=0&amp;vq=hd1080" frameborder="0" allowfullscreen><a href="https://www.youtube.com/embed/yImfySOY4vU?rel=0&amp;vq=hd1080">Watch Video</a></iframe>
 
-###Scrolling Horizontally
+### Scrolling Horizontally
 
 The process to create a container that scrolls horizontally is almost identical. Here is `main.js` with a horizontal scroller:
 
@@ -137,7 +137,7 @@ var scrollerExample = new MainContainer({ contentToScrollHorizontally }); //note
 application.add(scrollerExample);
 ```
 
-##Programmatically Adjusting Layout
+## Programmatically Adjusting Layout
 
 The `layout` object is a `container` object that delegates positioning and sizing of its contents to a script in its behavior. If you are making an application for a resizable screen (that is, a desktop application), you may want to use `layout` objects. In this part of the tutorial you will learn to use a `layout` object and dynamically change the dimensions of its contents.
 

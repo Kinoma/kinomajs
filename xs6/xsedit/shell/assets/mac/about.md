@@ -21,7 +21,7 @@
 
 In addition to some bug fixes and documentation improvements, we've added PWM support to Pin Explorer.
 
-####Noteworthy Bug Fixes
+#### Noteworthy Bug Fixes
 - Debugger view now displays properly when debugging
 - Pin Explorer now remembers settings when sections are reopened
 

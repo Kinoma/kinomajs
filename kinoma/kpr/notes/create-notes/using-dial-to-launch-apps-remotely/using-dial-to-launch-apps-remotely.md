@@ -5,7 +5,7 @@ Most Internet of Things devices work together with a mobile app, enabling the us
 
 <img alt="" src="img/using-dial-to-launch-apps-remotely_icon.png" class="technoteIllus" >
 
-#Using DIAL to Launch Apps Remotely
+# Using DIAL to Launch Apps Remotely
 
 **Peter Hoddie**  
 February 24, 2015
@@ -13,7 +13,7 @@ February 24, 2015
 Most Internet of Things devices work together with a mobile app, enabling the user to monitor, configure, and control the device using a phone or tablet. The DIAL protocol created by Netflix is a great solution for connecting your mobile app to your IoT project running on Kinoma Create. This Tech Note introduces the DIAL protocol, how to discover DIAL-compatible devices using Net Scanner, and how to add DIAL support to your KinomaJS app.
 
  
-##Launching Apps with DIAL
+  Apps with DIAL
 
 Applications are the fundamental building block for projects on Kinoma Create. When you start a new project, the first code you write is always an application, even if it is just a simple host for your sensors. Each app installed on Kinoma Create appears as a tile on the home screen (Figure 1).
 
@@ -38,7 +38,7 @@ DIAL uses the SSDP protocol for discovery. The [Net Scanner](../../tech-notes/ne
 Kinoma Create uses SSDP multicast packets to announce the availability of the DIAL service on the local network. Applications running on other devices in the same network receive these multicast packets using an SSDP client. SSDP client libraries available for iOS and Android make it straightforward to discover DIAL services. KinomaJS has built-in support for SSDP, which can be used to discover DIAL devices from mobile apps written in KinomaJS. A sample KinomaJS [SSDP network scanner](https://github.com/Kinoma/KPR-examples/tree/master/ssdp) app is available for Kinoma Create. You could use one Kinoma Create to remotely launch applications on another Kinoma Create in this way.
 
 
-##Implementing a DIAL Handler
+## Implementing a DIAL Handler
 
 All KinomaJS applications running on Kinoma Create can be launched remotely using DIAL. The remote application that initiates the launch can send your application parameters to configure the application. To receive those parameters, your application implements a handler with the ID `dial`, which will be invoked immediately following application launch. Here is the outline of a simple DIAL handler that uses the query parameters of the DIAL HTTP request:
 
@@ -68,7 +68,7 @@ handler.behavior = new HandlerBehavior(handler);
 Handler.put(handler);
 ```
 
-##Sample Code to Get Started with DIAL
+## Sample Code to Get Started with DIAL
 
 If you are just getting started with DIAL, a good place to start is the [`dial-client`](https://github.com/Kinoma/KPR-examples/tree/master/dial-client) and [`dial-remote`](https://github.com/Kinoma/KPR-examples/tree/master/ial-remote) sample apps. The client app (Figure 2) displays several bouncing balls; the remote app launches the client app and configures the number of balls shown. Both apps can be run on Kinoma Create, on your computer using the Kinoma simulator, and on mobile phones.
 

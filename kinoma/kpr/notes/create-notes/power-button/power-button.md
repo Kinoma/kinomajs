@@ -5,7 +5,7 @@ Kinoma Create has just one button: the power button. Yes, you use the power butt
 
 <img alt="" src="img/power-button_icon.png" class="technoteIllus" >
 
-#Kinoma Create Power Button
+# Kinoma Create Power Button
 
 **Peter Hoddie**  
 December 18, 2014

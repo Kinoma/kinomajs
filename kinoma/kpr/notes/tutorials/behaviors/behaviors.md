@@ -4,13 +4,13 @@ KinomaJS delivers events to the containment hierarchy of applications and shells
 
 This tutorial provides sample code that uses `behavior` objects. It assumes familiarity with building grid-based interfaces and the containment hierarchy in KinomaJS. If you are not familiar with these topics, please refer to the tutorial [The KinomaJS Containment Hierarchy](../containment-hierarchy/containment-hierarchy.md) and the Tech Note [Using Dictionary-Based Constructors for KinomaJS Behaviors](../../tech-notes/using-dictionary-based-constructors-for-kinomajs-behaviors/using-dictionary-based-constructors-for-kinomajs-behaviors.md).
 
-##Behaviors and Events
+## Behaviors and Events
 
 The `behavior` object contains functions corresponding to events triggered by a `content` or `handler` object. A `content` or `handler` object checks whether its behavior (which can be any object) owns or inherits a function property with the name of the event, and if so calls that function, passing itself as the first argument.
 
 The following sections focus on functions related to the behavior of `content` objects.
 
-###Built-In Behavior Functions
+### Built-In Behavior Functions
 
 KinomaJS defines low-level events, such as `onTouchBegan` and `onTouchEnded`, that are useful on a wide range of target devices with touch screens, including Kinoma Create and Android/iOS smartphones. 
 
@@ -18,7 +18,7 @@ Applications and shells can define their own low-level events to support the uni
 
 The following examples use a subset of the built-in behavior functions. See the [*KinomaJS JavaScript Reference*](../../../../../xs6/xsedit/features/documentation/docs/javascript/javascript.md) document for the full lists of events that are triggered by `content` and `handler` objects; they can be found in the "Events" subsection for each object.
 
-####Example 1: Touch
+#### Example 1: Touch
 
 This example makes use of two built-in behavior functions for the `application` object: `onLaunch` and `onTouchEnded`. Open a new application project and put the following code in your `main.js` file.
 
@@ -51,7 +51,7 @@ The video in Figure 1 shows what running this application on the Kinoma Create s
 
 <br>For more examples of using built-in touch functions, see the [`canvas`](https://github.com/Kinoma/KPR-examples/tree/master/canvas) and [`multitouch-picture`](https://github.com/Kinoma/KPR-examples/tree/master/multitouch-picture) sample apps.
 
-####Example 2: Duration
+#### Example 2: Duration
 
 This example makes use of five built-in behavior functions for `container` objects: `onCreate`, `onDisplayed`, `onTimeChanged`, `onFinished`,  and `onTouchEnded`. It demonstrates how to use the clock built into every `content` object. Keep in mind, however, that a content's clock should be used only for animation, not for other periodic events. When a clock is running, the screen is typically updated many times a second.
 
@@ -126,12 +126,12 @@ The video in Figure 2 shows what running this application on the Kinoma Create s
 <br>
 For more examples of using the clock built into `content` objects, see the [`timers`](https://github.com/Kinoma/KPR-examples/tree/master/timers) and [`kangaroo-disco`](https://github.com/Kinoma/KPR-examples/tree/master/kangaroo-disco) sample apps.
 
-###Custom Behavior Functions
+### Custom Behavior Functions
 
 In addition to using the built-in behavior functions, you can also create your own and trigger events that will call them. This is most commonly done using the `delegate`, `bubble`, and `distribute` functions. The next section covers these functions in more detail.
 
 
-##Delegate, Bubble, Distribute
+## Delegate, Bubble, Distribute
 
 When an event is triggered, the application or an application framework usually traverses some portion of the containment hierarchy to identify the contents or containers to receive the event. To help efficiently implement common event propagation patterns, contents have `delegate` and `bubble` functions, and containers additionally have a `distribute` function.
 
@@ -147,7 +147,7 @@ var whiteSkin = new Skin({
 });
 ```
 
-###Delegate
+### Delegate
 
 The `delegate` function takes the name of a function and its parameters and calls the corresponding function of the content's behavior with the content and those parameters.
 
@@ -201,7 +201,7 @@ Because `mediumContainer` is the only active container, it is the only one that 
 
 <iframe width="100%" height="500" src="https://www.youtube.com/embed/Oi9jebCvx2U?rel=0&amp;vq=hd720" frameborder="0" allowfullscreen><a href="https://www.youtube.com/embed/Oi9jebCvx2U?rel=0&amp;vq=hd720">Watch Video</a></iframe>
 
-###Distribute
+### Distribute
 
 The `distribute` function works like the `delegate` function but also calls all the behaviors downward in the containment hierarchy. The order of traversal is depth first.
 
@@ -227,7 +227,7 @@ The video in Figure 4 shows what running the application and clicking `mediumCon
 
 <iframe width="100%" height="500" src="https://www.youtube.com/embed/zkfATafAPqc?rel=0&amp;vq=hd720" frameborder="0" allowfullscreen><a href="https://www.youtube.com/embed/zkfATafAPqc?rel=0&amp;vq=hd720">Watch Video</a></iframe>
 
-###Bubble
+### Bubble
 
 The `bubble` function works like the `delegate` function but also calls all the behaviors upward in the containment hierarchy, from the content to the application.
 
@@ -253,7 +253,7 @@ The video in Figure 5 shows what running the application and clicking `mediumCon
 
 <iframe width="100%" height="500" src="https://www.youtube.com/embed/Flg2mRQvFK0?rel=0&amp;vq=hd720" frameborder="0" allowfullscreen><a href="https://www.youtube.com/embed/Flg2mRQvFK0?rel=0&amp;vq=hd720">Watch Video</a></iframe>
 
-##Where to Go Next
+## Where to Go Next
 
 Now that you know how to embed application logic within your user interface elements and how to trigger events, the next step is to learn how to manage other types of asynchronous application flow, as discussed in the tutorial [Interacting with Web Services Asynchronously](../flow/flow.md). This includes interacting with web services in the background to dynamically populate your UI.
 

@@ -4,7 +4,7 @@ Power can be provided to Kinoma Create from either of the two USB ports or from 
 
 <img alt="" src="img/charging-square.png" class="technoteIllus" >
 
-#Kinoma Create Power and Charging
+# Kinoma Create Power and Charging
 
 **Mike Jennings, QA Program Manager**  
 December 20, 2014
@@ -16,7 +16,7 @@ The only way to charge the battery is by connecting the Micro-USB port to a high
 For the fastest, most predictable results, use the charging system that came with Kinoma Create. However, since your application might require alternative arrangements for powering or charging your device, here are some more detailed specifications.
 
  
-##Charging Details
+## Charging Details
 
 Kinoma Create can run with power from either USB port; however, to operate the device *without charging or depleting the battery*, the charger must provide at least .5A@5V; unpowered USB hubs (hubs that do not come with a power supply of their own) and many PC USB ports are not sufficient.
 
@@ -41,7 +41,7 @@ Figure 1 shows what the Battery app displays to indicate the battery is charging
 ![](img/large-battery-tile.png)
 
 
-##Replacement Batteries
+## Replacement Batteries
 
 Should you need a spare or a replacement, the battery is a 3.7V 2600 mAh standard protected Lithium-ion type 18650 battery. The positive end goes near the USB connectors. (A "+" is screened onto that side of the battery connector.) If it is inserted backward, a red light will illuminate near the battery (see Figure 2). 
 

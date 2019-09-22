@@ -1,4 +1,4 @@
-#Transforming Content at Runtime
+# Transforming Content at Runtime
 
 KinomaJS enables developers to efficiently transform content in various ways at runtime by using the `layer` object, a `container` object that caches its contents in a bitmap. Layers are commonly used by transitions to temporarily cache and animate parts of the containment hierarchy. If you want a container that you can rotate, scale, skew, translate, adjust the opacity of, and so on, you will need to use a layer. In this tutorial you will learn to create `layer` objects and behaviors that change their appearance.
 
@@ -63,7 +63,7 @@ Figure 1 shows what you will see if you run this application on the Kinoma Creat
 
 <iframe width="100%" height="500" src="https://www.youtube.com/embed/Lhcbq-LUFaw?rel=0&amp;vq=hd1080" frameborder="0" allowfullscreen><a href="https://www.youtube.com/embed/Lhcbq-LUFaw?rel=0&amp;vq=hd1080">Watch Video</a></iframe>
 	
-##Example 2: Changing Rotation and Skew
+## Example 2: Changing Rotation and Skew
 
 You can follow the same process with other attributes, such as `rotation` and `skew`. Add these two behaviors to your `main.js` file:
 

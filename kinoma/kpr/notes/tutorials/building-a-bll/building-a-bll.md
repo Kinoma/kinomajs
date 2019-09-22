@@ -1,4 +1,4 @@
-#Building Your Own BLLs
+# Building Your Own BLLs
 
 As discussed in the document [*Using the Pins Module to Interact with Sensors on Kinoma Create*](../../libraries/Pins/create-pins-module/create-pins-module.md), a BLL in KinomaJS is a module that defines the configuration and available methods of a piece of hardware, and there are some BLLs built into the Pins module. The built-in BLLs provide basic functions for all pin types--Digital, Analog, PWM, I<sup>2</sup>C, Serial, Power, and Ground. They enable you to easily communicate with hardware, and they work well for simple scenarios. If you simply want to turn a light on, for example, you can use the built-in Digital BLL rather than create your own.
 
@@ -17,7 +17,7 @@ However, as the functionality of the hardware gets more complex, working with th
 This tutorial will lead you step-by-step through example cases where you would want to write your own sensor module. In addition, a [collection of sample BLLs](https://github.com/lprader/SampleBLLs) for specific sensors are available, along with many [sample projects](https://github.com/Kinoma/KPR-examples).
 
 
-##From Built-In to Custom BLL
+## From Built-In to Custom BLL
 
 In this example, of an analog distance sensor, we need to convert the raw value to the measurement value after reading the analog hardware value. 
 
@@ -42,7 +42,7 @@ Pins.configure({
 
 Eventually, however, burdening the main application with hardware-specific functions becomes cumbersome. At this point we have outgrown the built-in BLL.
 
-###Creating a Separate Module
+### Creating a Separate Module
 
 It is time to break the code out into a module. The next step, then, is to create a module--named, for example, `dxSensor.js`. This will be a custom BLL. 
 
@@ -64,7 +64,7 @@ Pins.configure({
 ...
 ```
 
-###Objects to Export
+### Objects to Export
 
 The module `dxSensor.js` needs the following few basic exports, which are common to BLLs in general.
 
@@ -80,7 +80,7 @@ exports.pins = {
 
 No matter when or where this BLL is used, we want the pin named `range` to have a `type` of `"Analog"`, so it makes sense to simply specify it here. This is also true of the voltage multiplier. The program then only has to specify which pin to configure. Where the properties are identical between `exports.pins` and `Pins.configure`, those specified in `Pins.configure` take precedence.  In this case, the main program is overriding the default `supplyVoltage` value in the BLL.
 
-####`configure`
+#### `configure`
 
 When `Pins.configure` is used, the `configure` function will be called.  
 
@@ -117,7 +117,7 @@ exports.read = function() {
 
 This enables us to eliminate all the conversion from our program (and any other program that uses this BLL) and use the result directly. 
 
-###Tying Up
+### Tying Up
 
 Here is the new `Pins.repeat` from the main program:
 
@@ -132,7 +132,7 @@ This example is relatively trivial; custom BLLs become far more useful when you 
 >**Note:** Custom BLLs actually run on the hardware pins thread, which is separate from the main thread. This can benefit the overall performance of your project when used correctly, but it is recommended that you do not use expensive methods inside a BLL if timing matters. Calling `trace` inside your module repeatedly, for example, is not recommended, and will slow your hardware performance by a few milliseconds every iteration. 
 
 
-##I<sup>2</sup>C Color Sensor
+## I<sup>2</sup>C Color Sensor
 
 The TCS34725 I<sup>2</sup>C color sensor reads and registers reflected light in RGB form. From Adafruit's [data sheet](https://www.adafruit.com/datasheets/TCS34725.pdf) and [example code](https://github.com/adafruit/Adafruit_TCS34725) for this sensor, we can glean the information necessary to write our module for it. 
 

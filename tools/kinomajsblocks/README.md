@@ -129,6 +129,6 @@ If you are running the app locally and want changes to be reflected immediately 
 	$ gcloud app deploy app.yaml index.yaml --project <YOUR-APP-ID-HERE>
 	```
 
-###Notes
+### Notes
 
 `app/blocklycomponent/storage.service.ts` is a custom implementation of the default `storage.js` (which adds cloud storage functionality) available for Blockly applications. This implementation makes the cloud storage more easily accessible to the KinomaJS Blocks application.

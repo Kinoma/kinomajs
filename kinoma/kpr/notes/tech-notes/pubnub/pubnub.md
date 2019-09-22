@@ -5,7 +5,7 @@ This tech note explains how to connect Kinoma applications to the PubNub Data St
 
 <img alt="" src="img/pubnub-logo.png" class="technoteIllus" >
 
-#Realtime Cross-Device Communication with PubNub
+# Realtime Cross-Device Communication with PubNub
 
 **Lizzie Prader**  
 September XX, 2016
@@ -14,7 +14,7 @@ The [PubNub](https://pubnub.com) Data Stream Network is a global network that al
 
 A new JavaScript module for Kinoma Element and an update to the JavaScript module for Kinoma Create are now available, making it possible for developers to easily connect Kinoma devices to the PubNub Data Stream Network. The modules and API reference are available below. Before you can run samples and create applications, follow the steps in the next section to set up a PubNub account.
 
-##Getting started with PubNub
+## Getting started with PubNub
 
 1. Log in to your PubNub account. 
 
@@ -34,7 +34,7 @@ A new JavaScript module for Kinoma Element and an update to the JavaScript modul
 	
 	You may create more than one keyset for a PubNub application. A common use for this is to have a free development/testing keyset and an upgraded production keyset. See the PubNub website for details on paid accounts.
 
-##Download links and sample applications
+## Download links and sample applications
 
 Click the links below to download the PubNub modules for Kinoma Create and Kinoma Element.
 
@@ -48,13 +48,13 @@ In addition, we have several apps available in our [sample repository](https://g
 - The [element-analog-pubnub](https://github.com/Kinoma/KPR-examples/tree/master/element-analogpubnub) sample streams data to a PubNub channel from an analog sensor connected to Kinoma Element. You can view the data by connecting to your channel in the PubNub developer console, or by running the [create-analog-pubnub](https://github.com/Kinoma/KPR-examples/tree/master/create-analog-pubnub) sample on a Kinoma Create simulator or device.
 - The [pubnub-temp](https://github.com/Kinoma/KPR-examples/tree/master/pubnub-temp) sample streams data to a PubNub channel from a [SparkFun TMP102](https://www.sparkfun.com/products/11931) temperature sensor plugged into the back of Kinoma Create. It also includes a simulator BLL so it can be run on the Kinoma Create simulator in Kinoma Code. You can view the data by connecting to your channel in the PubNub developer console.
 
-##API Reference
+## API Reference
 
 > **Note:** This reference assumes familiarity with the [PubNub Data Stream Network service](https://www.pubnub.com/docs) and the [PubNub JavaScript V4 SDK](https://www.pubnub.com/docs/javascript/pubnub-javascript-sdk-v4). For a more gentle introduction, focus on the samples provided above.
 
 The PubNub module implementations for Kinoma Create and Kinoma Element differ slightly, but the API is the same for both platforms. Both provide a subset of the [PubNub JavaScript V4 SDK](https://www.pubnub.com/docs/javascript/pubnub-javascript-sdk-v4): the publish, subscribe, and history features.
 
-###Setup
+### Setup
 
 To connect your application to the PubNub Data Stream Network, save the proper PubNub module to your project with the file name `pubnub.js` and import the PubNub class into your application file.
 
@@ -77,7 +77,7 @@ let pubnub = new PubNub({
 ```	
 <a id="important-notes"></a>
 	
-###Important notes
+### Important notes
 
 The `publish`, `subscribe`, and `history` functions support callbacks with the standard error and data arguments. It is the responsibility of the developer to check for errors.
 
@@ -88,9 +88,9 @@ While callbacks may be used for `subscribe`, **listeners are supported and they 
 A callback is required for `history` and `publish`. A callback or listener is required for `subscribe`. If not provided, the code will break into the debugger.
 
 
-###Functions
+### Functions
 
-####Publish
+#### Publish
 
 `publish(params, callback, scope)`: sends a message to a channel
 
@@ -129,7 +129,7 @@ pubnub.publish({
 });	
 ```
 
-####Subscribe
+#### Subscribe
 
 `subscribe(params, callback, scope)`: establishes a connection to the PubNub Data Stream network and begins listening for messages on a specified channel
 
@@ -198,7 +198,7 @@ pubnub.subscribe({
 
 > **Note:** The sample code above uses listeners instead of callbacks, as recommended. Calling `subscribe` with a callback will only make one request to the channel. If you choose to use callbacks, it is up to you to process errors and data and keep the subscribe loop alive.
 
-####History
+#### History
 
 > **Note:** You must use a channel that supports the Storage/Playback Service for this feature.
 

@@ -1,14 +1,14 @@
-#Adding Pre-made Controls 
+# Adding Pre-made Controls 
 
 Much of the strength of KinomaJS is in its flexibility. The basic tools of drawing containers, labels, skins, and textures can be combined to make arbitrarily complex widgets and UIs. But for rapid prototyping it is often beneficial to work with existing input controls; this tutorial will teach you to use a selection of modules and assets we have created for this purpose. It assumes a basic understanding of how to use Kinoma Code and how to create and customize user interfaces with KinomaJS; if you are not familiar with these topics, please refer to the tutorials on [The KinomaJS Containment Hierarchy](../containment-hierarchy) and [Displaying Images and Media](../images-media).
 
-##Sample Application
+## Sample Application
 
 Start by downloading <a href="../content/controls.zip" download>this sample application</a> and opening it in Kinoma Code. 
 
 In the subsequent sections, we will walk through the process to create the following controls: buttons, checkboxes, radio groups, sliders, switches, and fields. All will use some subset of the modules and assets found in this project. All you will need to change is the application file `main.js`, which is found in the `src` folder.
 
-##Buttons
+## Buttons
 
 The following example builds a single button that traces to the console when tapped. When this application is run, you see the button as shown in Figure 1; the fill color of the button switches from gray to blue when tapped.
 
@@ -53,7 +53,7 @@ There is a lot going on here, but it all builds on things you have already seen 
 - Rather than just instantiate content directly, we make our own custom template. This template (`MyButtonTemplate`) enables us to make multiple instances that share common properties (in this case, `top`, `bottom`, `left`, `right`, a behavior, and a subcontent label). Templates can be dynamically bound to data at instantiation time. Here we use that feature to set the `string` property of the inner `label` object.
 
 
-##Checkboxes
+## Checkboxes
 
 Checkboxes are buttons that toggle between a selected and an unselected state. This example draws three checkboxes with labels (Figure 2) and traces to the console whenever they are selected or unselected. In this sample we add one more syntactical convenience: the ability to specify a behavior definition inline with the definition of a `content` template.
 
@@ -91,7 +91,7 @@ application.add( mainColumn );
 
 ![Checkboxes](./img/checkboxes.gif)
 
-##Radio Groups
+## Radio Groups
 
 Radio groups are collections of radio buttons, in which only one button can be selected at a time. This sample creates a radio group (Figure 3) and traces the name of the selection when it changes.
 
@@ -126,7 +126,7 @@ application.add(mainContainer);
 ![Radio Group](./img/radiobuttons.gif)
 
 
-##Sliders
+## Sliders
 
 Sliders can be used for entering (quasi-)continuous numerical values. There are vertical, horizontal, and logarithmic variants. This example demonstrates using a horizontal slider (Figure 4) and traces out the value selected as it is being changed.
 
@@ -158,7 +158,7 @@ application.add(mainContainer);
 
 ![Slider](./img/slider.gif)
 
-##Switches
+## Switches
 
 Switches are functionally like checkboxes, but with a visual representation of a toggle switch. This example creates an on/off switch (Figure 5) and traces to the console when it is toggled.
 
@@ -192,7 +192,7 @@ application.add(mainContainer);
 
 ![Slider](./img/switch.gif)
 
-##Fields
+## Fields
 
 Fields are editable labels, used for capturing small amounts of text. The following example creates an editable label with hint text instructing the user to tap the field to add text, as shown in Figure 6; when tapped, it brings up the on-device keyboard for input. The keyboard can be closed by tapping on the background container. This example is quite a bit longer, but it nicely pulls together everything we have learned thus far.
 

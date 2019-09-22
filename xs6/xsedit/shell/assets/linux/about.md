@@ -21,7 +21,7 @@
 
 Kinoma Code for Linux, that's what!
 
-####Noteworthy Bug Fixes
+#### Noteworthy Bug Fixes
 
 
 ### Release Notes - Version 1.0b4

@@ -394,7 +394,7 @@ The recommended way to turn off Kinoma Element is to press the power button. Whe
 If Kinoma Element is turned off by removing power, other devices on the network will not receive a notification that Kinoma Element has turned off. They may continue to show Kinoma Element services as available in their user interface. For example, Kinoma Code may continue to show a powered-down Kinoma Element in its device list for several minutes before the mDNS announcement times out.
 
 <a id="api-reference"></a>
-##Kinoma Element API Reference
+## Kinoma Element API Reference
 
 This section describes in detail the modules, objects, and classes that make up the Kinoma Element API.
 
@@ -2335,7 +2335,7 @@ Currently there is both Client and Server implemented. However, in both cases on
 import { CoAP } from 'coap'
 ```
 
-####Examples 
+#### Examples 
 
 A simple CoAP client that connects to the public test server at eclipse.org, and gets a response.
 
@@ -2379,7 +2379,7 @@ Another simple CoAP client that connects to the public test server at eclipse.or
 
 In this example the acknowledgement and error callbacks are set to log their responses. The payload for a POST request must be an arrayBuffer. 
 
-#####Example Server request callback
+##### Example Server request callback
 
 ```
 ...
@@ -2653,7 +2653,7 @@ const Observe = {
 };
 ```
 
-###MQTT module
+### MQTT module
 
 The MQTT module exports the MQTT object. Currently implemented is the Client object, and its behaviors.
 
@@ -2671,9 +2671,9 @@ Quality of service or `qos` is reffered to several times, the meaning is descirb
 | 1     | At least one delivery |
 | 2     | Exactly one delivery  |
 
-####Examples
+#### Examples
  
-#####MQTT Client
+##### MQTT Client
  
 The following creates and connectes an MQTT Client. The `onMQTTClientConnect` behavior is defined below as well. This will help us determine whether the connection was made. Here, we are using the IoT eclipse MQTT testing web service. 
 
@@ -2698,7 +2698,7 @@ client.connect('iot.eclipse.org', 1883, {
 	
 > **Note:** `this` is used to keep the client referenced by the application, and prevent it from be taken away by the element's aggressive garbage collector. 
  
-####Constructor
+#### Constructor
 
 ##### `new MQTT.Client(clientIdentifier, cleanSession)`
 
@@ -2708,7 +2708,7 @@ this.client = new MQTT.Client();
 	
 The parameters for client are optional. The `clientIdentifier` string will be used by the server to distinguish the connection. If supplied along with the boolean `cleanSession` being false, the previous connection will be restored. If not supplied, a randomly generated identifier will be used and a fresh session will be started.
 	
-####Functions
+#### Functions
 
 ##### `connect(host,port,options)`
 
@@ -2741,7 +2741,7 @@ Links the client to a specified topic. `topicFilter` is a string or string array
 
 Unlinks the client to the specified topic(s) and/or filter(s). `topicFilter` is a string or string array. Calling this method will invoke `onMQTTClientUnsubscribe`.
 
-####Behaviors
+#### Behaviors
 
 The following behaviors can be custom defined by adding them to the client behavior object. In all cases `client` is the client data object and `packetID` is the ID of the received MQTT packet.
 

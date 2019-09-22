@@ -53,15 +53,15 @@ Boston, MA 02111-1307 USA
 
 
 <a id="Introduction"></a>
-##Introduction to XS
+## Introduction to XS
 
 XS is a toolkit, consisting of a runtime library and a command-line tool, that is designed for developing standards-based, networked, interactive multimedia applications (GUI-based runtimes) or command-line tools for various devices. Developers define the applications in XML and ECMAScript and build tools or runtimes in C to process and interpret such documents.
 
-###XS Overview
+### XS Overview
 
 By design, XML is "just" a markup language and ECMAScript is "just" a scripting language. XML processors and ECMAScript interpreters—for instance, James Clark’s [expat](http://www.jclark.com/xml/expat.html) and Mozilla’s [JavaScript](http://www.mozilla.org/js/)—expect to be used by tools and runtimes through C calls and callbacks. The tools and runtimes are semantically in charge; they are obviously responsible for determining what works and what does not. In contrast to most XML and ECMAScript libraries, XS was not designed for a specific application or domain; rather, its purpose is to help build tools and runtimes for any desired application or domain.
 
-####Grammars
+#### Grammars
 
 XS enables applications to be defined in XML documents with ECMAScript embedded in the XML, with the ECMAScript invoking functions defined in an XS *grammar*. XS grammars bind XML descriptions, ECMAScript behaviors, and C interfaces.
 
@@ -75,7 +75,7 @@ In addition, an XS grammar can access features of the XS virtual machine that ar
 
 >**Note:** The XS virtual machine extends ECMAScript in other ways, as shown later.
 
-####Building an Application
+#### Building an Application
 
 Figure 1 illustrates how the different parts of XS enter into building an application. The core of `xslib` is of course an XML processor and an ECMAScript interpreter. The `xsc` command (like `yacc` and `antlr`) transforms grammars into C code, data, and interfaces, which are then compiled by `gcc` and linked with C implementations and `xslib` to build applications. There is also a debugger, named `xsbug`.
 
@@ -85,11 +85,11 @@ Figure 1 illustrates how the different parts of XS enter into building an applic
 
 In addition to building applications, XS supports building libraries that can be dynamically linked at runtime.
 
-###XML and ECMAScript Review
+### XML and ECMAScript Review
 
 XML and ECMAScript are well-known standards, but in order to understand XS, it is useful to review some of their basic concepts.
 
-####XML
+#### XML
 
 An XML document is a tree of nodes consisting of elements, attributes, text, and processing instructions (PIs). The document begins with an XML declaration and has one and only one root, which is an element node. An element node has a name and can contain element, attribute, text, and PI nodes. Attribute and PI nodes have a name and contain one text node. In the following example, the root is an element node named `person`, which has an attribute named `xmlns` attached to it and an element node named `fullname` contained within it.
 
@@ -110,7 +110,7 @@ Like all markup languages, XML always has to be transformed into something else 
 		</p>
 	</xsl:template>
 	
-####ECMAScript
+#### ECMAScript
 
 ECMAScript is an object-oriented language for implementing application logic and control. In ECMAScript, common value types include:
 
@@ -142,12 +142,12 @@ The following example defines a function named `P` that becomes a constructor wh
 	i = new P()
 	trace(i.p)  // 0
 
-###Simple Examples
+### Simple Examples
 
 Before moving on to the details about XS, it is helpful to look at some simple examples, starting with an example of invoking a function defined in an ECMAScript object (showing how the object would be defined in an XS grammar in contrast with ECMAScript by itself). Building on that example, two more follow: creating an instance of an object by invoking a constructor, and finally invoking a function that calls native code. The details behind what is shown here are explained in later sections, but these examples provide a context that will make it much easier to understand those details.
 
 <a id="Invoking-Function"></a>
-####Invoking a Function
+#### Invoking a Function
 
 Using only ECMAScript, a simple object, `tax`, can be built as follows:
 
@@ -176,7 +176,7 @@ Whether the object was created using only ECMAScript or using an XS grammar, the
 	var amount = 19.95
 	var total = amount + tax.calculate(amount)
 
-####Invoking a Constructor
+#### Invoking a Constructor
 
 It is often useful to create instances of objects in ECMAScript, by invoking a constructor. In our ongoing example, defining a constructor enables instances of the `tax` object to be created with different tax rates rather than be hard-coded to a single rate.
 
@@ -224,7 +224,7 @@ Finally, here is an example of invoking the constructor in ECMAScript to instant
 	trace("CA tax $" + californiaTax.calculate(amount) + "\n")
 	trace("NH tax $" + newHampshireTax.calculate(amount) + "\n")
 	
-####Calling Native Code
+#### Calling Native Code
 
 Now suppose that the execution of the `tax.calculate` function is too slow. To increase its performance, it will be rewritten in C.
 
@@ -264,7 +264,7 @@ This grammar replaces the ECMAScript implementation of `tax.calculate` shown ear
 	
 The implementation of `tax.calculate` is now in C instead of ECMAScript, but there is no change in how the function is invoked by client code. To client code, there is no detectable difference. Because the implementation of the function is hidden from the caller, the author of a grammar can change the implementation language of any function from ECMAScript to C (or vice versa) at any time during development without disturbing client code.
 
-###Framework
+### Framework
 
 XS builds a set of ECMAScript prototypes from a grammar; these functionally related prototypes form a *framework* that defines the global scope of the application. Elements in the XS grammar define ECMAScript entities in the framework as follows:
 
@@ -279,7 +279,7 @@ XS builds a set of ECMAScript prototypes from a grammar; these functionally rela
 In ECMAScript the hierarchy of prototypes is defined implicitly through constructors, whereas in all other prototype-based languages the hierarchy is defined explicitly; XS allows not only implicit declaration through constructors but also explicit definition of the prototype hierarchy. Adding a `prototype` attribute to an XS `object` element defines the prototype for that object—that is, which object it inherits properties from. By default, all objects in ECMAScript share a common prototype named `Object`.
 
 <a id="Parser-Serializer"></a>
-###Parser and Serializer
+### Parser and Serializer
 
 The ECMAScript standard does not provide support for serializing objects—converting them to a standard form for storing them externally—or (in the other direction) parsing an object’s serialized form to instantiate the object. XS augments the ECMAScript standard by supporting XML as the serialized form for objects and building a parser and a serializer from a grammar: the parser transforms an XML document into ECMAScript instances, and the serializer does the reverse.
 
@@ -294,7 +294,7 @@ In C, there are macros to convert an XML document to an ECMAScript instance and 
 
 These capabilities of XS eliminate the need for most applications to work with XML directly. XML parsing and serialization code is tedious to write and maintain, and can be quite error prone. By using the facilities provided by XS, programmers can more quickly build reliable applications that work with XML documents. Several oversimplified but useful examples follow; details on the various elements they illustrate are provided later in this document.
 
-####A Simple Mapping
+#### A Simple Mapping
 
 The following example shows an XML document along with how the corresponding ECMAScript object and its properties might be defined in XS.
 
@@ -359,7 +359,7 @@ You could serialize the resulting instance to XML as follows:
 ECMAScript instances are serialized recursively from the root to the leaves. When the name of an XS element matches an ECMAScript property, the serializer converts the matched ECMAScript property to an XML node. The result of the serialization in this case would be an XML document semantically equivalent to the one shown earlier (but with `CA` replaced by `NH` if you changed the `state` property).
 
 <a id="Mapping-Between-Different-Structures"></a>
-####Mapping Between Different Structures
+#### Mapping Between Different Structures
 
 The structure of the ECMAScript object does not have to have a one-to-one correspondence with the structure of the XML document. For example, consider the following XML document and XS grammar (which are like those in the preceding section except for adding the person’s title).
 
@@ -396,7 +396,7 @@ The structure of the ECMAScript object does not have to have a one-to-one corres
 	
 In the XML document, the `title` attribute is a child of the `fullname` node, but in the grammar the `fullname` and `title` properties of the ECMAScript object are peers, both properties of the `human` object. If this grammar is used to parse the document, the resulting instance will have the structure specified in the grammar.
 
-####Inheriting Patterns
+#### Inheriting Patterns
 
 Patterns are inherited along the prototype chain, just like properties. Continuing with our ongoing example, suppose an XS grammar defines an object named `educatedHuman` that has the `human` object as its prototype.
 
@@ -430,7 +430,7 @@ This grammar can be used to parse the following XML document, which includes a `
 		</education>
 	</educatedPerson>
 	
-####Mapping Lists to Arrays
+#### Mapping Lists to Arrays
 
 It is common for an XML document to contain a list of elements, which can be parsed to instantiate an `array` object. For example, the following XML document is a start at an address book, consisting of a list of two people.
 
@@ -474,7 +474,7 @@ Given the grammars previously defined for `human` and `educatedHuman`, the follo
 			contents="human" pattern="/addressBook"/>
 	</package>
 	
-####Instantiating Objects with Functions
+#### Instantiating Objects with Functions
 
 Objects instantiated from grammars are ordinary ECMAScript objects, and as such they may contain functions. For example, the following grammar adds a `function` element to the grammar shown in the section [Mapping Between Different Structures](#Mapping-Between-Different-Structures) for the `human` object.
 
@@ -555,11 +555,11 @@ In this example, the `print` function derives solely from the XS grammar; howeve
 		</altOutput>
 	</person>
 	
-###Sandbox
+### Sandbox
 
 Normally, to provide useful features or fixes—for instance, to update an application on a device—part of the distributed code needs to be trusted. The mechanism to secure the distribution of trusted code depends on the platform and usually relies on encryption and signature. However, there is no requirement to have trusted code if the code is executed in a *sandbox*: an environment that is restricted in such a way that it prevents untrusted code from harming the device. The sandbox for XS application scripts includes all the standard features defined in the ECMAScript specification plus additional features as defined and permitted by the XS grammar.
 
-####Framework and Scripts
+#### Framework and Scripts
 
 At the core of `xslib` there is an ECMAScript interpreter: text nodes of XML documents can be scripts to be executed, and there are macros in C to execute a script from a C stream (see the [*XS in C*](../xs-in-c) document for details).
 
@@ -596,7 +596,7 @@ The `xslib` library extends the specification of the `Object` prototype to allow
 			trace("f can be used by scripts")
 	</function>
 	
-####Runtime Properties
+#### Runtime Properties
 
 Since ECMAScript allows the creation of properties at runtime, a script could, with or without intent, create a property that would clash with a property that the framework has made invisible to scripts.
 
@@ -634,7 +634,7 @@ The runtime property named `password` that is created by the script in this exam
 
 There is an equivalent macro in C; see the [*XS in C*](../xs-in-c) document for details.
 
-####Runtime Calls
+#### Runtime Calls
 
 So `xslib` can execute code either outside the sandbox (framework code) or inside the sandbox (script code). Through function or constructor properties, framework code can call script code and vice versa.
 
@@ -660,7 +660,7 @@ The global object `xs` has a `script` property that enables framework code to te
 There is an equivalent macro in C; see the [*XS in C*](../xs-in-c) document for details.
 
 <a id="Packages"></a>
-##Packages
+## Packages
 
 The root element of an XS grammar is the `package` element. The `package` element can contain the other elements listed in Table 1, as described in this section, and property elements, which are discussed in [the next section](#Property-Elements). Complete details on all the elements a grammar may contain can be found in the section [XS Reference](#XS-Reference).
 
@@ -699,7 +699,7 @@ The root element of an XS grammar is the `package` element. The `package` elemen
   </tbody>
 </table>
 
-###Defining Namespaces
+### Defining Namespaces
 
 A package can use the `namespace` element to define namespaces for patterns. The `namespace` element binds a prefix to a URI with its `prefix` and `uri` attributes. In the absence of the `prefix` attribute, the `namespace` element defines the default namespace.
 
@@ -719,7 +719,7 @@ In the following example, the namespace defined by the second `namespace` elemen
 		<!-- animated vector graphics -->
 	</package>
 	
-###Importing Other Packages
+### Importing Other Packages
 
 A package can import another package with the `import` element. An imported package can import another package, and so on, but a package cannot import itself, directly or indirectly.
 
@@ -734,7 +734,7 @@ The `import` element has a `link` attribute whose value is `static` (the default
 		<import href="soap.xs"/>
 	</package>
 	
-###Patching Other Packages
+### Patching Other Packages
 
 A package can use the `patch` element to change an object (specified with the `prototype` attribute) in an imported package. The `patch` element can add, remove, or modify properties. It changes both the framework and the templates used by the parser and the serializer.
 
@@ -766,7 +766,7 @@ In the following example, the property named `a` in the `patch` element is added
 		</patch>
 	</package>
 	
-###Specifying Initialization Code
+### Specifying Initialization Code
 
 Using the `program` element, a package can specify a sequence of ECMAScript instructions or a C function to execute when the package is initialized. The sequence of instructions can be in the package itself or located in a separate file indicated by the `href` attribute. The C function is specified by the `c` attribute.
 
@@ -782,7 +782,7 @@ Using the `program` element, a package can specify a sequence of ECMAScript inst
 		<program c="Wow"/>
 	</package>
 	
-###Defining Build Targets
+### Defining Build Targets
 
 The `target` element, in combination with the `–t` option of `xsc`, allows part of an XS grammar to be included in a build or excluded from a build. It has a `name` attribute that can be a boolean expression with `!`, `&&`, `||`, and parentheses.
 
@@ -800,7 +800,7 @@ The `target` element can contain `patch` and `program` elements, as well as prop
 	</package>
 	
 <a id="Property-Elements"></a>
-##Property Elements
+## Property Elements
 
 In addition to the elements introduced in the preceding section, a `package` element in XS may contain **property elements**, which do the following:
 
@@ -882,7 +882,7 @@ All property elements have the attributes listed in Table 3.
   </tbody>
 </table>
 
-###Format of Examples
+### Format of Examples
 
 In the following discussions of XS property elements (and in the discussions of patterns in [the next section](#Patterns)), examples fall under these headings:
 
@@ -898,7 +898,7 @@ The grammar and XML document are examples of code in XML and ECMAScript. For the
 
 The prototype and instance are provided only to explain what the grammar prototypes and instantiates. They are not examples of code; sometimes they are just comments because ECMAScript has no corresponding instructions or expressions.
 
-###Objects
+### Objects
 
 The `object` element is the main building block of XS. It is the only property element that can contain other property elements.
 
@@ -931,7 +931,7 @@ The `object` element is the main building block of XS. It is the only property e
 		body: { /* proto: envelope.body */ }
 	} 
 
-###Functions and Constructors
+### Functions and Constructors
 
 The `function` element is a property element that prototypes an ECMAScript `function` property and contains the sequence of ECMAScript instructions to execute when the function is called.
 
@@ -989,7 +989,7 @@ In the following example, the `Page` function is a constructor for the `page` ob
 		aPage = new Page("trace('onClick ' + where + ' ' + when)"))
 	</program>
 	
-###Host Objects, Functions, and Constructors
+### Host Objects, Functions, and Constructors
 
 An application that uses `xslib` is a host in ECMAScript terminology. A host object is a special kind of object with data that can be directly accessed only in C. A *host function* is a special kind of function whose implementation is in C rather than ECMAScript, and a *host constructor* is a constructor whose implementation is in C. Host objects, functions, and constructors are used to provide system features to applications. See the [*XS in C*](../xs-in-c) document for details.
 
@@ -1018,7 +1018,7 @@ Similarly, the `function` element prototypes a host function if it has a `c` att
 		/* setTitle: host function */
 	}
 	
-###Getters and Setters
+### Getters and Setters
 
 If the name of a `function` element within a prototype begins with the word `get` or `set`, the `function` element prototypes a getter or a setter. The rest of the `function` element’s name becomes the name of the property. The getter is executed when the property is accessed, and the setter is executed when the property is assigned.
 
@@ -1049,7 +1049,7 @@ If the name of a `function` element within a prototype begins with the word `get
 	trace("width=" + s.width);
 	trace("height=" + s.height);
 	
-###Literal Property Elements
+### Literal Property Elements
 
 This section discusses *literal property elements*: elements that prototype, parse, and serialize ECMAScript literal properties from and to XML text nodes.
 
@@ -1057,7 +1057,7 @@ This section discusses *literal property elements*: elements that prototype, par
  
 >**Note:** A literal property element based on an XS extension to ECMAScript (the chunk object) that enables access to binary data is described in the *XS Chunks* document [on GitHub](https://github.com/kinoma/kinomajs/tree/master/xs/doc).-->
 
-####Value-Type Elements
+#### Value-Type Elements
 
 The value-type elements have a `value` attribute that contains the value of the ECMAScript property prototyped by the element; Table 4 lists these elements and the default values.
 
@@ -1133,7 +1133,7 @@ When the element instantiates an ECMAScript property, the text node of the match
 	
 The serializer calls the `toString` function on the value to convert it to a text node. Nothing is serialized if the literal property is owned by a prototype instead of an instance.
 
-####Custom Element
+#### Custom Element
 
 The `custom` element is a special kind of literal property element. Its `io` attribute contains the name of an `object` property element. The parser calls the `parse` property of the `io` object to convert both the text node of the `value` attribute for the prototyped property and the text node of the matched node for the instantiated property.
 
@@ -1163,7 +1163,7 @@ The `custom` element is a special kind of literal property element. Its `io` att
  
 The serializer calls the `serialize` property of the `io` object to convert the value to a text node. Nothing is serialized if the `custom` property is owned by the prototype instead of an instance.
 
-###Arrays
+### Arrays
 
 The `array` element is a property element that prototypes, parses, and serializes an ECMAScript `array` property from and to an XML element node.
 
@@ -1200,7 +1200,7 @@ The `contents` attribute contains the names of other property elements that will
 	
 To serialize the items of the `array` property, the serializer iterates from 0 to the length of the `array` property. Nothing is serialized if the `array` property is owned by the prototype instead of an instance or if the `array` property is empty. 
 
-###References
+### References
 
 The `reference` element is a property element that prototypes, parses, and serializes any ECMAScript property by reference.
  
@@ -1243,7 +1243,7 @@ The `contents` attribute contains the names of other property elements that will
 		right: { /* proto: speaker */ }
 	}
 	
-###Inheritance and Conformance
+### Inheritance and Conformance
 
 An `object` element can have a `prototype` attribute, which must be the identifier of another `object` element, its prototype.
  
@@ -1304,7 +1304,7 @@ A prototype can inherit from and conform to another prototype, and so on, but a 
 	]
 	
 <a id="Patterns"></a>
-##Patterns
+## Patterns
 
 As described in the section [Parser and Serializer](#Parser-Serializer), patterns in a grammar are used by the parser and serializer to provide a mapping between ECMAScript instances and XML documents. Patterns use a small subset of [XPath](http://www.w3.org/TR/xpath); this subset has been selected to allow you to stream XML documents instead of requiring you to load them in their entirety to access their nodes randomly.
 
@@ -1349,7 +1349,7 @@ Table 5 summarizes the pattern syntax and what each form of pattern would match 
   </tbody>
 </table>
 
-###Root Pattern
+### Root Pattern
 
 The `pattern` attribute matches the root of the XML tree if it starts with slash (`/`). Only `object` elements can have a root pattern.
  
@@ -1383,7 +1383,7 @@ The XS grammar must have an `object` element with a root pattern to match the ro
 
 	{ head: {}, body: {} }
 
-###Element Pattern
+### Element Pattern
 
 The `pattern` attribute matches an element node if it starts with a letter. All property elements can have an element pattern.
 
@@ -1413,7 +1413,7 @@ The `pattern` attribute matches an element node if it starts with a letter. All 
 
 	{ width: 320, height: 240 }
 	
-###Attribute Pattern
+### Attribute Pattern
 
 The `pattern` attribute matches an attribute node if it starts with an at sign (`@`). Only literal property elements can have an attribute pattern.
 
@@ -1447,7 +1447,7 @@ The `pattern` attribute matches an attribute node if it starts with an at sign (
 		},
 	]
 	
-###Processing Instruction (PI) Pattern
+### Processing Instruction (PI) Pattern
 
 The `pattern` attribute matches a PI node if it starts with a question mark (`?`). Only literal property elements can have a PI pattern.
 
@@ -1483,7 +1483,7 @@ The `pattern` attribute matches a PI node if it starts with a question mark (`?`
 		},
 	]
 	
-###Current Pattern
+### Current Pattern
 
 The `pattern` attribute matches the current node if it is a dot (`.`). All property elements can use the current pattern.
 
@@ -1517,7 +1517,7 @@ The current pattern is useful for inserting `object`, `array`, or `reference` el
 
 	{ items: [ "Flore", "Patrick", "Veronique" ] }
 	
-###Nested Pattern
+### Nested Pattern
 
 Element, attribute, and PI patterns can be paths to match nodes further down in the XML tree. These nested patterns are useful for skipping irrelevant nodes.
 
@@ -1549,7 +1549,7 @@ Element, attribute, and PI patterns can be paths to match nodes further down in 
 	{ width: 320, height: 240 }
 
 
-###Empty Pattern
+### Empty Pattern
 
 The `pattern` attribute matches no node if it is empty. All property elements can have an empty pattern.
 
@@ -1593,11 +1593,11 @@ The empty pattern is useful for cancelling an inherited pattern.
 	]
 	
 <a id="XS-Reference"></a>
-##XS Reference
+## XS Reference
 
 This section provides complete details on property names, patterns, and elements in XS, as well as on the `xsc` command.
 
-###Property Names
+### Property Names
 
 Property names are ECMAScript identifiers. They can be used by ECMAScript expressions and instructions in XML documents.
  
@@ -1605,7 +1605,7 @@ Like ECMAScript, XS does not scope identifiers by package. All identifiers share
 
 Nested property names can be referenced in the `contents` and `prototype` attributes with the ECMAScript dot notation.
 
-###Patterns
+### Patterns
 
 Patterns are like paths. If a pattern begins with a slash (`/`), it is an absolute path and is matched from the root; otherwise, it is a relative path and is matched from the current node. A pattern consisting of a dot (`.`) means the current node, and `"foo"` means the element node with the name `foo`.
 
@@ -1615,7 +1615,7 @@ A grammar can define several `object` elements with root patterns that would mat
 
 Property elements with a pattern can be nested or referenced by property elements without a pattern; in that case their pattern is useless.
 
-###XS Elements
+### XS Elements
 
 This section describes (in alphabetical order) all of the XS elements in detail.
 
@@ -1629,11 +1629,11 @@ This section describes (in alphabetical order) all of the XS elements in detail.
 
 >**Note:** The `xs:chunk` element, a literal property element based on an XS extension to ECMAScript that enables access to binary data, is described in the *XS Chunks* document [on GitHub](https://github.com/kinoma/kinomajs/tree/master/xs/doc).-->
 
-####xs:array
+#### xs:array
 
 A property element that prototypes, parses, and serializes an ECMAScript `array` property from and to an element node
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -1673,19 +1673,19 @@ A property element that prototypes, parses, and serializes an ECMAScript `array`
 
 > The pattern of an element node. If the pattern is empty, the property is neither parsed nor serialized.
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None
 
-####xs:boolean
+#### xs:boolean
 
 A property element that prototypes, parses, and serializes an ECMAScript `boolean` property from and to a text node
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -1726,19 +1726,19 @@ A property element that prototypes, parses, and serializes an ECMAScript `boolea
 > The pattern of a node that contains a text node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the text node becomes the value of the property and vice versa.
 
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None
 
-####xs:custom
+#### xs:custom
 
 A property element that prototypes, parses, and serializes an ECMAScript property from and to a text node with custom `parse` and `serialize` functions
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -1784,19 +1784,19 @@ A property element that prototypes, parses, and serializes an ECMAScript propert
 
 > The pattern of a node that contains a text node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the text node becomes the value of the property and vice versa (using the `io` object’s `parse` and `serialize` functions, respectively).
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None
 
-####xs:date
+#### xs:date
 
 A property element that prototypes, parses, and serializes an ECMAScript `date` property from and to a text node
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -1836,19 +1836,19 @@ A property element that prototypes, parses, and serializes an ECMAScript `date` 
 
 > The pattern of a node that contains a text node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the text node becomes the value of the property and vice versa.
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None
 
-####xs:function
+#### xs:function
 
 A property element that prototypes, parses, and serializes an ECMAScript `function` property from and to a text node
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -1900,19 +1900,19 @@ A property element that prototypes, parses, and serializes an ECMAScript `functi
 
 > The pattern of a node that contains a text node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the text node becomes the sequence of ECMAScript instructions to execute when the function is called.
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None if the `c` attribute is present, otherwise the sequence of ECMAScript instructions to execute when the function is called.
 
-####xs:import
+#### xs:import
 
 Imports a package
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -1926,19 +1926,19 @@ Imports a package
 
 > If the `link` attribute is `static`, code is generated to define the properties of the package. If the `link` attribute is `dynamic`, no code is generated; the properties are assumed to be available at runtime.
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None
 
-####xs:namespace
+#### xs:namespace
 
 Defines a namespace for patterns in the package
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -1952,19 +1952,19 @@ Defines a namespace for patterns in the package
 
 > The prefix to bind to the URI for patterns in the package. If the `prefix` attribute is empty, the `xs:namespace` element defines the default namespace.
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None
 
-####xs:null
+#### xs:null
 
 A property element that prototypes an ECMAScript `null` property
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -1992,19 +1992,19 @@ A property element that prototypes an ECMAScript `null` property
 
 > A boolean value that determines whether the property can be used by scripts; if `false`, the property can only be used by grammars.
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None
 
-####xs:number
+#### xs:number
 
 A property element that prototypes, parses, and serializes an ECMAScript `number` property from and to a text node
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2044,19 +2044,19 @@ A property element that prototypes, parses, and serializes an ECMAScript `number
 
 > The pattern of a node that contains a text node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the text node becomes the value of the property and vice versa.
 
-#####Elements
+##### Elements
 
 None 
 
-#####Text
+##### Text
 
 None
 
-####xs:object
+#### xs:object
 
 A property element that prototypes, parses, and serializes an ECMAScript `object` property from and to an element node
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2102,35 +2102,35 @@ A property element that prototypes, parses, and serializes an ECMAScript `object
 
 > The pattern of an element node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the element node becomes the value of the property and vice versa.
 
-#####Elements
+##### Elements
 
 Zero or more `property`, `program`, or `target` elements
 
-#####Text
+##### Text
 
 None
 
-####xs:package
+#### xs:package
 
 The root element of an XS grammar
 
-#####Attributes
+##### Attributes
 
 None
 
-#####Elements
+##### Elements
 
 Zero or more `import`, `namespace`, `patch`, `program`, `target`, and property elements
 
-#####Text
+##### Text
 
 None
 
-####xs:patch
+#### xs:patch
 
 Contains property elements to modify, remove from, or add to an object in an imported package
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2138,19 +2138,19 @@ Contains property elements to modify, remove from, or add to an object in an imp
 
 > The name of the `object` element to change.
 
-#####Elements
+##### Elements
 
 Zero or more property elements, which are compared by name with the elements of the `prototype` object and consequently patch the imported object as follows: For names that match, the property definition in the `xs:patch` element replaces the definition in the `prototype` object; use the `undefined` element to remove a property. Property elements with names that do not match names in the `prototype` object are added to the `prototype` object.
 
-#####Text
+##### Text
 
 None
 
-####xs:program
+#### xs:program
 
 Specifies a sequence of ECMAScript instructions or a C function to execute when the package is initialized
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2164,19 +2164,19 @@ Specifies a sequence of ECMAScript instructions or a C function to execute when 
 
 > The name of a C function to execute. If this attribute is present, the `xs:program` element must be an empty element without the `href` attribute.
 
-#####Elements
+##### Elements
 
 None
 
-#####Text
+##### Text
 
 None if the `c` or `href` attribute is present, otherwise the sequence of ECMAScript instructions to execute
 
-####xs:reference
+#### xs:reference
 
 A property element that prototypes, parses, and serializes any ECMAScript property by reference
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2216,19 +2216,19 @@ A property element that prototypes, parses, and serializes any ECMAScript proper
 
 > The pattern of an element node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the element node becomes the value of the property and vice versa.
 
-#####Elements
+##### Elements
 
 None
 
-#####Text
+##### Text
 
 None
 
-####xs:regexp
+#### xs:regexp
 
 A property element that prototypes, parses, and serializes an ECMAScript `regexp` property from and to a text node
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2268,19 +2268,19 @@ A property element that prototypes, parses, and serializes an ECMAScript `regexp
 
 > The pattern of a node that contains a text node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the text node becomes the value of the property and vice versa.
 
-#####Elements
+##### Elements
 
 None
 
-#####Text
+##### Text
 
 None
 
-####xs:string
+#### xs:string
 
 A property element that prototypes, parses, and serializes an ECMAScript `string` property from and to a text node
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2320,19 +2320,19 @@ A property element that prototypes, parses, and serializes an ECMAScript `string
 
 > The pattern of a node that contains a text node. If the pattern is empty, the property is neither parsed nor serialized; otherwise, the text node becomes the value of the property and vice versa.
 
-#####Elements
+##### Elements
 
 None
 
-#####Text
+##### Text
 
 None
 
-####xs:target
+#### xs:target
 
 Includes the elements it contains in the grammar if its `name` attribute evaluates to true
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2340,19 +2340,19 @@ Includes the elements it contains in the grammar if its `name` attribute evaluat
 
 > A boolean expression with names, `!`, `&&`, `||`, and parentheses. Names that match a `–t` option of `xsc` are true.
 
-#####Elements
+##### Elements
 
 Zero or more `patch`, `program`, and property elements.
 
-#####Text
+##### Text
 
 None
 
-####xs:undefined
+#### xs:undefined
 
 A property element that prototypes an ECMAScript `undefined` property
 
-#####Attributes
+##### Attributes
 
 | | | |
 | --- | --- | --- |
@@ -2380,15 +2380,15 @@ A property element that prototypes an ECMAScript `undefined` property
 
 > A boolean value that determines whether the property can be used by scripts; if `false`, the property can only be used by grammars.
 
-#####Elements
+##### Elements
 
 None
 
-#####Text
+##### Text
 
 None
 
-####xsc Command
+#### xsc Command
 
 The following is a summary of the parameters and options of the `xsc` command. Italics denote variables in the syntax.
 

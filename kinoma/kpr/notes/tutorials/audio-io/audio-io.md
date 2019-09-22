@@ -1,9 +1,9 @@
-#Audio Input and Output
+# Audio Input and Output
 
 Kinoma Create has a built-in speaker and microphone, making it easy to add sound effects to projects. (You can read a thorough description of the full capabilities in the Tech Note [Playing Audio with KinomaJS](../../tech-notes/playing-audio-kinomajs/playing-audio-kinomajs.md).) This tutorial will teach you how to create a Kinoma Create application with a simple UI that uses both the microphone and the speaker. It will enable you to record audio for up to 30 seconds and then play it back.
 
 
-##Configuration
+## Configuration
 
 As with any other sensor, you can configure the Kinoma Create's speaker and microphone using the Pins module. There is a built-in Audio module, but for this sample we create a custom BLL to help simplify the main program. 
 
@@ -20,7 +20,7 @@ Pins.configure({
 ...
 ```
 
-##Creating the Audio BLL
+## Creating the Audio BLL
 
 Add a BLL named `audioBLL.js` to your `src` folder and copy the following code into it.
 
@@ -74,7 +74,7 @@ exports.close = function(){
 
 You can see the built-in Audio methods being called here. The `read` method is used to store the sound data from the microphone; this data can then be written to the speaker. 
 
-##Defining the User Interface
+## Defining the User Interface
 
 The UI is fairly simple. The **Play** button plays the last recorded sound clip. Using the `onTouchEnded` method, the app keeps track of the `isPlaying` state and plays or stops the speaker accordingly. The message path `/pauseForDuration` ensures that the state of the button is switched upon the clip's completion. 
 
@@ -114,7 +114,7 @@ onTouchEnded: function(container) {
 ...
 ```
 
-##Running the App
+## Running the App
 
 The video in Figure 1 shows the full app running on Kinoma Create.
 

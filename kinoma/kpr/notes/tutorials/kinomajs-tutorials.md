@@ -3,7 +3,7 @@
 This collection of tutorials is designed to teach you about KinomaJS, our framework for developing JavaScript applications that run on Kinoma Create, iOS, Android, and desktops. If you are just getting started with KinomaJS, we suggest completing at least the four basic tutorials.
 --> 
 
-#KinomaJS Tutorials
+# KinomaJS Tutorials
 
 This collection of tutorials is designed to teach you about KinomaJS, our framework for developing JavaScript applications that run on Kinoma Create, iOS, Android, and desktops. If you are just getting started with KinomaJS, we suggest completing the four basic tutorials before moving on to those that address more advanced topics. 
 
@@ -11,7 +11,7 @@ These tutorials are intended as a complement to the primary [KinomaJS documentat
 
 >**Note:** These tutorials do not apply to scripting for Kinoma Element, which does not use KinomaJS.
 
-##Basic Tutorials
+## Basic Tutorials
 
 * [The KinomaJS Containment Hierarchy](containment-hierarchy/) -- Teaches the basics of creating and styling user interface elements in KinomaJS.
 
@@ -21,7 +21,7 @@ These tutorials are intended as a complement to the primary [KinomaJS documentat
 
 * [Using Modules for Screens and Transitions](multiple-screens-modules-transitions/) -- Shows how KinomaJS applications can be broken down into a collection of modules and how those modules are included in the main application; uses an example of breaking a multi-screen app into individual modules and shows how to include transitions between screens.
 
-##Advanced UI Options
+## Advanced UI Options
 
 * [Transforming Content at Runtime](layers/layers/md) -- Describes how to use the `layer` object to dynamically control the appearance of content. Features include opacity, rotation, and scaling.
 
@@ -30,7 +30,7 @@ These tutorials are intended as a complement to the primary [KinomaJS documentat
 * [Displaying Images and Media](images-media/images-media.md) -- Shows how to incorporate images, sound, and video into a KinomaJS application. Loading of both local and remote media is covered.
 
 
-##Working with Sensors and Audio
+## Working with Sensors and Audio
 
 * [Building Your Own BLLs](building-a-bll/building-a-bll.md) -- The Pins module can interact with sensors through either built-in or custom BLLs; this tutorial defines and describes the rules for building your own custom BLLs.
 

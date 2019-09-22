@@ -14,7 +14,7 @@
 |     See the License for the specific language governing permissions and
 |     limitations under the License.
 -->
-##MARVELL LIMITED USE LICENSE AGREEMENT FOR KINOMA CREATE, KINOMA ELEMENT & KINOMA CODE SDK, KINOMA STUDIO SDK
+## MARVELL LIMITED USE LICENSE AGREEMENT FOR KINOMA CREATE, KINOMA ELEMENT & KINOMA CODE SDK, KINOMA STUDIO SDK
 
 The use of the Deliverables, as defined herein, is exclusively governed by the terms of this limited use license agreement (the “Agreement”), dated and effective as of the Effective Date set forth below, by and between MARVELL INTERNATIONAL LTD., a Bermuda corporation with its principal place of business at Canon’s Court, 22 Victoria Street, Hamilton, HM 12, Bermuda, and its Kinoma, Inc. Affiliate (collectively “Marvell”) and LICENSEE.  By downloading, installing or using the Deliverables, Licensee accepts the terms of this Agreement.  If Licensee does not agree to all of the terms of this Agreement, then Licensee must not download, install or use the Deliverables.  Licensee and Marvell are each a “party” and, collectively, are the “parties” to this Agreement. BY SELECTING THE “ACCEPT” OPTION, LICENSEE SHALL BE DEEMED TO HAVE ACCEPTED AND AGREED TO ALL THE TERMS AND CONDITIONS OF THIS AGREEMENT (“ACCEPTANCE”), AND THIS AGREEMENT SHALL BECOME EFFECTIVE UPON THE DATE OF SUCH ACCEPTANCE BY LICENSEE (THE “EFFECTIVE DATE”).  FOR AVOIDANCE OF DOUBT, IT SHALL NOT BE A REQUIREMENT TO THE EFFECTIVENESS AND ENFORCEABILITY OF THIS AGREEMENT THAT MARVELL EXECUTE THIS AGREEMENT.
 

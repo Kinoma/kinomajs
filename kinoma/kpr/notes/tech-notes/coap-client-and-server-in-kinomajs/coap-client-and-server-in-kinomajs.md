@@ -5,7 +5,7 @@ Use of network connections by Internet of Things devices is increasingly common.
 
 <img alt="" src="img/coap-client-and-server-in-kinomajs_icon.png" class="technoteIllus" >
 
-#CoAP Client and Server in KinomaJS
+# CoAP Client and Server in KinomaJS
 
 **Basuke Suzuki**  
 April 13, 2015
@@ -22,7 +22,7 @@ On top of that, HTTP adds its own header overhead. According to Google in its [i
 
 Also, HTTP headers are composed of just text, and the cost of parsing such human-readable text cannot be ignored for small devices. Further, many HTTP headers are not required for communication and so are ignored after the cost of parsing has been paid.
  
-##UDP-Based Reliable Protocol
+## UDP-Based Reliable Protocol
 
 UDP is a simple transport layer, fast and lightweight. It is a connectionless protocol: it simply sends a data packet to the destination without needing a connection handshake. Data can be sent at any time, without the need to establish a connection first. These are the reasons why CoAP chose UDP for its transport layer.
 
@@ -32,7 +32,7 @@ Because CoAP uses UDP for network transport, delivery of packets is unreliable b
 
 As in HTTP, a CoAP message has headers. Unlike in HTTP, the CoAP headers are a compact binary format representing a minimum subset of HTTP’s large header specification. Because of the binary format, parsing to read required headers is easy.
  
-##CoAP and HTTP Similarities
+## CoAP and HTTP Similarities
 
 From the programmer's perspective, CoAP and HTTP are very similar. Today HTTP is the basis of web APIs, which generally use REST-style communication.
 
@@ -42,7 +42,7 @@ From the programmer's perspective, CoAP and HTTP are very similar. Today HTTP is
 
 * With a URI, a `GET`, `POST`, `PUT`, or `DELETE` method can be used in CoAP communication, just as in HTTP.
  
-##KinomaJS Implementation of CoAP Client and Server
+## KinomaJS Implementation of CoAP Client and Server
 
 A CoAP client and server are included in Kinoma Create and Kinoma Studio starting with Kinoma Software 7.0.4. 
 
@@ -71,7 +71,7 @@ server.start();
 	
 If the IP address of the Kinoma Create device running the code above is 10.85.20.144, the URL of the function above on this CoAP server is `coap://10.85.20.144/hello`.
  
-##Client Side: Configuring a Request
+## Client Side: Configuring a Request
 
 To make a request confirmable, set the `confirmable` property to `true`.
 
@@ -127,7 +127,7 @@ The content format can be set to the following values in CoAP (or to their alias
   </table>
 
  
-##Client Side: Handling a Response Event
+## Client Side: Handling a Response Event
 
 To receive the response from a server, the `request` object can have event handlers as properties.
 
@@ -168,7 +168,7 @@ request.onAck = function() {
 };
 ```
  
-##Server Side: Handling a Request and Sending a Response
+## Server Side: Handling a Request and Sending a Response
 
 On the server side, request information is available from the `session` object. The following properties are available. All are read-only.
 
@@ -212,7 +212,7 @@ session.send(response);
 	
 Do not forget to do this; no response is sent automatically.
  
-##CoAP Response Codes
+## CoAP Response Codes
 
 The preceding section showed how to set the response code in the response. The response code is similar to an HTTP status code, with small differences. The most noticeable difference is that it is not one digit, but two: *class* and *detail.*
 
@@ -232,7 +232,7 @@ Details differ from class to class. These are some examples of *class.detail* co
 
 Some CoAP response codes are familiar from HTTP, while others are CoAP-specific. See the [official CoAP response code specification](https://tools.ietf.org/html/rfc7252#section-5.9) for more information.
  
-##The Observe Extension: Multiple Responses from the Server
+## The Observe Extension: Multiple Responses from the Server
 
 The Observe extension is an important standard extension for CoAP that provides publish and subscribe-style communication. With the Observe extension, a CoAP client can send a registration request and, once it is accepted by the server, the client will receive multiple notification responses, based on the semantics of the server endpoint (see Figure 1). The notifications can be once every five minutes, immediately after the value changes, or as fast as possible, like continuous real-time notification. The contents of a notification can be anything. The basic structure of the notification is similar to a regular response.
 
@@ -284,7 +284,7 @@ As described earlier, there can be more than one observer, so loop with the sess
 
 Sending back a response is the same as regular response handling.
  
-##CoAP Server and Client Examples
+## CoAP Server and Client Examples
 
 Two KinomaJS sample applications are available on GitHub. These examples, [`coap-server`](https://github.com/Kinoma/KPR-examples/tree/master/coap-server) and [`coap-client`](https://github.com/Kinoma/KPR-examples/tree/master/coap-client), share color information over Wi-Fi. The server is the central point of the color information; clients get that information from the server and send the new color to the server.
 

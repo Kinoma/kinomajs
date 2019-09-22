@@ -5,14 +5,14 @@ The Net Scanner application on Kinoma Create is a utility that shows you devices
 
 <img alt="" src="img/net-scanner_icon.png" class="technoteIllus" >
 
-#Net Scanner
+# Net Scanner
 
 **Peter Hoddie**   
 December 10, 2014
 
 A fundamental aspect of building new Internet of Things devices is establishing connections between devices on your network, so they can work together. Net Scanner helps you develop those applications by showing you all the devices and services that your Kinoma Create can see. That eliminates the guesswork of wondering whether your application software is properly displaying the devices it has discovered, and whether it is properly interacting with the KinomaJS discovery API.
 
-##About the Protocols 
+## About the Protocols 
 
 SSDP is the more established of the two discovery protocols, first introduced in 1999 in an [RFC](http://tools.ietf.org/html/draft-cai-ssdp-v1-00) from Microsoft, and later integrated into the [UPnP](http://upnp.org) home networking standard. SSDP is supported by a wide range of devices, including televisions, Windows PCs, media servers, network routers, network cameras, and printers.
 
@@ -22,7 +22,7 @@ Some devices, particularly network printers, support both SSDP and Zeroconf disc
 
 There is no consensus as to whether Zeroconf of SSDP is the superior protocol. Both are widely used, so Kinoma Create supports both to help your software discover the device services you want your projects to work with.
 
-##Using Net Scanner 
+## Using Net Scanner 
 
 When you first launch Net Scanner, it sends discovery requests out on the Wi-Fi network your Kinoma Create is connected to. While scanning, Kinoma Create displays a spinner (Figure 1). Typically this spinner is visible for less than a second.
 
@@ -52,7 +52,7 @@ In the example in Figure 4, the Zeroconf service discovered an HTTP server servi
 
 Both SSDP and Zeroconf protocols cache remote discovery results to minimize network traffic. In some situations, the cache can become out of date; for example, when a previously discovered device crashes, it cannot notify other devices that it is leaving the network. When this happens, stale devices may appear in the Net Scanner results. The cache entries will time out after a period of time (up to 30 minutes, for UPnP devices).
 
-##Sample Code
+## Sample Code
 Having explored the services available on your Wi-Fi network using Net Scanner, you are probably inspired to support SSDP and Zeroconf in your projects. KinomaJS has support for SSDP and Zeroconf, both for discovering existing services and for advertising the services of your project running on Kinoma Create. Among the [KinomaJS samples](https://github.com/Kinoma/KPR-examples/) available are:
 
 - [`discovery-client`](https://github.com/Kinoma/KPR-examples/tree/master/discovery-client) and [`discovery-server`](https://github.com/Kinoma/KPR-examples/tree/master/discovery-server) show a simple client-server pair communicating using the KinomaJS application sharing feature. Using Net Scanner, you can see that the discovery server advertises its presence using SSDP.

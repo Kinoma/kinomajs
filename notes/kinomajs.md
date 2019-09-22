@@ -1,4 +1,4 @@
-#Navigating the KinomaJS Application Framework Source Code and Documentation
+# Navigating the KinomaJS Application Framework Source Code and Documentation
 
 <p align="center"> <img src="http://kinoma.com/media/press-images/img/KinomaJS-sm.jpg" height="200" alt=""/></p>
 
@@ -8,11 +8,11 @@ The source code for the KinomaJS application framework is contained in [kinomajs
 
 ***
 
-##Extensions
+## Extensions
 
 The [extensions](../kinoma/kpr/extensions) folder contains the source code for KinomaJS features related to network connectivity, including Wi-Fi configuration and a variety of network protocols.
 
-###Network Protocols
+### Network Protocols
 
 KinomaJS has its own implementations of the following network protocols. Links in the **Protocol** column lead to the source code. The samples are part of our collection of [KinomaJS sample apps](https://github.com/Kinoma/KPR-examples).
 
@@ -27,7 +27,7 @@ KinomaJS has its own implementations of the following network protocols. Links i
 
 ***
 
-##Libraries
+## Libraries
 
 The [libraries](../kinoma/kpr/libraries) folder contains several JavaScript libraries. Some are built-in to the platform, others must be added to the build path. The table below provides a description of each and links to the corresponding source code, documentation, and (where applicable) to samples that showcase them from our collection of [KinomaJS sample apps](https://github.com/Kinoma/KPR-examples).
 
@@ -44,11 +44,11 @@ The [libraries](../kinoma/kpr/libraries) folder contains several JavaScript libr
 
 ***
 
-##Projects
+## Projects
 
 The [projects](../kinoma/kpr/projects) folder contains tools built using the KinomaJS platform, including the Kinoma Create and Kinoma Element launchers.
 
-###Kinoma Create
+### Kinoma Create
 
 The [Kinoma Create subfolder](../kinoma/kpr/projects/create) includes:
 
@@ -56,7 +56,7 @@ The [Kinoma Create subfolder](../kinoma/kpr/projects/create) includes:
 - The source code of the [Pins simulators](../kinoma/kpr/projects/create/shell/simulator) used when apps using built-in BLLs are run on the Kinoma Create simulator.
 - Source code for the [shells](../kinoma/kpr/projects/create/shell) that host the Kinoma Create software in simulation and on the device.
 
-###Kinoma Element
+### Kinoma Element
 
 The [Kinoma Element subfolder](../kinoma/kpr/projects/element) includes:
 
@@ -66,13 +66,13 @@ The [Kinoma Element subfolder](../kinoma/kpr/projects/element) includes:
 
 ***
 
-##Sources
+## Sources
 
 The [sources](../kinoma/kpr/sources) folder contains the C code that implements the KinomaJS application framework; in other words, it contains the native implementation of the JavaScript objects that KinomaJS applications and shells interact with. 
 
 ***
 
-##Notes
+## Notes
 
 The [tech-notes](../kinoma/kpr/notes/tech-notes) folder contains additional documentation on miscellaneous topics that may be of interest to developers:
 

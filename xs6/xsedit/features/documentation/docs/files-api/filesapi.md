@@ -3,21 +3,21 @@
 This document summarizes and illustrates the KinomaJS Files API, which enables applications to access the host file system to read and write files, iterate through directories, rename files, and more.
 -->
 
-#Accessing Files from KinomaJS
+# Accessing Files from KinomaJS
 
 The KinomaJS Files API provides easy, platform-independent access to the host file system, enabling applications to read and write files, iterate through directories, rename files, and more. This document summarizes and illustrates the functions and properties used in performing these operations. They are all accessed from the global `Files` object.
 
 >**Note:** The [`files-buffers`](https://github.com/Kinoma/KPR-examples/tree/master/files-buffers) sample app also demonstrates these operations.
 
-##Background
+## Background
 
-###Pathnames
+### Pathnames
 
 Pathnames in KinomaJS use the [file URI scheme](https://en.wikipedia.org/wiki/File_URI_scheme) for both files and directories. 
 
 Pathnames corresponding to directories must include a trailing slash, as in `file://path/to/directory/`. If a pathname does not include a trailing slash, it corresponds to a file, as in `file://path/to/file.txt`.
 
-###Predefined Directories
+### Predefined Directories
 
 The `Files` object enables access to predefined directories on the host file system. These directories contain specific types of files and are accessible through the following properties:
 
@@ -43,7 +43,7 @@ var text = "Hello world";
 Files.writeText(uri, text);
 ```
 
-##Reading and Writing Files
+## Reading and Writing Files
 
 The functions available through the `Files` object can be used to read and write a variety of data types, often eliminating the need for the application to convert the data after reading or before writing. Unless indicated otherwise, the functions that write will overwrite any existing file.
 
@@ -151,7 +151,7 @@ html.appendChild(body);
 Files.writeXML(uri, document);
 ```
 
-##Directory and File Utilities
+## Directory and File Utilities
 
 The `Files` object also provides a number of common file and directory utility functions.
 
@@ -231,7 +231,7 @@ if (info.type != Files.fileType)
 trace("photo.jpg file size is " + info.size + " bytes and was created on " + new Date(info.created));
 ```
 
-##Directory Iterator
+## Directory Iterator
 
 Finally, the `Files` object provides functions for iterating through directories. 
 

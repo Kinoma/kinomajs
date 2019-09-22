@@ -1,4 +1,4 @@
-###Toolbox
+### Toolbox
 
 ![ui-screen. block](img/toolbox.png)
   
@@ -7,13 +7,13 @@ This Menu lets you take and drag blocks from it to your workspace.
 Statement blocks stack on top of each other, and determine order of execution. Value blocks plug into other blocks, and assign values to variables.
 
 
-###Shadow Blocks
+### Shadow Blocks
 
 ![shadow blocks](img/shadow-blocks.png)
 
 You may see value blocks that are shadowed out. These are simply default values for the corresponding blocks. By altering them, they become "in focus", and are moveable.
 
-###KinomaJS UI Blocks
+### KinomaJS UI Blocks
 **Screen Block**
 
 ![ui-screen block](img/ui-screen.png)
@@ -56,7 +56,7 @@ Used to change an element’s property value.
 
 Gets the property value from an element.
 
-###KinomaJS Pins Blocks
+### KinomaJS Pins Blocks
 
 **Pin Config Block**
 
@@ -82,7 +82,7 @@ The name of the read pin is the first value input, repeating will read forever, 
 
 The name of the read pin is the first value input, the second is the value to write. To write to a digital out pin for example, 1 is on, and 0 is off. 
 
-###KinomaJS Time Blocks
+### KinomaJS Time Blocks
 
 **Interval Block**
 
@@ -122,7 +122,7 @@ Retrieves the current time, and subtracts the time recorded when the clock block
 
 **Using the timers block code in Kinoma Studio:** The timer functions use a non-native module in KinomaJS. Download it <a href="timers.js" download>here</a>. Include the module file in your project to use the setTimeInterval/setTimeOut functions in your project.
 
-###KinomaJS Sound Blocks
+### KinomaJS Sound Blocks
 
 **Play Sound Block**
 
@@ -146,7 +146,7 @@ If you're copying code to studio, and want to use the sound block sound files, y
 * <a href="sounds/sheep.wav" download>Sheep</a>
 * <a href="sounds/yay.wav" download>Hooray</a>
 
-###KinomaJS Advanced Blocks
+### KinomaJS Advanced Blocks
 
 **Server Block (WebSocket)**
 
@@ -166,7 +166,7 @@ Add a function name to be “published”.
 
 Open a WebSocket connection between two devices. Then calls a function made available from one device, from another.
 
-###Tips for using KinomaJS Blocks
+### Tips for using KinomaJS Blocks
 
 **Uses the latest Kinoma Create and Kinoma Studio software:** KinomaJS Blocks uses Kinoma’s implementation of JavaScript 6th Edition, released late October 2015. A [Kinoma Create](../../../create) Software Update with ES6 support is available [here](http://forum.kinoma.com/discussion/502/kinoma-software-update-october-15-2015#latest). [Kinoma Studio](../../studio) has also been updated to support ES6.
 

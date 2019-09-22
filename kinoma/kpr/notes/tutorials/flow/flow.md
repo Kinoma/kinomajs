@@ -1,4 +1,4 @@
-#Interacting with Web Services Asynchronously
+# Interacting with Web Services Asynchronously
 
 If you have background tasks to complete (such as a lengthy computation or waiting for a response from a web service), it is important that you execute them [asynchronously](http://www.i-programmer.info/programming/theory/6040-what-is-asynchronous-programming.html) to avoid locking up the user interface and the rest of your app during execution. The mechanisms for doing this in KinomaJS are *messages* and *handlers.*
  
@@ -8,7 +8,7 @@ If you have background tasks to complete (such as a lengthy computation or waiti
 
 For more information on application flow, see the section on flow in the [*KinomaJS Overview*](../../../../../xs6/xsedit/features/documentation/docs/overview/overview.md) document.
 
-##Messages
+## Messages
 
 Applications use messages to communicate with each other, with the shell, and with internet services. KinomaJS messages have the structure of HTTP messages: URL, request headers, request body, response headers, and response body. Messages are always asynchronous, delivering their response through events.
 
@@ -18,7 +18,7 @@ Applications running on separate devices can use messages to communicate with ea
 
 > **Note:** More detailed information about messages can be found in the [*KinomaJS Overview*](../../../../../xs6/xsedit/features/documentation/docs/overview/overview.md) and [*KinomaJS JavaScript Reference*](../../../../../xs6/xsedit/features/documentation/docs/javascript/javascript.md) documents.
 
-###Promises
+### Promises
 
 [*Promises*](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise), one of the many exciting JavaScript 6th Edition (ES6) updates, are designed to avoid what is referred to as [callback hell](https://www.quora.com/What-is-callback-hell). Before KinomaJS was updated to use ES6, only contents and handlers could invoke messages, receiving the message result in the `onComplete` event of their behavior.
 
@@ -73,7 +73,7 @@ message.invoke(Message.JSON).then(json => {
 });
 ```
 	
-###Example: Interacting with Web Services and Modifying the UI Programmatically 
+### Example: Interacting with Web Services and Modifying the UI Programmatically 
 
 Here we will call the JSON Test [IP Address API](http://www.jsontest.com/#ip) and [Date & Time API](http://www.jsontest.com/#date) and display the results on the screen. There are certainly better ways to get the date and time in JavaScript, but the point here is to work with web services.
 
@@ -124,7 +124,7 @@ The final result will look something like what is shown in Figure 1.
 
 ![IP and time](img/ipandtime.jpg)
 	
-##Handlers
+## Handlers
 
 Handlers receive and respond to messages. A handler is bound to a path. When a message is sent using the path that a handler is bound to, that handler's `onInvoke` function is called asynchronously. 
 
@@ -161,7 +161,7 @@ new MessageWithObject("/saySomethingAndWait", "Hello!").invoke();
 The argument of `Handler.prototype.wait` is the time (in milliseconds) that the handler should wait before triggering its `onComplete` event. The message invoking the handler is suspended while it waits, and is resumed when the time has elapsed.
 
 
-##Where to Go Next
+## Where to Go Next
 
 Now that you have learned about asynchronous application flow in KinomaJS, the next step is to learn how to break applications up into modules. The next tutorial, [Using Modules for Screens and Transitions](../multiple-screens-modules-transitions/multiple-screens-modules-transitions.md), covers this as well as transitions between multiple screens in a KinomaJS app.
 

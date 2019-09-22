@@ -3,7 +3,7 @@
 This document is a detailed reference for the objects in the KinomaJS JavaScript (ECMAScript) API.
 -->
 
-#KinomaJS JavaScript Reference
+# KinomaJS JavaScript Reference
 
 ## About This Document
 
@@ -519,7 +519,7 @@ Instances are sealed and volatile.
 
 > A 2D rendering context, an object that conforms to the `CanvasRenderingContext2D` interface except that the `image` parameter of the `createPattern` and `drawImage` functions must be a `canvas`, `picture`, or `texture` instance
 
-####Events
+#### Events
 
 Same as for `content` object (see [Events](#content-object-events) in the section [Content Object](#content-object))
 
@@ -609,7 +609,7 @@ Same as for `container` object (see [Events](#container-object-events) in the se
 The `container` object is a `content` object that can contain other `content` objects. In a container, `content` objects are stored in a doubly linked list. The `content` objects can also be accessed by index or by name using JavaScript bracket notation.
 
 <a id="container-object-coordinates"></a>
-####Coordinates
+#### Coordinates
 
 The measured width of a `container` object is the maximum horizontal extent of its contents.
 
@@ -920,7 +920,7 @@ Swaps the specified `content` objects in this container
 
 <a id="container-object-events"></a>
 
-####Events
+#### Events
 
 Same as for `content` object (see [Events](#content-object-events) in the section [Content Object](#content-object)), plus:
 
@@ -1484,7 +1484,7 @@ When the specified time has elapsed, this content triggers the `onComplete` even
 >This content's global position. If this content is unbound, the getters return `undefined` and the setters are ignored.
 
 <a id="content-object-events"></a>
-####Events
+#### Events
 
 The following standard events are triggered by `content` objects. Applications and shells can also trigger custom events using the `bubble`, `delegate`, `distribute`, `firstThat`, and `lastThat` functions.
 
@@ -1706,7 +1706,7 @@ Applications and shells assign effects to modify the appearance of images associ
 
 The created instance applies no effects and so does not modify the image. Use the properties of `Effect.prototype` to configure the result.
 
-####Prototype Description
+#### Prototype Description
 
 Prototype inherits from `Object.prototype`.
 
@@ -2084,7 +2084,7 @@ Redirects the invoking `message` object
 
 When the specified time has elapsed, this handler triggers the `onComplete` event. The message invoking this handler is suspended, and is resumed when the time has elapsed.
 
-####Events
+#### Events
 
 The following standard events are triggered by `handler` objects. Applications and shells can also trigger custom events using the `bubble`, `delegate`, `distribute`, `firstThat`, and `lastThat` functions.
 
@@ -3630,7 +3630,7 @@ Loads the image referenced by the specified URL into this picture. Loading an im
 
 > This picture's URL. Setting this URL loads the image referenced by the URL into this picture; setting it to `null` unloads this picture.
 
-####Events
+#### Events
 
 Same as for `content` object (see [Events](#content-object-events) in the section [Content Object](#content-object)), plus:
 

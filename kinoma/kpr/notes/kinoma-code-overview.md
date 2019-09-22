@@ -3,7 +3,7 @@
 Kinoma Code is an IDE that integrates a JavaScript editor and debugger with several features specific to Kinoma devices. Kinoma Code itself is mostly developed in JavaScript and is based on KinomaJS.
 -->
 
-#Kinoma Code Overview
+# Kinoma Code Overview
 
 <!--UI issue #110351 logged to change orange DOCUMENTS tile to FILES.-->
 
@@ -179,10 +179,10 @@ Selecting **Preferences** from the **Kinoma Code** menu displays (in the view ar
 
 ![Kinoma Code Preferences](img/prefs-default-state.png)
 
-###DEVICES
+### DEVICES
 As shown in Figure 17, the DEVICES preference category expands into the items described below, all related to the devices list in the Devices, Projects, Debugger, and Samples activities. A switch next to each of these items (which similarly expand) indicates the state of the items within: switched to the left indicates that all the items within are off, to the right indicates that all the items are on, and in the middle indicates mixed states among the items. Operating this switch affects all the items within.
 
-####Discovery
+#### Discovery
 The Discovery preferences control what devices will appear in the devices list when they are found on the local network (see Figure 18).
 
 **Figure 18.** Discovery Preferences under DEVICES
@@ -191,14 +191,14 @@ The Discovery preferences control what devices will appear in the devices list w
 
 For a device to appear in the devices list, it must be switched on (to the right) in these preferences, must be connected to the same local network as the computer running Kinoma Code, and must be running a KinomaJS "debug shell" application. Kinoma-branded devices run a debug shell at startup by default. Other devices in the devices list can run the "embed shell" debug shell to wirelessly run and debug KinomaJS applications using Kinoma Code. The embed shell is available as part of the KinomaJS open source release on GitHub.
 
-####Serial Console
+#### Serial Console
 The Serial Console preferences (Figure 19) enable or disable serial console access to devices connected to the computer via USB. Switching a device off (to the left) will prevent its serial connection from appearing in the devices list.
 
 **Figure 19.** Serial Console Preferences under DEVICES
 
 ![Kinoma Code Preferences](img/devices-serialconsole.png)
 
-####Simulators
+#### Simulators
 
 The Simulators preferences (Figure 20) control what device simulators appear in the devices list when they are found on the local host or the local network and also let you integrate custom-built simulators with Kinoma Code. Switching a device off (to the left) will prevent its serial connection from appearing in the devices list. 
 
@@ -212,7 +212,7 @@ Each preference displays the name of the simulator that will be launched when yo
 
 ![Kinoma Code Preferences](img/devices-simulators-locate.png)
 
-####Beta Program
+#### Beta Program
 The Beta Program preferences (Figure 22) allow you to update Kinoma devices with beta (pre-release) firmware. Switching these preferences on (to the right) is generally not recommended; enable them only if there is a specific feature in development that you have agreed to test. Pre-release builds are rarely announced on the Kinoma Forums, do not always come with release notes, and never come with any guarantees of reliability or stability.
 
 **Figure 22.** Beta Program Preferences under DEVICES
@@ -221,7 +221,7 @@ The Beta Program preferences (Figure 22) allow you to update Kinoma devices with
 
 Turning the Beta Program preference on enables access to the latest beta version of the Kinoma Create or Kinoma Element device firmware. Whenever the firmware on a device is not the latest version--that is, the latest beta or release version, depending on whether this preference is set or not--an **UPDATE** notification appears in the Settings app for that device (see [Figure 7](#device-tiles)); hovering there causes an **Apply** button to appear, which you can click to apply the update. If you are running beta firmware and want to revert to the latest release version, turn the Beta Program preference off and the **UPDATE** button will then appear in the Settings app.
 
-###PROJECTS
+### PROJECTS
 
 <!--UI issue #110353 logged to change Folder to Directory in all preferences.-->
 
@@ -239,7 +239,7 @@ Hovering over the Projects Folder item will reveal a **Locate** button that enab
 
 If there are already KinomaJS projects in the new directory, they will appear in the projects list displayed by the Projects activity.
 
-###DEBUGGER
+### DEBUGGER
 The DEBUGGER preference category expands to two items (Figure 25) that enable you to select a directory containing the KinomaJS open source release and the preferred port to use for debugging wirelessly. Hovering over the first item, KinomaJS Folder, will reveal a **Locate** button that lets you select a directory containing the KinomaJS open source release. The Kinoma Code debugger will then be able to display source code from KinomaJS when KinomaJS applications cause a break in core code.
 
 **Figure 25.** Hovering to Reveal Locate Button for KinomaJS Folder
@@ -254,7 +254,7 @@ Use the **Locate** button to select the root directory of the KinomaJS open sour
 
 The Port Number item shows the default port to be used for debugging wirelessly; if that port conflicts with something on the local network, you can choose a different port number here (enter the new number and then click the **Set** button that appears).
 
-###SAMPLES
+### SAMPLES
 The SAMPLES item expands to a preference that determines where applications downloaded using the Samples activity will be located. The Samples Folder preference (Figure 27) displays the current directory where sample applications should be downloaded. 
 
 **Figure 27.** Samples Folder Preference under SAMPLES

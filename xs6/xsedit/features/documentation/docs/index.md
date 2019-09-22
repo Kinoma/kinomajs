@@ -1,11 +1,11 @@
 <!-- This is the text (excluding cross-reference links) displayed by Kinoma Documentation Overview in Kinoma Code's Documentation activity. 
 -->
 
-#Kinoma Documentation Overview
+# Kinoma Documentation Overview
 
 A tool for developing applications for Kinoma Element and Kinoma Create, Kinoma Code includes documentation for both devices. Here are descriptions and links for  comprehensive documents, Tech Notes, and other helpful resources.
 
-##Documents
+## Documents
 
 ###[Programmer's Guide to Kinoma Element](./element/)
 For developers working on Kinoma Element, this document introduces the programming model along with other important information about developing JavaScript software on a resource-constrained device. In addition to guidance, it provides reference details for the modules, objects, and classes that make up the Kinoma Element API, and for the Kinoma Element command-line interface available over Telnet and USB. 
@@ -37,7 +37,7 @@ This is the same as the document described above, but for Kinoma Element.
 ###[Using the Pins Module to Interact with Sensors on Kinoma Element](./element-pins-module/)
 Applications can configure and interact with off-the-shelf sensors on Kinoma Element using JavaScript modules called BLLs. The Pins module provides an API for communicating with BLLs, as this document demonstrates.
 
-##Tech Notes
+## Tech Notes
 
 ###[Introducing KinomaJS Dictionary-Based Constructors and Templates](./technotes/introducing-kinomajs-dictionary-based-constructors-and-templates/)
 This Tech Note introduces how to use dictionary-based constructors and templates to build KinomaJS `content`, `container`, `skin`, and `style` objects. Using dictionaries helps simplify the coding of KinomaJS applications in JavaScript, and templates provide mechanisms similar to those provided by XML elements and attributes in a KinomaJS XML document. 
@@ -57,22 +57,22 @@ Most IoT devices work together with a mobile app, enabling the user to monitor, 
 ###[Pins Simulators](./technotes/pins-simulators/)
 This Tech Note explains how to build your own pins simulators, both data-driven and fully custom. Pins simulators enable you to develop your Kinoma Create application entirely on your computer by simulating the inputs and outputs of one or more hardware modules.
 
-##Other Resources
+## Other Resources
 These other resources are available for learning about building software for Kinoma Element and Kinoma Create. 
 
-###KinomaTV YouTube Channel 
+### KinomaTV YouTube Channel 
 The KinomaTV channel on YouTube contains tutorials, news, and webcasts about Kinoma  products and technology. 
 
-###Kinoma Website 
+### Kinoma Website 
 The Develop page of the Kinoma website is the jumping-off point for all Kinoma development resources, including projects to build, tutorials to learn from, and the complete set of documentation and Tech Notes. 
 
-###Kinoma Forums 
+### Kinoma Forums 
 Developers can use the Kinoma Forums (divided into topics such as Kinoma Element and Kinoma Code) to ask and answer questions and discuss development issues related to Kinoma hardware and software. The Kinoma engineering team regularly monitors the Kinoma Forums and responds directly to questions. 
 
-###Open Source 
+### Open Source 
 The source code to KinomaJS and much of the software built into Kinoma Element are available as open source. The KinomaJS repository on GitHub contains the latest code; the Kinoma Element source code is in the `xs6/sources/mc` directory. 
 
-###Hardware Design Files 
+### Hardware Design Files 
 <!--From CR to KO: Please move link in the following to be behind the text "circuit boards"-->
 
 The hardware design files for the Kinoma Create circuit boards (PCB, BOM) and case are available as open source. The hardware design files for Kinoma Element are also available.

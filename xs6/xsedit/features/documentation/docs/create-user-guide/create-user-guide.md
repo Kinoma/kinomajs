@@ -193,7 +193,7 @@ If you connect via the Mini-USB port, you can access the serial console. [FTDI d
 The front and back hardware pins are introduced here; for details on coding with these pins, see the document [_Programming with Hardware Pins for Kinoma Create_](../pins/).
 
 
-###Front Pins
+### Front Pins
 
 The 16 pins on the front-facing header can be targeted by the Front Pins app to support Digital, Analog In, and I<sup>2</sup>C connections. Power can be supplied at 3.3 or 5 volts. Input pins will handle up to 3.3V. The front pins are designed to conveniently fit readily available sensors mounted on breakout boards.
 
@@ -204,7 +204,7 @@ To access the front pins, press up on the sensor cover with your thumbs while ho
 ![](img/front-pins.png)
 
 
-###Back Pins
+### Back Pins
 
 The 50 pins on the back header are accessible behind the rear access panel, as shown earlier under [About Kinoma Create](#about-kinoma-create). These pins have dedicated functionality to support Digital, Analog Input, PWM, I<sup>2</sup>C, and Serial connections. Power can be supplied at 3.3 or 5 volts. Input pins will handle up to 3.3V.
 

@@ -1,10 +1,10 @@
-#Displaying Images and Media
+# Displaying Images and Media
 
 KinomaJS includes many options for displaying images and media within your application. Both local images and those hosted on the web can be displayed as *textures* on a *skin* or as their own *picture* contents. *Media* can be streamed from the web or played from local sources.
 
 This tutorial shows you how to incorporate images, sound, and video into your KinomaJS application. It covers loading of both local and remote media.
 
-##Texture
+## Texture
 
 The `texture` object is an asset that references an image file. A `texture` object is typically referenced by a `skin` object, enabling you to create skins that use images to fill the background of the `content` object whose appearance they define. 
 
@@ -46,7 +46,7 @@ var mainCon = new Content({
 application.add(mainCon);
 ```
 
-###States and Variants
+### States and Variants
 
 It is often convenient to store several icons or other user interface elements in a single image. This prevents you from having to reference many similar images in the same application. *States* and *variants* enable you to reference different sections of the same image.
 
@@ -158,7 +158,7 @@ The video in Figure 4 shows this example running on the Kinoma Create simulator.
 
 <iframe width="800" height="500" src="https://www.youtube.com/embed/RVef1twIALU?rel=0&amp;vq=hd1080" frameborder="0" allowfullscreen><a href="https://www.youtube.com/embed/RVef1twIALU?rel=0&amp;vq=hd1080">Watch Video</a></iframe>
 
-##Pictures
+## Pictures
 
 The `picture` object is a `content` object that displays images referenced by a URL. You can use the standard `file`, `http`, or `https` scheme.
 
@@ -177,7 +177,7 @@ kinomaLogo.opacity = 0.5;
 
 Refer to [Transforming Content at Runtime](../layers/layers.md) for more details on adjusting different attributes, or the section on the `picture` object in the [*KinomaJS Javascript Reference*](../../../../../xs6/xsedit/features/documentation/docs/javascript/javascript.md) document for the complete list of editable attributes.
 
-##Media
+## Media
 
 The `media` object is a `content` object that plays an audio or video stream; for audio, it can also display the album art, if any. The stream is referenced by a URL, which commonly uses the `file`, `http`, or `https` scheme.
 

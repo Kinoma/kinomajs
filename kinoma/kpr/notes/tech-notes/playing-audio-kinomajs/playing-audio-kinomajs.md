@@ -5,7 +5,7 @@ There are three different ways to play audio in KinomaJS, each appropriate for a
 
 <img alt="" src="img/playing-audio-kinomajs_icon.png" class="technoteIllus" >
 
-#Playing Audio with KinomaJS
+# Playing Audio with KinomaJS
 
 **Peter Hoddie**  
 April 3, 2015
@@ -14,7 +14,7 @@ There are three different ways to play audio in KinomaJS, each appropriate for a
 
 Kinoma Create has a built-in speaker, making it easy to add sound effects to projects. In a recent hackathon, over a third of the projects incorporated audio to deliver a more complete user experience. By providing three ways to play audio, KinomaJS accommodates the many different ways that audio can be used in an application. 
 
-##Choosing an Audio Playback API
+## Choosing an Audio Playback API
 
 KinomaJS offers several different APIs to play back audio, so developers are sometimes unsure which API to select for a specific application. The following points summarize the characteristics of each audio API.
 
@@ -45,7 +45,7 @@ To play the following
 use the [audio output hardware pin](#audio-pin), a very low-level audio API that allows you to implement your own audio synthesis algorithms.
 
 <a id="sound-object"></a>
-##Sound Object
+## Sound Object
 
 The simplest playback method is the KinomaJS `sound` object, which is designed to play short sounds in response to user interactions. The constructor of the `sound` object takes the URL of a sound file. The sound file can be in any format supported by KinomaJS on the host device, which includes MP3, M4A, and WAVE on Kinoma Create. Once the `sound` object has been created, you can play it.
 
@@ -79,7 +79,7 @@ Sound.volume = Sound.volume / 2;   // reduce volume by half
 The [`sound`](https://github.com/Kinoma/KPR-examples/tree/master/sound) sample application uses the KinomaJS `sound` object to play the shutter sound for a camera. The [`kprSound.c`](https://github.com/Kinoma/kinomajs/blob/master/kinoma/kpr/sources/kprSound.c) source code that implements the KinomaJS `sound` object is part of the KinomaJS repository.
 
 <a id="media-object"></a>
-##Media Object
+## Media Object
 
 The `media` object is the media player in KinomaJS. It plays video and audio, both from a file and streaming from the network. The `media` object is designed to play long-form content, such as songs and movies. A `media` object is always contained within the KinomaJS user interface containment hierarchy (as described in the [*KinomaJS Overview*](../../../../../xs6/xsedit/features/documentation/docs/overview/overview.md) document), which determines how it renders. 
 
@@ -140,7 +140,7 @@ The `media` object API contains a significant number of functions, all of which 
 The [`kprMedia.c`](https://github.com/Kinoma/kinomajs/blob/master/kinoma/kpr/sources/kprMedia.c) source code that implements the KinomaJS `media` object is part of the KinomaJS repository.
 
 <a id="audio-pin"></a>
-##Audio Output Hardware Pin
+## Audio Output Hardware Pin
 
 Playing audio with the audio output hardware pin is the most flexible and challenging way to play sound in KinomaJS. This pin enables applications to play uncompressed audio samples in real time. The application uses an algorithm of its choosing to determine the content of the audio samples. There may be no external audio asset files at all. Generating audio samples in real time, synthesizing audio, is a specialized field requiring knowledge of audio algorithms and code optimization. Performance is a critical concern when audio is synthesized in real time, as there will be gaps and pops in the audio if the synthesis is too slow. 
 

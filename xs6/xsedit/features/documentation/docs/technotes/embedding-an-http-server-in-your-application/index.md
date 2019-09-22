@@ -5,7 +5,7 @@ It is often necessary for an Internet of Things device to include an HTTP server
 
 <img alt="" src="img/embedding-an-http-server-in-your-application_icon.png" class="technoteIllus" >
 
-#Embedding an HTTP Server in Your Application
+# Embedding an HTTP Server in Your Application
 
 **Alain Soquet, Software Architect**  
 April 16, 2015
